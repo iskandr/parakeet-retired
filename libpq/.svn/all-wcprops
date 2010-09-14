@@ -1,0 +1,131 @@
+K 25
+svn:wc:ra_dav:version-url
+V 39
+/parallelq/!svn/ver/412/translate/libpq
+END
+multi_index_reduce_tester.c
+K 25
+svn:wc:ra_dav:version-url
+V 67
+/parallelq/!svn/ver/326/translate/libpq/multi_index_reduce_tester.c
+END
+minall.cu
+K 25
+svn:wc:ra_dav:version-url
+V 49
+/parallelq/!svn/ver/284/translate/libpq/minall.cu
+END
+minall_kernel.cu
+K 25
+svn:wc:ra_dav:version-url
+V 56
+/parallelq/!svn/ver/326/translate/libpq/minall_kernel.cu
+END
+minall_tester.c
+K 25
+svn:wc:ra_dav:version-url
+V 55
+/parallelq/!svn/ver/284/translate/libpq/minall_tester.c
+END
+kmeans.cu
+K 25
+svn:wc:ra_dav:version-url
+V 49
+/parallelq/!svn/ver/326/translate/libpq/kmeans.cu
+END
+kmeans_tester.c
+K 25
+svn:wc:ra_dav:version-url
+V 55
+/parallelq/!svn/ver/275/translate/libpq/kmeans_tester.c
+END
+each.h
+K 25
+svn:wc:ra_dav:version-url
+V 46
+/parallelq/!svn/ver/275/translate/libpq/each.h
+END
+tester.c
+K 25
+svn:wc:ra_dav:version-url
+V 48
+/parallelq/!svn/ver/220/translate/libpq/tester.c
+END
+multi_index_kernel.cu
+K 25
+svn:wc:ra_dav:version-url
+V 61
+/parallelq/!svn/ver/326/translate/libpq/multi_index_kernel.cu
+END
+pqlib.h
+K 25
+svn:wc:ra_dav:version-url
+V 47
+/parallelq/!svn/ver/216/translate/libpq/pqlib.h
+END
+minall.h
+K 25
+svn:wc:ra_dav:version-url
+V 48
+/parallelq/!svn/ver/275/translate/libpq/minall.h
+END
+add.ptx
+K 25
+svn:wc:ra_dav:version-url
+V 47
+/parallelq/!svn/ver/326/translate/libpq/add.ptx
+END
+each.cu
+K 25
+svn:wc:ra_dav:version-url
+V 47
+/parallelq/!svn/ver/379/translate/libpq/each.cu
+END
+each_tester.c
+K 25
+svn:wc:ra_dav:version-url
+V 53
+/parallelq/!svn/ver/379/translate/libpq/each_tester.c
+END
+libpq_stubs.c
+K 25
+svn:wc:ra_dav:version-url
+V 53
+/parallelq/!svn/ver/412/translate/libpq/libpq_stubs.c
+END
+timing.c
+K 25
+svn:wc:ra_dav:version-url
+V 48
+/parallelq/!svn/ver/159/translate/libpq/timing.c
+END
+pqlib.cu
+K 25
+svn:wc:ra_dav:version-url
+V 48
+/parallelq/!svn/ver/384/translate/libpq/pqlib.cu
+END
+cuda_stubs.c
+K 25
+svn:wc:ra_dav:version-url
+V 52
+/parallelq/!svn/ver/411/translate/libpq/cuda_stubs.c
+END
+Makefile
+K 25
+svn:wc:ra_dav:version-url
+V 48
+/parallelq/!svn/ver/411/translate/libpq/Makefile
+END
+reduce.cu
+K 25
+svn:wc:ra_dav:version-url
+V 49
+/parallelq/!svn/ver/285/translate/libpq/reduce.cu
+END
+multi_index_reduce.cu
+K 25
+svn:wc:ra_dav:version-url
+V 61
+/parallelq/!svn/ver/326/translate/libpq/multi_index_reduce.cu
+END

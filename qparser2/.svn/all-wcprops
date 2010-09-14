@@ -1,0 +1,47 @@
+K 25
+svn:wc:ra_dav:version-url
+V 42
+/parallelq/!svn/ver/408/translate/qparser2
+END
+build
+K 25
+svn:wc:ra_dav:version-url
+V 48
+/parallelq/!svn/ver/408/translate/qparser2/build
+END
+QLexer.mll
+K 25
+svn:wc:ra_dav:version-url
+V 53
+/parallelq/!svn/ver/408/translate/qparser2/QLexer.mll
+END
+parser.ml
+K 25
+svn:wc:ra_dav:version-url
+V 52
+/parallelq/!svn/ver/407/translate/qparser2/parser.ml
+END
+.project
+K 25
+svn:wc:ra_dav:version-url
+V 51
+/parallelq/!svn/ver/398/translate/qparser2/.project
+END
+.paths
+K 25
+svn:wc:ra_dav:version-url
+V 49
+/parallelq/!svn/ver/398/translate/qparser2/.paths
+END
+QParser.mly
+K 25
+svn:wc:ra_dav:version-url
+V 54
+/parallelq/!svn/ver/408/translate/qparser2/QParser.mly
+END
+QSyntax.ml
+K 25
+svn:wc:ra_dav:version-url
+V 53
+/parallelq/!svn/ver/408/translate/qparser2/QSyntax.ml
+END

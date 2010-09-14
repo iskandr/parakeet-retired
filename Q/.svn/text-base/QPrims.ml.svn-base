@@ -1,0 +1,66 @@
+open Base 
+open AST
+open Prim
+	
+let prim_hash =  Hashtbl.from_list [
+			"+", Scalar Add;
+			"-", Scalar Sub; 
+			"%", Scalar Div;
+			"*", Scalar Mult; 
+			"mod", Scalar Mod; 
+			"|", Scalar Max;
+			"&", Scalar Min; 
+			"xexp", Scalar Pow; 
+			"xlog", Scalar Log;
+			
+			"=", Scalar Eq; 
+			"<>", Scalar Neq; 
+			"<", Scalar Lt; 
+			"<=", Scalar Lte;
+			">", Scalar Gt; 
+			">=", Scalar Gte; 
+			
+			"sqrt", Scalar Sqrt;
+			"log", Scalar Ln;   
+			"not", Scalar Not; 
+			"neg", Scalar Neg; 
+			"signum", Scalar Sign; 
+			"reciprocal", Scalar Reciprocal;
+			"floor", Scalar Floor; 
+			"ceiling", Scalar Ceil;
+			"abs", Scalar Abs;  
+      "exp", Scalar Exp; 
+			
+      "??", Scalar Select;
+      
+			"'", Array Map; 
+			"/:", Array EachLeft; 
+			"\\:", Array EachRight;
+			"each", Array Map; 
+			"/:\\:", Array AllPairs;
+			"\\:/:", Array AllPairsRight;
+			"\\", Array Scan;
+      "/", Array Reduce; 
+      
+      "enlist", Array Enlist; 
+       
+			"til", Array Til;
+      ",", Array Concat; 
+      (* the actual Q syntax is ?, but QSyntax_to_AST rewrites this *) 
+      
+
+      (* the degree of overloading in this language makes me want to 
+         live in a cave and never use a computer again 
+      *)       
+      "?", Q_Op Q_Rand; 	
+
+      "0:", Q_Op Q_WriteOrLoadText;
+      "1:", Q_Op Q_WriteOrLoadBinary;
+      "$", Q_Op Q_Dollar
+		]	
+		
+let prim_or_var str =
+	if Hashtbl.mem prim_hash str 
+	then Prim (Hashtbl.find prim_hash str)
+	else Var str   
+ 

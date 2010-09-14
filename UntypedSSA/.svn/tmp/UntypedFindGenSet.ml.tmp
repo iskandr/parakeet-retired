@@ -1,0 +1,9 @@
+open Base 
+open UntypedSSA 
+
+let find_gens = object 
+    inherit [ID.t PSet.t] UntypedAnalysis.base_analysis 
+    method stmt env = function Set(id, _) -> PSet.add id env | _ -> env
+end
+
+let block_gens block = UntypedAnalysis.eval_block find_gens PSet.empty block

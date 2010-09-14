@@ -1,0 +1,85 @@
+printf "\n---Cleaning previous build---\n";
+ocamlbuild -clean
+
+cd CQInterface
+make clean
+cd ..
+
+cd OCAMLInterface
+make clean
+cd ..
+
+printf "\n---Building LibPQ---\n";
+cd libpq
+make clean 
+make
+cd ..
+
+# Build parameters
+
+DIRS=Base,Ptx,GPU,Q,ResourceManager,extlib,Tests,AST,ANF,Imp,UntypedSSA,CQInterface,Dump,SSA
+LIBS=unix,str,bigarray 
+OBJS="CQInterface/QType.o CQInterface/Debug.o Init.o Callbacks.o"
+LINKER_FLAGS="-ccopt $PQ_PATH/libpq_stubs.o, \
+ -ccopt $PQ_PATH/cuda_stubs.o, \
+ -ccopt -L/usr/local/cuda/lib/ \
+ -ccopt -L/usr/lib/nvidia-current \
+ -ccopt -lcuda \
+ -ccopt -lcudart \
+ -ccopt $PQ_PATH/../OCAMLInterface/ocaml_interface.a"
+OCAMLPP="-pp camlp4o -ppflag pa_macro.cmo"
+
+SUFFIX=
+TARGET="preprocess.native"
+PPFLAGS=
+MAKEFLAGS=
+FINALTARGET=
+
+if [ "prof" == "$1" ]; then
+  SUFFIX=".p"
+  MAKEFLAGS="PROF=1"
+  FINALTARGET="Time.p.native"
+fi
+if [ "debug" == "$1" ]; then
+  PPFLAGS="-ppflag -DDEBUG"
+  MAKEFLAGS="DEBUG=1"
+fi
+
+printf "\n---Building OCAML Interface---\n"
+cd OCAMLInterface;
+make $MAKEFLAGS;
+cd ..
+
+if [  "tests!" == "$1" ]; then 
+  printf "\n---Building tests---\n";
+  ocamlbuild Tests/tests.native -no-hygiene -Is $DIRS $OBJS \
+    -libs $LIBS -lflags "$LINKER_FLAGS" -ocamlyacc menhir -yaccflag --infer;
+
+  printf "\n---Running tests---\n";
+ _build/Tests/tests.native;
+else
+  printf "\n---Building CUDA/Q---\n";
+
+  ocamlbuild $OCAMLPP $PPFLAGS -Is $DIRS -no-hygiene \
+    "Q/QSyntax"${SUFFIX}".cmxa" 
+
+  if [ -n TARGET ]; then
+    ocamlbuild $TARGET $OCAMLPP $PPFLAGS -no-hygiene -Is $DIRS $OBJS \
+      -libs $LIBS -lflags "$LINKER_FLAGS" -ocamlyacc menhir
+  fi
+
+  ocamlbuild $OCAMLPP $PPFLAGS -Is $DIRS -no-hygiene -ocamlyacc menhir \
+    "Callbacks"${SUFFIX}".cmx"
+
+  cd CQInterface;
+  make $MAKEFLAGS;
+  mv *.o ../_build;
+  mv cinterface.so ../_build;
+  cd ..
+
+  if [ -n FINALTARGET ]; then
+    ocamlbuild $OCAMLPP $PPFLAGS $FINALTARGET -Is $DIRS $OBJS \
+      -libs $LIBS -lflags "$LINKER_FLAGS" -ocamlyacc menhir
+  fi
+fi
+

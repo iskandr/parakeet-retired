@@ -1,0 +1,35 @@
+K 25
+svn:wc:ra_dav:version-url
+V 35
+/parallelq/!svn/ver/414/translate/Q
+END
+QPrims.ml
+K 25
+svn:wc:ra_dav:version-url
+V 45
+/parallelq/!svn/ver/386/translate/Q/QPrims.ml
+END
+QLexer.mll
+K 25
+svn:wc:ra_dav:version-url
+V 46
+/parallelq/!svn/ver/410/translate/Q/QLexer.mll
+END
+QSyntax_to_AST.ml
+K 25
+svn:wc:ra_dav:version-url
+V 53
+/parallelq/!svn/ver/414/translate/Q/QSyntax_to_AST.ml
+END
+QParser.mly
+K 25
+svn:wc:ra_dav:version-url
+V 47
+/parallelq/!svn/ver/408/translate/Q/QParser.mly
+END
+QSyntax.ml
+K 25
+svn:wc:ra_dav:version-url
+V 46
+/parallelq/!svn/ver/408/translate/Q/QSyntax.ml
+END

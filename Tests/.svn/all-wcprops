@@ -1,0 +1,59 @@
+K 25
+svn:wc:ra_dav:version-url
+V 39
+/parallelq/!svn/ver/365/translate/Tests
+END
+Test.mli
+K 25
+svn:wc:ra_dav:version-url
+V 48
+/parallelq/!svn/ver/282/translate/Tests/Test.mli
+END
+test_PSet.ml
+K 25
+svn:wc:ra_dav:version-url
+V 52
+/parallelq/!svn/ver/282/translate/Tests/test_PSet.ml
+END
+test_Array.ml
+K 25
+svn:wc:ra_dav:version-url
+V 53
+/parallelq/!svn/ver/282/translate/Tests/test_Array.ml
+END
+Test.ml
+K 25
+svn:wc:ra_dav:version-url
+V 47
+/parallelq/!svn/ver/282/translate/Tests/Test.ml
+END
+test_MapFusion.ml
+K 25
+svn:wc:ra_dav:version-url
+V 57
+/parallelq/!svn/ver/340/translate/Tests/test_MapFusion.ml
+END
+test_OptimizeDfg.ml
+K 25
+svn:wc:ra_dav:version-url
+V 59
+/parallelq/!svn/ver/304/translate/Tests/test_OptimizeDfg.ml
+END
+tests.ml
+K 25
+svn:wc:ra_dav:version-url
+V 48
+/parallelq/!svn/ver/304/translate/Tests/tests.ml
+END
+test_DataflowGraph.ml
+K 25
+svn:wc:ra_dav:version-url
+V 61
+/parallelq/!svn/ver/293/translate/Tests/test_DataflowGraph.ml
+END
+test_SequentializeDfg.ml
+K 25
+svn:wc:ra_dav:version-url
+V 64
+/parallelq/!svn/ver/365/translate/Tests/test_SequentializeDfg.ml
+END

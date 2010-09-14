@@ -1,0 +1,47 @@
+K 25
+svn:wc:ra_dav:version-url
+V 45
+/parallelq/!svn/ver/417/translate/CQInterface
+END
+k.h
+K 25
+svn:wc:ra_dav:version-url
+V 49
+/parallelq/!svn/ver/143/translate/CQInterface/k.h
+END
+cinterface.c
+K 25
+svn:wc:ra_dav:version-url
+V 58
+/parallelq/!svn/ver/417/translate/CQInterface/cinterface.c
+END
+QType.ml
+K 25
+svn:wc:ra_dav:version-url
+V 54
+/parallelq/!svn/ver/414/translate/CQInterface/QType.ml
+END
+cinterface.h
+K 25
+svn:wc:ra_dav:version-url
+V 58
+/parallelq/!svn/ver/417/translate/CQInterface/cinterface.h
+END
+Makefile
+K 25
+svn:wc:ra_dav:version-url
+V 54
+/parallelq/!svn/ver/417/translate/CQInterface/Makefile
+END
+Debug.ml
+K 25
+svn:wc:ra_dav:version-url
+V 54
+/parallelq/!svn/ver/371/translate/CQInterface/Debug.ml
+END
+variants.h
+K 25
+svn:wc:ra_dav:version-url
+V 56
+/parallelq/!svn/ver/417/translate/CQInterface/variants.h
+END

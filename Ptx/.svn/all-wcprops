@@ -1,0 +1,59 @@
+K 25
+svn:wc:ra_dav:version-url
+V 37
+/parallelq/!svn/ver/414/translate/Ptx
+END
+PtxSimplify.ml
+K 25
+svn:wc:ra_dav:version-url
+V 52
+/parallelq/!svn/ver/396/translate/Ptx/PtxSimplify.ml
+END
+PtxCodegen.mli
+K 25
+svn:wc:ra_dav:version-url
+V 52
+/parallelq/!svn/ver/393/translate/Ptx/PtxCodegen.mli
+END
+Ptx.ml
+K 25
+svn:wc:ra_dav:version-url
+V 44
+/parallelq/!svn/ver/393/translate/Ptx/Ptx.ml
+END
+PtxType.ml
+K 25
+svn:wc:ra_dav:version-url
+V 48
+/parallelq/!svn/ver/366/translate/Ptx/PtxType.ml
+END
+PtxHelpers.ml
+K 25
+svn:wc:ra_dav:version-url
+V 51
+/parallelq/!svn/ver/414/translate/Ptx/PtxHelpers.ml
+END
+PtxVal.ml
+K 25
+svn:wc:ra_dav:version-url
+V 47
+/parallelq/!svn/ver/393/translate/Ptx/PtxVal.ml
+END
+PtxCodegen.ml
+K 25
+svn:wc:ra_dav:version-url
+V 51
+/parallelq/!svn/ver/394/translate/Ptx/PtxCodegen.ml
+END
+ImpToPtx.ml
+K 25
+svn:wc:ra_dav:version-url
+V 49
+/parallelq/!svn/ver/397/translate/Ptx/ImpToPtx.ml
+END
+PtxTidy.ml
+K 25
+svn:wc:ra_dav:version-url
+V 48
+/parallelq/!svn/ver/396/translate/Ptx/PtxTidy.ml
+END

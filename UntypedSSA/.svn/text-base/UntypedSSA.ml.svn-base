@@ -1,0 +1,88 @@
+open Base
+open SourceInfo 
+
+include SSA_Gates
+
+(* eventually also need a gate for while loops with merges for variables in 
+   the loop and merges for after the loop *)
+
+
+type stmt = 
+  | Set of ID.t * exp_node 
+  | Ignore of exp_node
+  | SetIdx of ID.t * (value list) * value   
+  | If of value * block * block * if_gate   
+and stmt_node = { 
+    stmt: stmt;
+    stmt_src: source_info option; 
+}
+and block = stmt_node list
+and  exp = 
+  | Value of value   
+  | TupleProj of value * value 
+  | App of  value * value list
+  | ArrayIndex of value * value list
+  | Arr of value list 
+  | Tuple of value list
+
+and exp_node = { 
+  exp: exp; 
+  exp_src : source_info option; 
+} 
+and value = 
+  | Var of ID.t 
+  | Num of PQNum.num 
+  | Str of string
+  | Sym of string
+  | Unit
+  | Prim of Prim.prim
+  | Lam of fundef 
+and fundef = {
+  input_ids:ID.t list;
+  output_ids: ID.t list; 
+  body: block;  
+}
+let is_simple_exp = function 
+  | App _ -> false
+  | _ -> true 
+
+open Printf 
+
+let rec block_to_str ?(space="") block = 
+    String.concat "\n" (List.map (node_to_str ~space) block)
+and node_to_str ?(space="") stmtNode = 
+  let str = match stmtNode.stmt with 
+  | Set (id, rhs) -> 
+    sprintf "%s = %s " (ID.to_str id) (exp_to_str rhs)
+  | Ignore effect -> sprintf "ignore %s " (exp_to_str effect) 
+  | SetIdx _ -> "<set-idx>" 
+  | If _ -> "if"
+  in space ^ str
+and exp_to_str expNode = 
+  match expNode.exp with  
+  | Value v ->  value_to_str v
+  | App (Prim op, args) ->    
+    sprintf "%s(%s)" (Prim.prim_to_str op) (value_list_to_str args)
+  | App (fn, args) -> 
+    sprintf "%s(%s)" (value_to_str fn)  (value_list_to_str args)
+  | ArrayIndex (array, indices) ->  
+      sprintf "%s[%s]" (value_to_str array) (value_list_to_str ~sep:";" indices)
+  | TupleProj(idx, tuple) -> 
+      sprintf "proj(%s, %s)" (value_to_str idx) (value_to_str tuple)
+  | Arr elts -> "[" ^ (value_list_to_str ~sep:";" elts) ^ "]" 
+  | Tuple elts -> "(" ^ (value_list_to_str elts)  ^ ")"
+  
+and value_to_str = function 
+  | Var id -> ID.to_str id 
+  | Num n -> PQNum.num_to_str n 
+  | Str s -> "\""^s ^"\""
+  | Sym s -> "`" ^ s
+  | Unit -> "()"
+  | Prim p -> "PRIM(" ^ (Prim.prim_to_str p) ^ ")"
+  | Lam fundef -> 
+    Format.sprintf "fun input:[%s] output:[%s] { \n @[<hov 2> %s @] \n}" 
+      (String.concat ", " (List.map ID.to_str fundef.input_ids))
+      (String.concat ", " (List.map ID.to_str fundef.output_ids))
+      (block_to_str fundef.body)
+and value_list_to_str ?(sep=",") vs = 
+  String.concat (sep^" ") (List.map value_to_str vs)
