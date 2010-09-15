@@ -1,2 +1,0 @@
-QParser.ml: Int32 Lexing QSyntax
-QParser.mli: Int32 Lexing QSyntax

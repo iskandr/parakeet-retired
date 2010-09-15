@@ -71,12 +71,7 @@ and simplify_exp constEnv useCounts defEnv node =
   | Values vs -> 
       let vs', changed = simplify_value_list constEnv useCounts defEnv vs in 
       return (Values vs') changed
-         
-  (*| TupleProj (v1, v2) ->
-      let v1', v1Changed = simplify_value constEnv useCounts defEnv v1 in
-      let v2', v2Changed = simplify_value constEnv useCounts defEnv v2 in
-      return (TupleProj (v1', v2')) (v1Changed || v2Changed)
-  *)     
+   
   | App (fn, args) -> 
       let fn', fnChanged = simplify_value constEnv useCounts defEnv fn in 
       let args', argsChanged =
@@ -102,7 +97,8 @@ and simplify_value constEnv useCounts defEnv valNode =
   | Var id -> 
       let nochange = Var id, false in 
       (match PMap.find id defEnv with 
-        | UntypedFindDefs.SingleDef( Value {value=Var id'}) -> (Var id'), true
+        | UntypedFindDefs.SingleDef (Values [{value=Var id'}]) -> 
+          (Var id'), true
         | _ -> 
             if PMap.mem id constEnv then match PMap.find id constEnv with
             | Const (Lam fundef) -> nochange  
@@ -121,7 +117,7 @@ and simplify_value constEnv useCounts defEnv valNode =
           let ids', changed = rename_dummy_outputs ids in
           if PMap.mem id defEnv then 
             match PMap.find id defEnv with 
-            | SingleDef (Value {value=Var id'}) -> id'::ids', true     
+            | SingleDef (Values [{value=Var id'}]) -> id'::ids', true     
             |  _ -> id::ids', changed 
           else id::ids', changed
         | [] -> [], false

@@ -92,17 +92,17 @@ let rec annotate_exp context expNode =
   (* this taken into account at the bottom of the function *)  
   let expNode', changed = match expNode.exp with 
   | Values vNodes ->
-      let vNodes', anyChanged = annotate_values context vNode in
+      let vNodes', anyChanged = annotate_values context vNodes in
       let expNode' = { expNode with 
         exp= Values vNodes'; 
         exp_types = List.map (fun v -> v.value_type) vNodes' 
       } 
       in 
-      expNode', changed  
+      expNode', anyChanged  
   | Cast(t, vNode) -> 
       let vNode', changed = annotate_value context vNode in 
       if vNode'.value_type = t then 
-        let expNode' = { expNode with exp = Value vNode'; exp_types = [t] } 
+        let expNode' = { expNode with exp = Values [vNode']; exp_types = [t] } 
         in 
         expNode', changed 
       else 

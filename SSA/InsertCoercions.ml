@@ -39,10 +39,10 @@ and rewrite_stmt tenv stmtNode = match stmtNode.stmt with
 
 
 and rewrite_exp tenv expNode = match expNode.exp with 
-  | Value valNode -> 
+  | Values valNodes -> 
      (* get back any necessary coercions *) 
-      let valNode', stmts, tenv' = rewrite_value tenv valNode in
-      {expNode with exp = Value valNode'}, stmts, tenv'  
+      let valNodes', stmts, tenv' = rewrite_values tenv valNodes in
+      {expNode with exp = Values valNodes'}, stmts, tenv'  
   | Cast (t, valNode) -> 
       let valNode', stmts, tenv' = rewrite_value tenv valNode in
       {expNode with exp = Cast(t, valNode')}, stmts, tenv'

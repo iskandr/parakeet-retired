@@ -20,7 +20,7 @@ let do_inline fundef argVals =
     List.map (fun id -> PMap.find id replaceMap) fundef.output_ids in
   let inTypes = DynType.fn_input_types fundef.fun_type in 
   let argAssignments = 
-    mk_set newInputIds (SSA.mk_vals_exp ~types:inTypes argVals) 
+    mk_set newInputIds (SSA.mk_exp ~types:inTypes (Values argVals)) 
   in
   let outTypes = DynType.fn_output_types fundef.fun_type in 
   let outputValNodes = 
@@ -36,7 +36,10 @@ let rec inline_block lookup block =
   let anyChanged = List.fold_left (||) false allChanged in 
   let flatStmts = List.concat allStmts in 
   flatStmts, anyChanged
-    
+and inline_fundef lookup fundef = 
+  let body',changed  = inline_block lookup fundef.body in
+  { fundef with body = body'} , changed 
+       
 and inline_stmt constEnv node =
   match node.stmt with
   | Set (ids, rhs) -> 
@@ -58,19 +61,19 @@ and inline_stmt constEnv node =
     [{node with stmt = SetIdx(id, indices', rhsVal')}], changed  
 and inline_exp lookup node =
   match node.exp with 
-  | App ({value=Var id} as fn, args) -> 
-      let args', argsChanged = inline_value_list lookup args in
-      let noInline = {node with exp = App(fn, args')}, argsChanged, [] in 
+  | App ({value=Var id} as fn, argNodes) -> 
+      let argNodes', argsChanged = inline_value_list lookup argNodes in
+      let noInline = {node with exp = App(fn, argNodes')}, argsChanged, [] in 
       (
         match lookup id with 
         | None -> noInline 
         | Some fundef -> 
           (* make sure arity lines up *)
-          if List.length fundef.input_ids <> List.length args then noInline
+          if List.length fundef.input_ids <> List.length argNodes' then noInline
           else 
-          let inlineCode, outputExp = do_inline fundef args in
+          let inlineCode, outputExp = do_inline fundef argNodes' in
           assert (outputExp.exp_types = node.exp_types); 
-          {outputExp with src=node.src }, true, inlineCode
+          {outputExp with exp_src=node.exp_src }, true, inlineCode
       )
    | App({value=Lam fundef} as fn, args) -> 
         let fundef', fundefChanged = inline_fundef lookup fundef in 
@@ -81,13 +84,13 @@ and inline_exp lookup node =
         in 
         if List.length fundef.input_ids <> List.length args then noInline
         else 
-        let inlineCode, outputExp = do_inline fundef args in
+        let inlineCode, outputExp = do_inline fundef args' in
         assert (outputExp.exp_types = node.exp_types); 
-        {outputExp with src=node.src }, true, inlineCode
+        {outputExp with exp_src=node.exp_src }, true, inlineCode
         
   | ArrayIndex (arr, indices) ->
-      let arr', arrChanged = inline_value constEnv arr in 
-      let indices', indicesChanged = inline_value_list constEnv indices in
+      let arr', arrChanged = inline_value lookup arr in 
+      let indices', indicesChanged = inline_value_list lookup indices in
       let node' = {node with exp = ArrayIndex(arr', indices')} in 
       let changed = arrChanged || indicesChanged in 
       node', changed, []
@@ -98,20 +101,20 @@ and inline_exp lookup node =
       let vs', changed = inline_value_list lookup vs in 
       {node with exp = Values vs'}, changed, []
   | Cast(t, rhs) -> 
-      let v', changed = inline_value constEnv v in 
-      { node with exp = Cast(t, v') }, changed, [] 
-and inline_value constEnv vNode = 
+      let rhs', changed = inline_value lookup rhs in 
+      { node with exp = Cast(t, rhs') }, changed, [] 
+and inline_value lookup vNode = 
   let value', changed = match vNode.value with   
   | Lam fundef  -> 
-     let body', changed = inline_block constEnv fundef.body in 
-     Lam {fundef with body=body'}, changed 
+    let fundef', changed = inline_fundef lookup fundef in 
+    Lam fundef', changed   
   | const -> const, false
   in {vNode with value = value'}, changed  
-and inline_value_list constEnv  = function 
+and inline_value_list lookup  = function 
   | [] -> [], false
   | v::vs ->
-      let v', currChanged = inline_value constEnv v in 
-      let vs', restChanged = inline_value_list constEnv vs in 
+      let v', currChanged = inline_value lookup v in 
+      let vs', restChanged = inline_value_list lookup vs in 
       v'::vs', currChanged || restChanged     
   
 
@@ -122,10 +125,10 @@ and inline_value_list constEnv  = function
 let run_block_inliner ?(fn_lookup : (ID.t -> SSA.fundef option) option) code =
   let lookup = match fn_lookup with 
     | None -> 
-        let constEnv = UntypedFindConstants.find_constants code in 
+        let lookup = UntypedFindConstants.find_constants code in 
         (fun id -> 
-          if PMap.mem id constEnv then 
-            match PMap.find id constEnv with 
+          if PMap.mem id lookup then 
+            match PMap.find id lookup with 
               | UntypedFindConstants.Const (Lam fundef) -> Some fundef 
               | _ -> None 
           else None)   

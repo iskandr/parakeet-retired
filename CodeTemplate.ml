@@ -62,21 +62,21 @@ let  build_program_ast entries =
   let rec aux revDefs = function
   | [] -> AST.mk_block_node (List.rev revDefs)
   | (name,locals,globals,bodyText)::rest ->
-      printf "!!! [build_program] making ast: %s\n" name;
+      debug (Printf.sprintf "!!! [build_program] making ast: %s\n" name); 
       let fnDef = build_function_ast name locals globals bodyText in
       aux (fnDef::revDefs) rest
   in aux [] entries
 
 let gen_module_template entries =
-  printf "==(Q to AST)==> \n %!";
+  debug "==(Q to AST)==> \n %!";
   let ast = build_program_ast entries in
-  printf "%s \n%!"  (AST.node_to_str ast);
+  debug (sprintf "%s \n%!"  (AST.node_to_str ast));
   
-  printf "==(AST to Untyped SSA)==> \n %!";
+  debug "==(AST to Untyped SSA)==> \n %!";
   let code, idEnv = AST_to_SSA.translate_stmt PMap.empty ast in
-  printf "%s \n%!"  (SSA.block_to_str code); 
+  debug (sprintf "%s \n%!"  (SSA.block_to_str code)); 
   
-  printf "==(Creating Optimized Program)==> \n %!";
+  debug "==(Creating Optimized Program)==> \n %!";
   let program = Program.create_from_untyped_block code in 
   { fn_name_to_id = idEnv; program = program } 
  
@@ -86,13 +86,15 @@ let get_function_template moduleTemplate name =
   (untypedId, prog) 
   
 let run_template (untypedId,program) globals locals =
-  printf "entered run_template... \n";
+  debug "entered run_template... \n";
   let startTime =   Unix.gettimeofday () in
   let args = globals @ locals in
   let argTypes = List.map (fun v -> v.host_t) args in
   let untypedFn = Hashtbl.find program.untyped_functions untypedId in
-  printf "[run_template] untyped function body: %s\n" 
-    (SSA.fundef_to_str untypedFn); 
+  debug 
+    (sprintf 
+      "[run_template] untyped function body: %s\n" 
+      (SSA.fundef_to_str untypedFn)); 
   let nargs = List.length args in
   let arity = List.length (untypedFn.input_ids) in 
   if nargs <> arity then failwith
@@ -107,16 +109,17 @@ let run_template (untypedId,program) globals locals =
             later for tiling optimizations, etc..           
   *)
   let signature = Signature.from_input_types argTypes in
-  printf "[run_template] calling specialzer for argument types: %s \n"
-    (DynType.type_list_to_str argTypes);  
+  debug (sprintf
+    "[run_template] calling specialzer for argument types: %s \n"
+    (DynType.type_list_to_str argTypes));  
   let typedFnValNode = 
     Specialize.specialize_function_value program (SSA.Var untypedId) signature 
   in
   let typedFundef = 
     Program.get_typed_fundef_from_value program typedFnValNode.value 
   in
-  printf "[run_template] calling evaluator on specialized code: \n";
-  printf "%s\n" (SSA.fundef_to_str typedFundef);   
+  debug "[run_template] calling evaluator on specialized code: \n";
+  debug (sprintf "%s\n" (SSA.fundef_to_str typedFundef));   
   let results = 
     Eval_SSA.eval 
         program.cuda_code_cache 
@@ -124,7 +127,7 @@ let run_template (untypedId,program) globals locals =
         typedFundef 
         args 
   in 
-  (Printf.printf "Total Time: %f\n" (Unix.gettimeofday () -. startTime);
+  (debug (sprintf "Total Time: %f\n" (Unix.gettimeofday () -. startTime));
    flush stdout;
    (* assume Q expects only single result value *)  
    List.hd results

@@ -22,8 +22,12 @@ and eval_stmt (env: (exp,value) PMap.t) (stmtNode : stmt_node)  =
   | Set ([id], expNode) when is_safe_exp expNode -> 
     if PMap.mem expNode.exp env then ( 
       let rhsVal = PMap.find expNode.exp env  in
-      let rhs' = {value=rhsVal; value_type=BottomT; value_src=None} in 
-      let expNode' = {expNode with exp = Value rhs' } in
+      let rhs' = {
+        value=rhsVal; 
+        value_type=List.hd expNode.exp_types; 
+        value_src=None
+      } in 
+      let expNode' = {expNode with exp = Values [rhs'] } in
       Set([id], expNode'), env, true
     ) 
     else
@@ -31,7 +35,7 @@ and eval_stmt (env: (exp,value) PMap.t) (stmtNode : stmt_node)  =
       let env' = PMap.add expNode'.exp (Var id) env in 
       Set ([id], expNode'), env', changed
   (* if not a safe expression  *) 
-  | Set (id,rhs) ->  Set(id,rhs), env, false
+  | Set (ids,rhs) ->  Set(ids,rhs), env, false
   | Ignore exp -> Ignore exp, env, false 
     
   | If (cond, tBlock, fBlock, gate) -> 

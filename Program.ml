@@ -41,7 +41,7 @@ let create_from_untyped_block
     ?(optimizations=default_untyped_optimizations) code = 
   let optimized = 
     RunOptimizations.optimize_block
-      ~inliner:UntypedInline.run_inliner 
+      ~inliner:UntypedInline.run_block_inliner 
       code 
       optimizations 
   in

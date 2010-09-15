@@ -142,7 +142,7 @@ and eval_exp
       (env : env) 
       (expNode : SSA.exp_node) : DynVal.dyn_val list = 
   match expNode.exp with 
-  | Value valNode -> [eval_value env valNode]        
+  | Values valNodes -> List.map (eval_value env) valNodes         
   (* assume all array operators take only one function argument *) 
   | App ({value=Prim (Prim.ArrayOp op); value_type=ty}, args) 
     when Prim.is_adverb op -> 
