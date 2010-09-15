@@ -1,1 +1,0 @@
-ocamlbuild -no-hygiene -I CQInterface -I extlib -I GPU -I Q translate.docdir/index.html
