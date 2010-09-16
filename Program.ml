@@ -16,7 +16,7 @@ type program = {
   typed_functions : (ID.t, SSA.fundef) Hashtbl.t;
   
   cuda_code_cache : 
-    (SSA.value * Signature.t, Cuda.compiled_kernel) Hashtbl.t; 
+    (SSA.value * Signature.t, Cuda.cuda_module) Hashtbl.t; 
 } 
 
 (* given an ID.t -> untyped function mapping, create a fresh program *) 

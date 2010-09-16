@@ -22,7 +22,7 @@ type device_info = {
 }
 
 (* a module and a list of the kernel names in that module *) 
-type compiled_kernel = {
+type cuda_module = {
   module_ptr : CuModulePtr.t;
   kernel_names : string list;
   threads_per_block : int 

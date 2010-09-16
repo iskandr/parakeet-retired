@@ -12,7 +12,7 @@ type mem = DataId.t MemoryState.mem_state
 type env = (ID.t, DynVal.dyn_val) PMap.t
 type fntable = (ID.t, SSA.fundef) Hashtbl.t
 type codekey = SSA.value * Signature.t 
-type codecache = (codekey, Cuda.compiled_kernel) Hashtbl.t 
+type codecache = (codekey, Cuda.cuda_module) Hashtbl.t 
 
 let get_fundef functions env fnValNode = match fnValNode.value with 
   | Lam fundef -> fundef 
