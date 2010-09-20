@@ -55,6 +55,7 @@ let default_typed_optimizations =
   [
     (*"function cloning", TypedFunctionCloning.function_cloning;*)   
     "elim dead code", TypedElimDeadCode.elim_dead_code;  
+    "adverb fusion", AdverbFusion.adverb_fusion; 
   ]  
  
 let add_specialization 

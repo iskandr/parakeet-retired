@@ -142,8 +142,8 @@ let fundef_to_str fundef =
      helpers for statements 
  ***) 
 
-let mk_stmt ?src stmt = 
-  { stmt = stmt; stmt_src = src; stmt_id = StmtId.gen() }   
+let mk_stmt ?src ?(id=StmtId.gen()) stmt = 
+  { stmt = stmt; stmt_src = src; stmt_id = id }   
 
 let mk_set ?(src=None) ids rhs = 
   { stmt = Set(ids, rhs); 

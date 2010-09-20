@@ -18,7 +18,7 @@ module Make (M: ORD) = struct
     in aux set lst 
    
   (* construct a set from the elements of a list *)   
-  let from_list lst = add_list lst empty  
+  let of_list lst = add_list lst empty  
         
   let to_list set = fold BaseList.cons set [] 
     

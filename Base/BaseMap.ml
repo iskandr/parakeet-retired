@@ -17,7 +17,19 @@ module Make (M: ORD) = struct
   let find_default elt m default = 
     if mem elt m then find elt m 
     else default
-
+    
+  let find_option elt m = 
+    if mem elt m then Some (find elt m) 
+    else None
+    
+  let find_list elts m = 
+    let rec aux = function 
+      | [] -> [] 
+      | e::es -> 
+         let vs = aux es in 
+         (match find_option e m with None -> vs | Some v -> v::vs)  
+    in aux elts 
+  
   (* add each pair in a list to an existing map *) 
   let add_list lst map = 
     let rec aux acc = function 
@@ -32,7 +44,7 @@ module Make (M: ORD) = struct
   in aux map lst 
 
   (* construct a map from a list of pairs *)   
-  let from_list lst = add_list lst empty  
+  let of_list lst = add_list lst empty  
   
   let to_list map = fold (fun k v acc -> (k,v)::acc)  map []
   
@@ -74,12 +86,12 @@ module Make (M: ORD) = struct
   (* returns keys of map as a list *) 
   let keys map = fold (fun k _ acc -> k::acc) map [] 
   
-  let key_set map = MySet.from_list (keys map) 
+  let key_set map = MySet.of_list (keys map) 
   
   (* returns values of map as a list *) 
   let values map = fold (fun _ v acc -> v :: acc) map []
   
-  let value_set map = MySet.from_list (values map) 
+  let value_set map = MySet.of_list (values map) 
   
   let partition f map = 
     let aux k v (accT, accF) = 

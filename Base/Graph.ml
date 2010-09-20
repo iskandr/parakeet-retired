@@ -20,7 +20,7 @@ module Make (Label : ORD) = struct
 	  let n = Array.length idxToName in 
 	  let edges = Array.create n VertexSet.empty in 
 	  let nameToIdx =
-	     LabelMap.from_list (BaseList.combine allNamesList $ BaseList.til n) in
+	     LabelMap.of_list (BaseList.combine allNamesList $ BaseList.til n) in
 	  let addEdge succName predName  =
 	    let predIdx = LabelMap.find predName nameToIdx in
 	    let succIdx = LabelMap.find succName nameToIdx in   
