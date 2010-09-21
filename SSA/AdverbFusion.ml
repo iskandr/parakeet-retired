@@ -1,8 +1,10 @@
 open Base
 open SSA 
 
-module StmtSet = Int.Set
-module StmtMap = Int.Map 
+module StmtId = Int
+
+module StmtSet = StmtId.Set
+module StmtMap = StmtId.Map 
 
 (* map every value produced by an adverb to the array operation, *) 
 type adverb_descriptor = {
@@ -24,17 +26,20 @@ let compat_adverbs a1 a2 = match (a1,a2) with
   | Prim.Map, Prim.Map -> true
   | _ -> false 
 
-let find_fusable_pred descriptor producerMap stmtMap =
+(* TODO: fix this *) 
+let fuse (pred : adverb_descriptor) (succ : adverb_descriptor) = pred 
+
+let find_fusable_pred 
+    ( descriptor : adverb_descriptor)
+    ( stmtMap : adverb_descriptor StmtMap.t)
+    ( producerMap : StmtId.t ID.Map.t) =
+      
   let candidateStmtIds = 
-    Id.Map.find_list descriptor.consumes_list producerMap 
+    ID.Map.find_list descriptor.consumes_list producerMap 
   in
-  let candidateDescriptors : (adverb_descriptor * int) = 
+  let candidateDescriptors : ( int * adverb_descriptor ) list = 
     List.map (fun id -> id, StmtMap.find id stmtMap) candidateStmtIds 
   in 
-  
-  (* for now pick the first candidate possible always. 
-     TODO: use a smarter heuristic (maybe most frequent candidate?)
-  *) 
   let rec try_pair = function 
     | [] -> None  
     | (otherId, otherDesc)::rest ->
@@ -56,12 +61,17 @@ let rec collect_vars = function
   | _::rest -> collect_vars rest 
   | [] -> ID.Set.empty 
 
+let exp_is_adverb = function 
+  | App({value= Prim (Prim.ArrayOp op)}, _) -> Prim.is_adverb op
+  | _ -> false  
+
 let describe = function  
   | Set(ids, 
       {  exp=App({value=Prim (Prim.ArrayOp op); value_type=opType}, args);
          exp_types = outputTypes 
-      }) -> 
-      let fnArgs, dataArgs = split_adverb_args op args in 
+      }) when Prim.is_adverb op -> 
+      let fnArgs, dataArgs = split_adverb_args op args in
+      let consumesSet = collect_vars dataArgs in  
       { adverb = op; 
         adverb_type = opType; 
         function_args = fnArgs; 
@@ -69,7 +79,8 @@ let describe = function
         produces_list = ids;
         produces_set = ID.Set.of_list ids; 
         (* only IDs corresponding to data, not including functions *)
-        consumes_set = collect_vars dataArgs; 
+        consumes_set = consumesSet;  
+        consumes_list = ID.Set.to_list consumesSet; 
         data_arg_types = List.map (fun v -> v.value_type) dataArgs; 
         adverb_output_types =  outputTypes
       }
@@ -85,56 +96,103 @@ let undescribe desc =
   let appNode = SSA.mk_app ~types:desc.adverb_output_types adverbNode args in 
   SSA.mk_stmt (Set(desc.produces_list, appNode))     
 
-let process_stmt adverbEnv graveyard stmtNode = match stmtNode.stmt with
-  | Set _  ->
+let process_stmt 
+    (adverbMap : adverb_descriptor StmtMap.t) 
+    (producerMap : StmtId.t ID.Map.t)
+    (graveyard : StmtSet.t) 
+    (stmtNode : SSA.stmt_node)
+     : (adverb_descriptor StmtMap.t * StmtId.t ID.Map.t * StmtSet.t)  = 
+  match stmtNode.stmt with
+  | Set (ids, rhs) when exp_is_adverb rhs.exp ->
       let descriptor = describe stmtNode.stmt in 
-      if find_fusable_pred descriptor adverbEnv then
-        let combinedDescriptor = fuse predDescriptor descriptor in
-        (* kill off the current statement and replace the predecessor *)  
-        let graveyard' = StmtSet.add stmt.stmt_id graveyard in 
-        let adverbEnv' = StmtMap.add predStmtId combinedDescriptor in 
-        adverbEnv', graveyard'  
-      else 
-      StmtMap.add stmtNode.stmt_id desc, graveyard  
-  | _ -> adverbEnv, graveyard   
+      begin match find_fusable_pred descriptor adverbMap producerMap with 
+        | None ->
+            let adverbMap' = 
+              StmtMap.add stmtNode.stmt_id descriptor adverbMap 
+            in 
+            let producerMap' = 
+              List.fold_left 
+                (fun accMap id -> ID.Map.add id stmtNode.stmt_id accMap)
+                producerMap
+                ids
+            in 
+            adverbMap', producerMap', graveyard
+        | Some (predStmtId, predDescriptor) ->
+            (* kill off the current statement and replace the predecessor *)
+            let graveyard' = StmtSet.add stmtNode.stmt_id graveyard in 
+            let combinedDescriptor : adverb_descriptor = 
+              fuse predDescriptor descriptor 
+            in
+            let adverbMap' : adverb_descriptor StmtMap.t = 
+              StmtMap.add predStmtId combinedDescriptor adverbMap 
+            in
+            let producerMap' : StmtId.t ID.Map.t = 
+                List.fold_left 
+                  (fun accMap id -> ID.Map.add id predStmtId accMap)
+                  producerMap
+                  predDescriptor.produces_list
+            in  
+            adverbMap', producerMap', graveyard'  
+      end
+          
+  | _ -> adverbMap, producerMap, graveyard   
 
-let rec process_block adverbEnv graveyard = function 
-  | [] -> adverbEnv, graveyard 
+let rec process_block 
+    (adverbMap : adverb_descriptor StmtMap.t)
+    (producerMap : StmtId.t ID.Map.t) 
+    (graveyard : StmtSet.t ) = function 
+  | [] -> adverbMap, producerMap, graveyard 
   | stmtNode::rest -> 
-    let a', g' = process_stmt adverbEnv graveyard stmtNode in 
-    process_block a' g' rest
+    let a', p', g' = process_stmt adverbMap producerMap graveyard stmtNode in 
+    process_block a' p' g' rest
 
 (* once you've collected an environment of fused adverbs 
    and dead statements, rewrite the block 
 *)  
-let rec rewrite_block ?(acc=[]) adverbEnv graveyard = function
-  | [] -> List.rev acc
+let rec rewrite_block adverbMap graveyard = function
+  | [] -> [], false
   (* if a statement should be killed just don't cons it onto the accumulator *)
-  | stmtNode::rest when StmtSet.mem stmtNode.id graveyard ->
-      rewrite_block ~acc adverbEnv graveyard
+  | stmtNode::rest when StmtSet.mem stmtNode.stmt_id graveyard ->
+    rewrite_block adverbMap graveyard rest
   | ({stmt=Set _} as stmtNode)::rest ->
-        let stmtNode' = 
-          if StmtMap.mem stmtNode.stmt_id adverbEnv then 
-            undescribe (StmtMap.find stmtNode.stmt_id adverbEnv)
-          else
-            stmtNode 
-        in  
-        rewrite_block ~acc:(stmtNode'::acc) adverbEnv graveyard 
+        let rest', restChanged = rewrite_block adverbMap graveyard rest in
+        if StmtMap.mem stmtNode.stmt_id adverbMap then 
+          let stmtNode' = 
+            undescribe (StmtMap.find stmtNode.stmt_id adverbMap)
+          in 
+          stmtNode' :: rest', true 
+        else
+          stmtNode :: rest, restChanged
+          
   | ({stmt=If(cond, trueBlock, falseBlock, ifGate)} as stmtNode)::rest -> 
-        let trueBlock' = rewrite_block adverbEnv graveyard trueBlock in 
-        let falseBlock' = rewrite_block adverbEnv graveyard falseBlock in
+        let trueBlock', trueChanged = 
+          rewrite_block adverbMap graveyard trueBlock 
+        in 
+        let falseBlock', falseChanged = 
+          rewrite_block adverbMap graveyard falseBlock 
+        in
         (* gate should still be valid since this optimization isn't allowed 
            to delete any identifiers, only move around where they are 
            created. Since some identifiers will, however, be redundant 
            it's best to follow up with a dead code elimination pass. 
         *)  
-        {stmtNode with stmt = If(cond, trueBlock', falseBlock', ifGate) } 
+        let stmtNode' = 
+          {stmtNode with stmt = If(cond, trueBlock', falseBlock', ifGate) }
+        in
+        let rest', restChanged = rewrite_block adverbMap graveyard rest in
+        stmtNode'::rest', trueChanged || falseChanged || restChanged    
   | _ -> failwith "not yet supported"             
 
-let adverb_fusion block = 
-  let adverbEnv, graveyard = process_block block in 
-  rewrite_block adverbEnv graveyard block 
-                 
+let optimize_block block = 
+  let (adverbMap : adverb_descriptor StmtMap.t), _, (graveyard :StmtSet.t) = 
+    process_block StmtMap.empty ID.Map.empty StmtSet.empty block 
+  in 
+  rewrite_block adverbMap graveyard block 
+
+let optimize_fundef fundef = 
+  let body', changed = optimize_block fundef.body in  
+  {fundef with body = body' }, changed  
+                                 
 (* sample program: 
       b, c = map(f, a) 
       d = map(g, b)

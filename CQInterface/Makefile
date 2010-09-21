@@ -43,6 +43,7 @@ UntypedSimplify.cmx UntypedElimPartialApps.cmx \
 UntypedSimpleCSE.cmx \
 TypedFindLiveIds.cmx \
 TypedElimDeadCode.cmx \
+AdverbFusion.cmx \
 RunOptimizations.cmx \
 TypeInfer.cmx \
 Signature.cmx \
