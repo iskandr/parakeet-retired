@@ -33,13 +33,17 @@ SourceInfo.cmx QSyntax.cmx AST_Info.cmx AST.cmx QSyntax_to_AST.cmx \
 QParser.cmx \
 QLexer.cmx  \
 SSA_Gates.cmx SSA.cmx AST_to_SSA.cmx \
+FnTable.cmx \
 ConstantLattice.cmx \
 UntypedAnalysis.cmx \
 UntypedFindConstants.cmx UntypedFindDefs.cmx \
 UntypedFindGenSet.cmx UntypedFindUseCounts.cmx \
-UntypedReplace.cmx UntypedInline.cmx \
-UntypedFindUseSets.cmx UntypedElimDeadCode.cmx \
-UntypedSimplify.cmx UntypedElimPartialApps.cmx \
+UntypedReplace.cmx \
+UntypedInline.cmx \
+UntypedFindUseSets.cmx \
+UntypedElimDeadCode.cmx \
+UntypedSimplify.cmx \
+UntypedElimPartialApps.cmx \
 UntypedSimpleCSE.cmx \
 TypedFindLiveIds.cmx \
 TypedElimDeadCode.cmx \

@@ -1,19 +1,19 @@
 open Base 
 open Printf 
+
 (* A program is a mapping of function names to their functions.*)
 (* These functions exist in both untyped and typed forms, as well as *)
 (* a dataflow graph representations which should be eventually eliminated. *)
 (* Functions are optimized before being inserted into the program *)  
 
 type program = {
-  untyped_functions : (ID.t, SSA.fundef) Hashtbl.t; 
+  untyped_functions : FnTable.t;
 
   (* functions are either ID or Prim which gets specialized on either *)
   (* types or values (see Signature.ml)   *)    
-  specializations : 
-    (SSA.value * Signature.t, ID.t) Hashtbl.t;
+  specializations : (SSA.value * Signature.t, ID.t) Hashtbl.t;
   
-  typed_functions : (ID.t, SSA.fundef) Hashtbl.t;
+  typed_functions : FnTable.t; 
   
   cuda_code_cache : 
     (SSA.value * Signature.t, Cuda.cuda_module) Hashtbl.t; 
@@ -23,15 +23,15 @@ type program = {
 let create_from_map fnMap = 
   let fnList = PMap.to_list fnMap in
   let nFunctions = List.length fnList in {   
-     untyped_functions = Hashtbl.from_list fnList;
+     untyped_functions = FnTable.from_list fnList;
+     typed_functions = FnTable.create nFunctions; 
      specializations = Hashtbl.create nFunctions;
-     typed_functions = Hashtbl.create nFunctions;  
      cuda_code_cache = Hashtbl.create (20 * nFunctions);  
   }
 
 let default_untyped_optimizations = 
   [
-    "simplify", UntypedSimplify.simplify; 
+    "simplify", UntypedSimplify.simplify_block; 
     "elim partial applications", UntypedElimPartialApps.elim_partial_apps;
     "elim dead code", UntypedElimDeadCode.global_elim;
     "elim common subexpression", UntypedSimpleCSE.cse; 
@@ -41,7 +41,8 @@ let create_from_untyped_block
     ?(optimizations=default_untyped_optimizations) code = 
   let optimized = 
     RunOptimizations.optimize_block
-      ~inliner:UntypedInline.run_block_inliner 
+      ~inline:true
+      (FnTable.create 1) (* we don't yet know about any global functions *) 
       code 
       optimizations 
   in
@@ -61,10 +62,8 @@ let default_typed_optimizations =
 let add_specialization 
     program ?(optimizations = default_typed_optimizations) 
     untypedVal signature typedFundef =
-     
-  let typedId = ID.gen() in 
+  let typedId = FnTable.add  typedFundef program.typed_functions in  
   Hashtbl.add program.specializations (untypedVal, signature) typedId;
-  Hashtbl.add program.typed_functions typedId typedFundef;
   typedId 
 
 let maybe_get_specialization program v signature = 
@@ -73,28 +72,12 @@ let maybe_get_specialization program v signature =
   else None   
 
 let get_untyped_function program untypedId = 
-  Hashtbl.find program.untyped_functions untypedId 
+  FnTable.find untypedId program.untyped_functions  
 
 let get_typed_function program typedId = 
-  Hashtbl.find program.typed_functions typedId
+  FnTable.find typedId program.typed_functions 
 
 let get_typed_fundef_from_value program = function 
-  | SSA.Var id -> Hashtbl.find program.typed_functions id 
+  | SSA.Var id -> FnTable.find id program.typed_functions  
   | SSA.Lam fundef -> fundef  
   | _ -> failwith "expected a function" 
- (*
-let default_dfg_rules = 
-    [| 
-       "cleanup map temps", OptimizeDfg.cleanup_map_temporaries  
-    |] 
- *)  
-        (*
-let create_dfg program ?(dfg_rules=default_dfg_rules) typedId =
-  let typedFundef = Hashtbl.find program.typed_functions typedId in 
-  let dfg = TypedCoreToDfg.create_dfg typedFundef in
-  let _ = OptimizeDfg.optimize dfg_rules dfg in
-  Hashtbl.add program.typed_dataflow_graphs typedId dfg;
-  dfg 
-  
-  
-      *)

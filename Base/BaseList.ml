@@ -1,5 +1,10 @@
 include ExtList.List
 
+  let rec fill x = function 
+    | _::rest -> x::(fill x rest)
+    | [] -> []
+
+
   (* returns a list of numbers from 0 to upper_bound - 1 *)
   let til upperBound =
     let rec aux acc x =

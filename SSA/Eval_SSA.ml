@@ -10,7 +10,6 @@ open DynVal
 
 type mem = DataId.t MemoryState.mem_state
 type env = (ID.t, DynVal.dyn_val) PMap.t
-type fntable = (ID.t, SSA.fundef) Hashtbl.t
 type codekey = SSA.value * Signature.t 
 type codecache = (codekey, Cuda.cuda_module) Hashtbl.t 
 
@@ -22,7 +21,7 @@ let get_fundef functions env fnValNode = match fnValNode.value with
       | DynVal.FnRef fnid -> fnid 
       | _ -> failwith "function expected"
       else id 
-    in Hashtbl.find functions fnid   
+    in FnTable.find fnid functions    
   | _ -> failwith "function expected"
 
     
@@ -45,7 +44,7 @@ let eval_value
 let eval_adverb_on_gpu 
       (codeCache : codecache)
       (memState : mem) 
-      (functions : fntable) 
+      (functions : FnTable.t) 
       (env : env)
       (op : Prim.array_op) 
       (outputTypes : DynType.t list)
@@ -82,9 +81,7 @@ let eval_adverb_on_gpu
     | Prim.Map -> GpuRuntime.run_map compiledModule gpuVals outputTypes   
     | _ -> failwith "execution for this primitive not yet implemented"    
 
-
-
-                                             
+                 
 let rec eval codeCache globalFns fundef hostVals  =
   GpuRuntime.init(); 
   let memState = MemoryState.create 127 (* arbitrary *) in
@@ -111,7 +108,7 @@ let rec eval codeCache globalFns fundef hostVals  =
 and eval_block 
       (codeCache : codecache) 
       (memState : mem) 
-      (functions : fntable) 
+      (functions : FnTable.t) 
       (env : env) : (SSA.stmt_node list -> env) = function  
   | [] -> env
   | stmtNode::rest -> 
@@ -121,7 +118,7 @@ and eval_block
 and eval_stmt 
       (codeCache : codecache)
       (memState : mem) 
-      (functions : fntable) 
+      (functions : FnTable.t) 
       (env : env ) 
       (stmtNode : SSA.stmt_node) : env = match stmtNode.stmt with 
   | Set (ids, expNode) -> 
@@ -138,7 +135,7 @@ and eval_stmt
 and eval_exp
       (codeCache : codecache)
       (memState : mem) 
-      (functions : fntable) 
+      (functions : FnTable.t) 
       (env : env) 
       (expNode : SSA.exp_node) : DynVal.dyn_val list = 
   match expNode.exp with 
@@ -154,9 +151,10 @@ and eval_exp
       
   | App ({value=Prim _}, _) -> failwith "[eval] operator not yet implemented"
   | App ({value=Var id}, args) ->
-      let fundef = Hashtbl.find functions id in
-      printf "[eval_exp] calling function %d \n " id;
-      printf "[eval_exp] function: %s\n" (SSA.fundef_to_str fundef);
+      let fundef = FnTable.find id functions in
+      debug (Printf.sprintf "[eval_exp] calling function %d \n " id);
+      debug 
+        (Printf.sprintf "[eval_exp] function: %s\n" (SSA.fundef_to_str fundef));
       let argDynVals = List.map (eval_value env) args in  
       (* create an augmented memory state where input ids are bound to the *)
       (* argument values on the gpu *) 

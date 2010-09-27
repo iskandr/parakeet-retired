@@ -180,28 +180,42 @@ let mk_var ?(src=None) ?(ty=DynType.BottomT) id =
 (*** 
     helpers for expressions 
  ***) 
-let mk_app ?(src=None) ?(types=[]) fn args = 
-    { exp=App(fn,args); exp_src = src; exp_types = types }  
 
-let mk_arr ?(src=None) ?(types=[]) elts = 
-    { exp=Arr elts; exp_src=src; exp_types = types } 
+let map_default_types optTypes elts = 
+  match optTypes with 
+    | None -> BaseList.fill DynType.BottomT elts 
+    | Some ts -> ts
+
+let mk_app ?(src=None) ?types fn args =
+  let types' = map_default_types types args in  
+  
+  { exp=App(fn,args); exp_src = src; exp_types = types' }  
+
+let mk_arr ?(src=None) ?types elts =
+  let types' = map_default_types  types elts in  
+  { exp=Arr elts; exp_src=src; exp_types = types' } 
  
 let mk_val_exp ?(src=None) ?ty v =
-  let ty' = match ty with Some t -> t | None -> DynType.BottomT in  
+  let ty' = Option.default DynType.BottomT ty in   
   { exp=Values [mk_val ~src v]; exp_src=src; exp_types = [ty'] } 
 
 let mk_vals_exp ?(src=None) ?types vs =
-  let types' = match types with 
-    | Some lst -> lst 
-    | None -> List.map (fun _ -> DynType.BottomT) vs
-  in  
+  let types' = map_default_types types vs in 
   { exp = Values (List.map (mk_val ~src) vs); exp_src = src; exp_types=types' } 
 
-let mk_arr_idx ?(src=None) ?(types=[]) lhs indices = 
-    { exp = ArrayIndex(lhs, indices); exp_src=src; exp_types=types} 
+let mk_arr_idx ?(src=None) ?(types=[DynType.BottomT]) lhs indices =
+  { exp = ArrayIndex(lhs, indices); exp_src=src; exp_types=types} 
         
 let mk_cast ?(src=None)  t v = 
   { exp = Cast(t, v); exp_types = [t]; exp_src = src }      
 
-let mk_exp ?(src=None) ?(types=[]) exp = 
-  { exp= exp; exp_types = types; exp_src = src} 
+let mk_exp ?(src=None) ?types exp =
+  (* WARNING--- function calls may need more than 1 return type, in which 
+     case the default [BottomT] is wrong 
+  *) 
+  let types' = match types, exp with 
+    | Some ts, _ -> ts
+    | None, Values vs -> List.fill DynType.BottomT vs
+    | _ -> [DynType.BottomT] 
+  in 
+  { exp= exp; exp_types = types'; exp_src = src} 

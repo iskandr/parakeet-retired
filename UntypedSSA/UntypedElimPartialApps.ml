@@ -59,7 +59,7 @@ and eval_value_list defEnv constEnv = function
     let vs', restChanged = eval_value_list defEnv constEnv vs in 
     v'::vs', currChanged || restChanged
         
-let elim_partial_apps block = 
+let elim_partial_apps fnTable block = 
   let defEnv = UntypedFindDefs.find_defs block in
   let constEnv = UntypedFindConstants.find_constants block in 
   eval_block defEnv constEnv block 

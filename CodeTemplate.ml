@@ -90,7 +90,7 @@ let run_template (untypedId,program) globals locals =
   let startTime =   Unix.gettimeofday () in
   let args = globals @ locals in
   let argTypes = List.map (fun v -> v.host_t) args in
-  let untypedFn = Hashtbl.find program.untyped_functions untypedId in
+  let untypedFn = FnTable.find untypedId program.untyped_functions in
   debug 
     (sprintf 
       "[run_template] untyped function body: %s\n" 

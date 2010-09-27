@@ -48,7 +48,7 @@ and eval_fundef liveSet fundef =
   let body', changed = eval_block (PSet.union liveSet liveSetFn) fundef.body in 
   {fundef with body = body' }, changed   
 
-let elim_dead_code fundef = 
+let elim_dead_code (fnTable : FnTable.t) fundef = 
   let liveSet = TypedFindLiveIds.find_live_ids fundef in 
   eval_fundef liveSet fundef 
 

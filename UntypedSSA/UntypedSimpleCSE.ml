@@ -81,6 +81,7 @@ and eval_value_list env = function
       let v', changed = eval_value env v in 
       let rest, restChanged = eval_value_list env vs in 
       v'::rest, changed || restChanged 
-let cse block = eval_block PMap.empty block  
+      
+let cse (fnTable : FnTable.t) block = eval_block PMap.empty block  
   
       

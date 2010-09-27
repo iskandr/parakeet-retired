@@ -10,25 +10,100 @@ module StmtMap = StmtId.Map
 type adverb_descriptor = {
   adverb : Prim.array_op; 
   adverb_type : DynType.t; 
-  function_args : SSA.value_node list;  
-  data_args : SSA.value_node list; 
+  (* assumes that all function args are unambiguous references to 
+     known typed functions 
+  *)    
+  function_arg_ids : ID.t list;  
+  function_arg_types : DynType.t list; 
+  data_args : SSA.value_node list;
+   
   produces_list : ID.t list;
   (* keep both a list and set of ID produced to avoid wasteful conversions *) 
   produces_set : ID.Set.t; 
   consumes_set : ID.Set.t;
-  consumes_list : ID.t list; 
-  data_arg_types : DynType.t list; 
-  adverb_output_types : DynType.t list;  
+  consumes_list : ID.t list;   
 } 
 
 (* is the fusion of a2 (a1 data) allowed? *) 
-let compat_adverbs a1 a2 = match (a1,a2) with 
-  | Prim.Map, Prim.Map -> true
+let compat_adverbs (a1:adverb_descriptor) (a2:adverb_descriptor) =
+  match a1.adverb,a2.adverb with 
+  | Prim.Map, Prim.Map -> 
+    (* conservative condition is that all input data must be produced by 
+       the predecessor. This is because we always replace the pred with the
+       fused map--- but this might be impossible if there is a dependency on 
+       data which is not created until later. 
+    *)
+    ID.Set.for_all (fun id -> ID.Set.mem id a1.produces_set) a2.consumes_set 
   | _ -> false 
 
-(* TODO: fix this *) 
-let fuse (pred : adverb_descriptor) (succ : adverb_descriptor) = pred 
+let fuse_map_map 
+      (pred:adverb_descriptor)
+      (predFn : SSA.fundef)
+      (succ:adverb_descriptor)
+      (succFn : SSA.fundef) 
+      (overlap : ID.Set.t) = predFn, DynType.BottomT (*FIX*) 
 
+let fuse 
+      (fns : FnTable.t)  
+      (pred : adverb_descriptor) 
+      (succ : adverb_descriptor) = 
+  let dataOverlap = ID.Set.inter  pred.produces_set succ.consumes_set in 
+  let fusedFns, fusedTypes, finalAdverb = 
+    match pred.adverb, pred.function_arg_ids, 
+          succ.adverb, succ.function_arg_ids with 
+    | Prim.Map, [fId], Prim.Map, [gId] -> 
+        let f = FnTable.find fId fns in 
+        let g = FnTable.find gId fns in 
+        let fn, ty = fuse_map_map pred f succ g dataOverlap in 
+        [fn], [ty], Prim.Map 
+    | _ -> failwith "[adverb_fusion->fuse] adverb pair not yet implemented"
+  in 
+  let fusedIds = List.map (fun fundef -> FnTable.add fundef fns) fusedFns in
+  let is_data_dependency vNode = match vNode.value with 
+     | Var id -> not (ID.Set.mem id dataOverlap) 
+     | _ -> true
+  in
+  (* which data arguments are not internally produced by the fused 
+     function 
+  *)  
+  let filteredDataArgs =
+    List.filter is_data_dependency (pred.data_args @ succ.data_args)
+  in 
+  let filteredTypes = 
+    List.map (fun vNode -> vNode.value_type) filteredDataArgs 
+  in 
+  (* assume that every value is produced by only one statement, 
+     we never duplicate work 
+  *) 
+  let combinedProducesIds : ID.t list = 
+    pred.produces_list @ succ.produces_list 
+  in 
+  let combinedProducesTypes : DynType.t list = 
+    (DynType.fn_output_types pred.adverb_type) @ 
+    (DynType.fn_output_types succ.adverb_type) 
+  in   
+  (* consume all data except that which was produced by the pred and consumed
+     by the succ--- this data should now be generated internally  
+  *)  
+  let combinedConsumes : ID.Set.t =
+    ID.Set.diff
+     (ID.Set.union pred.consumes_set succ.consumes_set)
+     dataOverlap
+  in     
+  {
+    adverb = finalAdverb; 
+    adverb_type = 
+      DynType.FnT(fusedTypes @ filteredTypes, combinedProducesTypes); 
+    function_arg_ids = fusedIds;
+    function_arg_types = fusedTypes; 
+    data_args = filteredDataArgs;  
+    produces_list = combinedProducesIds; 
+    produces_set = ID.Set.of_list combinedProducesIds;  
+    consumes_set = combinedConsumes; 
+    consumes_list = ID.Set.elements combinedConsumes;  
+  }
+  
+  
 let find_fusable_pred 
     ( descriptor : adverb_descriptor)
     ( stmtMap : adverb_descriptor StmtMap.t)
@@ -43,17 +118,23 @@ let find_fusable_pred
   let rec try_pair = function 
     | [] -> None  
     | (otherId, otherDesc)::rest ->
-        if compat_adverbs otherDesc.adverb descriptor.adverb then
-           Some (otherId, otherDesc) 
+        if compat_adverbs otherDesc descriptor then Some (otherId, otherDesc) 
         else try_pair rest    
   in try_pair candidateDescriptors    
 
-let split_adverb_args op args = match op, args with 
+
+
+let split_adverb_args op args =
+  let fnArgs, dataArgs = match op, args with 
   | Prim.Reduce, f::rest
   | Prim.AllPairs, f::rest
   | Prim.Map, f::rest -> [f], rest
   | _ -> failwith "adverb not yet implemented" 
-   
+  in 
+  let fnIds = List.map SSA.get_id fnArgs in
+  let fnTypes = List.map (fun vNode -> vNode.value_type) fnArgs in  
+  fnIds, fnTypes, dataArgs 
+    
 let rec collect_vars = function 
   | {value = SSA.Var id}::rest -> 
       let set = collect_vars rest in        
@@ -70,19 +151,20 @@ let describe = function
       {  exp=App({value=Prim (Prim.ArrayOp op); value_type=opType}, args);
          exp_types = outputTypes 
       }) when Prim.is_adverb op -> 
-      let fnArgs, dataArgs = split_adverb_args op args in
+      let fnIds, fnTypes, dataArgs = split_adverb_args op args in
       let consumesSet = collect_vars dataArgs in  
       { adverb = op; 
         adverb_type = opType; 
-        function_args = fnArgs; 
+        function_arg_ids = fnIds; 
+        function_arg_types = fnTypes; 
         data_args = dataArgs; 
         produces_list = ids;
         produces_set = ID.Set.of_list ids; 
         (* only IDs corresponding to data, not including functions *)
         consumes_set = consumesSet;  
         consumes_list = ID.Set.to_list consumesSet; 
-        data_arg_types = List.map (fun v -> v.value_type) dataArgs; 
-        adverb_output_types =  outputTypes
+        (*data_arg_types = List.map (fun v -> v.value_type) dataArgs; 
+        adverb_output_types =  outputTypes*)
       }
  | _ -> 
     failwith "[adverb_fusion] can only describe application of array operators"    
@@ -92,11 +174,20 @@ let undescribe desc =
   let adverbNode = 
     SSA.mk_val ~ty:desc.adverb_type (SSA.Prim (Prim.ArrayOp desc.adverb))
   in 
-  let args = desc.function_args @ desc.data_args in 
-  let appNode = SSA.mk_app ~types:desc.adverb_output_types adverbNode args in 
+  let fnArgs = 
+    List.map2 
+      (fun id t -> SSA.mk_var ~ty:t id) 
+      desc.function_arg_ids 
+      desc.function_arg_types
+  in 
+  let args = fnArgs  @ desc.data_args in 
+  let appNode = 
+    SSA.mk_app ~types:(DynType.fn_output_types desc.adverb_type) adverbNode args 
+  in 
   SSA.mk_stmt (Set(desc.produces_list, appNode))     
 
 let process_stmt 
+    (fns : FnTable.t)
     (adverbMap : adverb_descriptor StmtMap.t) 
     (producerMap : StmtId.t ID.Map.t)
     (graveyard : StmtSet.t) 
@@ -121,16 +212,16 @@ let process_stmt
             (* kill off the current statement and replace the predecessor *)
             let graveyard' = StmtSet.add stmtNode.stmt_id graveyard in 
             let combinedDescriptor : adverb_descriptor = 
-              fuse predDescriptor descriptor 
+              fuse fns predDescriptor descriptor 
             in
             let adverbMap' : adverb_descriptor StmtMap.t = 
               StmtMap.add predStmtId combinedDescriptor adverbMap 
             in
             let producerMap' : StmtId.t ID.Map.t = 
-                List.fold_left 
-                  (fun accMap id -> ID.Map.add id predStmtId accMap)
-                  producerMap
-                  predDescriptor.produces_list
+              List.fold_left 
+                (fun accMap id -> ID.Map.add id predStmtId accMap)
+                producerMap
+                predDescriptor.produces_list
             in  
             adverbMap', producerMap', graveyard'  
       end
@@ -138,13 +229,16 @@ let process_stmt
   | _ -> adverbMap, producerMap, graveyard   
 
 let rec process_block 
+    (fns : FnTable.t)
     (adverbMap : adverb_descriptor StmtMap.t)
     (producerMap : StmtId.t ID.Map.t) 
     (graveyard : StmtSet.t ) = function 
   | [] -> adverbMap, producerMap, graveyard 
   | stmtNode::rest -> 
-    let a', p', g' = process_stmt adverbMap producerMap graveyard stmtNode in 
-    process_block a' p' g' rest
+    let a', p', g' = 
+      process_stmt fns adverbMap producerMap graveyard stmtNode 
+    in 
+    process_block fns a' p' g' rest
 
 (* once you've collected an environment of fused adverbs 
    and dead statements, rewrite the block 
@@ -183,14 +277,14 @@ let rec rewrite_block adverbMap graveyard = function
         stmtNode'::rest', trueChanged || falseChanged || restChanged    
   | _ -> failwith "not yet supported"             
 
-let optimize_block block = 
+let optimize_block (fns : FnTable.t) block = 
   let (adverbMap : adverb_descriptor StmtMap.t), _, (graveyard :StmtSet.t) = 
-    process_block StmtMap.empty ID.Map.empty StmtSet.empty block 
+    process_block fns StmtMap.empty ID.Map.empty StmtSet.empty block 
   in 
   rewrite_block adverbMap graveyard block 
 
-let optimize_fundef fundef = 
-  let body', changed = optimize_block fundef.body in  
+let optimize_fundef (fns:FnTable.t) fundef = 
+  let body', changed = optimize_block fns fundef.body in  
   {fundef with body = body' }, changed  
                                  
 (* sample program: 

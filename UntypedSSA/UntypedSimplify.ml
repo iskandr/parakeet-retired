@@ -138,10 +138,8 @@ and simplify_value_list constEnv useCounts defEnv = function
       v'::vs', currChanged || restChanged   
 
 (* run single pass of constant detection and propagation *) 
-let simplify block = 
+let simplify_block (functions : FnTable.t) block = 
   let constEnv  = UntypedFindConstants.find_constants block in
   let useCounts,_ = UntypedFindUseCounts.find_use_counts block in 
   let defEnv  = UntypedFindDefs.find_defs block in 
-  simplify_block constEnv useCounts defEnv block  
-
-                                                                
+  simplify_block constEnv useCounts defEnv block                                                                  

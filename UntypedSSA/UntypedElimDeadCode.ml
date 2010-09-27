@@ -86,7 +86,7 @@ and eval_value_list liveSet = function
 (* if we're doing a global analysis we have to identify the top level bindings
    and prevent them from being removed
 *) 
-let global_elim block =
+let global_elim fnTable block =
   let liveSet, _ = UntypedFindUseSets.find_use_sets block in 
   let topSet = UntypedFindUseSets.find_top_bindings block in 
   eval_block (PSet.union liveSet topSet) block 

@@ -137,10 +137,7 @@ let run_block_inliner ?(fn_lookup : (ID.t -> SSA.fundef option) option) code =
   let code', changed = inline_block lookup code in 
   code', changed   
 
-let run_fundef_inliner function_hash fundef = 
-  let lookup = (fun id -> 
-    if Hashtbl.mem function_hash id then 
-    Some (Hashtbl.find function_hash id) else None)
-  in
+let run_fundef_inliner (functions : FnTable.t) fundef = 
+  let lookup = fun id -> FnTable.find_option id functions in 
   let body', changed = run_block_inliner ~fn_lookup:lookup fundef.body in 
   {fundef with body = body' }, changed        
