@@ -18,7 +18,7 @@ cd ..
 
 # Build parameters
 
-DIRS=Base,Ptx,GPU,Q,ResourceManager,extlib,Tests,AST,ANF,Imp,UntypedSSA,CQInterface,Dump,SSA
+DIRS=Base,Ptx,GPU,Q,extlib,Tests,AST,ANF,Imp,UntypedSSA,CQInterface,Dump,SSA
 LIBS=unix,str,bigarray 
 OBJS="CQInterface/QType.o CQInterface/Debug.o Init.o Callbacks.o"
 LINKER_FLAGS="-ccopt $PQ_PATH/libpq_stubs.o, \
@@ -43,7 +43,7 @@ if [ "prof" == "$1" ]; then
 fi
 if [ "debug" == "$1" ]; then
   PPFLAGS="-ppflag -DDEBUG"
-  MAKEFLAGS="DEBUG=1"
+#  MAKEFLAGS="DEBUG=1"
 fi
 
 printf "\n---Building OCAML Interface---\n"
