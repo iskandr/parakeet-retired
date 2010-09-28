@@ -11,7 +11,9 @@ let rec eval_block useMap block =
         aux (PSet.union accLive set) map rest 
   in   
   aux PSet.empty useMap block 
-and eval_stmt useMap stmtNode = match stmtNode.stmt with  
+and eval_stmt useMap stmtNode = 
+  debug "find_use_sets->eval_stmt";
+  match stmtNode.stmt with  
   | Set (ids, expNode) -> 
       let currUsedSet, useMap' = eval_exp useMap expNode in
       let useMap''' = List.fold_left 
@@ -43,7 +45,9 @@ and eval_stmt useMap stmtNode = match stmtNode.stmt with
       let outIds = ifGate.if_output_ids in 
       let gateMap = List.fold_left2 combineBranches falseMap outIds branchIds in
       PSet.union condSet (PSet.union trueSet falseSet), gateMap       
-and eval_exp useMap expNode = match expNode.exp with 
+and eval_exp useMap expNode = 
+  debug "find_use_sets->eval_exp";
+  match expNode.exp with 
   | Values vs -> eval_value_list useMap vs    
   (*| TupleProj (v1, v2) -> 
       let (set1,map1) = eval_value useMap v1 in 
@@ -58,7 +62,9 @@ and eval_exp useMap expNode = match expNode.exp with
       PSet.union set1 set2, map2 
   | Arr vs -> failwith "not implemented" 
     
-and eval_value useMap valNode = match valNode.value with 
+and eval_value useMap valNode =
+  debug "find_use_sets->eval_value";
+  match valNode.value with 
   | Lam fundef ->
       (* remember to add the output variables of the function to the 
          liveSet or else they get pruned...and then so does the rest of 
@@ -90,4 +96,5 @@ let rec find_top_bindings = function
       PSet.union gateSet (PSet.union tSet fSet)  
   | _::rest -> find_top_bindings rest
  
-let find_use_sets block = eval_block PMap.empty block 
+let find_use_sets block = 
+  eval_block PMap.empty block 

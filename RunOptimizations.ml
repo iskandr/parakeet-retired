@@ -4,7 +4,7 @@ let rec fold_optimizations fnTable code lastChanged = function
   | (name, opt)::rest -> 
       debug (Printf.sprintf "[optimizer] Running %s: " name);  
       let code', changed = opt fnTable code in 
-      debug (Printf.sprintf "%s\n" (if changed then "MODIFIED" else ""));  
+      debug (Printf.sprintf "...%s\n" (if changed then "MODIFIED" else "done"));  
       fold_optimizations fnTable code' (changed || lastChanged)  rest 
   | [] -> code, lastChanged 
 

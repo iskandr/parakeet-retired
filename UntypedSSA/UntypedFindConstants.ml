@@ -1,6 +1,7 @@
 open Base
 open SSA
 open SSA_Gates
+open Printf 
 
 include ConstantLattice
 
@@ -20,11 +21,18 @@ let rec eval_block env block =
     env', changed || changed' 
   in 
   List.fold_left stmt_folder (env, false) block    
-and eval_stmt env stmtNode = match stmtNode.stmt with
-    | Set (id1::id2::_, _) ->
-        failwith "[untyped-find-constants] multiple return values not supported"  
+and eval_stmt env stmtNode = 
+  match stmtNode.stmt with
     | Set (ids, rhs) -> 
       let rhsLatticeVals, rhsEnv, rhsChanged = eval_exp env rhs in
+      if List.length ids <> List.length rhsLatticeVals then 
+        failwith $ sprintf "%s (%d) %s (%d)"
+          "Mismatch between number of identifiers on lhs"
+          (List.length ids)
+          "and types on rhs"
+          (List.length rhsLatticeVals)
+          
+      else 
       let folder (env, changed) id rhsLatticeVal = 
         if not $ PMap.mem id env then PMap.add id rhsLatticeVal env, true 
         else   
@@ -98,6 +106,7 @@ and eval_value_list env = function
 
                 
 let rec find_constants code = 
+  
     let env, _ = eval_block PMap.empty code in 
     env
     

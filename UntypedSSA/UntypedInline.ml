@@ -75,19 +75,21 @@ and inline_exp lookup node =
           assert (outputExp.exp_types = node.exp_types); 
           {outputExp with exp_src=node.exp_src }, true, inlineCode
       )
-   | App({value=Lam fundef} as fn, args) -> 
-        let fundef', fundefChanged = inline_fundef lookup fundef in 
-        let args', argsChanged = inline_value_list lookup args in
-        let fn' = { fn with value= Lam fundef' } in 
-        let noInline = 
-          {node with exp = App(fn', args') }, fundefChanged || argsChanged, []
-        in 
-        if List.length fundef.input_ids <> List.length args then noInline
-        else 
-        let inlineCode, outputExp = do_inline fundef args' in
-        assert (outputExp.exp_types = node.exp_types); 
-        {outputExp with exp_src=node.exp_src }, true, inlineCode
-        
+  | App({value=Lam fundef} as fn, args) -> 
+      let fundef', fundefChanged = inline_fundef lookup fundef in 
+      let args', argsChanged = inline_value_list lookup args in
+      let fn' = { fn with value= Lam fundef' } in 
+      let noInline = 
+        {node with exp = App(fn', args') }, fundefChanged || argsChanged, []
+      in 
+      if List.length fundef.input_ids <> List.length args then noInline
+      else 
+      let inlineCode, outputExp = do_inline fundef args' in
+      assert (outputExp.exp_types = node.exp_types); 
+      {outputExp with exp_src=node.exp_src }, true, inlineCode
+  | App(fn, args) -> 
+      let args', argsChanged = inline_value_list lookup args in 
+      {node with exp=App(fn, args')}, argsChanged, []          
   | ArrayIndex (arr, indices) ->
       let arr', arrChanged = inline_value lookup arr in 
       let indices', indicesChanged = inline_value_list lookup indices in

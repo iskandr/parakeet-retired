@@ -97,10 +97,20 @@ let rec translate_stmt env ?value_id node =
       in stmts @ assign, env'
 
 and translate_exp env node =
-  let mk_exp e = { exp= e; exp_src=Some node.src; exp_types=[]} in
+  let mk_exp e = 
+    { exp= e; exp_src=Some node.src; exp_types=[DynType.BottomT]} 
+  in
   (* simple values generate no statements and don't modify the env *) 
-  let value v = 
-    [], env, {exp = Values [mk_val v]; exp_src=Some node.src; exp_types=[]} 
+  let value v =
+    let expNode = 
+      {
+        exp = Values [mk_val v]; 
+        exp_src=Some node.src; 
+        exp_types=[DynType.BottomT]
+      } 
+    in 
+    [], env, expNode 
+     
   in  
   match node.data with 
   | AST.Var name -> value (Var (PMap.find name env))
