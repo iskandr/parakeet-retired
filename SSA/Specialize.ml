@@ -513,7 +513,50 @@ and specialize_reduce program f ?forceOutputTypes baseType vecTypes
       in   
       codegen#emit [mk_set (get_ids outputs) appNode] 
    )      
-      
+
+
+(* create an anonymous function which performs a typed all-pairs of the given *)
+(* function f over arguments of type 'inputType1' and 'inputType2' *) 
+(* and returns values of either the inferred types *)
+(* or of 'forceOutputTypes' if provided. *) 
+and specialize_all_pairs 
+    program 
+    (f : value) 
+    ?(forceOutputTypes : DynType.t list option) 
+    (inputType1 : DynType.t)
+    (inputType2 : DynType.t)
+    : SSA.fundef  = 
+  let eltTypes = [DynType.elt_type inputType1; DynType.elt_type inputType2] in  
+  let forceOutputEltTypes : DynType.t list option = 
+    Option.map (List.map DynType.elt_type) forceOutputTypes 
+  in
+  let nestedSig = 
+    { (Signature.from_input_types eltTypes ) with 
+       Signature.outputs = forceOutputEltTypes }
+  in 
+  let nestedFn = specialize_function_value program f nestedSig in
+  let nestedOutputTypes = DynType.fn_output_types nestedFn.value_type in 
+  (* since we're doing all-pairs of inputs, create a 2d array of outputs *) 
+  let outputTypes = 
+    List.map (fun t -> DynType.VecT (DynType.VecT t)) nestedOutputTypes in
+  let allPairsNode = { 
+    value = Prim (Prim.ArrayOp Prim.AllPairs);
+    value_type = DynType.FnT(eltTypes, nestedOutputTypes); 
+    value_src = None
+  } 
+  in
+  
+  SSA_Codegen.mk_lambda [inputType1; inputType2] outputTypes 
+    (fun codegen inputs outputs -> 
+      let appNode = { 
+        exp = App(allPairsNode, nestedFn::inputs); 
+        exp_types = outputTypes; 
+        exp_src = None; 
+      } 
+      in 
+      codegen#emit [mk_set (get_ids outputs) appNode]
+    ) 
+            
 and specialize_array_prim 
     ( program : Program.program ) 
     ( op  : Prim.array_op ) 
@@ -528,5 +571,7 @@ and specialize_array_prim
   (* for reduction, split the type of the initial value from the vectors *)
   (* being reduced *)  
   | Prim.Reduce,  [f], (initType::vecTypes) -> 
-    specialize_reduce program f ?forceOutputTypes initType vecTypes 
+    specialize_reduce program f ?forceOutputTypes initType vecTypes
+  | Prim.AllPairs, [f], [t1; t2] -> 
+    specialize_all_pairs program f ?forceOutputTypes t1 t2 
   | _ -> failwith "[specialize] array operator not yet implemented" 

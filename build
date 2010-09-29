@@ -43,7 +43,7 @@ if [ "prof" == "$1" ]; then
 fi
 if [ "debug" == "$1" ]; then
   PPFLAGS="-ppflag -DDEBUG"
-#  MAKEFLAGS="DEBUG=1"
+  MAKEFLAGS="DEBUG=-g"
 fi
 
 printf "\n---Building OCAML Interface---\n"

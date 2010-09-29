@@ -41,26 +41,78 @@ let fuse_map_map
       (predFn : SSA.fundef)
       (succ:adverb_descriptor)
       (succFn : SSA.fundef) 
-      (overlap : ID.Set.t) = predFn, DynType.BottomT (*FIX*) 
-
+      (dependencyPairs : ID.t ID.Map.t) = predFn, DynType.BottomT
+    (*let overlapList, succInputs = 
+      List.partition (fun id -> ID.Set.mem id overlapSet) succFn.input_ids
+    in   
+    (* each overlap variable in the successor function needs to get its
+       value from the corresponding output variable in the predecessor 
+    *)  
+    let overlapRhsVals =  
+    let overlapDefs = SSA.mk_set overlapList 
+    let body' = predFn.body @ overlapDefs @ succFn.body in
+    let tenv' = PMap.combine predFn.tenv succFn.tenv in 
+        
+    {
+      body = body'; 
+      input_ids = predFn.input_ids @ succInputs;
+      output_ids =  predFn.output_ids @ succFn.output_ids; 
+    }   
+    *)
 let fuse 
       (fns : FnTable.t)  
       (pred : adverb_descriptor) 
-      (succ : adverb_descriptor) = 
-  let dataOverlap = ID.Set.inter  pred.produces_set succ.consumes_set in 
+      (succ : adverb_descriptor) =
+  
+  let overlap = ID.Set.inter  pred.produces_set succ.consumes_set in 
   let fusedFns, fusedTypes, finalAdverb = 
     match pred.adverb, pred.function_arg_ids, 
           succ.adverb, succ.function_arg_ids with 
     | Prim.Map, [fId], Prim.Map, [gId] -> 
         let f = FnTable.find fId fns in 
-        let g = FnTable.find gId fns in 
-        let fn, ty = fuse_map_map pred f succ g dataOverlap in 
+        let g = FnTable.find gId fns in
+        (* create a map of scalar outputs of f 
+           keyed by ids of vectors they go into *) 
+        let overlapToNestedOutputs : ID.t ID.Map.t = 
+          ID.Map.of_list (List.combine pred.produces_list f.output_ids)
+        in 
+        (* create a map of scalar input ids to g 
+           keyed by the ids of the vectors they come from. 
+           Ignore any outer inputs which aren't IDs since these
+           can't possibly be data dependencies on the predecessor adverb. *)
+        let overlapToNestedInputs : ID.t ID.Map.t =  
+          List.fold_left2 
+            (fun accMap scalarId inValNode ->
+                match inValNode.value with 
+                  | Var vecId -> ID.Map.add vecId scalarId accMap
+                  | _ -> accMap
+            )
+            ID.Map.empty
+            g.input_ids 
+            succ.data_args 
+        in 
+        (* pair the nested input to the successor with the nested
+           output from the predecessor function which produced
+           the dependent value 
+        *)
+        let inputOutputPairs : ID.t ID.Map.t =  
+          ID.Set.fold  
+            (fun id accMap -> 
+                let outputId = ID.Map.find id overlapToNestedOutputs in
+                let inputId = ID.Map.find id overlapToNestedInputs in   
+                ID.Map.add inputId outputId accMap 
+            ) 
+            overlap
+            ID.Map.empty
+            
+        in 
+        let fn, ty = fuse_map_map pred f succ g inputOutputPairs in 
         [fn], [ty], Prim.Map 
     | _ -> failwith "[adverb_fusion->fuse] adverb pair not yet implemented"
   in 
   let fusedIds = List.map (fun fundef -> FnTable.add fundef fns) fusedFns in
   let is_data_dependency vNode = match vNode.value with 
-     | Var id -> not (ID.Set.mem id dataOverlap) 
+     | Var id -> not (ID.Set.mem id overlap) 
      | _ -> true
   in
   (* which data arguments are not internally produced by the fused 
@@ -88,7 +140,7 @@ let fuse
   let combinedConsumes : ID.Set.t =
     ID.Set.diff
      (ID.Set.union pred.consumes_set succ.consumes_set)
-     dataOverlap
+     overlap
   in     
   {
     adverb = finalAdverb; 

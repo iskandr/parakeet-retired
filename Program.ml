@@ -46,9 +46,10 @@ let create_from_untyped_block
       code 
       optimizations 
   in
-  printf "[create_program] finding constant values \n";
+  debug (Printf.sprintf "Program body: %s \n" (SSA.block_to_str optimized)); 
+  debug "[create_program] finding constant values \n";
   let constEnv = UntypedFindConstants.find_constants optimized in
-  printf "[create_program] creating map of global function values \n";
+  debug "[create_program] creating map of global function values \n";
   let functionMap = UntypedFindConstants.build_function_map constEnv in
   create_from_map functionMap  
 
