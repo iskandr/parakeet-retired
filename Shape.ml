@@ -18,18 +18,18 @@ let empty = create 0
    in an array
 *)
 let nelts shape = 
-  let n = Array1.dim shape in 
-  let total = ref Int32.one  in 
-  for i = 0 to n - 1 do 
+  let n = Array1.dim shape in
+  let total = ref Int32.one in
+  for i = 0 to n - 1 do
     total := Int32.mul !total (Array1.get shape i)
-  done; 
-  Int32.to_int !total 
+  done;
+  Int32.to_int !total
 
 let rank shape = Array1.dim shape 
 
 let nbytes_of_rank rank = rank * 4
 
-let nbytes shape =  nbytes_of_rank (rank shape) 
+let nbytes shape = nbytes_of_rank (rank shape)
 
 
 
