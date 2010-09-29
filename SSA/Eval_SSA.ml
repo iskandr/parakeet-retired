@@ -71,15 +71,17 @@ let eval_adverb_on_gpu
       | Prim.Map, [fundef], _ -> 
           GpuRuntime.compile_map fundef inputTypes outputTypes   
       | Prim.AllPairs, [fundef], [outputType] ->
-        GpuRuntime.compile_all_pairs fundef inputTypes outputType 
+        GpuRuntime.compile_all_pairs fundef inputTypes outputType
       | _ -> failwith "compilation for this primitive not yet implemented"
       in (Hashtbl.add codeCache key compiledModule; compiledModule)
   in 
   let dynVals = List.map (eval_value env) dataArgs in
   let gpuVals = List.map (MemoryState.get_gpu memState) dynVals in  
   match op with 
-    | Prim.Map -> GpuRuntime.run_map compiledModule gpuVals outputTypes   
-    | _ -> failwith "execution for this primitive not yet implemented"    
+    | Prim.Map -> GpuRuntime.run_map compiledModule gpuVals outputTypes
+    | Prim.AllPairs ->
+        GpuRuntime.run_all_pairs compiledModule gpuVals outputTypes
+    | _ -> failwith "execution for this primitive not yet implemented"  
 
                  
 let rec eval codeCache globalFns fundef hostVals  =
@@ -111,7 +113,7 @@ and eval_block
       (functions : FnTable.t) 
       (env : env) : (SSA.stmt_node list -> env) = function  
   | [] -> env
-  | stmtNode::rest -> 
+  | stmtNode::rest ->
       let (env' : env) = eval_stmt codeCache memState functions env stmtNode  in 
       eval_block codeCache memState functions env' rest
 
