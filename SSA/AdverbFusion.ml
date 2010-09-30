@@ -41,24 +41,51 @@ let fuse_map_map
       (predFn : SSA.fundef)
       (succ:adverb_descriptor)
       (succFn : SSA.fundef) 
-      (dependencyPairs : ID.t ID.Map.t) = predFn, DynType.BottomT
-    (*let overlapList, succInputs = 
-      List.partition (fun id -> ID.Set.mem id overlapSet) succFn.input_ids
-    in   
-    (* each overlap variable in the successor function needs to get its
-       value from the corresponding output variable in the predecessor 
+      (* every input to the successor paired with its corresponding output from 
+         the predecessor 
+      *) 
+      (dependencyPairs : ID.t ID.Map.t) =
+    
+    let tenv = PMap.combine predFn.tenv succFn.tenv in
+    let overlapDefs =
+      ID.Map.fold 
+        (fun inId outId defsAcc ->
+            let inType = PMap.find inId tenv in 
+            let outType = PMap.find outId tenv in 
+            assert (inType = outType); 
+            let varNode = SSA.mk_var ~ty:inType outId in 
+            let rhs = SSA.mk_exp ~types:[inType] (Values [varNode]) in 
+            let def = SSA.mk_set [inId] rhs in
+            def::defsAcc
+        ) 
+        dependencyPairs
+        []
+    in 
+    let body = predFn.body @ overlapDefs @ succFn.body in
+    (* get rid of successor inputs which have already been computed by 
+       predecessor
     *)  
-    let overlapRhsVals =  
-    let overlapDefs = SSA.mk_set overlapList 
-    let body' = predFn.body @ overlapDefs @ succFn.body in
-    let tenv' = PMap.combine predFn.tenv succFn.tenv in 
-        
-    {
-      body = body'; 
-      input_ids = predFn.input_ids @ succInputs;
-      output_ids =  predFn.output_ids @ succFn.output_ids; 
-    }   
-    *)
+    
+    let succInputs' = 
+      List.filter 
+        (fun id -> not (ID.Map.mem id dependencyPairs)) 
+        succFn.input_ids
+    in  
+    let inputIds = predFn.input_ids @ succInputs' in 
+    let inputTypes = List.map (fun id -> PMap.find id tenv) inputIds in
+    let outputIds = predFn.output_ids @ succFn.output_ids in
+    let outputTypes = List.map (fun id -> PMap.find id tenv) inputIds in
+    let fnType = DynType.FnT(inputTypes, outputTypes) in  
+    let fundef = {
+      body = body; 
+      input_ids = inputIds; 
+      output_ids = outputIds;
+      tenv = tenv; 
+      fun_type = fnType;     
+    }
+    in 
+    fundef, fnType 
+     
 let fuse 
       (fns : FnTable.t)  
       (pred : adverb_descriptor) 
@@ -299,7 +326,7 @@ let rec rewrite_block adverbMap graveyard = function
   | [] -> [], false
   (* if a statement should be killed just don't cons it onto the accumulator *)
   | stmtNode::rest when StmtSet.mem stmtNode.stmt_id graveyard ->
-    rewrite_block adverbMap graveyard rest
+      rewrite_block adverbMap graveyard rest
   | ({stmt=Set _} as stmtNode)::rest ->
         let rest', restChanged = rewrite_block adverbMap graveyard rest in
         if StmtMap.mem stmtNode.stmt_id adverbMap then 

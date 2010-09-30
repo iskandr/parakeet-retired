@@ -170,20 +170,20 @@ let get_ids vars = List.map get_id vars
     helpers for values 
  ***)
 
-let mk_val ?(src=None) ?(ty=DynType.BottomT) v = 
+let mk_val ?(src=None) ?(ty=DynType.BottomT) (v:value) : value_node = 
   { value = v; value_src = src; value_type = ty }
 
     
-let mk_var ?(src=None) ?(ty=DynType.BottomT) id = 
+let mk_var ?(src=None) ?(ty=DynType.BottomT) (id:ID.t) : value_node = 
   { value = Var id; value_src = src; value_type = ty }    
 
 (*** 
     helpers for expressions 
  ***) 
 
-let map_default_types optTypes elts = 
+let map_default_types optTypes values = 
   match optTypes with 
-    | None -> BaseList.fill DynType.BottomT elts 
+    | None -> List.map (fun vNode -> vNode.value_type) values 
     | Some ts -> ts
 
 let mk_app ?(src=None) ?types fn args =
@@ -195,13 +195,17 @@ let mk_arr ?(src=None) ?types elts =
   let types' = map_default_types  types elts in  
   { exp=Arr elts; exp_src=src; exp_types = types' } 
  
-let mk_val_exp ?(src=None) ?ty v =
-  let ty' = Option.default DynType.BottomT ty in   
+let mk_val_exp ?(src=None) ?ty (v: value) =
+  let ty' = match ty with 
+    | None -> DynType.BottomT 
+    | Some ty -> ty 
+  in 
   { exp=Values [mk_val ~src v]; exp_src=src; exp_types = [ty'] } 
 
-let mk_vals_exp ?(src=None) ?types vs =
-  let types' = map_default_types types vs in 
-  { exp = Values (List.map (mk_val ~src) vs); exp_src = src; exp_types=types' } 
+let mk_vals_exp ?(src=None) ?types ( vs : value list) =
+  let valNodes = List.map (mk_val ~src) vs in 
+  let types' = map_default_types types valNodes in 
+  { exp = Values valNodes; exp_src = src; exp_types=types' } 
 
 let mk_arr_idx ?(src=None) ?(types=[DynType.BottomT]) lhs indices =
   { exp = ArrayIndex(lhs, indices); exp_src=src; exp_types=types} 

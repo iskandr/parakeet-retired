@@ -101,7 +101,7 @@ class imp_codegen =
     method fresh_vars n t = Array.map (fun id -> Var id) $ self#fresh_ids n t   
     
     method shared_vec_id t dims = 
-      let id = self#fresh_id t in 
+      let id = self#fresh_id (DynType.VecT t) in 
       Hashtbl.add sharedDims id dims; 
       id 
       
@@ -114,6 +114,7 @@ class imp_codegen =
     
     
     method finalize = 
+     (* assert (DynArray.length inputs > 0 || DynArray.length outputs > 0);*)
       let inputIds = DynArray.to_array $ DynArray.map fst inputs in 
       let inputTypes = DynArray.to_array $ DynArray.map snd inputs in  
       let outputIds = DynArray.to_array $ DynArray.map fst outputs in 

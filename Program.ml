@@ -56,14 +56,22 @@ let create_from_untyped_block
 let default_typed_optimizations = 
   [
     (*"function cloning", TypedFunctionCloning.function_cloning;*)   
-    "elim dead code", TypedElimDeadCode.elim_dead_code;  
+    (*"elim dead code", TypedElimDeadCode.elim_dead_code;*)  
     "adverb fusion", AdverbFusion.optimize_fundef; 
   ]  
  
 let add_specialization 
     program ?(optimizations = default_typed_optimizations) 
     untypedVal signature typedFundef =
-  let typedId = FnTable.add  typedFundef program.typed_functions in  
+  let optimized = 
+     RunOptimizations.optimize_fundef
+      ~maxiters:2
+      ~inline:true
+      program.typed_functions 
+      typedFundef
+      optimizations
+  in  
+  let typedId = FnTable.add optimized program.typed_functions in  
   Hashtbl.add program.specializations (untypedVal, signature) typedId;
   typedId 
 
