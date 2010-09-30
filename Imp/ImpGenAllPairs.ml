@@ -1,3 +1,4 @@
+open Base
 open Imp
 open ImpCodegen
 open DynType 
@@ -12,6 +13,10 @@ open DynType
    inputs and an embedded reduce resulting in a 2D output...
  *)
 let gen_all_pairs_2d payload t1 t2 outType =
+  debug $ Printf.sprintf
+     "[imp] generating all_pairs kernel with signature (%s,%s)->%s\n"
+     (DynType.to_str t1) (DynType.to_str t2) (DynType.to_str outType)
+  ;
   let codegen = new imp_codegen in 
   (* change to actually get element types, or unwrap a vec *) 
   let elt_t1, elt_t2 = DynType.peel_vec t1, DynType.peel_vec t2 in 

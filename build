@@ -1,6 +1,6 @@
 
-printf "\n---Cleaning previous build---\n";
-ocamlbuild -clean
+# printf "\n---Cleaning previous build---\n";
+# ocamlbuild -clean
 
 cd CQInterface
 make clean

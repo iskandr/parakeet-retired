@@ -142,10 +142,8 @@ class imp_codegen =
     (* with those provided. Then removes the input/output vars, splices the *)
     (* modified code into the target code. Returns code as a statement list *)
     method splice fn inputs outputs targetCode = 
-      print "splice";
       let oldIds = Array.append fn.input_ids fn.output_ids in
       (* remove the input/output ids since they will be replaced *)
-      print "tenv'"; 
       let tenv' = PMap.remove_list (Array.to_list oldIds) fn.tenv in
       (* generate fresh code at every splice site so that temporaries get 
          different names.  

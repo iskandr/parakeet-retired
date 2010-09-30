@@ -436,7 +436,7 @@ and specialize_map
   let outputTypes = List.map (fun t -> DynType.VecT t) nestedOutputTypes in
   let mapNode = { 
     value = Prim (Prim.ArrayOp Prim.Map);
-    value_type = DynType.FnT(eltTypes, nestedOutputTypes); 
+    value_type = DynType.FnT(inputTypes, outputTypes); 
     value_src = None
   } 
   in
@@ -526,7 +526,8 @@ and specialize_all_pairs
     (inputType1 : DynType.t)
     (inputType2 : DynType.t)
     : SSA.fundef  = 
-  let eltTypes = [DynType.elt_type inputType1; DynType.elt_type inputType2] in  
+  let inputTypes = [inputType1; inputType2] in    
+  let eltTypes = List.map DynType.elt_type inputTypes in   
   let forceOutputEltTypes : DynType.t list option = 
     Option.map (List.map DynType.elt_type) forceOutputTypes 
   in
@@ -537,16 +538,18 @@ and specialize_all_pairs
   let nestedFn = specialize_function_value program f nestedSig in
   let nestedOutputTypes = DynType.fn_output_types nestedFn.value_type in 
   (* since we're doing all-pairs of inputs, create a 2d array of outputs *) 
+  
   let outputTypes = 
     List.map (fun t -> DynType.VecT (DynType.VecT t)) nestedOutputTypes in
+  
   let allPairsNode = { 
     value = Prim (Prim.ArrayOp Prim.AllPairs);
-    value_type = DynType.FnT(eltTypes, nestedOutputTypes); 
+    value_type = DynType.FnT(inputTypes, outputTypes); 
     value_src = None
   } 
   in
   
-  SSA_Codegen.mk_lambda [inputType1; inputType2] outputTypes 
+  SSA_Codegen.mk_lambda inputTypes outputTypes 
     (fun codegen inputs outputs -> 
       let appNode = { 
         exp = App(allPairsNode, nestedFn::inputs); 

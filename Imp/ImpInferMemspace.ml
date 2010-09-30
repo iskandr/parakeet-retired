@@ -21,7 +21,7 @@ module MemspaceSemantics = struct
   | Var id -> PMap.find id latticeEnv
   | Idx (lhs, rhs) ->
       (match eval_exp latticeEnv lhs with 
-        | Scalar -> failwith "attempted to index in scalar"
+        | Scalar -> failwith "[imp-infer-memspace] attempted to index scalar"
         | GlobalVec 1 -> Scalar 
         | GlobalVec r -> GlobalVec (r - 1)
         | SharedVec [d] -> Scalar
