@@ -364,11 +364,16 @@ and gen_block tyMap memspaceMap codegen block =
   List.iter (gen_stmt tyMap memspaceMap codegen) block
    
 let translate_kernel impfn = 
-  let codegen = new ptx_codegen in 
-  let _ = Array.map2 codegen#declare_local impfn.local_ids impfn.local_types in  
+  let codegen = new ptx_codegen in
+  debug "[translate_kernel] start\n%!";
+  let _ = Array.map2 codegen#declare_local impfn.local_ids impfn.local_types in
+  debug "[translate_kernel] declare local\n%!";
   let _ = Array.map2 codegen#declare_arg impfn.input_ids impfn.input_types in
-  let _  = Array.map2 codegen#declare_arg impfn.output_ids impfn.output_types in 
+  debug "[translate_kernel] declare arg\n%!";
+  let _ = Array.map2 codegen#declare_arg impfn.output_ids impfn.output_types in
+  debug "[translate_kernel] declare output\n%!";
   let memspaceMap = ImpInferMemspace.analyze_function impfn in
+  debug "[translate_kernel] infer\n%!";
   let tyMap = impfn.tenv in 
   gen_block tyMap memspaceMap codegen impfn.body; 
   codegen#run_rewrite_pass PtxSimplify.simplify;   

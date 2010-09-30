@@ -16,7 +16,7 @@ let lookup_ssa_id  parentEnv currEnv name  =
    statements must set retId to the last value 
 *)
 let rec translate_stmt env ?value_id node =  
-  let mk_stmt s = SSA.mk_stmt ~src:node.AST.src s in   
+  let mk_stmt s = SSA.mk_stmt ~src:node.AST.src s in
   match node.AST.data with
   | AST.If(cond, trueNode, falseNode) ->
       let condStmts, condEnv, condVal = translate_value env cond in

@@ -41,7 +41,18 @@ let compile_map payload argTypes retTypes =
   in 
   let ptx = ImpToPtx.translate_kernel impfn in
   let name = mapPrefix ^ (string_of_int (ID.gen())) in
-  mk_cuda_module [name,ptx] mapThreadsPerBlock 
+  mk_cuda_module [name,ptx] mapThreadsPerBlock
+
+let reducePrefix = "reduce_kernel"
+
+let compile_reduce payload retType =
+  let redThreadsPerBlock = 128 in
+  let impPayload = SSA_to_Imp.translate payload in
+  let impfn = ImpGenReduce.gen_reduce impPayload redThreadsPerBlock retType in
+  debug (Printf.sprintf "[compile_reduce] %s\n%!" (Imp.fn_to_str impfn));
+  let ptx = ImpToPtx.translate_kernel impfn in
+  let name = reducePrefix ^ (string_of_int (ID.gen())) in
+  mk_cuda_module [name,ptx] redThreadsPerBlock
 
 let allPairsPrefix = "all_pairs_kernel"
 
@@ -85,6 +96,36 @@ let run_map compiledModule gpuVals outputTypes =
          failwith (sprintf "Unable to get launch params for %d elts" outputElts)
       in
       LibPQ.launch_ptx compiledModule.Cuda.module_ptr fnName args gridParams; 
+      outputVals
+    | _ -> failwith "expect one map kernel"
+
+let run_reduce compiledModule gpuVals outputTypes =
+  let shapes = List.map GpuVal.get_shape gpuVals in
+  match compiledModule.Cuda.kernel_names with
+    | [fnName] ->
+      let maxShape = (match Shape.max_shape_list shapes with
+       | None -> raise InvalidGpuArgs
+       | Some maxShape -> maxShape
+       )
+      in
+      let outputVals =
+        List.map
+          (fun ty ->  GpuVal.mk_gpu_vec ty maxShape (sizeof ty maxShape))
+          outputTypes
+      in
+      let args = Array.of_list (gpuVals @ outputVals) in
+      let outputElts = Shape.nelts maxShape in
+      let gridParams = match
+        HardwareInfo.get_grid_params
+          ~device:0
+          ~block_size:compiledModule.Cuda.threads_per_block
+          outputElts
+        with
+        | Some gridParams -> gridParams
+        | None ->
+         failwith (sprintf "Unable to get launch params for %d elts" outputElts)
+      in
+      LibPQ.launch_ptx compiledModule.Cuda.module_ptr fnName args gridParams;
       outputVals
     | _ -> failwith "expect one map kernel"
 

@@ -74,6 +74,7 @@ let gen_module_template entries =
   
   debug "==(AST to Untyped SSA)==> \n %!";
   let code, idEnv = AST_to_SSA.translate_stmt PMap.empty ast in
+  debug "translated\n%!";
   debug (sprintf "%s \n%!"  (SSA.block_to_str code)); 
   
   debug "==(Creating Optimized Program)==> \n %!";

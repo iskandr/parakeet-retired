@@ -4,7 +4,8 @@ open ImpCodegen
 open DynType 
 
 (* reduces each block's subvector to a single output element *) 
-let gen_reduce payload threadsPerBlock ty = 
+let gen_reduce payload threadsPerBlock ty =
+  debug "[gen_reduce] start\n%";
   let codegen = new imp_codegen in 
   let input = codegen#fresh_var (VecT ty) in 
   let output = codegen#fresh_var (VecT ty) in 
@@ -48,4 +49,5 @@ let gen_reduce payload threadsPerBlock ty =
     [ifTrue (lt Int32T tid (int 32)) [SPLICE]];
   codegen#emit [ifTrue (eq Int32T tid (int 0)) 
                [set (idx output blockIdx.x) (idx cache $ int 0 )]];
+  debug "[gen_reduce] end\n%!";
   codegen#finalize

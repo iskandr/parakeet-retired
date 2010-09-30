@@ -49,9 +49,11 @@ let eval_adverb_on_gpu
       (op : Prim.array_op) 
       (outputTypes : DynType.t list)
       (args : SSA.value_node list) : GpuVal.gpu_val list =
-  let fnArgs, dataArgs = match op, args with 
+  let fnArgs, dataArgs = match op, args with
   | Prim.Map, fn::dataArgs -> [fn], dataArgs
+  | Prim.Reduce, fn::dataArgs -> [fn], dataArgs
   | Prim.AllPairs, fn::dataArgs -> [fn], dataArgs
+  | _ -> failwith "[eval_adverb_on_gpu] adverb not yet supported\n%!"
   in
   let signature = { 
     Signature.inputs = 
@@ -59,7 +61,7 @@ let eval_adverb_on_gpu
       (List.map (fun v -> Signature.Type v.value_type) dataArgs);
     outputs = Some outputTypes
   }
-  in 
+  in
   let key = Prim (Prim.ArrayOp op), signature in
   let fundefs = List.map (get_fundef functions env) fnArgs in
   let inputTypes = List.map (fun v -> v.value_type) dataArgs in 
@@ -69,16 +71,20 @@ let eval_adverb_on_gpu
     else 
       let compiledModule = match op, fundefs, outputTypes with 
       | Prim.Map, [fundef], _ -> 
-          GpuRuntime.compile_map fundef inputTypes outputTypes   
+          GpuRuntime.compile_map fundef inputTypes outputTypes
+      | Prim.Reduce, [fundef], [outputType] ->
+        GpuRuntime.compile_reduce fundef outputType
       | Prim.AllPairs, [fundef], [outputType] ->
         GpuRuntime.compile_all_pairs fundef inputTypes outputType
       | _ -> failwith "compilation for this primitive not yet implemented"
       in (Hashtbl.add codeCache key compiledModule; compiledModule)
-  in 
+  in
+  debug "[eval_adverb_on_gpu] after compiledModule\n%!";
   let dynVals = List.map (eval_value env) dataArgs in
   let gpuVals = List.map (MemoryState.get_gpu memState) dynVals in  
   match op with 
     | Prim.Map -> GpuRuntime.run_map compiledModule gpuVals outputTypes
+    | Prim.Reduce -> GpuRuntime.run_reduce compiledModule gpuVals outputTypes
     | Prim.AllPairs ->
         GpuRuntime.run_all_pairs compiledModule gpuVals outputTypes
     | _ -> failwith "execution for this primitive not yet implemented"  
@@ -114,8 +120,12 @@ and eval_block
       (env : env) : (SSA.stmt_node list -> env) = function  
   | [] -> env
   | stmtNode::rest ->
-      let (env' : env) = eval_stmt codeCache memState functions env stmtNode  in 
+      debug (Printf.sprintf "[eval_block] stmtNode::rest: %s \n%!"
+             (SSA.node_to_str stmtNode));
+      let (env' : env) = eval_stmt codeCache memState functions env stmtNode in
+      debug "[eval_block] evaluated stmt\n%!";
       eval_block codeCache memState functions env' rest
+  | _ -> failwith "[eval_block] unhandled function body type"
 
 and eval_stmt 
       (codeCache : codecache)
@@ -123,8 +133,10 @@ and eval_stmt
       (functions : FnTable.t) 
       (env : env ) 
       (stmtNode : SSA.stmt_node) : env = match stmtNode.stmt with 
-  | Set (ids, expNode) -> 
-      let results =  eval_exp codeCache memState functions env expNode in 
+  | Set (ids, expNode) ->
+      debug "[eval_stmt] Set\n%!";
+      let results =  eval_exp codeCache memState functions env expNode in
+      debug "[eval_stmt] after eval_exp\n%!";
       List.fold_left2 
         (fun accEnv id dynval -> PMap.add id dynval accEnv) 
         env 
@@ -133,7 +145,8 @@ and eval_stmt
   | Ignore expNode -> 
       ignore (eval_exp codeCache memState functions env expNode); env   
   | SetIdx (id, indices, rhs) -> failwith "not yet implemented"   
-  | If (boolVal, tBlock, fBlock, ifGate) -> failwith "not yet implemented"    
+  | If (boolVal, tBlock, fBlock, ifGate) -> failwith "not yet implemented"
+  | _ -> failwith "[eval_stmt] unknown stmt type"
 and eval_exp
       (codeCache : codecache)
       (memState : mem) 
@@ -144,8 +157,9 @@ and eval_exp
   | Values valNodes -> List.map (eval_value env) valNodes         
   (* assume all array operators take only one function argument *) 
   | App ({value=Prim (Prim.ArrayOp op); value_type=ty}, args) 
-    when Prim.is_adverb op -> 
-      let gpuResults = 
+    when Prim.is_adverb op ->
+      debug "[eval_exp] Prim.is_adverb\n%!";
+      let gpuResults =
         eval_adverb_on_gpu codeCache memState functions env 
         op (DynType.fn_output_types ty) args
       in 
@@ -166,12 +180,14 @@ and eval_exp
           env 
           fundef.input_ids
           argDynVals
-      in 
-      let env'' = eval_block codeCache memState functions env' fundef.body in 
-      List.map (fun id -> PMap.find id env'') fundef.output_ids  
+      in
+      let env'' = eval_block codeCache memState functions env' fundef.body in
+      debug "[eval_exp] env''\n%!";
+      List.map (fun id -> PMap.find id env'') fundef.output_ids
       
   | ArrayIndex (arr, indices) -> 
         failwith "[eval] array indexing not implemented"
   | Arr elts -> failwith "[eval] array constructor not implemented"
-  | Cast (t, valNode) -> failwith "[eval] cast not implemented" 
+  | Cast (t, valNode) -> failwith "[eval] cast not implemented"
+  | _ -> failwith "[eval] eval_exp failed; unfound expNode.exp type"
  
