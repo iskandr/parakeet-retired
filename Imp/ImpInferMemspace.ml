@@ -42,7 +42,7 @@ module Analysis = ImpAbstractInterp.Make(MemspaceSemantics)
 include MemspaceSemantics.Lattice 
 
 let analyze_function fn =
-  debug "[analyze_function] start\n";
+  PMap.iter (fun id t -> Printf.printf "%d: %s\n" id (DynType.to_str t)) fn.tenv; 
   let globalAdder map id = 
     let ty = PMap.find id fn.tenv in
     let memspace = 
@@ -51,11 +51,11 @@ let analyze_function fn =
       else failwith "[infer-memspace] non-vector compound type unsupported"
     in PMap.add id memspace map 
   in
-  debug "[analyze_function] globalAdder\n";
   let args = Array.append fn.input_ids fn.output_ids in 
   let globalsEnv = Array.fold_left globalAdder PMap.empty args in
-  debug "[analyze_function] globalsEnv\n";
   let sharedAdder id dims map = 
+    
+      assert (PMap.mem id fn.tenv);
       let ty = PMap.find id fn.tenv in 
       let memspace = 
         if DynType.is_scalar ty then Scalar
@@ -64,7 +64,6 @@ let analyze_function fn =
       in 
       PMap.add id memspace map      
   in
-  debug "[analyze_function] sharedAdder\n";
   let fullEnv = PMap.foldi sharedAdder fn.shared globalsEnv in
-  debug "[analyze_function] fullEnv\n";
+
   Analysis.run fullEnv fn.body

@@ -31,7 +31,11 @@ module Make(S : SEMANTICS) = struct
     let env', changed = eval_block env block in 
     if changed || niters > 100 then iterate ~niters:(niters + 1) env' block 
     else env, niters > 1 
-  and eval_stmt env =  function
+  and eval_stmt env stmt =
+    debug (Printf.sprintf "[imp_abstract_interp] eval_stmt: %s%!"
+           (Imp.stmt_to_str stmt)); 
+          
+    match stmt with
     | If (_, tBlock, fBlock) -> 
       let env1, changed1 = eval_block env tBlock in 
       let env2, changed2 = eval_block env1 fBlock in 
@@ -39,14 +43,19 @@ module Make(S : SEMANTICS) = struct
     | While (_, code) -> iterate env code 
     | Set (id, rhs) ->  
       let newVal = S.eval_exp env rhs in
-      let oldVal = PMap.find_default id env S.Lattice.bottom in
-      let joinedVal = S.Lattice.join newVal oldVal in 
-      if joinedVal <> oldVal then (PMap.add id joinedVal env, true)
-      else (env, false)   
+      begin 
+        let oldVal = PMap.find_default id env S.Lattice.bottom in
+        let joinedVal = S.Lattice.join newVal oldVal in 
+        if joinedVal <> oldVal then (PMap.add id joinedVal env, true)
+        else (env, false)
+      end   
     | _ (* comments or syncthreads *) -> env, false  
 
   let run env code = 
+    debug (Printf.sprintf "started running imp analysis %!");
     let env', _ = List.fold_left block_folder (env, false) code in 
+    debug (Printf.sprintf "done running imp analysis %!");
+    
     env' 
   
       

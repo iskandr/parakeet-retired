@@ -201,8 +201,8 @@ let array_op_to_str = function
   | Map -> "map"
   | EachLeft -> "each_left"
   | EachRight -> "each_right"
-  | Reduce -> "reduce"
-  | Scan -> "scan"
+  | Reduce -> "/"
+  | Scan -> "\\"
   | AllPairs -> "/:\\:" 
   | AllPairsRight -> "\\:/:"  
 
