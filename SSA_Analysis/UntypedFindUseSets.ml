@@ -12,7 +12,6 @@ let rec eval_block useMap block =
   in   
   aux PSet.empty useMap block 
 and eval_stmt useMap stmtNode = 
-  debug "find_use_sets->eval_stmt";
   match stmtNode.stmt with  
   | Set (ids, expNode) -> 
       let currUsedSet, useMap' = eval_exp useMap expNode in
@@ -46,7 +45,6 @@ and eval_stmt useMap stmtNode =
       let gateMap = List.fold_left2 combineBranches falseMap outIds branchIds in
       PSet.union condSet (PSet.union trueSet falseSet), gateMap       
 and eval_exp useMap expNode = 
-  debug "find_use_sets->eval_exp";
   match expNode.exp with 
   | Values vs -> eval_value_list useMap vs    
   (*| TupleProj (v1, v2) -> 
@@ -63,7 +61,6 @@ and eval_exp useMap expNode =
   | Arr vs -> failwith "not implemented" 
     
 and eval_value useMap valNode =
-  debug "find_use_sets->eval_value";
   match valNode.value with 
   | Lam fundef ->
       (* remember to add the output variables of the function to the 

@@ -52,7 +52,6 @@ let rec rewrite_block constEnv useCounts defEnv tenv block =
   flatStmts, anyChanged
     
 and rewrite_stmt constEnv useCounts defEnv tenv node =
-  debug "rewrite_stmt";
   let drop = [], true in   
   let return stmt changed = [{node with stmt = stmt}], changed in 
   let s_block = rewrite_block constEnv useCounts defEnv tenv in 
@@ -118,7 +117,6 @@ and rewrite_exp constEnv useCounts defEnv tenv node =
 
     
 and rewrite_value constEnv useCounts defEnv tenv valNode =
-  debug $ Printf.sprintf "rewrite_value: %s" (SSA.value_node_to_str valNode); 
   let value', changed = match valNode.value with 
   | Var id -> 
       (replace_with_def defEnv id) >>  lazy (replace_with_const constEnv id)
@@ -160,18 +158,17 @@ let simplify_typed_block
     ~(free_vars:ID.t list) 
      (functions : FnTable.t)
      (block : SSA.block) =
-  debug "simplify_typed_block, finding constants"; 
   let constEnv  = FindConstants.find_constants ~free_vars block in
-  debug "simplify_typed_block, finding use counts";
+  
   let useCounts,_ = UntypedFindUseCounts.find_use_counts block in
-  debug "simplify_typed_block, finding defs";
+  
   let defEnv  = UntypedFindDefs.find_defs block in 
   rewrite_block constEnv useCounts defEnv tenv block     
   
 let simplify_untyped_block = simplify_typed_block ~tenv:PMap.empty ~free_vars:[]
   
 let simplify_fundef (functions:FnTable.t) fundef = 
-  debug "simplify_fundef";
+  
   let body', changed = 
     simplify_typed_block 
       ~tenv:fundef.tenv 
