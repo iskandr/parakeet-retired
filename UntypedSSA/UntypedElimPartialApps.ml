@@ -1,7 +1,6 @@
 open Base
 open SSA
 open UntypedFindDefs
-open UntypedFindConstants 
 
 
 let rec eval_block defEnv constEnv block =  
@@ -34,7 +33,7 @@ and eval_exp defEnv constEnv expNode =
   | App ({value=Var fnId} as fnNode, args) -> 
     (match PMap.find fnId defEnv with 
      | SingleDef (App({value=Var fnId'}, args')) 
-       when is_function_constant constEnv fnId' ->
+       when FindConstants.is_function_constant constEnv fnId' ->
        {expNode with exp = 
             App({fnNode with value = Var fnId'}, args' @ args)
        }, true
@@ -61,5 +60,5 @@ and eval_value_list defEnv constEnv = function
         
 let elim_partial_apps fnTable block = 
   let defEnv = UntypedFindDefs.find_defs block in
-  let constEnv = UntypedFindConstants.find_constants block in 
+  let constEnv = FindConstants.find_constants block in 
   eval_block defEnv constEnv block 

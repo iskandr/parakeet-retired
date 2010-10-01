@@ -1,7 +1,6 @@
 open Base
 open SSA
 open UntypedFindDefs
-open UntypedFindConstants 
 
 
 let rec eval_block liveSet = function 
@@ -15,10 +14,10 @@ let rec eval_block liveSet = function
      
 and eval_stmt liveSet stmtNode =  
   match stmtNode.stmt with 
-  | Set ([id], rhs) -> 
-    if PSet.mem id liveSet then
+  | Set (ids, rhs) -> 
+    if List.exists (fun id -> PSet.mem id liveSet) ids then
       let rhs', changed = eval_exp liveSet rhs in 
-      Some {stmtNode with stmt = Set([id], rhs')}, changed
+      Some {stmtNode with stmt = Set(ids, rhs')}, changed
     else None, true  
   | Ignore rhs -> 
     let rhs', changed = eval_exp liveSet rhs in 

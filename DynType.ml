@@ -201,7 +201,7 @@ let fold_type_list = function
 
 let fn_input_types = function 
   | FnT(inputs, _) -> inputs
-  | _ -> failwith "expected function"
+  | _ -> failwith "[DynType.fn_input_types] expected function"
 
 let fn_output_types = function 
   | FnT (_, outputs) -> outputs

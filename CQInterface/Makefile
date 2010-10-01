@@ -3,7 +3,7 @@ CFLAGS = -Wall -m32 -O3
 LDFLAGS = -lpthread -lm -lrt
 CC = gcc
 DEBUG =
-OCAMLCC = ocamlopt
+OCAMLCC = ocamlfind ocamlopt
 OCAMLCFLAGS = -ccopt -fPIC
 
 OCAMLINCLUDES = -I $(BUILDPATH) -I $(BUILDPATH)/Analysis \
@@ -13,13 +13,16 @@ OCAMLINCLUDES = -I $(BUILDPATH) -I $(BUILDPATH)/Analysis \
 	-I $(BUILDPATH)/extlib -I $(BUILDPATH)/AST   \
 	-I $(BUILDPATH)/Imp \
 	-I $(BUILDPATH)/UntypedSSA \
-	-I $(BUILDPATH)/SSA
+	-I $(BUILDPATH)/SSA \
+	-I $(BUILDPATH)/SSA_Optimizations \
+ 	-I $(BUILDPATH)/SSA_Analysis
+
    
 #COBJS = -ccopt $(PQ_PATH)/libpq.so 
 OBJS = cinterface.o
 COBJS = -ccopt -L/usr/lib/nvidia-current -ccopt $(PQ_PATH)/cuda_stubs.o $(PQ_PATH)/libpq_stubs.o $(PQ_PATH)/../OCAMLInterface/ocaml_interface.a -ccopt -lcuda
 
-#OCAMLOBJS := $(shell find ../_build/ -name '*.cmx' | xargs -n1 basename ) 
+OCAMLOBJS := $(shell find ../_build/ -name '*.cmx' | xargs -n1 basename ) 
 
 OCAMLOBJSRAW := unix.cmxa enum.cmx dynArray.cmx extString.cmx extHashtbl.cmx \
 extList.cmx PMap.cmx std.cmx bitSet.cmx extArray.cmx option.cmx \
@@ -36,17 +39,19 @@ SSA_Gates.cmx SSA.cmx AST_to_SSA.cmx \
 FnTable.cmx \
 ConstantLattice.cmx \
 UntypedAnalysis.cmx \
-UntypedFindConstants.cmx UntypedFindDefs.cmx \
-UntypedFindGenSet.cmx UntypedFindUseCounts.cmx \
-UntypedReplace.cmx \
-UntypedInline.cmx \
+FindConstants.cmx \
+UntypedFindDefs.cmx \
+UntypedFindGenSet.cmx \
 UntypedFindUseSets.cmx \
+UntypedFindUseCounts.cmx \
+UntypedReplace.cmx \
+Inline.cmx \
 UntypedElimDeadCode.cmx \
-UntypedSimplify.cmx \
+Simplify.cmx \
 UntypedElimPartialApps.cmx \
 UntypedSimpleCSE.cmx \
-TypedFindLiveIds.cmx \
-TypedElimDeadCode.cmx \
+FindLiveIds.cmx \
+ElimDeadCode.cmx \
 AdverbFusion.cmx \
 RunOptimizations.cmx \
 TypeInfer.cmx \
@@ -81,7 +86,7 @@ endif
 all: cinterface 
 
 cinterface: $(OBJS)
-	$(OCAMLCC) -ccopt -shared -ccopt -Wl,-Bsymbolic $(OBJS) \
+	$(OCAMLCC) -linkall -ccopt -shared -ccopt -Wl,-Bsymbolic $(OBJS) \
 	$(OCAMLINCLUDES) $(COBJS) $(DEBUG) -ccopt -Wl,--start-group $(OCAMLOBJS) \
 	-ccopt -Wl,--end-group -o cinterface.so -verbose
 

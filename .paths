@@ -122,3 +122,5 @@ unit/tmp
 .git/objects/fd
 .git/objects/ff
 _build/UntypedSSA
+SSA_Optimizations
+SSA_Analysis

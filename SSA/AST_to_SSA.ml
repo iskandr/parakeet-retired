@@ -172,12 +172,12 @@ and translate_fn env argNames body =
     List.fold_left2 
       (fun env name id -> PMap.add name id env) 
       env argNames argIds in
-  let stmts, finalEnv = translate_stmt initEnv ~value_id:retId body in  
+  let stmts, finalEnv = translate_stmt initEnv ~value_id:retId body in
   let ssaFn = { 
     output_ids = [retId]; 
     input_ids = argIds; 
     body = stmts;
     tenv = PMap.empty; 
-    fun_type = DynType.BottomT;  
+    fun_type = DynType.BottomT;(* DynType.FnT([DynType.BottomT], List.map (fun _ -> DynType.BottomT) argIds); *)  
   } in 
   ssaFn, finalEnv 

@@ -21,7 +21,7 @@ type program = {
 
 (* given an ID.t -> untyped function mapping, create a fresh program *) 
 let create_from_map fnMap = 
-  let fnList = PMap.to_list fnMap in
+  let fnList = ID.Map.to_list fnMap in
   let nFunctions = List.length fnList in {   
      untyped_functions = FnTable.from_list fnList;
      typed_functions = FnTable.create nFunctions; 
@@ -31,7 +31,7 @@ let create_from_map fnMap =
 
 let default_untyped_optimizations = 
   [
-    "simplify", UntypedSimplify.simplify_block; 
+    "simplify", Simplify.simplify_untyped_block; 
     "elim partial applications", UntypedElimPartialApps.elim_partial_apps;
     "elim dead code", UntypedElimDeadCode.global_elim;
     "elim common subexpression", UntypedSimpleCSE.cse; 
@@ -48,16 +48,19 @@ let create_from_untyped_block
   in
   debug (Printf.sprintf "Program body: %s \n" (SSA.block_to_str optimized)); 
   debug "[create_program] finding constant values \n";
-  let constEnv = UntypedFindConstants.find_constants optimized in
+  let constEnv = FindConstants.find_constants optimized in
   debug "[create_program] creating map of global function values \n";
-  let functionMap = UntypedFindConstants.build_function_map constEnv in
+  let functionMap = FindConstants.build_function_map constEnv in
   create_from_map functionMap  
 
 let default_typed_optimizations = 
   [
     (*"function cloning", TypedFunctionCloning.function_cloning;*)   
     (*"elim dead code", TypedElimDeadCode.elim_dead_code;*)  
+    "simplify", Simplify.simplify_fundef; 
+    "dead code elim", ElimDeadCode.elim_dead_code; 
     "adverb fusion", AdverbFusion.optimize_fundef; 
+
   ]  
  
 let add_specialization 
@@ -65,7 +68,7 @@ let add_specialization
     untypedVal signature typedFundef =
   let optimized = 
      RunOptimizations.optimize_fundef
-      ~maxiters:2
+      ~maxiters:10
       ~inline:true
       program.typed_functions 
       typedFundef
