@@ -284,7 +284,7 @@ and gpu_op_args_to_buffer b symbols op args = match op with
         (PtxVal.to_str symbols args.(0))
         (PtxVal.to_str symbols args.(1))
          
-                 
+  | _ -> bprintf b ";"
 and gpu_bits_to_str = function 
 	| Wide -> "wide"
 	| Low -> "lo"
