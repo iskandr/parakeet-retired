@@ -32,6 +32,7 @@ type array_op =
   | Enlist (* make array from one element *) 
   | Til 
   | Rand
+  | Index
 
 type impure_op = ResetTimer | GetTimer | Print 
                 
@@ -138,7 +139,7 @@ let min_prim_arity = function
   | ArrayOp Concat 
   | ArrayOp Zip
   | ArrayOp Rand -> 2
-
+  | ArrayOp Index -> 2 
   | ArrayOp _ -> 3
   | ImpureOp Print  -> 1
   | ImpureOp _ -> 0
@@ -205,6 +206,7 @@ let array_op_to_str = function
   | Scan -> "\\"
   | AllPairs -> "/:\\:" 
   | AllPairsRight -> "\\:/:"  
+  | Index -> "@"
 
 let impure_op_to_str = function
   | ResetTimer -> "reset_timer"

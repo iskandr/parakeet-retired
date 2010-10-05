@@ -18,59 +18,72 @@ let translate_coord = function
 let translate_simple_exp codegen = function 
   | Imp.Var id -> codegen#get_data_reg id 
   | Imp.Const n -> PtxHelpers.num_to_ptx_const n 
-  | Imp.ThreadIdx coord -> 
-      let reg16 = codegen#fresh_reg U16 in 
-      let special = Special (ThreadId (translate_coord coord)) in 
-      codegen#emit [mov U16 reg16 special]; 
-      codegen#convert ~destType:U32  ~srcType:U16   ~srcReg:reg16
-      
-  | Imp.BlockIdx coord -> 
-      let reg16 = codegen#fresh_reg U16 in
-      let special = Special (CtaId (translate_coord coord)) in  
-      codegen#emit [mov U16 reg16 special]; 
-      codegen#convert ~destType:U32 ~srcType:U16  ~srcReg:reg16
-  
-  | Imp.BlockDim coord -> 
-      let reg16 = codegen#fresh_reg U16 in
-      let special = Special (NumThreadId (translate_coord coord)) in 
-      codegen#emit [mov U16 reg16 special]; 
-      codegen#convert ~destType:U32 ~srcType:U16 ~srcReg:reg16
-      
-  | Imp.GridDim coord -> 
-      let reg16 = codegen#fresh_reg U16 in
-      let special = Special (NumCtaId (translate_coord coord)) in 
-      codegen#emit [mov U16 reg16 special];
-      codegen#convert ~destType:U32 ~srcType:U16  ~srcReg:reg16 
-      
   | other -> failwith $ 
-           Printf.sprintf "cannot translate compound Imp expression: %s\n"
+           Printf.sprintf "cannot translate complex Imp expression: %s\n"
            (Imp.exp_to_str other)  
+          
+(* translate a simple expression and potentially convert it to some desired
+   type 
+*) 
 
+let translate_special = function 
+  | Imp.GridDim coord ->  Special (NumCtaId (translate_coord coord))
+  | Imp.BlockDim coord ->  Special (NumThreadId (translate_coord coord))
+  | Imp.BlockIdx coord  -> Special (CtaId (translate_coord coord))
+  | Imp.ThreadIdx coord -> Special (ThreadId (translate_coord coord))
 
-let gen_exp tyMap memspaceMap codegen destReg exp = 
-  debug $ Printf.sprintf "[imp2ptx->gen_exp] %s\n" (Imp.exp_to_str exp); 
-  let rec translate_arg e t = 
-    if is_simple_exp e then translate_simple_exp codegen  e 
-    else let reg = codegen#fresh_reg t in (aux reg e; reg)
-
-  and aux destReg  = function
+let gen_exp 
+    tyMap  
+    (memspaceMap : (ID.t, MemspaceSemantics.Lattice.t) PMap.t) 
+    (codegen : PtxCodegen.ptx_codegen) 
+    (destReg : PtxVal.value) 
+    (exp : Imp.exp) = 
+  let destType = PtxVal.type_of_var destReg in 
+  debug $ Printf.sprintf "[imp2ptx->gen_exp] %s\n" (Imp.exp_to_str exp);
+  let translate_arg exp' ptxT =
+    let ptxVal = translate_simple_exp codegen exp' in 
+    codegen#convert_fresh ~destType:ptxT ~srcVal:ptxVal
+  in 
+  match exp with 
+  (* when dealing with a number or simple variable reference, just
+     allocate a new register and move the value into it 
+  *) 
   | e when is_simple_exp e -> 
-      let t = PtxType.of_dyn_type (Imp.infer_dyn_type tyMap e) in 
+      let t = PtxType.of_dyn_type (Imp.infer_dyn_type tyMap e) in
+      assert (destType = t);  
       let rhs = translate_simple_exp codegen e in
-      codegen#emit [PtxHelpers.mov t destReg rhs]  
-  (* fused multiply and add *) 
-  | Imp.Op(Prim.Add,addT, [Imp.Op(Prim.Mult,mulT, [x; y]); z])
-  | Imp.Op(Prim.Add,addT, [z; Imp.Op(Prim.Mult,mulT, [x; y])])   
-      when addT = mulT -> 
-      codegen#emit [comment "optimizing mad"];
-      let t = PtxType.of_dyn_type addT in 
-      let x' = translate_arg x t in 
-      let y' = translate_arg y t in 
-      let z' = translate_arg z t in 
-      codegen#emit [PtxHelpers.mad t destReg x' y' z']
+      codegen#emit [mov destReg rhs]  
+  
+  | Imp.GridDim _ 
+  | Imp.BlockDim _ 
+  | Imp.BlockIdx _  
+  | Imp.ThreadIdx _ -> 
+      let special = translate_special exp in  
+      if destType = U16 then 
+        codegen#emit [mov destReg special]
+      else
+        let reg16 = codegen#fresh_reg U16 in  begin
+          codegen#emit [mov reg16 special]; 
+          codegen#convert ~destReg:destReg ~srcVal:reg16
+        end
+  
+  | DimSize(dim, Var id) ->
+      assert (PMap.mem id memspaceMap); 
+      (match PMap.find id memspaceMap with 
+        | Mem.SharedVec dims -> 
+            assert (List.length dims <= dim); 
+            let size = List.nth dims dim in 
+            codegen#emit [mov destReg (PtxHelpers.int size)]
+        | Mem.GlobalVec 1 ->
+            let shapeReg = codegen#get_shape_reg id in 
+            codegen#emit [ld_global U32 destReg shapeReg] 
             
+        | _ -> failwith "dimsize not implemented for global vectors"
+      )
+  
   | Imp.Op(op,t,[x;y]) when Prim.is_binop op -> 
-      let t' = PtxType.of_dyn_type t in 
+      let t' = PtxType.of_dyn_type t in
+      assert (t' = destType);  
       let x' = translate_arg x t' in 
       let y' = translate_arg y t' in 
       let ptxop = PtxHelpers.prim_to_ptx_binop op t' in 
@@ -78,21 +91,19 @@ let gen_exp tyMap memspaceMap codegen destReg exp =
  
   | Imp.Op (op,t,[x]) when Prim.is_unop op -> 
       let t' = PtxType.of_dyn_type t in
+      assert (t' = destType); 
       let ptxop = PtxHelpers.prim_to_ptx_unop op t' in   
       let x' = translate_arg x t' in
       codegen#emit [PtxHelpers.op2 ptxop destReg x']        
   | Imp.Select(t, cond, trueExp, falseExp) -> 
-      let t' = PtxType.of_dyn_type t in 
+      let t' = PtxType.of_dyn_type t in
+      assert (t' = destType);  
       let cond' = translate_arg cond Pred in
       let trueExp' = translate_arg trueExp t' in 
       let falseExp' = translate_arg falseExp t' in
       codegen#emit [
-        PtxHelpers.selp t' 
-          ~dest:destReg 
-          ~ifTrue:trueExp' 
-          ~ifFalse:falseExp' 
-          ~cond:cond' 
-       ]
+        selp ~dest:destReg ~ifTrue:trueExp' ~ifFalse:falseExp' ~cond:cond' 
+      ]
   (* by this point all the index expressions should have been flattened, 
      so only expect a variable on the lhs 
   *) 
@@ -127,17 +138,13 @@ let gen_exp tyMap memspaceMap codegen destReg exp =
           else
             codegen#emit [ld_shared gpuStorageT storageReg regs.(2)]
           ;
-          let cvtReg = 
-            codegen#convert 
-              ~destType:gpuT  
-              ~srcType:gpuStorageT 
-              ~srcReg:storageReg 
-          in
-          codegen#emit [PtxHelpers.mov gpuT destReg cvtReg]
+          codegen#convert ~destReg  ~srcVal:storageReg 
+          
       | _ -> failwith "Unexpected memory space for array indexing"
       end
   | Imp.Cast(tNew, tOld, x) ->
       let tNew' = PtxType.of_dyn_type tNew in 
+      assert (tNew' = PtxVal.type_of_var destReg); 
       let tOld' = PtxType.of_dyn_type tOld in  
       let x' = translate_arg x tOld' in
       let oldName = DynType.to_str tOld in 
@@ -145,29 +152,13 @@ let gen_exp tyMap memspaceMap codegen destReg exp =
       codegen#emit [
         comment (sprintf "Conversion from %s to %s " oldName newName)
       ]; 
-      let cvtReg = codegen#convert  ~destType:tNew' ~srcType:tOld' ~srcReg:x' in 
-      codegen#emit [PtxHelpers.mov tNew' destReg cvtReg]
+      codegen#convert ~destReg ~srcVal:x' 
       
-  | DimSize(dim, Var id) ->
-      assert (PMap.mem id memspaceMap); 
-      (match PMap.find id memspaceMap with 
-        | Mem.SharedVec dims -> 
-            assert (List.length dims <= dim); 
-            let size = List.nth dims dim in 
-            codegen#emit [PtxHelpers.mov U64 destReg (PtxHelpers.int size)]
-        | Mem.GlobalVec 1 ->
-            let shapeReg = codegen#get_shape_reg id in 
-            codegen#emit [PtxHelpers.ld_global U64 destReg shapeReg] 
-            
-        | _ -> failwith "dimsize not implemented for global vectors"
-      )
-       
-         
+             
   | other -> 
      failwith (sprintf "unexpected simple imp expression: %s" 
                (Imp.exp_to_str other))
   
-  in aux destReg exp 
   
 let infer_ptx_type tenv exp = 
   PtxType.of_dyn_type (Imp.infer_dyn_type tenv exp)
@@ -204,7 +195,7 @@ let gen_array_slice tyMap memspaceMap codegen lhsId baseId baseReg idxReg idxPtx
       for optimization.   
     *)
     let slicesizes = codegen#fresh_regs U64 rank in
-    codegen#emit [mov U64 slicesizes.(0) (int eltBytes)];
+    codegen#emit [mov slicesizes.(0) (int eltBytes)];
     for i = 1 to rank - 1 do
       let dim = codegen#fresh_reg U64  in
       codegen#emit [
@@ -244,7 +235,7 @@ let compute_global_array_pos
       idxPtxT = 
   codegen#emit [comment "Calculating position in global array"];
   let slicesizes = codegen#fresh_regs U64 rank in
-  codegen#emit [mov U64 slicesizes.(0) (int eltBytes)];
+  codegen#emit [mov slicesizes.(0) (int eltBytes)];
   for i = 1 to rank - 1 do
     let dim = codegen#fresh_reg U64  in
     codegen#emit [
@@ -317,19 +308,10 @@ let rec gen_stmt tyMap memspaceMap codegen stmt =
             
           | _ -> 
              failwith "expected 1D memory space descriptor in imp->ptx store"
-        ); 
-        let cvtReg = 
-          codegen#convert 
-          ~destType:eltPtxT 
-          ~srcType:storageT 
-          ~srcReg:storageReg 
-        in 
-        codegen#emit [mov eltPtxT resultReg cvtReg] 
-        
-        
-        
-         
-        )      
+        );
+        assert (eltPtxT = PtxVal.type_of_var resultReg);  
+        codegen#convert ~destReg:resultReg ~srcVal:storageReg 
+     )      
       
   | Imp.Set (id,rhs) -> 
       let dynT = PMap.find id tyMap in 
@@ -352,10 +334,8 @@ let rec gen_stmt tyMap memspaceMap codegen stmt =
       gen_exp tyMap memspaceMap codegen rhsReg rhs; 
       let rhsStorageT = PtxType.storage_of_dyn_type rhsDynT in
       let rhsRegCvt = 
-        codegen#convert 
-          ~destType:rhsStorageT
-          ~srcType:rhsPtxT  
-          ~srcReg:rhsReg in  
+        codegen#convert_fresh ~destType:rhsStorageT ~srcVal:rhsReg 
+      in  
       let base = codegen#get_data_reg id in
       codegen#emit [comment "calculating storage index"];
       let idxReg, idxT = match idxRegs, idxTypes with 
@@ -363,10 +343,8 @@ let rec gen_stmt tyMap memspaceMap codegen stmt =
         | _ -> failwith "ptx->imp only supports 1 dimensional array stores"
       in 
       let idxReg' = 
-          codegen#convert 
-            ~destType:PtxType.U64
-            ~srcType:idxT
-            ~srcReg:idxReg in
+        codegen#convert_fresh ~destType:PtxType.U64 ~srcVal:idxReg 
+      in
         (* get offset as product of index and storage bytesize *)   
       let offset = codegen#fresh_reg PtxType.U64 in
       (* compute linear offset into data array as sum of base and offset *) 
@@ -432,3 +410,15 @@ let translate_kernel impfn =
   codegen#finalize_kernel
 
 
+(*
+  (* fused multiply and add *) 
+  | Imp.Op(Prim.Add,addT, [Imp.Op(Prim.Mult,mulT, [x; y]); z])
+  | Imp.Op(Prim.Add,addT, [z; Imp.Op(Prim.Mult,mulT, [x; y])])   
+      when addT = mulT -> 
+      codegen#emit [comment "optimizing mad"];
+      let t = PtxType.of_dyn_type addT in 
+      let x' = translate_arg x t in 
+      let y' = translate_arg y t in 
+      let z' = translate_arg z t in 
+      codegen#emit [PtxHelpers.mad t destReg x' y' z']
+  *)

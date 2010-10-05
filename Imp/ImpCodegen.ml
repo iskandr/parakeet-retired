@@ -10,6 +10,9 @@ class imp_codegen =
     val inputs = (DynArray.create () : ((ID.t * DynType.t) DynArray.t)) 
     val outputs = (DynArray.create () : ((ID.t * DynType.t) DynArray.t)) 
     
+    (* cache the ID's into which we store BlockDim, ThreadIdx, consts, etc..*)
+    val expCache  = ((Hashtbl.create 127) : (Imp.exp, ID.t) Hashtbl.t)
+    
     (* an expression gets flattened into a list of statements and a simple 
        expression yielding the same value as the original compound expression 
     *) 
@@ -44,7 +47,20 @@ class imp_codegen =
         let stmts, exp' = self#flatten_exp exp in stmts, Cast(t1, t2, exp')  
     | DimSize (i, exp) -> 
         let stmts, exp' = self#flatten_exp exp in stmts, DimSize(i,exp')  
-    | simple -> [], simple    
+    | exp when is_simple_exp exp -> [], exp
+    | exp -> 
+        if Hashtbl.mem expCache exp then 
+          let id = Hashtbl.find expCache exp in 
+          [], Var id
+        else
+          (* don't pass a type environment since we're guaranteed to not
+             be checking a variable's type  
+          *) 
+          let ty = Imp.infer_dyn_type PMap.empty exp in
+          let id = self#fresh_id ty in
+          Hashtbl.add expCache exp id;     
+          [Set(id, exp)], Var id 
+           
     (* flatten the nested sub-expressions in a statement by turning them
        into their own statements 
     *) 

@@ -137,21 +137,17 @@ method emit newInstructions =
       array_size = None; 
       init_val= None 
     };
-    Reg id
+    Reg {id=id; ptx_type=gpuT}
   
   method init_reg  gpuT initVal =
     let reg = self#fresh_reg gpuT in 
-    self#emit [mov gpuT reg initVal]; 
+    self#emit [mov reg initVal]; 
     reg
      
   (** returns a list of register ids for requested type **)
   method fresh_regs gpuT count =
-    let regs = Array.create count (Reg 0) in 
-    for i = 0 to count - 1 do 
-      regs.(i) <- self#fresh_reg gpuT
-    done;
-    regs 
-
+    Array.init count (fun _ -> self#fresh_reg gpuT)
+    
   (* if variable is a scalar then allocates one new register and returns
      it. if it's a vector then allocate a register pair (data/shape) and
      return the data register. If the vector is actually a slice through
@@ -176,10 +172,10 @@ method emit newInstructions =
     Hashtbl.add dynTypes id dynT; 
     let num = numArgs in
     numArgs <- num + 1;
-    let paramId = self#get_sym_id (data_param_name num) in  
-    let dataParam =  Param paramId in
-    let gpuStorageT = PtxType.storage_of_dyn_type dynT in
-    self#add_param_decl paramId gpuStorageT; 
+    let paramId = self#get_sym_id (data_param_name num) in
+    let gpuStorageT = PtxType.storage_of_dyn_type dynT in  
+    self#add_param_decl paramId gpuStorageT;
+    let dataParam =  Param { id = paramId; ptx_type=gpuStorageT} in 
     let storageReg = self#fresh_reg gpuStorageT in 
     self#emit [ld_param gpuStorageT storageReg dataParam];
     let gpuT = PtxType.of_dyn_type dynT in
@@ -189,13 +185,13 @@ method emit newInstructions =
            then we need conversion code (for types like bool, u8, etc..)
         *) 
         if gpuT = gpuStorageT then storageReg 
-        else self#convert ~destType:gpuT ~srcType:gpuStorageT ~srcReg:storageReg 
+        else self#convert_fresh ~destType:gpuT ~srcVal:storageReg  
     in 
     Hashtbl.add dataRegs id dataReg;
     (* vectors need an additional param for their shape *) 
     if not $ DynType.is_scalar dynT then  (
       let shapeParamId = self#get_sym_id (shape_param_name num) in 
-      let shapeParam = Param shapeParamId in 
+      let shapeParam = Param {id=shapeParamId; ptx_type=PtxType.ptrT}  in 
       let shapeReg = self#fresh_reg PtxType.ptrT in 
       self#add_param_decl shapeParamId PtxType.ptrT ; 
       self#emit [ld_param PtxType.ptrT shapeReg shapeParam];
@@ -216,25 +212,66 @@ method emit newInstructions =
     | Some t -> t 
     | None -> failwith $ "[GpuCodegen] No type registered for " ^ (ID.to_str id) 
    
+
+  (* BIZARRE BUG: for some reason I can't have destReg be an optional 
+     argument so I'm giving it a bogus default value. (alex 10/5/2010) 
+  *) 
+  val noReg = PtxVal.Reg {id = (-1); ptx_type=Pred}
+  
+  (* Need to consider the destination of a conversion when figuring out the
+     type of the source since there is an implicit polymorphism 
+     in PTX for scalar constants...
+     which can be moved to registers of varying size
+  *) 
+  val type_of_conversion_source = fun destType srcVal -> 
+    match srcVal with   
+      | PtxVal.Reg _ | PtxVal.Param _ -> PtxVal.type_of_var srcVal 
+      | PtxVal.FloatConst _ ->
+          if PtxType.is_float destType then destType 
+          else PtxType.F64
+      | PtxVal.IntConst _ -> 
+          if PtxType.is_int destType then destType
+          else PtxType.S64
+      | _ -> failwith "[ptx_codegen] don't know how to convert this value"
+    
+  
+  (* 
+     first create a register then convert value to fit in that register,
+     and lastly return the register. Might also just return the srcVal 
+     if no conversion is necessary. 
+  *) 
+  method convert_fresh 
+      ~(destType: PtxType.ty) 
+      ~(srcVal: PtxVal.value) : PtxVal.value  =
+    let srcType = type_of_conversion_source destType srcVal in 
+    if destType = srcType then srcVal 
+    else 
+      let destReg = self#fresh_reg destType in 
+      (self#convert ~destReg ~srcVal; destReg) 
+    
   (* convert from srcType to destType, with special consideration 
      given to Predicates. This would be nice to put in PtxHelpers, 
-     but must live here because it requires allocation of a register 
-  *) 
-  method convert ~destType ~srcType ~srcReg =
-  if srcType = destType then srcReg 
-  else 
-    let destReg = self#fresh_reg destType in begin 
-    if destType = Pred then self#emit [setp_eq srcType destReg srcReg (int 0)]
-    else if srcType = Pred then 
-      self#emit [selp destType destReg (int 1) (int 0) srcReg]
-    else if PtxType.is_int srcType && PtxType.is_float destType then
-      self#emit [round Ptx.RoundNearest (cvt destType srcType destReg srcReg)]
-    else self#emit [cvt destType srcType destReg srcReg]
-    ;
-    destReg
-  end     
+     but must live here because it requires allocation of a register.
+     Does not return anything.   
+  *)   
   
-
+  method convert 
+      ~(destReg : PtxVal.value) 
+      ~(srcVal : PtxVal.value) : unit =
+    let destType = PtxVal.type_of_var destReg in 
+    let srcType = type_of_conversion_source destType srcVal in  
+    if srcType = destType then self#emit [mov destReg srcVal]
+    else 
+      if destType = Pred then 
+        self#emit [setp_eq srcType destReg srcVal (int 0)]
+      else if srcType = Pred then 
+        self#emit [selp destReg (int 1) (int 0) srcVal]
+      else if PtxType.is_int srcType && PtxType.is_float destType then
+        self#emit [
+          round Ptx.RoundNearest (cvt destType srcType destReg srcVal)
+        ]
+      else self#emit [cvt destType srcType destReg srcVal]
+      
   method run_rewrite_pass f  = 
     let n = DynArray.length instructions in
     let newCode = DynArray.make n in

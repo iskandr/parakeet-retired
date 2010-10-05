@@ -4,7 +4,7 @@ open Printf
 include PtxVal
 include PtxType 
 
-type label = PtxVal.symid 
+type label = int 
 and space = REG | SREG | CONST | GLOBAL | LOCAL | PARAM | SHARED | SURF | TEX
 and gpu_comp =
     EQ | NE | LT | LE | GT | GE | LO | LS | HI | HS

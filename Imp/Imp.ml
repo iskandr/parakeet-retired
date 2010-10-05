@@ -37,19 +37,16 @@ and fn = { input_ids : ID.t array;
            shared : (ID.t, int list) PMap.t
          }
 
+
 let is_simple_exp = function 
   | Var _ 
-  | Const _ 
-  | ThreadIdx _
-  | BlockIdx _   
-  | BlockDim _ 
-  | GridDim _ -> true 
+  | Const _ -> true 
   | _ -> false  
 
 let is_compound_exp e = not (is_simple_exp e)
 
 let rec infer_dyn_type tenv = function 
-  | Var id -> (* tenv#find id *) PMap.find id tenv   
+  | Var id ->  PMap.find id tenv   
   | Const n -> PQNum.type_of_num n 
   | ThreadIdx _ -> DynType.UInt16T
   | BlockIdx _ -> DynType.UInt16T 

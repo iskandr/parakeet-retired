@@ -22,12 +22,13 @@ let ptx_registers_used instr =
          List.tl (Array.to_list instr.args)
       | _ -> []   
   in 
+  let get_ids acc = function Reg {id=id} -> id::acc | _ -> acc in 
   let argregs = 
-    List.fold_left (fun acc -> function Reg id -> id::acc |_ -> acc) [] argvals
+    List.fold_left get_ids [] argvals
   in 
   let predregs = match instr.pred with 
-    | IfFalse (Reg id)
-    | IfTrue (Reg id) -> [id]
+    | IfFalse (Reg {id=id})
+    | IfTrue (Reg {id=id}) -> [id]
     | _ -> [] 
   in predregs @ argregs  
 
@@ -37,7 +38,7 @@ let is_live_stmt counts instr =
   instr.pred <> NoGuard || 
   not (is_ptx_assignment instr.op) || 
   match instr.args.(0) with
-  | Reg id -> PMap.mem id counts && PMap.find id counts > 0 
+  | Reg {id=id} -> PMap.mem id counts && PMap.find id counts > 0 
   | _ -> true    
   
 let count_uniq lst = 

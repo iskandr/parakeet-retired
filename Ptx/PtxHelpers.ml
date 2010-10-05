@@ -136,12 +136,15 @@ let st_local ?offset = st ?offset ~space:LOCAL
 
 let bar = mkop (Bar 0) [||]
 
-let selp ty ~dest ~ifTrue ~ifFalse ~cond  = 
+let selp (*?ty*) ~dest ~ifTrue ~ifFalse ~cond  =
+  (*let ty = match ty with | None -> PtxVal.type_of_var dest | Some t -> t in*)
+  let ty = PtxVal.type_of_var dest in  
   mkop (Selp ty)[|dest;ifTrue;ifFalse;cond|] 
 let bra label = op0 $ Bra label 
-let mov ty dest src = mkop (Mov ty) [|dest; src|] 
 
-
+let mov ?ty dest src = 
+  let ty = match ty with | None -> PtxVal.type_of_var dest | Some t -> t in
+  mkop (Mov ty) [|dest; src|] 
 
 type special_reg_3d = { x:PtxVal.value; y:PtxVal.value; z:PtxVal.value }
 
