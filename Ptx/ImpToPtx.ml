@@ -11,9 +11,8 @@ let _ = Printexc.record_backtrace true
 
 module Mem = MemspaceSemantics.Lattice
 
-let assert_same_type t1 t2 = 
-  if t1 <> t2 then failwith $ 
-    Printf.sprintf "Expected same types, got %s and %s "
+let same_type t1 t2 = 
+  if t1 <> t2 then  debug $ Printf.sprintf "Expected same types, got %s and %s "
     (PtxType.to_str t1) (PtxType.to_str t2) 
 
 let translate_coord = function 
@@ -56,7 +55,8 @@ let gen_exp
   *) 
   | e when is_simple_exp e -> 
       let t = PtxType.of_dyn_type (Imp.infer_dyn_type tyMap e) in
-      assert_same_type destType t;  
+      same_type destType t;
+      assert (destType = t);   
       let rhs = translate_simple_exp codegen e in
       codegen#emit [mov destReg rhs]  
   
@@ -90,7 +90,8 @@ let gen_exp
   | Imp.Op(op,t,[x;y]) when Prim.is_binop op ->
       let dynResultType = TypeInfer.infer_binop op t t in  
       let ptxResultType = PtxType.of_dyn_type dynResultType in
-      assert_same_type ptxResultType destType;
+      same_type ptxResultType destType;
+      assert (ptxResultType = destType); 
       let ptxArgType = PtxType.of_dyn_type t in 
       let x' = translate_arg x ptxArgType in 
       let y' = translate_arg y ptxArgType in 
@@ -100,7 +101,8 @@ let gen_exp
   | Imp.Op (op,t,[x]) when Prim.is_unop op -> 
       let dynResultType = TypeInfer.infer_unop op t in 
       let ptxResultType = PtxType.of_dyn_type dynResultType in
-      assert_same_type ptxResultType destType;
+      same_type ptxResultType destType;
+      assert (ptxResultType = destType); 
       let ptxArgType = PtxType.of_dyn_type t in
       let ptxop = PtxHelpers.prim_to_ptx_unop op ptxArgType in   
       let x' = translate_arg x ptxArgType in

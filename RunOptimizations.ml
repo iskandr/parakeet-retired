@@ -64,6 +64,6 @@ let optimize_fundef
       else fundef'  
     in 
     debug $ Printf.sprintf "[optimize_fundef] optimized function: %s" 
-      (SSA.fundef_to_str fundef);         
+      (SSA.fundef_to_str fundef'');         
     fundef''    
  

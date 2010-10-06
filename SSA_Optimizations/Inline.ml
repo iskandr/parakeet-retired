@@ -7,6 +7,8 @@ let get_constant_function lookup = function
   | Var id -> lookup id
   | _ -> None       
 
+(* TODO: inliner doesn't preserve type environments! *) 
+
 let do_inline fundef argVals = 
   let bodyIds, _ = UntypedFindGenSet.block_gens fundef.body in 
   let allIds = fundef.input_ids @ (ID.Set.to_list bodyIds) in 
