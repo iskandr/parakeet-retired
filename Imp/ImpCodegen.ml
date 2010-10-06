@@ -31,7 +31,7 @@ class imp_codegen =
     (* an expression gets flattened into a list of statements and a simple 
        expression yielding the same value as the original compound expression 
     *) 
-    method private flatten_exp = function
+    method private flatten_exp  : Imp.exp -> Imp.stmt list * Imp.exp = function
     | Idx (lhs, rhs) -> 
         let lhsStmts, lhsExp = 
           if is_simple_exp lhs then [], lhs 
@@ -47,9 +47,13 @@ class imp_codegen =
           if is_simple_exp arg then (accStmts, accArgs @ [arg]) 
           else 
             let argStmts, flattenedArg = self#flatten_exp arg in 
-            let tempId =  self#fresh_id t in 
-            accStmts @ argStmts @ [Set(tempId, flattenedArg)], 
-            accArgs @ [Var tempId]
+            let tempId =  self#fresh_id t in
+            (* even though this is a flat statement, it might need 
+               some implicit casts which occur in flatten_stmt 
+            *) 
+            let setStmt = Set(tempId, flattenedArg) in 
+            let stmts = accStmts @ argStmts @ (self#flatten_stmt setStmt) in 
+            stmts, accArgs @ [Var tempId] 
         in  
         let (stmts, args') = List.fold_left aux ([],[]) args in
         stmts, Op(op,t, args')   
@@ -65,9 +69,6 @@ class imp_codegen =
     | Const n -> [], Const n 
     | Var id -> [], Var id
     | exp -> 
-        debug $ sprintf "[flatten_exp] special register access: %s"
-          (Imp.exp_to_str exp)
-        ; 
         if Hashtbl.mem expCache exp then 
           let id = Hashtbl.find expCache exp in 
           [], Var id
@@ -83,43 +84,46 @@ class imp_codegen =
     (* flatten the nested sub-expressions in a statement by turning them
        into their own statements 
     *) 
-    method private flatten_stmt stmt =
-     debug $ Printf.sprintf "flattening {%d}: %s"  (Hashtbl.length types)  (Imp.stmt_to_str stmt);  
+    method private flatten_stmt (stmt : Imp.stmt) : Imp.stmt list =
+     debug $ Printf.sprintf "flattening {%d}: %s"  
+       (Hashtbl.length types)  (Imp.stmt_to_str stmt)
+     ;  
      match stmt with 
-    | If (cond, tBlock, fBlock) -> 
-        let condStmts, condExp = self#flatten_exp cond in 
-        let tBlock' = List.concat $ List.map self#flatten_stmt tBlock in 
-        let fBlock' = List.concat $ List.map self#flatten_stmt fBlock in 
-        condStmts @ [If(condExp, tBlock', fBlock')]
+     | If (cond, tBlock, fBlock) -> 
+         let condStmts, condExp = self#flatten_exp cond in 
+         let tBlock' = List.concat $ List.map self#flatten_stmt tBlock in 
+         let fBlock' = List.concat $ List.map self#flatten_stmt fBlock in 
+         condStmts @ [If(condExp, tBlock', fBlock')]
          
-    | While (cond, loopBody) -> 
-        let condStmts, condExp = self#flatten_exp cond in 
-        let loopBody' = List.concat $ List.map self#flatten_stmt loopBody in 
-        condStmts @ [While(condExp, loopBody')]
+     | While (cond, loopBody) -> 
+         let condStmts, condExp = self#flatten_exp cond in 
+         let loopBody' = List.concat $ List.map self#flatten_stmt loopBody in 
+         condStmts @ [While(condExp, loopBody')]
         
-    | Set (id, rhs) -> 
-       
-        assert (Hashtbl.mem types id);  
-        let rhsStmts, rhsExp = self#flatten_exp rhs in
-        let rhsType = self#infer_type rhsExp in 
-        assert (Hashtbl.mem types id);  
-        let lhsType = Hashtbl.find types id in 
-        debug $ sprintf "[==> generating set %d : %s = ? %s"
-          id (DynType.to_str lhsType) (DynType.to_str rhsType)
-        ; 
-        if lhsType <> rhsType then 
-          let id' = self#fresh_id rhsType in
-          rhsStmts @ [Set(id',rhsExp); Set(id, Cast(lhsType, rhsType, Var id'))]
-        else
-          rhsStmts @ [Set(id,rhsExp)]
+     | Set (id, rhs) -> 
+         assert (Hashtbl.mem types id);  
+         let rhsStmts, rhsExp = self#flatten_exp rhs in
+         let rhsType = self#infer_type rhsExp in 
+         assert (Hashtbl.mem types id);  
+         let lhsType = Hashtbl.find types id in 
+         (*debug $ sprintf "[==> generating set %d : %s = ? %s"
+           id (DynType.to_str lhsType) (DynType.to_str rhsType)
+         ; 
+         *)
+         if lhsType <> rhsType then 
+           let id' = self#fresh_id rhsType in
+           rhsStmts @ [
+             Set(id',rhsExp); Set(id, Cast(lhsType, rhsType, Var id'))
+           ]
+         else rhsStmts @ [Set(id,rhsExp)]
          
-    | SetIdx (id, indices, rhs) -> 
-        let idxStmtLists, idxExps = 
-          List.split $ List.map self#flatten_exp indices in 
-        let rhsStmts, rhsExp = self#flatten_exp rhs in 
-        (List.concat idxStmtLists) @ rhsStmts @ [SetIdx(id, idxExps, rhsExp)]
+     | SetIdx (id, indices, rhs) -> 
+         let idxStmtLists, idxExps = 
+           List.split $ List.map self#flatten_exp indices in 
+         let rhsStmts, rhsExp = self#flatten_exp rhs in 
+          (List.concat idxStmtLists) @ rhsStmts @ [SetIdx(id, idxExps, rhsExp)]
         
-    | simple -> [simple]
+     | simple -> [simple]
      
     (* flatten nested expressions and then add statements to the code buffer *) 
     method emit block =  
