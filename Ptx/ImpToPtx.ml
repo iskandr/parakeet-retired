@@ -255,6 +255,7 @@ let compute_global_array_pos
 
          
 let rec gen_stmt tyMap memspaceMap codegen stmt = 
+  debug (Printf.sprintf "[imp2ptx->gen_stmt] %s" (Imp.stmt_to_str stmt)); 
   match stmt with 
   (* treat slicing as a special case. Relies on Imp code having been flattened
      so that slices can only at the outermost level of a stmt. 

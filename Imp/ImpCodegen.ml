@@ -3,7 +3,7 @@ open Imp
 
 class imp_codegen = 
   object (self)
-    val types = Hashtbl.create 127 
+    val types = Hashtbl.create 127
     val sharedDims = Hashtbl.create 127
     val code = DynArray.create () 
     
@@ -13,6 +13,20 @@ class imp_codegen =
     (* cache the ID's into which we store BlockDim, ThreadIdx, consts, etc..*)
     val expCache  = ((Hashtbl.create 127) : (Imp.exp, ID.t) Hashtbl.t)
     
+    method private infer_type = function 
+      | DimSize _ -> DynType.Int32T
+      | ThreadIdx _ | BlockIdx _ | BlockDim _ | GridDim _ -> DynType.Int16T 
+      | Var id -> 
+          assert (Hashtbl.mem types id); 
+          Hashtbl.find types id 
+      | Const num -> PQNum.type_of_num num 
+      | Idx (arr, _) -> 
+          let arrT = self#infer_type arr in 
+          DynType.peel_vec arrT 
+      | Cast (ty, _, _)
+      | Select(ty, _, _, _)
+      | Op (_,ty, _) -> ty 
+     
     (* an expression gets flattened into a list of statements and a simple 
        expression yielding the same value as the original compound expression 
     *) 
@@ -64,7 +78,9 @@ class imp_codegen =
     (* flatten the nested sub-expressions in a statement by turning them
        into their own statements 
     *) 
-    method private flatten_stmt =  function 
+    method private flatten_stmt stmt =
+     debug $ Printf.sprintf "flattening {%d}: %s"  (Hashtbl.length types)  (Imp.stmt_to_str stmt);  
+     match stmt with 
     | If (cond, tBlock, fBlock) -> 
         let condStmts, condExp = self#flatten_exp cond in 
         let tBlock' = List.concat $ List.map self#flatten_stmt tBlock in 
@@ -77,8 +93,17 @@ class imp_codegen =
         condStmts @ [While(condExp, loopBody')]
         
     | Set (id, rhs) -> 
-        let rhsStmts, rhsExp = self#flatten_exp rhs in 
-        rhsStmts @ [Set(id,rhsExp)]
+       
+        assert (Hashtbl.mem types id);  
+        let rhsStmts, rhsExp = self#flatten_exp rhs in
+        let rhsType = self#infer_type rhsExp in 
+        assert (Hashtbl.mem types id);  
+        let lhsType = Hashtbl.find types id in 
+        if lhsType <> rhsType then 
+          let id' = self#fresh_id rhsType in
+          rhsStmts @ [Set(id',rhsExp); Set(id, Cast(lhsType, rhsType, Var id'))]
+        else
+          rhsStmts @ [Set(id,rhsExp)]
          
     | SetIdx (id, indices, rhs) -> 
         let idxStmtLists, idxExps = 
@@ -90,6 +115,7 @@ class imp_codegen =
      
     (* flatten nested expressions and then add statements to the code buffer *) 
     method emit block =  
+      debug "<<<emit>>>";
       let block' = List.concat (List.map self#flatten_stmt block) in 
       List.iter (DynArray.add code) block'
     
@@ -107,7 +133,7 @@ class imp_codegen =
     method fresh_input t = Var (self#fresh_input_id t) 
     
     method fresh_output_id t = 
-      let id = self#fresh_id t in 
+      let id = self#fresh_id t in
       DynArray.add outputs (id,t);
       id
      
