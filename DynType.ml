@@ -103,6 +103,11 @@ let is_vec = function
     | VecT t when is_scalar t -> true
     | _ -> false
 
+(* are you a scalar or a vector of scalars? *) 
+let is_scalar_or_vec = function 
+  | VecT t -> is_scalar t 
+  | t -> is_scalar t 
+
 let is_numvec = function
     |  VecT t when is_number t -> true
     | _ -> false

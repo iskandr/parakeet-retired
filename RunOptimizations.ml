@@ -38,29 +38,32 @@ let optimize_fundef
       (fnTable : FnTable.t) 
       (fundef : SSA.fundef) 
       optimizations  =
-  debug $ Printf.sprintf "[optimize_fundef] running optimzer on function: %s" 
-    (SSA.fundef_to_str fundef);         
-  let aux : SSA.fundef -> SSA.fundef  = 
-    run_all fnTable maxiters optimizations 
-  in  
-  let fundef' = aux fundef  in
-  let fundef'' = 
-    if inline then
-    begin 
-      debug "[optimizer] Inlining functions...\n";
-      let inlinedCode, inlineChanged = 
-        Inline.run_fundef_inliner fnTable fundef' in 
-      if inlineChanged then (
-        debug $ Printf.sprintf 
-          "[optimize_fundef] inlined function: %s "
-          (SSA.fundef_to_str inlinedCode); 
-        aux inlinedCode
-      )
-      else fundef'
-    end
-    else fundef'  
-  in 
-  debug $ Printf.sprintf "[optimize_fundef] optimized function: %s" 
-    (SSA.fundef_to_str fundef);         
-  fundef''    
+  match fundef.SSA.body with 
+  | [] | [_] -> fundef  (* don't both trying to optimize one liners *) 
+  | _ ->   
+    debug $ Printf.sprintf "[optimize_fundef] running optimzer on function: %s" 
+      (SSA.fundef_to_str fundef);         
+    let aux : SSA.fundef -> SSA.fundef = 
+      run_all fnTable maxiters optimizations
+    in 
+    let fundef' = aux fundef  in
+    let fundef'' = 
+      if inline then
+      begin 
+        debug "[optimizer] Inlining functions...\n";
+        let inlinedCode, inlineChanged = 
+          Inline.run_fundef_inliner fnTable fundef' in 
+        if inlineChanged then (
+          debug $ Printf.sprintf 
+            "[optimize_fundef] inlined function: %s "
+            (SSA.fundef_to_str inlinedCode); 
+          aux inlinedCode
+        )
+        else fundef'
+      end
+      else fundef'  
+    in 
+    debug $ Printf.sprintf "[optimize_fundef] optimized function: %s" 
+      (SSA.fundef_to_str fundef);         
+    fundef''    
  

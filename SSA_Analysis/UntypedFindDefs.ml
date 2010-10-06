@@ -3,7 +3,7 @@ open Base
 open SSA
 
 
-type def = SingleDef of SSA.exp | CombineDef of ID.t PSet.t | FunArg
+type def = SingleDef of SSA.exp | CombineDef of ID.Set.t | FunArg
    
 let rec eval_block env code = 
   List.fold_left eval_stmt env code
@@ -20,12 +20,12 @@ and eval_stmt env node =
           match PMap.find trueId trueEnv, PMap.find falseId falseEnv with
           | SingleDef e1, SingleDef e2 -> 
             if e1 = e2 then SingleDef e1 
-            else CombineDef (PSet.of_list [trueId; falseId]) 
+            else CombineDef (ID.Set.of_list [trueId; falseId]) 
           | CombineDef ids1, CombineDef ids2 -> 
-            CombineDef (PSet.union ids1 ids2)
-          | CombineDef ids1, _ -> CombineDef (PSet.add falseId ids1)
-          | _, CombineDef ids2 -> CombineDef (PSet.add trueId ids2)
-          | _ -> CombineDef (PSet.of_list [trueId; falseId])
+            CombineDef (ID.Set.union ids1 ids2)
+          | CombineDef ids1, _ -> CombineDef (ID.Set.add falseId ids1)
+          | _, CombineDef ids2 -> CombineDef (ID.Set.add trueId ids2)
+          | _ -> CombineDef (ID.Set.of_list [trueId; falseId])
         in  PMap.add outId def accEnv
       in 
       List.fold_left2 combineBranches falseEnv ifGate.if_output_ids branchPairs 

@@ -7,6 +7,7 @@ open PtxHelpers
 open PtxCodegen
 open Printf 
 
+let _ = Printexc.record_backtrace true
 
 module Mem = MemspaceSemantics.Lattice
 

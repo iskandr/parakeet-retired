@@ -28,7 +28,7 @@ let gen_reduce payload threadsPerBlock ty =
     lt Int32T (add Int32T i (int threadsPerBlock)) (len input) in
   
   codegen#emit [ifTrue condition trueBranch; syncthreads];
-  let j = ref 128 in 
+  let j = ref 64 in 
   while !j >= 64 do
     let template = [
       ifTrue (lt Int32T tid (int !j)) 

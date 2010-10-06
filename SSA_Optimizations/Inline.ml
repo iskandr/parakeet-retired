@@ -9,7 +9,7 @@ let get_constant_function lookup = function
 
 let do_inline fundef argVals = 
   let bodyIds, _ = UntypedFindGenSet.block_gens fundef.body in 
-  let allIds = fundef.input_ids @ (PSet.to_list bodyIds) in 
+  let allIds = fundef.input_ids @ (ID.Set.to_list bodyIds) in 
   let nvars = List.length allIds in  
   let freshIds = ID.gen_fresh_list nvars in
   let replaceMap = PMap.of_list (List.combine allIds freshIds) in 

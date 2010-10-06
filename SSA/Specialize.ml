@@ -20,6 +20,18 @@ let sig_from_type = function
   | FnT(inTypes, outTypes) -> Signature.from_types inTypes outTypes 
   | _ -> failwith "expected function type"
 
+(* TODO: make this complete for all SSA statements *) 
+let rec is_scalar_stmt = function
+  | SSA.Set(_, {exp=SSA.App({value=SSA.Prim (Prim.ScalarOp _)}, _)})
+  | SSA.Set(_, {exp=Values _}) -> true 
+  | SSA.If(_, tCode, fCode, _) -> 
+      all_scalar_stmts tCode && all_scalar_stmts fCode
+  | _ -> false   
+ 
+and all_scalar_stmts = function 
+  | [] -> true
+  | {stmt=stmt}::rest -> is_scalar_stmt stmt &&  all_scalar_stmts rest
+
 let annotate_value context valNode = 
   let t = match valNode.value with 
   | Var id -> PMap.find id context.type_env  
@@ -271,17 +283,77 @@ and annotate_block context = function
         let context' = { context with type_env = tenv' } in 
         let rest', restTyEnv, restChanged  = annotate_block context' rest in
         (stmtNode' :: rest'), restTyEnv, currChanged || restChanged  
-        
+
+(* make a scalar version of a function whose body contains only 
+   potentially scalar operators, and wrap this function in a map over
+   1D vector data 
+*)
+and scalarize_fundef program untypedId untypedFundef vecSig = 
+  let scalarSig = Signature.peel_vec_types vecSig in 
+  let scalarFundef = specialize_fundef program untypedFundef scalarSig in
+  let scalarFnId = 
+    Program.add_specialization program (Var untypedId) scalarSig scalarFundef 
+  in 
+  let scalarOutputTypes = DynType.fn_output_types scalarFundef.fun_type in  
+  let inputTypes = Signature.input_types vecSig in  
+  let outputTypes = List.map (fun t -> VecT t) scalarOutputTypes in
+  let freshInputIds = List.map (fun _ -> ID.gen()) untypedFundef.input_ids in
+  let freshOutputIds = List.map (fun _ -> ID.gen()) untypedFundef.output_ids in
+  let extend_env accEnv id t = PMap.add id t accEnv in 
+  let inputTyEnv = 
+    List.fold_left2 extend_env PMap.empty freshInputIds inputTypes  
+  in 
+  let combinedTyEnv = 
+    List.fold_left2 extend_env inputTyEnv freshOutputIds outputTypes
+  in
+  let scalarFnType = scalarFundef.fun_type in  
+  let mapType = FnT(scalarFnType :: inputTypes, outputTypes) in  
+  let mapNode = SSA.mk_val ~ty:mapType (SSA.Prim (Prim.ArrayOp Prim.Map)) in
+  let fnNode = SSA.mk_val ~ty:scalarFnType (Var scalarFnId) in     
+  let dataNodes =
+    List.map2 (fun id t -> SSA.mk_var ~ty:t id) freshInputIds inputTypes
+  in
+  let argNodes = fnNode :: dataNodes in   
+  let appNode = SSA.mk_app ~types:outputTypes mapNode argNodes in      
+  { 
+    body = [SSA.mk_set freshInputIds appNode];
+    tenv = combinedTyEnv; 
+    input_ids = freshInputIds; 
+    output_ids = freshOutputIds; 
+    fun_type = FnT(inputTypes, outputTypes); 
+  } 
+
 and specialize_function_id program untypedId signature =
   match Program.maybe_get_specialization program (Var untypedId) signature with 
     | None ->
        let untypedFundef = Program.get_untyped_function program untypedId in 
-       let typedFundef = specialize_fundef program untypedFundef signature in
-       let _ = 
-         Program.add_specialization 
-           program (Var untypedId) signature typedFundef
+     (* SPECIAL CASE OPTIMIZATION: if we see a function of all scalar operators
+        applied to all 1D vectors, then we can directly generate a single 
+        Map adverb over all the argument vectors 
+     *)
+       let inputTypes = Signature.input_types signature in
+       debug $ sprintf "SPECIALIZE_FUNCTION_ID %d %B %B"
+         untypedId
+         (all_scalar_stmts untypedFundef.body)
+         (List.for_all DynType.is_scalar_or_vec inputTypes)
+       ; 
+        
+       let typedFundef = 
+         if all_scalar_stmts untypedFundef.body  
+            && List.for_all DynType.is_scalar_or_vec inputTypes 
+            && List.exists DynType.is_vec inputTypes 
+         then scalarize_fundef program untypedId untypedFundef signature 
+         else specialize_fundef program untypedFundef signature
        in
-       typedFundef  
+       debug "[specialize_function_id] typed fundef:"; 
+       debug (SSA.fundef_to_str typedFundef); 
+       let _ = 
+        Program.add_specialization 
+          program 
+          (Var untypedId) 
+          signature 
+          typedFundef
+       in typedFundef  
     | Some typedId -> Program.get_typed_function program typedId 
           
 and specialize_fundef program untypedFundef signature = 
@@ -295,7 +367,7 @@ and specialize_fundef program untypedFundef signature =
       untypedFundef.input_ids 
       signature.Signature.inputs   
   in 
-  let context = { type_env = tyEnv; const_env = constEnv; program = program } in 
+  let context = { type_env = tyEnv; const_env = constEnv; program = program } in
   let annotatedBody, tenv', _ = annotate_block context untypedFundef.body in
   (* annotation returned a mapping of all identifiers to their types, *)
   (* now use this type info (along with annotatins on values) to insert all *)
@@ -315,10 +387,12 @@ and specialize_fundef program untypedFundef signature =
     fun_type = FnT (inTypes, outTypes);
     output_ids = untypedFundef.output_ids; 
   }
+  
+  
 (****************************************************************************)
 (*              SPECIALIZE FUNCTION VALUE                                   *)
 (****************************************************************************)
-and specialize_function_value program v signature = 
+and specialize_function_value program v signature : SSA.value_node = 
   match Program.maybe_get_specialization program v signature with 
     | Some fnId -> 
         let fundef =  Program.get_typed_function program fnId in 
@@ -327,10 +401,9 @@ and specialize_function_value program v signature =
     | None -> 
       let typedFundef = match v with
         (* specialize the untyped function -- assuming it is one *) 
-      | Var untypedId  -> 
-        let untypedFundef = Program.get_untyped_function program untypedId in 
-        specialize_fundef program untypedFundef signature
-       
+      | Var untypedId  -> specialize_function_id program untypedId signature
+         
+        
       (* first handle the simple case when it's a scalar op with scalar args *)
       | Prim (Prim.ScalarOp op) when 
           List.for_all DynType.is_scalar (Signature.input_types signature)  ->

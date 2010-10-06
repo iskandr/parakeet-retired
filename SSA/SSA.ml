@@ -59,6 +59,7 @@ let is_simple_exp = function
   | App _ -> false
   | _ -> true 
 
+
 open Printf 
 
 let rec id_list_to_str = function 
@@ -173,7 +174,6 @@ let get_ids vars = List.map get_id vars
 let mk_val ?(src=None) ?(ty=DynType.BottomT) (v:value) : value_node = 
   { value = v; value_src = src; value_type = ty }
 
-    
 let mk_var ?(src=None) ?(ty=DynType.BottomT) (id:ID.t) : value_node = 
   { value = Var id; value_src = src; value_type = ty }    
 
@@ -188,7 +188,6 @@ let map_default_types optTypes values =
 
 let mk_app ?(src=None) ?types fn args =
   let types' = map_default_types types args in  
-  
   { exp=App(fn,args); exp_src = src; exp_types = types' }  
 
 let mk_arr ?(src=None) ?types elts =

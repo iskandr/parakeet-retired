@@ -15,7 +15,7 @@ let rec eval_block liveSet = function
 and eval_stmt liveSet stmtNode =  
   match stmtNode.stmt with 
   | Set (ids, rhs) -> 
-    if List.exists (fun id -> PSet.mem id liveSet) ids then
+    if List.exists (fun id -> ID.Set.mem id liveSet) ids then
       let rhs', changed = eval_exp liveSet rhs in 
       Some {stmtNode with stmt = Set(ids, rhs')}, changed
     else None, true  
@@ -44,7 +44,7 @@ and eval_stmt liveSet stmtNode =
             let restIds, restTrue, restFalse, changed = 
               filter_gate_ids ids ts fs 
             in
-            if PSet.mem id liveSet then 
+            if ID.Set.mem id liveSet then 
               (id::restIds, t::restTrue, f::restFalse, changed)
             else restIds, restTrue, restFalse, true 
       in 
@@ -88,4 +88,4 @@ and eval_value_list liveSet = function
 let global_elim fnTable block =
   let liveSet, _ = UntypedFindUseSets.find_use_sets block in 
   let topSet = UntypedFindUseSets.find_top_bindings block in 
-  eval_block (PSet.union liveSet topSet) block 
+  eval_block (ID.Set.union liveSet topSet) block 

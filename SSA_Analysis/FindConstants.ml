@@ -46,7 +46,8 @@ and eval_stmt env stmtNode =
       let _, rhsEnv, rhsChanged = eval_exp env rhs in
       rhsEnv, rhsChanged 
   | SetIdx (id,_,_) -> 
-      if not $ ID.Map.mem id env then failwith "setting range of undefined array"
+      if not $ ID.Map.mem id env then 
+        failwith "setting range of undefined array"
       else if ID.Map.find id env = ConstantLattice.top then env, false
       else ID.Map.add id ConstantLattice.top env, true
    
@@ -121,7 +122,7 @@ let rec find_constants ?(free_vars = []) code =
     let env_to_str env =
       "{ " ^ (String.concat "; " (List.map pair_to_str (ID.Map.to_list env))) ^"}"
     in   
-    debug $ env_to_str env; 
+    (*debug $ env_to_str env; *) 
     env
     
 (* useful for extracting the equivalence classes of IDs all referencing

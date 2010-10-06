@@ -104,11 +104,8 @@ let run_template (untypedId,program) globals locals =
   debug (sprintf
     "[run_template] calling specialzer for argument types: %s \n"
     (DynType.type_list_to_str argTypes));  
-  let typedFnValNode = 
-    Specialize.specialize_function_value program (SSA.Var untypedId) signature 
-  in
   let typedFundef = 
-    Program.get_typed_fundef_from_value program typedFnValNode.value 
+    Specialize.specialize_function_id program untypedId signature 
   in
   debug "[run_template] calling evaluator on specialized code: \n";
   debug (sprintf "%s\n" (SSA.fundef_to_str typedFundef));   

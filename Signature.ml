@@ -26,7 +26,14 @@ let output_types s = match s.outputs with
   | Some ts -> ts
   | None -> failwith "no output types in this signature" 
 
-let all_scalar_types s = 
-  List.for_all (function Type t ->  DynType.is_scalar t | _ -> false) s.inputs 
+let peel_vec_elt = function 
+  | Type (DynType.VecT t) -> Type t
+  | Type t when DynType.is_scalar t -> Type t 
+  | _ -> failwith "[signature->peel_vec_elt] expected vector type"  
+
+let peel_vec_types signature = 
+  assert (List.for_all DynType.is_scalar_or_vec (input_types signature)); 
+  { signature with inputs = List.map peel_vec_elt signature.inputs }   
+ 
 
           

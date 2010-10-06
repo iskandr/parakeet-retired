@@ -39,21 +39,36 @@ and translate_exp codegen idEnv expectedType expNode =
    
   | SSA.Values _ ->  failwith "[ssa->imp] unexpected multiple return values "
   | _ -> failwith "[typed core -> imp] typed core exp not yet implemented "
-and translate_stmt idEnv codegen stmtNode = match stmtNode.SSA.stmt with
-  (* TODO: generalize to multiple return values *)   
-  | SSA.Set([id],expNode) ->  
+and translate_stmt idEnv codegen stmtNode =
+  let get_imp_id ssaId t = 
+    if PMap.mem ssaId idEnv then PMap.find ssaId idEnv 
+    else codegen#fresh_id t 
+  in  
+  match stmtNode.SSA.stmt with
+  | SSA.Set([id], expNode) ->
       (match expNode.SSA.exp_types with 
         | [t] -> 
-            let id' = 
-                if PMap.mem id idEnv then PMap.find id idEnv 
-                else codegen#fresh_id t
-            in  
-            let exp' = translate_exp codegen idEnv t expNode in
-            codegen#emit [set (Var id') exp'];
-            PMap.add id id' idEnv 
-       | _ -> failwith "[ssa->imp] multiple return values not yet supported"
-      )
-  | _ -> failwith "typedcore -> imp: stmt not yet supported"      
+          let id' = get_imp_id id t in  
+          let exp' = translate_exp codegen idEnv t expNode in
+          codegen#emit [set (Var id') exp'];
+          PMap.add id id' idEnv
+        | _ -> failwith "[ssa->imp] expected only single value on rhs of set"
+       )
+  | SSA.Set(ids, {SSA.exp=SSA.Values vs;SSA.exp_types=exp_types}) ->
+      let rec flatten_assignment idEnv ids types vs =
+        match ids, types, vs with 
+          | id::restIds, t::restTypes, v::restValues ->
+             let id' = get_imp_id id t in
+             let rhs = translate_value idEnv v in 
+             codegen#emit [set (Var id') rhs];
+             let idEnv' = PMap.add id id' idEnv in 
+             flatten_assignment idEnv' restIds restTypes restValues   
+          | [], [], [] -> idEnv  
+          | _ -> failwith "[ssa->imp] length mismatch in set stmt"
+      in flatten_assignment idEnv ids exp_types vs
+  | SSA.Set(_::_::_, _) -> 
+      failwith "[ssa->imp] multiple return values not implemented"
+  | _ -> failwith "[ssa->imp] stmt not implemented"      
       
 
 and translate fn =
