@@ -74,7 +74,6 @@ let gen_module_template entries =
   
   debug "==(AST to Untyped SSA)==> \n %!";
   let code, idEnv = AST_to_SSA.translate_stmt PMap.empty ast in
-  debug "translated\n%!";
   debug (sprintf "%s \n%!"  (SSA.block_to_str code)); 
   
   debug "==(Creating Optimized Program)==> \n %!";
@@ -101,14 +100,6 @@ let run_template (untypedId,program) globals locals =
   if nargs <> arity then failwith
     (sprintf "[run_template] arity mismatch-- expected %d, got %d" arity nargs)
   else
-  (* first get a typed dataflow graph *)
-  (* (old) TODO: Make each node of a dataflow graph associated with 
-            a cuModulePtr & function name. I guess that would be the 
-            dfg_compilation_cache? 
-            (dfg_id * node_id * ?size descriptors? -> cuModulePtr * string 
-            Skip the size descriptors for now but we'll have to add them in 
-            later for tiling optimizations, etc..           
-  *)
   let signature = Signature.from_input_types argTypes in
   debug (sprintf
     "[run_template] calling specialzer for argument types: %s \n"

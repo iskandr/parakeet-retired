@@ -10,6 +10,11 @@ open Printf
 
 module Mem = MemspaceSemantics.Lattice
 
+let assert_same_type t1 t2 = 
+  if t1 <> t2 then failwith $ 
+    Printf.sprintf "Expected same types, got %s and %s "
+    (PtxType.to_str t1) (PtxType.to_str t2) 
+
 let translate_coord = function 
   | Imp.X -> X
   | Imp.Y -> Y 
@@ -50,7 +55,7 @@ let gen_exp
   *) 
   | e when is_simple_exp e -> 
       let t = PtxType.of_dyn_type (Imp.infer_dyn_type tyMap e) in
-      assert (destType = t);  
+      assert_same_type destType t;  
       let rhs = translate_simple_exp codegen e in
       codegen#emit [mov destReg rhs]  
   
@@ -315,8 +320,14 @@ let rec gen_stmt tyMap memspaceMap codegen stmt =
      )      
       
   | Imp.Set (id,rhs) -> 
-      let dynT = PMap.find id tyMap in 
+      
+      let dynT = PMap.find id tyMap in
+   
       let reg = codegen#declare_local id dynT in
+      debug (sprintf "set imp var _x%d : %s => %d : %s" 
+               id (DynType.to_str dynT)
+               (PtxVal.get_id reg) (PtxType.to_str (PtxVal.type_of_var reg))
+             );   
       gen_exp tyMap memspaceMap codegen reg rhs
       
   | Imp.SetIdx (id, indices, rhs) -> 

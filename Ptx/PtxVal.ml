@@ -24,6 +24,8 @@ and special_register =
   | GridId
   | Clock
 
+
+
 let rec to_str symbols = function 
     | Reg {id=id} ->  sprintf "%%%s" (PMap.find id symbols) 
     | IntConst i -> Int64.to_string i
@@ -64,6 +66,12 @@ let type_of_special_register = function
   | ProcessorId
   | MaxProcessors
   | Clock  -> PtxType.U32
+
+
+let get_id = function
+  | Param {id=id} 
+  | Reg {id=id} -> id 
+  | _ -> failwith "not a register"
 
 let type_of_var = function 
   | Param {ptx_type=ptx_type} 

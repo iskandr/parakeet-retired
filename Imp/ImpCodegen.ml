@@ -1,5 +1,6 @@
 open Base
 open Imp 
+open Printf 
 
 class imp_codegen = 
   object (self)
@@ -61,8 +62,12 @@ class imp_codegen =
         let stmts, exp' = self#flatten_exp exp in stmts, Cast(t1, t2, exp')  
     | DimSize (i, exp) -> 
         let stmts, exp' = self#flatten_exp exp in stmts, DimSize(i,exp')  
-    | exp when is_simple_exp exp -> [], exp
+    | Const n -> [], Const n 
+    | Var id -> [], Var id
     | exp -> 
+        debug $ sprintf "[flatten_exp] special register access: %s"
+          (Imp.exp_to_str exp)
+        ; 
         if Hashtbl.mem expCache exp then 
           let id = Hashtbl.find expCache exp in 
           [], Var id
@@ -70,7 +75,7 @@ class imp_codegen =
           (* don't pass a type environment since we're guaranteed to not
              be checking a variable's type  
           *) 
-          let ty = Imp.infer_dyn_type PMap.empty exp in
+          let ty = self#infer_type exp in
           let id = self#fresh_id ty in
           Hashtbl.add expCache exp id;     
           [Set(id, exp)], Var id 
@@ -99,6 +104,9 @@ class imp_codegen =
         let rhsType = self#infer_type rhsExp in 
         assert (Hashtbl.mem types id);  
         let lhsType = Hashtbl.find types id in 
+        debug $ sprintf "[==> generating set %d : %s = ? %s"
+          id (DynType.to_str lhsType) (DynType.to_str rhsType)
+        ; 
         if lhsType <> rhsType then 
           let id' = self#fresh_id rhsType in
           rhsStmts @ [Set(id',rhsExp); Set(id, Cast(lhsType, rhsType, Var id'))]
@@ -115,7 +123,6 @@ class imp_codegen =
      
     (* flatten nested expressions and then add statements to the code buffer *) 
     method emit block =  
-      debug "<<<emit>>>";
       let block' = List.concat (List.map self#flatten_stmt block) in 
       List.iter (DynArray.add code) block'
     

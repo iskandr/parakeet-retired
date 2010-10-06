@@ -53,6 +53,8 @@ let is_bits = function
    array. 
 *)
 let rec of_dyn_type = function
+  | DynType.Int16T -> S16
+  | DynType.UInt16T -> U16
   | DynType.Int32T -> S32
   | DynType.UInt32T -> U32 
   | DynType.Int64T -> S64
@@ -82,6 +84,8 @@ let rec of_dyn_type = function
 
 (* the type of a variable when its stored in an array *) 
 let rec storage_of_dyn_type = function
+  | DynType.Int16T -> S16
+  | DynType.UInt16T -> U16
   | DynType.Int32T -> S32
   | DynType.Int64T -> S64
   | DynType.IntT -> S32
