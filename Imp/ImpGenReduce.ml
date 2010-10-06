@@ -40,16 +40,16 @@ let gen_reduce payload threadsPerBlock ty =
     codegen#splice_emit payload loopPInputs [|temp|] template;   
     j := !j / 2
   done;
-  let unrolledCodegen = new imp_codegen in 
-  while !j > 0 do
-    let loopPArgs = 
-      [|idx cache $ add Int32T tid (int !j); idx cache tid |] in
-    unrolledCodegen#splice_emit payload loopPArgs [|temp|] [SPLICE];
-    j := !j / 2
-  done;
-  let unrolled = unrolledCodegen#finalize in 
-  codegen#splice_emit unrolled [||] [||] 
-    [ifTrue (lt Int32T tid (int 32)) [SPLICE]];
+  let buffer = DynArray.create () in 
+  while !j > 0 do 
+    let payloadArgs = [|idx cache $ add Int32T tid (int !j); idx cache tid |] in
+    let code = codegen#splice payload payloadArgs [|temp|] [SPLICE] in 
+    List.iter (fun stmt -> DynArray.add buffer stmt) code; 
+    DynArray.add buffer (setidx cache [tid] temp);
+    j := !j / 2             
+  done;  
+  codegen#emit [ifTrue (lt Int32T tid (int 32)) (DynArray.to_list buffer)]; 
   codegen#emit [ifTrue (eq Int32T tid (int 0)) 
-               [set (idx output blockIdx.x) (idx cache $ int 0 )]];
+                 [set (idx output blockIdx.x) (idx cache $ int 0 )]
+               ];
   codegen#finalize

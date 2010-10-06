@@ -11,9 +11,6 @@ open Base
 open Ptx
 open PtxHelpers
 
-
-         
-
 let rec reg_prefix = function 
   | U8 -> "r_char_"
   | S8 -> "r_schar_"
@@ -213,10 +210,6 @@ method emit newInstructions =
     | None -> failwith $ "[GpuCodegen] No type registered for " ^ (ID.to_str id) 
    
 
-  (* BIZARRE BUG: for some reason I can't have destReg be an optional 
-     argument so I'm giving it a bogus default value. (alex 10/5/2010) 
-  *) 
-  val noReg = PtxVal.Reg {id = (-1); ptx_type=Pred}
   
   (* Need to consider the destination of a conversion when figuring out the
      type of the source since there is an implicit polymorphism 
