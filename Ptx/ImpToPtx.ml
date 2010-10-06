@@ -86,20 +86,25 @@ let gen_exp
         | _ -> failwith "dimsize not implemented for global vectors"
       )
   
-  | Imp.Op(op,t,[x;y]) when Prim.is_binop op -> 
-      let t' = PtxType.of_dyn_type t in
-      assert (t' = destType);  
-      let x' = translate_arg x t' in 
-      let y' = translate_arg y t' in 
-      let ptxop = PtxHelpers.prim_to_ptx_binop op t' in 
+  | Imp.Op(op,t,[x;y]) when Prim.is_binop op ->
+      let dynResultType = TypeInfer.infer_binop op t t in  
+      let ptxResultType = PtxType.of_dyn_type dynResultType in
+      assert_same_type ptxResultType destType;
+      let ptxArgType = PtxType.of_dyn_type t in 
+      let x' = translate_arg x ptxArgType in 
+      let y' = translate_arg y ptxArgType in 
+      let ptxop = PtxHelpers.prim_to_ptx_binop op ptxArgType in 
       codegen#emit [PtxHelpers.op3 ptxop destReg x' y'] 
  
   | Imp.Op (op,t,[x]) when Prim.is_unop op -> 
-      let t' = PtxType.of_dyn_type t in
-      assert (t' = destType); 
-      let ptxop = PtxHelpers.prim_to_ptx_unop op t' in   
-      let x' = translate_arg x t' in
-      codegen#emit [PtxHelpers.op2 ptxop destReg x']        
+      let dynResultType = TypeInfer.infer_unop op t in 
+      let ptxResultType = PtxType.of_dyn_type dynResultType in
+      assert_same_type ptxResultType destType;
+      let ptxArgType = PtxType.of_dyn_type t in
+      let ptxop = PtxHelpers.prim_to_ptx_unop op ptxArgType in   
+      let x' = translate_arg x ptxArgType in
+      codegen#emit [PtxHelpers.op2 ptxop destReg x']
+              
   | Imp.Select(t, cond, trueExp, falseExp) -> 
       let t' = PtxType.of_dyn_type t in
       assert (t' = destType);  
@@ -306,8 +311,9 @@ let rec gen_stmt tyMap memspaceMap codegen stmt =
           | Mem.SharedVec [_] ->
               let position = codegen#fresh_reg U64 in
               let offset = codegen#fresh_reg U64 in  
+              let idxReg64 = codegen#convert_fresh U64 idxReg in 
               codegen#emit [
-                mul_lo U64 offset idxReg (PtxHelpers.int eltBytes);   
+                mul_lo U64 offset idxReg64 (PtxHelpers.int eltBytes);   
                 add U64 position baseReg offset; 
                 ld_shared storageT storageReg position
               ]

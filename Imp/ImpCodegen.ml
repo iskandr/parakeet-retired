@@ -99,7 +99,11 @@ class imp_codegen =
          let condStmts, condExp = self#flatten_exp cond in 
          let loopBody' = List.concat $ List.map self#flatten_stmt loopBody in 
          condStmts @ [While(condExp, loopBody')]
-        
+     
+    
+     (* TODO: factor out casting code into separate function, so 
+        that flatten_exp doesn't have to call flatten_stmt
+     *) 
      | Set (id, rhs) -> 
          assert (Hashtbl.mem types id);  
          let rhsStmts, rhsExp = self#flatten_exp rhs in
