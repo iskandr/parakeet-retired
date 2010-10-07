@@ -6,9 +6,64 @@ open PtxType
  
 let _ = Random.self_init () 
 
-type num = IntVal of Int64.t | FloatVal of float 
+type range =
+  | IntRange of Int64.t * Int64.to_int
+  | FloatRange of float * float  
 
-type gpuval = {num:num; gpu_type:PtxType.ty} 
+let float_neg_inf = -1000000000000.0
+let float_inf = 1000000000000.0
+let int_inf = Int64.shift_left 1L 30
+let int_neg_inf = Int64.sub 0L int_inf 
+
+let true_range = IntRange (1L, 1L)
+let false_range = IntRange (0L, 0L)
+let unknown_float = FloatRange (float_neg_inf, float_inf)
+let unknown_int = IntRange(int_inf, int_neg_inf)
+
+let any_true = List.fold_left (||) false
+let all_true = List.fold_left (&&) true 
+
+let range_of_bools bs = 
+  if all_true bs then IntRange (1L, 1L)
+  else if any_true bs then IntRange (0L, 1L)
+  else IntRange (0L, 0L)
+
+let cmp (intCmp, floatCmp) n1 n2 = 
+  match n1, n2 with 
+    | IntRange (x,y), IntRange(a,b) -> 
+        val_of_bools [intCmp x a; intCmp x b; intCmp y a; intCmp y b]
+    | FloatRange (x,y), FloatRange(a,b) -> 
+        val_of_bools [floatCmp x a; floatCmp x b; floatCmp y a; floatCmp y b]            
+    | _ -> failwith "[ptx_check] mixed number types in cmp"
+
+let lt = cmp (fun x y -> Int64.compare x y == -1, 
+              fun (x:float) (y:float) -> compare x y == -1) 
+
+let eq = cmp ((=), (=))
+
+let range_of_ints (ints :Int64.t list) = 
+  let minval = List.fold_left min int_neg_inf ints in 
+  let maxval = List.fold_left max int_inf ints in 
+  IntRange (max minval int_neg_inf, min maxval int_inf)
+
+let range_of_floats (floats: float list) = 
+  let minval = List.fold_left min float_neg_inf floats in 
+  let maxval = List.fold_left max float_inf floats in 
+  FloatRange (max minval float_neg_inf, min maxval float_inf)
+
+
+let binop (intFn, floatFn) n1 n2 = 
+  match n1, n2 with 
+    | IntRange(x,y), IntRange(a,b) -> 
+      range_of_ints [intFn x a; intFn a b; intFn y a; intFn y b]
+    | FloatRange (x,y), FloatRange(a,b) -> 
+      range_of_floats [floatFn x a; floatFn x b; floatFn y a; floatFn y b]
+    | _ -> failwith "[ptx_check] mixed number types in binop"
+
+let unop (intFn, floatFn) = function 
+  | IntRange (x, y) -> range_of_ints [intFn x; intFn y]
+  | FloatRange (x,y) -> range_of_float [floatFn x; floatFn y]  
+
 type vec3 = {x:int; y:int; z:int} 
 
 let ones_vec = {x = 1; y = 1; z=1}
@@ -31,22 +86,27 @@ let rand_float lower upper =
 
 let rand_val t = 
   let bits = min (PtxType.nbytes t * 8) 63 in
-  let num = 
-    if PtxType.is_int t then
-      let signed = PtxType.is_signed t in 
-      let lower = 
-        if signed then 
-          Int64.neg (Int64.shift_left 1L (bits-1))
-        else 0L
-      in  
-      let upper = 
-        if signed then Int64.sub (Int64.shift_left 1L (bits - 1)) 1L 
-        else Int64.sub (Int64.shift_left 1L bits) 1L 
-      in 
-      IntVal (rand_int lower upper)
-    else if PtxType.is_float t then FloatVal (rand_float (-1.0) 1.0)
-    else failwith "random val of this type not implemented"
-  in {num=num; gpu_type= t}
+  if PtxType.is_int t then
+    let signed = PtxType.is_signed t in 
+    let lower = 
+      if signed then 
+        Int64.neg (Int64.shift_left 1L (bits-1))       
+      else 0L
+    in  
+    let upper = 
+      if signed then Int64.sub (Int64.shift_left 1L (bits - 1)) 1L 
+      else Int64.sub (Int64.shift_left 1L bits) 1L 
+    in 
+    IntVal (rand_int lower upper)
+  else if PtxType.is_float t then FloatVal (rand_float (-1.0) 1.0)
+  else failwith "random val of this type not implemented"
+
+let rand_interval t = 
+  let v1 = rand_val t in 
+  let v2 = rand_val t in 
+  if lt v1 v2 then {lower=v1; upper=v2; gpu_type = t}
+  else {lower=v2; upper=v1; gpu_type = t} 
+     
   
 (*and instruction = { 
   op: gpu_op; 
