@@ -18,9 +18,9 @@ and translate_exp codegen idEnv expectedType expNode =
       let fVal' = translate_value idEnv fVal in 
       Select (expectedType, cond', tVal', fVal')
   | SSA.App({SSA.value=SSA.Prim (Prim.ScalarOp op); 
-             value_type =FnT(t::_, _)},
+             value_type =FnT(argT::_, [resultT])},
             vs) ->
-      Op(op,t, List.map (translate_value idEnv) vs)   
+      Op(op, resultT, argT, List.map (translate_value idEnv) vs)   
   | SSA.Cast (t, vNode) -> 
       Cast(t, vNode.SSA.value_type, translate_value idEnv vNode)   
   (*| SSA.Adverb (adverb, FnVal(fnid, _), args) ->

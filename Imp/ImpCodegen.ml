@@ -26,60 +26,79 @@ class imp_codegen =
           DynType.peel_vec arrT 
       | Cast (ty, _, _)
       | Select(ty, _, _, _)
-      | Op (_,ty, _) -> ty 
-     
+      | Op (_, ty, _, _) -> ty 
+          
+    
+    (* create a Set node and insert a cast if necessary *) 
+     method private set_or_coerce id rhs = 
+      assert (Hashtbl.mem types id);  
+      let rhsType = self#infer_type rhs in 
+      let lhsType = Hashtbl.find types id in 
+       if lhsType <> rhsType then 
+         let id' = self#fresh_id rhsType in
+           [Set(id',rhs); Set(id, Cast(lhsType, rhsType, Var id'))]
+         else  [Set(id,rhs)] 
+    
     (* an expression gets flattened into a list of statements and a simple 
        expression yielding the same value as the original compound expression 
     *) 
-    method private flatten_exp  : Imp.exp -> Imp.stmt list * Imp.exp = function
-    | Idx (lhs, rhs) -> 
-        let lhsStmts, lhsExp = 
-          if is_simple_exp lhs then [], lhs 
-          else self#flatten_exp lhs 
-        in 
-        let rhsStmts, rhsExp = 
-          if is_simple_exp rhs then [], rhs 
-          else self#flatten_exp rhs 
-        in 
-        lhsStmts @ rhsStmts, Idx(lhsExp, rhsExp)  
-    | Op (op, t, args) ->
-        let aux (accStmts, accArgs) arg = 
-          if is_simple_exp arg then (accStmts, accArgs @ [arg]) 
-          else 
-            let argStmts, flattenedArg = self#flatten_exp arg in 
-            let tempId =  self#fresh_id t in
-            (* even though this is a flat statement, it might need 
-               some implicit casts which occur in flatten_stmt 
-            *) 
-            let setStmt = Set(tempId, flattenedArg) in 
-            let stmts = accStmts @ argStmts @ (self#flatten_stmt setStmt) in 
-            stmts, accArgs @ [Var tempId] 
-        in  
-        let (stmts, args') = List.fold_left aux ([],[]) args in
-        stmts, Op(op,t, args')   
-    | Select (ty,cond,tExp,fExp) -> 
-        let stmts1, condExp = self#flatten_exp cond in 
-        let stmts2, tExp' = self#flatten_exp tExp in 
-        let stmts3, fExp' = self#flatten_exp fExp in 
-        stmts1 @ stmts2 @ stmts3, Select(ty, cond, tExp', fExp')  
-    | Cast (t1,t2,exp) -> 
-        let stmts, exp' = self#flatten_exp exp in stmts, Cast(t1, t2, exp')  
-    | DimSize (i, exp) -> 
-        let stmts, exp' = self#flatten_exp exp in stmts, DimSize(i,exp')  
-    | Const n -> [], Const n 
-    | Var id -> [], Var id
-    | exp -> 
-        if Hashtbl.mem expCache exp then 
-          let id = Hashtbl.find expCache exp in 
-          [], Var id
+    method private flatten_exp exp : Imp.stmt list * Imp.exp = 
+      let flatten_arg arg = 
+        if is_simple_exp arg then [], arg
         else
-          (* don't pass a type environment since we're guaranteed to not
-             be checking a variable's type  
+          (* flatten all arguments of the argument and collect any 
+             assignments that get generated 
           *) 
-          let ty = self#infer_type exp in
-          let id = self#fresh_id ty in
-          Hashtbl.add expCache exp id;     
-          [Set(id, exp)], Var id 
+          let argStmts, arg' = self#flatten_exp arg in
+          (* if flattened arg is already a variable or number, just return it *)  
+          if is_simple_exp arg' then argStmts, arg' 
+          else 
+            (* if flattened arg is itself complex, assign it to a variable *)
+            let argType = self#infer_type arg' in  
+            let tempId =  self#fresh_id argType in
+            let setStmts = self#set_or_coerce tempId arg' in 
+            argStmts @  setStmts, Var tempId 
+      in 
+      let rec flatten_args ?(accStmts=[])  ?(accArgs=[]) exps =
+        match exps with  
+        | [] -> accStmts, List.rev accArgs
+        | e::es -> 
+            let stmts, e' = flatten_arg e in 
+            flatten_args ~accStmts:(stmts@accStmts) ~accArgs:(e'::accArgs) es
+      in   
+      match exp with 
+      | Const n -> [], Const n 
+      | Var id -> [], Var id
+      | Cast (t1,t2,exp) -> 
+          let stmts, exp' = flatten_arg exp in stmts, Cast(t1, t2, exp')  
+      | DimSize (i, exp) -> 
+          let stmts, exp' = flatten_arg exp in stmts, DimSize(i,exp')  
+      | Idx (lhs, rhs) ->
+          let lhsStmts, lhs' = flatten_arg lhs in 
+          let rhsStmts, rhs' = flatten_arg rhs in 
+          lhsStmts @ rhsStmts, Idx(lhs', rhs')  
+      | Op (op, resultType, argType, args) ->
+          let stmts, args' = flatten_args args in 
+          stmts, Op(op,resultType, argType, args')   
+      | Select (ty,cond,tExp,fExp) -> 
+          (match flatten_args [cond;tExp;fExp] with 
+            | stmts, [cond'; tExp'; fExp'] -> 
+              stmts, Select(ty, cond', tExp', fExp')
+            | _ -> failwith "something truly bizarre happened"
+          ) 
+          
+      | exp -> 
+          if Hashtbl.mem expCache exp then 
+            let id = Hashtbl.find expCache exp in 
+            [], Var id
+          else
+            (* don't pass a type environment since we're guaranteed to not
+               be checking a variable's type  
+            *) 
+            let ty = self#infer_type exp in
+            let id = self#fresh_id ty in
+            Hashtbl.add expCache exp id;     
+            [Set(id, exp)], Var id 
            
     (* flatten the nested sub-expressions in a statement by turning them
        into their own statements 
@@ -105,21 +124,9 @@ class imp_codegen =
         that flatten_exp doesn't have to call flatten_stmt
      *) 
      | Set (id, rhs) -> 
-         assert (Hashtbl.mem types id);  
-         let rhsStmts, rhsExp = self#flatten_exp rhs in
-         let rhsType = self#infer_type rhsExp in 
-         assert (Hashtbl.mem types id);  
-         let lhsType = Hashtbl.find types id in 
-         (*debug $ sprintf "[==> generating set %d : %s = ? %s"
-           id (DynType.to_str lhsType) (DynType.to_str rhsType)
-         ; 
-         *)
-         if lhsType <> rhsType then 
-           let id' = self#fresh_id rhsType in
-           rhsStmts @ [
-             Set(id',rhsExp); Set(id, Cast(lhsType, rhsType, Var id'))
-           ]
-         else rhsStmts @ [Set(id,rhsExp)]
+        let rhsStmts, rhs' = self#flatten_exp rhs in
+        let setStmts = self#set_or_coerce id rhs' in 
+        rhsStmts @ setStmts 
          
      | SetIdx (id, indices, rhs) -> 
          let idxStmtLists, idxExps = 

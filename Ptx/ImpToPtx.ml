@@ -87,23 +87,21 @@ let gen_exp
         | _ -> failwith "dimsize not implemented for global vectors"
       )
   
-  | Imp.Op(op,t,[x;y]) when Prim.is_binop op ->
-      let dynResultType = TypeInfer.infer_binop op t t in  
+  | Imp.Op(op,dynResultType, dynArgType, [x;y]) when Prim.is_binop op ->
       let ptxResultType = PtxType.of_dyn_type dynResultType in
       same_type ptxResultType destType;
       assert (ptxResultType = destType); 
-      let ptxArgType = PtxType.of_dyn_type t in 
+      let ptxArgType = PtxType.of_dyn_type dynArgType in 
       let x' = translate_arg x ptxArgType in 
       let y' = translate_arg y ptxArgType in 
       let ptxop = PtxHelpers.prim_to_ptx_binop op ptxArgType in 
       codegen#emit [PtxHelpers.op3 ptxop destReg x' y'] 
  
-  | Imp.Op (op,t,[x]) when Prim.is_unop op -> 
-      let dynResultType = TypeInfer.infer_unop op t in 
+  | Imp.Op (op,dynResultType, dynArgType, [x]) when Prim.is_unop op -> 
       let ptxResultType = PtxType.of_dyn_type dynResultType in
       same_type ptxResultType destType;
       assert (ptxResultType = destType); 
-      let ptxArgType = PtxType.of_dyn_type t in
+      let ptxArgType = PtxType.of_dyn_type dynArgType in
       let ptxop = PtxHelpers.prim_to_ptx_unop op ptxArgType in   
       let x' = translate_arg x ptxArgType in
       codegen#emit [PtxHelpers.op2 ptxop destReg x']

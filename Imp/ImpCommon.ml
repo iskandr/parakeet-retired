@@ -7,7 +7,7 @@ let rec apply_exp_map eMap exp =
   let aux = apply_exp_map eMap in 
   match exp with 
   | Idx (e1,e2) -> Idx(aux e1, aux e2)  
-  | Op (op,t, es) -> Op (op, t, List.map aux es)
+  | Op (op,t, argT, es) -> Op (op, t, argT, List.map aux es)
   | Select (t, e1, e2, e3) -> Select(t, aux e1, aux e2, aux e3)   
   | Cast (t1, t2, e) -> Cast (t1, t2, aux e)   
   | DimSize (n,e) -> DimSize (n, aux e)
@@ -43,7 +43,7 @@ let rec apply_id_map idMap exp =
   match exp with  
   | Var id -> if PMap.mem id idMap then Var (PMap.find id idMap) else Var id
   | Idx (e1,e2) -> Idx(aux e1, aux e2)  
-  | Op (op, t, es) -> Op (op, t, List.map aux es) 
+  | Op (op, t, argT, es) -> Op (op, t, argT, List.map aux es) 
   | Select (t, e1, e2, e3) -> Select(t, aux e1, aux e2, aux e3)   
   | Cast (t1, t2, e) -> Cast (t1, t2, aux e)   
   | DimSize (n, e) -> DimSize (n, aux e)
