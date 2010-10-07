@@ -70,7 +70,7 @@ let rec id_list_to_str = function
 let rec typed_id_to_str tenv id = 
   if PMap.mem id tenv then 
     sprintf "%s : %s" (ID.to_str id) (DynType.to_str (PMap.find id tenv))
-  else sprintf "%s : _" (ID.to_str id) 
+  else sprintf "%s" (ID.to_str id) 
 
 let rec typed_id_list_to_str tenv = function 
   | [] -> ""
