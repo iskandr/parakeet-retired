@@ -32,8 +32,11 @@ let nbytes_of_rank rank = rank * 4
 let nbytes shape = nbytes_of_rank (rank shape)
 
 
-
-let get_dim = Array1.get
+let get_dim shape idx =
+  let dim32 = Array1.get shape idx in 
+  Int32.to_int dim32  
+  
+let set_dim shape idx v = Array1.set shape idx (Int32.of_int v)
 
 (* shape s1 is a subshape of s2 if s1 is a scalar or 
    there is a rightmost subarray of s2 which is equal to s1 
