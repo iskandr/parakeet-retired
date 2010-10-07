@@ -8,7 +8,11 @@ let sizeof ty shape =
   DynType.sizeof (DynType.elt_type ty) * Shape.nelts shape  
 
 
-let mk_cuda_module ptxList threadsPerBlock = 
+let mk_cuda_module ptxList threadsPerBlock =
+  let check = 
+    PtxCheck.emulate_with_random_data PtxCheck.ones_vec PtxCheck.ones_vec 
+  in  
+  let _ = List.map (fun (_, kernel) -> check kernel) ptxList in  
   let ptxMap = PMap.of_enum (List.enum ptxList) in 
   let ptxModule = {
     Ptx.kernels = ptxMap;   

@@ -38,7 +38,11 @@ and translate_exp codegen idEnv expectedType expNode =
   | SSA.Values [] -> failwith "[ssa->imp] unexpected empty value list"
    
   | SSA.Values _ ->  failwith "[ssa->imp] unexpected multiple return values "
-  | _ -> failwith "[typed core -> imp] typed core exp not yet implemented "
+  | _ -> failwith $ 
+    Printf.sprintf 
+      "[ssa->imp] typed core exp not yet implemented: %s"
+      (SSA.exp_to_str expNode)
+    
 and translate_stmt idEnv codegen stmtNode =
   let get_imp_id ssaId t = 
     if PMap.mem ssaId idEnv then PMap.find ssaId idEnv 

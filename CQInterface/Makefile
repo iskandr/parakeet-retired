@@ -64,7 +64,8 @@ HostPtr.cmx bigarray.cmxa PtxType.cmx PtxVal.cmx Ptx.cmx Shape.cmx \
 HostVal.cmx GpuVal.cmx DynVal.cmx \
 MemoryState.cmx \
 PtxHelpers.cmx LibPQ.cmx \
-PtxSimplify.cmx PtxTidy.cmx PtxCodegen.cmx  \
+PtxSimplify.cmx PtxTidy.cmx PtxCodegen.cmx \
+PtxCheck.cmx  \
 Imp.cmx ImpCommon.cmx ImpCodegen.cmx ImpGenAllPairs.cmx \
 ImpGenMap.cmx ImpGenReduce.cmx ImpAbstractInterp.cmx \
 MemspaceSemantics.cmx ImpInferMemspace.cmx ImpToPtx.cmx \

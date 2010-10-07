@@ -38,9 +38,6 @@ let optimize_fundef
       (fnTable : FnTable.t) 
       (fundef : SSA.fundef) 
       optimizations  =
-  match fundef.SSA.body with 
-  | [] | [_] -> fundef  (* don't both trying to optimize one liners *) 
-  | _ ->   
     debug $ Printf.sprintf "[optimize_fundef] running optimzer on function: %s" 
       (SSA.fundef_to_str fundef);         
     let aux : SSA.fundef -> SSA.fundef = 
