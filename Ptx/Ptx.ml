@@ -54,12 +54,10 @@ and gpu_op =
   | Mad24 of gpu_bits * PtxType.ty
   | FloatMad of PtxType.ty   
   | Cvt of PtxType.ty * PtxType.ty
-  | Ld of space * PtxType.ty
-  | LdOffset of space * PtxType.ty * int 
+  | Ld of space * PtxType.ty * int 
   | Selp of PtxType.ty 
   | Slct of PtxType.ty * PtxType.ty  
-  | St of space * PtxType.ty 
-  | StOffset of space * PtxType.ty * int 
+  | St of space * PtxType.ty * int 
   | Mov of PtxType.ty 
   | Bra of label
   | Comment of string 
@@ -198,8 +196,8 @@ and gpu_op_name = function
   | Cvt _ -> "cvt"
   | Selp t -> "selp"
   | Slct (t1,t2) ->  "slct"
-  | LdOffset _ | Ld _ -> "ld" 
-  | StOffset _  | St _ -> "st" 
+  | Ld _ -> "ld" 
+  | St _ -> "st" 
   | Mov _ -> "mov"				
   | Bra _  -> "bra" 
   | Exit -> "exit"
@@ -215,26 +213,26 @@ and gpu_op_args_to_buffer b symbols op args = match op with
         (PtxType.to_str t)
         (PtxVal.to_str symbols args.(0)) 
         (PtxVal.to_str symbols args.(1))
-  | Ld(space, t) -> 
+  | Ld(space, t, 0) -> 
       bprintf b ".%s.%s\t %s, [%s];" 
        (gpu_space_to_str space) 
        (PtxType.to_str t)
        (PtxVal.to_str symbols args.(0)) 
        (PtxVal.to_str symbols args.(1))
-  | LdOffset(space, t, offset)-> 
+  | Ld(space, t, offset)-> 
       bprintf b ".%s.%s\t %s, [%s+%d];" 
         (gpu_space_to_str space) 
         (PtxType.to_str t)
         (PtxVal.to_str symbols args.(0)) 
         (PtxVal.to_str symbols args.(1))
         offset
-  | St(space, t) ->  
+  | St(space, t, 0) ->  
       bprintf b ".%s.%s\t [%s], %s;" 
         (gpu_space_to_str space) 
         (PtxType.to_str t)
         (PtxVal.to_str symbols args.(0))
         (PtxVal.to_str symbols args.(1))
-  | StOffset (space, t, offset) ->
+  | St(space, t, offset) ->
       bprintf b ".%s.%s\t [%s+%d], %s;" 
         (gpu_space_to_str space) 
         (PtxType.to_str t)

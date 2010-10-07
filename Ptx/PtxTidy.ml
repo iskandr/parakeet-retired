@@ -8,16 +8,14 @@ let is_ptx_assignment = function
   | Comment _ 
   | Exit 
   | Bar _
-  | St _
-  | StOffset _ -> false 
+  | St _ -> false 
   | _ -> true  
 
 (* which registers serve as inputs to a ptx statement? *) 
 let ptx_registers_used instr = 
   let argvals = 
     match instr.op with 
-      | St _ 
-      | StOffset _ -> Array.to_list instr.args
+      | St _  -> Array.to_list instr.args
       | _  when Array.length instr.args > 0 ->
          List.tl (Array.to_list instr.args)
       | _ -> []   

@@ -43,6 +43,10 @@ let is_int = function
   | U8 | S8 | U16 | S16 | U32 | S32 | U64 | S64 -> true
   | _ -> false
 
+let is_signed = function 
+  | S8 | S16 | S32 | S64 | F16 | F32 | F64 -> true
+  | _ -> false 
+
 let is_bits = function
   | B8 | B16 | B32 | B64 -> true
   | _ -> false

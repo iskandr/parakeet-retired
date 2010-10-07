@@ -116,9 +116,8 @@ let cvt ~t1 ~t2 ~dest ~src =
       (PtxType.to_str t2) (PtxType.to_str t1))   
 
 let ld ?offset ~space ty dest src = 
-  match offset with 
-    | None -> mkop (Ld(space,ty)) [|dest; src|]
-    | Some offset -> mkop (LdOffset(space,ty,offset)) [|dest; src|]
+  let offset' = match offset with None -> 0 | Some offset -> offset in 
+  mkop (Ld(space,ty,offset')) [|dest; src|]
 
 let ld_global ?offset =  ld ?offset ~space:GLOBAL 
 let ld_param ?offset = ld ?offset ~space:PARAM 
@@ -126,9 +125,9 @@ let ld_shared ?offset = ld ?offset ~space:SHARED
 let ld_local ?offset = ld ?offset ~space:LOCAL 
 let ld_const ?offset = ld ?offset ~space:CONST 
 
-let st ?offset ~space ~ty ~dest ~src = match offset with 
-  | None -> mkop (St(space,ty)) [|dest;src|]
-  | Some offset -> mkop (StOffset(space,ty,offset)) [|dest;src|]
+let st ?offset ~space ~ty ~dest ~src = 
+  let offset' = match offset with None -> 0 | Some offset -> offset in 
+  mkop (St(space,ty,offset')) [|dest;src|]
 
 let st_global ?offset = st ?offset ~space:GLOBAL 
 let st_shared ?offset = st ?offset ~space:SHARED
