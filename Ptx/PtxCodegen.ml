@@ -9,9 +9,11 @@
 
 open Base
 open Ptx
+open PtxVal 
 open PtxHelpers
 
-
+let initialNumRegs = 29 
+  
 class ptx_codegen  = object (self)  
   (* maintain a symbols table, so we don't have to use strings  
      when referring to parameters or registers 
@@ -33,7 +35,7 @@ class ptx_codegen  = object (self)
   method private fresh_arg_id = 
     let num = numArgs in
     numArgs <- num + 1;
-    self#get_sym_id ("param" ^ (string_of_int num))
+    self#get_sym_id ("__param" ^ (string_of_int num))
 
   (* GENERATE FRESH NAMES FOR SHARED VECTORS *) 
   val mutable numShared = 0 
@@ -42,7 +44,7 @@ class ptx_codegen  = object (self)
     let id = numShared in
     Hashtbl.add sharedDims id dims;   
     numShared <- id + 1; 
-    self#get_sym_id ("shared" ^(string_of_int id))
+    self#get_sym_id ("__shared" ^(string_of_int id))
 
 
   (* GENERATE FRESH LABELS *) 
@@ -57,46 +59,43 @@ class ptx_codegen  = object (self)
   method emit newInstructions = 
     DynArray.append (DynArray.of_list newInstructions) instructions
   
-  val allocations: (Ptx.symid, Ptx.var_decl) Hashtbl.t = Hashtbl.create 17
-  method private add_alloc id newAlloc = Hashtbl.add allocations id newAlloc 
+  val allocations: (Ptx.symid, Ptx.var_decl) Hashtbl.t = 
+    Hashtbl.create initialNumRegs
+  method private add_alloc id newAlloc = 
+    Printf.printf "-- adding allocation for %d (%s) \n"
+      id 
+      (Hashtbl.find  symbols id)
+      
+    ;
+    Hashtbl.add allocations id newAlloc 
 
-  val parameters: (Ptx.symid * PtxType.ty) DynArray.t = DynArray.create ();
+  val parameters: (Ptx.symid * PtxType.ty) DynArray.t = DynArray.create ()
   method private add_param_decl id newParam = 
     DynArray.add parameters (id, newParam) 
 
+  
   (* number of registers currently allocated for every type *) 
   val maxRegs : (PtxType.ty, int) Hashtbl.t =  Hashtbl.create initialNumRegs
   
   (* cache the register objects corresponding to the values 
      and possibly the shapes and lengths of arguments 
   *) 
-  val dataRegs : (ID.t, PtxVal.value) Hashtbl.t = Hashtbl.create 29
-  val shapeRegs : (ID.t, PtxVal.value) Hashtbl.t = Hashtbl.create 29
-  val dynTypes : (ID.t, DynType.t) Hashtbl.t = Hashtbl.create 29
+  val dataRegs : (ID.t, PtxVal.value) Hashtbl.t = Hashtbl.create initialNumRegs
+  val shapeRegs : (ID.t, PtxVal.value) Hashtbl.t = Hashtbl.create initialNumRegs
+  val dynTypes : (ID.t, DynType.t) Hashtbl.t = Hashtbl.create initialNumRegs
    
-  method private reg_prefix = function 
-    | U8 -> "r_char_"
-    | S8 -> "r_schar_"
-    | U16 -> "rh"
-    | S16 -> "rsh"
-    | U32 -> "r"
-    | S32 -> "rs"
-    | U64 -> "rl"
-    | S64 -> "rsl"
-    | F16 -> "rfh"
-    | F32 -> "rf"
-    | F64 -> "rd"
-    | Pred -> "p"
-    | B8 -> "r_byte"
-    | B16 -> "rbh"
-    | B32 -> "rb"
-    | B64 -> "rbl"
-    | V2 t -> (self#reg_prefix t) ^ "_v2" 
-    | V4 t -> (self#reg_prefix t) ^ "_v4"
-
-
+  
   method fresh_reg gpuT =
-    let reg_name = fun gpuT id -> (reg_prefix gpuT) ^ id in 
+    let rec reg_prefix = function 
+    | U8 -> "r_char_" | U16 -> "rh" | U32 -> "r" | U64 -> "rl"
+    | S8 -> "r_schar_" | S16 -> "rsh" | S32 -> "rs" | S64 -> "rsl"
+    | F16 -> "rfh" | F32 -> "rf" | F64 -> "rd"
+    | B8 -> "r_byte" | B16 -> "rbh" | B32 -> "rb" | B64 -> "rbl"
+    | Pred -> "p"
+    | V2 t -> (reg_prefix t) ^ "_v2" 
+    | V4 t -> (reg_prefix t) ^ "_v4"
+    in 
+    let reg_name = fun gpuT id -> (reg_prefix gpuT) ^ (string_of_int id) in 
     let currMax = match Hashtbl.find_option maxRegs gpuT with 
       | Some max -> max
       | None -> 0 
@@ -105,7 +104,7 @@ class ptx_codegen  = object (self)
     let id = self#get_sym_id (reg_name gpuT currMax) in  
     self#add_alloc id {
       t = gpuT; 
-      space = REG; 
+      decl_space = REG; 
       array_size = None; 
       init_val= None 
     };
@@ -134,28 +133,29 @@ class ptx_codegen  = object (self)
  (* TODO: track memory space and dimensions in the codegen, rather
     than relying on external analyses 
  *) 
+
  method declare_shared_slice id = 
    let dataReg = self#fresh_reg PtxType.ptrT in
    Hashtbl.add dataRegs id dataReg;
    dataReg
   
   method declare_shared_vec id dynEltT (dims : int list)  = 
-    Hashtbl.add dynTypes id dynT;
-    let ptxEltType = PtxType.of_dyn_type dynEltType in 
+    Hashtbl.add dynTypes id dynEltT;
+    let ptxEltType = PtxType.of_dyn_type dynEltT in 
     let nelts = List.fold_left (fun x y-> x * y) 1 dims in 
-    let nbytesPerElt = PtxType.nbytes ptxEltType in 
-    let nbytesTotal = nelts * nbytesPerElt in
     let decl = {
-      t = t; 
-      space = SHARED;
-      array_size = Some nbytesTotal;
+      t = ptxEltType; 
+      decl_space = SHARED;
+      array_size = Some nelts;
       init_val=None;
     } in
     let sharedId = self#fresh_shared_id (Array.of_list dims) in
-    let sharedVal = Sym { id=sharedId; ptx_type=PtxType.ptrT; space=REG } in 
+    self#add_alloc sharedId decl; 
+    let sharedVal = Sym { id=sharedId; ptx_type=PtxType.ptrT; space=SHARED } in 
     (* access the shared memory via the register that holds its address *) 
     let sharedReg = self#fresh_reg PtxType.ptrT in 
-    self#emit [mov sharedReg sharedVal]; 
+    self#emit [mov sharedReg sharedVal];
+    Hashtbl.add dataRegs id sharedReg;  
     sharedReg  
     
     
@@ -179,7 +179,7 @@ class ptx_codegen  = object (self)
     Hashtbl.add dataRegs id dataReg;
     (* vectors need an additional param for their shape *) 
     if not $ DynType.is_scalar dynT then  (
-      let shapeParamId = self#get_sym_id ("shape" ^ (string_of_int num)) in 
+      let shapeParamId = self#get_sym_id ("shape" ^ (string_of_int paramId)) in 
       let shapeParam = 
         Sym {id=shapeParamId; ptx_type=PtxType.ptrT; space=PARAM}  
       in 
@@ -192,16 +192,16 @@ class ptx_codegen  = object (self)
    
   method get_data_reg id = match Hashtbl.find_option dataRegs id with 
     | Some reg -> reg
-    | None -> failwith $ "[GpuCodegen] Unregistered arg " ^ (dump id)
+    | None -> failwith $ "[PtxCodegen] Unregistered arg " ^ (dump id)
    
   method get_shape_reg id = match Hashtbl.find_option shapeRegs id with
     | Some reg -> reg
-    | None -> failwith $ "[GpuCodegen] Unregistered shape arg " ^ (dump id)
+    | None -> failwith $ "[PtxCodegen] Unregistered shape arg " ^ (dump id)
 
     
   method get_dyn_type id = match Hashtbl.find_option dynTypes id with 
     | Some t -> t 
-    | None -> failwith $ "[GpuCodegen] No type registered for " ^ (ID.to_str id) 
+    | None -> failwith $ "[PtxCodegen] No type registered for " ^ (ID.to_str id) 
    
 
   

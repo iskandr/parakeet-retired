@@ -66,7 +66,7 @@ and gpu_op =
  
 and var_decl = {
   t: PtxType.ty; 
-	space: space;
+	decl_space: space;
 	array_size: int option;
 	init_val: int option;
 }
@@ -94,8 +94,6 @@ and ptx_module = {
   kernels : (string, kernel) PMap.t;
   compute_capability: gpu_compute_capability;
 }
-
-
 
 let is_float_rounding_mode = function 
   | RoundNearest | RoundZero | RoundNegInf | RoundPosInf -> true 
@@ -148,15 +146,27 @@ and add_kernel_params_to_buffer b  symbols params =
   end 
 and param_to_str symbols id ty = 
   sprintf ".param .%s %s" (PtxType.to_str ty) (PMap.find id symbols)
-and add_kernel_decls_to_buffer buffer symbols decls = 
-    PMap.iter 
-      (fun id decl -> 
-        bprintf buffer ".%s\t .%s %%%s;\n" 
-         (gpu_space_to_str decl.space)
-         (PtxType.to_str decl.t)
-         (PMap.find id symbols)        
-      ) 
-     decls
+and add_kernel_decls_to_buffer buffer symbols decls =
+    let add_decl id decl =
+      let name = PMap.find id symbols in
+      let spaceStr = gpu_space_to_str decl.decl_space in   
+      match decl.decl_space, decl.array_size with 
+        | SHARED, Some size ->
+          let bytesPerElt = PtxType.nbytes decl.t in  
+          let totalBytes =  bytesPerElt * size in
+          bprintf buffer ".shared\t .align %d .b8 %s[%d];\n"
+            bytesPerElt (* is this the correct alignment for small types? *) 
+            name
+            totalBytes 
+        | SHARED, None -> failwith "can't declare shared var without size"
+        | _, Some _ -> failwith "declaring non-shared arrays not implemented"
+        | space, None ->   
+            bprintf buffer ".%s\t .%s %%%s;\n" 
+              spaceStr
+              (PtxType.to_str decl.t)
+              name 
+    in 
+    PMap.iter add_decl decls
 
 and add_kernel_body_to_buffer b symbols code =
   Array.iter 
@@ -288,16 +298,7 @@ and gpu_bits_to_str = function
 	| Low -> "lo"
 	| High -> "hi"
 					
-and gpu_space_to_str = function 
-	| REG -> "reg"
-	| SREG -> "sreg" 
-	| CONST -> "const" 
-	| GLOBAL -> "global"
-	| LOCAL -> "local"
-	| PARAM -> "param"
-	| SHARED -> "shared"
-	| SURF -> "surf"
-	| TEX -> "tex" 
+
 and gpu_comp_to_str = function 	
 	| EQ -> "eq"
 	| NE -> "ne"

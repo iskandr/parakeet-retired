@@ -419,9 +419,21 @@ and gen_block tyMap memspaceMap codegen block =
    
 let translate_kernel impfn = 
   let codegen = new ptx_codegen in
-  let _ = Array.map2 codegen#declare_local impfn.local_ids impfn.local_types in
-  let _ = Array.map2 codegen#declare_arg impfn.input_ids impfn.input_types in
-  let _ = Array.map2 codegen#declare_arg impfn.output_ids impfn.output_types in
+  (* declare all local variables as either a scalar register or 
+     a shared array. 
+  *)
+  Array.iter2 
+    (fun id dynT -> 
+      if PMap.mem id impfn.shared then
+        let dims = PMap.find id impfn.shared in   
+        codegen#declare_shared_vec id dynT dims  
+      else 
+        codegen#declare_local id dynT
+    ) 
+    impfn.local_ids impfn.local_types 
+  ;
+  Array.iter2 codegen#declare_arg impfn.input_ids impfn.input_types;
+  Array.iter2 codegen#declare_arg impfn.output_ids impfn.output_types; 
   let memspaceMap = ImpInferMemspace.analyze_function impfn in
   let tyMap = impfn.tenv in 
   gen_block tyMap memspaceMap codegen impfn.body; 

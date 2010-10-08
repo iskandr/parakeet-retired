@@ -1,8 +1,20 @@
 open Base
 open Printf 
 
+
+type space = REG | SREG | CONST | GLOBAL | LOCAL | PARAM | SHARED | SURF | TEX
+let gpu_space_to_str = function 
+    | REG -> "reg"
+    | SREG -> "sreg" 
+    | CONST -> "const" 
+    | GLOBAL -> "global"
+    | LOCAL -> "local"
+    | PARAM -> "param"
+    | SHARED -> "shared"
+    | SURF -> "surf"
+    | TEX -> "tex"  
+
 type symid = int
-and space = REG | SREG | CONST | GLOBAL | LOCAL | PARAM | SHARED | SURF | TEX 
 and typed_symbol = { id: symid; ptx_type: PtxType.ty ; space: space} 
 
 type value =    
@@ -24,8 +36,6 @@ and special_register =
   | GridId
   | Clock
 
-
-
 let rec to_str symbols = function 
     | Sym {id=id; space=REG} ->  sprintf "%%%s" (PMap.find id symbols) 
     | Sym {id=id} -> PMap.find id symbols
@@ -37,6 +47,7 @@ and register_dim_to_str = function
     | X -> "x"
     | Y -> "y"
     | Z -> "z"
+  
 and special_register_to_str = function
     | ThreadId d -> "%tid." ^ (register_dim_to_str d)
     | NumThreadId d -> "%ntid." ^ (register_dim_to_str d) 
@@ -48,7 +59,6 @@ and special_register_to_str = function
     | MaxProcessors -> "%nsmid"
     | GridId -> "%gridid" 
     | Clock -> "%clock"
-
 
 let is_ptx_constant = function  
   | IntConst _ 
