@@ -71,12 +71,13 @@ void init_dt() {
 #else
   ocaml_compiler_init          = caml_named_value("compiler_init");
   ocaml_gen_module_template    = caml_named_value("debug_gen_module_template");
-  ocaml_get_function_template  = caml_named_value("debug_get_function_template");
+  ocaml_get_function_template  =
+    caml_named_value("debug_get_function_template");
   ocaml_run_template           = caml_named_value("debug_run_template");
   ocaml_ktypenum_to_ocaml_type = caml_named_value("ktypenum_to_ocaml_type");
   ocaml_dyn_type_to_ktypenum   = caml_named_value("dyn_type_to_ktypenum");
   ocaml_sizeof_dyn_type        = caml_named_value("sizeof_dyn_type");
- ocaml_shape_rank             = caml_named_value("shape_rank");
+  ocaml_shape_rank             = caml_named_value("shape_rank");
   ocaml_compact                = caml_named_value("c_compact");
 #endif
 
@@ -216,16 +217,18 @@ K run_template(K t, K args, K globals) {
     q_status = ki((I)1);
     q_ret = knk(1, q_status);
   } else if (Tag_val(ocaml_ret) == Success) {
-  //  printf("success\n");
+    printf("success\n");
     inspect_block(ocaml_ret);
     q_status = ki((I)0);
     int *data = (int*)Int64_val(Field(ocaml_ret, 0));
     int len = Int_val(Field(ocaml_ret, 1)) / sizeof(int);
-    //printf("data[0]: %d\n", data[0]);
-    //printf("data[len-1]: %d\n", data[len-1]);
-    //printf("len: %d\n", len);
+    printf("data[0]: %d\n", data[0]);
+    printf("data[len-1]: %d\n", data[len-1]);
+    printf("len: %d\n", len);
     q_retval = hostval_to_qval(ocaml_ret);
+    printf("made q val\n");
     q_ret = knk(2, q_status, q_retval);
+    printf("made q return val\n");
   } else if (Tag_val(ocaml_ret) == Error) {
     printf("error\n");
     q_status = ki((I)2);
@@ -597,17 +600,24 @@ K hostval_to_qval(value hostval) {
 
   K ret;
   int i;
+  printf("in hostval_to_qval\n");
   char *data     = (char*)Nativeint_val(Field(hostval, 0));
+  printf("made a char* out of the data\n");
   int num_bytes  = Int_val(Field(hostval, 1));
+  printf("got the number of bytes: %d\n", num_bytes);
+  printf("data at idx 0: %d\n", (int)data[0]); 
   ocaml_dyn_type = Field(hostval, 2);
   int *shape     = (int*)Data_bigarray_val(Field(hostval, 3));
   int shape_len  = Int_val(caml_callback(*ocaml_shape_rank,
                                           Field(hostval, 3)));
+  printf("shape len: %d\n", shape_len);
+  printf("shape[0]: %d\n", shape[0]);
   int *idxes     = (int*)malloc(sizeof(int)*shape_len);
   for (i = 0; i < shape_len; ++i) {
     idxes[i] = 0;
   }
 
+  printf("about to build q type\n");
   ret = build_q_type(data, num_bytes, ocaml_dyn_type,
                      shape, shape_len, 0, idxes);
 
@@ -628,6 +638,7 @@ K build_q_type(char *data, int num_bytes, value ocaml_dyn_type,
                int *shape, int shape_len, int shape_idx, int *idxes) {
   CAMLparam1(ocaml_dyn_type);
   CAMLlocal1(ocaml_child_type);
+  CAMLlocal1(ocaml_test);
 
   K ret;
   int i;

@@ -35,8 +35,10 @@ let all_pairs f xs ys =
         aux xs' acc'
     in List.concat (aux xs [])
 
-
 module type ORD = sig
   type t
   val compare : t -> t -> int
 end
+
+let safe_div n d =
+  (n + d - 1) / d
