@@ -122,7 +122,7 @@ let run_reduce compiledModule gpuVals outputType =
       let outShape = Shape.of_list [numOutputElts] in
       let outputVal =
         GpuVal.mk_gpu_vec
-            outputType
+            (DynType.VecT outputType)
             outShape
             (DynType.sizeof outputType * numOutputElts)
       in
@@ -141,9 +141,6 @@ let run_reduce compiledModule gpuVals outputType =
 	      LibPQ.launch_ptx compiledModule.Cuda.module_ptr fnName args gridParams;
       i := safe_div !i (threadsPerBlock * 2)
       done;
-      let m = GpuVal.from_gpu (MemoryState.create 127) outputVal in
-      debug (Printf.sprintf "value of outputVal[0]: %d\n"
-         (Int32.to_int (c_get_int32 m.ptr 0)));
       [outputVal]
     | _ -> failwith "expect one map kernel"
 
