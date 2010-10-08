@@ -82,10 +82,11 @@ let eval_adverb_on_gpu
   debug "[eval_adverb_on_gpu] after compiledModule\n%!";
   let dynVals = List.map (eval_value env) dataArgs in
   let gpuVals = List.map (MemoryState.get_gpu memState) dynVals in  
-  match op with 
-    | Prim.Map -> GpuRuntime.run_map compiledModule gpuVals outputTypes
-    | Prim.Reduce -> GpuRuntime.run_reduce compiledModule gpuVals outputTypes
-    | Prim.AllPairs ->
+  match op, outputTypes with 
+    | Prim.Map, _ -> GpuRuntime.run_map compiledModule gpuVals outputTypes
+    | Prim.Reduce, [outputType] ->
+        GpuRuntime.run_reduce compiledModule gpuVals outputType
+    | Prim.AllPairs, _ ->
         GpuRuntime.run_all_pairs compiledModule gpuVals outputTypes
     | _ -> failwith "execution for this primitive not yet implemented"  
 
