@@ -7,12 +7,31 @@
   i'th level of nesting. Vectors nested on the same level all have
   to be of the same length.
 *)
+open Base
 open Bigarray
+
 type t = (int32, int32_elt, c_layout) Array1.t
 
 let create : (int -> t)  = Array1.create int32 c_layout
 
 let empty = create 0
+
+let get_dim shape idx =
+  let dim32 = Array1.get shape idx in 
+  Int32.to_int dim32  
+  
+let set_dim shape idx v = Array1.set shape idx (Int32.of_int v)
+
+let scalar_shape =
+  let new_shape = create 1 in
+  set_dim new_shape 0 1;
+  new_shape
+
+let of_list l =
+  let n = List.length l in
+  let s = create n in
+  List.iter2 (fun dim idx -> set_dim s idx dim) l (List.til n);
+  s
 
 (* the product of the elements in a shape vector is the number of elements
    in an array
@@ -31,9 +50,16 @@ let nbytes_of_rank rank = rank * 4
 
 let nbytes shape = nbytes_of_rank (rank shape)
 
-
-
-let get_dim = Array1.get
+let eq s1 s2 =
+  if rank s1 <> rank s2
+  then
+    false
+  else
+    let are_same = ref true in
+    for i = 0 to rank s1 - 1 do
+      are_same := !are_same && get_dim s1 i = get_dim s2 i 
+    done;
+    !are_same
 
 (* shape s1 is a subshape of s2 if s1 is a scalar or 
    there is a rightmost subarray of s2 which is equal to s1 

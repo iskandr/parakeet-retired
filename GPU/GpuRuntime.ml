@@ -1,5 +1,6 @@
 open Base
 open Bigarray
+open HostVal
 open Printf 
 
 exception InvalidGpuArgs 
@@ -105,34 +106,42 @@ let run_map compiledModule gpuVals outputTypes =
       outputVals
     | _ -> failwith "expect one map kernel"
 
-let run_reduce compiledModule gpuVals outputTypes =
-  let shapes = List.map GpuVal.get_shape gpuVals in
-  match compiledModule.Cuda.kernel_names with
-    | [fnName] ->
-      let maxShape = (match Shape.max_shape_list shapes with
-       | None -> raise InvalidGpuArgs
-       | Some maxShape -> maxShape
-       )
+(* 1d vector assumption *)
+let run_reduce compiledModule gpuVals outputType =
+  (*let shapes = List.map GpuVal.get_shape gpuVals in*)
+  let threadsPerBlock = compiledModule.Cuda.threads_per_block in
+  (*
+  assert(shapes <> []);
+  assert(List.for_all (Shape.eq (List.hd shapes)) (List.tl shapes));
+  *)
+  match compiledModule.Cuda.kernel_names, gpuVals with
+    | [fnName], _ :: [gpuVal] ->
+      let numInputElts = Shape.nelts (GpuVal.get_shape gpuVal) in
+      let i = ref numInputElts in
+      let numOutputElts = safe_div !i (threadsPerBlock * 2) in
+      let outShape = Shape.of_list [numOutputElts] in
+      let outputVal =
+        GpuVal.mk_gpu_vec
+            (DynType.VecT outputType)
+            outShape
+            (DynType.sizeof outputType * numOutputElts)
       in
-      let outputVals =
-        List.map
-          (fun ty ->  GpuVal.mk_gpu_vec ty maxShape (sizeof ty maxShape))
-          outputTypes
-      in
-      let args = Array.of_list (gpuVals @ outputVals) in
-      let outputElts = Shape.nelts maxShape in
-      let gridParams = match
-        HardwareInfo.get_grid_params
-          ~device:0
-          ~block_size:compiledModule.Cuda.threads_per_block
-          outputElts
-        with
-        | Some gridParams -> gridParams
-        | None ->
-         failwith (sprintf "Unable to get launch params for %d elts" outputElts)
-      in
-      LibPQ.launch_ptx compiledModule.Cuda.module_ptr fnName args gridParams;
-      outputVals
+      let args = Array.of_list ([gpuVal; outputVal]) in
+      while !i > 1 do
+	      let gridParams = match
+	        HardwareInfo.get_grid_params
+	          ~device:0
+	          ~block_size:threadsPerBlock
+	          (safe_div !i 2)
+	        with
+	        | Some gridParams -> gridParams
+	        | None -> failwith
+                (sprintf "Unable to get launch params for %d elts" !i)
+	      in
+	      LibPQ.launch_ptx compiledModule.Cuda.module_ptr fnName args gridParams;
+      i := safe_div !i (threadsPerBlock * 2)
+      done;
+      [outputVal]
     | _ -> failwith "expect one map kernel"
 
 let run_all_pairs compiledModule gpuVals outputTypes =
@@ -141,7 +150,7 @@ let run_all_pairs compiledModule gpuVals outputTypes =
     | [fnName] ->
       (* For now, the following assumes 1D inputs to the all-pairs *)
       let outputShape = Shape.create 2 in
-      let rec aux i ss = function
+      let rec aux i = function
         | shape::rest ->
           begin
             Array1.set outputShape i (Array1.get shape 0);

@@ -9,57 +9,18 @@
 
 open Base
 open Ptx
+open PtxVal 
 open PtxHelpers
 
-let rec reg_prefix = function 
-  | U8 -> "r_char_"
-  | S8 -> "r_schar_"
-  | U16 -> "rh"
-  | S16 -> "rsh"
-  | U32 -> "r"
-  | S32 -> "rs"
-  | U64 -> "rl"
-  | S64 -> "rsl"
-  | F16 -> "rfh"
-  | F32 -> "rf"
-  | F64 -> "rd"
-  | Pred -> "p"
-  | B8 -> "r_byte"
-  | B16 -> "rbh"
-  | B32 -> "rb"
-  | B64 -> "rbl"
-  | V2 t -> (reg_prefix t) ^ "_v2" 
-  | V4 t -> (reg_prefix t) ^ "_v4"
-
-
-(* generate single register var_decl *)
-let mk_reg_decl ~t = {
-  t = t; 
-  space = REG; 
-  array_size = None; 
-  init_val=None 
-}
-
-let concat name id = name ^ (string_of_int id)
-let reg_name gpuT id = concat (reg_prefix gpuT) id
-
-let data_param_name id = concat "param" id
-let shape_param_name id = concat "shape" id
-
+let initialNumRegs = 29 
   
-let initialNumRegs = 29
-
- 
-
 class ptx_codegen  = object (self)  
-
   (* maintain a symbols table, so we don't have to use strings  
      when referring to parameters or registers 
   *)   
   val symbols : (int, string) Hashtbl.t = Hashtbl.create 31 
   val revSymbols : (string, int) Hashtbl.t = Hashtbl.create 31
-   
-  val mutable symCounter = 0 
+  val mutable symCounter = 0
   method private get_sym_id name = 
     if Hashtbl.mem revSymbols name then Hashtbl.find revSymbols name 
     else (
@@ -68,60 +29,73 @@ class ptx_codegen  = object (self)
       Hashtbl.add revSymbols name symCounter;  
       symCounter
     )
-
     
-  val maxRegs : (PtxType.ty, int) Hashtbl.t =  Hashtbl.create initialNumRegs
-  
-  val instructions : instruction DynArray.t = DynArray.create ()
+  (* GENERATE FRESH NAMES FOR EXTERNAL ARGUMENTS *) 
+  val mutable numArgs = 0
+  method private fresh_arg_id = 
+    let num = numArgs in
+    numArgs <- num + 1;
+    self#get_sym_id ("__param" ^ (string_of_int num))
 
-  val allocations: (Ptx.symid, Ptx.var_decl) Hashtbl.t = Hashtbl.create 17
-  method private add_alloc id newAlloc = Hashtbl.add allocations id newAlloc 
+  (* GENERATE FRESH NAMES FOR SHARED VECTORS *) 
+  val mutable numShared = 0 
+  val sharedDims : (int, int array) Hashtbl.t = Hashtbl.create 127
+  method private fresh_shared_id dims = 
+    let id = numShared in
+    Hashtbl.add sharedDims id dims;   
+    numShared <- id + 1; 
+    self#get_sym_id ("__shared" ^(string_of_int id))
 
-  val parameters: (Ptx.symid * PtxType.ty) DynArray.t = DynArray.create ();
-  method private add_param_decl id newParam = 
-    DynArray.add parameters (id, newParam) 
 
-  
-  (* cache the register objects corresponding to the values 
-     and possibly the shapes and lengths of arguments 
-  *) 
-  val dataRegs : (ID.t, PtxVal.value) Hashtbl.t = 
-     Hashtbl.create initialNumRegs
-   
-  val shapeRegs : (ID.t, PtxVal.value) Hashtbl.t = 
-     Hashtbl.create initialNumRegs
-    
-  val dynTypes : (ID.t, DynType.t) Hashtbl.t = 
-     Hashtbl.create initialNumRegs 
-    
+  (* GENERATE FRESH LABELS *) 
   val mutable labelCounter = 0
   method fresh_label = 
     labelCounter <- labelCounter + 1; 
     let name = "$Label" ^ (Int.to_string labelCounter) in 
     self#get_sym_id name 
-         
-  val mutable numArgs = 0
-  
-  
-     
+
  
-  (* PUBLIC METHODS *) 
-    
-  method finalize_kernel =
-    PtxTidy.cleanup_kernel instructions allocations; 
-    { 
-      params = DynArray.to_array parameters; 
-      code = DynArray.to_array instructions; 
-      decls = PMap.of_enum (Hashtbl.enum allocations);
-      symbols = PMap.of_enum (Hashtbl.enum symbols); 
-    }
-  
-       
-      
-method emit newInstructions = 
+  val instructions : instruction DynArray.t = DynArray.create ()
+  method emit newInstructions = 
     DynArray.append (DynArray.of_list newInstructions) instructions
-    
+  
+  val allocations: (Ptx.symid, Ptx.var_decl) Hashtbl.t = 
+    Hashtbl.create initialNumRegs
+  method private add_alloc id newAlloc = 
+    Printf.printf "-- adding allocation for %d (%s) \n"
+      id 
+      (Hashtbl.find  symbols id)
+      
+    ;
+    Hashtbl.add allocations id newAlloc 
+
+  val parameters: (Ptx.symid * PtxType.ty) DynArray.t = DynArray.create ()
+  method private add_param_decl id newParam = 
+    DynArray.add parameters (id, newParam) 
+
+  
+  (* number of registers currently allocated for every type *) 
+  val maxRegs : (PtxType.ty, int) Hashtbl.t =  Hashtbl.create initialNumRegs
+  
+  (* cache the register objects corresponding to the values 
+     and possibly the shapes and lengths of arguments 
+  *) 
+  val dataRegs : (ID.t, PtxVal.value) Hashtbl.t = Hashtbl.create initialNumRegs
+  val shapeRegs : (ID.t, PtxVal.value) Hashtbl.t = Hashtbl.create initialNumRegs
+  val dynTypes : (ID.t, DynType.t) Hashtbl.t = Hashtbl.create initialNumRegs
+   
+  
   method fresh_reg gpuT =
+    let rec reg_prefix = function 
+    | U8 -> "r_char_" | U16 -> "rh" | U32 -> "r" | U64 -> "rl"
+    | S8 -> "r_schar_" | S16 -> "rsh" | S32 -> "rs" | S64 -> "rsl"
+    | F16 -> "rfh" | F32 -> "rf" | F64 -> "rd"
+    | B8 -> "r_byte" | B16 -> "rbh" | B32 -> "rb" | B64 -> "rbl"
+    | Pred -> "p"
+    | V2 t -> (reg_prefix t) ^ "_v2" 
+    | V4 t -> (reg_prefix t) ^ "_v4"
+    in 
+    let reg_name = fun gpuT id -> (reg_prefix gpuT) ^ (string_of_int id) in 
     let currMax = match Hashtbl.find_option maxRegs gpuT with 
       | Some max -> max
       | None -> 0 
@@ -130,21 +104,17 @@ method emit newInstructions =
     let id = self#get_sym_id (reg_name gpuT currMax) in  
     self#add_alloc id {
       t = gpuT; 
-      space = REG; 
+      decl_space = REG; 
       array_size = None; 
       init_val= None 
     };
-    Reg {id=id; ptx_type=gpuT}
+    Sym {id=id; ptx_type=gpuT; space=REG}
   
-  method init_reg  gpuT initVal =
-    let reg = self#fresh_reg gpuT in 
-    self#emit [mov reg initVal]; 
-    reg
-     
-  (** returns a list of register ids for requested type **)
+ (** returns a list of register ids for requested type **)
   method fresh_regs gpuT count =
     Array.init count (fun _ -> self#fresh_reg gpuT)
-    
+
+  
   (* if variable is a scalar then allocates one new register and returns
      it. if it's a vector then allocate a register pair (data/shape) and
      return the data register. If the vector is actually a slice through
@@ -160,19 +130,41 @@ method emit newInstructions =
     );
     dataReg
     
+ (* TODO: track memory space and dimensions in the codegen, rather
+    than relying on external analyses 
+ *) 
+
  method declare_shared_slice id = 
    let dataReg = self#fresh_reg PtxType.ptrT in
    Hashtbl.add dataRegs id dataReg;
    dataReg
   
+  method declare_shared_vec id dynEltT (dims : int list)  = 
+    Hashtbl.add dynTypes id dynEltT;
+    let ptxEltType = PtxType.of_dyn_type dynEltT in 
+    let nelts = List.fold_left (fun x y-> x * y) 1 dims in 
+    let decl = {
+      t = ptxEltType; 
+      decl_space = SHARED;
+      array_size = Some nelts;
+      init_val=None;
+    } in
+    let sharedId = self#fresh_shared_id (Array.of_list dims) in
+    self#add_alloc sharedId decl; 
+    let sharedVal = Sym { id=sharedId; ptx_type=PtxType.ptrT; space=SHARED } in 
+    (* access the shared memory via the register that holds its address *) 
+    let sharedReg = self#fresh_reg PtxType.ptrT in 
+    self#emit [mov sharedReg sharedVal];
+    Hashtbl.add dataRegs id sharedReg;  
+    sharedReg  
+    
+    
   method declare_arg id dynT = 
     Hashtbl.add dynTypes id dynT; 
-    let num = numArgs in
-    numArgs <- num + 1;
-    let paramId = self#get_sym_id (data_param_name num) in
+    let paramId = self#fresh_arg_id in  
     let gpuStorageT = PtxType.storage_of_dyn_type dynT in  
     self#add_param_decl paramId gpuStorageT;
-    let dataParam =  Param { id = paramId; ptx_type=gpuStorageT} in 
+    let dataParam =  Sym { id = paramId; ptx_type=gpuStorageT; space=PARAM} in 
     let storageReg = self#fresh_reg gpuStorageT in 
     self#emit [ld_param gpuStorageT storageReg dataParam];
     let gpuT = PtxType.of_dyn_type dynT in
@@ -187,8 +179,10 @@ method emit newInstructions =
     Hashtbl.add dataRegs id dataReg;
     (* vectors need an additional param for their shape *) 
     if not $ DynType.is_scalar dynT then  (
-      let shapeParamId = self#get_sym_id (shape_param_name num) in 
-      let shapeParam = Param {id=shapeParamId; ptx_type=PtxType.ptrT}  in 
+      let shapeParamId = self#get_sym_id ("shape" ^ (string_of_int paramId)) in 
+      let shapeParam = 
+        Sym {id=shapeParamId; ptx_type=PtxType.ptrT; space=PARAM}  
+      in 
       let shapeReg = self#fresh_reg PtxType.ptrT in 
       self#add_param_decl shapeParamId PtxType.ptrT ; 
       self#emit [ld_param PtxType.ptrT shapeReg shapeParam];
@@ -198,16 +192,16 @@ method emit newInstructions =
    
   method get_data_reg id = match Hashtbl.find_option dataRegs id with 
     | Some reg -> reg
-    | None -> failwith $ "[GpuCodegen] Unregistered arg " ^ (dump id)
+    | None -> failwith $ "[PtxCodegen] Unregistered arg " ^ (dump id)
    
   method get_shape_reg id = match Hashtbl.find_option shapeRegs id with
     | Some reg -> reg
-    | None -> failwith $ "[GpuCodegen] Unregistered shape arg " ^ (dump id)
+    | None -> failwith $ "[PtxCodegen] Unregistered shape arg " ^ (dump id)
 
     
   method get_dyn_type id = match Hashtbl.find_option dynTypes id with 
     | Some t -> t 
-    | None -> failwith $ "[GpuCodegen] No type registered for " ^ (ID.to_str id) 
+    | None -> failwith $ "[PtxCodegen] No type registered for " ^ (ID.to_str id) 
    
 
   
@@ -218,7 +212,7 @@ method emit newInstructions =
   *) 
   val type_of_conversion_source = fun destType srcVal -> 
     match srcVal with   
-      | PtxVal.Reg _ | PtxVal.Param _ -> PtxVal.type_of_var srcVal 
+      | PtxVal.Sym _ -> PtxVal.type_of_var srcVal 
       | PtxVal.FloatConst _ ->
           if PtxType.is_float destType then destType 
           else PtxType.F64
@@ -276,5 +270,15 @@ method emit newInstructions =
     done;
     DynArray.clear instructions;
     DynArray.append newCode instructions
+    
+  method finalize_kernel =
+    PtxTidy.cleanup_kernel instructions allocations; 
+    { 
+      params = DynArray.to_array parameters; 
+      code = DynArray.to_array instructions; 
+      decls = PMap.of_enum (Hashtbl.enum allocations);
+      symbols = PMap.of_enum (Hashtbl.enum symbols); 
+    }
+
 
 end
