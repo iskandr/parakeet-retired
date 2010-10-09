@@ -179,6 +179,8 @@ let emulate_with_random_data
     (gridSize : vec3) 
     (blockSize : vec3)
     (kernel : Ptx.kernel) = 
+  let warnings : (int, string) DynArray.t = DynArray.create() in 
+  let errors : (int, string) DynArray.t = DynArray.create () in 
   let blockIdx = rand_vec3 gridSize in 
   let threadIdx = rand_vec3 blockSize in 
   let code = kernel.code in
@@ -220,5 +222,5 @@ let emulate_with_random_data
     | Mov of PtxType.ty 
     *)
   done;
-  Ok 
+  DynArray.to_array errors, DynArray.to_array warnings  
   
