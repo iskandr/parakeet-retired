@@ -1,4 +1,3 @@
-
 open Base 
 open Ptx
 open PtxType
@@ -145,13 +144,6 @@ let emulate_with_random_data
     (gridSize : vec3) 
     (blockSize : vec3)
     (kernel : Ptx.kernel) = 
-<<<<<<< HEAD:Ptx/PtxCheck.ml
-  let warnings : (int, string) DynArray.t = DynArray.create() in 
-  let errors : (int, string) DynArray.t = DynArray.create () in 
-  let blockIdx = rand_vec3 gridSize in 
-  let threadIdx = rand_vec3 blockSize in 
-=======
->>>>>>> d5840d445d45ca67575612fe8e586f98062e3f72:Ptx/PtxCheck.ml
   let code = kernel.code in
   let labels = find_labels code in 
   let step = ref 0 in 
@@ -190,9 +182,6 @@ let emulate_with_random_data
     | Mov of PtxType.ty 
     *)
   done;
-<<<<<<< HEAD:Ptx/PtxCheck.ml
-  DynArray.to_array errors, DynArray.to_array warnings  
-=======
   Ok 
 
 (*and instruction = { 
@@ -210,6 +199,3 @@ and kernel = {
   symbols : (symid, string) PMap.t; 
     code: instruction array
 }*)
-
->>>>>>> d5840d445d45ca67575612fe8e586f98062e3f72:Ptx/PtxCheck.ml
-  
