@@ -1,3 +1,7 @@
+<<<<<<< HEAD:Ptx/PtxCheck.ml
+=======
+
+>>>>>>> d5840d445d45ca67575612fe8e586f98062e3f72:Ptx/PtxCheck.ml
 open Base 
 open Ptx
 open PtxType
@@ -18,6 +22,7 @@ module Range = struct
 
   let any_true = List.fold_left (||) false
   let all_true = List.fold_left (&&) true 
+<<<<<<< HEAD:Ptx/PtxCheck.ml
 
   let float_neg_inf = -1000000000000.0
   let float_inf = 1000000000000.0
@@ -33,6 +38,23 @@ module Range = struct
     else if any_true bs then IntRange (0L, 1L)
     else IntRange (0L, 0L)
 
+=======
+
+  let float_neg_inf = -1000000000000.0
+  let float_inf = 1000000000000.0
+  let unknown_float = FloatRange (float_neg_inf, float_inf)
+
+  let int_inf = Int64.shift_left 1L 30
+  let int_neg_inf = Int64.sub 0L int_inf 
+  let unknown_int = IntRange(int_inf, int_neg_inf)
+
+
+  let range_of_bools bs = 
+    if all_true bs then IntRange (1L, 1L)
+    else if any_true bs then IntRange (0L, 1L)
+    else IntRange (0L, 0L)
+
+>>>>>>> d5840d445d45ca67575612fe8e586f98062e3f72:Ptx/PtxCheck.ml
   let cmp (intCmp, floatCmp) n1 n2 = 
     match n1, n2 with 
     | IntRange (x,y), IntRange(a,b) -> 
@@ -43,6 +65,7 @@ module Range = struct
 
   let lt = cmp ((<), (<)) 
   let eq = cmp ((=), (=))
+<<<<<<< HEAD:Ptx/PtxCheck.ml
 
   let range_of_ints (ints :Int64.t list) = 
     let minval = List.fold_left min int_neg_inf ints in 
@@ -55,6 +78,20 @@ module Range = struct
     FloatRange (max minval float_neg_inf, min maxval float_inf)
 
 
+=======
+
+  let range_of_ints (ints :Int64.t list) = 
+    let minval = List.fold_left min int_neg_inf ints in 
+    let maxval = List.fold_left max int_inf ints in 
+    IntRange (max minval int_neg_inf, min maxval int_inf)
+
+  let range_of_floats (floats: float list) = 
+    let minval = List.fold_left min float_neg_inf floats in 
+    let maxval = List.fold_left max float_inf floats in 
+    FloatRange (max minval float_neg_inf, min maxval float_inf)
+
+
+>>>>>>> d5840d445d45ca67575612fe8e586f98062e3f72:Ptx/PtxCheck.ml
   let binop (intFn, floatFn) n1 n2 = 
     match n1, n2 with 
     | IntRange(x,y), IntRange(a,b) -> 
@@ -199,3 +236,8 @@ and kernel = {
   symbols : (symid, string) PMap.t; 
     code: instruction array
 }*)
+<<<<<<< HEAD:Ptx/PtxCheck.ml
+=======
+
+  
+>>>>>>> d5840d445d45ca67575612fe8e586f98062e3f72:Ptx/PtxCheck.ml
