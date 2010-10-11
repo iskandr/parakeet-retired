@@ -316,7 +316,7 @@ and scalarize_fundef program untypedId untypedFundef vecSig =
   let argNodes = fnNode :: dataNodes in   
   let appNode = SSA.mk_app ~types:outputTypes mapNode argNodes in      
   { 
-    body = [SSA.mk_set freshInputIds appNode];
+    body = [SSA.mk_set freshOutputIds appNode];
     tenv = combinedTyEnv; 
     input_ids = freshInputIds; 
     output_ids = freshOutputIds; 
@@ -332,12 +332,6 @@ and specialize_function_id program untypedId signature =
         Map adverb over all the argument vectors 
      *)
        let inputTypes = Signature.input_types signature in
-       debug $ sprintf "SPECIALIZE_FUNCTION_ID %d %B %B"
-         untypedId
-         (all_scalar_stmts untypedFundef.body)
-         (List.for_all DynType.is_scalar_or_vec inputTypes)
-       ; 
-        
        let typedFundef = 
          if all_scalar_stmts untypedFundef.body  
             && List.for_all DynType.is_scalar_or_vec inputTypes 
@@ -345,8 +339,6 @@ and specialize_function_id program untypedId signature =
          then scalarize_fundef program untypedId untypedFundef signature 
          else specialize_fundef program untypedFundef signature
        in
-       debug "[specialize_function_id] typed fundef:"; 
-       debug (SSA.fundef_to_str typedFundef); 
        let _ = 
         Program.add_specialization 
           program 
