@@ -62,11 +62,6 @@ class ptx_codegen  = object (self)
   val allocations: (Ptx.symid, Ptx.var_decl) Hashtbl.t = 
     Hashtbl.create initialNumRegs
   method private add_alloc id newAlloc = 
-    Printf.printf "-- adding allocation for %d (%s) \n"
-      id 
-      (Hashtbl.find  symbols id)
-      
-    ;
     Hashtbl.add allocations id newAlloc 
 
   val parameters: (Ptx.symid * PtxType.ty) DynArray.t = DynArray.create ()

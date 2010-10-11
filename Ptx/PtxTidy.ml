@@ -20,13 +20,13 @@ let ptx_registers_used instr =
          List.tl (Array.to_list instr.args)
       | _ -> []   
   in 
-  let get_ids acc = function Sym {id=id; space=REG} -> id::acc | _ -> acc in 
+  let get_ids acc = function Sym {id=id} -> id::acc | _ -> acc in 
   let argregs = 
     List.fold_left get_ids [] argvals
   in 
   let predregs = match instr.pred with 
-    | IfFalse (Sym {id=id; space=REG})
-    | IfTrue (Sym {id=id; space=REG}) -> [id]
+    | IfFalse (Sym {id=id})
+    | IfTrue (Sym {id=id}) -> [id]
     | _ -> [] 
   in predregs @ argregs  
 
