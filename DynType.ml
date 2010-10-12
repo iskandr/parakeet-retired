@@ -100,7 +100,7 @@ let is_scalar t = is_number t || t = UnitT || t = SymT
 let is_compound t = not (is_scalar t)
 
 let is_vec = function
-    | VecT t when is_scalar t -> true
+    | VecT t -> true
     | _ -> false
 
 (* are you a scalar or a vector of scalars? *) 

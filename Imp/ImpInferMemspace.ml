@@ -12,7 +12,8 @@ let analyze_function fn =
     let memspace = 
       if DynType.is_scalar ty then Scalar
       else if DynType.is_vec ty then GlobalVec (DynType.nest_depth ty)
-      else failwith "[infer-memspace] non-vector compound type unsupported"
+      else failwith "[infer-memspace] non-vector compound type unexpected for global"
+            
     in PMap.add id memspace map 
   in
   let args = Array.append fn.input_ids fn.output_ids in 
@@ -24,7 +25,7 @@ let analyze_function fn =
       let memspace = 
         if DynType.is_scalar ty then Scalar
         else if DynType.is_vec ty then SharedVec dims
-        else failwith "[infer-memspace] non-vector compound type unsupported"
+        else failwith "[infer-memspace] non-vector compound type unsupported for shared"
       in 
       PMap.add id memspace map      
   in
