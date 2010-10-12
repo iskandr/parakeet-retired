@@ -126,22 +126,35 @@ let run_reduce compiledModule gpuVals outputType =
             outShape
             (DynType.sizeof outputType * numOutputElts)
       in
-      let args = Array.of_list ([gpuVal; outputVal]) in
-      while !i > 1 do
-	      let gridParams = match
+      let rec aux args curNumElts =
+        let gridParams = match
 	        HardwareInfo.get_grid_params
 	          ~device:0
 	          ~block_size:threadsPerBlock
-	          (safe_div !i 2)
+	          (safe_div curNumElts 2)
 	        with
 	        | Some gridParams -> gridParams
 	        | None -> failwith
                 (sprintf "Unable to get launch params for %d elts" !i)
 	      in
-	      LibPQ.launch_ptx compiledModule.Cuda.module_ptr fnName args gridParams;
-      i := safe_div !i (threadsPerBlock * 2)
-      done;
-      [outputVal]
+        LibPQ.launch_ptx
+            compiledModule.Cuda.module_ptr fnName args gridParams; 
+        i := safe_div !i (threadsPerBlock * 2);
+        if curNumElts < numInputElts then GpuVal.free args.(0);
+        let newNum = safe_div curNumElts (threadsPerBlock * 2) in
+        if newNum > 1 then (
+          let newOut = GpuVal.mk_gpu_vec
+	          (DynType.VecT outputType)
+	          outShape
+	          (DynType.sizeof outputType * !i) in
+          let args' = Array.of_list ([args.(1); newOut]) in
+          aux args' newNum)
+        else
+          args.(1)
+      in
+      let firstArgs = Array.of_list ([gpuVal; outputVal]) in
+      let ret = aux firstArgs numInputElts in
+      [ret]
     | _ -> failwith "expect one map kernel"
 
 let run_all_pairs compiledModule gpuVals outputTypes =

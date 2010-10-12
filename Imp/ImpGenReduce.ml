@@ -41,12 +41,12 @@ let gen_reduce payload threadsPerBlock ty =
     j := !j / 2
   done;
   let buffer = DynArray.create () in 
-  while !j > 0 do 
+  while !j > 0 do
     let payloadArgs = [|idx cache $ add Int32T tid (int !j); idx cache tid |] in
     let code = codegen#splice payload payloadArgs [|temp|] [SPLICE] in 
-    List.iter (fun stmt -> DynArray.add buffer stmt) code; 
+    List.iter (fun stmt -> DynArray.add buffer stmt) code;
     DynArray.add buffer (setidx cache [tid] temp);
-    j := !j / 2             
+    j := !j / 2
   done;  
   codegen#emit [ifTrue (lt Int32T tid (int 32)) (DynArray.to_list buffer)]; 
   codegen#emit [ifTrue (eq Int32T tid (int 0))
