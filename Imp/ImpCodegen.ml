@@ -14,6 +14,7 @@ class imp_codegen =
     (* cache the ID's into which we store BlockDim, ThreadIdx, consts, etc..*)
     val expCache  = ((Hashtbl.create 127) : (Imp.exp, ID.t) Hashtbl.t)
     
+    (*
     method private infer_type = function 
       | DimSize _ -> DynType.Int32T
       | ThreadIdx _ | BlockIdx _ | BlockDim _ | GridDim _ -> DynType.Int16T 
@@ -27,37 +28,70 @@ class imp_codegen =
       | Cast (ty, _, _)
       | Select(ty, _, _, _)
       | Op (_, ty, _, _) -> ty 
-          
+    *)      
     
     (* create a Set node and insert a cast if necessary *) 
-     method private set_or_coerce id rhs = 
+     method private set_or_coerce id (rhs : exp_node) = 
       assert (Hashtbl.mem types id);  
-      let rhsType = self#infer_type rhs in 
-      let lhsType = Hashtbl.find types id in 
-       if lhsType <> rhsType then 
-         let id' = self#fresh_id rhsType in
-           [Set(id',rhs); Set(id, Cast(lhsType, rhsType, Var id'))]
-         else  [Set(id,rhs)] 
+      let lhsType = Hashtbl.find types id in
+      let rhsType = rhs.imp_type in 
+      if lhsType <> rhsType then 
+        let id' = self#fresh_id rhsType in
+        let idExp' = {imp_exp=Var id'; imp_type=rhsType} in 
+        let castNode = 
+          {imp_exp = Cast(lhsType, rhsType, idExp'); imp_type=lhsType}
+        in   
+        [Set(id',rhs); Set(id, castNode)]
+       else  [Set(id,rhs)] 
+    
+    (* 
+        TYPE ANNOTATION
+        --------------------------
+        Before a code fragment can be flattened all the subexpressions must be
+        annotated with correct types.
+    *)
+    (* 
+    method private type_annotate_stmt = function 
+     | If (cond, tBlock, fBlock) ->
+         If (self#type_annotate_exp cond, 
+             self#type_annotate_block tBlock,
+             self#type_annotate_block fBlock)
+             
+     | While (cond, loopBody) ->
+         While (self#type_annotate_exp cond, self#type_annotate_block loopBody) 
+         
+     | Set (id, rhs) ->
+         Set(id, self#type_annotate_exp rhs)
+        
+     | SetIdx (id, indices, rhs) ->
+         let indices' = List.map (self#type_annotate exp) indices in 
+         Set (id, indices', self#type_annotate_exp rhs)
+     | simple -> [simple]
+   *)
     
     (* an expression gets flattened into a list of statements and a simple 
        expression yielding the same value as the original compound expression 
     *) 
-    method private flatten_exp exp : Imp.stmt list * Imp.exp = 
+    method private flatten_exp expNode : Imp.stmt list * Imp.exp_node =
+      let is_simple eNode = 
+        match eNode.imp_exp with Var _ | Const _ -> true | _ -> false 
+      in   
       let flatten_arg arg = 
-        if is_simple_exp arg then [], arg
+        if is_simple arg then  [], arg
         else
           (* flatten all arguments of the argument and collect any 
              assignments that get generated 
           *) 
           let argStmts, arg' = self#flatten_exp arg in
           (* if flattened arg is already a variable or number, just return it *)  
-          if is_simple_exp arg' then argStmts, arg' 
+          if is_simple arg' then argStmts, arg' 
           else 
             (* if flattened arg is itself complex, assign it to a variable *)
-            let argType = self#infer_type arg' in  
+            let argType = arg'.imp_type in  
             let tempId =  self#fresh_id argType in
             let setStmts = self#set_or_coerce tempId arg' in 
-            argStmts @  setStmts, Var tempId 
+            let varExp = {imp_exp = Var tempId; imp_type=argType} in 
+            argStmts @  setStmts, varExp 
       in 
       let rec flatten_args ?(accStmts=[])  ?(accArgs=[]) exps =
         match exps with  
@@ -66,39 +100,40 @@ class imp_codegen =
             let stmts, e' = flatten_arg e in 
             flatten_args ~accStmts:(stmts@accStmts) ~accArgs:(e'::accArgs) es
       in   
-      match exp with 
-      | Const n -> [], Const n 
-      | Var id -> [], Var id
+      match expNode.imp_exp with 
+      | Const _ | Var _ -> [], expNode 
       | Cast (t1,t2,exp) -> 
-          let stmts, exp' = flatten_arg exp in stmts, Cast(t1, t2, exp')  
+          let stmts, exp' = flatten_arg exp in 
+          stmts, { expNode with imp_exp =  Cast(t1, t2, exp') }   
       | DimSize (i, exp) -> 
-          let stmts, exp' = flatten_arg exp in stmts, DimSize(i,exp')  
+          let stmts, exp' = flatten_arg exp in
+          let expNode' = {expNode with imp_exp = DimSize(i,exp') } in 
+           stmts, expNode'   
       | Idx (lhs, rhs) ->
           let lhsStmts, lhs' = flatten_arg lhs in 
-          let rhsStmts, rhs' = flatten_arg rhs in 
-          lhsStmts @ rhsStmts, Idx(lhs', rhs')  
-      | Op (op, resultType, argType, args) ->
-          let stmts, args' = flatten_args args in 
-          stmts, Op(op,resultType, argType, args')   
+          let rhsStmts, rhs' = flatten_arg rhs in
+          lhsStmts @ rhsStmts, { expNode with imp_exp = Idx(lhs', rhs') }   
+      | Op (op, argType, args) ->
+          let stmts, args' = flatten_args args in
+          stmts, { expNode with imp_exp = Op(op, argType, args') }    
       | Select (ty,cond,tExp,fExp) -> 
           (match flatten_args [cond;tExp;fExp] with 
             | stmts, [cond'; tExp'; fExp'] -> 
-              stmts, Select(ty, cond', tExp', fExp')
+              stmts, { expNode with imp_exp = Select(ty, cond', tExp', fExp') }
             | _ -> failwith "something truly bizarre happened"
           ) 
           
       | exp -> 
           if Hashtbl.mem expCache exp then 
             let id = Hashtbl.find expCache exp in 
-            [], Var id
+            [], { expNode with imp_exp = Var id }
           else
             (* don't pass a type environment since we're guaranteed to not
                be checking a variable's type  
             *) 
-            let ty = self#infer_type exp in
-            let id = self#fresh_id ty in
+            let id = self#fresh_id expNode.imp_type in
             Hashtbl.add expCache exp id;     
-            [Set(id, exp)], Var id 
+            [Set(id, expNode)], {expNode with imp_exp = Var id }  
            
     (* flatten the nested sub-expressions in a statement by turning them
        into their own statements 
@@ -136,7 +171,9 @@ class imp_codegen =
         
      | simple -> [simple]
      
-    (* flatten nested expressions and then add statements to the code buffer *) 
+    (* add type annotations, flatten nested expressions and then 
+       add statements to the code buffer 
+    *) 
     method emit block =  
       let block' = List.concat (List.map self#flatten_stmt block) in 
       List.iter (DynArray.add code) block'
@@ -145,36 +182,38 @@ class imp_codegen =
     method fresh_id t =
       let id = ID.gen() in (Hashtbl.add types id t; id)
     
-    method fresh_var t = Var (self#fresh_id t)
+    method fresh_var t = {imp_exp = Var (self#fresh_id t); imp_type = t}
       
     method fresh_input_id t = 
       let id = self#fresh_id t in 
       DynArray.add inputs (id,t);
       id 
     
-    method fresh_input t = Var (self#fresh_input_id t) 
+    method fresh_input t = {imp_exp = Var (self#fresh_input_id t); imp_type=t} 
     
     method fresh_output_id t = 
       let id = self#fresh_id t in
       DynArray.add outputs (id,t);
       id
      
-    method fresh_output t = Var (self#fresh_output_id t)
+    method fresh_output t = {imp_exp= Var (self#fresh_output_id t); imp_type=t}
     
-    method fresh_ids n t = Array.init n (fun _ -> self#fresh_id t)   
-    method fresh_vars n t = Array.map (fun id -> Var id) $ self#fresh_ids n t   
+    method private fresh_ids n t = Array.init n (fun _ -> self#fresh_id t)   
+    method fresh_vars n t = 
+      Array.map (fun id -> {imp_exp=Var id;imp_type=t}) $ self#fresh_ids n t   
     
     method shared_vec_id t dims = 
       let id = self#fresh_id (DynType.VecT t) in 
       Hashtbl.add sharedDims id dims; 
       id 
       
-    method shared_vec_var t dims = Var (self#shared_vec_id t dims) 
+    method shared_vec_var t dims = 
+      assert (DynType.is_scalar t); 
+      {imp_exp =Var (self#shared_vec_id t dims); imp_type=DynType.VecT t} 
      
     method find_type id = Hashtbl.find types id
     method is_shared id = Hashtbl.mem sharedDims id 
     method shared_size id = Hashtbl.find sharedDims id
-    
     
     
     method finalize = 

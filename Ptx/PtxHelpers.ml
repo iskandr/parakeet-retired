@@ -27,7 +27,7 @@ let prim_to_ptx_binop op t = match op,t with
 let prim_to_ptx_unop  unop t = match unop,t with 
   | Prim.Abs, _ -> Unop(Abs,t)
   | Prim.Neg,_ -> Unop(Neg,t) 
-  | Prim.Not,_ -> Unop(Not,t) 
+  | Prim.Not, Pred -> Unop(Not,Pred) 
   | Prim.Sqrt,F64 ->  Unop(Sqrt RN,F64)
   | Prim.Sqrt, F32 -> Unop(Sqrt Approx,F32) 
   | Prim.Reciprocal, F32 -> Unop(Rcp Approx,F32)

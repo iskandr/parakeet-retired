@@ -318,7 +318,6 @@ let rec gen_stmt tyMap memspaceMap codegen stmt =
                 add U64 position baseReg offset; 
                 ld_shared storageT storageReg position
               ]
-            
           | _ -> 
              failwith "expected 1D memory space descriptor in imp->ptx store"
         );
@@ -434,9 +433,8 @@ let translate_kernel impfn =
   ;
   Array.iter2 codegen#declare_arg impfn.input_ids impfn.input_types;
   Array.iter2 codegen#declare_arg impfn.output_ids impfn.output_types; 
-  let memspaceMap = ImpInferMemspace.analyze_function impfn in
   let tyMap = impfn.tenv in 
-  gen_block tyMap memspaceMap codegen impfn.body; 
+  gen_block tyMap codegen impfn.body; 
   codegen#run_rewrite_pass PtxSimplify.simplify;   
   codegen#finalize_kernel
 

@@ -15,9 +15,8 @@ open PtxHelpers
 let initialNumRegs = 29 
   
 class ptx_codegen  = object (self)  
-  (* maintain a symbols table, so we don't have to use strings  
-     when referring to parameters or registers 
-  *)   
+  
+  (* SYMBOL TABLE *) 
   val symbols : (int, string) Hashtbl.t = Hashtbl.create 31 
   val revSymbols : (string, int) Hashtbl.t = Hashtbl.create 31
   val mutable symCounter = 0
@@ -54,31 +53,94 @@ class ptx_codegen  = object (self)
     let name = "$Label" ^ (Int.to_string labelCounter) in 
     self#get_sym_id name 
 
- 
+  (* PTX CODE *) 
   val instructions : instruction DynArray.t = DynArray.create ()
   method emit newInstructions = 
     DynArray.append (DynArray.of_list newInstructions) instructions
   
+  (* VARIABLE DECLARATIONS *) 
   val allocations: (Ptx.symid, Ptx.var_decl) Hashtbl.t = 
     Hashtbl.create initialNumRegs
   method private add_alloc id newAlloc = 
     Hashtbl.add allocations id newAlloc 
-
+  
+  (* FUNCTION PARAMETERS *) 
   val parameters: (Ptx.symid * PtxType.ty) DynArray.t = DynArray.create ()
   method private add_param_decl id newParam = 
     DynArray.add parameters (id, newParam) 
 
-  
   (* number of registers currently allocated for every type *) 
   val maxRegs : (PtxType.ty, int) Hashtbl.t =  Hashtbl.create initialNumRegs
   
-  (* cache the register objects corresponding to the values 
-     and possibly the shapes and lengths of arguments 
-  *) 
+  (* Mapping from Imp identifiers to their corresponding registers *)  
   val dataRegs : (ID.t, PtxVal.value) Hashtbl.t = Hashtbl.create initialNumRegs
-  val shapeRegs : (ID.t, PtxVal.value) Hashtbl.t = Hashtbl.create initialNumRegs
+  method imp_reg id = match Hashtbl.find_option dataRegs id with 
+    | Some reg -> reg
+    | None -> failwith $ "[PtxCodegen] Unregistered arg " ^ (ID.to_str id)
+
   val dynTypes : (ID.t, DynType.t) Hashtbl.t = Hashtbl.create initialNumRegs
+  method imp_dyn_type id = match Hashtbl.find_option dynTypes id with 
+    | Some t -> t 
+    | None -> failwith $ "[PtxCodegen] No type registered for " ^ (ID.to_str id) 
+  
+  (* Any register pointing to a global array should also have an accompanying 
+     register pointing to a shape vector.  
+  *)
+  val shapeRegs : (PtxVal.symid, PtxVal.value) Hashtbl.t = 
+    Hashtbl.create initialNumRegs
+    
+  (* get the shape register associated with an array register *) 
+  method get_shape_reg ( arrayPtr : PtxVal.value) = 
+    match Hashtbl.find_option shapeRegs (PtxVal.get_id arrayPtr ) with
+    | Some reg -> reg
+    | None -> 
+        failwith $ 
+          "[PtxCodegen] Unregistered shape arg " ^ 
+          (PtxVal.to_str arrayPtr)
    
+  (* global array ranks -- the expected length of each array's shape vector *)
+  val globalArrayRanks : (PtxVal.symid, int) Hashtbl.t = 
+    Hashtbl.create initialNumRegs
+    
+  method get_array_rank ( arrayPtr : PtxVal.value ) = 
+    match Hashtbl.find_option globalArrayRanks (PtxVal.get_id arrayPtr) with
+      | Some r -> r
+      | None -> failwith $ 
+          "[PtxCodegen] Unable to find rank: PTX value " ^ 
+          (PtxVal.to_str arrayPtr) ^ " not registered as a global array " 
+  
+  
+  method is_global_array_ptr = function 
+    | PtxVal.Sym {id=id} -> Hashtbl.mem globalArrayDims id 
+    | _ -> false 
+  
+  (* keep track of fixed dimensions of shared arrays pointed to by a register *) 
+  val sharedDims : (PtxVal.symid, int array) Hashtbl.t = Hashtbl.create 17
+  
+  method is_shared_ptr = function 
+    | PtxVal.Sym {id=id} -> Hashtbl.mem sharedDims id
+    | _ -> false   
+  
+  method get_shared_dims = function 
+    | PtxVal.Sym{id=id} -> 
+        assert (Hashtbl.mem sharedDims id); 
+        Hashtbl.find sharedDims id
+    | other -> 
+      failwith $ 
+      "can't get shared dimesions for PTX value " ^
+      (PtxVal.to_str other) 
+  
+  (* get a register which points to the shape vector attached to the 
+     argument "ptrReg" which contains the address of some array's data. 
+  *) 
+  method private fresh_shape_reg ptrReg dynT =
+    assert (not (DynType.is_scalar dynT));  
+    let shapeReg = self#fresh_reg PtxType.ptrT in
+    let ptrId = PtxVal.get_id ptrReg in 
+    Hashtbl.add shapeRegs ptrId shapeReg;
+    let rank = DynType.nest_depth dynT in 
+    Hashtbl.add globalArrayRanks ptrId rank; 
+    shapeReg  
   
   method fresh_reg gpuT =
     let rec reg_prefix = function 
@@ -115,14 +177,14 @@ class ptx_codegen  = object (self)
      return the data register. If the vector is actually a slice through
      a shared vector, then we don't need a shape pointer.  
   *) 
-  method declare_local id dynT =
+  method declare_local impId dynT =
     let ptxT = PtxType.of_dyn_type dynT in 
     let dataReg = self#fresh_reg ptxT in 
-    Hashtbl.add dataRegs id dataReg;
-    Hashtbl.add dynTypes id dynT; 
-    if not $ DynType.is_scalar dynT then  (
-      Hashtbl.add shapeRegs id (self#fresh_reg PtxType.ptrT)
-    );
+    Hashtbl.add dataRegs impId dataReg;
+    Hashtbl.add dynTypes impId dynT; 
+    if not $ DynType.is_scalar dynT then  
+      ignore (self#fresh_shape_reg dataReg dynT)
+    ;
     dataReg
     
  (* TODO: track memory space and dimensions in the codegen, rather
@@ -136,15 +198,17 @@ class ptx_codegen  = object (self)
   
   method declare_shared_vec id dynEltT (dims : int list)  = 
     Hashtbl.add dynTypes id dynEltT;
-    let ptxEltType = PtxType.of_dyn_type dynEltT in 
-    let nelts = List.fold_left (fun x y-> x * y) 1 dims in 
+    let ptxEltType = PtxType.of_dyn_type dynEltT in
+    let dimsArray = Array.of_list dims in 
+    Hashtbl.add sharedDims id dimsArray;  
+    let nelts = Array.fold_left ( * ) 1 dimsArray in 
     let decl = {
       t = ptxEltType; 
       decl_space = SHARED;
       array_size = Some nelts;
       init_val=None;
     } in
-    let sharedId = self#fresh_shared_id (Array.of_list dims) in
+    let sharedId = self#fresh_shared_id dimsArray in
     self#add_alloc sharedId decl; 
     let sharedVal = Sym { id=sharedId; ptx_type=PtxType.ptrT; space=SHARED } in 
     (* access the shared memory via the register that holds its address *) 
@@ -174,29 +238,15 @@ class ptx_codegen  = object (self)
     Hashtbl.add dataRegs id dataReg;
     (* vectors need an additional param for their shape *) 
     if not $ DynType.is_scalar dynT then  (
+      let shapeReg = self#fresh_shape_reg dataReg dynT in
       let shapeParamId = self#get_sym_id ("shape" ^ (string_of_int paramId)) in 
       let shapeParam = 
         Sym {id=shapeParamId; ptx_type=PtxType.ptrT; space=PARAM}  
       in 
-      let shapeReg = self#fresh_reg PtxType.ptrT in 
       self#add_param_decl shapeParamId PtxType.ptrT ; 
       self#emit [ld_param PtxType.ptrT shapeReg shapeParam];
-      Hashtbl.add shapeRegs id shapeReg  
     );
     dataReg
-   
-  method get_data_reg id = match Hashtbl.find_option dataRegs id with 
-    | Some reg -> reg
-    | None -> failwith $ "[PtxCodegen] Unregistered arg " ^ (dump id)
-   
-  method get_shape_reg id = match Hashtbl.find_option shapeRegs id with
-    | Some reg -> reg
-    | None -> failwith $ "[PtxCodegen] Unregistered shape arg " ^ (dump id)
-
-    
-  method get_dyn_type id = match Hashtbl.find_option dynTypes id with 
-    | Some t -> t 
-    | None -> failwith $ "[PtxCodegen] No type registered for " ^ (ID.to_str id) 
    
 
   
