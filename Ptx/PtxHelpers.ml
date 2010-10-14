@@ -40,6 +40,12 @@ let prim_to_ptx_unop  unop t = match unop,t with
     Printf.sprintf "[prim->ptx] unop %s not implemented for type %s: "
      (Prim.scalar_op_to_str u) (PtxType.to_str t)
 
+(* translate op without knowing its arity *) 
+let prim_to_ptx_op op t = 
+  if Prim.is_unop op then prim_to_ptx_unop op t 
+  else if Prim.is_binop op then prim_to_ptx_binop op t 
+  else failwith "[ptx_helpers] dont't know how to translate op"
+
 let int64 x = IntConst x 
 let int x = IntConst (Int64.of_int x)
 let float x = FloatConst x 
@@ -54,7 +60,7 @@ let num_to_ptx_const = function
   | PQNum.Bool b -> int64 $ if b then 1L else 0L
 
 let mkop op args = {
-   op=op; args=args;  label=None; pred=NoGuard;
+   op=op; args=Array.of_list args;  label=None; pred=NoGuard;
    sat = false; ftz = false; rounding=None
 }
 
@@ -64,17 +70,17 @@ let pred_not p instr = {instr with pred = IfFalse p}
 let label l instr = {instr with label = Some l}
 let round mode instr = { instr with rounding = Some mode } 
 
-let op0 op = mkop op [||]
-let op1 op x = mkop op [|x|] 
-let op2 op x y = mkop op [|x;y|]
-let op3 op x y z = mkop op [|x;y;z|]
-let op4 op x y z w = mkop op [|x;y;z;w|]
+let op0 op = mkop op []
+let op1 op x = mkop op [x] 
+let op2 op x y = mkop op [x;y]
+let op3 op x y z = mkop op [x;y;z]
+let op4 op x y z w = mkop op [x;y;z;w]
 
-let unop op ty ~dest ~src = mkop (Unop (op,ty)) [|dest; src|]
-let virtual_unop op ty ~dest ~src = mkop (VirtualUnop (op,ty)) [|dest; src|]
-let binop op ty ~dest ~src1 ~src2 = mkop (Binop (op,ty)) [|dest; src1; src2|]
+let unop op ty ~dest ~src = mkop (Unop (op,ty)) [dest; src]
+let virtual_unop op ty ~dest ~src = mkop (VirtualUnop (op,ty)) [dest; src]
+let binop op ty ~dest ~src1 ~src2 = mkop (Binop (op,ty)) [dest; src1; src2]
 let virtual_binop op ty dest src1 src2 = 
-  mkop (VirtualBinop(op,ty)) [|dest; src1; src2|]
+  mkop (VirtualBinop(op,ty)) [dest; src1; src2]
 
 
 let comment ~txt = op0 $ Comment txt
@@ -82,9 +88,9 @@ let comment ~txt = op0 $ Comment txt
 (* different ways to multiply depending on type, so check the *)
 (* big case function above *)
 let mul ty ~dest ~src1 ~src2 =
-  mkop (prim_to_ptx_binop Prim.Mult ty) [|dest; src1; src2|]
+  mkop (prim_to_ptx_binop Prim.Mult ty) [dest; src1; src2]
 let div ty ~dest ~src1 ~src2 =
-  mkop (prim_to_ptx_binop Prim.Div ty) [|dest; src1; src2|]
+  mkop (prim_to_ptx_binop Prim.Div ty) [dest; src1; src2]
 
 let mul_wide = binop (IntMul Wide)
 let mul_lo = binop (IntMul Low)
@@ -104,10 +110,10 @@ let setp_ge = binop (Setp GE)
 let setp_eq = binop (Setp EQ)
 
 let slct tDest tSwitch ~dest ~left ~right ~switch = 
-  mkop (Slct (tDest, tSwitch)) [|dest; left; right; switch|]  
+  mkop (Slct (tDest, tSwitch)) [dest; left; right; switch]  
 
 let cvt ~t1 ~t2 ~dest ~src = 
-  let instr = mkop (Cvt(t1,t2)) [|dest; src|] in 
+  let instr = mkop (Cvt(t1,t2)) [dest; src] in 
   if PtxType.nbytes t1 >= PtxType.nbytes t2 then instr
   else if PtxType.is_float t1 then round Ptx.RoundNearest instr 
   else if PtxType.is_int t1 then round Ptx.RoundNearest_Int instr 
@@ -117,7 +123,7 @@ let cvt ~t1 ~t2 ~dest ~src =
 
 let ld ?offset ~space ty dest src = 
   let offset' = match offset with None -> 0 | Some offset -> offset in 
-  mkop (Ld(space,ty,offset')) [|dest; src|]
+  mkop (Ld(space,ty,offset')) [dest; src]
 
 let ld_global ?offset =  ld ?offset ~space:GLOBAL 
 let ld_param ?offset = ld ?offset ~space:PARAM 
@@ -127,23 +133,23 @@ let ld_const ?offset = ld ?offset ~space:CONST
 
 let st ?offset ~space ~ty ~dest ~src = 
   let offset' = match offset with None -> 0 | Some offset -> offset in 
-  mkop (St(space,ty,offset')) [|dest;src|]
+  mkop (St(space,ty,offset')) [dest;src]
 
 let st_global ?offset = st ?offset ~space:GLOBAL 
 let st_shared ?offset = st ?offset ~space:SHARED
 let st_local ?offset = st ?offset ~space:LOCAL 
 
-let bar = mkop (Bar 0) [||]
+let bar = mkop (Bar 0) []
 
 let selp (*?ty*) ~dest ~ifTrue ~ifFalse ~cond  =
   (*let ty = match ty with | None -> PtxVal.type_of_var dest | Some t -> t in*)
   let ty = PtxVal.type_of_var dest in  
-  mkop (Selp ty)[|dest;ifTrue;ifFalse;cond|] 
+  mkop (Selp ty)[dest;ifTrue;ifFalse;cond] 
 let bra label = op0 $ Bra label 
 
 let mov ?ty dest src = 
   let ty = match ty with | None -> PtxVal.type_of_var dest | Some t -> t in
-  mkop (Mov ty) [|dest; src|] 
+  mkop (Mov ty) [dest; src] 
 
 type special_reg_3d = { x:PtxVal.value; y:PtxVal.value; z:PtxVal.value }
 

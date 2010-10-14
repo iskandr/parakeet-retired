@@ -38,13 +38,30 @@ class ptx_codegen  = object (self)
 
   (* GENERATE FRESH NAMES FOR SHARED VECTORS *) 
   val mutable numShared = 0 
-  val sharedDims : (int, int array) Hashtbl.t = Hashtbl.create 127
+  
+  (* keep track of fixed dimensions of shared arrays pointed to by a register *) 
+  val sharedDims : (PtxVal.symid, int array) Hashtbl.t = Hashtbl.create 17
+  
   method private fresh_shared_id dims = 
-    let id = numShared in
-    Hashtbl.add sharedDims id dims;   
-    numShared <- id + 1; 
-    self#get_sym_id ("__shared" ^(string_of_int id))
+    let num = numShared in
+    numShared <- num + 1;
+    let id = self#get_sym_id ("__shared" ^(string_of_int num)) in 
+    Hashtbl.add sharedDims id dims; 
+    id   
 
+  method is_shared_ptr = function 
+    | PtxVal.Sym {id=id} -> Hashtbl.mem sharedDims id
+    | _ -> false   
+  
+  method get_shared_dims = function 
+    | PtxVal.Sym{id=id} -> 
+        assert (Hashtbl.mem sharedDims id); 
+        Hashtbl.find sharedDims id
+    | other -> 
+      failwith $ 
+      "can't get shared dimesions for PTX value " ^
+      (PtxVal.to_str symbols other) 
+  
 
   (* GENERATE FRESH LABELS *) 
   val mutable labelCounter = 0
@@ -96,39 +113,28 @@ class ptx_codegen  = object (self)
     | None -> 
         failwith $ 
           "[PtxCodegen] Unregistered shape arg " ^ 
-          (PtxVal.to_str arrayPtr)
+          (PtxVal.to_str symbols arrayPtr)
    
   (* global array ranks -- the expected length of each array's shape vector *)
   val globalArrayRanks : (PtxVal.symid, int) Hashtbl.t = 
     Hashtbl.create initialNumRegs
     
-  method get_array_rank ( arrayPtr : PtxVal.value ) = 
+  method get_global_array_rank ( arrayPtr : PtxVal.value ) = 
     match Hashtbl.find_option globalArrayRanks (PtxVal.get_id arrayPtr) with
       | Some r -> r
       | None -> failwith $ 
           "[PtxCodegen] Unable to find rank: PTX value " ^ 
-          (PtxVal.to_str arrayPtr) ^ " not registered as a global array " 
-  
+          (PtxVal.to_str symbols arrayPtr) ^ " not registered as a global array" 
   
   method is_global_array_ptr = function 
-    | PtxVal.Sym {id=id} -> Hashtbl.mem globalArrayDims id 
+    | PtxVal.Sym {id=id} -> Hashtbl.mem globalArrayRanks id 
     | _ -> false 
   
-  (* keep track of fixed dimensions of shared arrays pointed to by a register *) 
-  val sharedDims : (PtxVal.symid, int array) Hashtbl.t = Hashtbl.create 17
-  
-  method is_shared_ptr = function 
-    | PtxVal.Sym {id=id} -> Hashtbl.mem sharedDims id
-    | _ -> false   
-  
-  method get_shared_dims = function 
-    | PtxVal.Sym{id=id} -> 
-        assert (Hashtbl.mem sharedDims id); 
-        Hashtbl.find sharedDims id
-    | other -> 
-      failwith $ 
-      "can't get shared dimesions for PTX value " ^
-      (PtxVal.to_str other) 
+  (* works for both shared and global vectors *) 
+  method get_array_rank (ptr: PtxVal.value) = 
+    if self#is_shared_ptr ptr then Array.length (self#get_shared_dims ptr)
+    else if self#is_global_array_ptr ptr then self#get_global_array_rank ptr 
+    else failwith "[ptx_codegen] can't get array rank of non-array register" 
   
   (* get a register which points to the shape vector attached to the 
      argument "ptrReg" which contains the address of some array's data. 
@@ -321,8 +327,8 @@ class ptx_codegen  = object (self)
     { 
       params = DynArray.to_array parameters; 
       code = DynArray.to_array instructions; 
-      decls = PMap.of_enum (Hashtbl.enum allocations);
-      symbols = PMap.of_enum (Hashtbl.enum symbols); 
+      decls = allocations;
+      symbols = symbols; 
     }
 
 

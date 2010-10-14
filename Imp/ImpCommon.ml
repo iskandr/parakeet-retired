@@ -6,17 +6,17 @@ type exp_map = (Imp.exp, Imp.exp) PMap.t
 (* FIND/REPLACE expressions in Imp expression *)
 let rec apply_exp_map (eMap:exp_map)  eNode = 
   let exp' = 
-    if PMap.mem eNode.imp_exp eMap then PMap.find eNode.imp_exp eMap 
+    if PMap.mem eNode.exp eMap then PMap.find eNode.exp eMap 
     else 
     let aux = apply_exp_map eMap in 
-    match eNode.imp_exp with 
+    match eNode.exp with 
     | Idx (e1,e2) -> Idx(aux e1, aux e2)  
     | Op (op, argT, es) -> Op (op, argT, List.map aux es)
     | Select (t, e1, e2, e3) -> Select(t, aux e1, aux e2, aux e3)   
-    | Cast (t1, t2, e) -> Cast (t1, t2, aux e)   
+    | Cast (t1,  e) -> Cast (t1, aux e)   
     | DimSize (n,e) -> DimSize (n, aux e)
     | other -> other
-  in {eNode with imp_exp = exp' }
+  in {eNode with exp = exp' }
 
 (* FIND/REPLACE expressions in Imp statement *)
 let rec apply_exp_map_to_stmt (eMap : exp_map) stmt =
@@ -45,15 +45,15 @@ let rec apply_exp_map_to_stmt (eMap : exp_map) stmt =
 (* FIND/REPLACE identifiers in Imp expression *)  
 let rec apply_id_map idMap eNode = 
   let aux = apply_id_map idMap in 
-  let exp' = match eNode.imp_exp with  
+  let exp' = match eNode.exp with  
   | Var id -> if PMap.mem id idMap then Var (PMap.find id idMap) else Var id
   | Idx (e1,e2) -> Idx(aux e1, aux e2)  
   | Op (op, argT, es) -> Op (op, argT, List.map aux es) 
   | Select (t, e1, e2, e3) -> Select(t, aux e1, aux e2, aux e3)   
-  | Cast (t1, t2, e) -> Cast (t1, t2, aux e)   
+  | Cast (t1, e) -> Cast (t1, aux e)   
   | DimSize (n, e) -> DimSize (n, aux e)
   | other -> other
-  in {eNode with imp_exp = exp'} 
+  in {eNode with exp = exp'} 
 
 (* FIND/REPLACE identifiers in Imp statement *) 
 let rec apply_id_map_to_stmt idMap stmt =

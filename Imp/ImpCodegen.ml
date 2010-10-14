@@ -34,12 +34,12 @@ class imp_codegen =
      method private set_or_coerce id (rhs : exp_node) = 
       assert (Hashtbl.mem types id);  
       let lhsType = Hashtbl.find types id in
-      let rhsType = rhs.imp_type in 
+      let rhsType = rhs.exp_type in 
       if lhsType <> rhsType then 
         let id' = self#fresh_id rhsType in
-        let idExp' = {imp_exp=Var id'; imp_type=rhsType} in 
+        let idExp' = {exp=Var id'; exp_type=rhsType} in 
         let castNode = 
-          {imp_exp = Cast(lhsType, rhsType, idExp'); imp_type=lhsType}
+          {exp = Cast(lhsType, idExp'); exp_type=lhsType}
         in   
         [Set(id',rhs); Set(id, castNode)]
        else  [Set(id,rhs)] 
@@ -74,7 +74,7 @@ class imp_codegen =
     *) 
     method private flatten_exp expNode : Imp.stmt list * Imp.exp_node =
       let is_simple eNode = 
-        match eNode.imp_exp with Var _ | Const _ -> true | _ -> false 
+        match eNode.exp with Var _ | Const _ -> true | _ -> false 
       in   
       let flatten_arg arg = 
         if is_simple arg then  [], arg
@@ -87,10 +87,10 @@ class imp_codegen =
           if is_simple arg' then argStmts, arg' 
           else 
             (* if flattened arg is itself complex, assign it to a variable *)
-            let argType = arg'.imp_type in  
+            let argType = arg'.exp_type in  
             let tempId =  self#fresh_id argType in
             let setStmts = self#set_or_coerce tempId arg' in 
-            let varExp = {imp_exp = Var tempId; imp_type=argType} in 
+            let varExp = {exp = Var tempId; exp_type=argType} in 
             argStmts @  setStmts, varExp 
       in 
       let rec flatten_args ?(accStmts=[])  ?(accArgs=[]) exps =
@@ -100,40 +100,43 @@ class imp_codegen =
             let stmts, e' = flatten_arg e in 
             flatten_args ~accStmts:(stmts@accStmts) ~accArgs:(e'::accArgs) es
       in   
-      match expNode.imp_exp with 
+      match expNode.exp with 
       | Const _ | Var _ -> [], expNode 
-      | Cast (t1,t2,exp) -> 
-          let stmts, exp' = flatten_arg exp in 
-          stmts, { expNode with imp_exp =  Cast(t1, t2, exp') }   
-      | DimSize (i, exp) -> 
-          let stmts, exp' = flatten_arg exp in
-          let expNode' = {expNode with imp_exp = DimSize(i,exp') } in 
+      | Cast (t1, arg) -> 
+          let stmts, arg' = flatten_arg arg in 
+          if arg'.exp_type = t1 then 
+            stmts, arg'
+          else 
+            stmts, { expNode with exp =  Cast(t1, arg') }   
+      | DimSize (i, arg) -> 
+          let stmts, arg' = flatten_arg arg in
+          let expNode' = {expNode with exp = DimSize(i,arg') } in 
            stmts, expNode'   
       | Idx (lhs, rhs) ->
           let lhsStmts, lhs' = flatten_arg lhs in 
           let rhsStmts, rhs' = flatten_arg rhs in
-          lhsStmts @ rhsStmts, { expNode with imp_exp = Idx(lhs', rhs') }   
+          lhsStmts @ rhsStmts, { expNode with exp = Idx(lhs', rhs') }   
       | Op (op, argType, args) ->
           let stmts, args' = flatten_args args in
-          stmts, { expNode with imp_exp = Op(op, argType, args') }    
+          stmts, { expNode with exp = Op(op, argType, args') }    
       | Select (ty,cond,tExp,fExp) -> 
           (match flatten_args [cond;tExp;fExp] with 
             | stmts, [cond'; tExp'; fExp'] -> 
-              stmts, { expNode with imp_exp = Select(ty, cond', tExp', fExp') }
+              stmts, { expNode with exp = Select(ty, cond', tExp', fExp') }
             | _ -> failwith "something truly bizarre happened"
           ) 
           
       | exp -> 
           if Hashtbl.mem expCache exp then 
             let id = Hashtbl.find expCache exp in 
-            [], { expNode with imp_exp = Var id }
+            [], { expNode with exp = Var id }
           else
             (* don't pass a type environment since we're guaranteed to not
                be checking a variable's type  
             *) 
-            let id = self#fresh_id expNode.imp_type in
+            let id = self#fresh_id expNode.exp_type in
             Hashtbl.add expCache exp id;     
-            [Set(id, expNode)], {expNode with imp_exp = Var id }  
+            [Set(id, expNode)], {expNode with exp = Var id }  
            
     (* flatten the nested sub-expressions in a statement by turning them
        into their own statements 
@@ -182,25 +185,25 @@ class imp_codegen =
     method fresh_id t =
       let id = ID.gen() in (Hashtbl.add types id t; id)
     
-    method fresh_var t = {imp_exp = Var (self#fresh_id t); imp_type = t}
+    method fresh_var t = {exp = Var (self#fresh_id t); exp_type = t}
       
     method fresh_input_id t = 
       let id = self#fresh_id t in 
       DynArray.add inputs (id,t);
       id 
     
-    method fresh_input t = {imp_exp = Var (self#fresh_input_id t); imp_type=t} 
+    method fresh_input t = {exp = Var (self#fresh_input_id t); exp_type=t} 
     
     method fresh_output_id t = 
       let id = self#fresh_id t in
       DynArray.add outputs (id,t);
       id
      
-    method fresh_output t = {imp_exp= Var (self#fresh_output_id t); imp_type=t}
+    method fresh_output t = {exp= Var (self#fresh_output_id t); exp_type=t}
     
     method private fresh_ids n t = Array.init n (fun _ -> self#fresh_id t)   
     method fresh_vars n t = 
-      Array.map (fun id -> {imp_exp=Var id;imp_type=t}) $ self#fresh_ids n t   
+      Array.map (fun id -> {exp=Var id;exp_type=t}) $ self#fresh_ids n t   
     
     method shared_vec_id t dims = 
       let id = self#fresh_id (DynType.VecT t) in 
@@ -209,7 +212,7 @@ class imp_codegen =
       
     method shared_vec_var t dims = 
       assert (DynType.is_scalar t); 
-      {imp_exp =Var (self#shared_vec_id t dims); imp_type=DynType.VecT t} 
+      {exp =Var (self#shared_vec_id t dims); exp_type=DynType.VecT t} 
      
     method find_type id = Hashtbl.find types id
     method is_shared id = Hashtbl.mem sharedDims id 
@@ -267,7 +270,9 @@ class imp_codegen =
         (* we were given as arguments inputExps/outputVars *)
          
         let newExps = Array.append inputs outputs in
-        let expPairs = Array.map2 (fun id exp-> (Var id, exp)) oldIds newExps in
+        let expPairs = 
+            Array.map2  (fun id node-> Var id, node.exp)  oldIds newExps 
+        in
         let inoutMap = PMap.of_enum (Array.enum expPairs) in
         let renameInOut = ImpCommon.apply_exp_map_to_stmt inoutMap in
         List.map renameInOut fnCode   

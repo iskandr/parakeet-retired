@@ -2,14 +2,16 @@ open DynType
 open Base
 open Imp
 
-let rec translate_value idEnv vNode = match vNode.SSA.value with  
+let rec translate_value idEnv vNode =
+  let vExp =  match vNode.SSA.value with  
   | SSA.Var id -> Var (PMap.find id idEnv) 
   | SSA.Num n -> Const n  
   | _ -> failwith "[ssa->imp] value not implemented "
-
+  in 
+  { Imp.exp = vExp; Imp.exp_type = vNode.SSA.value_type }
 
 and translate_exp codegen idEnv expectedType expNode = 
-  match expNode.SSA.exp with  
+  let impExp = match expNode.SSA.exp with  
   | SSA.App({SSA.value=SSA.Prim (Prim.ScalarOp Prim.Select); 
              value_type =FnT(_::expectedType::_, _)},
             [cond; tVal; fVal]) -> 
@@ -18,23 +20,14 @@ and translate_exp codegen idEnv expectedType expNode =
       let fVal' = translate_value idEnv fVal in 
       Select (expectedType, cond', tVal', fVal')
   | SSA.App({SSA.value=SSA.Prim (Prim.ScalarOp op); 
-             value_type =FnT(argT::_, [resultT])},
+             value_type =FnT(argT::_, _)},
             vs) ->
-      Op(op, resultT, argT, List.map (translate_value idEnv) vs)   
+      Op(op, argT, List.map (translate_value idEnv) vs)   
   | SSA.Cast (t, vNode) -> 
-      Cast(t, vNode.SSA.value_type, translate_value idEnv vNode)   
-  (*| SSA.Adverb (adverb, FnVal(fnid, _), args) ->
-     let args' = List.map translate_value args in
-     let fn = () in  
-     translate_adverb codegen  adverb fn args' 
-    *)   
-  (*| SSA.ArrayOp (adverb, _, args) ->*) 
-      (* when function is unknown we need to switch over all possible function 
-         IDs...not yet implemented 
-        
-      failwith "defunctionalization not yet implemented"
-  *)
-  | SSA.Values [v] -> translate_value idEnv v   
+      Cast(t, translate_value idEnv vNode)   
+  | SSA.Values [v] -> 
+      let vNode = translate_value idEnv v in 
+      vNode.Imp.exp    
   | SSA.Values [] -> failwith "[ssa->imp] unexpected empty value list"
    
   | SSA.Values _ ->  failwith "[ssa->imp] unexpected multiple return values "
@@ -42,6 +35,8 @@ and translate_exp codegen idEnv expectedType expNode =
     Printf.sprintf 
       "[ssa->imp] typed core exp not yet implemented: %s"
       (SSA.exp_to_str expNode)
+  in 
+  { Imp.exp = impExp; Imp.exp_type = List.hd expNode.SSA.exp_types } 
     
 and translate_stmt idEnv codegen stmtNode =
   let get_imp_id ssaId t = 
@@ -54,7 +49,8 @@ and translate_stmt idEnv codegen stmtNode =
         | [t] -> 
           let id' = get_imp_id id t in  
           let exp' = translate_exp codegen idEnv t expNode in
-          codegen#emit [set (Var id') exp'];
+          let varNode = {Imp.exp = Var id'; exp_type = t } in 
+          codegen#emit [set varNode exp'];
           PMap.add id id' idEnv
         | _ -> failwith "[ssa->imp] expected only single value on rhs of set"
        )
@@ -63,8 +59,9 @@ and translate_stmt idEnv codegen stmtNode =
         match ids, types, vs with 
           | id::restIds, t::restTypes, v::restValues ->
              let id' = get_imp_id id t in
-             let rhs = translate_value idEnv v in 
-             codegen#emit [set (Var id') rhs];
+             let rhs = translate_value idEnv v in
+             let varNode = { Imp.exp = Var id'; Imp.exp_type = t} in  
+             codegen#emit [set varNode rhs];
              let idEnv' = PMap.add id id' idEnv in 
              flatten_assignment idEnv' restIds restTypes restValues   
           | [], [], [] -> idEnv  
