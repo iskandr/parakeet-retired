@@ -1,0 +1,6 @@
+#!/bin/bash
+
+BASE=`basename $1 .q`
+../_build/preprocess.native $1 > "${BASE}p.q"
+q "${BASE}p.q"
+

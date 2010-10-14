@@ -330,6 +330,9 @@ tester: pqlib stubs tester.o
 each: each.cu_o each_tester.o
 	gcc-4.3 each.cu_o each_tester.o -I. $(INCLUDES) -o each $(LIB) -L.
 
+reduce: reduce.cu_o reduce_tester.o
+	gcc-4.3 reduce.cu_o reduce_tester.o -I. $(INCLUDES) -o reduce $(LIB) -L.
+
 minall: minall.cu_o minall_tester.o
 	gcc-4.3 minall.cu_o minall_tester.o -I. $(INCLUDES) -o minall $(LIB) -L.
 

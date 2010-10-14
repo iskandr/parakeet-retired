@@ -426,8 +426,8 @@ let translate_kernel impfn =
     (fun id dynT -> 
       if PMap.mem id impfn.shared then
         let dims = PMap.find id impfn.shared in   
-        codegen#declare_shared_vec id dynT dims
-      else 
+        codegen#declare_shared_vec id (DynType.elt_type dynT) dims
+      else
         codegen#declare_local id dynT
     ) 
     impfn.local_ids impfn.local_types 
