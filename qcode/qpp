@@ -1,6 +1,7 @@
-#!/bin/bash
+#/bin/bash
 
 BASE=`basename $1 .q`
-../_build/preprocess.native $1 > "${BASE}p.q"
-q "${BASE}p.q"
+GPUNAME=".${BASE}_gpu.q"
+../_build/preprocess.native $1 > "${GPUNAME}"
+q "${GPUNAME}"
 

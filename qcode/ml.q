@@ -88,8 +88,7 @@ kmeans: {[X;k;tol;maxiters]
 			n: count X[0];
             idx: k # (neg m) ? m; // take first k indices of an m-element permutation 
             M: X[idx];            // initialize cluster centers to k random data points
-            nvec: `boolean $ zeros[k;m];
-            indices: where each nvec;
+            nvec: `boolean $ zeros[k;m]; 
             oldM: M; 
             change: 10e30;      // how much did the average cluster center change per iteration? 
             iter: 0; 
@@ -103,7 +102,8 @@ kmeans: {[X;k;tol;maxiters]
                     iter+:1; 
                  ];
             (M; nvec)
-        };
+        };	
+
 
 // ************************************ 
 //        MIXTURE OF GAUSSIANS
