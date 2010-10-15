@@ -14,6 +14,65 @@ let same_type t1 t2 =
   if t1 <> t2 then  debug $ Printf.sprintf "Expected same types, got %s and %s "
     (PtxType.to_str t1) (PtxType.to_str t2) 
 
+
+let calc_index_widths dims eltSize =
+  let n = Array.length dims in 
+  let result = Array.copy dims in 
+  result.(n-1) <- eltSize; 
+  for i = n - 2 downto 0 do 
+    result.(i) <- dims.(i+1) * result.(i+1)
+  done;
+  result
+
+let compute_address codegen baseReg eltSize (idxRegs : PtxVal.value array) = 
+  let rank = codegen#get_array_rank baseReg in
+  let numIndices = Array.length idxRegs in  
+  let baseReg64 = codegen#convert_fresh ~destType:U64 ~srcVal:baseReg in
+  let idxRegs64 = 
+    Array.map 
+      (fun reg -> codegen#convert_fresh ~destType:U64 ~srcVal:reg) 
+      idxRegs 
+  in
+  let address = codegen#fresh_reg U64 in
+  codegen#emit [mov address baseReg64]; 
+  begin 
+  if codegen#is_shared_ptr baseReg then 
+    let widths = calc_index_widths (codegen#get_shared_dims baseReg) eltSize in
+    for i = 0 to numIndices - 1 do
+      let multReg = codegen#fresh_reg U64 in 
+      codegen#emit [
+        PtxHelpers.mul_lo U64 multReg idxRegs.(i) (PtxHelpers.int widths.(i));
+        PtxHelpers.add U64 address address multReg
+      ]
+    done
+  else
+    let shapeReg = codegen#get_shape_reg baseReg in
+    for i = 0 to numIndices - 1 do
+      (* size of slice through array each index accounts for *) 
+      let sliceReg = codegen#fresh_reg U64 in
+      (* at the very least each increase in this index has to go up by the
+         bytesize of the element
+      *) 
+      codegen#emit [mov sliceReg (int eltSize)];
+      (* indexing the first dimension effectively slices through all 
+         other dimensions. If this is, however, a 1D vector then this 
+         loop never runs
+      *) 
+      for j = (i+1) to rank - 1 do 
+        let shapeEltReg = codegen#fresh_reg U32 in
+        let shapeEltReg64 = codegen#fresh_reg U64 in
+        codegen#emit [ld_global U32 shapeEltReg shapeReg ~offset:(4*j)];
+        codegen#convert ~destReg:shapeEltReg64 ~srcVal:shapeEltReg; 
+        codegen#emit [mul_lo U64 sliceReg sliceReg shapeEltReg64]  
+      done;  
+      let offset = codegen#fresh_reg U64 in 
+      codegen#emit [
+        mul U64 offset idxRegs64.(i) sliceReg;
+        add U64 address address offset  
+      ]
+    done 
+ end; address 
+
 let translate_coord = function 
   | Imp.X -> X
   | Imp.Y -> Y 
@@ -41,7 +100,7 @@ let gen_exp
     (codegen : PtxCodegen.ptx_codegen)
     ?destReg
     (expNode : Imp.exp_node) : PtxVal.value  =
-  
+  debug $ Printf.sprintf "[imp2ptx] --- exp: %s" (Imp.exp_node_to_str expNode);
   let dynResultT = expNode.Imp.exp_type in 
   let ptxResultT = PtxType.of_dyn_type dynResultT in  
   let destReg, destType = match destReg with 
@@ -80,7 +139,7 @@ let gen_exp
       if codegen#is_shared_ptr arrayReg then 
         let dims = codegen#get_shared_dims arrayReg in 
         assert (dim <= Array.length dims);
-        let size = dims.(dim) in 
+        let size = dims.(dim - 1) in 
         codegen#emit [mov destReg (PtxHelpers.int size)]
      else if codegen#is_global_array_ptr arrayReg then 
         let rank = codegen#get_global_array_rank arrayReg in 
@@ -128,22 +187,19 @@ let gen_exp
                  base address register is neither global nor shared pointer"
       else 
       let rank = codegen#get_array_rank baseReg in
+      let address = compute_address codegen baseReg eltBytes [|idxReg|] in  
       (* indexing into a 1D array yields a scalar *)  
-      if rank = 1 then 
-        let regs = codegen#fresh_regs U64 3 in
-        codegen#emit [ 
-          cvt U64 U32 regs.(0) idxReg;            
-          mul_lo U64 regs.(1) regs.(0) (int eltBytes);
-          add U64 regs.(2) baseReg regs.(1);
-        ]; 
+      if rank = 1 then (
         let storageReg = codegen#fresh_reg gpuStorageT in 
-        (if isShared then
-          codegen#emit [ld_shared gpuStorageT storageReg regs.(2)] 
+        if isShared then
+          codegen#emit [ld_shared gpuStorageT storageReg address] 
         else
-          codegen#emit [ld_global gpuStorageT storageReg regs.(2)]
-        )
+          codegen#emit [ld_global gpuStorageT storageReg address]
+        ;
+        codegen#convert ~destReg ~srcVal:storageReg
+      )
       (* generate an array slice *)      
-      else failwith "lolcats?"
+      else failwith "array slicing not implemented"
   | Imp.Idx(_, _) -> failwith "[imp2ptx] attempted to index into non-array"
   | Imp.Cast(tNew, x) ->
       let tNewPtx = PtxType.of_dyn_type tNew in 
@@ -153,9 +209,6 @@ let gen_exp
       let x' = translate_arg x tOldPtx in
       let oldName = DynType.to_str tOld in 
       let newName = DynType.to_str tNew in  
-      codegen#emit [
-        comment (sprintf "Conversion from %s to %s " oldName newName)
-      ]; 
       codegen#convert ~destReg ~srcVal:x' 
       
   | other -> 
@@ -246,53 +299,10 @@ let compute_global_array_pos
   ];
   position  
 *)
-let calc_index_widths dims eltSize =
-  let n = Array.length dims in 
-  let result = Array.copy dims in 
-  result.(n-1) <- eltSize; 
-  for i = n - 2 downto 0 do 
-    result.(i) <- dims.(i+1) * result.(i+1)
-  done;
-  result
-
-let compute_address codegen baseReg eltSize (idxRegs : PtxVal.value array) = 
-  let rank = codegen#get_array_rank baseReg in
-  let numIndices = Array.length idxRegs in  
-  let baseReg64 = codegen#convert_fresh ~destType:U64 ~srcVal:baseReg in
-  let idxRegs64 = 
-    Array.map 
-      (fun reg -> codegen#convert_fresh ~destType:U64 ~srcVal:reg) 
-      idxRegs 
-  in
-  let address = codegen#fresh_reg U64 in
-  codegen#emit [mov address baseReg64]; 
-  begin 
-  if codegen#is_shared_ptr baseReg then 
-    let widths = calc_index_widths (codegen#get_shared_dims baseReg) eltSize in
-    let multReg = codegen#fresh_reg U64 in
-    for i = 0 to numIndices - 1 do 
-      codegen#emit [
-        PtxHelpers.mul_lo U64 multReg idxRegs.(i) (PtxHelpers.int widths.(i));
-        PtxHelpers.add U64 address address multReg
-      ]
-    done
-  else
-    let shapeReg = codegen#get_shape_reg baseReg in
-    let shapeEltReg = codegen#fresh_reg U32 in  
-    let shapeEltReg64 = codegen#fresh_reg U64 in
-    let multReg = codegen#fresh_reg U64 in 
-    for i = 0 to numIndices do
-      codegen#emit [ld_global U32 shapeEltReg shapeReg ~offset:(4*i)]; 
-      codegen#convert ~destReg:shapeEltReg64 ~srcVal:shapeEltReg; 
-      codegen#emit [
-        PtxHelpers.mul_lo U64 multReg idxRegs.(i) shapeEltReg64;
-        PtxHelpers.add U64 address address multReg
-      ]
-    done 
- end; address 
                     
         
 let rec gen_stmt codegen stmt = 
+  debug $ Printf.sprintf "[imp2ptx] stmt: %s" (Imp.stmt_to_str stmt); 
   codegen#emit [comment (Imp.stmt_to_str stmt)];
   match stmt with 
   | Imp.Set (id,rhs) ->
@@ -352,6 +362,7 @@ and gen_block codegen block =
   List.iter (gen_stmt codegen) block
    
 let translate_kernel impfn = 
+  debug "[imp2ptx] started translation";
   let codegen = new ptx_codegen in
   (* declare all local variables as either a scalar register or 
      a shared array. 

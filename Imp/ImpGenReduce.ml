@@ -10,15 +10,16 @@ let gen_reduce payload threadsPerBlock ty =
   let input = codegen#fresh_input (VecT ty) in
   let output = codegen#fresh_output (VecT ty) in
   let cache = codegen#shared_vec_var ty [threadsPerBlock] in 
-  let tid = codegen#fresh_var Int32T in
-  let i = codegen#fresh_var Int32T in
-  let linearBlockIdx = codegen#fresh_var Int32T in
-  let startBlock = codegen#fresh_var Int32T in
+  let tid = codegen#fresh_var UInt32T in
+  let i = codegen#fresh_var UInt32T in
+  let linearBlockIdx = codegen#fresh_var UInt32T in
+  let startBlock = codegen#fresh_var UInt32T in
   codegen#emit [
     set tid threadIdx.x;
     set linearBlockIdx (add blockIdx.x
                         (mul blockIdx.y gridDim.x));
-    set startBlock (mul (int $ threadsPerBlock * 2) linearBlockIdx);
+    set startBlock 
+      (mul ~t:DynType.UInt32T (int $ threadsPerBlock * 2) linearBlockIdx);
     set i (add threadIdx.x startBlock)
   ];
   
@@ -41,7 +42,7 @@ let gen_reduce payload threadsPerBlock ty =
   in
   codegen#splice_emit payload [|tmp1;tmp2|] [|temp|] template;
   
-  let lenBlock = codegen#fresh_var Int32T in
+  let lenBlock = codegen#fresh_var UInt32T in
   codegen#emit [
     set lenBlock (int $ threadsPerBlock * 2);
     ifTrue (lt (sub (len input) startBlock) lenBlock) [

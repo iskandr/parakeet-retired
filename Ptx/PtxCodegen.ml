@@ -323,6 +323,7 @@ class ptx_codegen  = object (self)
     DynArray.append newCode instructions
     
   method finalize_kernel =
+    debug "[ptx_codegen] finalizing ptx kernel"; 
     PtxTidy.cleanup_kernel instructions allocations; 
     { 
       params = DynArray.to_array parameters; 

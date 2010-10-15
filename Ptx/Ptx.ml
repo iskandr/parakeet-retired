@@ -217,7 +217,7 @@ and gpu_op_name = function
 and gpu_op_args_to_buffer b symbols op args = match op with 
   | Bra label -> bprintf b " %s;" (Hashtbl.find symbols label) 
   | Exit -> Buffer.add_string b ";"
-  | Comment str -> bprintf b "/* %s */" str
+  | Comment str -> bprintf b "\t /* %s */" str
   | Mov t -> 
       bprintf b ".%s\t %s, %s;" 
         (PtxType.to_str t)

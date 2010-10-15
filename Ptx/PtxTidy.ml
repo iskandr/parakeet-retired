@@ -55,6 +55,21 @@ let register_use_counts instructions  =
   let allUses =
     List.concat (List.map ptx_registers_used (DynArray.to_list instructions)) in
   count_uniq allUses 
+
+
+(*
+let find_constants instructions = 
+  let declared = MutableSet.create 127 in 
+  let mutated = MutableSet.create 127 in 
+  let pure = MutableSet.create 127 in 
+  for i = 0 to DynArray.length instructions - 1 do 
+    let instr = DynArray.get instructions i in 
+    if is_ptx_assignment instr.op then 
+      match instr.args.(0) with 
+        | Sym 
+      
+*) 
+        
     
   (* modifies the DynArray instructions and Hashtbl registerAllocs to 
      get rid of dead registers 
@@ -62,11 +77,15 @@ let register_use_counts instructions  =
 let cleanup_kernel instructions registerAllocs = 
   (* keep pruning instructions until code stabilizes *) 
   let rec loop iter lastLen =
-    Printf.printf "Running iteration %d of PtxTidy\n" iter; 
+    Printf.printf "Running iteration %d of PtxTidy\n" iter;
+    (*
+    let constants = find_constants instructions in
+    rename_redundant_registers constants instructions;
+    *)
     let counts = register_use_counts instructions in
     DynArray.filter (is_live_stmt counts) instructions; 
     let currLen = DynArray.length instructions in 
-    if currLen <> lastLen && iter < 100 then loop (iter+1) currLen 
+    if currLen <> lastLen  && iter < 100 then loop (iter+1) currLen 
     else counts 
   in 
   let counts = loop 1 (DynArray.length instructions) in  

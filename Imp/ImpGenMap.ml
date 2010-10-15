@@ -15,12 +15,13 @@ let gen_map payload threadsPerBlock inTypes outTypes =
   let outVars = Array.map codegen#fresh_var outEltTypes in 
   let nInputs = Array.length inVars in
   let nOutputs = Array.length outVars in 
-  let mapIdx = codegen#fresh_var Int32T in
+  let mapIdx = codegen#fresh_var UInt32T in
   codegen#emit [
     set mapIdx 
       (threadIdx.x +$ 
-           (blockIdx.x *$ (int threadsPerBlock)) 
-           +$ (blockIdx.y *$ gridDim.x))
+           (mul ~t:UInt32T blockIdx.x (int threadsPerBlock)) 
+           +$ 
+           (mul ~t:UInt32T blockIdx.y gridDim.x))
         
   ];  
   for i = 0 to nInputs - 1 do 

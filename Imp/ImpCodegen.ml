@@ -14,22 +14,6 @@ class imp_codegen =
     (* cache the ID's into which we store BlockDim, ThreadIdx, consts, etc..*)
     val expCache  = ((Hashtbl.create 127) : (Imp.exp, ID.t) Hashtbl.t)
     
-    (*
-    method private infer_type = function 
-      | DimSize _ -> DynType.Int32T
-      | ThreadIdx _ | BlockIdx _ | BlockDim _ | GridDim _ -> DynType.Int16T 
-      | Var id -> 
-          assert (Hashtbl.mem types id); 
-          Hashtbl.find types id 
-      | Const num -> PQNum.type_of_num num 
-      | Idx (arr, _) -> 
-          let arrT = self#infer_type arr in 
-          DynType.peel_vec arrT 
-      | Cast (ty, _, _)
-      | Select(ty, _, _, _)
-      | Op (_, ty, _, _) -> ty 
-    *)      
-    
     (* create a Set node and insert a cast if necessary *) 
      method private set_or_coerce id (rhs : exp_node) = 
       assert (Hashtbl.mem types id);  
@@ -43,31 +27,6 @@ class imp_codegen =
         in   
         [Set(id',rhs); Set(id, castNode)]
        else  [Set(id,rhs)] 
-    
-    (* 
-        TYPE ANNOTATION
-        --------------------------
-        Before a code fragment can be flattened all the subexpressions must be
-        annotated with correct types.
-    *)
-    (* 
-    method private type_annotate_stmt = function 
-     | If (cond, tBlock, fBlock) ->
-         If (self#type_annotate_exp cond, 
-             self#type_annotate_block tBlock,
-             self#type_annotate_block fBlock)
-             
-     | While (cond, loopBody) ->
-         While (self#type_annotate_exp cond, self#type_annotate_block loopBody) 
-         
-     | Set (id, rhs) ->
-         Set(id, self#type_annotate_exp rhs)
-        
-     | SetIdx (id, indices, rhs) ->
-         let indices' = List.map (self#type_annotate exp) indices in 
-         Set (id, indices', self#type_annotate_exp rhs)
-     | simple -> [simple]
-   *)
     
     (* an expression gets flattened into a list of statements and a simple 
        expression yielding the same value as the original compound expression 
@@ -220,6 +179,7 @@ class imp_codegen =
     
     
     method finalize = 
+      debug "[imp_codegen] finalizing imp function..."; 
      (* assert (DynArray.length inputs > 0 || DynArray.length outputs > 0);*)
       let inputIds = DynArray.to_array $ DynArray.map fst inputs in 
       let inputTypes = DynArray.to_array $ DynArray.map snd inputs in  

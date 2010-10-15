@@ -30,7 +30,9 @@ let type_of_num = function
 
 
 let coerce_int i = function
+  | UInt32T 
   | Int32T -> Int32 (Int32.of_int i)
+  | UInt64T 
   | Int64T -> Int64 (Int64.of_int i)
   | Float32T -> Float32 (float_of_int i)
   | Float64T -> Float64 (float_of_int i)
@@ -45,7 +47,9 @@ let coerce_int i = function
   | _ -> failwith "coercion for this type not implemented"
 
 let coerce_int32 i = function
-  | Int32T -> Int32 i 
+  | UInt32T 
+  | Int32T -> Int32 i
+  | UInt64T  
   | Int64T -> Int64 (Int64.of_int32 i)
   | Float32T -> Float32 (Int32.to_float i)
   | Float64T -> Float64 (Int32.to_float i)
@@ -64,7 +68,9 @@ let coerce_int32 i = function
 (* which is implemented by all of the ocaml number types *) 
 let coerce_int64 i = function
   | IntT -> Int (Int64.to_int i)
-  | Int32T -> Int32 (Int64.to_int32 i) 
+  | UInt32T 
+  | Int32T -> Int32 (Int64.to_int32 i)
+  | UInt64T  
   | Int64T -> Int64 i
   | Float32T -> Float32 (Int64.to_float i)
   | Float64T -> Float64 (Int64.to_float i)
@@ -80,7 +86,9 @@ let coerce_int64 i = function
 
 let coerce_float f = function
   | IntT -> Int (int_of_float f)
-  | Int32T -> Int32 (Int32.of_float f) 
+  | UInt32T 
+  | Int32T -> Int32 (Int32.of_float f)
+  | UInt64T  
   | Int64T -> Int64 (Int64.of_float f)
   | Float32T -> Float32 f
   | Float64T -> Float64 f

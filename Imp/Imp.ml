@@ -74,7 +74,9 @@ let rec setidx v indices rhs = match v.exp with
 let typed_exp (t:DynType.t)  (e : exp) : exp_node = {exp=e; exp_type=t}
 let bool_exp : exp->exp_node = typed_exp DynType.BoolT
 let int16_exp : exp->exp_node = typed_exp DynType.Int16T   
+let uint16_exp : exp->exp_node = typed_exp DynType.UInt16T
 let int_exp : exp -> exp_node = typed_exp DynType.Int32T  
+let uint_exp : exp -> exp_node = typed_exp DynType.UInt32T  
 let f32_exp : exp -> exp_node = typed_exp DynType.Float32T 
 let f64_exp : exp -> exp_node = typed_exp DynType.Float64T 
 
@@ -85,15 +87,32 @@ let f64_exp : exp -> exp_node = typed_exp DynType.Float64T
 let cast t expNode =
   let tOld = expNode.exp_type in  
   if tOld = t then expNode 
-  else (
-    if DynType.is_scalar_subtype tOld t then  
-      typed_exp t $ Cast(t,expNode) 
-    else failwith $ 
-      Printf.sprintf "[imp->cast] cannot create cast from %s to %s"
-        (DynType.to_str tOld)
-        (DynType.to_str t)
-  )    
+  else match expNode.exp with 
+    | Const n -> {expNode with exp = Const (PQNum.coerce_num n t); exp_type=t}
+    | _ -> 
+      if DynType.is_scalar_subtype tOld t 
+         || DynType.sizeof tOld = DynType.sizeof t 
+      then 
+         typed_exp t $ Cast(t,expNode) 
+      else failwith $ 
+        Printf.sprintf "[imp->cast] cannot create cast from %s to %s"
+          (DynType.to_str tOld)
+          (DynType.to_str t)
+ 
 
+
+let common_type ?t args =
+ match t with 
+ | Some t -> t 
+ | None -> 
+     let types = List.map (fun node -> node.exp_type) args in
+     let properCommonType = DynType.fold_type_list types in
+     (* special case: cast mix of signed and unsigned 32-bit integers 
+        to signed
+     *)
+     if List.for_all (fun t -> DynType.sizeof t = 4) types 
+       && DynType.sizeof properCommonType > 4  then DynType.Int32T 
+     else properCommonType 
 
 (* arguments are either of the type explicitly passed as an argument or 
    you get the greatest common type between them. 
@@ -101,25 +120,14 @@ let cast t expNode =
    for the given operation. 
 *)
 let typed_op op ?t args =
-  let argType = 
-    match t with 
-      | Some t -> t 
-      | None -> 
-        let types = List.map (fun node -> node.exp_type) args in
-        DynType.fold_type_list types
-  in 
+  let argType = common_type ?t args in 
   assert (DynType.is_scalar argType);    
   typed_exp argType $ Op (op,argType,List.map (cast argType) args)
 
+
 (* Same as typed_op, but with comparison operators which always return bools *) 
 let cmp_op op ?t args =
-  let argType = 
-    match t with 
-      | Some t -> t 
-      | None -> 
-        let types = List.map (fun node -> node.exp_type) args in
-        DynType.fold_type_list types
-  in 
+  let argType = common_type ?t args in 
   assert (DynType.is_scalar argType);    
   typed_exp DynType.BoolT $ Op (op, argType, List.map (cast argType) args)
 
@@ -127,63 +135,72 @@ let cmp_op op ?t args =
 type vec3 = { x: exp_node; y: exp_node; z: exp_node}
 let mk_vec3 (f : coord -> exp_node) : vec3  = { x = f X; y = f Y; z = f Z} 
 
-let threadIdx = mk_vec3 (fun coord -> int16_exp $ ThreadIdx coord)
-let blockIdx = mk_vec3 (fun coord -> int16_exp $ BlockIdx coord) 
-let blockDim = mk_vec3 (fun coord -> int16_exp $ BlockDim coord)
-let gridDim = mk_vec3 (fun coord -> int16_exp $ GridDim coord)
+let threadIdx = mk_vec3 (fun coord -> uint16_exp $ ThreadIdx coord)
+let blockIdx = mk_vec3 (fun coord -> uint16_exp $ BlockIdx coord) 
+let blockDim = mk_vec3 (fun coord -> uint16_exp $ BlockDim coord)
+let gridDim = mk_vec3 (fun coord -> uint16_exp $ GridDim coord)
 
  
 
 (* GENERAL IMP EXPRESSIONS *)
 
+
+let uint32 i = uint_exp $ Const (PQNum.Int32 i)    
+let int32 i = 
+  if i < Int32.zero then int_exp $ Const (PQNum.Int32 i)
+  else uint32 i 
+
+let uint i = uint_exp $ Const (PQNum.Int32 (Int32.of_int i))
+let int i = 
+  if i < 0 then 
+    int_exp $ Const (PQNum.Int32 (Int32.of_int i))
+  else uint i    
   
-let int32 i = int_exp $ Const (PQNum.Int32 i) 
-let int i = int_exp $ Const (PQNum.Int32 (Int32.of_int i))    
 let float f = f32_exp $ Const (PQNum.Float32 f)  
 let double d = f64_exp $ Const (PQNum.Float64 d) 
 
 
     
 let idx arr idx = 
-  let idx' = cast DynType.Int32T idx in  
+  let idx' = cast DynType.UInt32T idx in  
   let eltT = DynType.elt_type arr.exp_type in  
   {exp= Idx(arr, idx'); exp_type=eltT }
 
-let dim n x = int_exp $ DimSize(n, x) 
-let len x = int_exp $ DimSize(1, x)
+let dim n x = uint_exp $ DimSize(n, x) 
+let len x = uint_exp $ DimSize(1, x)
  
 
-let mul x y = typed_op Prim.Mult [x;y] 
+let mul ?t x y = typed_op Prim.Mult ?t [x;y] 
 let ( *$ ) = mul 
 
-let add x y = typed_op Prim.Add [x; y]
+let add ?t x y = typed_op Prim.Add ?t [x; y]
 let ( +$ ) = add
 
-let div x y = typed_op Prim.Div [x; y]
+let div ?t  x y = typed_op Prim.Div ?t [x; y]
 let ( /$ ) = div 
 
-let sub x y = typed_op Prim.Sub [x; y]
+let sub ?t x y = typed_op Prim.Sub ?t [x; y]
 let ( -$ ) = sub 
 
-let mod_ x y = typed_op Prim.Mod [x; y]
+let mod_ ?t  x y = typed_op Prim.Mod ?t  [x; y]
 let ( %$ ) = mod_ 
 
-let lt x y = cmp_op Prim.Lt [x; y]
+let lt ?t x y = cmp_op Prim.Lt ?t  [x; y]
 let ( <$ ) = lt
  
-let lte x y = cmp_op Prim.Lte [x; y]
+let lte ?t  x y = cmp_op Prim.Lte ?t [x; y]
 let ( <=$ ) = lte 
 
-let gt x y = cmp_op Prim.Gt [x;y]
+let gt ?t  x y = cmp_op Prim.Gt ?t  [x;y]
 let ( >$ ) = gt 
 
-let gte x y = cmp_op Prim.Gte [x;y]
+let gte ?t  x y = cmp_op Prim.Gte ?t  [x;y]
 let ( >=$ ) = gte 
 
-let eq x y = cmp_op Prim.Eq [x;y]
+let eq ?t x y = cmp_op Prim.Eq ?t  [x;y]
 let ( =$ ) = eq 
 
-let neq x y = cmp_op Prim.Neq [x;y]
+let neq ?t x y = cmp_op Prim.Neq ?t  [x;y]
 let ( <>$ ) = neq 
 
 
@@ -267,4 +284,3 @@ let fn_to_str fn =
     (String.concat ", " outputs) 
     bodyStr  
            
-   
