@@ -42,12 +42,11 @@ class ptx_codegen  = object (self)
   (* keep track of fixed dimensions of shared arrays pointed to by a register *) 
   val sharedDims : (PtxVal.symid, int array) Hashtbl.t = Hashtbl.create 17
   
-  method private fresh_shared_id dims = 
+  method private fresh_shared_id  = 
     let num = numShared in
     numShared <- num + 1;
-    let id = self#get_sym_id ("__shared" ^(string_of_int num)) in 
-    Hashtbl.add sharedDims id dims; 
-    id   
+    self#get_sym_id ("__shared" ^(string_of_int num)) 
+
 
   method is_shared_ptr = function 
     | PtxVal.Sym {id=id} -> Hashtbl.mem sharedDims id
@@ -206,7 +205,7 @@ class ptx_codegen  = object (self)
     Hashtbl.add dynTypes id dynEltT;
     let ptxEltType = PtxType.of_dyn_type dynEltT in
     let dimsArray = Array.of_list dims in 
-    Hashtbl.add sharedDims id dimsArray;  
+    let sharedId = self#fresh_shared_id in
     let nelts = Array.fold_left ( * ) 1 dimsArray in 
     let decl = {
       t = ptxEltType; 
@@ -214,13 +213,14 @@ class ptx_codegen  = object (self)
       array_size = Some nelts;
       init_val=None;
     } in
-    let sharedId = self#fresh_shared_id dimsArray in
     self#add_alloc sharedId decl; 
     let sharedVal = Sym { id=sharedId; ptx_type=PtxType.ptrT; space=SHARED } in 
     (* access the shared memory via the register that holds its address *) 
     let sharedReg = self#fresh_reg PtxType.ptrT in 
     self#emit [mov sharedReg sharedVal];
-    Hashtbl.add dataRegs id sharedReg;  
+    Hashtbl.add dataRegs id sharedReg;
+    (* associate the register storing the shared address with the dims *) 
+    Hashtbl.add sharedDims (PtxVal.get_id sharedReg) dimsArray;  
     sharedReg  
     
     
