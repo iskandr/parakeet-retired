@@ -16,20 +16,20 @@ let gen_reduce payload threadsPerBlock ty =
   let startBlock = codegen#fresh_var Int32T in
   codegen#emit [
     set tid threadIdx.x;
-    set linearBlockIdx (add Int32T blockIdx.x
-                        (mul Int32T blockIdx.y gridDim.x));
-    set startBlock (mul Int32T (int $ threadsPerBlock * 2) linearBlockIdx);
-    set i (add Int32T threadIdx.x startBlock)
+    set linearBlockIdx (add blockIdx.x
+                        (mul blockIdx.y gridDim.x));
+    set startBlock (mul (int $ threadsPerBlock * 2) linearBlockIdx);
+    set i (add threadIdx.x startBlock)
   ];
   
   let temp = codegen#fresh_var ty in  
   let tmp1 = codegen#fresh_var ty in
   let tmp2 = codegen#fresh_var ty in
   let template = [
-    ifTrue (lt Int32T i (len input)) [
-      if_ (lt Int32T (add Int32T i (int threadsPerBlock)) (len input)) [
+    ifTrue (lt i (len input)) [
+      if_ (lt (add i (int threadsPerBlock)) (len input)) [
         set tmp1 (idx input i);
-        set tmp2 (idx input (add Int32T i (int threadsPerBlock)));
+        set tmp2 (idx input (add i (int threadsPerBlock)));
         SPLICE;
         setidx cache [tid] temp
       ] [
@@ -44,24 +44,24 @@ let gen_reduce payload threadsPerBlock ty =
   let lenBlock = codegen#fresh_var Int32T in
   codegen#emit [
     set lenBlock (int $ threadsPerBlock * 2);
-    ifTrue (lt Int32T (sub Int32T (len input) startBlock) lenBlock) [
-      set lenBlock (sub Int32T (len input) startBlock)
+    ifTrue (lt (sub (len input) startBlock) lenBlock) [
+      set lenBlock (sub (len input) startBlock)
     ]
   ];
   let j = ref (threadsPerBlock / 2) in
   while !j >= 1 do
     let template = [
-      ifTrue (and_ (lt Int32T tid (int !j))
-                   (lt Int32T (add Int32T tid (int !j)) lenBlock))
+      ifTrue (and_ (lt tid (int !j))
+                   (lt (add tid (int !j)) lenBlock))
          [SPLICE; set (idx cache tid) temp];
       syncthreads
     ] in
     let loopPInputs =
-      [|idx cache $ add Int32T tid (int !j); idx cache tid|] in
+      [|idx cache $ add tid (int !j); idx cache tid|] in
     codegen#splice_emit payload loopPInputs [|temp|] template;
     j := !j / 2
   done;
-  codegen#emit [ifTrue (eq Int32T tid (int 0))
+  codegen#emit [ifTrue (eq tid (int 0))
                  [set (idx output linearBlockIdx) (idx cache $ int 0)]
                ];
   codegen#finalize
@@ -79,43 +79,43 @@ let gen_reduce_opt payload threadsPerBlock ty =
   let i = codegen#fresh_var Int32T in
   let linearBlockIdx = codegen#fresh_var Int32T in
   codegen#emit [
-    set linearBlockIdx (add Int32T blockIdx.x
-                        (mul Int32T blockIdx.y gridDim.x));
-    set i (add Int32T threadIdx.x
-            (mul Int32T linearBlockIdx (int $ threadsPerBlock * 2)));
+    set linearBlockIdx (add blockIdx.x
+                        (mul blockIdx.y gridDim.x));
+    set i (add threadIdx.x
+            (mul linearBlockIdx (int $ threadsPerBlock * 2)));
     set (idx cache tid) (idx input i)
   ];
   let temp = codegen#fresh_var ty in
   let inputs =
-    [|idx input $ add Int32T i (int threadsPerBlock); idx cache tid |] in
+    [|idx input $ add i (int threadsPerBlock); idx cache tid |] in
   let template = [SPLICE; setidx cache [tid] temp] in
   let trueBranch = codegen#splice payload inputs [|temp|] template in
   let condition =
-    lt Int32T (add Int32T i (int threadsPerBlock)) (len input) in
+    lt (add i (int threadsPerBlock)) (len input) in
   
   codegen#emit [ifTrue condition trueBranch; syncthreads];
   let j = ref (threadsPerBlock / 2) in 
   while !j >= 64 do
     let template = [
-      ifTrue (lt Int32T tid (int !j)) 
+      ifTrue (lt tid (int !j)) 
          [SPLICE; set (idx cache tid) temp];
       syncthreads
     ] in
     let loopPInputs = 
-      [|idx cache $ add Int32T tid (int !j); idx cache tid |] in
+      [|idx cache $ add tid (int !j); idx cache tid |] in
     codegen#splice_emit payload loopPInputs [|temp|] template; 
     j := !j / 2
   done;
   let buffer = DynArray.create () in 
   while !j > 0 do
-    let payloadArgs = [|idx cache $ add Int32T tid (int !j); idx cache tid |] in
+    let payloadArgs = [|idx cache $ add tid (int !j); idx cache tid |] in
     let code = codegen#splice payload payloadArgs [|temp|] [SPLICE] in 
     List.iter (fun stmt -> DynArray.add buffer stmt) code;
     DynArray.add buffer (setidx cache [tid] temp);
     j := !j / 2
   done;  
-  codegen#emit [ifTrue (lt Int32T tid (int 32)) (DynArray.to_list buffer)];
-  codegen#emit [ifTrue (eq Int32T tid (int 0))
+  codegen#emit [ifTrue (lt tid (int 32)) (DynArray.to_list buffer)];
+  codegen#emit [ifTrue (eq tid (int 0))
                  [set (idx output linearBlockIdx) (idx cache $ int 0)]
                ];
   codegen#finalize

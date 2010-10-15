@@ -1,6 +1,10 @@
 open Base 
 open Printf 
 
+
+open AdverbFusion
+open ElimDeadCode 
+
 (* A program is a mapping of function names to their functions.*)
 (* These functions exist in both untyped and typed forms, as well as *)
 (* a dataflow graph representations which should be eventually eliminated. *)
@@ -58,8 +62,8 @@ let default_typed_optimizations =
     (*"function cloning", TypedFunctionCloning.function_cloning;*)   
     (*"elim dead code", TypedElimDeadCode.elim_dead_code;*)  
     "simplify", Simplify.simplify_fundef; 
-    "dead code elim", ElimDeadCode.elim_dead_code; 
-    "adverb fusion", AdverbFusion.optimize_fundef; 
+    (*"dead code elim", ElimDeadCode.elim_dead_code; 
+    "adverb fusion", AdverbFusion.optimize_fundef;*) 
 
   ]  
  

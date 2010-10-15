@@ -35,7 +35,6 @@ AST
 qcode
 unit
 unit/tmp
-_build/UntypedSSA
 SSA_Optimizations
 SSA_Analysis
 .git/logs/refs/remotes/origin
@@ -52,9 +51,6 @@ _build/Imp
 _build/Ptx
 _build/Q
 _build/SSA
-_build/SSA_Analysis
-_build/SSA_Optimizations
-_build/UntypedSSA
 _build/extlib
 .git/objects/1a
 .git/objects/25
@@ -138,3 +134,5 @@ _build/extlib
 .git/objects/86
 .git/objects/3d
 .git/objects/8a
+.git/objects/6b
+.git/objects/80

@@ -85,8 +85,8 @@ and instruction = {
 }
 and kernel = {
   params: (symid * PtxType.ty) array;
-  decls: (symid, var_decl) PMap.t; 
-  symbols : (symid, string) PMap.t; 
+  decls: (symid, var_decl) Hashtbl.t; 
+  symbols : (symid, string) Hashtbl.t; 
 	code: instruction array
 }
 and gpu_compute_capability = SM_10 | SM_11 | SM_13 | SM_20
@@ -107,7 +107,7 @@ let is_int_rounding_mode = function
 
 let rec ptx_module_to_str ptxModule =
   let approx_numlines k =  
-    Enum.count (PMap.enum k.decls) +
+    Hashtbl.length k.decls +
     Array.length k.code + 
     Array.length k.params  in
   let kernel_lengths = PMap.map approx_numlines ptxModule.kernels in
@@ -145,10 +145,10 @@ and add_kernel_params_to_buffer b  symbols params =
     Buffer.add_string b ")\n";
   end 
 and param_to_str symbols id ty = 
-  sprintf ".param .%s %s" (PtxType.to_str ty) (PMap.find id symbols)
+  sprintf ".param .%s %s" (PtxType.to_str ty) (Hashtbl.find symbols id)
 and add_kernel_decls_to_buffer buffer symbols decls =
     let add_decl id decl =
-      let name = PMap.find id symbols in
+      let name = Hashtbl.find symbols id in
       let spaceStr = gpu_space_to_str decl.decl_space in   
       match decl.decl_space, decl.array_size with 
         | SHARED, Some size ->
@@ -166,7 +166,7 @@ and add_kernel_decls_to_buffer buffer symbols decls =
               (PtxType.to_str decl.t)
               name 
     in 
-    PMap.iter add_decl decls
+    Hashtbl.iter add_decl decls
 
 and add_kernel_body_to_buffer b symbols code =
   Array.iter 
@@ -177,7 +177,7 @@ and add_kernel_body_to_buffer b symbols code =
 
 and add_instruction_to_buffer b symbols instr = 
   (match instr.label with 
-	  | Some l -> bprintf b "%s:\n" (gpu_label_to_str (PMap.find l symbols))
+	  | Some l -> bprintf b "%s:\n" (gpu_label_to_str (Hashtbl.find symbols l))
     | None -> ()
   );  
 	(match instr.pred with 
@@ -215,7 +215,7 @@ and gpu_op_name = function
   | Comment _ -> ""
 (* print everything after the op name and rounding/ftz/sat modifiers *) 
 and gpu_op_args_to_buffer b symbols op args = match op with 
-  | Bra label -> bprintf b " %s;" (PMap.find label symbols) 
+  | Bra label -> bprintf b " %s;" (Hashtbl.find symbols label) 
   | Exit -> Buffer.add_string b ";"
   | Comment str -> bprintf b "/* %s */" str
   | Mov t -> 

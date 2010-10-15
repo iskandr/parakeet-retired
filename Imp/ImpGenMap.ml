@@ -18,11 +18,10 @@ let gen_map payload threadsPerBlock inTypes outTypes =
   let mapIdx = codegen#fresh_var Int32T in
   codegen#emit [
     set mapIdx 
-      (add Int32T threadIdx.x 
-        (add  Int32T           
-           (mul Int32T blockIdx.x (int threadsPerBlock))
-           (mul Int32T blockIdx.y gridDim.x)
-        ))
+      (threadIdx.x +$ 
+           (blockIdx.x *$ (int threadsPerBlock)) 
+           +$ (blockIdx.y *$ gridDim.x))
+        
   ];  
   for i = 0 to nInputs - 1 do 
     if DynType.is_scalar inTypes.(i) then 

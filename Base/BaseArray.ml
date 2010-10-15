@@ -60,18 +60,18 @@
   
   let iter2 f x y =     
     let lenx, leny  = length x, length y in
-    let minlen =  min lenx leny in 
-    for i = 0 to minlen - 1 do 
+    assert (lenx = leny);
+    for i = 0 to lenx - 1 do 
       f x.(i) y.(i)
     done 
   
   let fold_left2 f init x y = 
     let lenx, leny  = length x, length y in
-    let minlen =  min lenx leny in
-    if minlen = 0 then init 
+    assert (lenx = leny);
+    if lenx = 0 then init 
     else 
     let acc = ref init in (
-    for i = 1 to minlen - 1 do 
+    for i = 1 to lenx - 1 do 
       acc := f !acc x.(i) y.(i)
     done; 
     !acc

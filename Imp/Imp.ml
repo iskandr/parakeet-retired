@@ -1,141 +1,219 @@
 open Base 
 
-type ty = DynType.t
-
-type coord = X | Y | Z 
+type coord = X | Y | Z
+ 
 type exp = 
   | Var of ID.t
-  | Idx of exp * exp  
-  | Op of Prim.scalar_op * ty * ty * exp list 
-  | Select of ty * exp * exp * exp 
+  | Idx of exp_node * exp_node  
+  | Op of Prim.scalar_op * DynType.t * exp_node list 
+  | Select of DynType.t * exp_node * exp_node * exp_node 
   | Const of PQNum.num 
-  | Cast of DynType.t * DynType.t *  exp  
-  | DimSize of int * exp 
+  | Cast of DynType.t * exp_node  
+  | DimSize of int * exp_node 
   | ThreadIdx of coord 
   | BlockIdx of coord 
   | BlockDim of coord 
-  | GridDim of coord 
+  | GridDim of coord
+and exp_node = { 
+  exp : exp; 
+  exp_type : DynType.t;  
+}  
 and stmt = 
-  | If of exp * block * block
-  | While of exp * block
-  | Set of ID.t * exp 
-  | SetIdx of ID.t * exp list * exp
+  | If of exp_node * block * block
+  | While of exp_node * block
+  | Set of ID.t * exp_node 
+  | SetIdx of ID.t * exp_node list * exp_node
   | SyncThreads
   | Comment of string
   (* used to plug one function into another, shouldn't exist in final code *) 
   | SPLICE 
 and block = stmt list
 and fn = { input_ids : ID.t array;
-           input_types : ty array;
+           input_types : DynType.t array;
            output_ids : ID.t array; 
-           output_types : ty array;
+           output_types : DynType.t array;
            (* all IDs which aren't inputs or outputs are locals *)     
            local_ids : ID.t array;   
-           local_types : ty array;         
+           local_types : DynType.t array;         
            body : block;
            tenv :(ID.t,DynType.t) PMap.t; 
            shared : (ID.t, int list) PMap.t
          }
 
 
-let is_simple_exp = function 
-  | Var _ 
-  | Const _ -> true 
-  | _ -> false  
 
-let is_compound_exp e = not (is_simple_exp e)
-
-let rec infer_dyn_type tenv = function 
-  | Var id ->  PMap.find id tenv   
-  | Const n -> PQNum.type_of_num n 
-  | ThreadIdx _ -> DynType.UInt16T
-  | BlockIdx _ -> DynType.UInt16T 
-  | BlockDim _ -> DynType.UInt16T  
-  | GridDim _ ->  DynType.UInt16T 
-  | DimSize _ -> DynType.UInt32T   
-  | Idx (arr, _) -> DynType.peel_vec (infer_dyn_type tenv arr)  
-  | Op (_,t,_, _)
-  | Select (t,_,_,_) 
-  | Cast (t,_,_) -> t
- 
-
-(* CUDA stuff *)
-type vec3 = { x: exp; y: exp; z: exp}
-let threadIdx = { x=ThreadIdx X; y = ThreadIdx Y; z=ThreadIdx Z}
-let blockIdx = {x =BlockIdx X; y=BlockIdx Y; z=BlockIdx Z}
-let blockDim = {x=BlockDim X; y=BlockDim Y; z=BlockDim Z}
-let gridDim = {x=GridDim X; y=GridDim Y; z=GridDim Z}
-let syncthreads = SyncThreads 
 
 (* IMP STATEMENTS *)
+let syncthreads = SyncThreads
 let if_ cond t f  = If(cond,t,f)
 let ifTrue cond t = if_ cond t []  
 let while_ cond code = While(cond, code)
 let comment str = Comment str
 
-let rec collect_nested_indices = function 
+let rec collect_nested_indices e = match e.exp with  
   | Var id -> id, [] 
   | Idx (lhs, idx) -> 
      let id, otherIndices = collect_nested_indices lhs in 
      id, idx :: otherIndices
   | _ -> failwith "[set] Expected variable"
  
-let set v rhs = match v with 
+let set v rhs = match v.exp with 
   | Var id -> Set(id,rhs)
   | other -> 
-    let id, indices = collect_nested_indices other in SetIdx(id, indices,rhs)
+    let id, indices = collect_nested_indices v in SetIdx(id, indices,rhs)
   
   
-let rec setidx v indices rhs = match v with 
+let rec setidx v indices rhs = match v.exp with 
   | Var id -> SetIdx(id, indices, rhs)
   | other -> 
-     let id, indices' = collect_nested_indices other in 
+     let id, indices' = collect_nested_indices v in 
      SetIdx(id, indices' @ indices, rhs)
   
  
-(* IMP EXPRESSIONS *)
-let idx arr idx = Idx(arr, idx)
+(* HELPER FUNCTIONS FOR IMP EXPRESSIONS *)
+let typed_exp (t:DynType.t)  (e : exp) : exp_node = {exp=e; exp_type=t}
+let bool_exp : exp->exp_node = typed_exp DynType.BoolT
+let int16_exp : exp->exp_node = typed_exp DynType.Int16T   
+let int_exp : exp -> exp_node = typed_exp DynType.Int32T  
+let f32_exp : exp -> exp_node = typed_exp DynType.Float32T 
+let f64_exp : exp -> exp_node = typed_exp DynType.Float64T 
 
-let dim n x = DimSize(n,x) 
-let len x = DimSize(1, x)
+(* CAST AN EXPRESSION TO A NEW TYPE 
+   (or leave it alone if it's already that type
+*)
+
+let cast t expNode =
+  let tOld = expNode.exp_type in  
+  if tOld = t then expNode 
+  else (
+    if DynType.is_scalar_subtype tOld t then  
+      typed_exp t $ Cast(t,expNode) 
+    else failwith $ 
+      Printf.sprintf "[imp->cast] cannot create cast from %s to %s"
+        (DynType.to_str tOld)
+        (DynType.to_str t)
+  )    
 
 
-let int32 i = Const (PQNum.Int32 i)
-let int i = Const (PQNum.Int32 (Int32.of_int i))
-let float f = Const (PQNum.Float32 f)
-let double d = Const (PQNum.Float64 d)
+(* arguments are either of the type explicitly passed as an argument or 
+   you get the greatest common type between them. 
+   Cast each argument to this greatest type, and then create a node 
+   for the given operation. 
+*)
+let typed_op op ?t args =
+  let argType = 
+    match t with 
+      | Some t -> t 
+      | None -> 
+        let types = List.map (fun node -> node.exp_type) args in
+        DynType.fold_type_list types
+  in 
+  assert (DynType.is_scalar argType);    
+  typed_exp argType $ Op (op,argType,List.map (cast argType) args)
 
-let mul t x y = Op (Prim.Mult,t,t,[x;y])
-let add t x y = Op(Prim.Add,t,t,[x;y])
-let div t x y = Op(Prim.Div,t,t,[x;y])
-let sub t x y = Op(Prim.Sub,t,t,[x;y])
-let mod_ t x y = Op(Prim.Mod,t,t,[x;y])
+(* Same as typed_op, but with comparison operators which always return bools *) 
+let cmp_op op ?t args =
+  let argType = 
+    match t with 
+      | Some t -> t 
+      | None -> 
+        let types = List.map (fun node -> node.exp_type) args in
+        DynType.fold_type_list types
+  in 
+  assert (DynType.is_scalar argType);    
+  typed_exp DynType.BoolT $ Op (op, argType, List.map (cast argType) args)
 
-let lt t x y = Op(Prim.Lt,DynType.BoolT,t,[x;y])
-let lte t x y = Op(Prim.Lte,DynType.BoolT,t,[x;y])
-let gt t x y = Op(Prim.Gt,DynType.BoolT,t,[x;y])
-let gte t x y = Op(Prim.Gte,DynType.BoolT,t,[x;y])
-let eq t x y = Op(Prim.Eq,DynType.BoolT,t,[x;y])
-let neq t x y = Op(Prim.Neq,DynType.BoolT,t,[x;y])
+(* CUDA stuff *)
+type vec3 = { x: exp_node; y: exp_node; z: exp_node}
+let mk_vec3 (f : coord -> exp_node) : vec3  = { x = f X; y = f Y; z = f Z} 
 
-let not_ x = Op (Prim.Not,DynType.BoolT,DynType.BoolT,[x])
-let and_ x y = Op(Prim.And,DynType.BoolT,DynType.BoolT,[x;y])
-let or_ x y = Op(Prim.Or,DynType.BoolT,DynType.BoolT,[x;y])
+let threadIdx = mk_vec3 (fun coord -> int16_exp $ ThreadIdx coord)
+let blockIdx = mk_vec3 (fun coord -> int16_exp $ BlockIdx coord) 
+let blockDim = mk_vec3 (fun coord -> int16_exp $ BlockDim coord)
+let gridDim = mk_vec3 (fun coord -> int16_exp $ GridDim coord)
 
-let sqrt32 x = Op(Prim.Sqrt,DynType.Float32T, DynType.Float32T,[x])
-let sqrt64 x = Op(Prim.Sqrt, DynType.Float64T, DynType.Float64T,[x])
+ 
 
-let id_of = function Var id -> id | _ -> failwith "Imp: expected variable" 
+(* GENERAL IMP EXPRESSIONS *)
+
+  
+let int32 i = int_exp $ Const (PQNum.Int32 i) 
+let int i = int_exp $ Const (PQNum.Int32 (Int32.of_int i))    
+let float f = f32_exp $ Const (PQNum.Float32 f)  
+let double d = f64_exp $ Const (PQNum.Float64 d) 
+
+
+    
+let idx arr idx = 
+  let idx' = cast DynType.Int32T idx in  
+  let eltT = DynType.elt_type arr.exp_type in  
+  {exp= Idx(arr, idx'); exp_type=eltT }
+
+let dim n x = int_exp $ DimSize(n, x) 
+let len x = int_exp $ DimSize(1, x)
+ 
+
+let mul x y = typed_op Prim.Mult [x;y] 
+let ( *$ ) = mul 
+
+let add x y = typed_op Prim.Add [x; y]
+let ( +$ ) = add
+
+let div x y = typed_op Prim.Div [x; y]
+let ( /$ ) = div 
+
+let sub x y = typed_op Prim.Sub [x; y]
+let ( -$ ) = sub 
+
+let mod_ x y = typed_op Prim.Mod [x; y]
+let ( %$ ) = mod_ 
+
+let lt x y = cmp_op Prim.Lt [x; y]
+let ( <$ ) = lt
+ 
+let lte x y = cmp_op Prim.Lte [x; y]
+let ( <=$ ) = lte 
+
+let gt x y = cmp_op Prim.Gt [x;y]
+let ( >$ ) = gt 
+
+let gte x y = cmp_op Prim.Gte [x;y]
+let ( >=$ ) = gte 
+
+let eq x y = cmp_op Prim.Eq [x;y]
+let ( =$ ) = eq 
+
+let neq x y = cmp_op Prim.Neq [x;y]
+let ( <>$ ) = neq 
+
+
+let not_ x = typed_op Prim.Not ~t:DynType.BoolT [x] 
+let (!$) = not_ 
+ 
+let and_ x y = typed_op Prim.And ~t:DynType.BoolT [x;y]
+let (&&$) = and_ 
+ 
+let or_ x y = typed_op Prim.Or ~t:DynType.BoolT [x;y]
+let (||$) = or_  
+
+let sqrt32 x = typed_op Prim.Sqrt ~t:DynType.Float32T [x] 
+let sqrt64 x = typed_op Prim.Sqrt ~t:DynType.Float64T [x]  
+
+let id_of = function 
+  | {exp=Var id} -> id 
+  | _ -> failwith "Imp: expected variable" 
 
 open Printf 
 
 let coord_to_str = function 
   | X -> "x" | Y -> "y" | Z -> "z"
 
-let rec exp_to_str = function 
+
+let rec exp_node_to_str e  = exp_to_str e.exp 
+and exp_to_str = function 
   | Var id -> ID.to_str id  
-  | Idx (e1, e2) -> sprintf "%s[%s]" (exp_to_str e1) (exp_to_str e2) 
-  | Op (op, _, argT, args) -> 
+  | Idx (e1, e2) -> sprintf "%s[%s]" (exp_node_to_str e1) (exp_node_to_str e2) 
+  | Op (op, argT, args) -> 
     sprintf "%s:%s (%s)" 
       (Prim.scalar_op_to_str op)
       (DynType.to_str argT) 
@@ -143,14 +221,17 @@ let rec exp_to_str = function
   | Select (t, cond, trueVal, falseVal) -> 
       sprintf "select:%s(%s, %s, %s)" 
         (DynType.to_str t)
-        (exp_to_str cond)
-        (exp_to_str trueVal)
-        (exp_to_str falseVal)
+        (exp_node_to_str cond)
+        (exp_node_to_str trueVal)
+        (exp_node_to_str falseVal)
   | Const n -> PQNum.num_to_str n 
-  | Cast (tNew, tOld, e) -> 
-       sprintf "cast %s->%s (%s)" 
-        (DynType.to_str tOld) (DynType.to_str tNew) (exp_to_str e)
-  | DimSize (k, e) -> sprintf "dimsize(%s, %d)" (exp_to_str e) k  
+  | Cast (tNew, e) -> 
+      let tOld = e.exp_type in 
+      sprintf "cast %s->%s (%s)" 
+        (DynType.to_str tOld) 
+        (DynType.to_str tNew) 
+        (exp_node_to_str e)
+  | DimSize (k, e) -> sprintf "dimsize(%s, %d)" (exp_node_to_str e) k  
   | ThreadIdx c -> sprintf "threadidx.%s" (coord_to_str c)
   | BlockIdx c -> sprintf "blockidx.%s" (coord_to_str c)
   | BlockDim c -> sprintf "blockdim.%s" (coord_to_str c)
@@ -159,24 +240,24 @@ let rec exp_to_str = function
 and stmt_to_str = function 
   | If (cond, tBlock, fBlock) -> 
       sprintf "if (%s) then { %s } else { %s }" 
-        (exp_to_str cond)
+        (exp_node_to_str cond)
         (block_to_str tBlock)
         (block_to_str fBlock) 
   | While (cond, body) -> 
-      sprintf "while(%s) { %s }" (exp_to_str cond) (block_to_str body)
+      sprintf "while(%s) { %s }" (exp_node_to_str cond) (block_to_str body)
   | Set (id, rhs) -> 
-      sprintf "%s = %s" (ID.to_str id) (exp_to_str rhs)  
+      sprintf "%s = %s" (ID.to_str id) (exp_node_to_str rhs)  
   | SetIdx (id, indices, rhs) -> 
       sprintf "%s[%s] = %s" 
         (ID.to_str id) 
         (args_to_str indices) 
-        (exp_to_str rhs)
+        (exp_node_to_str rhs)
   | SyncThreads -> "syncthreads"
   | Comment s -> "// " ^ s
   (* used to plug one function into another, shouldn't exist in final code *) 
   | SPLICE -> "SPLICE"
 and block_to_str stmts = String.concat "\n" (List.map stmt_to_str stmts)
-and args_to_str exps = String.concat ", " (List.map exp_to_str exps) 
+and args_to_str exps = String.concat ", " (List.map exp_node_to_str exps) 
 let fn_to_str fn =
   let inputs = List.map ID.to_str (Array.to_list fn.input_ids) in 
   let outputs = List.map ID.to_str (Array.to_list fn.output_ids) in 

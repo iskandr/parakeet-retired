@@ -1,20 +1,25 @@
 open Base
 open Imp 
 
+type exp_map = (Imp.exp, Imp.exp) PMap.t 
+
 (* FIND/REPLACE expressions in Imp expression *)
-let rec apply_exp_map eMap exp = 
-  if PMap.mem exp eMap then PMap.find exp eMap else 
-  let aux = apply_exp_map eMap in 
-  match exp with 
-  | Idx (e1,e2) -> Idx(aux e1, aux e2)  
-  | Op (op,t, argT, es) -> Op (op, t, argT, List.map aux es)
-  | Select (t, e1, e2, e3) -> Select(t, aux e1, aux e2, aux e3)   
-  | Cast (t1, t2, e) -> Cast (t1, t2, aux e)   
-  | DimSize (n,e) -> DimSize (n, aux e)
-  | other -> other 
+let rec apply_exp_map (eMap:exp_map)  eNode = 
+  let exp' = 
+    if PMap.mem eNode.exp eMap then PMap.find eNode.exp eMap 
+    else 
+    let aux = apply_exp_map eMap in 
+    match eNode.exp with 
+    | Idx (e1,e2) -> Idx(aux e1, aux e2)  
+    | Op (op, argT, es) -> Op (op, argT, List.map aux es)
+    | Select (t, e1, e2, e3) -> Select(t, aux e1, aux e2, aux e3)   
+    | Cast (t1,  e) -> Cast (t1, aux e)   
+    | DimSize (n,e) -> DimSize (n, aux e)
+    | other -> other
+  in {eNode with exp = exp' }
 
 (* FIND/REPLACE expressions in Imp statement *)
-let rec apply_exp_map_to_stmt eMap stmt =
+let rec apply_exp_map_to_stmt (eMap : exp_map) stmt =
   let aux_stmt = apply_exp_map_to_stmt eMap in
   let aux_exp = apply_exp_map eMap in  
   match stmt with  
@@ -38,16 +43,17 @@ let rec apply_exp_map_to_stmt eMap stmt =
   | other -> other
 
 (* FIND/REPLACE identifiers in Imp expression *)  
-let rec apply_id_map idMap exp = 
+let rec apply_id_map idMap eNode = 
   let aux = apply_id_map idMap in 
-  match exp with  
+  let exp' = match eNode.exp with  
   | Var id -> if PMap.mem id idMap then Var (PMap.find id idMap) else Var id
   | Idx (e1,e2) -> Idx(aux e1, aux e2)  
-  | Op (op, t, argT, es) -> Op (op, t, argT, List.map aux es) 
+  | Op (op, argT, es) -> Op (op, argT, List.map aux es) 
   | Select (t, e1, e2, e3) -> Select(t, aux e1, aux e2, aux e3)   
-  | Cast (t1, t2, e) -> Cast (t1, t2, aux e)   
+  | Cast (t1, e) -> Cast (t1, aux e)   
   | DimSize (n, e) -> DimSize (n, aux e)
-  | other -> other 
+  | other -> other
+  in {eNode with exp = exp'} 
 
 (* FIND/REPLACE identifiers in Imp statement *) 
 let rec apply_id_map_to_stmt idMap stmt =

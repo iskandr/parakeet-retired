@@ -37,8 +37,8 @@ and special_register =
   | Clock
 
 let rec to_str symbols = function 
-    | Sym {id=id; space=REG} ->  sprintf "%%%s" (PMap.find id symbols) 
-    | Sym {id=id} -> PMap.find id symbols
+    | Sym {id=id; space=REG} ->  sprintf "%%%s" (Hashtbl.find symbols id) 
+    | Sym {id=id} -> Hashtbl.find symbols id
     | IntConst i -> Int64.to_string i
     | FloatConst f -> Float.to_string f 
     | Special s -> special_register_to_str s  
