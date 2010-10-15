@@ -19,6 +19,8 @@ let prim_to_ptx_binop op t = match op,t with
   | Prim.Lte, _ -> Binop(Setp LE,t)
   | Prim.Eq, _ -> Binop(Setp EQ,t)
   | Prim.Neq, _ -> Binop(Setp NE,t)
+  | Prim.And, Pred -> Binop(And,Pred)
+  | Prim.Or, Pred -> Binop(Or,Pred)
   | p, _-> failwith $
     Printf.sprintf "[prim->ptx] binop %s not implemented for type %s: "
      (Prim.scalar_op_to_str p)

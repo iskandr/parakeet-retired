@@ -40,7 +40,7 @@ let get_host state = function
       Hashtbl.find state.host_vals id
     else
       let gpuVal = Hashtbl.find state.gpu_vals id in
-      let hostVal = GpuVal.from_gpu state gpuVal in
+      let hostVal = GpuVal.from_gpu gpuVal in
         Hashtbl.replace state.host_vals id hostVal; 
       hostVal
 

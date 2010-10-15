@@ -50,7 +50,7 @@ let get_grid_params ?(device=0) ?(block_size=256) nThreads =
   let deviceInfo = DynArray.get device_info device in  
   let max_gridx = deviceInfo.max_blocks_per_grid_x in
   let max_gridy = deviceInfo.max_blocks_per_grid_y in
-  if nThreads < max_gridx * max_gridy * block_size then
+  if nThreads <= max_gridx * max_gridy * block_size then
     let nblocks = safe_div nThreads block_size in
     let x = min nblocks max_gridx in
     let y = safe_div nblocks max_gridx in  

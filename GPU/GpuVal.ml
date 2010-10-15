@@ -107,7 +107,7 @@ let to_gpu hostVal =
       vec_t = hostVal.host_t 
     }
     )
-let from_gpu gpuVal = function 
+let from_gpu = function 
     | GpuScalar s ->
         {
           ptr = s.scalar_data;
