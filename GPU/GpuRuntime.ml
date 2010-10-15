@@ -55,7 +55,7 @@ let reducePrefix = "reduce_kernel"
 let compile_reduce payload retType =
   let redThreadsPerBlock = 128 in
   let impPayload = SSA_to_Imp.translate payload in
-  let impfn = ImpGenReduce.gen_reduce impPayload redThreadsPerBlock retType in
+  let impfn = ImpGenReduce.gen_reduce_opt impPayload redThreadsPerBlock retType in
   debug (Printf.sprintf "[compile_reduce] %s\n%!" (Imp.fn_to_str impfn));
   let ptx = ImpToPtx.translate_kernel impfn in
   let name = reducePrefix ^ (string_of_int (ID.gen())) in
