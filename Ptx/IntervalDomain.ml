@@ -1,8 +1,6 @@
  type interval =
-  | IntInterval of Int64.t * Int64.to_int
-  | IntBottom 
+  | IntInterval of Int64.t * Int64.t
   | FloatInterval of float * float  
-  | FloatBottom 
   
 
   let int_range lower upper = 
@@ -80,10 +78,6 @@ let range_of_bools bs =
       else assert false  
   
   let union i1 i2 = match i1, i2 with 
-    | FloatBottom, FloatInterval _ -> i2
-    | FloatInterval _, FloatBottom -> i1 
-    | IntBottom, IntInterval _ -> i2 
-    | IntInterval _, IntBottom -> i1 
     | IntInterval (l1, u1), IntInterval(l2,u2) ->
        IntInterval (min l1 l2, max u1 u2)
     | FloatInterval(l1, u1), FloatInterval(l2, u2) -> 

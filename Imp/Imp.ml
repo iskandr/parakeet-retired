@@ -43,6 +43,72 @@ and fn = { input_ids : ID.t array;
 
 
 
+(* PRETTY PRINTING *) 
+open Printf 
+
+let coord_to_str = function 
+  | X -> "x" | Y -> "y" | Z -> "z"
+
+let rec exp_node_to_str e  = exp_to_str e.exp 
+and exp_to_str = function 
+  | Var id -> ID.to_str id  
+  | Idx (e1, e2) -> sprintf "%s[%s]" (exp_node_to_str e1) (exp_node_to_str e2) 
+  | Op (op, argT, args) -> 
+    sprintf "%s:%s (%s)" 
+      (Prim.scalar_op_to_str op)
+      (DynType.to_str argT) 
+      (args_to_str args)
+  | Select (t, cond, trueVal, falseVal) -> 
+      sprintf "select:%s(%s, %s, %s)" 
+        (DynType.to_str t)
+        (exp_node_to_str cond)
+        (exp_node_to_str trueVal)
+        (exp_node_to_str falseVal)
+  | Const n -> PQNum.num_to_str n 
+  | Cast (tNew, e) -> 
+      let tOld = e.exp_type in 
+      sprintf "cast %s->%s (%s)" 
+        (DynType.to_str tOld) 
+        (DynType.to_str tNew) 
+        (exp_node_to_str e)
+  | DimSize (k, e) -> sprintf "dimsize(%s, %d)" (exp_node_to_str e) k  
+  | ThreadIdx c -> sprintf "threadidx.%s" (coord_to_str c)
+  | BlockIdx c -> sprintf "blockidx.%s" (coord_to_str c)
+  | BlockDim c -> sprintf "blockdim.%s" (coord_to_str c)
+  | GridDim c -> sprintf "griddim.%s" (coord_to_str c)
+
+and stmt_to_str = function 
+  | If (cond, tBlock, fBlock) -> 
+      sprintf "if (%s) then { %s } else { %s }" 
+        (exp_node_to_str cond)
+        (block_to_str tBlock)
+        (block_to_str fBlock) 
+  | While (cond, body) -> 
+      sprintf "while(%s) { %s }" (exp_node_to_str cond) (block_to_str body)
+  | Set (id, rhs) -> 
+      sprintf "%s = %s" (ID.to_str id) (exp_node_to_str rhs)  
+  | SetIdx (id, indices, rhs) -> 
+      sprintf "%s[%s] = %s" 
+        (ID.to_str id) 
+        (args_to_str indices) 
+        (exp_node_to_str rhs)
+  | SyncThreads -> "syncthreads"
+  | Comment s -> "// " ^ s
+  (* used to plug one function into another, shouldn't exist in final code *) 
+  | SPLICE -> "SPLICE"
+and block_to_str stmts = String.concat "\n" (List.map stmt_to_str stmts)
+and args_to_str exps = String.concat ", " (List.map exp_node_to_str exps) 
+let fn_to_str fn =
+  let inputs = List.map ID.to_str (Array.to_list fn.input_ids) in 
+  let outputs = List.map ID.to_str (Array.to_list fn.output_ids) in 
+  let bodyStr = block_to_str  fn.body in 
+  sprintf "fn (%s) -> (%s) = {\n%s\n}" 
+    (String.concat ", " inputs) 
+    (String.concat ", " outputs) 
+    bodyStr  
+           
+
+
 (* IMP STATEMENTS *)
 let syncthreads = SyncThreads
 let if_ cond t f  = If(cond,t,f)
@@ -95,9 +161,10 @@ let cast t expNode =
       then 
          typed_exp t $ Cast(t,expNode) 
       else failwith $ 
-        Printf.sprintf "[imp->cast] cannot create cast from %s to %s"
+        Printf.sprintf "[imp->cast] cannot create cast from %s to %s : %s"
           (DynType.to_str tOld)
           (DynType.to_str t)
+          (exp_node_to_str expNode)
  
 
 
@@ -219,68 +286,3 @@ let sqrt64 x = typed_op Prim.Sqrt ~t:DynType.Float64T [x]
 let id_of = function 
   | {exp=Var id} -> id 
   | _ -> failwith "Imp: expected variable" 
-
-open Printf 
-
-let coord_to_str = function 
-  | X -> "x" | Y -> "y" | Z -> "z"
-
-
-let rec exp_node_to_str e  = exp_to_str e.exp 
-and exp_to_str = function 
-  | Var id -> ID.to_str id  
-  | Idx (e1, e2) -> sprintf "%s[%s]" (exp_node_to_str e1) (exp_node_to_str e2) 
-  | Op (op, argT, args) -> 
-    sprintf "%s:%s (%s)" 
-      (Prim.scalar_op_to_str op)
-      (DynType.to_str argT) 
-      (args_to_str args)
-  | Select (t, cond, trueVal, falseVal) -> 
-      sprintf "select:%s(%s, %s, %s)" 
-        (DynType.to_str t)
-        (exp_node_to_str cond)
-        (exp_node_to_str trueVal)
-        (exp_node_to_str falseVal)
-  | Const n -> PQNum.num_to_str n 
-  | Cast (tNew, e) -> 
-      let tOld = e.exp_type in 
-      sprintf "cast %s->%s (%s)" 
-        (DynType.to_str tOld) 
-        (DynType.to_str tNew) 
-        (exp_node_to_str e)
-  | DimSize (k, e) -> sprintf "dimsize(%s, %d)" (exp_node_to_str e) k  
-  | ThreadIdx c -> sprintf "threadidx.%s" (coord_to_str c)
-  | BlockIdx c -> sprintf "blockidx.%s" (coord_to_str c)
-  | BlockDim c -> sprintf "blockdim.%s" (coord_to_str c)
-  | GridDim c -> sprintf "griddim.%s" (coord_to_str c)
-
-and stmt_to_str = function 
-  | If (cond, tBlock, fBlock) -> 
-      sprintf "if (%s) then { %s } else { %s }" 
-        (exp_node_to_str cond)
-        (block_to_str tBlock)
-        (block_to_str fBlock) 
-  | While (cond, body) -> 
-      sprintf "while(%s) { %s }" (exp_node_to_str cond) (block_to_str body)
-  | Set (id, rhs) -> 
-      sprintf "%s = %s" (ID.to_str id) (exp_node_to_str rhs)  
-  | SetIdx (id, indices, rhs) -> 
-      sprintf "%s[%s] = %s" 
-        (ID.to_str id) 
-        (args_to_str indices) 
-        (exp_node_to_str rhs)
-  | SyncThreads -> "syncthreads"
-  | Comment s -> "// " ^ s
-  (* used to plug one function into another, shouldn't exist in final code *) 
-  | SPLICE -> "SPLICE"
-and block_to_str stmts = String.concat "\n" (List.map stmt_to_str stmts)
-and args_to_str exps = String.concat ", " (List.map exp_node_to_str exps) 
-let fn_to_str fn =
-  let inputs = List.map ID.to_str (Array.to_list fn.input_ids) in 
-  let outputs = List.map ID.to_str (Array.to_list fn.output_ids) in 
-  let bodyStr = block_to_str  fn.body in 
-  sprintf "fn (%s) -> (%s) = {\n%s\n}" 
-    (String.concat ", " inputs) 
-    (String.concat ", " outputs) 
-    bodyStr  
-           

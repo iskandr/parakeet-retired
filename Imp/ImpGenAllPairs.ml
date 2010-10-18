@@ -21,17 +21,18 @@ let gen_all_pairs_2d payload t1 t2 outType =
   let output_elt_t = DynType.peel_vec outType in 
   let input1, input2 = codegen#fresh_input t1, codegen#fresh_input t2 in
   let output = codegen#fresh_output outType in
-  let left_id, right_id = codegen#fresh_var Int32T, codegen#fresh_var Int32T in
-  let left_idx = codegen#fresh_var Int32T in 
-  let right_idx = codegen#fresh_var Int32T in 
+  let left_id = codegen#fresh_var UInt32T in 
+  let right_id = codegen#fresh_var UInt32T in
+  let left_idx = codegen#fresh_var UInt32T in 
+  let right_idx = codegen#fresh_var UInt32T in 
   (* Is there some way to get this to be an input param? *)
-  let vec_len = codegen#fresh_var Int32T in
+  let vec_len = codegen#fresh_var UInt32T in
   let result = codegen#fresh_var output_elt_t in
   let threads_per_dim = 16 in
   codegen#emit [
     set left_id (threadIdx.y +$ (int threads_per_dim *$ blockIdx.y));
     set right_id (threadIdx.x +$  (int threads_per_dim *$ blockIdx.x));
-    set vec_len (len (idx input1 (int 0)))
+    set vec_len (len input1);
   ];
   let payloadInputs = [|left_idx; right_idx; input1; input2|] in
   let trueBranch =
@@ -44,7 +45,7 @@ let gen_all_pairs_2d payload t1 t2 outType =
     ]
   in 
   let mainCond = 
-    left_id <$ (len input1) &&$ right_id <$ (len input2) 
+    (left_id <$ len input1) &&$ (right_id <$ len input2) 
   in
   codegen#emit [ifTrue mainCond trueBranch];
   codegen#finalize
