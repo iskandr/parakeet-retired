@@ -9,6 +9,8 @@ let sizeof ty shape =
   DynType.sizeof (DynType.elt_type ty) * Shape.nelts shape  
 
 
+type adverb_cache = (ID.t * DynType.t list, Cuda.cuda_module) Hashtbl.t 
+
 let mk_cuda_module ptxList threadsPerBlock =
   (*
   let check = 
@@ -32,9 +34,11 @@ let mk_cuda_module ptxList threadsPerBlock =
     threads_per_block =  threadsPerBlock
   } 
 
-let mapPrefix = "map_kernel"
 
-let compile_map payload argTypes retTypes = 
+
+
+
+let compile_map payload argTypes retTypes =
   let mapThreadsPerBlock = 128 in 
   (* converting payload to Imp *) 
   let impPayload = SSA_to_Imp.translate payload in
@@ -47,137 +51,100 @@ let compile_map payload argTypes retTypes =
       (Array.of_list retTypes) 
   in 
   let ptx = ImpToPtx.translate_kernel impfn in
+  let mapPrefix = "map_kernel" in 
   let name = mapPrefix ^ (string_of_int (ID.gen())) in
   mk_cuda_module [name,ptx] mapThreadsPerBlock
 
-let reducePrefix = "reduce_kernel"
 
-let compile_reduce payload retType =
+
+let mapCache : adverb_cache = Hashtbl.create 127
+ 
+let run_map (fnid : ID.t) fundef inputTypes outputTypes  memState dynVals =
+  (* for now just transfer everything to the GPU-- we can try to make this
+     adaptive later 
+  *) 
+  let gpuVals = List.map (MemoryState.get_gpu memState) dynVals in 
+  let shapes = List.map GpuVal.get_shape gpuVals in
+  let cacheKey = (fnid, inputTypes) in  
+  let compiledModule = 
+    if Hashtbl.mem mapCache cacheKey then 
+      Hashtbl.find mapCache cacheKey
+    else (
+      let m = compile_map fundef inputTypes outputTypes in
+      Hashtbl.add mapCache cacheKey m; 
+      m
+    )  
+  in      
+  assert (List.length compiledModule.Cuda.kernel_names = 1); 
+  let fnName = List.hd compiledModule.Cuda.kernel_names in 
+  let maxShape = match Shape.max_shape_list shapes with
+     | None -> raise InvalidGpuArgs
+     | Some maxShape -> maxShape
+  in
+  let outputVals =
+    List.map
+      (fun ty ->  GpuVal.mk_gpu_vec ty maxShape (sizeof ty maxShape))
+      outputTypes
+  in
+  let outputElts = Shape.nelts maxShape in
+  let gridParams = 
+    match HardwareInfo.get_grid_params ~device:0 
+      ~block_size:compiledModule.Cuda.threads_per_block  outputElts
+    with
+      | Some gridParams -> gridParams
+      | None ->
+        failwith (sprintf "Unable to get launch params for %d elts" outputElts)
+  in
+  let args = Array.of_list (gpuVals @ outputVals) in
+  LibPQ.launch_ptx compiledModule.Cuda.module_ptr fnName args gridParams; 
+  outputVals
+
+
+
+let compile_reduce payload retTypes =
   let redThreadsPerBlock = 128 in
   let impPayload = SSA_to_Imp.translate payload in
-  let impfn = ImpGenReduce.gen_reduce impPayload redThreadsPerBlock retType in
+  let impfn = ImpGenReduce.gen_reduce impPayload redThreadsPerBlock retTypes in
   debug (Printf.sprintf "[compile_reduce] %s\n%!" (Imp.fn_to_str impfn));
   let ptx = ImpToPtx.translate_kernel impfn in
+  let reducePrefix = "reduce_kernel" in 
   let name = reducePrefix ^ (string_of_int (ID.gen())) in
   mk_cuda_module [name,ptx] redThreadsPerBlock
 
-let allPairsPrefix = "all_pairs_kernel"
 
-let compile_all_pairs payload argTypes retType =
-  match argTypes with 
-    | [t1; t2] ->  
-      let threadsPerBlock = 128 in 
-      let impPayload = SSA_to_Imp.translate payload in
-      let impfn =
-        ImpGenAllPairs.gen_all_pairs_2d impPayload t1 t2 retType
-      in
-      let ptx = ImpToPtx.translate_kernel impfn in
-      let name = allPairsPrefix ^ (string_of_int (ID.gen())) in  
-      mk_cuda_module [name, ptx] threadsPerBlock
-    | _ -> failwith "[compile_all_pairs] invalid argument types "
+let reduceCache : adverb_cache  = Hashtbl.create 127 
 
-let run_map compiledModule gpuVals outputTypes = 
-  let shapes = List.map GpuVal.get_shape gpuVals in 
-  match compiledModule.Cuda.kernel_names with 
-    | [fnName] ->
-      let maxShape = (match Shape.max_shape_list shapes with
-       | None -> raise InvalidGpuArgs
-       | Some maxShape -> maxShape
-       )
-      in
-      let outputVals =
-        List.map
-          (fun ty ->  GpuVal.mk_gpu_vec ty maxShape (sizeof ty maxShape))
-          outputTypes
-      in
-      let args = Array.of_list (gpuVals @ outputVals) in
-      let outputElts = Shape.nelts maxShape in
-      let gridParams = match 
-        HardwareInfo.get_grid_params 
-          ~device:0 
-          ~block_size:compiledModule.Cuda.threads_per_block  
-          outputElts
-        with
-        | Some gridParams -> gridParams
-        | None ->
-         failwith (sprintf "Unable to get launch params for %d elts" outputElts)
-      in
-      LibPQ.launch_ptx compiledModule.Cuda.module_ptr fnName args gridParams; 
-      outputVals
-    | _ -> failwith "expect one map kernel"
-
-(* 1d vector assumption *)
-let run_reduce_old compiledModule gpuVals outputType =
-  (*let shapes = List.map GpuVal.get_shape gpuVals in*)
+let run_reduce (fnid : ID.t) fundef inputTypes outputTypes memState dynVals =
+  let gpuVals = List.map (MemoryState.get_gpu memState) dynVals in
+  let cacheKey = fnid, inputTypes in 
+  let compiledModule = 
+    if Hashtbl.mem reduceCache cacheKey then Hashtbl.find reduceCache cacheKey
+    else (
+      let m = compile_reduce fundef outputTypes in 
+      Hashtbl.add reduceCache cacheKey m; 
+      m
+    )
+  in 
   let threadsPerBlock = compiledModule.Cuda.threads_per_block in
-  (*
-  assert(shapes <> []);
-  assert(List.for_all (Shape.eq (List.hd shapes)) (List.tl shapes));
-  *)
+  assert (List.length outputTypes = 1); 
+  let outputType = List.hd outputTypes in 
   match compiledModule.Cuda.kernel_names, gpuVals with
-    | [fnName], _ :: [gpuVal] ->
-      let numInputElts = Shape.nelts (GpuVal.get_shape gpuVal) in
-      let numOutputElts = safe_div numInputElts (threadsPerBlock * 2) in
-      let outShape = Shape.of_list [numOutputElts] in
-      let outputVal =
-        GpuVal.mk_gpu_vec
-            (DynType.VecT outputType)
-            outShape
-            (DynType.sizeof outputType * numOutputElts)
-      in
-      let rec aux args curNumElts =
-        let gridParams = match
-	        HardwareInfo.get_grid_params
-	          ~device:0
-	          ~block_size:threadsPerBlock
-	          (safe_div curNumElts 2)
-	        with
-	        | Some gridParams -> gridParams
-	        | None -> failwith
-                (sprintf "Unable to get launch params for %d elts" curNumElts)
-	      in
-        LibPQ.launch_ptx
-          compiledModule.Cuda.module_ptr fnName args gridParams;
-        if curNumElts < numInputElts then GpuVal.free args.(0);
-        debug (Printf.sprintf "curNumElts: %d" curNumElts);
-        let numOutputElts' = safe_div curNumElts (threadsPerBlock * 2) in
-        debug (Printf.sprintf "numOutputElts': %d" numOutputElts');
-        if numOutputElts' > 1 then (
-          let newNumBlocks = safe_div numOutputElts' (threadsPerBlock * 2) in
-          debug (Printf.sprintf "newNumBlocks: %d" newNumBlocks);
-          let newShape = Shape.of_list [newNumBlocks] in
-          let newOut = GpuVal.mk_gpu_vec
-	          (DynType.VecT outputType)
-	          newShape
-	          (DynType.sizeof outputType * newNumBlocks) in
-          let args' = Array.of_list ([args.(1); newOut]) in
-          aux args' newNumBlocks)
-        else
-          args.(1)
-      in
-      let firstArgs = Array.of_list ([gpuVal; outputVal]) in
-      let ret = aux firstArgs numInputElts in
-      [ret]
-    | _ -> failwith "expect one map kernel"
-
-let run_reduce compiledModule gpuVals outputType =
-  (*let shapes = List.map GpuVal.get_shape gpuVals in*)
-  let threadsPerBlock = compiledModule.Cuda.threads_per_block in
-  (*
-  assert(shapes <> []);
-  assert(List.for_all (Shape.eq (List.hd shapes)) (List.tl shapes));
-  *)
-  match compiledModule.Cuda.kernel_names, gpuVals with
+    (* WAYS THIS IS CURRENTLY WRONG: 
+       - we are ignoring the initial value
+       - we are only allowing reductions over a single array
+       - we only deal with 1D arrays
+       - only scalar outputs are allowed  
+    *) 
     | [fnName], _ :: [gpuVal] ->
       let numInputElts = Shape.nelts (GpuVal.get_shape gpuVal) in
       let rec aux inputArg curNumElts =
         if curNumElts > 1 then (
           let numOutputElts = safe_div curNumElts (threadsPerBlock * 2) in
           let newShape = Shape.of_list [numOutputElts] in
-          let newOut = GpuVal.mk_gpu_vec
-              (DynType.VecT outputType)
-              newShape
-              (DynType.sizeof outputType * numOutputElts) in
+          let outSize = DynType.sizeof outputType * numOutputElts in 
+          let newOut = 
+            GpuVal.mk_gpu_vec (DynType.VecT outputType) newShape outSize 
+          in 
           let args = Array.of_list ([inputArg; newOut]) in
 	        let gridParams = match
 	            HardwareInfo.get_grid_params
@@ -201,7 +168,35 @@ let run_reduce compiledModule gpuVals outputType =
       [ret]
     | _ -> failwith "expect one map kernel"
 
-let run_all_pairs compiledModule gpuVals outputTypes =
+
+let compile_all_pairs payload argTypes retTypes =
+  match argTypes with 
+    | [t1; t2] ->  
+      let threadsPerBlock = 128 in 
+      let impPayload = SSA_to_Imp.translate payload in
+      let impfn =
+        ImpGenAllPairs.gen_all_pairs_2d impPayload t1 t2 retTypes
+      in
+      let ptx = ImpToPtx.translate_kernel impfn in
+      let allPairsPrefix = "all_pairs_kernel" in 
+      let name = allPairsPrefix ^ (string_of_int (ID.gen())) in  
+      mk_cuda_module [name, ptx] threadsPerBlock
+    | _ -> failwith "[compile_all_pairs] invalid argument types "
+
+let allPairsCache  = Hashtbl.create 127 
+
+let run_all_pairs (fnid : ID.t) fundef inputTypes outputTypes memState dynVals =
+  let gpuVals = List.map (MemoryState.get_gpu memState) dynVals in
+  let cacheKey = fnid, inputTypes in 
+  let compiledModule = 
+    if Hashtbl.mem allPairsCache cacheKey then 
+      Hashtbl.find allPairsCache cacheKey
+    else (
+      let m = compile_all_pairs fundef inputTypes outputTypes in 
+      Hashtbl.add allPairsCache cacheKey m; 
+      m
+    )
+  in 
   let shapes = List.map GpuVal.get_shape gpuVals in
   match compiledModule.Cuda.kernel_names with
     | [fnName] ->

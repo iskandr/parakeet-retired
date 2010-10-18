@@ -111,7 +111,6 @@ let run_template (untypedId,program) globals locals =
   debug (sprintf "%s\n" (SSA.fundef_to_str typedFundef));   
   let results = 
     Eval_SSA.eval 
-        program.cuda_code_cache 
         program.typed_functions 
         typedFundef 
         args 

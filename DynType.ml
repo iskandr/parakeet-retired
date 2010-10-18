@@ -112,6 +112,11 @@ let is_numvec = function
     |  VecT t when is_number t -> true
     | _ -> false
 
+(* doesn't cover functions contained in vectors or anything like that *) 
+let is_function = function 
+  | FnT _ -> true
+  | _ -> false 
+
 let rec elt_type = function
   | VecT t -> elt_type t
   | t -> t

@@ -154,7 +154,7 @@ let cast t expNode =
   let tOld = expNode.exp_type in  
   if tOld = t then expNode 
   else match expNode.exp with 
-    | Const n -> {expNode with exp = Const (PQNum.coerce_num n t); exp_type=t}
+    | Const n -> { exp = Const (PQNum.coerce_num n t); exp_type=t}
     | _ -> 
       if DynType.is_scalar_subtype tOld t 
          || DynType.sizeof tOld = DynType.sizeof t 

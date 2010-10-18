@@ -18,9 +18,6 @@ type program = {
   specializations : (SSA.value * Signature.t, ID.t) Hashtbl.t;
   
   typed_functions : FnTable.t; 
-  
-  cuda_code_cache : 
-    (SSA.value * Signature.t, Cuda.cuda_module) Hashtbl.t; 
 } 
 
 (* given an ID.t -> untyped function mapping, create a fresh program *) 
@@ -30,7 +27,6 @@ let create_from_map fnMap =
      untyped_functions = FnTable.from_list fnList;
      typed_functions = FnTable.create nFunctions; 
      specializations = Hashtbl.create nFunctions;
-     cuda_code_cache = Hashtbl.create (20 * nFunctions);  
   }
 
 let default_untyped_optimizations = 
@@ -62,8 +58,8 @@ let default_typed_optimizations =
     (*"function cloning", TypedFunctionCloning.function_cloning;*)   
     (*"elim dead code", TypedElimDeadCode.elim_dead_code;*)  
     "simplify", Simplify.simplify_fundef; 
-    (*"dead code elim", ElimDeadCode.elim_dead_code; 
-    "adverb fusion", AdverbFusion.optimize_fundef;*) 
+    "dead code elim", ElimDeadCode.elim_dead_code; 
+    "adverb fusion", AdverbFusion.optimize_fundef; 
 
   ]  
  

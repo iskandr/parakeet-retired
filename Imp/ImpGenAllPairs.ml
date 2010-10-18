@@ -12,7 +12,8 @@ open DynType
    I guess for now, I'm just going to implement the all-pairs case of 2D
    inputs and an embedded reduce resulting in a 2D output...
  *)
-let gen_all_pairs_2d payload t1 t2 outType =
+let gen_all_pairs_2d payload t1 t2 outTypes =
+  let outType = List.hd outTypes in 
   debug $ Printf.sprintf
      "[imp] generating all_pairs kernel with signature (%s,%s)->%s\n"
      (DynType.to_str t1) (DynType.to_str t2) (DynType.to_str outType)

@@ -18,7 +18,7 @@ let from_input_types types =
 let from_types inTypes outTypes = 
   { inputs = List.map (fun t -> Type t) inTypes; outputs = Some outTypes } 
 
-let mk_sig inTypes ?outTypes = 
+let mk_sig ?outTypes  inTypes = 
   { inputs = List.map (fun t -> Type t) inTypes; outputs = outTypes } 
 
         
@@ -35,5 +35,12 @@ let peel_vec_types signature =
   assert (List.for_all DynType.is_scalar_or_vec (input_types signature)); 
   { signature with inputs = List.map peel_vec_elt signature.inputs }   
  
+let rec sig_from_values = function 
+  | [] -> []
+  | vNode::rest ->
+      let curr =  
+        if DynType.is_function vNode.SSA.value_type then Value vNode.SSA.value
+        else Type vNode.SSA.value_type
+      in curr :: (sig_from_values rest)  
 
           

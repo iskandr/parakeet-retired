@@ -10,8 +10,6 @@ open DynVal
 
 type mem = DataId.t MemoryState.mem_state
 type env = (ID.t, DynVal.dyn_val) PMap.t
-type codekey = SSA.value * Signature.t 
-type codecache = (codekey, Cuda.cuda_module) Hashtbl.t 
 
 let get_fundef functions env fnValNode = match fnValNode.value with 
   | Lam fundef -> fundef 
@@ -42,7 +40,6 @@ let eval_value
   | Lam _ -> failwith "[eval] values of this type not yet implemented on gpu" 
   
 let eval_adverb_on_gpu 
-      (codeCache : codecache)
       (memState : mem) 
       (functions : FnTable.t) 
       (env : env)
@@ -55,43 +52,26 @@ let eval_adverb_on_gpu
   | Prim.AllPairs, fn::dataArgs -> [fn], dataArgs
   | _ -> failwith "[eval_adverb_on_gpu] adverb not yet supported\n%!"
   in
-  let signature = { 
-    Signature.inputs = 
-      (List.map (fun v -> Signature.Value v.value) fnArgs) @ 
-      (List.map (fun v -> Signature.Type v.value_type) dataArgs);
-    outputs = Some outputTypes
-  }
-  in
-  let key = Prim (Prim.ArrayOp op), signature in
-  let fundefs = List.map (get_fundef functions env) fnArgs in
-  let inputTypes = List.map (fun v -> v.value_type) dataArgs in 
-    
-  let compiledModule = 
-    if Hashtbl.mem codeCache key then Hashtbl.find codeCache key 
-    else 
-      let compiledModule = match op, fundefs, outputTypes with 
-      | Prim.Map, [fundef], _ -> 
-          GpuRuntime.compile_map fundef inputTypes outputTypes
-      | Prim.Reduce, [fundef], [outputType] ->
-        GpuRuntime.compile_reduce fundef outputType
-      | Prim.AllPairs, [fundef], [outputType] ->
-        GpuRuntime.compile_all_pairs fundef inputTypes outputType
-      | _ -> failwith "compilation for this primitive not yet implemented"
-      in (Hashtbl.add codeCache key compiledModule; compiledModule)
-  in
-  debug "[eval_adverb_on_gpu] after compiledModule\n%!";
-  let dynVals = List.map (eval_value env) dataArgs in
-  let gpuVals = List.map (MemoryState.get_gpu memState) dynVals in  
-  match op, outputTypes with 
-    | Prim.Map, _ -> GpuRuntime.run_map compiledModule gpuVals outputTypes
-    | Prim.Reduce, [outputType] ->
-        GpuRuntime.run_reduce compiledModule gpuVals outputType
-    | Prim.AllPairs, _ ->
-        GpuRuntime.run_all_pairs compiledModule gpuVals outputTypes
-    | _ -> failwith "execution for this primitive not yet implemented"  
-
-                 
-let rec eval codeCache globalFns fundef hostVals  =
+  let inputTypes = List.map (fun vNode -> vNode.value_type) args in 
+  let dynVals = List.map (eval_value env) dataArgs in  
+  let fnIds = List.map SSA.get_id fnArgs in 
+  let fundefs = List.map (fun id -> FnTable.find id functions) fnIds in  
+  match op, fnIds, fundefs  with  
+  | Prim.Map, [fnId], [fundef] ->
+      GpuRuntime.run_map fnId fundef inputTypes outputTypes memState dynVals 
+  | Prim.Reduce, [fnId], [fundef] ->
+      GpuRuntime.run_reduce fnId fundef inputTypes outputTypes memState dynVals 
+  | Prim.AllPairs, [fnId], [fundef] ->
+      GpuRuntime.run_all_pairs 
+        fnId 
+        fundef
+        inputTypes
+        outputTypes
+        memState
+        dynVals 
+  | _ -> failwith "This primitive not yet implemented on GPU"
+ 
+let rec eval globalFns fundef hostVals  =
   GpuRuntime.init(); 
   let memState = MemoryState.create 127 (* arbitrary *) in
   (* create unique identifiers for data items *) 
@@ -103,7 +83,7 @@ let rec eval codeCache globalFns fundef hostVals  =
     dynvals
   in  
   try 
-    let env' = eval_block codeCache memState globalFns env fundef.body in 
+    let env' = eval_block memState globalFns env fundef.body in 
     let outputDynVals = List.map (fun id -> PMap.find id env') fundef.output_ids
     in   
     let hostVals = List.map  (MemoryState.get_host memState) outputDynVals 
@@ -115,7 +95,6 @@ let rec eval codeCache globalFns fundef hostVals  =
     MemoryState.free_all_gpu memState; GpuRuntime.shutdown(); raise exn
 
 and eval_block 
-      (codeCache : codecache) 
       (memState : mem) 
       (functions : FnTable.t) 
       (env : env) : (SSA.stmt_node list -> env) = function  
@@ -123,20 +102,19 @@ and eval_block
   | stmtNode::rest ->
       debug (Printf.sprintf "[eval_block] stmtNode::rest: %s \n%!"
              (SSA.node_to_str stmtNode));
-      let (env' : env) = eval_stmt codeCache memState functions env stmtNode in
+      let (env' : env) = eval_stmt memState functions env stmtNode in
       debug "[eval_block] evaluated stmt\n%!";
-      eval_block codeCache memState functions env' rest
+      eval_block memState functions env' rest
   | _ -> failwith "[eval_block] unhandled function body type"
 
 and eval_stmt 
-      (codeCache : codecache)
       (memState : mem) 
       (functions : FnTable.t) 
       (env : env ) 
       (stmtNode : SSA.stmt_node) : env = match stmtNode.stmt with 
   | Set (ids, expNode) ->
       debug "[eval_stmt] Set\n%!";
-      let results =  eval_exp codeCache memState functions env expNode in
+      let results =  eval_exp memState functions env expNode in
       debug "[eval_stmt] after eval_exp\n%!";
       List.fold_left2 
         (fun accEnv id dynval -> PMap.add id dynval accEnv) 
@@ -144,12 +122,11 @@ and eval_stmt
         ids 
         results 
   | Ignore expNode -> 
-      ignore (eval_exp codeCache memState functions env expNode); env   
+      ignore (eval_exp memState functions env expNode); env   
   | SetIdx (id, indices, rhs) -> failwith "not yet implemented"   
   | If (boolVal, tBlock, fBlock, ifGate) -> failwith "not yet implemented"
   | _ -> failwith "[eval_stmt] unknown stmt type"
 and eval_exp
-      (codeCache : codecache)
       (memState : mem) 
       (functions : FnTable.t) 
       (env : env) 
@@ -160,9 +137,9 @@ and eval_exp
   | App ({value=Prim (Prim.ArrayOp op); value_type=ty}, args) 
     when Prim.is_adverb op ->
       debug "[eval_exp] Prim.is_adverb\n%!";
+      let outTypes = DynType.fn_output_types ty in 
       let gpuResults =
-        eval_adverb_on_gpu codeCache memState functions env 
-        op (DynType.fn_output_types ty) args
+        eval_adverb_on_gpu memState functions env op outTypes args
       in 
       List.map (MemoryState.add_gpu memState) gpuResults 
       
@@ -182,8 +159,7 @@ and eval_exp
           fundef.input_ids
           argDynVals
       in
-      let env'' = eval_block codeCache memState functions env' fundef.body in
-      debug "[eval_exp] env''\n%!";
+      let env'' = eval_block memState functions env' fundef.body in
       List.map (fun id -> PMap.find id env'') fundef.output_ids
       
   | ArrayIndex (arr, indices) -> 

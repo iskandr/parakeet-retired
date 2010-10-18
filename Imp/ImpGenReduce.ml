@@ -4,7 +4,9 @@ open ImpCodegen
 open DynType
 
 (* reduces each block's subvector to a single output element *) 
-let gen_reduce payload threadsPerBlock ty =
+let gen_reduce payload threadsPerBlock outTypes =
+  assert (List.length outTypes = 1); 
+  let ty = List.hd outTypes in 
   debug (Printf.sprintf "type: %s" (DynType.to_str ty));
   let codegen = new imp_codegen in
   let input = codegen#fresh_input (VecT ty) in
