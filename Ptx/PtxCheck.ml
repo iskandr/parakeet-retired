@@ -2,85 +2,11 @@ open Base
 open Ptx
 open PtxType
 
-module Range = struct 
-  type range =
-  | IntRange of Int64.t * Int64.to_int
-  | FloatRange of float * float  
-
-  let int_range lower upper = IntRange (Int64.of_int lower, Int64.of_int upper)
-  let int_const x = int_range x x 
-  
-  let float_range lower upper = FloatRange(lower,upper) 
-  let float_const x = float_range x x 
-  
-  let true_range = IntRange (1L, 1L)
-  let false_range = IntRange (0L, 0L)
-
-  let any_true = List.fold_left (||) false
-  let all_true = List.fold_left (&&) true 
-
-  let float_neg_inf = -1000000000000.0
-  let float_inf = 1000000000000.0
-  let unknown_float = FloatRange (float_neg_inf, float_inf)
-
-  let int_inf = Int64.shift_left 1L 30
-  let int_neg_inf = Int64.sub 0L int_inf 
-  let unknown_int = IntRange(int_inf, int_neg_inf)
-
-
-  let range_of_bools bs = 
-    if all_true bs then IntRange (1L, 1L)
-    else if any_true bs then IntRange (0L, 1L)
-    else IntRange (0L, 0L)
-
-  let cmp (intCmp, floatCmp) n1 n2 = 
-    match n1, n2 with 
-    | IntRange (x,y), IntRange(a,b) -> 
-        val_of_bools [intCmp x a; intCmp x b; intCmp y a; intCmp y b]
-    | FloatRange (x,y), FloatRange(a,b) -> 
-        val_of_bools [floatCmp x a; floatCmp x b; floatCmp y a; floatCmp y b]            
-    | _ -> failwith "[ptx_check] mixed number types in cmp"
-
-  let lt = cmp ((<), (<)) 
-  let eq = cmp ((=), (=))
-
-  let range_of_ints (ints :Int64.t list) = 
-    let minval = List.fold_left min int_neg_inf ints in 
-    let maxval = List.fold_left max int_inf ints in 
-    IntRange (max minval int_neg_inf, min maxval int_inf)
-
-  let range_of_floats (floats: float list) = 
-    let minval = List.fold_left min float_neg_inf floats in 
-    let maxval = List.fold_left max float_inf floats in 
-    FloatRange (max minval float_neg_inf, min maxval float_inf)
-
-
-  let binop (intFn, floatFn) n1 n2 = 
-    match n1, n2 with 
-    | IntRange(x,y), IntRange(a,b) -> 
-      range_of_ints [intFn x a; intFn a b; intFn y a; intFn y b]
-    | FloatRange (x,y), FloatRange(a,b) -> 
-      range_of_floats [floatFn x a; floatFn x b; floatFn y a; floatFn y b]
-    | _ -> failwith "[ptx_check] mixed number types in binop"
-
-  let unop (intFn, floatFn) = function 
-    | IntRange (x, y) -> range_of_ints [intFn x; intFn y]
-    | FloatRange (x,y) -> range_of_float [floatFn x; floatFn y]  
-  
-  (* Doesn't handle overflow when converting from U64 to U8 *)
-  let cvt t = function  
-  | IntRange(x,y) -> 
-      if PtxType.is_float t then FloatRange (Int64.to_float x, Int64.to_float y)
-      else if PtxType.is_int t then IntRange(x,y)  
-      else assert false
-  | FloatRange(x,y) -> 
-      if PtxType.is_float t then FloatRange(x,y)  
-      else if PtxType.is_int t then IntVal (Int64.of_float x, Int64.of_float y) 
-      else assert false  
-
+module Interval = struct 
+ 
 end
 
-open Range 
+open Interval 
 
 type vec3 = {x:int; y:int; z:int} 
 
