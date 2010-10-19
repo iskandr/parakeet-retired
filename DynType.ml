@@ -125,7 +125,11 @@ let rec elt_type = function
 let peel_vec = function 
   | VecT t -> t 
   | t when is_scalar t -> t 
-  | _ -> failwith "[peel_vec] expected vector"
+  | t -> failwith
+     (Printf.sprintf 
+        "[peel_vec] expected vector or scalar, got : %s"
+        (to_str t)
+     )
 
 (* July 4, 2010 (alexr): removed 's1 = s2' from last condition-- *)
 (* want Int64 to be a subtype of Float32 *)  

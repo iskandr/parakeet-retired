@@ -52,7 +52,7 @@ let eval_adverb_on_gpu
   | Prim.AllPairs, fn::dataArgs -> [fn], dataArgs
   | _ -> failwith "[eval_adverb_on_gpu] adverb not yet supported\n%!"
   in
-  let inputTypes = List.map (fun vNode -> vNode.value_type) args in 
+  let inputTypes = List.map (fun vNode -> vNode.value_type) dataArgs in 
   let dynVals = List.map (eval_value env) dataArgs in  
   let fnIds = List.map SSA.get_id fnArgs in 
   let fundefs = List.map (fun id -> FnTable.find id functions) fnIds in  
@@ -125,7 +125,6 @@ and eval_stmt
       ignore (eval_exp memState functions env expNode); env   
   | SetIdx (id, indices, rhs) -> failwith "not yet implemented"   
   | If (boolVal, tBlock, fBlock, ifGate) -> failwith "not yet implemented"
-  | _ -> failwith "[eval_stmt] unknown stmt type"
 and eval_exp
       (memState : mem) 
       (functions : FnTable.t) 

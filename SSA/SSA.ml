@@ -100,10 +100,8 @@ and exp_to_str expNode =
       sprintf "%s[%s]" (value_node_to_str array) 
        (value_node_list_to_str ~sep:";" indices)
   | Arr elts -> "[" ^ (value_node_list_to_str ~sep:";" elts) ^ "]" 
-  (*| TupleProj(idx, tuple) -> 
-      sprintf "proj(%s, %s)" (value_to_str idx) (value_to_str tuple)*)
-  
-  (*| Tuple elts -> "(" ^ (value_list_to_str elts)  ^ ")"*)
+  | Cast(t, v) -> 
+      sprintf "cast<%s>(%s)" (DynType.to_str t) (value_node_to_str v) 
 and value_node_to_str vNode =
   let valStr = value_to_str vNode.value in  
   if vNode.value_type <> DynType.BottomT then 
