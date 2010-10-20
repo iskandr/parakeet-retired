@@ -62,7 +62,7 @@ let mapCache : adverb_cache = Hashtbl.create 127
 let run_map (fnid : ID.t) fundef inputTypes outputTypes memState dynVals =
   (* for now just transfer everything to the GPU-- we can try to make this
      adaptive later 
-  *) 
+  *)
   let gpuVals = List.map (MemoryState.get_gpu memState) dynVals in 
   let shapes = List.map GpuVal.get_shape gpuVals in
   let cacheKey = (fnid, inputTypes) in  
@@ -168,10 +168,10 @@ let run_reduce (fnid : ID.t) fundef inputTypes outputTypes memState dynVals =
 let compile_all_pairs payload argTypes retTypes =
   match argTypes with 
     | [t1; t2] ->  
-      let threadsPerBlock = 128 in 
+      let threadsPerBlock = 128 in
       let impPayload = SSA_to_Imp.translate payload in
       let impfn =
-        ImpGenAllPairs.gen_all_pairs_2d impPayload t1 t2 retTypes
+        ImpGenAllPairs.gen_all_pairs_2d_naive impPayload t1 t2 retTypes
       in
       let ptx = ImpToPtx.translate_kernel impfn in
       let allPairsPrefix = "all_pairs_kernel" in 
