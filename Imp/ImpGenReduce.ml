@@ -6,8 +6,7 @@ open DynType
 (* reduces each block's subvector to a single output element *) 
 let gen_reduce payload threadsPerBlock outTypes =
   assert (List.length outTypes = 1); 
-  let ty = List.hd outTypes in 
-  debug (Printf.sprintf "type: %s" (DynType.to_str ty));
+  let ty = List.hd outTypes in
   let codegen = new imp_codegen in
   let input = codegen#fresh_input (VecT ty) in
   let output = codegen#fresh_output (VecT ty) in
@@ -22,10 +21,9 @@ let gen_reduce payload threadsPerBlock outTypes =
     set startBlock ((int $ threadsPerBlock * 2) *$ linearBlockIdx);
     set i (threadIdx.x +$ startBlock)
   ];
-  let temp = codegen#fresh_var ty in  
+  let temp = codegen#fresh_var ty in
   let tmp1 = codegen#fresh_var ty in
   let tmp2 = codegen#fresh_var ty in
-  
   let template = [
     ifTrue (i <$ len input) [
       if_ ((i +$ (int threadsPerBlock)) <$ len input) [

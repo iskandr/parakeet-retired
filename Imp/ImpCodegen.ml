@@ -16,7 +16,8 @@ class imp_codegen =
     
     (* create a Set node and insert a cast if necessary *) 
      method private set_or_coerce id (rhs : exp_node) = 
-      assert (Hashtbl.mem types id);  
+      if not (Hashtbl.mem types id) then
+        failwith $ sprintf "Id not found in type env: %d" id;  
       let lhsType = Hashtbl.find types id in
       let rhsType = rhs.exp_type in 
       if lhsType <> rhsType then 

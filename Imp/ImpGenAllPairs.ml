@@ -1,7 +1,67 @@
 open Base
 open Imp
 open ImpCodegen
-open DynType 
+open DynType
+
+(* Assumes that inputs are 2D and that the payload is a function that takes *)
+(* two input scalars and an output scalar and that the allpairs kernel *)
+(* has to deal with looping over the elements of the vectors *)
+(*
+let gen_all_pairs_2d_naive_1dpayload payload t1 t2 outTypes =
+  let outType = List.hd outTypes in
+  let codegen = new imp_codegen in
+  let input1, input2 = codegen#fresh_input t1, codegen#fresh_input t2 in
+  let output = codegen#fresh_output outType in
+  let left_id = codegen#fresh_var UInt32T in
+  let right_id = codegen#fresh_var UInt32T in
+  let left = codegen#fresh_var DynType.peel_vec t1 in
+  let right = codegen#fresh_var DynType.peel_vec t2 in
+  let vec_len = codegen#fresh_var UInt32T in
+  let i = codegen#fresh_var UInt32T in
+  let threadsPerDim = 16 in
+  codegen#splice_emit payload
+    [|(idx input1 left_id);(idx input2 right_id)|]
+    [|idx (idx output left_id) right_id|]
+    [
+      set left_id (threadIdx.x +$ (blockIdx.x *$ (int threadsPerDim)));
+      set right_id (threadIdx.y +$ (blockIdx.y *$ (int threadsPerDim)));
+      ifTrue (and_ (lt left_id (len input1)) (lt right_id (len input2))) [
+        set left (idx input1 left_id);
+        set right (idx input2 right_id);
+        set i (int 0);
+        while_ (i <$ vec_len) [
+          
+          SPLICE;
+        ]
+      ]
+    ];
+  codegen#finalize
+*)
+
+(* Assumes that inputs are 2D and that the payload is a function that takes *)
+(* two input vectors and an output vector and populates the output vector *)
+(* with the result of the function applied to the two inputs. *)
+let gen_all_pairs_2d_naive payload t1 t2 outTypes =
+  let outType = List.hd outTypes in
+  let codegen = new imp_codegen in
+  let input1, input2 = codegen#fresh_input t1, codegen#fresh_input t2 in
+  let output = codegen#fresh_output outType in
+  let left_id = codegen#fresh_var UInt32T in
+  let right_id = codegen#fresh_var UInt32T in
+  let threadsPerDim = 16 in
+  codegen#emit [
+    set left_id (threadIdx.x +$ (blockIdx.x *$ (int threadsPerDim)));
+    set right_id (threadIdx.y +$ (blockIdx.y *$ (int threadsPerDim)))
+  ];
+  codegen#splice_emit payload
+    [|(idx input1 left_id);(idx input2 right_id)|]
+    [|idx (idx output left_id) right_id|]
+    [
+      ifTrue (and_ (lt left_id (len input1)) (lt right_id (len input2))) [
+        SPLICE;
+      ]
+    ];
+  codegen#finalize
 
 (* Eric: Every thread is responsible for a single output element, the element
    being of dimensionality equal to that of the elements of the inputs.
