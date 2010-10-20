@@ -59,7 +59,7 @@ let compile_map payload argTypes retTypes =
 
 let mapCache : adverb_cache = Hashtbl.create 127
  
-let run_map (fnid : ID.t) fundef inputTypes outputTypes  memState dynVals =
+let run_map (fnid : ID.t) fundef inputTypes outputTypes memState dynVals =
   (* for now just transfer everything to the GPU-- we can try to make this
      adaptive later 
   *) 
@@ -82,9 +82,7 @@ let run_map (fnid : ID.t) fundef inputTypes outputTypes  memState dynVals =
      | Some maxShape -> maxShape
   in
   let outputVals =
-    List.map
-      (fun ty ->  GpuVal.mk_gpu_vec ty maxShape (sizeof ty maxShape))
-      outputTypes
+    List.map (fun ty ->  GpuVal.mk_gpu_vec ty maxShape) outputTypes
   in
   let outputElts = Shape.nelts maxShape in
   let gridParams = 
@@ -142,9 +140,7 @@ let run_reduce (fnid : ID.t) fundef inputTypes outputTypes memState dynVals =
           let numOutputElts = safe_div curNumElts (threadsPerBlock * 2) in
           let newShape = Shape.of_list [numOutputElts] in
           let outSize = DynType.sizeof outputType * numOutputElts in 
-          let newOut = 
-            GpuVal.mk_gpu_vec (DynType.VecT outputType) newShape outSize 
-          in 
+          let newOut = GpuVal.mk_gpu_vec (DynType.VecT outputType) newShape in 
           let args = Array.of_list ([inputArg; newOut]) in
 	        let gridParams = match
 	            HardwareInfo.get_grid_params
@@ -214,7 +210,7 @@ let run_all_pairs (fnid : ID.t) fundef inputTypes outputTypes memState dynVals =
       aux 0 shapes;
       let outputVals =
         List.map
-          (fun ty -> GpuVal.mk_gpu_vec ty outputShape (sizeof ty outputShape))
+          (fun ty -> GpuVal.mk_gpu_vec ty outputShape)
           outputTypes
       in
       let args = Array.of_list (gpuVals @ outputVals) in

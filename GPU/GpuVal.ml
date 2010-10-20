@@ -68,14 +68,23 @@ let shape_to_gpu shape =
   cuda_memcpy_to_device shapeHostPtr shapeDevPtr shapeBytes;
   shapeDevPtr, shapeBytes
 
-(* creates a fresh vec on the gpu *)
-let mk_gpu_vec ty shape size =
-  let outputPtr = cuda_malloc size in
+(* creates a fresh vec on the gpu -- allow optional size argument if that's 
+   already precomputed *)
+let mk_gpu_vec ?nbytes ?len ty shape =
+  let len = match len with None -> Shape.nelts shape | Some len -> len in 
+  let nbytes = match nbytes with 
+    | None ->
+       let eltT = DynType.elt_type ty in 
+       let eltSize = DynType.sizeof eltT in
+       len * eltSize 
+    | Some n -> n 
+  in  
+  let outputPtr = cuda_malloc nbytes in
   let shapePtr, shapeSize = shape_to_gpu shape in
   GpuVec {
     vec_ptr = outputPtr;
-    vec_nbytes = size;
-    vec_len = Shape.nelts shape;
+    vec_nbytes = nbytes;
+    vec_len = len;
 
     vec_shape_ptr = shapePtr;
     vec_shape_nbytes = shapeSize;
