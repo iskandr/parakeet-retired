@@ -1,5 +1,6 @@
 open Base
 open Imp 
+open Printf 
 
 type exp_map = (Imp.exp, Imp.exp) PMap.t 
 
@@ -28,11 +29,18 @@ let rec apply_exp_map_to_stmt (eMap : exp_map) stmt =
   | While (cond,body) -> While(aux_exp cond, List.map aux_stmt body)
   | Set (id, rhs) -> 
        let rhs' = aux_exp rhs in 
-       if PMap.mem (Var id) eMap then match PMap.find (Var id) eMap with 
-        | Var id' ->  Set(id', rhs')
-        | _ -> Set (id, rhs')
+       if PMap.mem (Var id) eMap then
+         let exp' = PMap.find (Var id) eMap in 
+         match exp' with 
+         | Var id' ->  Set(id', rhs')
+         | Idx _ -> 
+            let arrayId, indices = Imp.collect_nested_indices exp' in
+            SetIdx (arrayId, indices, rhs')
+         | other -> 
+            failwith $ sprintf 
+              "[apply_exp_map] cannot replace variable with: %s" 
+              (Imp.exp_to_str exp'); 
        else Set(id, rhs')
-      
   | SetIdx (id,indices,rhs) ->
        let rhs' = aux_exp rhs in 
        let indices' = List.map aux_exp indices in  

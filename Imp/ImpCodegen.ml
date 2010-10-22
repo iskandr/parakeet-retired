@@ -17,7 +17,9 @@ class imp_codegen =
     (* create a Set node and insert a cast if necessary *) 
      method private set_or_coerce id (rhs : exp_node) = 
       if not (Hashtbl.mem types id) then
-        failwith $ sprintf "Id not found in type env: %d" id;  
+        failwith $ 
+          sprintf "[imp_codegen->set_or_coerce] no type for: %s" (ID.to_str id)
+      ;  
       let lhsType = Hashtbl.find types id in
       let rhsType = rhs.exp_type in 
       if lhsType <> rhsType then 
@@ -180,7 +182,6 @@ class imp_codegen =
     
     
     method finalize = 
-      debug "[imp_codegen] finalizing imp function..."; 
      (* assert (DynArray.length inputs > 0 || DynArray.length outputs > 0);*)
       let inputIds = DynArray.to_array $ DynArray.map fst inputs in 
       let inputTypes = DynArray.to_array $ DynArray.map snd inputs in  
@@ -210,9 +211,18 @@ class imp_codegen =
     (* with those provided. Then removes the input/output vars, splices the *)
     (* modified code into the target code. Returns code as a statement list *)
     method splice fn inputs outputs targetCode = 
-      let oldIds = Array.append fn.input_ids fn.output_ids in
+      let oldIds = Array.to_list $ Array.append fn.input_ids fn.output_ids in
       (* remove the input/output ids since they will be replaced *)
-      let tenv' = PMap.remove_list (Array.to_list oldIds) fn.tenv in
+      let tenv' = PMap.remove_list oldIds fn.tenv in
+      (* have to rewrite the input/output variables to the expressions *)
+      (* we were given as arguments inputExps/outputVars *)
+      let inOutMap = 
+          List.fold_left2 
+            (fun accMap id node -> PMap.add (Var id) node.exp accMap)
+            PMap.empty 
+            oldIds
+            (Array.to_list inputs @ Array.to_list outputs)
+      in 
       (* generate fresh code at every splice site so that temporaries get 
          different names.  
       *)  
@@ -227,16 +237,7 @@ class imp_codegen =
         (* replace old ids with their new names in body of function *)
           
         let fnCode = List.map (ImpCommon.apply_id_map_to_stmt idMap) fn.body in
-        (* also have to rewrite the input/output variables to the expressions *)
-        (* we were given as arguments inputExps/outputVars *)
-         
-        let newExps = Array.append inputs outputs in
-        let expPairs = 
-            Array.map2  (fun id node-> Var id, node.exp)  oldIds newExps 
-        in
-        let inoutMap = PMap.of_enum (Array.enum expPairs) in
-        let renameInOut = ImpCommon.apply_exp_map_to_stmt inoutMap in
-        List.map renameInOut fnCode   
+        List.map (ImpCommon.apply_exp_map_to_stmt inOutMap) fnCode   
       in   
       let rec aux = function
         | [] -> []  
@@ -245,8 +246,9 @@ class imp_codegen =
             If (cond, aux tBlock, aux fBlock) :: (aux rest) 
         | While (cond, block)::rest -> While(cond, aux block) :: (aux rest)
         | stmt::rest -> stmt :: (aux rest) 
-      in aux targetCode
-    
+      in
+      aux targetCode 
+      
    method splice_emit fn inputs outputs targetCode = 
      let code = self#splice fn inputs outputs targetCode in 
      self#emit code
