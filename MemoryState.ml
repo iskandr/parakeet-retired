@@ -1,3 +1,4 @@
+open Base 
 open Printf
 
 open DynVal 
@@ -27,11 +28,13 @@ let get_gpu state = function
   | Data id -> 
     if Hashtbl.mem state.gpu_vals id then
       Hashtbl.find state.gpu_vals id
-    else
+    else (
       let hostVal = Hashtbl.find state.host_vals id in
+      debug $ HostVal.to_str hostVal; 
       let gpuVal = GpuVal.to_gpu hostVal in
       Hashtbl.replace state.gpu_vals id gpuVal; 
       gpuVal
+   )
 
 let get_host state = function 
   | Scalar n -> HostVal.mk_scalar n 

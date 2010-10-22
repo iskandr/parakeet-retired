@@ -7,6 +7,10 @@ type host_val = {
   shape: Shape.t;
 }
 
+let to_str hv = 
+  Printf.sprintf "HostVal { nbytes=%d, host_t=%s, shape=%s }"
+    hv.nbytes (DynType.to_str hv.host_t) (Shape.to_str hv.shape) 
+
 external c_malloc : int -> HostPtr.t = "ocaml_malloc"
 external c_free : HostPtr.t -> unit = "ocaml_free"
 

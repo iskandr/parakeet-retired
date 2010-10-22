@@ -3,5 +3,10 @@
 BASE=`basename $1 .q`
 GPUNAME=".${BASE}_gpu.q"
 ../_build/preprocess.native $1 > "${GPUNAME}"
-q "${GPUNAME}"
+if [$2 -eq "debug"]; 
+then 
+  gdb --args q "${GPUNAME}" 
+else 
+  q "${GPUNAME}" 
+fi 
 

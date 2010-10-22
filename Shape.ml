@@ -95,3 +95,15 @@ let max_shape_list lst =
 
 external get_raw_ptr : t -> HostPtr.t = "get_shapevec_ptr"
 
+let to_str s =
+  let r = rank s in  
+  let b = Buffer.create (r*3) in 
+  Printf.bprintf b "[";
+  for i = 0 to r - 1 do 
+    if i < r - 2 then 
+      Printf.bprintf b "%d, " (get_dim s i) 
+    else 
+      Printf.bprintf b "%d]" (get_dim s i)
+  done; 
+  Buffer.contents b
+

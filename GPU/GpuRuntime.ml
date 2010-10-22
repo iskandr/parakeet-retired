@@ -103,7 +103,7 @@ let compile_reduce payload retTypes =
   let redThreadsPerBlock = 128 in
   let impPayload = SSA_to_Imp.translate payload in
   let impfn = ImpGenReduce.gen_reduce impPayload redThreadsPerBlock retTypes in
-  debug (Printf.sprintf "[compile_reduce] %s\n%!" (Imp.fn_to_str impfn));
+  debug (Printf.sprintf "[compile_reduce] %s\n" (Imp.fn_to_str impfn));
   let ptx = ImpToPtx.translate_kernel impfn in
   let reducePrefix = "reduce_kernel" in 
   let name = reducePrefix ^ (string_of_int (ID.gen())) in
@@ -168,6 +168,7 @@ let run_reduce (fnid : ID.t) fundef inputTypes outputTypes memState dynVals =
 let compile_all_pairs payload argTypes retTypes =
   match argTypes with 
     | [t1; t2] ->  
+      
       let threadsPerBlock = 128 in
       let impPayload = SSA_to_Imp.translate payload in
       let impfn =
@@ -176,59 +177,59 @@ let compile_all_pairs payload argTypes retTypes =
       let ptx = ImpToPtx.translate_kernel impfn in
       let allPairsPrefix = "all_pairs_kernel" in 
       let name = allPairsPrefix ^ (string_of_int (ID.gen())) in  
-      mk_cuda_module [name, ptx] threadsPerBlock
+      mk_cuda_module [name, ptx] threadsPerBlock 
+      
     | _ -> failwith "[compile_all_pairs] invalid argument types "
 
 let allPairsCache  = Hashtbl.create 127 
-
+ 
 let run_all_pairs (fnid : ID.t) fundef inputTypes outputTypes memState dynVals =
-  let gpuVals = List.map (MemoryState.get_gpu memState) dynVals in
   let cacheKey = fnid, inputTypes in 
   let compiledModule = 
     if Hashtbl.mem allPairsCache cacheKey then 
       Hashtbl.find allPairsCache cacheKey
     else (
       let m = compile_all_pairs fundef inputTypes outputTypes in 
-      Hashtbl.add allPairsCache cacheKey m; 
+      Hashtbl.add allPairsCache cacheKey m;
       m
     )
-  in 
-  let shapes = List.map GpuVal.get_shape gpuVals in
-  match compiledModule.Cuda.kernel_names with
-    | [fnName] ->
-      (* For now, the following assumes 1D inputs to the all-pairs *)
+  in
+  match compiledModule.Cuda.kernel_names, dynVals with
+    | _, [] | _, [_] | _, _::_::_::_ ->  
+        failwith "[run_all_pairs] wrong number of arguments"
+    | [], _ | _::_::_, _ ->
+        failwith "[run_all_pairs] wrong number of functions" 
+    | [fnName], [x;y] ->
+      (* until we have proper shape inference, we can only deal with functions 
+        that return scalars 
+      *) 
+      let fnReturnTypes = DynType.fn_output_types fundef.SSA.fun_type in 
+      assert (List.for_all DynType.is_scalar fnReturnTypes);  
+      let xGpu = MemoryState.get_gpu memState x  in
+      let yGpu = MemoryState.get_gpu memState y in
+      let xShape, yShape = GpuVal.get_shape xGpu, GpuVal.get_shape yGpu in
+      (* since we assume that the nested function returns scalars, 
+         the result will always be 2D
+      *)
       let outputShape = Shape.create 2 in
-      let rec aux i = function
-        | shape::rest ->
-          begin
-            Array1.set outputShape i (Array1.get shape 0);
-            aux (i+1) rest;
-            ()
-          end
-        | [] -> ()
-      in
-      aux 0 shapes;
+      let nx = Shape.get_dim xShape 0 in
+      let ny = Shape.get_dim yShape 0 in  
+      Shape.set_dim outputShape 0 nx; 
+      Shape.set_dim outputShape 1 ny;
       let outputVals =
         List.map
           (fun ty -> GpuVal.mk_gpu_vec ty outputShape)
           outputTypes
       in
-      let args = Array.of_list (gpuVals @ outputVals) in
-      let outputElts = Shape.nelts outputShape in
-      let gridParams = match
-        (* Not sure this is right - might want 2D grid params *)
-        HardwareInfo.get_grid_params
-          ~device:0
-          ~block_size:compiledModule.Cuda.threads_per_block
-          outputElts
-        with
-        | Some gridParams -> gridParams
-        | None ->
-         failwith (sprintf "Unable to get launch params for %d elts" outputElts)
+      let args = Array.of_list (xGpu :: yGpu :: outputVals) in
+      let gridParams = {
+          LibPQ.threads_x=16; threads_y=16; threads_z=1;
+          grid_x=safe_div nx 16; grid_y=safe_div ny 16;
+      }
       in
       LibPQ.launch_ptx compiledModule.Cuda.module_ptr fnName args gridParams;
       outputVals
-    | _ -> failwith "expect one all_pairs kernel"
+    
 
 let init () = 
   (* initialize GPU contexts and device info *) 

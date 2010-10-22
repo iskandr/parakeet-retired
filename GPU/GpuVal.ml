@@ -62,6 +62,7 @@ let mk_scalar n =
 
 (* send a shape vector the gpu *) 
 let shape_to_gpu shape =
+  debug "shape_to_gpu";
   let shapeBytes = Shape.nbytes shape in
   let shapeDevPtr = cuda_malloc shapeBytes in
   let shapeHostPtr = Shape.get_raw_ptr shape in
@@ -80,7 +81,9 @@ let mk_gpu_vec ?nbytes ?len ty shape =
     | Some n -> n 
   in  
   let outputPtr = cuda_malloc nbytes in
+  debug "mk_gpu_vec";
   let shapePtr, shapeSize = shape_to_gpu shape in
+  debug "mk_gpu_vec 2";
   GpuVec {
     vec_ptr = outputPtr;
     vec_nbytes = nbytes;
@@ -101,9 +104,12 @@ let to_gpu hostVal =
      scalar_data = hostVal.ptr
     } 
   else
-    (let gpuPtr = cuda_malloc hostVal.nbytes in
+    (debug "to_gpu ";
+    let gpuPtr = cuda_malloc hostVal.nbytes in
+    debug "to_gpu 2";
     cuda_memcpy_to_device hostVal.ptr gpuPtr hostVal.nbytes;
     let shapeDevPtr, shapeBytes = shape_to_gpu hostVal.shape in
+    debug "to_gpu3";
     GpuVec  {
       vec_ptr = gpuPtr; 
       vec_nbytes = hostVal.nbytes;

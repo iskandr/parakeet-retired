@@ -618,7 +618,7 @@ K hostval_to_qval(value hostval) {
     idxes[i] = 0;
   }
 
-  printf("about to build q type\n");
+  //printf("about to build q type\n");
   int ktypenum = -1 * abs(Int_val(caml_callback(*ocaml_dyn_type_to_ktypenum,
                                                 ocaml_dyn_type)));
   ret = build_q_type(data, num_bytes, ktypenum,
