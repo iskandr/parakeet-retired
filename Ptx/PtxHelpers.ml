@@ -116,9 +116,17 @@ let slct tDest tSwitch ~dest ~left ~right ~switch =
 
 let cvt ~t1 ~t2 ~dest ~src = 
   let instr = mkop (Cvt(t1,t2)) [dest; src] in 
-  if PtxType.nbytes t1 >= PtxType.nbytes t2 then instr
-  else if PtxType.is_float t1 then round Ptx.RoundNearest instr 
-  else if PtxType.is_int t1 then round Ptx.RoundNearest_Int instr 
+  (* if the conversion is safe or if it is a down-conversion 
+     between integer types then there is no possibility of rounding 
+  *)
+  if PtxType.nbytes t1 >= PtxType.nbytes t2 
+     ||  PtxType.is_int t1 && PtxType.is_int t2 then instr
+  (* float to int conversion *) 
+  else if PtxType.is_int t1 && PtxType.is_float t2 then 
+    round Ptx.RoundNearest_Int instr
+  (* float to float *)  
+  else if PtxType.is_float t1 && PtxType.is_float t2 then 
+    round Ptx.RoundNearest instr 
   else failwith 
     (Printf.sprintf "[ptx_cvt] uncertain how to convert %s into %s" 
       (PtxType.to_str t2) (PtxType.to_str t1))   

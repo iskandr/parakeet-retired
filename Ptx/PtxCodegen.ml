@@ -138,12 +138,10 @@ class ptx_codegen  = object (self)
   (* get a register which points to the shape vector attached to the 
      argument "ptrReg" which contains the address of some array's data. 
   *) 
-  method private fresh_shape_reg ptrReg dynT =
-    assert (not (DynType.is_scalar dynT));  
+  method private fresh_shape_reg ptrReg rank =
     let shapeReg = self#fresh_reg PtxType.ptrT in
     let ptrId = PtxVal.get_id ptrReg in 
     Hashtbl.add shapeRegs ptrId shapeReg;
-    let rank = DynType.nest_depth dynT in 
     Hashtbl.add globalArrayRanks ptrId rank; 
     shapeReg  
   
@@ -188,20 +186,11 @@ class ptx_codegen  = object (self)
     Hashtbl.add dataRegs impId dataReg;
     Hashtbl.add dynTypes impId dynT; 
     if not $ DynType.is_scalar dynT then  
-      ignore (self#fresh_shape_reg dataReg dynT)
+      ignore (self#fresh_shape_reg dataReg (DynType.nest_depth dynT))
     ;
     dataReg
-    
- (* TODO: track memory space and dimensions in the codegen, rather
-    than relying on external analyses 
- *) 
-
- method declare_shared_slice id = 
-   let dataReg = self#fresh_reg PtxType.ptrT in
-   Hashtbl.add dataRegs id dataReg;
-   dataReg
-  
-  method declare_shared_vec id dynEltT (dims : int list)  = 
+ 
+  method declare_shared_vec (id : ID.t) dynEltT (dims : int list)  = 
     Hashtbl.add dynTypes id dynEltT;
     let ptxEltType = PtxType.of_dyn_type dynEltT in
     let dimsArray = Array.of_list dims in 
@@ -222,8 +211,34 @@ class ptx_codegen  = object (self)
     (* associate the register storing the shared address with the dims *) 
     Hashtbl.add sharedDims (PtxVal.get_id sharedReg) dimsArray;  
     sharedReg  
-    
-    
+ 
+ (* we've already declared the array, have a pointer into it and 
+    have even allocated the slice destination. We just need to track the 
+    dimensions of the slice. We expect the caller to actually compute the 
+    value of sliceReg. 
+ *)  
+  method declare_slice ptrReg sliceReg =
+    if self#is_shared_ptr ptrReg then  
+      let dims = self#get_shared_dims ptrReg in
+      let rank = Array.length dims in 
+      if rank  < 2 then 
+        failwith "[ptx_codegen->declared_shared_slice] insufficient rank"
+      else begin   
+        let sliceDims = Array.init (rank - 1) (fun idx -> dims.(idx+1)) in
+        (* the value of sliceReg needs to get computed by the caller *)  
+        Hashtbl.add sharedDims (PtxVal.get_id sliceReg) sliceDims
+      end 
+   else if self#is_global_array_ptr ptrReg then
+     let rank = self#get_array_rank ptrReg in 
+     if rank < 2 then 
+       failwith "[ptx_codegen->declare_global_slice] insufficient rank" 
+     else begin   
+       let shapeReg = self#get_shape_reg ptrReg in 
+       let sliceShapeReg = self#fresh_shape_reg sliceReg (rank - 1) in
+       (* increment pointer to shape by 4 bytes to start at next dim *) 
+       self#emit [add PtxType.ptrT sliceShapeReg shapeReg (int 4)]  
+     end
+      
   method declare_arg id dynT = 
     Hashtbl.add dynTypes id dynT; 
     let paramId = self#fresh_arg_id in  
@@ -244,7 +259,8 @@ class ptx_codegen  = object (self)
     Hashtbl.add dataRegs id dataReg;
     (* vectors need an additional param for their shape *) 
     if not $ DynType.is_scalar dynT then  (
-      let shapeReg = self#fresh_shape_reg dataReg dynT in
+      let rank = DynType.nest_depth dynT in 
+      let shapeReg = self#fresh_shape_reg dataReg rank in
       let shapeParamId = self#get_sym_id ("shape" ^ (string_of_int paramId)) in 
       let shapeParam = 
         Sym {id=shapeParamId; ptx_type=PtxType.ptrT; space=PARAM}  

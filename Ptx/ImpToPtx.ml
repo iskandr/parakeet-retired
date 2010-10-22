@@ -199,7 +199,11 @@ let gen_exp
         codegen#convert ~destReg ~srcVal:storageReg
       )
       (* generate an array slice *)      
-      else failwith "array slicing not implemented"
+      else (
+        codegen#convert ~destReg ~srcVal:address; 
+        codegen#declare_slice baseReg destReg 
+     )     
+           
   | Imp.Idx(_, _) -> failwith "[imp2ptx] attempted to index into non-array"
   | Imp.Cast(tNew, x) ->
       let tNewPtx = PtxType.of_dyn_type tNew in 
