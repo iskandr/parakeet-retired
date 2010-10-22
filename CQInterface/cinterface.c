@@ -15,6 +15,7 @@
 #include <caml/memory.h>
 #include <caml/mlvalues.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "cinterface.h"
@@ -618,7 +619,9 @@ K hostval_to_qval(value hostval) {
   }
 
   printf("about to build q type\n");
-  ret = build_q_type(data, num_bytes, ocaml_dyn_type,
+  int ktypenum = -1 * abs(Int_val(caml_callback(*ocaml_dyn_type_to_ktypenum,
+                                                ocaml_dyn_type)));
+  ret = build_q_type(data, num_bytes, ktypenum,
                      shape, shape_len, 0, idxes);
 
   // TODO: Do we want to free the data now? I guess so.
@@ -634,19 +637,14 @@ K hostval_to_qval(value hostval) {
  * attached to their memory payload (which our flattened representation doesn't
  * have).
  */
-K build_q_type(char *data, int num_bytes, value ocaml_dyn_type,
+K build_q_type(char *data, int num_bytes, int ktypenum,
                int *shape, int shape_len, int shape_idx, int *idxes) {
-  CAMLparam1(ocaml_dyn_type);
-  CAMLlocal1(ocaml_child_type);
-  CAMLlocal1(ocaml_test);
-
   K ret;
   int i;
 
-  int ktypenum = Int_val(caml_callback(*ocaml_dyn_type_to_ktypenum,
-                                       ocaml_dyn_type));
+  printf("hi\n");
   int sizeof_element = 0;
-
+  printf("shape idx,len: %d,%d\n", shape_idx, shape_len);
   if (shape_len == 0) {
     // Scalar
     switch(ktypenum) {
@@ -681,8 +679,7 @@ K build_q_type(char *data, int num_bytes, value ocaml_dyn_type,
   } else if (shape_idx == shape_len - 1) {
     // Last level of lists, just build
     if (sizeof_element == 0) {
-      sizeof_element = Int_val(caml_callback(*ocaml_sizeof_dyn_type,
-                                              Field(ocaml_dyn_type, 0)));
+      sizeof_element = ktype_num_bytes(ktypenum);
     }
     ret = ktn(ktypenum, shape[shape_len - 1]);
     int idx = 0, factor = 1;
@@ -693,18 +690,19 @@ K build_q_type(char *data, int num_bytes, value ocaml_dyn_type,
     memcpy((void*)kG(ret), data + idx, shape[shape_len - 1]*sizeof_element);
   } else {
     // Non-scalar
-    // TODO: only vecs now
+    // TODO: only vecs now!!
     // List of lists, have to recurse
+    printf("shape: %d,%d\n", shape[0], shape[1]);
     ret = ktn(0, shape[shape_idx]);
-    ocaml_child_type = Field(ocaml_dyn_type, 1);
     for (i = 0; i < shape[shape_idx]; ++i) {
       idxes[shape_idx] = i;
-      kK(ret)[i] = build_q_type(data, num_bytes, ocaml_child_type,
+      printf("about to recurse\n");
+      kK(ret)[i] = build_q_type(data, num_bytes, ktypenum,
                                 shape, shape_len, shape_idx + 1, idxes);
     }
   }
 
-  CAMLreturnT(K, ret);
+  return ret;
 }
 
 /**

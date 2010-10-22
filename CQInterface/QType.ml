@@ -98,7 +98,7 @@ let rec dyn_type_to_ktypenum = function
   | Float32T -> -8
   | Float64T -> -9
   | SymT   -> -11
-  | VecT(vec_type) -> -1 * (dyn_type_to_ktypenum vec_type)
+  | VecT(vec_type) -> -1 * abs (dyn_type_to_ktypenum vec_type)
   | _ -> raise UnknownKVersionOfDynType
 
 let ktypenum_to_ocaml_type ktypenum =

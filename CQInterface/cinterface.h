@@ -36,7 +36,7 @@ void flatten_kvar(K kvar, char *flattened, int *cur_idx);
 void get_flattened_version(K kvar, int *num_bytes, value *ocaml_dyn_type,
                            int **shape, int *shape_len, char **flattened);
 int ktype_num_bytes(int ktype);
-K build_q_type(char *data, int num_bytes, value ocaml_dyn_type,
+K build_q_type(char *data, int num_bytes, int ktypenum,
                int *shape, int shape_len, int shape_idx, int *idxes);
 value gen_build_args_list(K args);
 value args_list_to_ocaml_list(K args);
