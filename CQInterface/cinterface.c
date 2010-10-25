@@ -205,7 +205,6 @@ K run_template(K t, K args, K globals) {
   ocaml_args     = args_list_to_ocaml_list(args);
 
   inspect_block(ocaml_args);
-  printf("Calling OCaml run_template.\n");
 
   // Now actually call the OCaml function to build and run the CUDA function
   ocaml_ret = caml_callback3(
@@ -214,24 +213,17 @@ K run_template(K t, K args, K globals) {
   // Have to unpack and repack the OCaml return value for Q
   K q_status, q_retval, q_ret;
   if (Is_long(ocaml_ret)) {
-    printf("error\n");
     q_status = ki((I)1);
     q_ret = knk(1, q_status);
   } else if (Tag_val(ocaml_ret) == Success) {
-    printf("success\n");
     inspect_block(ocaml_ret);
     q_status = ki((I)0);
     int *data = (int*)Int64_val(Field(ocaml_ret, 0));
     int len = Int_val(Field(ocaml_ret, 1)) / sizeof(int);
-    printf("data[0]: %d\n", data[0]);
-    printf("data[len-1]: %d\n", data[len-1]);
-    printf("len: %d\n", len);
+    int i;
     q_retval = hostval_to_qval(ocaml_ret);
-    printf("made q val\n");
     q_ret = knk(2, q_status, q_retval);
-    printf("made q return val\n");
   } else if (Tag_val(ocaml_ret) == Error) {
-    printf("error\n");
     q_status = ki((I)2);
     q_retval = kp(String_val(Field(ocaml_ret, 0)));
     q_ret = knk(2, q_status, q_retval);
@@ -601,18 +593,12 @@ K hostval_to_qval(value hostval) {
 
   K ret;
   int i;
-  printf("in hostval_to_qval\n");
   char *data     = (char*)Nativeint_val(Field(hostval, 0));
-  printf("made a char* out of the data\n");
   int num_bytes  = Int_val(Field(hostval, 1));
-  printf("got the number of bytes: %d\n", num_bytes);
-  printf("data at idx 0: %d\n", (int)data[0]); 
   ocaml_dyn_type = Field(hostval, 2);
   int *shape     = (int*)Data_bigarray_val(Field(hostval, 3));
   int shape_len  = Int_val(caml_callback(*ocaml_shape_rank,
                                           Field(hostval, 3)));
-  printf("shape len: %d\n", shape_len);
-  printf("shape[0]: %d\n", shape[0]);
   int *idxes     = (int*)malloc(sizeof(int)*shape_len);
   for (i = 0; i < shape_len; ++i) {
     idxes[i] = 0;
@@ -642,9 +628,7 @@ K build_q_type(char *data, int num_bytes, int ktypenum,
   K ret;
   int i;
 
-  printf("hi\n");
   int sizeof_element = 0;
-  printf("shape idx,len: %d,%d\n", shape_idx, shape_len);
   if (shape_len == 0) {
     // Scalar
     switch(ktypenum) {
@@ -681,22 +665,20 @@ K build_q_type(char *data, int num_bytes, int ktypenum,
     if (sizeof_element == 0) {
       sizeof_element = ktype_num_bytes(ktypenum);
     }
-    ret = ktn(ktypenum, shape[shape_len - 1]);
-    int idx = 0, factor = 1;
-    for (i = shape_len - 1; i > 0; --i) {
+    ret = ktn(-ktypenum, shape[shape_idx]);
+    int idx = 0, factor = sizeof_element;
+    for (i = shape_idx; i > 0; --i) {
       factor *= shape[i];
       idx += idxes[i - 1] * factor;
     }
-    memcpy((void*)kG(ret), data + idx, shape[shape_len - 1]*sizeof_element);
+    memcpy((void*)kG(ret), data + idx, shape[shape_idx]*sizeof_element);
   } else {
     // Non-scalar
     // TODO: only vecs now!!
     // List of lists, have to recurse
-    printf("shape: %d,%d\n", shape[0], shape[1]);
     ret = ktn(0, shape[shape_idx]);
     for (i = 0; i < shape[shape_idx]; ++i) {
       idxes[shape_idx] = i;
-      printf("about to recurse\n");
       kK(ret)[i] = build_q_type(data, num_bytes, ktypenum,
                                 shape, shape_len, shape_idx + 1, idxes);
     }
