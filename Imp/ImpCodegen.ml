@@ -104,9 +104,10 @@ class imp_codegen =
        into their own statements 
     *) 
     method private flatten_stmt (stmt : Imp.stmt) : Imp.stmt list =
-     debug $ Printf.sprintf "flattening {%d}: %s"  
+    (* debug $ Printf.sprintf "flattening {%d}: %s"  
        (Hashtbl.length types)  (Imp.stmt_to_str stmt)
-     ;  
+     ;
+    *)  
      match stmt with 
      | If (cond, tBlock, fBlock) -> 
          let condStmts, condExp = self#flatten_exp cond in 

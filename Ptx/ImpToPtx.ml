@@ -100,7 +100,7 @@ let gen_exp
     (codegen : PtxCodegen.ptx_codegen)
     ?destReg
     (expNode : Imp.exp_node) : PtxVal.value  =
-  debug $ Printf.sprintf "[imp2ptx] --- exp: %s" (Imp.exp_node_to_str expNode);
+  (* debug $ Printf.sprintf "[imp2ptx] --- exp: %s" (Imp.exp_node_to_str expNode); *)
   let dynResultT = expNode.Imp.exp_type in 
   let ptxResultT = PtxType.of_dyn_type dynResultT in  
   let destReg, destType = match destReg with 
@@ -223,7 +223,7 @@ let gen_exp
   destReg 
 
 let rec gen_stmt codegen stmt = 
-  debug $ Printf.sprintf "[imp2ptx] stmt: %s" (Imp.stmt_to_str stmt); 
+  (*debug $ Printf.sprintf "[imp2ptx] stmt: %s" (Imp.stmt_to_str stmt);*) 
   codegen#emit [comment (Imp.stmt_to_str stmt)];
   match stmt with 
   | Imp.Set (id,rhs) ->

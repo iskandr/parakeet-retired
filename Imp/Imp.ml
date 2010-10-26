@@ -77,26 +77,44 @@ and exp_to_str = function
   | BlockDim c -> sprintf "blockdim.%s" (coord_to_str c)
   | GridDim c -> sprintf "griddim.%s" (coord_to_str c)
 
-and stmt_to_str = function 
-  | If (cond, tBlock, fBlock) -> 
-      sprintf "if (%s) then { %s } else { %s }" 
+and stmt_to_str ?(spaces="") = function 
+  | If (cond, tBlock, fBlock) ->
+      let tStr = 
+        if tBlock <> [] then 
+           "\n" ^ (block_to_str ~spaces:(spaces ^ "  ") tBlock)
+        else "" 
+      in 
+      let fStr =
+        if fBlock <> [] then 
+           "\n" ^ (block_to_str ~spaces:(spaces ^ "  ") fBlock)
+        else ""
+      in       
+      sprintf "%s if (%s) then { %s } \n else { %s }"
+        spaces 
         (exp_node_to_str cond)
-        (block_to_str tBlock)
-        (block_to_str fBlock) 
-  | While (cond, body) -> 
-      sprintf "while(%s) { %s }" (exp_node_to_str cond) (block_to_str body)
+        tStr 
+        fStr
+  | While (cond, body) ->
+      let bodyStr = 
+        if body <> [] then "\n" ^ (block_to_str ~spaces:(spaces ^ "  ") body)
+        else ""
+      in  
+      sprintf "%s while(%s) { %s }" spaces (exp_node_to_str cond) bodyStr 
+        
   | Set (id, rhs) -> 
-      sprintf "%s = %s" (ID.to_str id) (exp_node_to_str rhs)  
+      sprintf "%s %s = %s" spaces (ID.to_str id) (exp_node_to_str rhs)  
   | SetIdx (id, indices, rhs) -> 
-      sprintf "%s[%s] = %s" 
+      sprintf "%s %s[%s] = %s"
+        spaces 
         (ID.to_str id) 
         (args_to_str indices) 
         (exp_node_to_str rhs)
-  | SyncThreads -> "syncthreads"
-  | Comment s -> "// " ^ s
+  | SyncThreads -> spaces ^ "syncthreads"
+  | Comment s -> spaces ^ "// " ^ s
   (* used to plug one function into another, shouldn't exist in final code *) 
-  | SPLICE -> "SPLICE"
-and block_to_str stmts = String.concat "\n" (List.map stmt_to_str stmts)
+  | SPLICE -> spaces ^ "SPLICE"
+and block_to_str ?(spaces="") stmts = 
+  String.concat "\n" (List.map (stmt_to_str ~spaces) stmts)
 and args_to_str exps = String.concat ", " (List.map exp_node_to_str exps) 
 let fn_to_str fn =
   let inputs = List.map ID.to_str (Array.to_list fn.input_ids) in 

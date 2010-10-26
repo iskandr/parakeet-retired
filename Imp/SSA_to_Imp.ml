@@ -41,7 +41,7 @@ and translate_exp codegen globalFunctions idEnv expectedType expNode =
 	        set i (int 0);
 	        set n (len arr');  
 	        set acc initial'; 
-	        while_ (i <$ n) [SPLICE] 
+	        while_ (i <$ n) [SPLICE; set i (i +$ (int 1))] 
 	      ] in 
         codegen#splice_emit fundef' [|acc; idx arr' i|] [|acc|] bodyBlock; 
 	      acc
