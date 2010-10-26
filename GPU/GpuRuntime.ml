@@ -35,13 +35,11 @@ let mk_cuda_module ptxList threadsPerBlock =
   } 
 
 
-
-
-
-let compile_map payload argTypes retTypes =
+let compile_map globalFunctions fnId argTypes retTypes =
+  let payload = FnTable.find  fnId globalFunctions in 
   let mapThreadsPerBlock = 128 in 
   (* converting payload to Imp *) 
-  let impPayload = SSA_to_Imp.translate payload in
+  let impPayload = SSA_to_Imp.translate_fundef globalFunctions payload in
   (* generating Imp kernel w/ embedded payload *)
   let impfn = 
     ImpGenMap.gen_map 
@@ -55,22 +53,20 @@ let compile_map payload argTypes retTypes =
   let name = mapPrefix ^ (string_of_int (ID.gen())) in
   mk_cuda_module [name,ptx] mapThreadsPerBlock
 
-
-
 let mapCache : adverb_cache = Hashtbl.create 127
  
-let run_map (fnid : ID.t) fundef inputTypes outputTypes memState dynVals =
+let run_map globalFunctions fnId inputTypes outputTypes memState dynVals =
   (* for now just transfer everything to the GPU-- we can try to make this
      adaptive later 
   *)
   let gpuVals = List.map (MemoryState.get_gpu memState) dynVals in 
   let shapes = List.map GpuVal.get_shape gpuVals in
-  let cacheKey = (fnid, inputTypes) in  
+  let cacheKey = (fnId, inputTypes) in  
   let compiledModule = 
     if Hashtbl.mem mapCache cacheKey then 
       Hashtbl.find mapCache cacheKey
     else (
-      let m = compile_map fundef inputTypes outputTypes in
+      let m = compile_map globalFunctions fnId inputTypes outputTypes in
       Hashtbl.add mapCache cacheKey m; 
       m
     )  
@@ -99,9 +95,10 @@ let run_map (fnid : ID.t) fundef inputTypes outputTypes memState dynVals =
 
 
 
-let compile_reduce payload retTypes =
+let compile_reduce globalFunctions fnId retTypes =
+  let payload = FnTable.find  fnId globalFunctions in 
   let redThreadsPerBlock = 128 in
-  let impPayload = SSA_to_Imp.translate payload in
+  let impPayload = SSA_to_Imp.translate_fundef globalFunctions payload in
   let impfn = ImpGenReduce.gen_reduce impPayload redThreadsPerBlock retTypes in
   debug (Printf.sprintf "[compile_reduce] %s\n" (Imp.fn_to_str impfn));
   let ptx = ImpToPtx.translate_kernel impfn in
@@ -112,13 +109,13 @@ let compile_reduce payload retTypes =
 
 let reduceCache : adverb_cache  = Hashtbl.create 127 
 
-let run_reduce (fnid : ID.t) fundef inputTypes outputTypes memState dynVals =
+let run_reduce globalFunctions fnId inputTypes outputTypes memState dynVals =
   let gpuVals = List.map (MemoryState.get_gpu memState) dynVals in
-  let cacheKey = fnid, inputTypes in 
+  let cacheKey = fnId, inputTypes in 
   let compiledModule = 
     if Hashtbl.mem reduceCache cacheKey then Hashtbl.find reduceCache cacheKey
     else (
-      let m = compile_reduce fundef outputTypes in 
+      let m = compile_reduce globalFunctions fnId outputTypes in 
       Hashtbl.add reduceCache cacheKey m; 
       m
     )
@@ -165,12 +162,12 @@ let run_reduce (fnid : ID.t) fundef inputTypes outputTypes memState dynVals =
     | _ -> failwith "expect one map kernel"
 
 
-let compile_all_pairs payload argTypes retTypes =
+let compile_all_pairs globalFunctions payload argTypes retTypes =
   match argTypes with 
     | [t1; t2] ->  
       
       let threadsPerBlock = 128 in
-      let impPayload = SSA_to_Imp.translate payload in
+      let impPayload = SSA_to_Imp.translate_fundef globalFunctions payload in
       let impfn =
         ImpGenAllPairs.gen_all_pairs_2d_naive impPayload t1 t2 retTypes
       in
@@ -183,13 +180,16 @@ let compile_all_pairs payload argTypes retTypes =
 
 let allPairsCache  = Hashtbl.create 127 
  
-let run_all_pairs (fnid : ID.t) fundef inputTypes outputTypes memState dynVals =
-  let cacheKey = fnid, inputTypes in 
+let run_all_pairs globalFunctions fnId inputTypes outputTypes memState dynVals =
+  let payload = FnTable.find  fnId globalFunctions in 
+  let cacheKey = fnId, inputTypes in 
   let compiledModule = 
     if Hashtbl.mem allPairsCache cacheKey then 
       Hashtbl.find allPairsCache cacheKey
     else (
-      let m = compile_all_pairs fundef inputTypes outputTypes in 
+      let m = 
+        compile_all_pairs globalFunctions payload inputTypes outputTypes 
+      in 
       Hashtbl.add allPairsCache cacheKey m;
       m
     )
@@ -203,7 +203,7 @@ let run_all_pairs (fnid : ID.t) fundef inputTypes outputTypes memState dynVals =
       (* until we have proper shape inference, we can only deal with functions 
         that return scalars 
       *) 
-      let fnReturnTypes = DynType.fn_output_types fundef.SSA.fun_type in 
+      let fnReturnTypes = DynType.fn_output_types payload.SSA.fun_type in 
       assert (List.for_all DynType.is_scalar fnReturnTypes);  
       let xGpu = MemoryState.get_gpu memState x  in
       let yGpu = MemoryState.get_gpu memState y in

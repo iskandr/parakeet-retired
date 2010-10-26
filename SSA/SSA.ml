@@ -80,8 +80,8 @@ let rec typed_id_list_to_str tenv = function
   
         
 let rec block_to_str ?(space="") ?(tenv=PMap.empty) block = 
-    String.concat "\n" (List.map (node_to_str ~space ~tenv) block)
-and node_to_str ?(space="") ?(tenv=PMap.empty) stmtNode = 
+    String.concat "\n" (List.map (stmt_node_to_str ~space ~tenv) block)
+and stmt_node_to_str ?(space="") ?(tenv=PMap.empty) stmtNode = 
   let str = match stmtNode.stmt with 
   | Set (ids, rhs) -> 
     sprintf "%s = %s " (typed_id_list_to_str tenv ids) (exp_to_str rhs)

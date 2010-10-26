@@ -92,9 +92,15 @@ compound_exp:
 /* binary operator */  
 | arg1=simple_exp; op=BINOP; arg2=compound_exp 
   { mk $ AppExp(mk $ Id op, [arg1;arg2 ]) }
-/* binary operator + adverb */    
+/* binary operator + adverb     
 | arg1=simple_exp; op=BINOP; adverb=ADVERB; arg2=compound_exp
   { mk $ AppExp(mk $ Id adverb, [mk $ Id op; arg1; arg2]) } 
+ 
+| arg1=simple_exp; name=ID; adverb=ADVERB; arg2=compound_exp
+   { mk $ AppExp(mk $ Id adverb, [mk $ Id name; arg1; arg2]) }
+*/ 
+| arg1=simple_exp; op=simple_exp; adverb=ADVERB; arg2=compound_exp
+   { mk $ AppExp(mk $ Id adverb, [op; arg1; arg2]) }
  
 
 amend: 

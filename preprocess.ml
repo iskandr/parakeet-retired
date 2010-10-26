@@ -40,7 +40,9 @@ let rewrite_global_reads globalDataVars globalDataMap ast =
               PSet.to_list (PMap.find x globalDataMap) in 
             let globalsRenamed = List.map rename_global globals  in
             let globalVars = List.map mk_var_node globalsRenamed in  
-            mk_app_node ast globalVars
+            (* BUG! What if we're passing this function an adverb? *) 
+            (*mk_app_node ast globalVars*) 
+            ast 
         in ast', locals
     | Def (name, rhs) -> 
         let rhs', locals' = self locals rhs in 

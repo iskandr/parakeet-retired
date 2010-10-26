@@ -229,7 +229,11 @@ let int i =
 let float f = f32_exp $ Const (PQNum.Float32 f)  
 let double d = f64_exp $ Const (PQNum.Float64 d) 
 
-
+let select cond tNode fNode = 
+  assert (tNode.exp_type = fNode.exp_type); 
+  { exp = Select(tNode.exp_type, cond, tNode, fNode); 
+    exp_type = tNode.exp_type
+  } 
     
 let idx arr idx = 
   let idx' = cast DynType.UInt32T idx in  

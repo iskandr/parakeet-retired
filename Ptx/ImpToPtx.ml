@@ -283,7 +283,9 @@ and gen_block codegen block =
   List.iter (gen_stmt codegen) block
    
 let translate_kernel impfn = 
-  debug "[imp2ptx] started translation";
+  debug "[imp2ptx] ***** started translation ****";
+  debug $ Imp.fn_to_str impfn;
+  debug "[imp2ptx] ******************************";
   let codegen = new ptx_codegen in
   (* declare all local variables as either a scalar register or 
      a shared array. 

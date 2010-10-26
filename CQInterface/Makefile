@@ -65,7 +65,9 @@ HostVal.cmx GpuVal.cmx DynVal.cmx \
 MemoryState.cmx \
 PtxHelpers.cmx LibPQ.cmx \
 PtxSimplify.cmx PtxTidy.cmx PtxCodegen.cmx \
-Imp.cmx ImpCommon.cmx ImpCodegen.cmx ImpGenAllPairs.cmx \
+Imp.cmx ImpCommon.cmx \
+ImpSimplify.cmx ImpCodegen.cmx \
+ImpGenAllPairs.cmx \
 ImpGenMap.cmx ImpGenReduce.cmx \
 ImpToPtx.cmx \
 SSA_to_Imp.cmx \

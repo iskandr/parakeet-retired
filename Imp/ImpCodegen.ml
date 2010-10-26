@@ -195,7 +195,7 @@ class imp_codegen =
       Array.iter (Hashtbl.remove localTypes) inputIds;      
       let localIds = Array.of_enum $ Enum.map fst (Hashtbl.enum localTypes) in 
       let localTypes = Array.of_enum $ Enum.map snd (Hashtbl.enum localTypes) in
-      {
+      ImpSimplify.simplify_function {
         input_types =  inputTypes;
         input_ids = inputIds; 
         output_types = outputTypes;   

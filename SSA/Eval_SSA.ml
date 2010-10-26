@@ -58,13 +58,13 @@ let eval_adverb_on_gpu
   let fundefs = List.map (fun id -> FnTable.find id functions) fnIds in  
   match op, fnIds, fundefs  with  
   | Prim.Map, [fnId], [fundef] ->
-      GpuRuntime.run_map fnId fundef inputTypes outputTypes memState dynVals 
+      GpuRuntime.run_map functions fnId inputTypes outputTypes memState dynVals 
   | Prim.Reduce, [fnId], [fundef] ->
-      GpuRuntime.run_reduce fnId fundef inputTypes outputTypes memState dynVals 
+      GpuRuntime.run_reduce functions fnId inputTypes outputTypes memState dynVals 
   | Prim.AllPairs, [fnId], [fundef] ->
       GpuRuntime.run_all_pairs 
+        functions 
         fnId 
-        fundef
         inputTypes
         outputTypes
         memState
@@ -101,7 +101,7 @@ and eval_block
   | [] -> env
   | stmtNode::rest ->
       debug (Printf.sprintf "[eval_block] stmtNode::rest: %s \n%!"
-             (SSA.node_to_str stmtNode));
+             (SSA.stmt_node_to_str stmtNode));
       let (env' : env) = eval_stmt memState functions env stmtNode in
       debug "[eval_block] evaluated stmt\n%!";
       eval_block memState functions env' rest
