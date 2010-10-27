@@ -2,7 +2,9 @@ open HostVal
 
 module GpuPtr = Int32
 module CuCtxPtr = Int64
+module CuChanFormatDesc = Int64
 module CuModulePtr = Int64
+module CuTexRef = Int32
 
 type device_info = {
   max_threads_per_block : int;
@@ -26,7 +28,12 @@ type cuda_module = {
   module_ptr : CuModulePtr.t;
   kernel_names : string list;
   threads_per_block : int 
-} 
+}
+
+type cuda_channel_format_kind =
+  | Signed
+  | Unsigned
+  | Float
 
 external cuda_malloc : int -> GpuPtr.t = "ocaml_cuda_malloc"
 external cuda_free : GpuPtr.t -> unit = "ocaml_cuda_free"
@@ -45,3 +52,18 @@ external cuda_memcpy_to_host : HostPtr.t -> GpuPtr.t -> int -> unit
   = "ocaml_cuda_memcpy_to_host"
 
 external cuda_device_get_count : unit -> int = "ocaml_cuda_device_get_count"
+
+external cuda_module_get_tex_ref : CuModulePtr.t -> string -> CuTexRef.t =
+  "ocaml_cuda_module_get_tex_ref"
+
+external cuda_bind_texture_2d_std_channel_impl
+  : CuTexRef.t -> GpuPtr.t -> int -> int -> int -> unit =
+  "ocaml_cuda_bind_texture_2d_std_channel"
+
+let cuda_bind_texture_2d_std_channel (texRef : CuTexRef.t)
+      (devPtr : GpuPtr.t) (width : int) (height : int) = function
+  | Signed -> cuda_bind_texture_2d_std_channel_impl texRef devPtr width height 0
+  | Unsigned ->
+      cuda_bind_texture_2d_std_channel_impl texRef devPtr width height 1
+  | Float -> cuda_bind_texture_2d_std_channel_impl texRef devPtr width height 2
+  | _ -> failwith "[cuda] Unsupported texture type"

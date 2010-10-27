@@ -112,7 +112,6 @@ value ocaml_cuda_memcpy_to_device (value array,
   CAMLparam3(array, dev_ptr, num_bytes);
   void* source = (void*)Int64_val(array);
   CUdeviceptr dest = Int32_val(dev_ptr);
- // printf("in memcpy to device, source[0]: %d\n", ((int*)source)[0]);
   CUresult result = cuMemcpyHtoD(dest, source, Int_val(num_bytes));
   if (result != 0) {
     printf ("Error copying memory from host to GPU: %d \n", result);
@@ -133,8 +132,63 @@ value ocaml_cuda_memcpy_to_host (value array,
   if (result != 0) {
     printf ("Error copying memory from GPU to host: %d\n", result);
     exit(1);
-  } //else {
-    // printf("memcpy to host succeeded, dest[0]: %d\n", ((int*)dest)[0]);
-  //}
+  }
   CAMLreturn(Val_unit);
+}
+
+CAMLprim
+value ocaml_module_get_tex_ref(value ocaml_module_ptr, value ocaml_name) {
+  CAMLparam2(ocaml_module_ptr, ocaml_name);
+
+  CUtexref tex_ref;
+  cuModuleGetTexRef(&tex_ref, *(CUmodule*)Int64_val(ocaml_module_ptr),
+                    String_val(ocaml_name));
+
+  printf("sizeof(texref): %d\n", sizeof(CUtexref));
+  CAMLreturn(caml_copy_int32((int32_t)tex_ref));
+}
+
+CAMLprim
+value ocaml_cuda_bind_texture_2d_std_channel(
+    value tex_ref, value dev_ptr, value width, value height, value kind) {
+  CAMLparam5(tex_ref, dev_ptr, width, height, kind);
+
+  unsigned int c_width = Int_val(width);
+  unsigned int c_height = Int_val(height);
+  int c_kind = Int_val(kind);
+
+  // For now, all supported types are 32 bits.
+  unsigned int pitch = c_kind * 4;
+  CUDA_ARRAY_DESCRIPTOR desc;
+  switch(kind) {
+    case 0:
+      desc.Format = CU_AD_FORMAT_SIGNED_INT32;
+      break;
+    case 1:
+      desc.Format = CU_AD_FORMAT_UNSIGNED_INT32;
+      break;
+    case 2:
+      desc.Format = CU_AD_FORMAT_FLOAT;
+      break;
+    default:
+      printf("[ocaml_cuda_bind_texture_2d_std_channel] unsupported format\n");
+      exit(1);
+  }
+  desc.NumChannels = 1;
+  desc.Width = c_width;
+  desc.Height = c_height;
+
+  // For now, we assume that the offset is 0, and that we don't care about
+  // whether we're normalized because we shouldn't be addressing out of bounds.
+  cuTexRefSetAddress2D((CUtexref)Int32_val(tex_ref), &desc,
+                       (CUdeviceptr)Int32_val(dev_ptr), pitch);
+  
+  CAMLreturn(Val_unit);
+}
+
+CAMLprim
+value ocaml_unbind_texture(value tex_ref) {
+  CAMLparam1(tex_ref);
+
+  
 }

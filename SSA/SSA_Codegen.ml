@@ -11,10 +11,10 @@ class typed_ssa_codegen =
     method get_type id = PMap.find id !types 
     method add_type id t = types := PMap.add id t !types  
     
-    method fresh_var t = 
+    method fresh_var t =
       let id = ID.gen() in 
       self#add_type id t;
-      id 
+      id
     
     (* returns a value node for a given variable *) 
     method id_value_node id =  

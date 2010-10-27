@@ -6,6 +6,14 @@ open Printf
 
 module TimeSpecPtr = Int64
 
+type grid_params = {
+  threads_x : int;
+  threads_y : int;
+  threads_z : int;
+  grid_x    : int;
+  grid_y    : int;
+}
+
 external cuda_init : unit -> unit = "ocaml_pq_init"
 
 (* arguments: a ptx string and a desired number of threads per block *) 
@@ -21,14 +29,6 @@ external launch_ptx_impl
   : CuModulePtr.t -> string -> GpuVal.gpu_val array ->
 		 int -> int -> int -> int -> int -> unit =
 				"ocaml_pq_launch_ptx_bytecode" "ocaml_pq_launch_ptx"
-
-type grid_params = {
-  threads_x : int;
-  threads_y : int;
-  threads_z : int;
-  grid_x    : int;
-  grid_y    : int;
-}
 	
 let launch_ptx (cudaModule : CuModulePtr.t) (fnName : string) 
       (args : GpuVal.gpu_val array)

@@ -628,7 +628,6 @@ K build_q_type(char *data, int num_bytes, int ktypenum,
   K ret;
   int i;
 
-  int sizeof_element = 0;
   if (shape_len == 0) {
     // Scalar
     switch(ktypenum) {
@@ -662,9 +661,7 @@ K build_q_type(char *data, int num_bytes, int ktypenum,
     }
   } else if (shape_idx == shape_len - 1) {
     // Last level of lists, just build
-    if (sizeof_element == 0) {
-      sizeof_element = ktype_num_bytes(ktypenum);
-    }
+    int sizeof_element = ktype_num_bytes(ktypenum);
     ret = ktn(-ktypenum, shape[shape_idx]);
     int idx = 0, factor = sizeof_element;
     for (i = shape_idx; i > 0; --i) {

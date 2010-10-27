@@ -107,7 +107,7 @@ COMMONFLAGS += $(INCLUDES) -DUNIX
 # Debug/release configuration
 ifeq ($(dbg),1)
 	COMMONFLAGS += -g
-	NVCCFLAGS   += -D_DEBUG
+	NVCCFLAGS   += -D_DEBUG -DDEBUG
 	BINSUBDIR   := debug
 	LIBSUFFIX   := D
 else 

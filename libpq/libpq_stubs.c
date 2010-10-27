@@ -41,7 +41,8 @@ CAMLprim value ocaml_pq_init(value unit) {
 static const int jitLogBufferSize = 32000;
 
 /* string -> Int64.t */
-CAMLprim value ocaml_pq_compile_module(value ptx_string, value threads_per_block)
+CAMLprim
+value ocaml_pq_compile_module(value ptx_string, value threads_per_block)
 {
   CAMLparam2(ptx_string, threads_per_block);
   CUmodule *cuModule = (CUmodule*)(malloc(sizeof(CUmodule)));
@@ -53,7 +54,7 @@ CAMLprim value ocaml_pq_compile_module(value ptx_string, value threads_per_block
       CU_JIT_INFO_LOG_BUFFER,
       CU_JIT_ERROR_LOG_BUFFER_SIZE_BYTES,
       CU_JIT_ERROR_LOG_BUFFER, 
-      CU_JIT_THREADS_PER_BLOCK, /* input: min threads per block, output: max achievable */ 
+      CU_JIT_THREADS_PER_BLOCK,
       CU_JIT_WALL_TIME
   };
 
@@ -79,11 +80,14 @@ CAMLprim value ocaml_pq_compile_module(value ptx_string, value threads_per_block
 
 	  printf("JIT error log: %s\n", ebuf);
 	exit(1);
-  } else { 
-    printf("JIT max threads per block: %d (requested: %d)\n", (int) jitOptVals[4], nthreads);  
+#ifdef DEBUG
+  } else {
+    printf("JIT max threads per block: %d (requested: %d)\n",
+           (int) jitOptVals[4], nthreads);
     float jitTime = 0.0; 
     memcpy((void*) &jitTime, &jitOptVals[5], sizeof(float));
-    printf("JIT compile time: %f\n", jitTime); 
+    printf("JIT compile time: %f\n", jitTime);
+#endif
   }
   CAMLreturn(caml_copy_int64((int64_t)cuModule));
 }
@@ -119,16 +123,16 @@ CAMLprim value ocaml_pq_launch_ptx (
   CAMLxparam3(ocaml_threadsz, ocaml_gridwidth, ocaml_gridheight);
   CAMLlocal3(ocaml_arg, ocaml_gpu_val, ocaml_gpu_var);
 
-
-  printf("In CUDA launch stub\n");
   int threadsx = Int_val(ocaml_threadsx); 
   int threadsy = Int_val(ocaml_threadsy); 
   int threadsz = Int_val(ocaml_threadsz); 
 
-  printf("Block dimensions: x: %d y: %d z: %d\n",threadsx, threadsy, threadsz); 
+#ifdef DEBUG
+  printf("Block dimensions: x: %d y: %d z: %d\n",threadsx, threadsy, threadsz);
 
   printf("Grid dimensions: x: %d, y: %d \n", Int_val(ocaml_gridwidth),
            Int_val(ocaml_gridheight));
+#endif
 
   // Have to take the args array and pull out a list of the arguments,
   // including inserting shape vectors for those arguments which need them.
@@ -147,7 +151,9 @@ CAMLprim value ocaml_pq_launch_ptx (
     printf("cuModuleGetFunction failed for %s with error %d", fnName, result);
     exit(1);
   }
+#ifdef DEBUG
   else { printf("Got function %s from module\n", fnName); }
+#endif
 
   result = cuFuncSetBlockShape(cuFunc, threadsx, threadsy, threadsz); 
   if (result != 0) {
@@ -160,7 +166,11 @@ CAMLprim value ocaml_pq_launch_ptx (
   int offset = 0;
   int arg_size = 0;
   int i;
+
+#ifdef DEBUG
   printf("Setting up %d GPU arguments\n", num_args);
+#endif
+
   for (i = 0; i < num_args; ++i) {
 
     ocaml_gpu_val = Field(ocaml_args, i);
@@ -216,10 +226,13 @@ CAMLprim value ocaml_pq_launch_ptx (
   }
   int width = Int_val(ocaml_gridwidth);
   int height = Int_val(ocaml_gridheight);
+
+#ifdef DEBUG
   printf("Grid width, height: %d, %d\n", width, height);
   fflush(stdout);
-  result = cuLaunchGrid(cuFunc, width, height);
+#endif
 
+  result = cuLaunchGrid(cuFunc, width, height);
   if (result != 0) {
     printf("Error launching grid: %d\n", result);
     exit(1);
@@ -230,7 +243,6 @@ CAMLprim value ocaml_pq_launch_ptx (
     printf("Error during kernel: %d\n", result);
     exit(1);
   }
-
 
   CAMLreturn(Val_unit);
 }

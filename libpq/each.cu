@@ -171,6 +171,24 @@ __global__ void all_dists_1_kernel(float *left, int left_len,
     
 }
 
+texture<float, 2, cudaReadModeElementType> leftTex;
+texture<float, 2, cudaReadModeElementType> rightTex;
+__global__ void all_dists_tex_kernel(int left_len, int right_len,
+                                     int vec_len, float *output) {
+  int left_id  = blockIdx.x * THREADS_PER_DIM + threadIdx.x;
+  int right_id = blockIdx.y * THREADS_PER_DIM + threadIdx.y;
+  if (left_id < left_len && right_id < right_len) {
+    float result = 0.0f;
+    float intermediate;
+    int i;
+    for (i = 0; i < vec_len; ++i) {
+      intermediate = tex2D(leftTex, i, left_id) - tex2D(rightTex, i, right_id);
+      result += intermediate * intermediate;
+    }
+    output[left_id * right_len + right_id] = sqrtf(result);
+  }
+}
+
 __global__ void all_dists_final_kernel(float *left, int left_len,
                                        float *right, int right_len,
                                        int vec_len, float *output) {
@@ -417,6 +435,22 @@ void all_dists_1(float *left,  int left_len,
     (devLeft, left_len, devRight, right_len, vec_len, 16, devOutput);*/
   all_dists_final_kernel<<<dimGrid, dimBlock>>>
     (devLeft, left_len, devRight, right_len, vec_len, devOutput);
+
+  // Texture experiment
+  /*
+  cudaChannelFormatDesc leftDesc =
+    cudaCreateChannelDesc(32, 0, 0, 0, cudaChannelFormatKindFloat);
+  cudaChannelFormatDesc rightDesc =
+    cudaCreateChannelDesc(32, 0, 0, 0, cudaChannelFormatKindFloat);
+  leftTex.normalized = 0;
+  rightTex.normalized = 0;
+  cudaBindTexture2D(0, leftTex, devLeft, leftDesc,
+                    vec_len, left_len, vec_len * sizeof(float));
+  cudaBindTexture2D(0, rightTex, devRight, rightDesc,
+                    vec_len, right_len, vec_len * sizeof(float));
+  all_dists_tex_kernel<<<dimGrid, dimBlock>>>
+    (left_len, right_len, vec_len, devOutput);
+  */
 
   if (!include_mem_in_time) {
     rslt = cudaThreadSynchronize();

@@ -24,6 +24,27 @@ and translate_exp codegen globalFunctions idEnv expectedType expNode =
             vs) ->
       let vs' = List.map (translate_value idEnv) vs in 
       typed_exp argT$ Op (op, argT, vs')
+  (* assume you only have one array over which you're mapping for now *)
+  | SSA.App({SSA.value=SSA.Prim (Prim.ArrayOp Prim.Map);
+            value_type = FnT([payloadT; arrT], [outputT])},
+            [payload; arr]) ->
+    (match payload.SSA.value with
+      | SSA.Var fnId ->
+        let fundef = FnTable.find fnId globalFunctions in
+        let fundef' = translate_fundef globalFunctions fundef in
+        let arr' = translate_value idEnv arr in
+        let output = codegen#fresh_var outputT in
+        let i = codegen#fresh_var Int32T in
+        let n = codegen#fresh_var Int32T in
+        let bodyBlock = [
+          set i (int 0);
+          set n (len arr');
+          while_ (i <$ n) [SPLICE; set i (i +$ (int 1))]
+        ] in
+        codegen#splice_emit fundef' [|idx arr' i|] [|idx output i|] bodyBlock;
+        output
+      | _ -> failwith "[ssa->imp] Expected function identifier"
+    )
   (* assume you only have one initial value, and one array to be reduced *)    
   | SSA.App({SSA.value=SSA.Prim (Prim.ArrayOp Prim.Reduce); 
              value_type =FnT([payloadT; initialT; arrT], [outputT])},
@@ -46,9 +67,7 @@ and translate_exp codegen globalFunctions idEnv expectedType expNode =
         codegen#splice_emit fundef' [|acc; idx arr' i|] [|acc|] bodyBlock; 
 	      acc
       | _ -> failwith "[ssa->imp] Expected function identifier"
-    )
-	     
-	 
+    )	 
   | SSA.Cast (t, vNode) -> cast t (translate_value idEnv vNode)  
   | SSA.Values [v] -> translate_value idEnv v
   | SSA.Values [] -> failwith "[ssa->imp] unexpected empty value list"
