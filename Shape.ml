@@ -14,18 +14,13 @@ type t = (int32, int32_elt, c_layout) Array1.t
 
 let create : (int -> t)  = Array1.create int32 c_layout
 
-let empty = create 0
-
 let get_dim shape idx =
   let dim32 = Array1.get shape idx in 
   Int32.to_int dim32  
   
 let set_dim shape idx v = Array1.set shape idx (Int32.of_int v)
 
-let scalar_shape =
-  let new_shape = create 1 in
-  set_dim new_shape 0 1;
-  new_shape
+let scalar_shape = create 0
 
 let of_list l =
   let n = List.length l in
@@ -91,12 +86,12 @@ let max_shape_list lst =
     | None -> None
     | Some s1 -> max_shape s1 s2 
   in  
-  List.fold_left aux (Some empty) lst
+  List.fold_left aux (Some scalar_shape) lst
 
 external get_raw_ptr : t -> HostPtr.t = "get_shapevec_ptr"
 
 let to_str s =
-  let r = rank s in  
+  let r = rank s in   
   let b = Buffer.create (r*3) in 
   Printf.bprintf b "[";
   for i = 0 to r - 1 do 
@@ -106,4 +101,3 @@ let to_str s =
       Printf.bprintf b "%d]" (get_dim s i)
   done; 
   Buffer.contents b
-

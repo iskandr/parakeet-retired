@@ -35,6 +35,7 @@ TARGET="preprocess.native"
 PPFLAGS=
 MAKEFLAGS=
 FINALTARGET=
+CFLAGS=-g 
 
 if [ "prof" == "$1" ]; then
   SUFFIX=".p"
@@ -54,22 +55,22 @@ cd ..
 if [  "tests!" == "$1" ]; then 
   printf "\n---Building tests---\n";
   ocamlbuild Tests/tests.native -no-hygiene -Is $DIRS $OBJS \
-    -libs $LIBS -lflags "$LINKER_FLAGS" -ocamlyacc menhir -yaccflag --infer;
+    -libs $LIBS -cflags "$CFLAGS" -lflags "$LINKER_FLAGS" -ocamlyacc menhir -yaccflag --infer;
 
   printf "\n---Running tests---\n";
  _build/Tests/tests.native;
 else
   printf "\n---Building CUDA/Q---\n";
 
-  ocamlbuild $OCAMLPP $PPFLAGS -Is $DIRS -no-hygiene \
+  ocamlbuild $OCAMLPP $PPFLAGS -Is $DIRS -no-hygiene -cflags "$CFLAGS" \
     "Q/QSyntax"${SUFFIX}".cmxa" 
 
   if [ -n TARGET ]; then
     ocamlbuild $TARGET $OCAMLPP $PPFLAGS -no-hygiene -Is $DIRS $OBJS \
-      -libs $LIBS -lflags "$LINKER_FLAGS" -ocamlyacc menhir
+      -libs $LIBS -cflags "$CFLAGS" -lflags "$LINKER_FLAGS" -ocamlyacc menhir
   fi
 
-  ocamlbuild $OCAMLPP $PPFLAGS -Is $DIRS -no-hygiene -ocamlyacc menhir \
+  ocamlbuild  $OCAMLPP $PPFLAGS -Is $DIRS -no-hygiene -ocamlyacc menhir -cflags "$CFLAGS" \
     "Callbacks"${SUFFIX}".cmx"
 
   cd CQInterface;
@@ -80,7 +81,7 @@ else
 
   if [ -n FINALTARGET ]; then
     ocamlbuild $OCAMLPP $PPFLAGS $FINALTARGET -Is $DIRS $OBJS \
-      -libs $LIBS -lflags "$LINKER_FLAGS" -ocamlyacc menhir
+      -libs $LIBS -cflags "$CFLAGS" -lflags "$LINKER_FLAGS" -ocamlyacc menhir
   fi
 fi
 

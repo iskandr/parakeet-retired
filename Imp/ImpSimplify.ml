@@ -1,5 +1,3 @@
-
-
 open Base
 open Imp 
 
@@ -23,7 +21,6 @@ and find_stmt_live currSet  = function
 and find_block_live currSet = function 
   | [] -> currSet
   | stmt::rest -> find_block_live (find_stmt_live currSet stmt) rest
-
 
 let rec remove_unused liveSet = function 
   | [] -> [], false  
