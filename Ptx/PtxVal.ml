@@ -22,6 +22,9 @@ type value =
   | IntConst of Int64.t
   | FloatConst of float
   | Special of special_register
+  (* careful not to nest these! *) 
+  | Vec2 of value * value
+  | Vec4 of value * value * value * value  
    
 and dim = X | Y | Z
 and special_register =
@@ -37,28 +40,35 @@ and special_register =
   | Clock
 
 let rec to_str symbols = function 
-    | Sym {id=id; space=REG} ->  sprintf "%%%s" (Hashtbl.find symbols id) 
-    | Sym {id=id} -> Hashtbl.find symbols id
-    | IntConst i -> Int64.to_string i
-    | FloatConst f -> Float.to_string f 
-    | Special s -> special_register_to_str s  
+  | Sym {id=id; space=REG} ->  sprintf "%%%s" (Hashtbl.find symbols id) 
+  | Sym {id=id} -> Hashtbl.find symbols id
+  | IntConst i -> Int64.to_string i
+  | FloatConst f -> Float.to_string f 
+  | Special s -> special_register_to_str s
+  | Vec2 (x,y) -> sprintf "{%s, %s}" (to_str symbols x) (to_str symbols y)
+  | Vec4 (x,y,z,w) -> 
+      sprintf "{%s, %s, %s, %s}"
+        (to_str symbols x)
+        (to_str symbols y)
+        (to_str symbols z)
+        (to_str symbols w)  
  
 and register_dim_to_str = function 
-    | X -> "x"
-    | Y -> "y"
-    | Z -> "z"
+  | X -> "x"
+  | Y -> "y"
+  | Z -> "z"
   
 and special_register_to_str = function
-    | ThreadId d -> "%tid." ^ (register_dim_to_str d)
-    | NumThreadId d -> "%ntid." ^ (register_dim_to_str d) 
-    | ThreadLane -> "%laneid" 
-    | WarpId -> "%warpid" 
-    | CtaId d -> "%ctaid." ^ (register_dim_to_str d) 
-    | NumCtaId d -> "%nctaid."  ^ (register_dim_to_str d)
-    | ProcessorId -> "%smid" 
-    | MaxProcessors -> "%nsmid"
-    | GridId -> "%gridid" 
-    | Clock -> "%clock"
+  | ThreadId d -> "%tid." ^ (register_dim_to_str d)
+  | NumThreadId d -> "%ntid." ^ (register_dim_to_str d) 
+  | ThreadLane -> "%laneid" 
+  | WarpId -> "%warpid" 
+  | CtaId d -> "%ctaid." ^ (register_dim_to_str d) 
+  | NumCtaId d -> "%nctaid."  ^ (register_dim_to_str d)
+  | ProcessorId -> "%smid" 
+  | MaxProcessors -> "%nsmid"
+  | GridId -> "%gridid" 
+  | Clock -> "%clock"
 
 let is_ptx_constant = function  
   | IntConst _ 

@@ -59,7 +59,7 @@ let run_map globalFunctions fnId inputTypes outputTypes memState dynVals =
   (* for now just transfer everything to the GPU-- we can try to make this
      adaptive later 
   *)
-  let gpuVals = List.map (MemoryState.get_gpu memState) dynVals in 
+  let gpuVals = List.map (MemoryState.get_gpu memState) dynVals in
   let shapes = List.map GpuVal.get_shape gpuVals in
   let cacheKey = (fnId, inputTypes) in  
   let compiledModule = 
@@ -181,7 +181,7 @@ let compile_all_pairs globalFunctions payload argTypes retTypes =
 let allPairsCache  = Hashtbl.create 127 
  
 let run_all_pairs globalFunctions fnId inputTypes outputTypes memState dynVals =
-  let payload = FnTable.find  fnId globalFunctions in 
+  let payload = FnTable.find fnId globalFunctions in 
   let cacheKey = fnId, inputTypes in 
   let compiledModule = 
     if Hashtbl.mem allPairsCache cacheKey then 
@@ -195,9 +195,11 @@ let run_all_pairs globalFunctions fnId inputTypes outputTypes memState dynVals =
     )
   in
   match compiledModule.Cuda.kernel_names, dynVals with
-    | _, [] | _, [_] | _, _::_::_::_ ->  
+    | _, [] 
+    | _, [_] | _, _::_::_::_ ->  
         failwith "[run_all_pairs] wrong number of arguments"
-    | [], _ | _::_::_, _ ->
+    | [], _ 
+    | _::_::_, _ ->
         failwith "[run_all_pairs] wrong number of functions" 
     | [fnName], [x;y] ->
       (* until we have proper shape inference, we can only deal with functions 

@@ -44,7 +44,7 @@ and gpu_binop =
     | Mul24 of gpu_bits
 and gpu_virtual_unop = Exp | Ln
 and gpu_virtual_binop =  Pow
-
+and geom = Tex1D | Tex2D | Tex3D 
 and gpu_op =
   | Unop of gpu_unop * PtxType.ty
   | Binop of gpu_binop * PtxType.ty
@@ -63,6 +63,7 @@ and gpu_op =
   | Comment of string 
   | Exit 
   | Bar of int 
+  | Tex of geom * ty
  
 and var_decl = {
   t: PtxType.ty; 

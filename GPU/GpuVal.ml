@@ -33,7 +33,7 @@ let nelts = function
 
 let get_shape = function
   | GpuVec v -> v.vec_shape
-  | GpuScalar _ -> Shape.empty
+  | GpuScalar _ -> Shape.scalar_shape 
 
 let get_type = function
   | GpuVec v -> v.vec_t
@@ -128,7 +128,7 @@ let from_gpu = function
           ptr = s.scalar_data;
           host_t = s.scalar_t;
           nbytes = s.scalar_nbytes;
-          shape = Shape.empty;
+          shape = Shape.scalar_shape; 
         }
 
     | GpuVec v ->

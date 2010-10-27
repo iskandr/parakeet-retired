@@ -4,7 +4,6 @@ open SSA_Codegen
 open DynType
 open Printf 
 
-
 type type_env = (ID.t, DynType.t) PMap.t
 type const_env = (ID.t, SSA.value) PMap.t
 
@@ -592,7 +591,7 @@ and specialize_all_pairs
     (inputType2 : DynType.t)
     : SSA.fundef  = 
   let inputTypes = [inputType1; inputType2] in    
-  let eltTypes = List.map DynType.elt_type inputTypes in   
+  let eltTypes = List.map DynType.peel_vec inputTypes in   
   let forceOutputEltTypes : DynType.t list option = 
     Option.map (List.map DynType.elt_type) forceOutputTypes 
   in

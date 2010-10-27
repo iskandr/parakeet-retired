@@ -8,6 +8,8 @@ open ImpGenAllPairs
 open ImpToPtx
 open DynVal
 
+let _ = Printexc.record_backtrace true;;
+
 type mem = DataId.t MemoryState.mem_state
 type env = (ID.t, DynVal.dyn_val) PMap.t
 
@@ -113,9 +115,9 @@ and eval_stmt
       (env : env ) 
       (stmtNode : SSA.stmt_node) : env = match stmtNode.stmt with 
   | Set (ids, expNode) ->
-      debug "[eval_stmt] Set\n%!";
+      debug $ Printf.sprintf "[eval_stmt] %s" (SSA.stmt_node_to_str stmtNode);
       let results =  eval_exp memState functions env expNode in
-      debug "[eval_stmt] after eval_exp\n%!";
+      debug "[eval_stmt] after eval_exp";
       List.fold_left2 
         (fun accEnv id dynval -> PMap.add id dynval accEnv) 
         env 

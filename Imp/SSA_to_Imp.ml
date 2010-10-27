@@ -23,7 +23,10 @@ and translate_exp codegen globalFunctions idEnv expectedType expNode =
              value_type =FnT(argT::_, _)},
             vs) ->
       let vs' = List.map (translate_value idEnv) vs in 
-      typed_exp argT$ Op (op, argT, vs')
+      if Prim.is_comparison op then 
+        cmp_op op ~t:argT vs' 
+      else
+        typed_op op vs' 
   (* assume you only have one array over which you're mapping for now *)
   | SSA.App({SSA.value=SSA.Prim (Prim.ArrayOp Prim.Map);
             value_type = FnT([payloadT; arrT], [outputT])},
@@ -77,7 +80,13 @@ and translate_exp codegen globalFunctions idEnv expectedType expNode =
       "[ssa->imp] typed core exp not yet implemented: %s"
       (SSA.exp_to_str expNode)
   in 
-  assert (impExpNode.exp_type = List.hd expNode.SSA.exp_types); 
+  if impExpNode.exp_type <> List.hd expNode.SSA.exp_types then 
+    failwith $ 
+    Printf.sprintf "[ssa->imp] mismatch between %s and %s while translating %s"
+    (DynType.to_str impExpNode.exp_type)
+    (DynType.to_str $ List.hd expNode.SSA.exp_types)
+    (SSA.exp_to_str expNode) 
+  else  
   impExpNode
     
 and translate_stmt globalFunctions idEnv codegen stmtNode =
