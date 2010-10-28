@@ -65,7 +65,7 @@ else
   ocamlbuild $OCAMLPP $PPFLAGS -Is $DIRS -no-hygiene -cflags "$CFLAGS" \
     "Q/QSyntax"${SUFFIX}".cmxa" 
 
-  if [ -n TARGET ]; then
+  if [ -n "$TARGET" ]; then
     ocamlbuild $TARGET $OCAMLPP $PPFLAGS -no-hygiene -Is $DIRS $OBJS \
       -libs $LIBS -cflags "$CFLAGS" -lflags "$LINKER_FLAGS" -ocamlyacc menhir
   fi
@@ -79,7 +79,8 @@ else
   mv cinterface.so ../_build;
   cd ..
 
-  if [ -n FINALTARGET ]; then
+  if [ -n "$FINALTARGET" ]; then
+    printf "\n---Building Final Target---\n";
     ocamlbuild $OCAMLPP $PPFLAGS $FINALTARGET -Is $DIRS $OBJS \
       -libs $LIBS -cflags "$CFLAGS" -lflags "$LINKER_FLAGS" -ocamlyacc menhir
   fi
