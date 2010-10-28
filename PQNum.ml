@@ -2,27 +2,35 @@ open Base
 open DynType
 
 type num = 
-  | Int of int 
-  | Int32 of Int32.t 
-  | Int64 of Int64.t 
-  | Float32 of float
-  | Float64 of float
   | Char of char 
   | Bool of bool 
+  | UInt16 of int 
+  | Int16 of int 
+  | UInt32 of Uint32.t
+  | Int32 of Int32.t 
+  | UInt64 of Uint64.t   
+  | Int64 of Int64.t
+  | Float32 of float
+  | Float64 of float
+  
 
-let num_to_str = function 
+let num_to_str = function
+  | UInt16 x  
+  | Int16 x -> string_of_int x
   | Int32 x -> Int32.to_string x
   | Int64 x -> Int64.to_string x
-  | Int x -> Int.to_string x
   | Float32 x 
   | Float64 x -> Float.to_string x
   | Bool x -> Int.to_string (Bool.to_int x)
   | Char c ->  Char.to_string c  
 
 let type_of_num = function 
+  | UInt16 _ -> UInt16T 
+  | Int16 _ -> Int16T 
+  | UInt32 _ -> UInt32T 
   | Int32 _ -> Int32T
+  | UInt64 _ -> UInt64T 
   | Int64 _ -> Int64T  
-  | Int _ -> IntT
 	| Float32 _ -> Float32T
   | Float64 _ -> Float64T 
 	| Bool _ -> BoolT
@@ -30,9 +38,11 @@ let type_of_num = function
 
 
 let coerce_int i = function
-  | UInt32T 
+  | UInt16T -> assert (i >= 0); UInt16 i 
+  | Int16T -> Int16 i  
+  | UInt32T -> UInt32 (Uint32.of_int i)  
   | Int32T -> Int32 (Int32.of_int i)
-  | UInt64T 
+  | UInt64T -> UInt64 (Uint64.of_int i) 
   | Int64T -> Int64 (Int64.of_int i)
   | Float32T -> Float32 (float_of_int i)
   | Float64T -> Float64 (float_of_int i)
@@ -43,7 +53,6 @@ let coerce_int i = function
         if i < 0 || i > 255 
         then failwith "int outside valid range for conversion to char"
         else Char (Char.chr i)
-  | IntT -> Int i 
   | _ -> failwith "coercion for this type not implemented"
 
 let coerce_int32 i = function
@@ -61,16 +70,14 @@ let coerce_int32 i = function
         if i < Int32.zero || i > Int32.zero 
         then failwith "int32 outside valid range for conversion to char"
         else Char (Char.chr (Int32.to_int i))
-  | IntT -> Int (Int32.to_int i) 
   | _ -> failwith "coercion for this type not implemented"
 
 (* this is really an argument for a common NUMBER module interface *)
 (* which is implemented by all of the ocaml number types *) 
 let coerce_int64 i = function
-  | IntT -> Int (Int64.to_int i)
-  | UInt32T 
+  | UInt32T -> UInt32 (Uint32.of_int32 $ Int64.to_int32 i)
   | Int32T -> Int32 (Int64.to_int32 i)
-  | UInt64T  
+  | UInt64T -> UInt64 (Uint64.of_int64 i) 
   | Int64T -> Int64 i
   | Float32T -> Float32 (Int64.to_float i)
   | Float64T -> Float64 (Int64.to_float i)
@@ -85,8 +92,7 @@ let coerce_int64 i = function
   | _ -> failwith "coercion for this type not implemented"
 
 let coerce_float f = function
-  | IntT -> Int (int_of_float f)
-  | UInt32T 
+  | UInt32T -> UInt32 (Uint32.of_float f)
   | Int32T -> Int32 (Int32.of_float f)
   | UInt64T  
   | Int64T -> Int64 (Int64.of_float f)
@@ -105,7 +111,8 @@ let coerce_float f = function
 
 let coerce_num n t =
   match n with 
-    | Int i -> coerce_int i t 
+    | Int16 i
+    | UInt16 i -> coerce_int i t
     | Int32 i -> coerce_int32 i t 
     | Int64 i -> coerce_int64 i t 
     | Float32 f 

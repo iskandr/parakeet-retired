@@ -10,12 +10,14 @@ OCAMLINCLUDES = -I $(BUILDPATH) -I $(BUILDPATH)/Analysis \
 	-I $(BUILDPATH)/CQInterface -I $(BUILDPATH)/Dynamic -I $(BUILDPATH)/Base \
 	-I $(BUILDPATH)/Ptx -I $(BUILDPATH)/GPU -I $(BUILDPATH)/Q -I $(BUILDPATH)/ResourceManager \
 	-I $(BUILDPATH)/Dump \
-	-I $(BUILDPATH)/extlib -I $(BUILDPATH)/AST   \
+	-I $(BUILDPATH)/AST   \
 	-I $(BUILDPATH)/Imp \
 	-I $(BUILDPATH)/UntypedSSA \
 	-I $(BUILDPATH)/SSA \
 	-I $(BUILDPATH)/SSA_Optimizations \
- 	-I $(BUILDPATH)/SSA_Analysis
+ 	-I $(BUILDPATH)/SSA_Analysis \
+        -I $(shell ocamlfind query extlib) \
+        -I $(shell ocamlfind query uint)
 
    
 #COBJS = -ccopt $(PQ_PATH)/libpq.so 
@@ -24,8 +26,7 @@ COBJS = -ccopt -L/usr/lib/nvidia-current -ccopt $(PQ_PATH)/cuda_stubs.o $(PQ_PAT
 
 OCAMLOBJS := $(shell find ../_build/ -name '*.cmx' | xargs -n1 basename ) 
 
-OCAMLOBJSRAW := unix.cmxa enum.cmx dynArray.cmx extString.cmx extHashtbl.cmx \
-extList.cmx PMap.cmx std.cmx bitSet.cmx extArray.cmx option.cmx \
+OCAMLOBJSRAW := unix.cmxa uint32.cmxa uint64.cmxa uint128.cmxa extLib.cmxa \
 BaseCommon.cmx Tuple.cmx BaseArray.cmx BaseList.cmx  BaseSet.cmx  BaseMap.cmx \
 Graph.cmx \
 Bool.cmx Float.cmx Int.cmx Float32.cmx PSet.cmx BasePMap.cmx Base.cmx \

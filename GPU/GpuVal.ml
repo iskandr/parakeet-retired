@@ -15,13 +15,7 @@ type gpu_vec = {
   vec_t : DynType.t;
 }
 
-type gpu_scalar = {
-  scalar_data : Int64.t;
-  scalar_t : DynType.t;
-  scalar_nbytes : int;
-}
-
-type gpu_val = GpuVec of gpu_vec | GpuScalar of gpu_scalar
+type gpu_val = GpuScalar of PQNum.num | GpuVec of gpu_vec  
 
 let free = function
   | GpuScalar _ -> ()
@@ -39,32 +33,13 @@ let get_type = function
   | GpuVec v -> v.vec_t
   | GpuScalar s -> s.scalar_t
 
-let mk_scalar n =
-  let scalar = match n with  
-  | PQNum.Int i -> 
-    {scalar_data=HostPtr.of_int i; scalar_t=Int64T; scalar_nbytes=8}
-  | PQNum.Int32 i -> 
-    {scalar_data=HostPtr.of_int32 i; scalar_t=Int32T; scalar_nbytes=4}  
-  | PQNum.Int64 i -> 
-    { scalar_data=HostPtr.of_int64 i; scalar_t=Int64T; scalar_nbytes=8}  
-  | PQNum.Float32 f ->
-    { scalar_data=Int64.of_int32 (Float32.bits32_of_float f); 
-      scalar_t=Float32T; 
-      scalar_nbytes=4
-    }
-  | PQNum.Float64 f ->
-    { scalar_data=HostPtr.bits_of_float f; scalar_t=Float64T; scalar_nbytes=8} 
-  | PQNum.Bool b -> 
-    { scalar_data = HostPtr.of_bool b; scalar_t = BoolT; scalar_nbytes=2}
-  | PQNum.Char c -> 
-    { scalar_data = HostPtr.of_char c; scalar_t = CharT; scalar_nbytes=1}
-  in GpuScalar scalar
-
+let mk_scalar n = GpuScalar n  
+  
 (* send a shape vector the gpu *) 
 let shape_to_gpu shape =
-  debug "shape_to_gpu";
   let shapeBytes = Shape.nbytes shape in
   let shapeDevPtr = cuda_malloc shapeBytes in
+  (* TODO: convert shape to Bigarray, then get its raw pointer *) 
   let shapeHostPtr = Shape.get_raw_ptr shape in
   cuda_memcpy_to_device shapeHostPtr shapeDevPtr shapeBytes;
   shapeDevPtr, shapeBytes
@@ -81,9 +56,8 @@ let mk_gpu_vec ?nbytes ?len ty shape =
     | Some n -> n 
   in  
   let outputPtr = cuda_malloc nbytes in
-  debug "mk_gpu_vec";
+
   let shapePtr, shapeSize = shape_to_gpu shape in
-  debug "mk_gpu_vec 2";
   GpuVec {
     vec_ptr = outputPtr;
     vec_nbytes = nbytes;
@@ -96,45 +70,30 @@ let mk_gpu_vec ?nbytes ?len ty shape =
     vec_t = ty;
   }
 
-let to_gpu hostVal =
-  if is_scalar hostVal.host_t then 
-    GpuScalar {
-     scalar_nbytes =  hostVal.nbytes; 
-     scalar_t = hostVal.host_t; 
-     scalar_data = hostVal.ptr
-    } 
-  else
-    (debug "to_gpu ";
-    let gpuPtr = cuda_malloc hostVal.nbytes in
-    debug "to_gpu 2";
-    cuda_memcpy_to_device hostVal.ptr gpuPtr hostVal.nbytes;
+let to_gpu = function 
+  | HostScalar n -> GpuScalar n
+  | HostArray { ptr=ptr; host_t=host_t; shape=shape; nbytes=nbytes } ->  
+    let gpuPtr = cuda_malloc nbytes in
+    cuda_memcpy_to_device ptr gpuPtr nbytes;
     let shapeDevPtr, shapeBytes = shape_to_gpu hostVal.shape in
-    debug "to_gpu3";
     GpuVec  {
       vec_ptr = gpuPtr; 
-      vec_nbytes = hostVal.nbytes;
-      vec_len= Shape.nelts hostVal.shape; 
+      vec_nbytes = nbytes;
+      vec_len= Shape.nelts shape; 
 
       vec_shape_ptr = shapeDevPtr;
       vec_shape_nbytes = shapeBytes; 
 
-      vec_shape = hostVal.shape;  
-      vec_t = hostVal.host_t 
+      vec_shape = shape;  
+      vec_t = host_t 
     }
-    )
+    
 let from_gpu = function 
-    | GpuScalar s ->
-        {
-          ptr = s.scalar_data;
-          host_t = s.scalar_t;
-          nbytes = s.scalar_nbytes;
-          shape = Shape.scalar_shape; 
-        }
-
+    | GpuScalar n -> HostScalar n
     | GpuVec v ->
         let dataHostPtr = c_malloc v.vec_nbytes in
         cuda_memcpy_to_host dataHostPtr v.vec_ptr v.vec_nbytes; 
-        { 
+        HostArray { 
           ptr = dataHostPtr; 
           nbytes = v.vec_nbytes;
           host_t = v.vec_t; 

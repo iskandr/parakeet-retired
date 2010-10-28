@@ -26,8 +26,6 @@ module Int32 = struct
     let of_char c = of_int $ Char.code c 
 end 
 
-
-
 module Int64 = struct
     include Int64
     module Map = BaseMap.Make(Int64)
@@ -76,5 +74,6 @@ module Hashtbl = struct
       Hashtbl.iter (add h3) h2; 
       h3               
 end 
+
 
 

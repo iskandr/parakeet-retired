@@ -17,7 +17,7 @@ let rec syntax_to_ast  (syntax, src) =
     | FloatLit f -> Num (PQNum.Float64 f) 
     | RealLit r ->  Num (PQNum.Float32 r)
     | IntLit i ->  Num (PQNum.Int32 i)
-    | ShortLit s -> Num (PQNum.Int s)
+    | ShortLit s -> Num (PQNum.Int16 s)
     | LongLit l -> Num (PQNum.Int64 l) 
     | BitLit b -> Num (PQNum.Bool (Bool.of_int b))
     | StrLit s -> if String.length s = 1 then Num (PQNum.Char s.[0]) else Str s

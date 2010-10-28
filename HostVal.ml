@@ -1,34 +1,30 @@
 open Base
+open Printf 
 
-type host_val = {
-  ptr : HostPtr.t;
-  nbytes: int;
-  host_t : DynType.t;
-  shape: Shape.t;
-}
-
-let to_str hv = 
-  Printf.sprintf "HostVal { nbytes=%d, host_t=%s, shape=%s }"
-    hv.nbytes (DynType.to_str hv.host_t) 
-    (if DynType.is_scalar hv.host_t then "[]" else Shape.to_str hv.shape) 
-
-external c_malloc : int -> HostPtr.t = "ocaml_malloc"
-external c_free : HostPtr.t -> unit = "ocaml_free"
-
-external c_cast_int : HostPtr.t -> int = "ocaml_cast_int"
-external c_get_int : HostPtr.t -> int -> int = "ocaml_get_int"
-external c_set_int : HostPtr.t -> int -> int -> unit = "ocaml_set_int"
-
-external c_cast_int32 : HostPtr.t -> Int32.t = "ocaml_cast_int32"
-external c_get_int32 : HostPtr.t -> int -> Int32.t = "ocaml_get_int32"
-external c_set_int32 : HostPtr.t -> int -> Int32.t -> unit = "ocaml_set_int32"
-
-external c_cast_float : HostPtr.t -> float = "ocaml_cast_double"
-external c_get_float : HostPtr.t -> int -> float = "ocaml_get_double"
-external c_set_float : HostPtr.t -> int -> float -> unit = "ocaml_set_double"
+type host_array =
+  {
+    ptr : Int64.t;
+    host_t : DynType.t;
+    shape: Shape.t;
+    nbytes: int; (* cached to avoid recalculating every time *) 
+  }
+ 
+type host_val = 
+  | HostScalar of PQNum.num 
+  | HostArray of host_array 
 
 
-(*let int_to_host i = {ptr= HostPtr.of_int i; len=0; host_t=IntT; } *)
+let to_str = function 
+  | HostScalar n -> sprintf "HostScalar %s" (PQNum.num_to_str n)
+  | HostArray {ptr=ptr; host_t=host_t; shape=shape; nbytes=nbytes} -> 
+     sprintf "HostArray { host_t=%s, shape=%s; nbytes=%d }"
+       (DynType.to_str host_t) 
+       (Shape.to_str shape) 
+       nbytes
+
+external c_malloc : int -> Int64.t = "ocaml_malloc"
+external c_free : Int64.t -> unit = "ocaml_free"
+(*
 let int32_to_host i =
     {ptr=Int64.of_int32 i; 
      host_t=DynType.Int32T; 
@@ -63,20 +59,11 @@ let host_unit =
      host_t=DynType.UnitT; 
      nbytes=1; 
      shape=Shape.scalar_shape }
+*)
+let free h = if DynType.is_vec h.host_t then c_free h.ptr
 
-let free h = 
-  if DynType.is_vec h.host_t then c_free h.ptr
- 
-
-let mk_scalar = function 
-  | PQNum.Int32 i -> int32_to_host i
-  | PQNum.Int64 i -> int64_to_host i 
-  | PQNum.Float32 f -> float32_to_host f 
-  | PQNum.Float64 f -> float64_to_host f
-  | PQNum.Bool b -> bool_to_host b 
-  | _ -> failwith "[host_val->mk_scalar] not implemented"
-
-
+let mk_host_scalar n = HostScalar n
+  
 let mk_host_vec ?nbytes ?len ty shape =
   let len = match len with None -> Shape.nelts shape | Some len -> len in 
   let nbytes = match nbytes with 
@@ -94,30 +81,30 @@ let mk_host_vec ?nbytes ?len ty shape =
     shape = shape; 
   }
 
-let set_vec_elt hostVec idx value = 
-  assert (DynType.is_scalar value.host_t); 
-  assert (DynType.is_vec hostVec.host_t);    
-  match DynType.elt_type hostVec.host_t, value.host_t with 
-    | DynType.Int32T, DynType.Int32T ->
-        c_set_int32 hostVec.ptr idx (c_cast_int32 value.ptr)
-    | DynType.Float64T, DynType.Float64T ->  
-        c_set_float hostVec.ptr idx (c_cast_float value.ptr)
-    | _ -> failwith 
-       (Printf.sprintf "[HostVal->set_vec_elt] cannot set elements of %s to %s"
+(*
+let set_vec_elt hostVec idx v =
+  assert (DynType.is_vec hostVec.host_t);
+  match DynType.elt_type hostVec.host_t, v with
+  | _, HostArray _ -> failwith "expected scalar" 
+  | DynType.Int32T, HostScalar (PQNum.Int32 i) -> c_set_int32 hostVec.ptr idx i
+  | DynType.Float64T, HostScalar (PQNum.Float64 f) ->
+     c_set_float hostVec.ptr idx f
+  | _, HostScalar n -> failwith $ 
+       Printf.sprintf "[HostVal->set_vec_elt] cannot set elements of %s to %s"
         (DynType.to_str hostVec.host_t)
-        (DynType.to_str value.host_t)
-       )    
-      
-
+        (PQNum.type_of_num n)
+*) 
+(*
 let get_vec_elt hostVec idx = 
   assert (DynType.is_vec hostVec.host_t);    
   match DynType.elt_type hostVec.host_t with 
     | DynType.Int32T -> 
-        int32_to_host $ c_get_int32 hostVec.ptr idx  
+        HostScalar (PQNum.Int32 (c_get_int32 hostVec.ptr idx))  
     | DynType.Float64T ->  
-        float64_to_host $ c_get_float hostVec.ptr idx
+        HostScalar (PQNum.Float64 (c_get_float hostVec.ptr idx))
     | _ -> failwith 
        (Printf.sprintf "[HostVal->get_vec_elt] cannot get elements of %s"
         (DynType.to_str hostVec.host_t)
         
-       )    
+       )
+*)    

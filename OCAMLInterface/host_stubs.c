@@ -98,7 +98,7 @@ value ocaml_set_double(value ptr, value idx, value v) {
     CAMLreturn(Val_unit);
 }
 
-value get_shapevec_ptr(value shapevec) {
-    CAMLparam1(shapevec);
-    CAMLreturn(caml_copy_int64((int64_t)Data_bigarray_val(shapevec)));
+value get_bigarray_ptr(value bigarray) {
+    CAMLparam1(bigarray);
+    CAMLreturn(caml_copy_int64((int64_t)Data_bigarray_val(bigarray)));
 }

@@ -1,7 +1,8 @@
+/usr/local/lib/ocaml/3.11.2/uint
+/usr/local/lib/ocaml/3.11.2/extlib
 .
 stubs
 libpq
-extlib
 UntypedSSA
 Tests
 SSA
@@ -43,15 +44,6 @@ SSA_Analysis
 SSA_Optimizations
 qcode
 unit
-_build/AST
-_build/Base
-_build/CQInterface
-_build/GPU
-_build/Imp
-_build/Ptx
-_build/Q
-_build/SSA
-_build/extlib
 .git/objects/1a
 .git/objects/25
 .git/objects/48
@@ -136,3 +128,10 @@ _build/extlib
 .git/objects/8a
 .git/objects/6b
 .git/objects/80
+.git/objects/2a
+.git/objects/b8
+.git/objects/b9
+.git/objects/ec
+Old
+Old/extlib
+Old/extlib/extlib-doc

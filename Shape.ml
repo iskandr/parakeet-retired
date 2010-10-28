@@ -10,51 +10,40 @@
 open Base
 open Bigarray
 
-type t = (int32, int32_elt, c_layout) Array1.t
+type t = int array 
 
-let create : (int -> t)  = Array1.create int32 c_layout
+let create n = Array.create n 0 
 
-let get_dim shape idx =
-  let dim32 = Array1.get shape idx in 
-  Int32.to_int dim32  
+let get shape idx = shape.(idx)
   
-let set_dim shape idx v = Array1.set shape idx (Int32.of_int v)
+let set shape idx v = shape.(idx) <- v
 
 let scalar_shape = create 0
 
 let of_list l =
   let n = List.length l in
   let s = create n in
-  List.iter2 (fun dim idx -> set_dim s idx dim) l (List.til n);
+  List.iter2 (fun dim idx -> set s idx dim) l (List.til n);
   s
+
+let rank shape = Array.length shape 
 
 (* the product of the elements in a shape vector is the number of elements
    in an array
 *)
-let nelts shape = 
-  let n = Array1.dim shape in
-  let total = ref Int32.one in
-  for i = 0 to n - 1 do
-    total := Int32.mul !total (Array1.get shape i)
-  done;
-  Int32.to_int !total
+let nelts shape = Array.fold_left (fun acc x -> acc * x) 1 shape 
 
-let rank shape = Array1.dim shape 
-
-let nbytes_of_rank rank = rank * 4
-
-let nbytes shape = nbytes_of_rank (rank shape)
+let nbytes shape = 4 * rank shape
 
 let eq s1 s2 =
-  if rank s1 <> rank s2
-  then
-    false
-  else
+  (rank s1 = rank s2) && 
+  (
     let are_same = ref true in
     for i = 0 to rank s1 - 1 do
-      are_same := !are_same && get_dim s1 i = get_dim s2 i 
+      are_same := !are_same && get s1 i = get s2 i 
     done;
     !are_same
+  )
 
 (* shape s1 is a subshape of s2 if s1 is a scalar or 
    there is a rightmost subarray of s2 which is equal to s1 
@@ -66,7 +55,7 @@ let is_subshape s1 s2 =
   else  
     let acc = ref true in 
     for i = 0 to r1 - 1 do 
-       acc := !acc && get_dim s1 i = get_dim s2 (r2 - r1 + i)
+       acc := !acc && get s1 i = get s2 (r2 - r1 + i)
     done; 
     !acc
 
@@ -88,7 +77,9 @@ let max_shape_list lst =
   in  
   List.fold_left aux (Some scalar_shape) lst
 
-external get_raw_ptr : t -> HostPtr.t = "get_shapevec_ptr"
+(*external get_raw_ptr : t -> HostPtr.t = "get_shapevec_ptr"*)
+
+ 
 
 let to_str s =
   let r = rank s in   
@@ -96,8 +87,26 @@ let to_str s =
   Printf.bprintf b "[";
   for i = 0 to r - 1 do 
     if i < r - 2 then 
-      Printf.bprintf b "%d, " (get_dim s i) 
+      Printf.bprintf b "%d, " (get s i) 
     else 
-      Printf.bprintf b "%d]" (get_dim s i)
+      Printf.bprintf b "%d]" (get s i)
   done; 
   Buffer.contents b
+
+let to_c_array shape =
+  let n = rank shape in  
+  let cArr = Array1.create int32 c_layout n in 
+  for i = 0 to n - 1 do 
+    cArr.{i} <- Int32.of_int shape.(i)
+  done; 
+  cArr
+  
+let of_c_array cArr = 
+  let n = Array1.dim cArr in 
+  let shape = create n in 
+  for i = 0 to n - 1 do
+    shape.(i) <- Int32.to_int cArr.{i}
+  done;
+  shape 
+  
+  

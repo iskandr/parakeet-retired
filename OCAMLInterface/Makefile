@@ -320,10 +320,9 @@ all: stubs
 stubs:
 	echo $(INCLUDES)
 	gcc -fPIC -c host_stubs.c -I. $(INCLUDES) -o host_stubs.o $(LIB)
-	gcc -fPIC -c float32_stubs.c -I. $(INCLUDES) -o float32_stubs.o $(LIB) 
 	gcc -fPIC -c ocaml_functions.c -I. $(INCLUDES) -o ocaml_functions.o $(LIB)
 	gcc -fPIC -c dump_stubs.c -I. $(INCLUDES) -o dump_stubs.o $(LIB)
-	ar rcs ocaml_interface.a host_stubs.o float32_stubs.o dump_stubs.o ocaml_functions.o
+	ar rcs ocaml_interface.a host_stubs.o dump_stubs.o ocaml_functions.o
 
 clean:
 	rm -f *.a *_o *.o t *~

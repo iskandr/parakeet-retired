@@ -35,8 +35,8 @@ let mk_cuda_module ptxList threadsPerBlock =
   } 
 
 
-let compile_map globalFunctions fnId argTypes retTypes =
-  let payload = FnTable.find  fnId globalFunctions in 
+let compile_map globalFunctions payload argTypes retTypes =
+
   let mapThreadsPerBlock = 128 in 
   (* converting payload to Imp *) 
   let impPayload = SSA_to_Imp.translate_fundef globalFunctions payload in
@@ -56,6 +56,7 @@ let compile_map globalFunctions fnId argTypes retTypes =
 let mapCache : adverb_cache = Hashtbl.create 127
  
 let run_map globalFunctions fnId inputTypes outputTypes memState dynVals =
+  let payload = FnTable.find  fnId globalFunctions in 
   (* for now just transfer everything to the GPU-- we can try to make this
      adaptive later 
   *)
@@ -66,7 +67,7 @@ let run_map globalFunctions fnId inputTypes outputTypes memState dynVals =
     if Hashtbl.mem mapCache cacheKey then 
       Hashtbl.find mapCache cacheKey
     else (
-      let m = compile_map globalFunctions fnId inputTypes outputTypes in
+      let m = compile_map globalFunctions payload inputTypes outputTypes in
       Hashtbl.add mapCache cacheKey m; 
       m
     )  
@@ -214,10 +215,10 @@ let run_all_pairs globalFunctions fnId inputTypes outputTypes memState dynVals =
          the result will always be 2D
       *)
       let outputShape = Shape.create 2 in
-      let nx = Shape.get_dim xShape 0 in
-      let ny = Shape.get_dim yShape 0 in  
-      Shape.set_dim outputShape 0 nx; 
-      Shape.set_dim outputShape 1 ny;
+      let nx = Shape.get xShape 0 in
+      let ny = Shape.get yShape 0 in  
+      Shape.set outputShape 0 nx; 
+      Shape.set outputShape 1 ny;
       let outputVals =
         List.map
           (fun ty -> GpuVal.mk_gpu_vec ty outputShape)

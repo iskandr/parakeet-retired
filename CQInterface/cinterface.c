@@ -293,20 +293,21 @@ value args_list_to_ocaml_list(K args) {
   CAMLparam0();
   CAMLlocal2(ocaml_arg1, ocaml_arg2);
 
- // printf("in args_list_to_ocaml_list\n");
-
-  // Loop over the args, building an OCaml list of host_vals
+   // Loop over the args, building an OCaml list of host_vals
   int num_args = args->n;
   int i;
   if (num_args > 0) {
     if (args->t == 0) {
       // Mixed list
       for (i = num_args - 2; i >= 0; --i) {
+        // allocate a new cons cell
         ocaml_arg2 = caml_alloc_tuple(2);
         Store_field(ocaml_arg2, 0, k_var_to_ocaml(kK(args)[i]));
         if (i == num_args - 2) {
+          // terminate the cons list with null
           Store_field(ocaml_arg2, 1, Val_int(0));
         } else {
+          // the tail of the new list is the old list
           Store_field(ocaml_arg2, 1, ocaml_arg1);
         }
         ocaml_arg1 = ocaml_arg2;
@@ -315,6 +316,7 @@ value args_list_to_ocaml_list(K args) {
       // List of all the same type of scalar
      // printf("list of all same type\n");
       for (i = num_args - 2; i >= 0; --i) {
+        // create a new cons cell
         ocaml_arg2 = caml_alloc_tuple(2);
         switch(args->t) {
         case KI:
@@ -338,8 +340,10 @@ value args_list_to_ocaml_list(K args) {
           exit(-1);
         }
         if (i == num_args - 2) {
+          // terminate list with a nil list
           Store_field(ocaml_arg2, 1, Val_int(0));
         } else {
+          // tail of new list is the old list
           Store_field(ocaml_arg2, 1, ocaml_arg1);
         }
         ocaml_arg1 = ocaml_arg2;
@@ -349,6 +353,7 @@ value args_list_to_ocaml_list(K args) {
     ocaml_arg1 = Val_int(0);
   }
 
+  // return the last cons cell created
   CAMLreturn(ocaml_arg1);
 }
 
@@ -390,17 +395,49 @@ value k_string_to_ocaml(K kstr) {
  */
 value k_var_to_ocaml(K kvar) {
   CAMLparam0();
-  CAMLlocal2(ocaml_var, ocaml_dyn_type);
+  CAMLlocal2(ocaml_host_val, ocaml_dyn_type);
 
-  int num_bytes, shape_len;
-  int *shape;
-  char *flattened;
-  get_flattened_version(kvar, &num_bytes, &ocaml_dyn_type, &shape, &shape_len,
-                        &flattened);
-  ocaml_var = build_ocaml_hostval(num_bytes, ocaml_dyn_type, shape, shape_len,
-                                  flattened);
-  printf("bult ocaml var\n");
-  CAMLreturn(ocaml_var);
+  //is it a scalar?
+  if (kvar->t < 0) {
+    switch(-kvar->t) {
+      // int32
+      case KI:
+        ocaml_host_val = build_host_int32(kvar->i);
+        break;
+      // int64
+      case KJ:
+        ocaml_host_val = build_host_int64(kvar->j);
+        break;
+      // float32
+      case KE:
+        ocaml_host_val = build_host_float32(kvar->e);
+        break;
+      // float64
+      case KF:
+        ocaml_host_val = build_host_float64(kvar->f);
+        break;
+    }
+  } else {
+    // nope, it's a vector
+      int num_bytes, shape_len;
+      int *shape;
+      char *flattened;
+      get_flattened_version (
+        kvar,
+        &num_bytes,
+        &ocaml_dyn_type,
+        &shape,
+        &shape_len,
+        &flattened);
+
+      ocaml_host_val = build_ocaml_host_array(
+        num_bytes,
+        ocaml_dyn_type,
+        shape,
+        shape_len,
+        flattened);
+  }
+  CAMLreturn(ocaml_host_val);
 }
 
 void get_flattened_version(K kvar, int *num_bytes, value *ocaml_dyn_type,
@@ -415,7 +452,6 @@ void get_flattened_version(K kvar, int *num_bytes, value *ocaml_dyn_type,
   get_kvar_representation(kvar, num_bytes, ocaml_dyn_type,
                           shape, shape_len, &shape_array_len);
 
-  printf("called get_kvar from get_flattened\n");
 
   // Allocate a linear array of the correct number of bytes to store the
   // flattened representation.

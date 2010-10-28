@@ -13,7 +13,6 @@ type t  =
   | UInt32T
   | Int64T
   | UInt64T
-  | IntT (* ocaml integer-- might be either 31-bit or 63-bit depending on cpu *)
   | Float32T
   | Float64T
   | SymT (* symbol *) 
@@ -36,7 +35,6 @@ let rec to_str = function
   | Int32T -> "int32"
   | UInt64T -> "uint64"
   | Int64T -> "int64"
-  | IntT -> "ocaml_int"
   | BoolT -> "bool"
   | Float32T -> "float32"
   | Float64T -> "float64"
@@ -70,7 +68,6 @@ let sizeof = function
   | UInt32T 
   | Int32T 
   | Float32T -> 4
-  | IntT -> Sys.word_size / 8  
   | Int64T 
   | UInt64T
   | Float64T -> 8
@@ -84,8 +81,7 @@ let is_integer = function
   | Int32T 
   | UInt32T
   | Int64T
-  | UInt64T
-  | IntT -> true
+  | UInt64T -> true 
   | _ -> false
 
 let is_floating = function 

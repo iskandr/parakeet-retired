@@ -102,9 +102,9 @@ let mk_iftrue_node ?(astInfo=mk_ast_info()) ?(src=emptySourceInfo)
 
 (* Int *) 
 let mk_int_node ?(astInfo=mk_ast_info()) ?(src=emptySourceInfo) x = 
-  mk_node ~astInfo ~src $ Num (Int x)  
+  mk_node ~astInfo ~src $ Num (Int32 (Int32.of_int x))  
 
-let update_int_node ast x = {ast with data = Num(Int x) }
+let update_int_node ast x = {ast with data = Num(Int32 (Int32.of_int x)) }
 
 let mk_void_node ?(astInfo=mk_ast_info()) ?(src=emptySourceInfo) () = 
   mk_node ~astInfo ~src Void 

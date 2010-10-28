@@ -1,16 +1,18 @@
-
-# printf "\n---Cleaning previous build---\n";
-# ocamlbuild -clean
-
+printf "\n"; 
+printf "===================================================\n";
+printf "|                Medium Sized Whale               |\n"; 
+printf "===================================================\n";
 cd CQInterface
+printf "\n\n ******** Building CQInterface *******\n"; 
 make clean
 cd ..
 
 cd OCAMLInterface
+printf "\n\n ******** Building OCAMLInteface *******\n"; 
 make clean
 cd ..
 
-printf "\n---Building LibPQ---\n";
+printf "\n\n ******** Building LibPQ ********* \n";
 cd libpq
 make clean 
 make
@@ -18,13 +20,17 @@ cd ..
 
 # Build parameters
 
-DIRS=Base,Ptx,GPU,Q,extlib,Tests,AST,ANF,Imp,UntypedSSA,CQInterface,Dump,SSA,SSA_Optimizations,SSA_Analysis
-LIBS=unix,str,bigarray 
+EXTLIB_DIR=`ocamlfind query extlib`
+UINT_DIR=`ocamlfind query uint`
+SUB_DIRS=Base,Ptx,GPU,Q,Tests,AST,ANF,Imp,UntypedSSA,CQInterface,Dump,SSA,SSA_Optimizations,SSA_Analysis
+LIBS=unix,str,bigarray,extLib,uint32,uint64 
 OBJS="CQInterface/QType.o CQInterface/Debug.o Init.o Callbacks.o"
 LINKER_FLAGS="-ccopt $PQ_PATH/libpq_stubs.o, \
  -ccopt $PQ_PATH/cuda_stubs.o, \
  -ccopt -L/usr/local/cuda/lib/ \
  -ccopt -L/usr/lib/nvidia-current \
+ -ccopt -L$EXTLIB_DIR \
+ -ccopt -L$UINT_DIR \
  -ccopt -lcuda \
  -ccopt -lcudart \
  -ccopt $PQ_PATH/../OCAMLInterface/ocaml_interface.a"
@@ -35,7 +41,7 @@ TARGET="preprocess.native"
 PPFLAGS=
 MAKEFLAGS=
 FINALTARGET=
-CFLAGS=-g 
+CFLAGS="-g"
 
 if [ "prof" == "$1" ]; then
   SUFFIX=".p"
@@ -47,40 +53,46 @@ if [ "debug" == "$1" ]; then
   MAKEFLAGS="DEBUG=-g"
 fi
 
-printf "\n---Building OCAML Interface---\n"
+printf "\n\n ****** Building OCAML Interface ****** \n"
 cd OCAMLInterface;
-make $MAKEFLAGS;
+make $MAKEFLAGS
 cd ..
 
 if [  "tests!" == "$1" ]; then 
   printf "\n---Building tests---\n";
-  ocamlbuild Tests/tests.native -no-hygiene -Is $DIRS $OBJS \
-    -libs $LIBS -cflags "$CFLAGS" -lflags "$LINKER_FLAGS" -ocamlyacc menhir -yaccflag --infer;
+  ocamlbuild Tests/tests.native -no-hygiene -Is $SUB_DIRS -libs $LIBS -cflags $CFLAGS -lflags "$LINKER_FLAGS" \
+     -ocamlyacc menhir -yaccflag --infer;
 
   printf "\n---Running tests---\n";
  _build/Tests/tests.native;
 else
-  printf "\n---Building CUDA/Q---\n";
+  printf "\n\n******** Building QSyntax.cmxa ********\n";
 
-  ocamlbuild $OCAMLPP $PPFLAGS -Is $DIRS -no-hygiene -cflags "$CFLAGS" \
-    "Q/QSyntax"${SUFFIX}".cmxa" 
+  ocamlbuild $OCAMLPP $PPFLAGS -Is $SUB_DIRS -no-hygiene -cflags $CFLAGS "Q/QSyntax"${SUFFIX}".cmxa" 
 
   if [ -n TARGET ]; then
-    ocamlbuild $TARGET $OCAMLPP $PPFLAGS -no-hygiene -Is $DIRS $OBJS \
-      -libs $LIBS -cflags "$CFLAGS" -lflags "$LINKER_FLAGS" -ocamlyacc menhir
+
+    printf "\n\n******* Building Main Target (maybe? fingers crossed?)  *******\n"; 
+    ocamlbuild $TARGET $OCAMLPP $PPFLAGS -no-hygiene -Is $SUB_DIRS $OBJS \
+      -libs $LIBS -cflags $CFLAGS -lflags "$LINKER_FLAGS" -ocamlyacc menhir
   fi
 
-  ocamlbuild  $OCAMLPP $PPFLAGS -Is $DIRS -no-hygiene -ocamlyacc menhir -cflags "$CFLAGS" \
+ printf "\n\n********* Building Callbacks.cmx ***********\n"; 
+
+  ocamlbuild  $OCAMLPP $PPFLAGS -Is $SUB_DIRS -no-hygiene -ocamlyacc menhir -cflags "$CFLAGS" \
     "Callbacks"${SUFFIX}".cmx"
 
+ printf "\n\n********* Building CQInterface **********\n"; 
   cd CQInterface;
   make $MAKEFLAGS;
   mv *.o ../_build;
   mv cinterface.so ../_build;
   cd ..
 
+ 
   if [ -n FINALTARGET ]; then
-    ocamlbuild $OCAMLPP $PPFLAGS $FINALTARGET -Is $DIRS $OBJS \
+    printf "\n\n******** Building FINALTARGET ********\n"; 
+    ocamlbuild $OCAMLPP $PPFLAGS $FINALTARGET -Is $SUB_DIRS $OBJS \
       -libs $LIBS -cflags "$CFLAGS" -lflags "$LINKER_FLAGS" -ocamlyacc menhir
   fi
 fi
