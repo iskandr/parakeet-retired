@@ -63,7 +63,7 @@ value build_ocaml_host_array (int num_bytes, value ocaml_dyn_type,
 
 
 
-enum num_tag {
+enum pqnum_tag {
     CHAR, BOOL, UINT16, INT16, UINT32, INT32, UINT64, INT64, FLOAT32, FLOAT64
 };
 

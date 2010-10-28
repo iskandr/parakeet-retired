@@ -1,0 +1,15 @@
+<**/*.ml> : debug, use_unix, use_str, use_bigarray, pkg_extlib, pkg_uint, linkall
+"AST" or "Dump" or "Ptx": include
+"Tests" : include
+"Base" : include
+"GPU" : include
+"libpq" : include
+"Q" : include
+"SSA" : include
+"SSA_Analysis" : include
+"SSA_Optimizations" : include
+"CQInterface" : include
+"Imp" : include
+"OCAMLInterface" : include
+"stubs" : include
+"UntypedSSA" : include

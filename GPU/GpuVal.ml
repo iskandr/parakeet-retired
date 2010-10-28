@@ -31,7 +31,7 @@ let get_shape = function
 
 let get_type = function
   | GpuVec v -> v.vec_t
-  | GpuScalar s -> s.scalar_t
+  | GpuScalar n -> (PQNum.type_of_num n)
 
 let mk_scalar n = GpuScalar n  
   
