@@ -30,11 +30,21 @@ let before_space s =
 let find_packages () =
   List.map before_space (split_nl & run_and_read "ocamlfind list")
 
+(* given a findlib package name, get the necessary linker flags *) 
+let get_findlib_linker_flags pkg = 
+  run_and_read ("ocamlfind query -i-format " ^ pkg)  
+
+(* get the directory of a library from findlib *) 
+let get_findlib_dir pkg = run_and_read ("ocamlfind query -format \"%d\" " ^ pkg) 
+
 (* this is supposed to list available syntaxes, but I don't know how to do it. *)
 let find_syntaxes () = ["camlp4o"; "camlp4r"]
 
 (* ocamlfind command *)
 let ocamlfind x = S[A"ocamlfind"; x]
+
+let packages = find_packages ();;  
+let syntaxes = find_syntaxes ();;
 
 let _ =  dispatch begin function
    | Before_options ->
@@ -46,7 +56,7 @@ let _ =  dispatch begin function
        Options.ocamlopt   := ocamlfind & A"ocamlopt";
        Options.ocamldep   := ocamlfind & A"ocamldep";
        Options.ocamldoc   := ocamlfind & A"ocamldoc";
-       Options.ocamlmktop := ocamlfind & A"ocamlmktop"
+       Options.ocamlmktop := ocamlfind & A"ocamlmktop";
 
    | After_rules ->
        (* When one link an OCaml library/binary/package, one should use -linkpkg *)
@@ -56,13 +66,14 @@ let _ =  dispatch begin function
        	* compiling, computing dependencies, generating documentation and
        	* linking. *)
        let add_package pkg =
-         flag ["ocaml"; "compile";  "pkg_"^pkg] & S[A"-package"; A pkg];
-         flag ["ocaml"; "ocamldep"; "pkg_"^pkg] & S[A"-package"; A pkg];
-         flag ["ocaml"; "doc";      "pkg_"^pkg] & S[A"-package"; A pkg];
-         flag ["ocaml"; "link";     "pkg_"^pkg] & S[A"-package"; A pkg];
-         flag ["ocaml"; "infer_interface"; "pkg_"^pkg] & S[A"-package"; A pkg]
+         (*ocaml_lib ~extern:true ~dir:dir ~tag_name:("pkg_"^pkg) pkg;*)
+         let tagname = "pkg_" ^pkg in 
+         flag ["ocaml"; "compile";  tagname] & S[A"-package"; A pkg];
+         flag ["ocaml"; "ocamldep"; tagname] & S[A"-package"; A pkg];
+         flag ["ocaml"; "doc";      tagname] & S[A"-package"; A pkg];
+         flag ["ocaml"; "link";     tagname] & S[A"-package"; A pkg];
+         flag ["ocaml"; "infer_interface"; tagname] & S[A"-package"; A pkg]
        in
-       let packages = find_packages () in 
        List.iter add_package packages
        ;
 
@@ -73,7 +84,7 @@ let _ =  dispatch begin function
          flag ["ocaml"; "ocamldep"; "syntax_"^syntax] & S[A"-syntax"; A syntax];
          flag ["ocaml"; "doc";      "syntax_"^syntax] & S[A"-syntax"; A syntax];
          flag ["ocaml"; "infer_interface"; "syntax_"^syntax] & S[A"-syntax"; A syntax];
-       end (find_syntaxes ());
+       end  syntaxes; 
        
        (* The default "thread" tag is not compatible with ocamlfind.
           Indeed, the default rules add the "threads.cma" or "threads.cmxa"

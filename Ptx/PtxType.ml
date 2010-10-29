@@ -63,7 +63,6 @@ let rec of_dyn_type = function
   | DynType.UInt32T -> U32 
   | DynType.Int64T -> S64
   | DynType.UInt64T -> U64        
-  | DynType.IntT -> S32
   | DynType.CharT -> U16 
   | DynType.Float32T ->  F32 
   | DynType.Float64T ->  F64
@@ -92,7 +91,6 @@ let rec storage_of_dyn_type = function
   | DynType.UInt16T -> U16
   | DynType.Int32T -> S32
   | DynType.Int64T -> S64
-  | DynType.IntT -> S32
   | DynType.CharT -> U8
   | DynType.Float32T ->  F32 
   | DynType.Float64T ->  F64

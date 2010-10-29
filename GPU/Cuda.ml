@@ -1,5 +1,6 @@
 open HostVal
 
+module HostPtr = Int64 
 module GpuPtr = Int32
 module CuCtxPtr = Int64
 module CuChanFormatDesc = Int64

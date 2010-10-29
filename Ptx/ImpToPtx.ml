@@ -1,6 +1,5 @@
 open Base 
 open Imp
-open Dict
 open Ptx
 open PtxType
 open PtxHelpers

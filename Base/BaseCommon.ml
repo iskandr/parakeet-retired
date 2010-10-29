@@ -42,3 +42,13 @@ end
 
 let safe_div n d =
   (n + d - 1) / d
+  
+external get_array1_ptr 
+  : ('a,'b,'c) Bigarray.Array1.t -> Int64.t = "get_bigarray_ptr"
+
+external get_array2_ptr 
+  : ('a,'b,'c) Bigarray.Array2.t -> Int64.t = "get_bigarray_ptr"
+
+external get_array3_ptr 
+  : ('a,'b,'c) Bigarray.Array3.t -> Int64.t = "get_bigarray_ptr"
+

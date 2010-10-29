@@ -5,6 +5,8 @@ CC = gcc
 DEBUG =
 OCAMLCC = ocamlfind ocamlopt
 OCAMLCFLAGS = -ccopt -fPIC
+EXTLIB_DIR=$(shell ocamlfind query extlib)
+UINT_DIR=$(shell ocamlfind query uint)
 
 OCAMLINCLUDES = -I $(BUILDPATH) -I $(BUILDPATH)/Analysis \
 	-I $(BUILDPATH)/CQInterface -I $(BUILDPATH)/Dynamic -I $(BUILDPATH)/Base \
@@ -16,21 +18,21 @@ OCAMLINCLUDES = -I $(BUILDPATH) -I $(BUILDPATH)/Analysis \
 	-I $(BUILDPATH)/SSA \
 	-I $(BUILDPATH)/SSA_Optimizations \
  	-I $(BUILDPATH)/SSA_Analysis \
-        -I $(shell ocamlfind query extlib) \
-        -I $(shell ocamlfind query uint)
+        -I $(EXTLIB_DIR) \
+        -I $(UINT_DIR)
 
-   
 #COBJS = -ccopt $(PQ_PATH)/libpq.so 
 OBJS = cinterface.o
-COBJS = -ccopt -L/usr/lib/nvidia-current -ccopt $(PQ_PATH)/cuda_stubs.o $(PQ_PATH)/libpq_stubs.o $(PQ_PATH)/../OCAMLInterface/ocaml_interface.a -ccopt -lcuda
+COBJS = -ccopt -L/usr/lib/nvidia-current -ccopt $(PQ_PATH)/cuda_stubs.o \
+  $(PQ_PATH)/libpq_stubs.o $(PQ_PATH)/../OCAMLInterface/ocaml_interface.a -ccopt -lcuda \
+  -ccopt $(UINT_DIR)/libuint32_stubs.a -ccopt $(UINT_DIR)/libuint64_stubs.a 
 
 OCAMLOBJS := $(shell find ../_build/ -name '*.cmx' | xargs -n1 basename ) 
 
-OCAMLOBJSRAW := unix.cmxa uint32.cmxa uint64.cmxa uint128.cmxa extLib.cmxa \
+OCAMLOBJSRAW := bigarray.cmxa unix.cmxa uint32.cmxa uint64.cmx extLib.cmxa \
 BaseCommon.cmx Tuple.cmx BaseArray.cmx BaseList.cmx  BaseSet.cmx  BaseMap.cmx \
 Graph.cmx \
-Bool.cmx Float.cmx Int.cmx Float32.cmx PSet.cmx BasePMap.cmx Base.cmx \
-Dict.cmx \
+Bool.cmx Float.cmx Int.cmx PSet.cmx BasePMap.cmx Base.cmx \
 UID.cmx ID.cmx PQNum.cmx Prim.cmx DynType.cmx \
 QPrims.cmx \
 SourceInfo.cmx QSyntax.cmx AST_Info.cmx AST.cmx QSyntax_to_AST.cmx \
@@ -61,8 +63,8 @@ Program.cmx \
 SSA_Codegen.cmx \
 InsertCoercions.cmx \
 Specialize.cmx \
-HostPtr.cmx bigarray.cmxa PtxType.cmx PtxVal.cmx Ptx.cmx Shape.cmx \
-HostVal.cmx GpuVal.cmx DynVal.cmx \
+PtxType.cmx PtxVal.cmx Ptx.cmx Shape.cmx \
+HostVal.cmx GpuVal.cmx InterpVal.cmx \
 MemoryState.cmx \
 PtxHelpers.cmx LibPQ.cmx \
 PtxSimplify.cmx PtxTidy.cmx PtxCodegen.cmx \
@@ -74,7 +76,7 @@ ImpToPtx.cmx \
 SSA_to_Imp.cmx \
 QType.cmx HardwareInfo.cmx Init.cmx \
 GpuRuntime.cmx \
-Eval_SSA.cmx \
+Eval.cmx \
 CodeTemplate.cmx Callbacks.cmx 
 
 

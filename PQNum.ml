@@ -2,8 +2,8 @@ open Base
 open DynType
 
 type num = 
-  | Char of char 
   | Bool of bool 
+  | Char of char 
   | UInt16 of int 
   | Int16 of int 
   | UInt32 of Uint32.t
@@ -12,7 +12,6 @@ type num =
   | Int64 of Int64.t
   | Float32 of float
   | Float64 of float
-  
 
 let num_to_str = function
   | UInt16 x  

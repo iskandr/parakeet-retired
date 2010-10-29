@@ -346,6 +346,8 @@ class ptx_codegen  = object (self)
       code = DynArray.to_array instructions; 
       decls = allocations;
       symbols = symbols; 
+      (* TODO: distinguish between textured and global inputs *)
+      textures = Hashtbl.create 1; 
     }
 
 

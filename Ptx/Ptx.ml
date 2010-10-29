@@ -88,7 +88,11 @@ and kernel = {
   params: (symid * PtxType.ty) array;
   decls: (symid, var_decl) Hashtbl.t; 
   symbols : (symid, string) Hashtbl.t; 
-	code: instruction array
+	code: instruction array; 
+  (* maps every textured argument to the module-level texture 
+     which contains its data 
+  *) 
+  textures: (symid, symid) Hashtbl.t; 
 }
 and gpu_compute_capability = SM_10 | SM_11 | SM_13 | SM_20
 and ptx_module = {

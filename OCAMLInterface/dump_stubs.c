@@ -16,7 +16,7 @@
 #include <string.h> 
 
 #include "ocaml_functions.h"
-#include "../CQInterface/variants.h"
+#include "../OCAMLInterface/variants.h"
 
 // Takes a dump data file and creates an OCaml list of all the variables in
 // it.

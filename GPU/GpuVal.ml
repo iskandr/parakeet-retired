@@ -15,22 +15,22 @@ type gpu_vec = {
   vec_t : DynType.t;
 }
 
-type gpu_val = GpuScalar of PQNum.num | GpuVec of gpu_vec  
+type gpu_val = GpuScalar of PQNum.num | GpuArray of gpu_vec  
 
 let free = function
   | GpuScalar _ -> ()
-  | GpuVec v ->  cuda_free v.vec_ptr; cuda_free v.vec_shape_ptr
+  | GpuArray v ->  cuda_free v.vec_ptr; cuda_free v.vec_shape_ptr
 
 let nelts = function
   | GpuScalar _-> 1
-  | GpuVec v -> Shape.nelts v.vec_shape
+  | GpuArray v -> Shape.nelts v.vec_shape
 
 let get_shape = function
-  | GpuVec v -> v.vec_shape
+  | GpuArray v -> v.vec_shape
   | GpuScalar _ -> Shape.scalar_shape 
 
 let get_type = function
-  | GpuVec v -> v.vec_t
+  | GpuArray v -> v.vec_t
   | GpuScalar n -> (PQNum.type_of_num n)
 
 let mk_scalar n = GpuScalar n  
@@ -39,8 +39,7 @@ let mk_scalar n = GpuScalar n
 let shape_to_gpu shape =
   let shapeBytes = Shape.nbytes shape in
   let shapeDevPtr = cuda_malloc shapeBytes in
-  (* TODO: convert shape to Bigarray, then get its raw pointer *) 
-  let shapeHostPtr = Shape.get_raw_ptr shape in
+  let shapeHostPtr = get_array1_ptr $ Shape.to_c_array shape in
   cuda_memcpy_to_device shapeHostPtr shapeDevPtr shapeBytes;
   shapeDevPtr, shapeBytes
 
@@ -58,7 +57,7 @@ let mk_gpu_vec ?nbytes ?len ty shape =
   let outputPtr = cuda_malloc nbytes in
 
   let shapePtr, shapeSize = shape_to_gpu shape in
-  GpuVec {
+  GpuArray {
     vec_ptr = outputPtr;
     vec_nbytes = nbytes;
     vec_len = len;
@@ -75,8 +74,8 @@ let to_gpu = function
   | HostArray { ptr=ptr; host_t=host_t; shape=shape; nbytes=nbytes } ->  
     let gpuPtr = cuda_malloc nbytes in
     cuda_memcpy_to_device ptr gpuPtr nbytes;
-    let shapeDevPtr, shapeBytes = shape_to_gpu hostVal.shape in
-    GpuVec  {
+    let shapeDevPtr, shapeBytes = shape_to_gpu shape in
+    GpuArray  {
       vec_ptr = gpuPtr; 
       vec_nbytes = nbytes;
       vec_len= Shape.nelts shape; 
@@ -90,7 +89,7 @@ let to_gpu = function
     
 let from_gpu = function 
     | GpuScalar n -> HostScalar n
-    | GpuVec v ->
+    | GpuArray v ->
         let dataHostPtr = c_malloc v.vec_nbytes in
         cuda_memcpy_to_host dataHostPtr v.vec_ptr v.vec_nbytes; 
         HostArray { 

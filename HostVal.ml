@@ -24,42 +24,7 @@ let to_str = function
 
 external c_malloc : int -> Int64.t = "ocaml_malloc"
 external c_free : Int64.t -> unit = "ocaml_free"
-(*
-let int32_to_host i =
-    {ptr=Int64.of_int32 i; 
-     host_t=DynType.Int32T; 
-     nbytes=4; 
-     shape = Shape.scalar_shape ; 
-    }
-let int64_to_host i =
-    {ptr= i;  
-     host_t=DynType.Int64T; 
-     nbytes=8; 
-     shape=Shape.scalar_shape 
-    }
-let float32_to_host f =
-    {ptr=Int64.of_int32 $ Float32.bits32_of_float f; 
-     shape=Shape.scalar_shape ; 
-     host_t=DynType.Float32T; 
-     nbytes=4}
-let float64_to_host f =
-    {ptr=Int64.bits_of_float f; 
-     shape=Shape.scalar_shape ; 
-     host_t=DynType.Float64T; 
-     nbytes=8}
-    
-let bool_to_host b =
-    {ptr=Int64.of_bool b; 
-     host_t=DynType.BoolT; 
-     nbytes=2; 
-     shape=Shape.scalar_shape }
 
-let host_unit =
-    {ptr=0L; 
-     host_t=DynType.UnitT; 
-     nbytes=1; 
-     shape=Shape.scalar_shape }
-*)
 let free h = if DynType.is_vec h.host_t then c_free h.ptr
 
 let mk_host_scalar n = HostScalar n
@@ -80,6 +45,10 @@ let mk_host_vec ?nbytes ?len ty shape =
     host_t = ty; 
     shape = shape; 
   }
+
+let get_type = function 
+  | HostArray { host_t = host_t } -> host_t
+  | HostScalar n -> PQNum.type_of_num n  
 
 (*
 let set_vec_elt hostVec idx v =

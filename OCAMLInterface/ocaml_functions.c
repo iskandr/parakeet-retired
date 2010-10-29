@@ -14,9 +14,8 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "variants.h"
 #include "ocaml_functions.h"
-
-enum host_val_tag { HOST_SCALAR, HOST_ARRAY };
 
 
 /* given a PQNum value, wrap it in a HostScalar constructor */
@@ -61,11 +60,6 @@ value build_ocaml_host_array (int num_bytes, value ocaml_dyn_type,
 }
 
 
-
-
-enum pqnum_tag {
-    CHAR, BOOL, UINT16, INT16, UINT32, INT32, UINT64, INT64, FLOAT32, FLOAT64
-};
 
 
 

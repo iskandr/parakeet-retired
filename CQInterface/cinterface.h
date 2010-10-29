@@ -8,7 +8,7 @@
 
 #include <caml/mlvalues.h>
 #include "k.h"
-#include "variants.h"
+#include "../OCAMLInterface/variants.h"
 
 enum run_template_ret_val_no_data {
   Pass = 0

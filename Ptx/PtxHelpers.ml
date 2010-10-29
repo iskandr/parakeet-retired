@@ -54,7 +54,6 @@ let float x = FloatConst x
 
 let num_to_ptx_const = function 
   | PQNum.Char c -> int $  Char.code c
-  | PQNum.Int i -> int i
   | PQNum.Int32 i -> int64 (Int64.of_int32 i)
   | PQNum.Int64 i -> int64 i
   | PQNum.Float32 f

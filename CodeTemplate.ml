@@ -85,11 +85,14 @@ let get_function_template moduleTemplate name =
   let prog = moduleTemplate.program in  
   (untypedId, prog) 
   
-let run_template (untypedId,program) globals locals =
+let run_template 
+    (untypedId, program) 
+    (globals : HostVal.host_val list)  
+    (locals : HostVal.host_val list) =
   debug "entered run_template... \n";
   let startTime =   Unix.gettimeofday () in
   let args = globals @ locals in
-  let argTypes = List.map (fun v -> v.host_t) args in
+  let argTypes = List.map HostVal.get_type args in
   let untypedFn = FnTable.find untypedId program.untyped_functions in
   debug 
     (sprintf 
@@ -110,7 +113,7 @@ let run_template (untypedId,program) globals locals =
   debug "[run_template] calling evaluator on specialized code: \n";
   debug (sprintf "%s\n" (SSA.fundef_to_str typedFundef));   
   let results = 
-    Eval_SSA.eval 
+    Eval.eval 
         program.typed_functions 
         typedFundef 
         args 

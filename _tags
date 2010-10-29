@@ -1,5 +1,7 @@
-<**/*.ml> : debug, use_unix, use_str, use_bigarray, pkg_extlib, pkg_uint, linkall
-"AST" or "Dump" or "Ptx": include
+<**/*.ml> : debug, use_unix, use_str, use_bigarray, pkg_uint, pkg_uint32, pkg_uint64, pkg_extlib
+"AST" : include
+"Dump" : include
+"Ptx": include
 "Tests" : include
 "Base" : include
 "GPU" : include

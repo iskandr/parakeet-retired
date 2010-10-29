@@ -1,8 +1,6 @@
 open Base 
 open Printf
 
-open DynVal 
-
 type 'a mem_state = {
   gpu_vals : ('a, GpuVal.gpu_val) Hashtbl.t;
   host_vals : ('a, HostVal.host_val) Hashtbl.t;
@@ -14,18 +12,17 @@ let create numvars = {
 }
 
 let add_host state hostVal = 
-  let id = DataId.gen() in 
+  let id = InterpVal.DataId.gen() in 
   Hashtbl.replace state.host_vals id hostVal; 
-  Data id 
+  InterpVal.Data id 
   
 let add_gpu state gpuVal = 
-  let id = DataId.gen() in 
+  let id = InterpVal.DataId.gen() in 
   Hashtbl.replace state.gpu_vals id gpuVal; 
-  Data id 
+  InterpVal.Data id 
 
 let get_gpu state = function 
-  | Scalar n -> GpuVal.mk_scalar n 
-  | Data id -> 
+  | InterpVal.Data id -> 
     if Hashtbl.mem state.gpu_vals id then
       Hashtbl.find state.gpu_vals id
     else (
@@ -35,10 +32,11 @@ let get_gpu state = function
       Hashtbl.replace state.gpu_vals id gpuVal; 
       gpuVal
    )
+  | InterpVal.Closure _ -> 
+      failwith "[MemoryState->get_gpu] can't send function to gpu"
 
 let get_host state = function 
-  | Scalar n -> HostVal.mk_scalar n 
-  | Data id -> 
+  | InterpVal.Data id -> 
     if Hashtbl.mem state.host_vals id then
       Hashtbl.find state.host_vals id
     else
@@ -46,8 +44,9 @@ let get_host state = function
       let hostVal = GpuVal.from_gpu gpuVal in
         Hashtbl.replace state.host_vals id hostVal; 
       hostVal
+  | InterpVal.Closure _ -> 
+      failwith "[MemoryState->get_host] can't send function to host memory"
 
-  
 let free_gpu state id =
   if Hashtbl.mem state.gpu_vals id then begin
     GpuVal.free (Hashtbl.find state.gpu_vals id);
