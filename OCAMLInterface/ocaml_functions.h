@@ -28,4 +28,8 @@ value build_host_int64(int64_t);
 value build_host_float32(float);
 value build_host_float64(double);
 
-
+/* unwrap PQNum variants */
+int32_t get_pqnum_int32(value);
+int64_t get_pqnum_int64(value);
+float get_pqnum_float32(value);
+double get_pqnum_float64(value);

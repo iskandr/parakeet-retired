@@ -10,13 +10,6 @@
 #include "k.h"
 #include "../OCAMLInterface/variants.h"
 
-enum run_template_ret_val_no_data {
-  Pass = 0
-};
-enum run_template_ret_val_data {
-  Success = 0,
-  Error
-};
 
 /** Main interface functions between preprocessed Q and OCaml. **/
 K gen_module_template(K functions);

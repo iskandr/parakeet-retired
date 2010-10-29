@@ -210,18 +210,18 @@ K run_template(K t, K args, K globals) {
   ocaml_ret = caml_callback3(
     *ocaml_run_template, ocaml_template, ocaml_globals, ocaml_args);
 
+  inspect_block(ocaml_ret);
+
   // Have to unpack and repack the OCaml return value for Q
   K q_status, q_retval, q_ret;
+  // status = Pass
   if (Is_long(ocaml_ret)) {
     q_status = ki((I)1);
     q_ret = knk(1, q_status);
   } else if (Tag_val(ocaml_ret) == Success) {
-    inspect_block(ocaml_ret);
     q_status = ki((I)0);
-    int *data = (int*)Int64_val(Field(ocaml_ret, 0));
-    int len = Int_val(Field(ocaml_ret, 1)) / sizeof(int);
-    int i;
-    q_retval = hostval_to_qval(ocaml_ret);
+    // the only field of a Success variant is the result host_val
+    q_retval = hostval_to_qval(Field(ocaml_ret, 0));
     q_ret = knk(2, q_status, q_retval);
   } else if (Tag_val(ocaml_ret) == Error) {
     q_status = ki((I)2);
@@ -623,15 +623,66 @@ int ktype_num_bytes(int ktype) {
   return -1;
 }
 
+
+/* given an OCaml PQNum, return an equivalent K/Q scalar */
+K build_q_scalar(value hostScalar) {
+  CAMLparam1(hostScalar);
+  int pqnum_tag = Tag_val(hostScalar);
+  K ret;
+  switch (pqnum_tag) {
+  case PQNUM_INT32:
+    // ki : int -> K representation of ints
+    ret = ki(get_pqnum_int32(hostScalar));
+    break;
+  case PQNUM_INT64:
+    // kj : long -> K representation of longs
+     ret = kj(get_pqnum_int64(hostScalar));
+    break;
+  case PQNUM_FLOAT32:
+    // ke: float -> K representation of floats
+    ret = ke(get_pqnum_float32(hostScalar));
+    break;
+  case PQNUM_FLOAT64:
+    // kf : double -> K representation of doubles
+    ret = kf(get_pqnum_float64(hostScalar));
+    break;
+  default:
+    printf("Conversion to K value not yet supported for PQNum with tag %d\n",
+      pqnum_tag);
+    exit(1);
+
+  }
+  CAMLreturnT(K, ret);
+}
+
+K build_q_array(value hostArray) {
+ CAMLparam1(hostArray);
+ printf("not implemented!");
+ exit(1);
+}
 K hostval_to_qval(value hostval) {
   CAMLparam1(hostval);
-  CAMLlocal1(ocaml_dyn_type);
-
   K ret;
+  if (Tag_val(hostval) == HostScalar) {
+    /* HostScalars have a single field, which is a PQNum */
+    ret = build_q_scalar(Field(hostval, 0));
+  } else {
+    /* HostArrays have a single field, which is a host_array record */
+    ret = build_q_array(Field(hostval, 0));
+
+  }
+  CAMLreturnT(K, ret);
+}
+ /*   char *data, int num_bytes, int ktypenum,
+                   int *shape, int shape_len, int shape_idx, int *idxes
+
+  } else {
+
+  }
   int i;
   char *data     = (char*)Nativeint_val(Field(hostval, 0));
   int num_bytes  = Int_val(Field(hostval, 1));
-  ocaml_dyn_type = Field(hostval, 2);
+  ocaml_dyn_type = Field(hostval, HostArray_HOST_T);
   int *shape     = (int*)Data_bigarray_val(Field(hostval, 3));
   int shape_len  = Int_val(caml_callback(*ocaml_shape_rank,
                                           Field(hostval, 3)));
@@ -639,8 +690,6 @@ K hostval_to_qval(value hostval) {
   for (i = 0; i < shape_len; ++i) {
     idxes[i] = 0;
   }
-
-  //printf("about to build q type\n");
   int ktypenum = -1 * abs(Int_val(caml_callback(*ocaml_dyn_type_to_ktypenum,
                                                 ocaml_dyn_type)));
   ret = build_q_type(data, num_bytes, ktypenum,
@@ -651,7 +700,7 @@ K hostval_to_qval(value hostval) {
   free(idxes);
 
   CAMLreturnT(K, ret);
-}
+  */
 
 /*
  * Recursively builds the K struct.  At the moment, we have to alloc and re-

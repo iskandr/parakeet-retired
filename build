@@ -40,24 +40,24 @@ UINT_FLAGS="-lib uint32 -lib uint64 -lib uint128 -cflags -I,$UINT_DIR -lflags -I
 echo $OCAMLBUILD
 
 cd CQInterface
-printf "\n\n ******** Building CQInterface *******\n"; 
+# printf "\n\n ******** Cleaning CQInterface *******\n"; 
 make clean
 cd ..
 
 cd OCAMLInterface
-printf "\n\n ******** Building OCAMLInteface *******\n"; 
+# printf "\n\n ******** Cleaning OCAMLInteface *******\n"; 
 make clean
 cd ..
 
 printf "\n\n ******** Building LibPQ ********* \n";
 cd libpq
 make clean 
-make
+if ! make; then echo "LibPQ build failed"; exit 1; fi 
 cd ..
 
-printf "\n\n ****** Building OCAML Interface ****** \n"
+printf "\n\n ****** Building OCaml<->C Interface ****** \n"
 cd OCAMLInterface;
-make $MAKEFLAGS
+if ! make $MAKEFLAGS; then echo "OCamlInterface build failed"; exit 1; fi 
 cd ..
 
 if [  "tests!" == "$1" ]; then 
@@ -67,21 +67,21 @@ if [  "tests!" == "$1" ]; then
   printf "\n---Running tests---\n";
  _build/Tests/tests.native;
 else
-  printf "\n\n******** Building QSyntax.cmxa ********\n";
+#  printf "\n\n******** Building QSyntax.cmxa ********\n";
 
-  echo $OCAMLBUILD;
-  $OCAMLBUILD -no-hygiene "Q/QSyntax"${SUFFIX}".cmxa" 
+#  echo $OCAMLBUILD;
+#  if ! $OCAMLBUILD -no-hygiene "Q/QSyntax"${SUFFIX}".cmxa"; then echo "QSyntax build failed"; exit 1; fi 
 
   if [ -n "$TARGET" ]; then
 
     printf "\n\n******* Building Preprocessor and Q Callbacks *******\n"; 
-    $OCAMLBUILD $TARGET Callbacks.cmx $EXTLIB_FLAGS $UINT_FLAGS -lib str -no-hygiene;
+    if ! $OCAMLBUILD $TARGET Callbacks.cmx $EXTLIB_FLAGS $UINT_FLAGS -lib str -no-hygiene; then echo "Preprocessor build failed"; exit 1; fi 
   fi
 
 
  printf "\n\n********* Building CQInterface **********\n"; 
   cd CQInterface;
-  make $MAKEFLAGS;
+  if ! make $MAKEFLAGS; then echo "CQInterface build failed"; exit 1; fi 
   mv *.o ../_build;
   mv cinterface.so ../_build;
   cd ..
@@ -89,7 +89,7 @@ else
  
   if [ -n "$FINALTARGET" ]; then
     printf "\n\n******** Building FINALTARGET ********\n"; 
-    $OCAMLBUILD $FINALTARGET; 
+    if ! $OCAMLBUILD $FINALTARGET; then echo "Profiling build failed"; exit 1; fi 
   fi
 fi
 

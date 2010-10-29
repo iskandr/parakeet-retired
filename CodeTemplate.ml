@@ -112,15 +112,13 @@ let run_template
   in
   debug "[run_template] calling evaluator on specialized code: \n";
   debug (sprintf "%s\n" (SSA.fundef_to_str typedFundef));   
-  let results = 
-    Eval.eval 
-        program.typed_functions 
-        typedFundef 
-        args 
-  in 
-  (debug (sprintf "Total Time: %f\n" (Unix.gettimeofday () -. startTime));
-   flush stdout;
-   (* assume Q expects only single result value *)  
-   List.hd results
-  ) 
- 
+  let result =
+    try 
+      let resultVals = Eval.eval program.typed_functions typedFundef args in
+      Success (List.hd resultVals)
+    with 
+      | e -> Error (Printexc.to_string e)
+  in     
+  debug (sprintf "Total Time: %f\n" (Unix.gettimeofday () -. startTime));
+  flush stdout;  
+  result

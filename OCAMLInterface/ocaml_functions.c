@@ -22,7 +22,7 @@
 value build_ocaml_host_scalar(value num) {
   CAMLparam1(num);
   CAMLlocal1(hostScalar);
-  num = caml_alloc(1, HOST_SCALAR);
+  num = caml_alloc(1, HostScalar);
   Store_field(hostScalar, 0, num);
   CAMLreturn(hostScalar);
 }
@@ -34,7 +34,7 @@ value build_ocaml_host_array (int num_bytes, value ocaml_dyn_type,
       ocaml_tuple, ocaml_host_val);
 
 
-  ocaml_host_val = caml_alloc(1, HOST_ARRAY);
+  ocaml_host_val = caml_alloc(1, HostArray);
 
   // tuple is the only data element of a host array
   ocaml_tuple = caml_alloc_tuple(4);
@@ -66,7 +66,7 @@ value build_ocaml_host_array (int num_bytes, value ocaml_dyn_type,
 value build_pqnum_int32(int32_t i) {
   CAMLparam0();
   CAMLlocal1(num);
-  num = caml_alloc(1, INT32);
+  num = caml_alloc(1, PQNUM_INT32);
   Store_field(num, 0, copy_int32(i));
   CAMLreturn(num);
 }
@@ -79,7 +79,7 @@ value build_host_int32(int32_t i) {
 value build_pqnum_int64(int64_t i) {
   CAMLparam0();
   CAMLlocal1(num);
-  num = caml_alloc(1, INT64);
+  num = caml_alloc(1, PQNUM_INT64);
   Store_field(num, 0, copy_int64(i));
   CAMLreturn(num);
 }
@@ -92,7 +92,12 @@ value build_host_int64(int64_t i) {
 value build_pqnum_float32(float f) {
   CAMLparam0();
   CAMLlocal1(num);
-  num = caml_alloc(1, FLOAT32);
+  /* OCaml uses an optimization of questionable wisdom
+   * whereby any variant or records whose elements are all
+   * floats stores these floats inline. Thus we need to allocate
+   * a 64-bit block and use the special Store_double_field macro.
+   */
+  num = caml_alloc(2, PQNUM_FLOAT32);
   Store_double_field(num, 0, f);
   CAMLreturn(num);
 }
@@ -106,14 +111,34 @@ value build_host_float32(float f) {
 value build_pqnum_float64(double d) {
   CAMLparam0();
   CAMLlocal1(num);
-  num = caml_alloc(1, FLOAT64);
+  // allocate 64-bit block to store doubles directly, see above for
+  // explanation
+  num = caml_alloc(2, PQNUM_FLOAT64);
   Store_double_field(num, 0, d);
   CAMLreturn(num);
 }
 
 // wrap PQNum.Float32 with a HostScalar tag
 value build_host_float64(double d) {
-  return build_ocaml_host_scalar(build_pqnum_float64(d));
+   return build_ocaml_host_scalar(build_pqnum_float64(d));
 }
 
 
+int32_t get_pqnum_int32(value pqnum) {
+  CAMLparam1(pqnum);
+  CAMLreturnT(int32_t, Int_val(Field(pqnum,0)));
+}
+int64_t get_pqnum_int64(value pqnum) {
+  CAMLparam1(pqnum);
+  CAMLreturnT(int64_t, Long_val(Field(pqnum,0)));
+
+}
+float get_pqnum_float32(value pqnum) {
+  CAMLparam1(pqnum);
+  CAMLreturnT(float, Double_field(pqnum, 0));
+}
+
+double get_pqnum_float64(value pqnum) {
+   CAMLparam1(pqnum);
+   CAMLreturnT(double, Double_field(pqnum, 0));
+}

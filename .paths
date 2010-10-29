@@ -1,7 +1,6 @@
 /usr/local/lib/ocaml/3.11.2/uint
 /usr/local/lib/ocaml/3.11.2/extlib
 .
-stubs
 libpq
 UntypedSSA
 Tests
@@ -135,3 +134,15 @@ unit
 Old
 Old/extlib
 Old/extlib/extlib-doc
+.git/objects/f8
+_build/AST
+_build/Base
+_build/CQInterface
+_build/GPU
+_build/Imp
+_build/Ptx
+_build/Q
+_build/SSA
+_build/SSA_Analysis
+_build/SSA_Optimizations
+_build/UntypedSSA

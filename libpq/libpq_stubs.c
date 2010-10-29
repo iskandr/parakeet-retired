@@ -12,22 +12,13 @@
 #include "caml/callback.h"
 #include "caml/custom.h"
 
+#include "../OCAMLInterface/variants.h"
 #include "string.h"
 #include "pqlib.h"
 
 #define ALIGN_UP(offset, alignment) \
   (offset) = ((offset) + (alignment) - 1) & ~((alignment) - 1)
 
-/**
-  * Enums for the Variant Types I use - needs to be updated if the types
-  * change!
-  *
-  * I put the non-data Variants first for each type, then the data versions
- **/
-enum gpu_val_data {
-  GpuVec = 0,
-  GpuScalar
-};
 
 /* unit -> unit */
 CAMLprim value ocaml_pq_init(value unit) {
@@ -108,6 +99,9 @@ CAMLprim value ocaml_pq_destroy_module(value module_ptr) {
 	CAMLreturn(Val_unit);
 }
 
+
+
+
 CAMLprim value ocaml_pq_launch_ptx (
   value ocaml_module_ptr,
   value ocaml_ptx_fun,
@@ -121,7 +115,7 @@ CAMLprim value ocaml_pq_launch_ptx (
   CAMLparam5(ocaml_module_ptr, ocaml_ptx_fun, ocaml_args,
              ocaml_threadsx, ocaml_threadsy);
   CAMLxparam3(ocaml_threadsz, ocaml_gridwidth, ocaml_gridheight);
-  CAMLlocal3(ocaml_arg, ocaml_gpu_val, ocaml_gpu_var);
+  CAMLlocal2(ocaml_gpu_arg, ocaml_gpu_val);
 
   int threadsx = Int_val(ocaml_threadsx); 
   int threadsy = Int_val(ocaml_threadsy); 
@@ -173,36 +167,75 @@ CAMLprim value ocaml_pq_launch_ptx (
 
   for (i = 0; i < num_args; ++i) {
 
-    ocaml_gpu_val = Field(ocaml_args, i);
-    ocaml_gpu_var = Field(ocaml_gpu_val, 0);
-    if (Tag_val(ocaml_gpu_val) == GpuVec) {
+    ocaml_gpu_arg = Field(ocaml_args, i);
+    ocaml_gpu_val = Field(ocaml_gpu_arg, 0);
+    if (Tag_val(ocaml_gpu_arg) == GpuArray) {
       // First, we just add the arg to the list of args
-      ptr_arg = (void*)Int32_val(Field(ocaml_gpu_var, 0));
+      ptr_arg = (void*)Int32_val(Field(ocaml_gpu_val, GpuArray_VEC_PTR));
       ALIGN_UP(offset, sizeof(void*));
       result = cuParamSetv(cuFunc, offset, &ptr_arg, sizeof(void*));
       if (result != 0) {
-        printf("Error #%d in cuParamSetv, arg %d of %d (GpuVec data)",
+        printf("Error #%d in cuParamSetv, arg %d of %d (GpuArray data)",
             result,  i, num_args);
         exit(1);
       }
       offset += sizeof(void*);
 
             // Now, add the shape vector too
-      ptr_arg = (void*)Int32_val(Field(ocaml_gpu_var, 3));
+      ptr_arg = (void*)Int32_val(Field(ocaml_gpu_val, GpuArray_VEC_SHAPE_PTR));
       ALIGN_UP(offset, sizeof(void*));
       result = cuParamSetv(cuFunc, offset, &ptr_arg, sizeof(void*));
       if (result != 0) {
-        printf("Error #%d in cuParamSetv, arg %d of %d (GpuVec shape)",
+        printf("Error #%d in cuParamSetv, arg %d of %d (GpuArray shape)",
             result, i, num_args);
         exit(1);
       }
       offset += sizeof(void*);
 
-    } else if (Tag_val(ocaml_gpu_val) == GpuScalar) {
+    } else if (Tag_val(ocaml_gpu_arg) == GpuScalar) {
       
-      // GpuScalar
-      arg_size = Int_val(Field(ocaml_gpu_var, 2));
-      ptr_arg = (void*)Int64_val(Field(ocaml_gpu_var, 0));
+      /* Alex says: I'm not really sure why we need the arg_size
+       * variable since we know that every scalar value gets stuffed
+       * into a 64-bit slot. (10/29/10).
+       */
+      int pqnum_tag = Tag_val(ocaml_gpu_val);
+
+      switch (pqnum_tag) {
+
+      case PQNUM_INT32:
+        arg_size = sizeof(int32_t);
+        ptr_arg = (void*)((int64_t) (get_pqnum_int32(ocaml_gpu_val)));
+        break;
+      case PQNUM_INT64:
+        arg_size = sizeof(int64_t);
+        ptr_arg = (void*) (get_pqnum_int64(ocaml_gpu_val));
+        break;
+
+      case PQNUM_FLOAT32:
+        arg_size = sizeof(float);
+        /* get the bits of a float32 */
+        union { int64_t fbits; float f; } f32_union = { 0 };
+        f32_union.f =  get_pqnum_float32(ocaml_gpu_val);
+        ptr_arg = (void*) f32_union.fbits;
+        break;
+
+      case PQNUM_FLOAT64:
+        arg_size = sizeof(double);
+        /* get the bits of a float64 */
+        union { int64_t dbits; double d; } f64_union = { 0 };
+        f64_union.d = get_pqnum_float64(ocaml_gpu_val);
+        ptr_arg = (void*) f64_union.dbits;
+        break;
+
+      default:
+        printf("Scalars of type tag %d not yet supported by ocaml_launch_ptx\n",
+               pqnum_tag);
+        exit(1);
+
+      }
+      arg_size = Int_val(Field(ocaml_gpu_val, 2));
+      ptr_arg = (void*)Int64_val(Field(ocaml_gpu_val, 0));
+
       ALIGN_UP(offset, arg_size);
       result = cuParamSetv(cuFunc, offset, &ptr_arg, arg_size);
       if (result != 0) {

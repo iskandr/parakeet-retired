@@ -13,6 +13,15 @@
   * I put the non-data Variants first for each type, then the data versions
  **/
 
+enum run_template_ret_val_no_data {
+  Pass = 0
+};
+enum run_template_ret_val_data {
+  Success = 0,
+  Error
+};
+
+
 enum dyn_type_no_data {
   BottomT = 0,
   AnyT,
@@ -43,13 +52,22 @@ enum dyn_type_with_data {
 
 
 enum pqnum_tag {
-     BOOL = 0, CHAR, UINT16, INT16,
-     UINT32, INT32, UINT64, INT64, FLOAT32, FLOAT64
+     PQNUM_BOOL = 0, PQNUM_CHAR, PQNUM_UINT16, PQNUM_INT16,
+     PQNUM_UINT32, PQNUM_INT32, PQNUM_UINT64, PQNUM_INT64,
+     PQNUM_FLOAT32, PQNUM_FLOAT64
 };
 
-enum host_val_tag { HOST_SCALAR = 0, HOST_ARRAY };
+enum host_val_tag { HostScalar = 0, HostArray };
 
-enum gpu_val_tag {
-  GPU_SCALAR = 0, GPU_ARRAY
+enum host_array_layout {
+  HostArray_PTR = 0, HostArray_HOST_T, HostArray_SHAPE, HostArray_NBYTES
 };
 
+/* needs to stay synchronized with definition in GpuVal.ml */
+enum gpu_val_tag { GpuScalar = 0, GpuArray };
+
+enum gpu_array_layout {
+    GpuArray_VEC_PTR = 0, GpuArray_VEC_NBYTES, GpuArray_VEC_LEN,
+        GpuArray_VEC_SHAPE_PTR, GpuArray_VEC_SHAPE_NBYTES,
+        GpuArray_VEC_SHAPE, GpuArray_VEC_T
+};
