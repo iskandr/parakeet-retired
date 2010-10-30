@@ -655,105 +655,34 @@ K build_q_scalar(value hostScalar) {
   CAMLreturnT(K, ret);
 }
 
-K build_q_array(value hostArray) {
- CAMLparam1(hostArray);
- printf("not implemented!");
- exit(1);
-}
-K hostval_to_qval(value hostval) {
-  CAMLparam1(hostval);
-  K ret;
-  if (Tag_val(hostval) == HostScalar) {
-    /* HostScalars have a single field, which is a PQNum */
-    ret = build_q_scalar(Field(hostval, 0));
-  } else {
-    /* HostArrays have a single field, which is a host_array record */
-    ret = build_q_array(Field(hostval, 0));
-
-  }
-  CAMLreturnT(K, ret);
-}
- /*   char *data, int num_bytes, int ktypenum,
-                   int *shape, int shape_len, int shape_idx, int *idxes
-
-  } else {
-
-  }
-  int i;
-  char *data     = (char*)Nativeint_val(Field(hostval, 0));
-  int num_bytes  = Int_val(Field(hostval, 1));
-  ocaml_dyn_type = Field(hostval, HostArray_HOST_T);
-  int *shape     = (int*)Data_bigarray_val(Field(hostval, 3));
-  int shape_len  = Int_val(caml_callback(*ocaml_shape_rank,
-                                          Field(hostval, 3)));
-  int *idxes     = (int*)malloc(sizeof(int)*shape_len);
-  for (i = 0; i < shape_len; ++i) {
-    idxes[i] = 0;
-  }
-  int ktypenum = -1 * abs(Int_val(caml_callback(*ocaml_dyn_type_to_ktypenum,
-                                                ocaml_dyn_type)));
-  ret = build_q_type(data, num_bytes, ktypenum,
-                     shape, shape_len, 0, idxes);
-
-  // TODO: Do we want to free the data now? I guess so.
-  //free(data);
-  free(idxes);
-
-  CAMLreturnT(K, ret);
-  */
-
 /*
  * Recursively builds the K struct.  At the moment, we have to alloc and re-
  * copy the stuff into Q, because Q's objects are allocated with headers
  * attached to their memory payload (which our flattened representation doesn't
  * have).
  */
-K build_q_type(char *data, int num_bytes, int ktypenum,
+
+K build_q_array(char *data, int num_bytes, int ktypenum,
                int *shape, int shape_len, int shape_idx, int *idxes) {
   K ret;
   int i;
-
-  if (shape_len == 0) {
-    // Scalar
-    switch(ktypenum) {
-    case KB:
-      ret = kb((int)data[0]);
-      break;
-    case KI:
-      // int
-      ret = ki(((int*)data)[0]);
-      break;
-    case KJ:
-      // long
-      ret = kj(((long*)data)[0]);
-      break;
-    case KE:
-      ret = ke(((float*)data)[0]);
-      break;
-    case KF:
-      // float
-      ret = kf(((double*)data)[0]);
-      break;
-    case KS:
-      // symbol
-      ret = ks(ss(data));
-      break;
-
-    /** Default: Error **/
-    default:
-      printf("Unsupported Q type coming back from dyn_type_to_ktypenum\n");
-      exit(-1);
-    }
-  } else if (shape_idx == shape_len - 1) {
+  if (shape_len == 0) { printf("unexpected scalar!"); exit(1); }
+  else if (shape_idx == shape_len - 1) {
     // Last level of lists, just build
     int sizeof_element = ktype_num_bytes(ktypenum);
-    ret = ktn(-ktypenum, shape[shape_idx]);
+    int len = shape[shape_idx];
+    int bytes_copied = sizeof_element * len;
+    ret = ktn(-ktypenum, len);
+
     int idx = 0, factor = sizeof_element;
     for (i = shape_idx; i > 0; --i) {
       factor *= shape[i];
       idx += idxes[i - 1] * factor;
     }
-    memcpy((void*)kG(ret), data + idx, shape[shape_idx]*sizeof_element);
+
+    /* copy flat array data into K variable */
+    memcpy((void*)kG(ret), data + idx, bytes_copied);
+
   } else {
     // Non-scalar
     // TODO: only vecs now!!
@@ -761,12 +690,54 @@ K build_q_type(char *data, int num_bytes, int ktypenum,
     ret = ktn(0, shape[shape_idx]);
     for (i = 0; i < shape[shape_idx]; ++i) {
       idxes[shape_idx] = i;
-      kK(ret)[i] = build_q_type(data, num_bytes, ktypenum,
+      kK(ret)[i] = build_q_array(data, num_bytes, ktypenum,
                                 shape, shape_len, shape_idx + 1, idxes);
     }
   }
-
   return ret;
+}
+
+
+K hostval_to_qval(value hostVal) {
+  CAMLparam1(hostVal);
+  CAMLlocal5(nestedVal, hostPtr, hostType, hostShape, hostBytes);
+  nestedVal = Field(hostVal, 0);
+  K ret;
+  if (Tag_val(hostVal) == HostScalar) {
+    /* HostScalars have a single field, which is a PQNum */
+    ret = build_q_scalar(nestedVal);
+  } else {
+     hostPtr = Field(nestedVal, HostArray_PTR);
+     char* data = (char*) Int64_val(hostPtr);
+     hostType = Field(nestedVal, HostArray_HOST_T);
+     /* convert the OCaml-side type tag of the array into the K type number
+      * of the array elements
+      */
+     int k_type_num =
+       Int_val(caml_callback(*ocaml_dyn_type_to_ktypenum,hostType));
+     int k_elt_type = -1 * abs(k_type_num);
+
+     hostBytes = Field(nestedVal, HostArray_NBYTES);
+     int nbytes = Int_val(hostBytes);
+     hostShape = Field(nestedVal, HostArray_SHAPE);
+     int ndims = Wosize_val(hostShape);
+     /* reconstruct a shape vector in C from the OCaml array */
+     int* shape = (int*) malloc(sizeof(int)*ndims);
+     int i;
+     for (i = 0; i < ndims; ++i) {
+       shape[i] = Int_val(Field(hostShape, i));
+     }
+     /* these get populated during array construction, initially set them
+      * to be zero
+      */
+     int *idxes     = (int*)malloc(sizeof(int)*ndims);
+     for (i = 0; i < ndims; ++i) {
+       idxes[i] = 0;
+     }
+     ret = build_q_array(data, nbytes, k_elt_type, shape, ndims, 0, idxes);
+     free(idxes);
+  }
+  CAMLreturnT(K, ret);
 }
 
 /**

@@ -60,9 +60,6 @@ value build_ocaml_host_array (int num_bytes, value ocaml_dyn_type,
 }
 
 
-
-
-
 value build_pqnum_int32(int32_t i) {
   CAMLparam0();
   CAMLlocal1(num);
@@ -126,11 +123,11 @@ value build_host_float64(double d) {
 
 int32_t get_pqnum_int32(value pqnum) {
   CAMLparam1(pqnum);
-  CAMLreturnT(int32_t, Int_val(Field(pqnum,0)));
+  CAMLreturnT(int32_t, Int32_val(Field(pqnum,0)));
 }
 int64_t get_pqnum_int64(value pqnum) {
   CAMLparam1(pqnum);
-  CAMLreturnT(int64_t, Long_val(Field(pqnum,0)));
+  CAMLreturnT(int64_t, Int64_val(Field(pqnum,0)));
 
 }
 float get_pqnum_float32(value pqnum) {

@@ -113,7 +113,11 @@ and rewrite_exp constEnv useCounts defEnv tenv node =
   | Arr vs ->  
       let vs', changed = rewrite_value_list constEnv useCounts defEnv tenv vs in
       return (Arr vs') changed 
-
+  
+  | Cast(t, v) ->
+      let v', changed = rewrite_value constEnv useCounts defEnv tenv v in 
+      if v.value_type = t then return (Values [v]) true 
+      else return (Cast(t,v')) changed 
 
     
 and rewrite_value constEnv useCounts defEnv tenv valNode =

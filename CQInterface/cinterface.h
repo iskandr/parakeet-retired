@@ -21,6 +21,10 @@ K dump_variables(K filename, K vars);
 void init_dt();
 value k_var_to_ocaml(K kvar);
 value ktypenum_to_ocaml_type(int64_t ktypenum);
+
+K build_q_array(char *data, int num_bytes, int ktypenum,
+               int *shape, int shape_len, int shape_idx, int *idxes);
+
 K hostval_to_qval(value hostval);
 void get_kvar_representation(K kvar, int *num_bytes, value *ocaml_dyn_type,
                              int **shape, int *cur_shape_len,
@@ -29,8 +33,6 @@ void flatten_kvar(K kvar, char *flattened, int *cur_idx);
 void get_flattened_version(K kvar, int *num_bytes, value *ocaml_dyn_type,
                            int **shape, int *shape_len, char **flattened);
 int ktype_num_bytes(int ktype);
-K build_q_type(char *data, int num_bytes, int ktypenum,
-               int *shape, int shape_len, int shape_idx, int *idxes);
 value gen_build_args_list(K args);
 value args_list_to_ocaml_list(K args);
 value k_string_to_ocaml(K kstr);

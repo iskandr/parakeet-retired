@@ -164,12 +164,14 @@ CAMLprim value ocaml_pq_launch_ptx (
 #ifdef DEBUG
   printf("Setting up %d GPU arguments\n", num_args);
 #endif
-
   for (i = 0; i < num_args; ++i) {
 
+
     ocaml_gpu_arg = Field(ocaml_args, i);
-    ocaml_gpu_val = Field(ocaml_gpu_arg, 0);
+
     if (Tag_val(ocaml_gpu_arg) == GpuArray) {
+      printf("Sending array to GPU!\n");
+      ocaml_gpu_val = Field(ocaml_gpu_arg, 0);
       // First, we just add the arg to the list of args
       ptr_arg = (void*)Int32_val(Field(ocaml_gpu_val, GpuArray_VEC_PTR));
       ALIGN_UP(offset, sizeof(void*));
@@ -193,38 +195,42 @@ CAMLprim value ocaml_pq_launch_ptx (
       offset += sizeof(void*);
 
     } else if (Tag_val(ocaml_gpu_arg) == GpuScalar) {
-      
-      /* Alex says: I'm not really sure why we need the arg_size
-       * variable since we know that every scalar value gets stuffed
-       * into a 64-bit slot. (10/29/10).
-       */
+      ocaml_gpu_val = Field(ocaml_gpu_arg, 0);
       int pqnum_tag = Tag_val(ocaml_gpu_val);
+      /* locals used to pull out number values */
+      int32_t int32_val;
+      int64_t int64_val;
+      union { int32_t fbits; float f; } f32_union = { 0 };
+      union { int64_t dbits; double d; } f64_union = { 0 };
 
       switch (pqnum_tag) {
 
       case PQNUM_INT32:
+        int32_val = get_pqnum_int32(ocaml_gpu_val);
+        ptr_arg = (void*) &int32_val;
         arg_size = sizeof(int32_t);
-        ptr_arg = (void*)((int64_t) (get_pqnum_int32(ocaml_gpu_val)));
         break;
+
       case PQNUM_INT64:
+        int64_val = get_pqnum_int64(ocaml_gpu_val);
+        ptr_arg = (void*) &int64_val;
         arg_size = sizeof(int64_t);
-        ptr_arg = (void*) (get_pqnum_int64(ocaml_gpu_val));
         break;
 
       case PQNUM_FLOAT32:
-        arg_size = sizeof(float);
         /* get the bits of a float32 */
-        union { int64_t fbits; float f; } f32_union = { 0 };
         f32_union.f =  get_pqnum_float32(ocaml_gpu_val);
-        ptr_arg = (void*) f32_union.fbits;
+        printf("Got PQNUM.f32: %f\n", f32_union.f);
+        ptr_arg = (void*) &(f32_union.fbits);
+        arg_size = sizeof(float);
         break;
 
       case PQNUM_FLOAT64:
-        arg_size = sizeof(double);
         /* get the bits of a float64 */
-        union { int64_t dbits; double d; } f64_union = { 0 };
         f64_union.d = get_pqnum_float64(ocaml_gpu_val);
-        ptr_arg = (void*) f64_union.dbits;
+        printf("Got PQNUM.f64: %f\n", f64_union.d);
+        ptr_arg = (void*) &(f64_union.dbits);
+        arg_size = sizeof(double);
         break;
 
       default:
@@ -233,14 +239,11 @@ CAMLprim value ocaml_pq_launch_ptx (
         exit(1);
 
       }
-      arg_size = Int_val(Field(ocaml_gpu_val, 2));
-      ptr_arg = (void*)Int64_val(Field(ocaml_gpu_val, 0));
-
+      printf("Transmitting scalar to GPU (address: %p, size: %d)", ptr_arg, arg_size);
       ALIGN_UP(offset, arg_size);
-      result = cuParamSetv(cuFunc, offset, &ptr_arg, arg_size);
+      result = cuParamSetv(cuFunc, offset, ptr_arg, arg_size);
       if (result != 0) {
-        printf("Error #%d in cuParamSetv, arg %d of %d (GpuScalar of %d bytes)",
-            result, arg_size);
+        printf("Error #%d in cuParamSetv -- GpuScalar of %d bytes", result, arg_size);
         exit(1);
       }
       offset += arg_size;
