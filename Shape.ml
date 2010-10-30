@@ -86,7 +86,7 @@ let to_str s =
   let b = Buffer.create (r*3) in 
   Printf.bprintf b "[";
   for i = 0 to r - 1 do 
-    if i < r - 2 then 
+    if i < r - 1 then 
       Printf.bprintf b "%d, " (get s i) 
     else 
       Printf.bprintf b "%d]" (get s i)

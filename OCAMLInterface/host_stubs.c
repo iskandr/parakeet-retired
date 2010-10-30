@@ -36,15 +36,19 @@ value ocaml_free(value ptr) {
 
 value ocaml_cast_int32(value ptr) {
     CAMLparam1(ptr);
+    CAMLlocal1(ocaml_i32);
     int32_t i = (int32_t) Int64_val(ptr);
-    CAMLreturn (copy_int32(i));
+    ocaml_i32 = copy_int32(i);
+    CAMLreturn (ocaml_i32);
 }
 
 value ocaml_get_int32(value ptr, value idx) {
     CAMLparam2(ptr, idx);
+    CAMLlocal1(ocaml_i32);
     int32_t* p = (int32_t*) Int64_val(ptr);
     int32_t i = p[Int_val(idx)];
-    CAMLreturn(copy_int32(i));
+    ocaml_i32 = copy_int32(i);
+    CAMLreturn(ocaml_i32);
 }
 
 value ocaml_set_int32(value ptr, value idx, value v) {

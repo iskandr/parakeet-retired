@@ -13,7 +13,7 @@ type host_val =
   | HostScalar of PQNum.num 
   | HostArray of host_array 
 
-external c_get_int32 : Int64.t -> int -> int = "ocaml_get_int"
+external c_get_int32 : Int64.t -> int -> int = "ocaml_get_int32"
 
 let to_str = function 
   | HostScalar n -> sprintf "HostScalar %s" (PQNum.num_to_str n)
