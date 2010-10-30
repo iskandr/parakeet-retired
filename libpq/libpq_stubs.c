@@ -170,7 +170,6 @@ CAMLprim value ocaml_pq_launch_ptx (
     ocaml_gpu_arg = Field(ocaml_args, i);
 
     if (Tag_val(ocaml_gpu_arg) == GpuArray) {
-      printf("Sending array to GPU!\n");
       ocaml_gpu_val = Field(ocaml_gpu_arg, 0);
       // First, we just add the arg to the list of args
       ptr_arg = (void*)Int32_val(Field(ocaml_gpu_val, GpuArray_VEC_PTR));

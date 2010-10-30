@@ -42,7 +42,8 @@ let get_host state = function
     else
       let gpuVal = Hashtbl.find state.gpu_vals id in
       let hostVal = GpuVal.from_gpu gpuVal in
-        Hashtbl.replace state.host_vals id hostVal; 
+      Hashtbl.replace state.host_vals id hostVal;
+      Printf.printf "[MemoryState->get_host] Got %s \n" (HostVal.to_str hostVal);  
       hostVal
   | InterpVal.Closure _ -> 
       failwith "[MemoryState->get_host] can't send function to host memory"

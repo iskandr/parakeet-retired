@@ -12,12 +12,6 @@ let sizeof ty shape =
 type adverb_cache = (ID.t * DynType.t list, Cuda.cuda_module) Hashtbl.t 
 
 let mk_cuda_module ptxList threadsPerBlock =
-  (*
-  let check = 
-    PtxCheck.emulate_with_random_data PtxCheck.ones_vec PtxCheck.ones_vec 
-  in  
-  let _ = List.map (fun (_, kernel) -> check kernel) ptxList in
-  *)  
   let ptxMap = PMap.of_enum (List.enum ptxList) in 
   let ptxModule = {
     Ptx.kernels = ptxMap;   
@@ -137,7 +131,6 @@ let run_reduce globalFunctions fnId inputTypes outputTypes memState dynVals =
         if curNumElts > 1 then (
           let numOutputElts = safe_div curNumElts (threadsPerBlock * 2) in
           let newShape = Shape.of_list [numOutputElts] in
-          let outSize = DynType.sizeof outputType * numOutputElts in 
           let newOut = GpuVal.mk_gpu_vec (DynType.VecT outputType) newShape in 
           let args = Array.of_list ([inputArg; newOut]) in
 	        let gridParams = match

@@ -13,19 +13,25 @@ type host_val =
   | HostScalar of PQNum.num 
   | HostArray of host_array 
 
+external c_get_int32 : Int64.t -> int -> int = "ocaml_get_int"
 
 let to_str = function 
   | HostScalar n -> sprintf "HostScalar %s" (PQNum.num_to_str n)
   | HostArray {ptr=ptr; host_t=host_t; shape=shape; nbytes=nbytes} -> 
-     sprintf "HostArray { host_t=%s, shape=%s; nbytes=%d }"
+     sprintf "HostArray { host_t=%s, shape=%s; nbytes=%d; first_word=%d }"
        (DynType.to_str host_t) 
        (Shape.to_str shape) 
        nbytes
+       (c_get_int32 ptr 0)
+
 
 external c_malloc : int -> Int64.t = "ocaml_malloc"
 external c_free : Int64.t -> unit = "ocaml_free"
 
 let free h = if DynType.is_vec h.host_t then c_free h.ptr
+       
+
+
 
 let mk_host_scalar n = HostScalar n
   

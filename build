@@ -87,7 +87,6 @@ else
   mv *.o ../_build;
   mv cinterface.so ../_build;
   cd ..
-
  
   if [ -n "$FINALTARGET" ]; then
     printf "\n\n******** Building FINALTARGET ********\n"; 

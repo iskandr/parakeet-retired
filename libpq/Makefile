@@ -330,6 +330,9 @@ tester: pqlib stubs tester.o
 each: each.cu_o each_tester.o
 	gcc-4.3 each.cu_o each_tester.o -I. $(INCLUDES) -o each $(LIB) -L.
 
+index: index.cu_o index_tester.o
+	gcc-4.3 index.cu_o index_tester.o -I. $(INCLUDES) -o index $(LIB) -L.
+
 all_pairs: all_pairs_abs_diff.cu_o all_pairs_abs_diff_tester.o
 	gcc-4.3 all_pairs_abs_diff.cu_o all_pairs_abs_diff_tester.o -I. $(INCLUDES) \
 	-o all_pairs $(LIB) -L.
