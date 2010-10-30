@@ -74,10 +74,10 @@ ImpGenAllPairs.cmx \
 ImpGenMap.cmx ImpGenReduce.cmx \
 ImpToPtx.cmx \
 SSA_to_Imp.cmx \
-QType.cmx HardwareInfo.cmx Init.cmx \
+QType.cmx HardwareInfo.cmx \
 GpuRuntime.cmx \
 Eval.cmx \
-CodeTemplate.cmx Callbacks.cmx 
+CodeTemplate.cmx Callbacks.cmx
 
 
 #$(shell ls $(BUILDPATH) -R | grep cmx | tr '\n' ' ')

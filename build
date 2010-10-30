@@ -6,7 +6,7 @@ printf "===================================================\n";
 # Build parameters
 
  
-OBJS="CQInterface/QType.o CQInterface/Debug.o Init.o Callbacks.o"
+OBJS="CQInterface/QType.o CQInterface/Debug.o Init.o" # Callbacks.o
 LINKER_FLAGS="-lflags -ccopt,$PQ_PATH/libpq_stubs.o,\
 -ccopt,$PQ_PATH/cuda_stubs.o,\
 -ccopt,-L/usr/local/cuda/lib/,\
@@ -16,7 +16,7 @@ LINKER_FLAGS="-lflags -ccopt,$PQ_PATH/libpq_stubs.o,\
 -ccopt,$PQ_PATH/../OCAMLInterface/ocaml_interface.a"
 
 SUFFIX=
-TARGET="preprocess.native"
+TARGET="preprocess.native Callbacks.cmx"
 PPFLAGS=
 MAKEFLAGS=
 FINALTARGET=
@@ -76,8 +76,9 @@ else
     EXTLIB_FLAGS="-lib extLib -cflags -I,$EXTLIB_DIR -lflags -I,$EXTLIB_DIR"
     UINT_DIR=`ocamlfind query -format "%d" uint`;
     UINT_FLAGS="-lib uint32 -lib uint64 -lib uint128 -cflags -I,$UINT_DIR -lflags -I,$UINT_DIR"
+
     printf "\n\n******* Building Preprocessor and Q Callbacks *******\n"; 
-    if ! $OCAMLBUILD $TARGET Callbacks.cmx $EXTLIB_FLAGS $UINT_FLAGS -lib str -no-hygiene; then echo "Preprocessor build failed"; exit 1; fi 
+    if ! $OCAMLBUILD $TARGET $EXTLIB_FLAGS $UINT_FLAGS -lib str -no-hygiene; then echo "Preprocessor build failed"; exit 1; fi 
   fi
 
 
