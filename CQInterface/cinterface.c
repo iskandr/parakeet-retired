@@ -28,7 +28,7 @@
 int init = 0;
 
 /** OCaml functions we use **/
-value *ocaml_compiler_init          = NULL;
+// value *ocaml_compiler_init          = NULL;
 value *ocaml_gen_module_template    = NULL;
 value *ocaml_get_function_template  = NULL;
 value *ocaml_run_template           = NULL;
@@ -60,7 +60,7 @@ void init_dt() {
   caml_startup(argv);
 
 #ifndef DEBUG
-  ocaml_compiler_init          = caml_named_value("compiler_init");
+  //ocaml_compiler_init          = caml_named_value("compiler_init");
   ocaml_gen_module_template    = caml_named_value("gen_module_template");
   ocaml_get_function_template  = caml_named_value("get_function_template");
   ocaml_run_template           = caml_named_value("run_template");
@@ -70,7 +70,7 @@ void init_dt() {
   ocaml_shape_rank             = caml_named_value("shape_rank");
   ocaml_compact                = caml_named_value("c_compact");
 #else
-  ocaml_compiler_init          = caml_named_value("compiler_init");
+  //ocaml_compiler_init          = caml_named_value("compiler_init");
   ocaml_gen_module_template    = caml_named_value("debug_gen_module_template");
   ocaml_get_function_template  =
     caml_named_value("debug_get_function_template");
@@ -90,7 +90,7 @@ void init_dt() {
   num_module_templates = num_function_templates = 0;
 
   // Initialize the OCaml runtime and CUDA.
-  caml_callback(*ocaml_compiler_init, Val_unit);
+  //caml_callback(*ocaml_compiler_init, Val_unit);
 
   CAMLreturn0;
 }
@@ -149,6 +149,7 @@ K gen_module_template(K functions) {
     module_templates = new_vector;
   }
   caml_register_global_root(&module_templates[num_module_templates]);
+  if (!ocaml_gen_module_template) { printf("ERROR: gen_module_template not found\n"); exit(1); }
   module_templates[num_module_templates] =
     caml_callback(*ocaml_gen_module_template, func_list1);
 
@@ -182,6 +183,7 @@ K get_function_template(K mod_temp, K func_name) {
     function_templates = new_vector;
   }
   caml_register_global_root(&function_templates[num_function_templates]);
+  if (!ocaml_get_function_template) { printf("ERROR: get_function_template not found\n"); exit(1); }
   function_templates[num_function_templates] = caml_callback2(
     *ocaml_get_function_template, camlmod_temp, camlfunc_name);
   K t = ki((I)num_function_templates);
@@ -207,6 +209,7 @@ K run_template(K t, K args, K globals) {
   inspect_block(ocaml_args);
 
   // Now actually call the OCaml function to build and run the CUDA function
+  if(!ocaml_run_template) { printf("ERROR: run_template not found\n"); exit(1); }
   ocaml_ret = caml_callback3(
     *ocaml_run_template, ocaml_template, ocaml_globals, ocaml_args);
 
@@ -478,6 +481,7 @@ void get_kvar_representation(K kvar, int *num_bytes, value *ocaml_dyn_type,
   int i;
   if (kvar->t < 0) {
     // Scalar - easy.  We don't update the shape here - the 1 is implicit.
+    
     *ocaml_dyn_type =
       caml_callback(*ocaml_ktypenum_to_ocaml_type, Val_int(-kvar->t));
     *num_bytes = ktype_num_bytes(kvar->t);
@@ -515,6 +519,7 @@ void get_kvar_representation(K kvar, int *num_bytes, value *ocaml_dyn_type,
 
     // Allocate a value to store the dyn_type of the children
     *ocaml_dyn_type = caml_alloc(1, VecT);
+    if(!ocaml_ktypenum_to_ocaml_type) { printf("ERROR: ktypenum_to_ocaml_type not found\n"); exit(1); }
     Store_field(*ocaml_dyn_type, 0,
                 caml_callback(*ocaml_ktypenum_to_ocaml_type,
                               Val_int(kvar->t)));
@@ -713,6 +718,7 @@ K hostval_to_qval(value hostVal) {
      /* convert the OCaml-side type tag of the array into the K type number
       * of the array elements
       */
+     if(!ocaml_dyn_type_to_ktypenum) { printf("ERROR: dyn_type_to_ktypenum not found\n"); exit(1); } 
      int k_type_num =
        Int_val(caml_callback(*ocaml_dyn_type_to_ktypenum,hostType));
      int k_elt_type = -1 * abs(k_type_num);
@@ -798,6 +804,7 @@ K dump_variables(K filename, K vars) {
     } else {
       type = tmp->t;
     }
+    if(!ocaml_ktypenum_to_ocaml_type) { printf("ERROR: ktypenum_to_ocaml_type not found\n"); exit(1); }
     ocaml_scalar_type =
       caml_callback(*ocaml_ktypenum_to_ocaml_type, Val_int(type));
 

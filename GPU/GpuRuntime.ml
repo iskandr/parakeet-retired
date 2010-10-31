@@ -229,6 +229,7 @@ let run_all_pairs globalFunctions fnId inputTypes outputTypes memState dynVals =
 
 let init () = 
   (* initialize GPU contexts and device info *) 
+  LibPQ.cuda_init(); 
   HardwareInfo.hw_init()
   
 let shutdown () = 

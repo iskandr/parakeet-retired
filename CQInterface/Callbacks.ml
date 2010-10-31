@@ -3,7 +3,7 @@
 
 let _ = Callback.register "shape_create" Shape.create
 let _ = Callback.register "shape_rank" Shape.rank
-let _ = Callback.register "compiler_init" Init.compiler_init
+(*let _ = Callback.register "compiler_init" Init.compiler_init*) 
 let _ = Callback.register "sizeof_dyn_type" DynType.sizeof
 let _ = Callback.register "ktypenum_to_ocaml_type" QType.ktypenum_to_ocaml_type
 let _ = Callback.register "dyn_type_to_ktypenum" QType.dyn_type_to_ktypenum
