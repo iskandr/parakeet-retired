@@ -18,7 +18,23 @@ let get shape idx = shape.(idx)
   
 let set shape idx v = shape.(idx) <- v
 
+let rank shape = Array.length shape 
+
+
 let scalar_shape = create 0
+
+let to_str s =
+  let r = rank s in   
+  let b = Buffer.create (r*3) in 
+  Printf.bprintf b "[";
+  for i = 0 to r - 1 do 
+    if i < r - 1 then 
+      Printf.bprintf b "%d, " (get s i) 
+    else 
+      Printf.bprintf b "%d]" (get s i)
+  done; 
+  Buffer.contents b
+
 
 let of_list l =
   let n = List.length l in
@@ -26,7 +42,6 @@ let of_list l =
   List.iter2 (fun dim idx -> set s idx dim) l (List.til n);
   s
 
-let rank shape = Array.length shape 
 
 (* the product of the elements in a shape vector is the number of elements
    in an array
@@ -77,27 +92,59 @@ let max_shape_list lst =
   in  
   List.fold_left aux (Some scalar_shape) lst
 
-(*external get_raw_ptr : t -> HostPtr.t = "get_shapevec_ptr"*)
-
  
-
-let to_str s =
-  let r = rank s in   
-  let b = Buffer.create (r*3) in 
-  Printf.bprintf b "[";
-  for i = 0 to r - 1 do 
-    if i < r - 1 then 
-      Printf.bprintf b "%d, " (get s i) 
-    else 
-      Printf.bprintf b "%d]" (get s i)
+let peel_shape shape = 
+  let n = rank shape in 
+  assert (n > 0); 
+  let shape' = create (n-1) in 
+  for i = 0 to n - 2 do
+    set shape' i (get shape (i+1)) 
+  done;   
+  shape'
+  
+let append shape1 shape2 = 
+  let m = rank shape1 in 
+  let n = rank shape2 in 
+  let combined = create (m+n) in 
+  for i = 0 to m - 1 do 
+    set combined i (get shape1 i)
   done; 
-  Buffer.contents b
-
+  for i = m to m+n-1 do 
+    set combined i (get shape2 (i -m))
+  done; 
+  combined 
+  
+let append_dim dim shape = 
+  let n = rank shape in 
+  let shape' = create (n+1) in 
+  for i = 0 to n - 1 do 
+    set shape' (i+1) (get shape i)
+  done; 
+  shape'  
+  
+let slice_shape inputShape dimsList = 
+  let n = rank inputShape in 
+  let nRemoved = List.length dimsList in
+  let sliceRank = n - nRemoved in
+  assert (sliceRank >= 0);  
+  if sliceRank = 0 then scalar_shape 
+  else (
+    let resultShape = create sliceRank in 
+    let idx = ref 0 in 
+    for i = 0 to n - 1 do
+      (* if this dim hasn't been removed, add it to the result *)  
+      if not (List.mem i dimsList) then begin  
+        set resultShape !idx i;
+        idx := !idx + 1
+      end
+    done; 
+    resultShape   
+ )  
 let to_c_array shape =
   let n = rank shape in  
   let cArr = Array1.create int32 c_layout n in 
   for i = 0 to n - 1 do 
-    cArr.{i} <- Int32.of_int shape.(i)
+    cArr.{i} <- Int32.of_int (get shape i)
   done; 
   cArr
   
@@ -105,8 +152,6 @@ let of_c_array cArr =
   let n = Array1.dim cArr in 
   let shape = create n in 
   for i = 0 to n - 1 do
-    shape.(i) <- Int32.to_int cArr.{i}
+    set shape  i (Int32.to_int cArr.{i})
   done;
   shape 
-  
-  

@@ -6,3 +6,5 @@ val find_option : SSA.FnId.t -> t -> SSA.fundef option
 val mem : SSA.FnId.t -> t -> bool 
 val from_list : SSA.fundef list -> t 
 val create :  int -> t  
+
+val get_fundef : t -> SSA.value_node -> SSA.fundef

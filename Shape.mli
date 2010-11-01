@@ -9,6 +9,8 @@ val get : t -> int -> int
 (* set the nth value in the shape *) 
 val set : t -> int -> int -> unit 
 
+val to_str : t -> string 
+
 val scalar_shape : t 
 
 val of_list : int list -> t 
@@ -28,11 +30,17 @@ val max_shape : t -> t -> t option
 
 val max_shape_list : t list -> t option 
 
-(* returns shape without given dimensions *) 
-(*val slice : t -> int array -> t*)  
+val append_dim : int -> t -> t 
 
-val to_str : t -> string 
+val peel_shape : t -> t
+
+(* remove dims specified int the list of dims *) 
+val slice_shape : t -> int list -> t 
+
+val append : t -> t -> t   
 
 open Bigarray 
 val to_c_array : t -> (int32, int32_elt, c_layout) Array1.t 
 val of_c_array : (int32, int32_elt, c_layout) Array1.t -> t 
+
+ 
