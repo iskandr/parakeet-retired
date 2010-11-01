@@ -2,7 +2,7 @@ open SSA
 open Printf 
 open DynType 
 
-type tenv = (ID.t, DynType.t) PMap.t
+type tenv = DynType.t ID.Map.t
 
 (* Given a type environment and a list of annotated but untyped stmtNodes *)
 (* return a list of typed statement nodes and the modified type environment*)
@@ -28,7 +28,7 @@ and rewrite_stmt tenv stmtNode = match stmtNode.stmt with
         in 
         (* further modify the type environment to include all assigned ids *)
         let tenv'' = List.fold_left2 
-            (fun accEnv id t -> PMap.add id t accEnv)
+            (fun accEnv id t -> ID.Map.add id t accEnv)
             tenv' ids rhs'.exp_types
         in  
         allStmts, tenv'' 
@@ -88,7 +88,7 @@ and rewrite_value tenv valNode =
   in   
   match valNode.value with 
   | Var id ->  
-      let actualType = PMap.find id tenv in 
+      let actualType = ID.Map.find id tenv in 
       let annotatedType = valNode.value_type in 
       if actualType <> annotatedType then
         let coerceExp = {
@@ -109,7 +109,7 @@ and rewrite_value tenv valNode =
               value_type = coerceType;
               value_src = valNode.value_src
             } 
-            in valNode', stmts, PMap.add id' coerceType tenv  
+            in valNode', stmts, ID.Map.add id' coerceType tenv  
         )   
         else nochange 
   | Num n ->
@@ -119,8 +119,10 @@ and rewrite_value tenv valNode =
   | Str _ -> expect_type StrT  
   | Sym _ ->  expect_type SymT 
   | Unit -> expect_type UnitT 
-  | Prim p -> 
-     failwith "[insert_coercions::rewrite_value] unexpected primitive"
-  | Lam fundef -> 
-     failwith "[insert_coercions::rewrite_value] unexpected anonymous function" 
+  | Prim _ -> 
+     failwith "[InsertCoercions->rewrite_value] unexpected primitive"
+  | GlobalFn _ -> 
+     failwith "[InsertCoercions->rewrite_value] unexpected global function" 
+  | Lam _ -> 
+     failwith "[InsertCoercions->rewrite_value] unexpected anonymous function" 
      

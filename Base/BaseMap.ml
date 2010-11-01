@@ -112,4 +112,6 @@ module Make (M: ORD) = struct
  
   let combine map1 map2 = add_list (to_list map1) map2 
   
+  let extend (map : 'a t) (keys : M.t list) (vals : 'a list) : 'a t  = 
+    List.fold_left2 (fun accMap key v -> add key v accMap) map keys vals 
 end

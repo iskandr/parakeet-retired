@@ -1,5 +1,8 @@
 open Base 
 
+
+type optimization = FnTable.t -> SSA.fundef -> SSA.fundef * bool   
+
 let rec fold_optimizations fnTable code lastChanged = function
   | (name, opt)::rest -> 
         
@@ -38,7 +41,7 @@ let optimize_fundef
       ?(inline=false) 
       (fnTable : FnTable.t) 
       (fundef : SSA.fundef) 
-      optimizations  =
+      (optimizations : (string * optimization) list) =
     debug $ Printf.sprintf "[optimize_fundef] running optimzer on function: %s" 
       (SSA.fundef_to_str fundef);         
     let aux : SSA.fundef -> SSA.fundef = 

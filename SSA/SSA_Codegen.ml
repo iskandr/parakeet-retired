@@ -4,12 +4,12 @@ open SSA
 class typed_ssa_codegen =
   object (self : 'a)
      
-    val types = (ref PMap.empty : (ID.t, DynType.t) PMap.t ref)  
+    val types = (ref ID.Map.empty :  DynType.t ID.Map.t ref)  
     val code = (DynArray.create () : stmt_node DynArray.t)
     
     method get_type_env = !types
-    method get_type id = PMap.find id !types 
-    method add_type id t = types := PMap.add id t !types  
+    method get_type id = ID.Map.find id !types 
+    method add_type id t = types := ID.Map.add id t !types  
     
     method fresh_var t =
       let id = ID.gen() in 
@@ -18,7 +18,7 @@ class typed_ssa_codegen =
     
     (* returns a value node for a given variable *) 
     method id_value_node id =  
-    { value_type = PMap.find id !types; value_src = None; value = Var id }   
+    { value_type = ID.Map.find id !types; value_src = None; value = Var id }   
     
     method cvt ~to_type ~from_type valNode = 
       if from_type = to_type then valNode 
@@ -75,11 +75,9 @@ let mk_lambda inputTypes outputTypes fn  =
         outputTypes
   in  
   (* allow user provided function to populate the codegen body *) 
-  let _ = fn codegen inputVars outputVars in 
-  { 
-    input_ids = inputIds; 
-    output_ids = outputIds;  
-    body = codegen#finalize;
-    tenv = codegen#get_type_env; 
-    fun_type = DynType.FnT(inputTypes, outputTypes)
-  }   
+  let _ = fn codegen inputVars outputVars in
+  SSA.mk_fundef 
+    ~body:codegen#finalize 
+    ~tenv:codegen#get_type_env
+    ~input_ids:inputIds
+    ~output_ids:outputIds 

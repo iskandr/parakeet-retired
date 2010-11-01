@@ -25,13 +25,7 @@ type run_template_ret_val = Success of host_val | Pass | Error of string
 
 type module_entry = fn_name * locals * globals * fn_body_str
 
-type module_template = {
-  fn_name_to_id : (string, ID.t) PMap.t; 
-  program : Program.program; 
-}
-
-let build_function_ast name locals globals body =
-
+let build_function_body_ast body =
     let lexbuf = Lexing.from_string body in  
     let bodySyntax = 
       try
@@ -49,41 +43,42 @@ let build_function_ast name locals globals body =
         ; exit 1
     in  
     try 
-      let bodyAST = QSyntax_to_AST.syntax_to_ast bodySyntax in
-      let lam = AST.mk_lam_node (globals @ locals) bodyAST in
-      AST.mk_def_node name lam 
+      QSyntax_to_AST.syntax_to_ast bodySyntax
 	  with
     | StaticError txt -> failwith txt
     | SourcedError (txt, debug) ->
         failwith
           (sprintf "%s on line %d at position %d" txt debug.line debug.col)
 
-let  build_program_ast entries =
-  let rec aux revDefs = function
-  | [] -> AST.mk_block_node (List.rev revDefs)
+(* assume functions have been sorted so that a function def appears
+   before it's used 
+*) 
+let rec build_untyped_program
+     (fnNames : SSA.FnId.t String.Map.t) 
+     (fundefs : SSA.fundef FnId.Map.t) = function 
+  | [] -> Program.create_untyped fnNames fundefs  
+  
   | (name,locals,globals,bodyText)::rest ->
-      debug (Printf.sprintf "!!! [build_program] making ast: %s\n" name); 
-      let fnDef = build_function_ast name locals globals bodyText in
-      aux (fnDef::revDefs) rest
-  in aux [] entries
-
+      let bodyAST = build_function_body_ast bodyText in
+      let env = AST_to_SSA.Env.GlobalScope fnNames in
+      let argNames = locals @ globals in  
+      let fundef = AST_to_SSA.translate_fn env argNames bodyAST in  
+      let fnId = fundef.SSA.fn_id in   
+      let fnNames' = String.Map.add name fnId fnNames in
+      let fundefs' = FnId.Map.add fnId fundef fundefs in  
+      build_untyped_program fnNames' fundefs' rest 
+   
+(* replace the concept of a "module" with just an untyped program 
+   which also preserves the original string names of its functions
+*)   
 let gen_module_template entries =
-  debug "==(Q to AST)==> \n %!";
-  let ast = build_program_ast entries in
-  debug (sprintf "%s \n%!"  (AST.node_to_str ast));
+   build_untyped_program String.Map.empty FnId.Map.empty entries 
   
-  debug "==(AST to Untyped SSA)==> \n %!";
-  let code, idEnv = AST_to_SSA.translate_stmt PMap.empty ast in
-  debug (sprintf "%s \n%!"  (SSA.block_to_str code)); 
-  
-  debug "==(Creating Optimized Program)==> \n %!";
-  let program = Program.create_from_untyped_block code in 
-  { fn_name_to_id = idEnv; program = program } 
- 
-let get_function_template moduleTemplate name =
-  let untypedId = PMap.find name moduleTemplate.fn_name_to_id in
-  let prog = moduleTemplate.program in  
-  (untypedId, prog) 
+let get_function_template program name =
+  let untypedId = 
+    Hashtbl.find program.Program.name_to_untyped_id name
+  in
+  (untypedId, program) 
   
 let run_template 
     (untypedId, program) 

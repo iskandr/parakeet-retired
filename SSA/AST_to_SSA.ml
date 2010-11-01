@@ -4,14 +4,53 @@ open AST_Info
 open SSA
 
 
-(* try to find SSA binding for name in the current scope, the surrounding scope
-   or just default to that variable being undefined 
-*) 
-let lookup_ssa_id  parentEnv currEnv name  = 
-  if PMap.mem name currEnv then PMap.find name currEnv 
-  else if PMap.mem name parentEnv then PMap.find name parentEnv 
-  else ID.undefined 
+(* environment mapping strings to SSA IDs or global function IDs *)
+module Env = struct 
 
+  (* Assume all functions have been moved to global scope via lambda lifting. 
+     For now don't support data at global scope.
+  *) 
+  type t = 
+  | GlobalScope of FnId.t String.Map.t 
+  | LocalScope of (ID.t String.Map.t) * t
+  
+
+  let add_data_binding env name id = match env with 
+  | GlobalScope _ -> failwith "can't add data binding at global scope"
+  | LocalScope (dataMap, parent) -> 
+      LocalScope (String.Map.add name id dataMap, parent)
+
+  let rec add_data_bindings env names ids = match names, ids with 
+    | [], _
+    | _, [] -> env 
+    | name::moreNames, id::moreIds -> 
+        add_data_bindings (add_data_binding env name id) moreNames moreIds
+            
+  let extend (parentEnv : t) (names : string list) (ids : ID.t list) : t =
+    let localMap = String.Map.extend String.Map.empty names ids in 
+    LocalScope(localMap, parentEnv)  
+
+  (* 
+     Recursively lookup variable name in nested scopes, return an 
+     SSA value-- either Var _ for data or Fn _ for a function   
+  *) 
+  let rec lookup_ssa env name = match env with 
+  | GlobalScope fnEnv -> SSA.GlobalFn (String.Map.find name fnEnv)
+  | LocalScope (dataEnv, parent) -> 
+      if String.Map.mem name dataEnv then 
+        SSA.Var (String.Map.find name dataEnv)
+      else lookup_ssa parent name
+
+  (* assume that we know this name is not of a global function *) 
+  let lookup_ssa_id env name  = 
+    match lookup_ssa env name with 
+    | SSA.Var id -> id 
+    | _ -> assert false 
+end 
+
+open Env 
+
+        
 (* retId is an optional parameter, if it's provided then the generated 
    statements must set retId to the last value 
 *)
@@ -31,13 +70,14 @@ let rec translate_stmt env ?value_id node =
       let trueBlock, falseBlock, gate = match value_id with 
       | Some valId -> 
           let trueRetId = ID.gen () in 
-          let trueBlock, trueEnv = 
-            translate_stmt condEnv ~value_id:trueRetId trueNode in
-          let trueIds = List.map (lookup_ssa_id env trueEnv) mergeNames in
+          let trueBlock, (trueEnv : Env.t) = 
+            translate_stmt condEnv ~value_id:trueRetId trueNode 
+          in
+          let trueIds = List.map (lookup_ssa_id trueEnv) mergeNames in
           let falseRetId = ID.gen() in  
           let falseBlock, falseEnv = 
             translate_stmt condEnv ~value_id:falseRetId falseNode in
-          let falseIds = List.map (lookup_ssa_id env falseEnv) mergeNames in
+          let falseIds = List.map (lookup_ssa_id falseEnv) mergeNames in
           let ifGate = { 
             if_output_ids = valId :: mergeIds;
             true_ids = trueRetId :: trueIds;
@@ -51,22 +91,18 @@ let rec translate_stmt env ?value_id node =
           let falseBlock, falseEnv = translate_stmt condEnv falseNode in
           let ifGate = { 
             if_output_ids = mergeIds;
-            true_ids = List.map (lookup_ssa_id env trueEnv) mergeNames;
-            false_ids =List.map (lookup_ssa_id env falseEnv) mergeNames;
+            true_ids = List.map (lookup_ssa_id trueEnv) mergeNames;
+            false_ids =List.map (lookup_ssa_id falseEnv) mergeNames;
           } in 
           trueBlock, falseBlock, ifGate
       in    
       let stmt = mk_stmt $ If(condVal,trueBlock,falseBlock, gate) in
-      let env' = 
-        List.fold_left2 (fun env name id -> PMap.add name id env) 
-          PMap.empty mergeNames mergeIds
-      in  
+      let env' = add_data_bindings env mergeNames mergeIds in 
       condStmts @ [stmt], env' 
    
   | AST.Def(name, rhs) -> 
       let id = ID.gen () in 
       let rhsStmts, rhsEnv, rhsExp = translate_exp env rhs in 
-      let env' = PMap.add name id rhsEnv in
       (* is a return value expected in value_id? *)
       let stmts = match value_id with 
         | Some valId -> 
@@ -74,7 +110,8 @@ let rec translate_stmt env ?value_id node =
            mk_set [valId] $ mk_val_exp (Var id)
           ]
         | None ->  [mk_stmt $ Set([id], rhsExp)]
-      in 
+      in
+      let env' = add_data_binding rhsEnv name id in 
       rhsStmts @ stmts, env' 
        
   | AST.Block [] -> [], env         
@@ -82,7 +119,8 @@ let rec translate_stmt env ?value_id node =
   | AST.Block (node::nodes) ->
       let nodeStmts, nodeEnv = translate_stmt env node in
       let restNode = {node with AST.data = AST.Block nodes } in 
-      let restStmts, restEnv = translate_stmt nodeEnv ?value_id restNode in 
+      let restStmts, restEnv = 
+        translate_stmt nodeEnv ?value_id restNode in 
       nodeStmts @ restStmts, restEnv   
   
   | AST.SetIdx(name, indices, rhs) -> failwith "setidx not implemented"
@@ -113,7 +151,7 @@ and translate_exp env node =
      
   in  
   match node.data with 
-  | AST.Var name -> value (Var (PMap.find name env))
+  | AST.Var name -> value $ lookup_ssa env name 
   | AST.Prim p -> value (Prim p)
   | AST.Num n -> value (Num n)
   | AST.Str s -> value (Str s)
@@ -126,25 +164,23 @@ and translate_exp env node =
       let app' = mk_exp $ App(fn', args') in
       stmts, argEnv, app'
   | AST.Lam (vars, body) -> 
-      let fundef, _ = translate_fn env vars body in 
+      let fundef = translate_fn env vars body in 
       value (Lam fundef) 
        
-  | AST.Arr nodes -> failwith "[AST->SSA] array not yet implemented" 
-  | AST.If (condNode, trueNode, falseNode) -> 
-      failwith "[AST->SSA] if not yet implemented" 
-  | AST.Def (name, rhs) -> failwith "[AST->SSA] def not yet implemented"
-  | AST.SetIdx (var, indices, rhs) -> 
-      failwith "[AST->SSA] setidx not yet implemented" 
-  | AST.Block nodes -> failwith "[AST->SSA] block" 
-  | AST.WhileLoop (condNode, bodyNode) -> failwith "[AST->SSA] while loop"
-  | AST.CountLoop _ -> failwith "[AST->SSA] count loop" 
+  | AST.Arr _ 
+  | AST.If _ 
+  | AST.Def _
+  | AST.SetIdx _ 
+  | AST.Block _ 
+  | AST.WhileLoop _
+  | AST.CountLoop _ -> assert false  
    
                     
 and translate_value env node =
   (* simple values generate no statements and don't modify the environment *)  
   let return v = [], env, mk_val v in 
   match node.AST.data with 
-  | AST.Var name -> return $ Var (PMap.find name env) 
+  | AST.Var name -> return $ lookup_ssa env name 
   | AST.Prim p -> return $ Prim p  
   | AST.Num n -> return $ Num n  
   | AST.Str s -> return $ Str s
@@ -155,29 +191,29 @@ and translate_value env node =
   | _ -> 
       let tempId = ID.gen() in 
       let stmts, env' = translate_stmt env ~value_id:tempId node in 
-      stmts, env', mk_val $ Var tempId  
+      stmts, env', mk_val $ Var tempId
+        
 and translate_args env = function 
   | [] -> [] (* no statements *), env (* same env *) , [] (* no values *)   
   | arg::args -> 
       let currStmts, currEnv, v = translate_value env arg in 
       let restStmts, restEnv, vs = translate_args currEnv args in 
       currStmts @ restStmts, restEnv, v :: vs 
+      
+      
 (* given the arg names and AST body of function, generate its SSA fundef *)     
-and translate_fn env argNames body = 
+and translate_fn parentEnv argNames body = 
   let retId = ID.gen () in
   let nargs = List.length argNames in 
   let argIds = ID.gen_fresh_list nargs in
-  (* map string names to their SSA identifiers *)  
-  let initEnv = 
-    List.fold_left2 
-      (fun env name id -> PMap.add name id env) 
-      env argNames argIds in
-  let stmts, finalEnv = translate_stmt initEnv ~value_id:retId body in
-  let ssaFn = { 
-    output_ids = [retId]; 
-    input_ids = argIds; 
-    body = stmts;
-    tenv = PMap.empty; 
-    fun_type = DynType.BottomT;(* DynType.FnT([DynType.BottomT], List.map (fun _ -> DynType.BottomT) argIds); *)  
-  } in 
-  ssaFn, finalEnv 
+  (* map string names to their SSA identifiers -- 
+     assume globalMap contains only functions 
+  *)  
+  let initEnv = extend parentEnv argNames argIds in  
+  let stmts, _ = translate_stmt initEnv ~value_id:retId body in
+  (* make an empty type env since this function hasn't been typed yet *) 
+  SSA.mk_fundef 
+    ~body:stmts 
+    ~tenv:ID.Map.empty 
+    ~input_ids:argIds 
+    ~output_ids:[retId]  

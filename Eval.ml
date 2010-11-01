@@ -11,14 +11,15 @@ type env = (ID.t, InterpVal.t) PMap.t
 
 let get_fundef functions env fnValNode = match fnValNode.value with 
   | Lam fundef -> fundef 
+  | GlobalFn fnId -> FnTable.find fnId functions    
   | Var id -> 
-    let fnid = 
+    let fnId = 
       if PMap.mem id env then match PMap.find id env with 
-      | Closure (fnid, []) -> fnid
-      | Closure (fnid, _) -> failwith "closures not yet supported" 
+      | Closure (fnId, []) -> fnId
+      | Closure (fnId, _) -> failwith "closures not yet supported" 
       | _ -> failwith "function expected"
       else id 
-    in FnTable.find fnid functions    
+    in FnTable.find fnId functions    
   | _ -> failwith "function expected"
 
     
@@ -54,7 +55,7 @@ let eval_adverb_on_gpu
   in
   let inputTypes = List.map (fun vNode -> vNode.value_type) dataArgs in 
   let vals = List.map (eval_value memState env) dataArgs in  
-  let fnIds = List.map SSA.get_id fnArgs in 
+  let fnIds = List.map SSA.get_fn_id fnArgs in 
   let fundefs = List.map (fun id -> FnTable.find id functions) fnIds in  
   match op, fnIds, fundefs  with  
   | Prim.Map, [fnId], [fundef] ->
@@ -124,6 +125,7 @@ and eval_stmt
       ignore (eval_exp memState functions env expNode); env   
   | SetIdx (id, indices, rhs) -> failwith "not yet implemented"   
   | If (boolVal, tBlock, fBlock, ifGate) -> failwith "not yet implemented"
+
 and eval_exp
       (memState : mem) 
       (functions : FnTable.t) 
@@ -143,10 +145,10 @@ and eval_exp
       
   | App ({value=Prim _}, _) -> failwith "[eval] operator not yet implemented"
   | App ({value=Var id}, args) ->
-      let fundef = FnTable.find id functions in
-      debug (Printf.sprintf "[eval_exp] calling function %d \n " id);
-      debug 
-        (Printf.sprintf "[eval_exp] function: %s\n" (SSA.fundef_to_str fundef));
+      failwith "calling closures not yet implemented"
+  | App ({value=GlobalFn fnId}, args) -> 
+      let fundef = FnTable.find fnId functions in
+      debug (Printf.sprintf "[eval_exp] calling function %d" fnId);
       let argVals = List.map (eval_value memState env) args in  
       (* create an augmented memory state where input ids are bound to the *)
       (* argument values on the gpu *) 
@@ -159,10 +161,11 @@ and eval_exp
       in
       let env'' = eval_block memState functions env' fundef.body in
       List.map (fun id -> PMap.find id env'') fundef.output_ids
-      
+ 
   | ArrayIndex (arr, indices) -> 
         failwith "[eval] array indexing not implemented"
   | Arr elts -> failwith "[eval] array constructor not implemented"
   | Cast (t, valNode) -> failwith "[eval] cast not implemented"
-  | _ -> failwith "[eval] eval_exp failed; unfound expNode.exp type"
+       
+  | _ -> failwith "[eval] eval_exp failed; node not implemented"
  

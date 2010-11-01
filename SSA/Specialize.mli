@@ -1,6 +1,6 @@
-type type_env = (ID.t, DynType.t) PMap.t
+type type_env =  DynType.t ID.Map.t
 
-type const_env = (ID.t, SSA.value) PMap.t
+type const_env = SSA.value ID.Map.t
    
 type context = {
   type_env : type_env;

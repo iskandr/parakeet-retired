@@ -9,7 +9,7 @@ let (>>) (value,changed) f =
   
 
 let replace_with_def defEnv id = 
-  if PMap.mem id defEnv then match PMap.find id defEnv with 
+  if ID.Map.mem id defEnv then match ID.Map.find id defEnv with 
     | UntypedFindDefs.SingleDef (Values [{value=Var id'}]) ->  Var id', true
     | _ -> Var id, false
   else Var id, false 
@@ -38,7 +38,7 @@ let rec create_assignments tenv newIds oldIds =
   | [], _ -> 
     failwith "[create_assignments] expected id lists to be of same length" 
   | (newId::newRest), (oldId::oldRest) ->
-     let ty = PMap.find_default oldId tenv DynType.BottomT in  
+     let ty = ID.Map.find_default oldId tenv DynType.BottomT in  
      let valNode = SSA.mk_var ~ty:ty oldId in 
      let expNode = SSA.mk_exp ~types:[ty] (Values [valNode]) in 
      let assign = mk_set [newId] expNode in 
@@ -132,8 +132,8 @@ and rewrite_value constEnv useCounts defEnv tenv valNode =
       let rec rename_dummy_outputs = function 
         | id::ids -> 
           let ids', changed = rename_dummy_outputs ids in
-          if PMap.mem id defEnv then 
-            match PMap.find id defEnv with 
+          if ID.Map.mem id defEnv then 
+            match ID.Map.find id defEnv with 
             | SingleDef (Values [{value=Var id'}]) -> id'::ids', true     
             |  _ -> id::ids', changed 
           else id::ids', changed
@@ -158,7 +158,7 @@ and rewrite_value_list constEnv useCounts defEnv tenv = function
 
 (* run single pass of constant detection and propagation *) 
 let simplify_typed_block 
-    ~(tenv:(ID.t, DynType.t) PMap.t)
+    ~tenv
     ~(free_vars:ID.t list) 
      (functions : FnTable.t)
      (block : SSA.block) =
@@ -169,7 +169,8 @@ let simplify_typed_block
   let defEnv  = UntypedFindDefs.find_defs block in 
   rewrite_block constEnv useCounts defEnv tenv block     
   
-let simplify_untyped_block = simplify_typed_block ~tenv:PMap.empty ~free_vars:[]
+let simplify_untyped_block = 
+  simplify_typed_block ~tenv:ID.Map.empty ~free_vars:[]
   
 let simplify_fundef (functions:FnTable.t) fundef = 
   
@@ -180,6 +181,6 @@ let simplify_fundef (functions:FnTable.t) fundef =
       functions 
       fundef.body
   in 
-  let fundef' = {fundef with body = body' } in 
+  let fundef' = {fundef with body = body'} in 
   fundef', changed 
                                                                                                                                                                                        

@@ -199,7 +199,7 @@ let run_all_pairs globalFunctions fnId inputTypes outputTypes memState dynVals =
       (* until we have proper shape inference, we can only deal with functions 
         that return scalars 
       *) 
-      let fnReturnTypes = DynType.fn_output_types payload.SSA.fun_type in 
+      let fnReturnTypes = DynType.fn_output_types payload.SSA.fn_type in 
       assert (List.for_all DynType.is_scalar fnReturnTypes);  
       let xGpu = MemoryState.get_gpu memState x  in
       let yGpu = MemoryState.get_gpu memState y in

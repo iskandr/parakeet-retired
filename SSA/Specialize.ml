@@ -4,8 +4,8 @@ open SSA_Codegen
 open DynType
 open Printf 
 
-type type_env = (ID.t, DynType.t) PMap.t
-type const_env = (ID.t, SSA.value) PMap.t
+type type_env = DynType.t ID.Map.t
+type const_env = SSA.value ID.Map.t 
 
 type context = {
   type_env : type_env; 
@@ -33,13 +33,14 @@ and all_scalar_stmts = function
 
 let annotate_value context valNode = 
   let t = match valNode.value with 
-  | Var id -> PMap.find id context.type_env  
+  | Var id -> ID.Map.find id context.type_env  
   | Num n -> PQNum.type_of_num n 
   | Str _ -> DynType.StrT 
   | Sym _ -> DynType.SymT  
   | Unit -> DynType.UnitT
   | Prim _ -> DynType.AnyFnT 
     (*failwith "cannot annotate primitive without its arguments"*)
+  | GlobalFn _ 
   | Lam _ -> DynType.AnyFnT 
     (*failwith "cannot annotate a function without its arguments"*) 
  in 
@@ -182,7 +183,7 @@ let rec annotate_exp context expNode =
        (* for now assume all named functions are top-level and that none*)
        (* of the arguments are themselves functions. This means that for now *)
        (* the only higher order functions are built in primitives. *)  
-       | Var _ 
+       | GlobalFn _ 
        | Prim _ ->
            let args', argsChanged = annotate_values context args in 
            let types = List.map (fun valNode -> valNode.value_type) args' in
@@ -207,8 +208,8 @@ let rec annotate_exp context expNode =
 
 and annotate_stmt context stmtNode = 
   let get_type id = 
-    if PMap.mem id context.type_env 
-    then PMap.find id context.type_env 
+    if ID.Map.mem id context.type_env 
+    then ID.Map.find id context.type_env 
     else DynType.BottomT
   in  
   match stmtNode.stmt with 
@@ -231,7 +232,7 @@ and annotate_stmt context stmtNode =
       else
       let tenv' = 
         List.fold_left2  
-            (fun accEnv id t -> PMap.add id t accEnv)
+            (fun accEnv id t -> ID.Map.add id t accEnv)
             context.type_env 
             ids 
             newTypes
@@ -253,18 +254,18 @@ and annotate_stmt context stmtNode =
       (* apply type join operator to any variables two type environments*)
       (* have in common *) 
       let combine tenv2 id t = 
-        if PMap.mem id tenv2 
-        then DynType.common_type t (PMap.find id tenv2)
+        if ID.Map.mem id tenv2 
+        then DynType.common_type t (ID.Map.find id tenv2)
         else t 
       in 
-      let (mergedTyEnv : (ID.t, DynType.t) PMap.t) = 
-        PMap.mapi (combine fTyEnv) (PMap.mapi (combine tTyEnv) fTyEnv) 
+      let (mergedTyEnv : DynType.t ID.Map.t) = 
+        ID.Map.mapi (combine fTyEnv) (ID.Map.mapi (combine tTyEnv) fTyEnv) 
       in 
       (* add the output ids of the if-gate to the type env *)
       let aux env leftId rightId outputId =   
-        let leftT = PMap.find leftId mergedTyEnv in 
-        let rightT = PMap.find rightId mergedTyEnv in 
-        PMap.add outputId (DynType.common_type leftT rightT) env
+        let leftT = ID.Map.find leftId mergedTyEnv in 
+        let rightT = ID.Map.find rightId mergedTyEnv in 
+        ID.Map.add outputId (DynType.common_type leftT rightT) env
       in 
       let finalTyEnv = List.fold_left3 
         aux 
@@ -291,39 +292,42 @@ and scalarize_fundef program untypedId untypedFundef vecSig =
   let scalarSig = Signature.peel_vec_types vecSig in 
   let scalarFundef = specialize_fundef program untypedFundef scalarSig in
   let scalarFnId = 
-    Program.add_specialization program (Var untypedId) scalarSig scalarFundef 
+    Program.add_specialization program 
+      (GlobalFn untypedId) 
+      scalarSig 
+      scalarFundef 
   in 
-  let scalarOutputTypes = DynType.fn_output_types scalarFundef.fun_type in  
+  let scalarOutputTypes = DynType.fn_output_types scalarFundef.fn_type in  
   let inputTypes = Signature.input_types vecSig in  
   let outputTypes = List.map (fun t -> VecT t) scalarOutputTypes in
   let freshInputIds = List.map (fun _ -> ID.gen()) untypedFundef.input_ids in
   let freshOutputIds = List.map (fun _ -> ID.gen()) untypedFundef.output_ids in
-  let extend_env accEnv id t = PMap.add id t accEnv in 
+  let extend_env accEnv id t = ID.Map.add id t accEnv in 
   let inputTyEnv = 
-    List.fold_left2 extend_env PMap.empty freshInputIds inputTypes  
+    List.fold_left2 extend_env ID.Map.empty freshInputIds inputTypes  
   in 
   let combinedTyEnv = 
     List.fold_left2 extend_env inputTyEnv freshOutputIds outputTypes
   in
-  let scalarFnType = scalarFundef.fun_type in  
+  let scalarFnType = scalarFundef.fn_type in  
   let mapType = FnT(scalarFnType :: inputTypes, outputTypes) in  
   let mapNode = SSA.mk_val ~ty:mapType (SSA.Prim (Prim.ArrayOp Prim.Map)) in
-  let fnNode = SSA.mk_val ~ty:scalarFnType (Var scalarFnId) in     
+  let fnNode = SSA.mk_val ~ty:scalarFnType (GlobalFn scalarFnId) in     
   let dataNodes =
     List.map2 (fun id t -> SSA.mk_var ~ty:t id) freshInputIds inputTypes
   in
   let argNodes = fnNode :: dataNodes in   
-  let appNode = SSA.mk_app ~types:outputTypes mapNode argNodes in      
-  { 
-    body = [SSA.mk_set freshOutputIds appNode];
-    tenv = combinedTyEnv; 
-    input_ids = freshInputIds; 
-    output_ids = freshOutputIds; 
-    fun_type = FnT(inputTypes, outputTypes); 
-  } 
+  let appNode = SSA.mk_app ~types:outputTypes mapNode argNodes in
+  SSA.mk_fundef 
+    ~body:[SSA.mk_set freshOutputIds appNode]      
+    ~tenv:combinedTyEnv 
+    ~input_ids:freshInputIds
+    ~output_ids:freshOutputIds  
 
 and specialize_function_id program untypedId signature =
-  match Program.maybe_get_specialization program (Var untypedId) signature with 
+  match 
+    Program.maybe_get_specialization program (GlobalFn untypedId) signature 
+  with 
     | None ->
        let untypedFundef = Program.get_untyped_function program untypedId in 
      (* SPECIAL CASE OPTIMIZATION: if we see a function of all scalar operators
@@ -341,7 +345,7 @@ and specialize_function_id program untypedId signature =
        let _ = 
         Program.add_specialization 
           program 
-          (Var untypedId) 
+          (GlobalFn untypedId) 
           signature 
           typedFundef
        in typedFundef  
@@ -349,12 +353,12 @@ and specialize_function_id program untypedId signature =
           
 and specialize_fundef program untypedFundef signature = 
   let aux (tyEnv, constEnv) id = function
-    | Signature.Type t -> PMap.add id t tyEnv, constEnv 
-    | Signature.Value v -> tyEnv, PMap.add id v constEnv
+    | Signature.Type t -> ID.Map.add id t tyEnv, constEnv 
+    | Signature.Value v -> tyEnv, ID.Map.add id v constEnv
   in  
   let tyEnv, constEnv =
     List.fold_left2 aux 
-      (PMap.empty, PMap.empty) 
+      (ID.Map.empty, ID.Map.empty) 
       untypedFundef.input_ids 
       signature.Signature.inputs   
   in 
@@ -368,16 +372,11 @@ and specialize_fundef program untypedFundef signature =
   (* for any temporaries introduced from coercions *)  
   let typedBody, finalTyEnv = 
     InsertCoercions.rewrite_block context'.type_env annotatedBody in
-  let inTypes = 
-    List.map (fun id -> PMap.find id finalTyEnv) untypedFundef.input_ids in 
-  let outTypes =
-    List.map (fun id -> PMap.find id finalTyEnv) untypedFundef.output_ids in 
-  { body = typedBody; 
-    tenv = finalTyEnv;
-    input_ids = untypedFundef.input_ids; 
-    fun_type = FnT (inTypes, outTypes);
-    output_ids = untypedFundef.output_ids; 
-  }
+  SSA.mk_fundef 
+    ~body:typedBody 
+    ~tenv:finalTyEnv
+    ~input_ids:untypedFundef.input_ids
+    ~output_ids:untypedFundef.output_ids
   
   
 (****************************************************************************)
@@ -387,12 +386,16 @@ and specialize_function_value program v signature : SSA.value_node =
   match Program.maybe_get_specialization program v signature with 
     | Some fnId -> 
         let fundef =  Program.get_typed_function program fnId in 
-        { value = Var fnId; value_type = fundef.fun_type; value_src = None }
+        { value = GlobalFn fnId; 
+          value_type = fundef.fn_type; 
+          value_src = None 
+        }
            
     | None -> 
       let typedFundef = match v with
         (* specialize the untyped function -- assuming it is one *) 
-      | Var untypedId  -> specialize_function_id program untypedId signature
+      | GlobalFn untypedId  -> 
+         specialize_function_id program untypedId signature
          
         
       (* first handle the simple case when it's a scalar op with scalar args *)
@@ -436,8 +439,8 @@ and specialize_function_value program v signature : SSA.value_node =
      let typedId = 
        Program.add_specialization program v signature  typedFundef 
      in
-     { value = Var typedId; 
-       value_type = typedFundef.fun_type; 
+     { value = GlobalFn typedId; 
+       value_type = typedFundef.fn_type; 
        value_src = None 
      }      
 

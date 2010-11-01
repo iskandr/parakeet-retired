@@ -1,20 +1,24 @@
 open Base
 open SourceInfo 
-include SSA_Gates 
 
+include SSA_Gates 
 
 (* eventually also need a gate for while loops with merges for variables in 
    the loop and merges for after the loop *)
 
-module StmtId = UID.Make(struct let to_str x  = "stmt" ^ (string_of_int x) end)
+module StmtId = 
+  UID.Make(struct let to_str sId  = "stmt" ^ (string_of_int sId) end)
+  
+module FnId = 
+  UID.Make(struct let to_str fId = "fn" ^ (string_of_int fId) end)
  
 
 type stmt = 
   | Set of ID.t list * exp_node 
   | Ignore of exp_node
   | SetIdx of ID.t * (value_node list) * value_node
-  | If of value_node * block * block * SSA_Gates.if_gate
-  (*| WhileLoop of value * block * SSA_Gates.while_gate*)    
+  | If of value_node * block * block * if_gate
+  | WhileLoop of exp_node * block * loop_gate 
 and stmt_node = { 
     stmt: stmt;
     stmt_src: source_info option;
@@ -41,7 +45,8 @@ and value_node = {
   value : value 
 }  
 and value = 
-  | Var of ID.t 
+  | Var of ID.t
+  | GlobalFn of FnId.t  
   | Num of PQNum.num 
   | Str of string
   | Sym of string
@@ -49,12 +54,15 @@ and value =
   | Prim of Prim.prim
   | Lam of fundef
 and fundef = {
+  body: block;
+  tenv : DynType.t ID.Map.t; (*(ID.t, DynType.t) PMap.t;*) 
   input_ids:ID.t list;
   output_ids: ID.t list; 
-  body: block;
-  tenv : (ID.t, DynType.t) PMap.t; 
-  fun_type : DynType.t  
+  fn_type : DynType.t; 
+  fn_id : FnId.t; 
 }
+
+
 let is_simple_exp = function 
   | App _ -> false
   | _ -> true 
@@ -68,8 +76,8 @@ let rec id_list_to_str = function
   | id::rest -> (ID.to_str id) ^ ", " ^ (id_list_to_str rest) 
 
 let rec typed_id_to_str tenv id = 
-  if PMap.mem id tenv then 
-    sprintf "%s : %s" (ID.to_str id) (DynType.to_str (PMap.find id tenv))
+  if ID.Map.mem id tenv then 
+    sprintf "%s : %s" (ID.to_str id) (DynType.to_str (ID.Map.find id tenv))
   else sprintf "%s" (ID.to_str id) 
 
 let rec typed_id_list_to_str tenv = function 
@@ -79,15 +87,16 @@ let rec typed_id_list_to_str tenv = function
     sprintf "%s, %s" (typed_id_to_str tenv id) (typed_id_list_to_str tenv rest)
   
         
-let rec block_to_str ?(space="") ?(tenv=PMap.empty) block = 
+let rec block_to_str ?(space="") ?(tenv=ID.Map.empty) block = 
     String.concat "\n" (List.map (stmt_node_to_str ~space ~tenv) block)
-and stmt_node_to_str ?(space="") ?(tenv=PMap.empty) stmtNode = 
+and stmt_node_to_str ?(space="") ?(tenv=ID.Map.empty) stmtNode = 
   let str = match stmtNode.stmt with 
   | Set (ids, rhs) -> 
     sprintf "%s = %s " (typed_id_list_to_str tenv ids) (exp_to_str rhs)
   | Ignore effect -> sprintf "ignore %s " (exp_to_str effect) 
   | SetIdx _ -> "<set-idx>" 
-  | If _ -> "if"
+  | If _ -> "if ???"
+  | WhileLoop _ -> "while ???"
   in space ^ str
 and exp_to_str expNode = 
   match expNode.exp with  
@@ -112,6 +121,7 @@ and value_nodes_to_str = function
   | [v] -> value_node_to_str v
   | v::vs -> (value_node_to_str v) ^ "; " ^ (value_nodes_to_str vs)  
 and value_to_str = function 
+  | GlobalFn fnId -> FnId.to_str fnId 
   | Var id -> ID.to_str id 
   | Num n -> PQNum.num_to_str n 
   | Str s -> "\""^s ^"\""
@@ -131,10 +141,28 @@ and value_list_to_str ?(sep=",") vs =
   String.concat (sep^" ") (List.map value_to_str vs)
 
 let fundef_to_str fundef = 
-  sprintf "(%s) = fn (%s) -> \n %s" 
-    (typed_id_list_to_str fundef.tenv fundef.output_ids)  
+  sprintf "%s (%s)=>(%s) { \n %s \n }"
+    (FnId.to_str fundef.fn_id) 
     (typed_id_list_to_str fundef.tenv fundef.input_ids)
+    (typed_id_list_to_str fundef.tenv fundef.output_ids)
     (block_to_str ~space:"\t" ~tenv:fundef.tenv fundef.body)
+  
+
+let mk_fundef ~body ~tenv ~input_ids ~output_ids =
+  let inTypes = 
+    List.map (fun id -> ID.Map.find_default id tenv DynType.BottomT) input_ids 
+  in 
+  let outTypes = 
+    List.map (fun id -> ID.Map.find_default id tenv DynType.BottomT) output_ids 
+  in 
+  { 
+    body = body; 
+    tenv = tenv; 
+    input_ids = input_ids; 
+    output_ids = output_ids; 
+    fn_type = DynType.FnT(inTypes, outTypes); 
+    fn_id = FnId.gen()  
+  }  
   
 
 (***
@@ -160,10 +188,17 @@ let mk_if ?(src=None) condVal tBlock fBlock gate =
 let get_id valNode = match valNode.value with 
   | Var id -> id 
   | _ -> failwith "variable expected"
-  
+
 (* get the ids from a list of variable value nodes *) 
 let get_ids vars = List.map get_id vars 
 
+
+let get_fn_id valNode = match valNode.value with 
+  | GlobalFn fnId -> fnId
+  | _ -> failwith "function reference expected"
+  
+
+let get_fn_ids valNodes = List.map get_fn_id valNodes  
 
 (***
     helpers for values 

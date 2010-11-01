@@ -4,7 +4,7 @@ open Imp
 
 let rec translate_value idEnv vNode =
   let vExp =  match vNode.SSA.value with  
-  | SSA.Var id -> Var (PMap.find id idEnv) 
+  | SSA.Var id -> Var (ID.Map.find id idEnv) 
   | SSA.Num n -> Const n  
   | _ -> failwith "[ssa->imp] value not implemented "
   in 
@@ -70,7 +70,12 @@ and translate_exp codegen globalFunctions idEnv expectedType expNode =
         codegen#splice_emit fundef' [|acc; idx arr' i|] [|acc|] bodyBlock; 
 	      acc
       | _ -> failwith "[ssa->imp] Expected function identifier"
-    )	 
+    )
+  | SSA.App({SSA.value=SSA.GlobalFn fnId}, _) -> 
+      failwith $ 
+        Printf.sprintf  
+          "Encountered call to %s, global functions must be inlined"
+          (SSA.FnId.to_str fnId)	 
   | SSA.Cast (t, vNode) -> cast t (translate_value idEnv vNode)  
   | SSA.Values [v] -> translate_value idEnv v
   | SSA.Values [] -> failwith "[ssa->imp] unexpected empty value list"
@@ -91,7 +96,7 @@ and translate_exp codegen globalFunctions idEnv expectedType expNode =
     
 and translate_stmt globalFunctions idEnv codegen stmtNode =
   let get_imp_id ssaId t = 
-    if PMap.mem ssaId idEnv then PMap.find ssaId idEnv 
+    if ID.Map.mem ssaId idEnv then ID.Map.find ssaId idEnv 
     else codegen#fresh_id t 
   in  
   match stmtNode.SSA.stmt with
@@ -104,7 +109,7 @@ and translate_stmt globalFunctions idEnv codegen stmtNode =
           in
           let varNode = {Imp.exp = Var id'; exp_type = t } in 
           codegen#emit [set varNode exp'];
-          PMap.add id id' idEnv
+          ID.Map.add id id' idEnv
         | _ -> failwith "[ssa->imp] expected only single value on rhs of set"
        )
   | SSA.Set(ids, {SSA.exp=SSA.Values vs;SSA.exp_types=exp_types}) ->
@@ -115,7 +120,7 @@ and translate_stmt globalFunctions idEnv codegen stmtNode =
              let rhs = translate_value idEnv v in
              let varNode = { Imp.exp = Var id'; Imp.exp_type = t} in  
              codegen#emit [set varNode rhs];
-             let idEnv' = PMap.add id id' idEnv in 
+             let idEnv' = ID.Map.add id id' idEnv in 
              flatten_assignment idEnv' restIds restTypes restValues   
           | [], [], [] -> idEnv  
           | _ -> failwith "[ssa->imp] length mismatch in set stmt"
@@ -127,15 +132,15 @@ and translate_stmt globalFunctions idEnv codegen stmtNode =
 
 and translate_fundef globalFunctions fn =
   let codegen  = new ImpCodegen.imp_codegen in
-  let inputTypes = DynType.fn_input_types fn.SSA.fun_type in 
-  let outputTypes = DynType.fn_output_types fn.SSA.fun_type in 
+  let inputTypes = DynType.fn_input_types fn.SSA.fn_type in 
+  let outputTypes = DynType.fn_output_types fn.SSA.fn_type in 
   let freshInputIds = 
     List.map codegen#fresh_input_id inputTypes   
   in 
   let freshOutputIds = List.map codegen#fresh_output_id  outputTypes in  
-  let idEnv =  PMap.combine 
-    (PMap.of_list (List.combine fn.SSA.input_ids freshInputIds)) 
-    (PMap.of_list (List.combine fn.SSA.output_ids freshOutputIds)) in 
+  let idEnv = ID.Map.combine 
+    (ID.Map.of_list (List.combine fn.SSA.input_ids freshInputIds)) 
+    (ID.Map.of_list (List.combine fn.SSA.output_ids freshOutputIds)) in 
   let _ = List.fold_left 
     (fun idEnv stmt -> translate_stmt globalFunctions idEnv codegen stmt) 
     idEnv

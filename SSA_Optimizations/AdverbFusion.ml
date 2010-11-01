@@ -46,12 +46,12 @@ let fuse_map_map
       *) 
       (dependencyPairs : ID.t ID.Map.t) =
     
-    let tenv = PMap.combine predFn.tenv succFn.tenv in
+    let tenv = ID.Map.combine predFn.tenv succFn.tenv in
     let overlapDefs =
       ID.Map.fold 
         (fun inId outId defsAcc ->
-            let inType = PMap.find inId tenv in 
-            let outType = PMap.find outId tenv in 
+            let inType = ID.Map.find inId tenv in 
+            let outType = ID.Map.find outId tenv in 
             assert (inType = outType); 
             let varNode = SSA.mk_var ~ty:inType outId in 
             let rhs = SSA.mk_exp ~types:[inType] (Values [varNode]) in 
@@ -72,19 +72,14 @@ let fuse_map_map
         succFn.input_ids
     in  
     let inputIds = predFn.input_ids @ succInputs' in 
-    let inputTypes = List.map (fun id -> PMap.find id tenv) inputIds in
+    let inputTypes = List.map (fun id -> ID.Map.find id tenv) inputIds in
     let outputIds = predFn.output_ids @ succFn.output_ids in
-    let outputTypes = List.map (fun id -> PMap.find id tenv) inputIds in
+    let outputTypes = List.map (fun id -> ID.Map.find id tenv) inputIds in
     let fnType = DynType.FnT(inputTypes, outputTypes) in  
-    let fundef = {
-      body = body; 
-      input_ids = inputIds; 
-      output_ids = outputIds;
-      tenv = tenv; 
-      fun_type = fnType;     
-    }
-    in 
-    fundef, fnType 
+    let fundef = 
+      SSA.mk_fundef ~body ~tenv ~input_ids:inputIds ~output_ids:outputIds
+    in  
+    fundef, fundef.SSA.fn_type 
      
 let fuse 
       (fns : FnTable.t)  

@@ -31,7 +31,7 @@ and eval_stmt defEnv constEnv stmtNode =
 and eval_exp defEnv constEnv expNode = 
   match expNode.exp with 
   | App ({value=Var fnId} as fnNode, args) -> 
-    (match PMap.find fnId defEnv with 
+    (match ID.Map.find fnId defEnv with 
      | SingleDef (App({value=Var fnId'}, args')) 
        when FindConstants.is_function_constant constEnv fnId' ->
        {expNode with exp = 
@@ -58,7 +58,9 @@ and eval_value_list defEnv constEnv = function
     let vs', restChanged = eval_value_list defEnv constEnv vs in 
     v'::vs', currChanged || restChanged
         
-let elim_partial_apps fnTable block = 
+let elim_partial_apps fnTable fundef =
+  let block = fundef.SSA.body in  
   let defEnv = UntypedFindDefs.find_defs block in
-  let constEnv = FindConstants.find_constants block in 
+  let constEnv = FindConstants.find_constants block in
+  (* need to include fnTable! *)  
   eval_block defEnv constEnv block 

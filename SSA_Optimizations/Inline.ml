@@ -4,7 +4,7 @@ open DynType
 
 let get_constant_function lookup = function 
   | Lam fundef -> Some fundef 
-  | Var id -> lookup id
+  | GlobalFn id -> lookup id
   | _ -> None       
 
 (* TODO: inliner doesn't preserve type environments! *) 
@@ -21,17 +21,17 @@ let do_inline fundef argVals =
   let newOutputIds = 
     List.map (fun id -> PMap.find id replaceMap) fundef.output_ids in
   let inTypes = 
-    if fundef.fun_type = DynType.BottomT then 
+    if fundef.fn_type = DynType.BottomT then 
       List.map (fun _ -> DynType.BottomT) newInputIds
-    else  DynType.fn_input_types fundef.fun_type 
+    else  DynType.fn_input_types fundef.fn_type 
   in
   let argAssignments = 
     mk_set newInputIds (SSA.mk_exp ~types:inTypes (Values argVals)) 
   in
   let outTypes =
-    if fundef.fun_type = DynType.BottomT then 
+    if fundef.fn_type = DynType.BottomT then 
       List.map (fun _ -> DynType.BottomT) newOutputIds 
-    else DynType.fn_output_types fundef.fun_type 
+    else DynType.fn_output_types fundef.fn_type 
   in 
   let outputValNodes = 
     List.map2 (fun id t -> SSA.mk_var ~ty:t id) newOutputIds outTypes 
@@ -71,7 +71,7 @@ and inline_stmt constEnv node =
     [{node with stmt = SetIdx(id, indices', rhsVal')}], changed  
 and inline_exp lookup node =
   match node.exp with 
-  | App ({value=Var id} as fn, argNodes) -> 
+  | App ({value=GlobalFn id} as fn, argNodes) -> 
       let argNodes', argsChanged = inline_value_list lookup argNodes in
       let noInline = {node with exp = App(fn, argNodes')}, argsChanged, [] in 
       (
