@@ -3,6 +3,8 @@ open Bigarray
 open HostVal
 open Printf 
 
+open ShapeInference 
+
 exception InvalidGpuArgs 
 
 let sizeof ty shape =
@@ -49,14 +51,13 @@ let compile_map globalFunctions payload argTypes retTypes =
 
 let mapCache : adverb_cache = Hashtbl.create 127
  
-let run_map globalFunctions fnId inputTypes outputTypes memState dynVals =
-  let payload = FnTable.find  fnId globalFunctions in 
+let run_map globalFunctions payload inputTypes outputTypes memState dynVals =
   (* for now just transfer everything to the GPU-- we can try to make this
      adaptive later 
   *)
   let gpuVals = List.map (MemoryState.get_gpu memState) dynVals in
   let shapes = List.map GpuVal.get_shape gpuVals in
-  let cacheKey = (fnId, inputTypes) in  
+  let cacheKey = (payload.SSA.fn_id, inputTypes) in  
   let compiledModule = 
     if Hashtbl.mem mapCache cacheKey then 
       Hashtbl.find mapCache cacheKey
@@ -90,8 +91,7 @@ let run_map globalFunctions fnId inputTypes outputTypes memState dynVals =
 
 
 
-let compile_reduce globalFunctions fnId retTypes =
-  let payload = FnTable.find  fnId globalFunctions in 
+let compile_reduce globalFunctions payload retTypes =
   let redThreadsPerBlock = 128 in
   let impPayload = SSA_to_Imp.translate_fundef globalFunctions payload in
   let impfn = ImpGenReduce.gen_reduce impPayload redThreadsPerBlock retTypes in
@@ -104,13 +104,13 @@ let compile_reduce globalFunctions fnId retTypes =
 
 let reduceCache : adverb_cache  = Hashtbl.create 127 
 
-let run_reduce globalFunctions fnId inputTypes outputTypes memState dynVals =
+let run_reduce globalFunctions payload inputTypes outputTypes memState dynVals =
   let gpuVals = List.map (MemoryState.get_gpu memState) dynVals in
-  let cacheKey = fnId, inputTypes in 
+  let cacheKey = payload.SSA.fn_id, inputTypes in 
   let compiledModule = 
     if Hashtbl.mem reduceCache cacheKey then Hashtbl.find reduceCache cacheKey
     else (
-      let m = compile_reduce globalFunctions fnId outputTypes in 
+      let m = compile_reduce globalFunctions payload outputTypes in 
       Hashtbl.add reduceCache cacheKey m; 
       m
     )
@@ -174,9 +174,8 @@ let compile_all_pairs globalFunctions payload argTypes retTypes =
 
 let allPairsCache  = Hashtbl.create 127 
  
-let run_all_pairs globalFunctions fnId inputTypes outputTypes memState dynVals =
-  let payload = FnTable.find fnId globalFunctions in 
-  let cacheKey = fnId, inputTypes in 
+let run_all_pairs globalFunctions payload inputTypes outputTypes memState dynVals =
+  let cacheKey = payload.SSA.fn_id, inputTypes in 
   let compiledModule = 
     if Hashtbl.mem allPairsCache cacheKey then 
       Hashtbl.find allPairsCache cacheKey

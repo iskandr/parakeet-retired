@@ -55,17 +55,16 @@ let eval_adverb_on_gpu
   in
   let inputTypes = List.map (fun vNode -> vNode.value_type) dataArgs in 
   let vals = List.map (eval_value memState env) dataArgs in  
-  let fnIds = List.map SSA.get_fn_id fnArgs in 
-  let fundefs = List.map (fun id -> FnTable.find id functions) fnIds in  
-  match op, fnIds, fundefs  with  
-  | Prim.Map, [fnId], [fundef] ->
-      GpuRuntime.run_map functions fnId inputTypes outputTypes memState vals 
-  | Prim.Reduce, [fnId], [fundef] ->
-      GpuRuntime.run_reduce functions fnId inputTypes outputTypes memState vals 
-  | Prim.AllPairs, [fnId], [fundef] ->
+  let fundefs = List.map (get_fundef functions env) fnArgs in  
+  match op, fundefs  with  
+  | Prim.Map, [fundef] ->
+      GpuRuntime.run_map functions fundef  inputTypes outputTypes memState vals 
+  | Prim.Reduce, [fundef] ->
+      GpuRuntime.run_reduce functions fundef inputTypes outputTypes memState vals 
+  | Prim.AllPairs, [fundef] ->
       GpuRuntime.run_all_pairs 
         functions 
-        fnId 
+        fundef
         inputTypes
         outputTypes
         memState
@@ -136,8 +135,7 @@ and eval_exp
   (* assume all array operators take only one function argument *) 
   | App ({value=Prim (Prim.ArrayOp op); value_type=ty}, args) 
     when Prim.is_adverb op ->
-      debug "[eval_exp] Prim.is_adverb\n%!";
-      let outTypes = DynType.fn_output_types ty in 
+      let outTypes = DynType.fn_output_types ty in
       let gpuResults =
         eval_adverb_on_gpu memState functions env op outTypes args
       in 

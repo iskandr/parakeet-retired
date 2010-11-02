@@ -30,14 +30,18 @@ val max_shape : t -> t -> t option
 
 val max_shape_list : t list -> t option 
 
+
+val append : t -> t -> t   
+
 val append_dim : int -> t -> t 
+
+val append_dims : int list -> t -> t 
 
 val peel_shape : t -> t
 
 (* remove dims specified int the list of dims *) 
 val slice_shape : t -> int list -> t 
 
-val append : t -> t -> t   
 
 open Bigarray 
 val to_c_array : t -> (int32, int32_elt, c_layout) Array1.t 

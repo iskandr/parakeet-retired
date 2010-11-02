@@ -55,7 +55,7 @@ and value =
   | Lam of fundef
 and fundef = {
   body: block;
-  tenv : DynType.t ID.Map.t; (*(ID.t, DynType.t) PMap.t;*) 
+  tenv : DynType.t ID.Map.t; 
   input_ids:ID.t list;
   output_ids: ID.t list; 
   fn_type : DynType.t; 

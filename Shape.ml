@@ -95,12 +95,13 @@ let max_shape_list lst =
  
 let peel_shape shape = 
   let n = rank shape in 
-  assert (n > 0); 
-  let shape' = create (n-1) in 
-  for i = 0 to n - 2 do
-    set shape' i (get shape (i+1)) 
-  done;   
-  shape'
+  if n <= 1 then scalar_shape 
+  else
+    let shape' = create (n-1) in 
+    for i = 0 to n - 2 do
+      set shape' i (get shape (i+1)) 
+    done;   
+    shape'
   
 let append shape1 shape2 = 
   let m = rank shape1 in 
@@ -110,17 +111,23 @@ let append shape1 shape2 =
     set combined i (get shape1 i)
   done; 
   for i = m to m+n-1 do 
-    set combined i (get shape2 (i -m))
+    set combined i (get shape2 (i - m))
   done; 
   combined 
   
 let append_dim dim shape = 
   let n = rank shape in 
-  let shape' = create (n+1) in 
+  let shape' = create (n+1) in
+  set shape 0 dim;  
   for i = 0 to n - 1 do 
     set shape' (i+1) (get shape i)
   done; 
   shape'  
+  
+let append_dims dims shape = 
+  let n = rank shape in
+  let extra = of_list dims in 
+  append extra shape 
   
 let slice_shape inputShape dimsList = 
   let n = rank inputShape in 
