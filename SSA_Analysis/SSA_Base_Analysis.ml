@@ -41,7 +41,8 @@ and eval_exp logic env expNode =
   | Values vs -> eval_value_list logic env vs 
   | ArrayIndex(fn,args) -> eval_value_list logic env args
   | App (fn,args) -> eval_value_list logic env (fn::args) 
-  | Cast(_, arg) -> eval_value logic env arg  
+  | Cast(_, arg) -> eval_value logic env arg
+  | Arr args -> eval_value_list logic env args   
   in
   let env'' = logic#exp env' expNode in 
   env'', changed || (env != env'')  

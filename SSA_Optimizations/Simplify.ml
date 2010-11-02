@@ -164,7 +164,7 @@ let simplify_typed_block
      (block : SSA.block) =
   let constEnv  = FindConstants.find_constants ~free_vars block in
   
-  let useCounts,_ = UntypedFindUseCounts.find_use_counts block in
+  let useCounts,_ = FindUseCounts.find_use_counts block in
   
   let defEnv  = UntypedFindDefs.find_defs block in 
   rewrite_block constEnv useCounts defEnv tenv block     

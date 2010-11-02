@@ -41,12 +41,12 @@ QLexer.cmx  \
 SSA_Gates.cmx SSA.cmx AST_to_SSA.cmx \
 FnTable.cmx \
 ConstantLattice.cmx \
-UntypedAnalysis.cmx \
+SSA_Base_Analysis.cmx \
 FindConstants.cmx \
 UntypedFindDefs.cmx \
 UntypedFindGenSet.cmx \
 UntypedFindUseSets.cmx \
-UntypedFindUseCounts.cmx \
+FindUseCounts.cmx \
 UntypedReplace.cmx \
 Inline.cmx \
 UntypedElimDeadCode.cmx \
@@ -75,6 +75,9 @@ ImpGenMap.cmx ImpGenReduce.cmx \
 ImpToPtx.cmx \
 SSA_to_Imp.cmx \
 QType.cmx HardwareInfo.cmx \
+ShapeInference.cmx \
+AllocationAnalysis.cmx \
+Cuda.cmx \
 GpuRuntime.cmx \
 Eval.cmx \
 CodeTemplate.cmx Callbacks.cmx

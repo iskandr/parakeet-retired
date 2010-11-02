@@ -13,27 +13,96 @@ let sizeof ty shape =
 
 type adverb_cache = (ID.t * DynType.t list, Cuda.cuda_module) Hashtbl.t 
 
-let mk_cuda_module ptxList threadsPerBlock =
-  let ptxMap = PMap.of_enum (List.enum ptxList) in 
-  let ptxModule = {
-    Ptx.kernels = ptxMap;   
-    compute_capability = Ptx.SM_13
-  } 
-  in 
+let mk_cuda_module 
+    (kernelList : (string * Ptx.kernel) list) 
+    threadsPerBlock =
+ 
+  let ptxModule = Ptx.module_from_named_kernels kernelList in  
   let ptxStr = Ptx.ptx_module_to_str ptxModule in
   print_string ptxStr;
   flush stdout; 
   let modulePtr = LibPQ.compile_module ptxStr threadsPerBlock in
+  (* take an input space and change it from referring to 
+     kernel-local symids to module-level names 
+  *) 
+  let stringify_textured_input symbols = function 
+    | Ptx.GlobalInput -> Ptx.GlobalInput 
+    | Ptx.TextureInput (symid, geom) -> 
+        let texName= Hashtbl.find symbols symid in 
+        Ptx.TextureInput (texName, geom) 
+  in 
+  let get_calling_conventions kernel : string Ptx.calling_conventions  =
+    let callingConventions : Ptx.symid Ptx.calling_conventions =
+       kernel.Ptx.calling_conventions
+    in   
+    { 
+      Ptx.input_spaces = 
+        Array.map 
+          (stringify_textured_input kernel.Ptx.symbols)
+          callingConventions.Ptx.input_spaces  
+    }
+     
+  in 
   { 
     Cuda.module_ptr = modulePtr;
-    kernel_names =  List.of_enum (PMap.keys ptxMap);
+    kernels =  
+      List.map 
+        (fun (name,kernel)-> name, get_calling_conventions kernel) 
+        kernelList;
     threads_per_block =  threadsPerBlock
   } 
 
 
+(* any given gpu argument might either get placed into the array 
+   of explicit args or it might become an implicit argument via a
+   global texture
+*) 
+let create_input_arg modulePtr argsDynArray inputVal = function 
+  | Ptx.GlobalInput ->  DynArray.add argsDynArray inputVal
+  | Ptx.TextureInput (texName, geom) ->  
+    let texRef = Cuda.cuda_module_get_tex_ref modulePtr texName in
+    let inputShape = GpuVal.get_shape inputVal in
+    let inputPtr = GpuVal.get_ptr inputVal in
+    let channelFormat = 
+      Cuda.infer_channel_format 
+        (DynType.elt_type $ GpuVal.get_type inputVal)
+    in  
+    begin match geom with 
+    | Ptx.Tex2D ->
+      assert (Shape.rank inputShape = 2); 
+      Cuda.cuda_bind_texture_2d_std_channel
+        texRef
+        inputPtr
+        (Shape.get inputShape 0)
+        (Shape.get inputShape 1)
+        channelFormat  
+    | _ -> failwith "non 2D textures not yet implemented"
+    end 
+    
+      
+let create_gpu_args 
+      (modulePtr : Cuda.CuModulePtr.t) 
+      ~(inputs : GpuVal.gpu_val list)
+      ~(input_spaces : string Ptx.input_space array)  
+      ~( outputs : GpuVal.gpu_val list)
+      ~( preallocs : GpuVal.gpu_val list)  =
+  let argsArray : GpuVal.gpu_val DynArray.t = DynArray.create () in 
+  List.iter2 
+    (create_input_arg modulePtr argsArray)
+    inputs
+    (Array.to_list input_spaces) 
+  ;
+  List.iter (DynArray.add argsArray) outputs;
+  List.iter (DynArray.add argsArray) preallocs; 
+  DynArray.to_array argsArray  
+  
 let compile_map globalFunctions payload argTypes retTypes =
-
-  let mapThreadsPerBlock = 128 in 
+   
+  let mapThreadsPerBlock = 128 in
+  (* set of inputs, outputs and local temporaries which require heap 
+     allocation 
+  *) 
+  let allocSet = AllocationAnalysis.infer_fundef payload in  
   (* converting payload to Imp *) 
   let impPayload = SSA_to_Imp.translate_fundef globalFunctions payload in
   (* generating Imp kernel w/ embedded payload *)
@@ -44,19 +113,15 @@ let compile_map globalFunctions payload argTypes retTypes =
       (Array.of_list argTypes) 
       (Array.of_list retTypes) 
   in 
-  let ptx = ImpToPtx.translate_kernel impfn in
+  let kernel = ImpToPtx.translate_kernel impfn in
   let mapPrefix = "map_kernel" in 
   let name = mapPrefix ^ (string_of_int (ID.gen())) in
-  mk_cuda_module [name,ptx] mapThreadsPerBlock
+  mk_cuda_module [name, kernel] mapThreadsPerBlock
 
 let mapCache : adverb_cache = Hashtbl.create 127
  
 let run_map globalFunctions payload inputTypes outputTypes memState dynVals =
-  (* for now just transfer everything to the GPU-- we can try to make this
-     adaptive later 
-  *)
-  let gpuVals = List.map (MemoryState.get_gpu memState) dynVals in
-  let shapes = List.map GpuVal.get_shape gpuVals in
+ 
   let cacheKey = (payload.SSA.fn_id, inputTypes) in  
   let compiledModule = 
     if Hashtbl.mem mapCache cacheKey then 
@@ -67,25 +132,45 @@ let run_map globalFunctions payload inputTypes outputTypes memState dynVals =
       m
     )  
   in      
-  assert (List.length compiledModule.Cuda.kernel_names = 1); 
-  let fnName = List.hd compiledModule.Cuda.kernel_names in 
-  let maxShape = match Shape.max_shape_list shapes with
-     | None -> raise InvalidGpuArgs
-     | Some maxShape -> maxShape
-  in
+  assert (List.length compiledModule.Cuda.kernels = 1); 
+  let fnName, callingConventions = List.hd compiledModule.Cuda.kernels in
+   (* for now just transfer everything to the GPU-- we can try to make this
+     adaptive later 
+  *)
+  let gpuVals = List.map (MemoryState.get_gpu memState) dynVals in
+  let inputShapes = List.map GpuVal.get_shape gpuVals in
+  let outputShapes, shapeEnv = 
+    ShapeInference.infer_map globalFunctions payload inputShapes 
+  in 
   let outputVals =
-    List.map (fun ty ->  GpuVal.mk_gpu_vec ty maxShape) outputTypes
+    List.map2 
+      (fun shape ty ->  GpuVal.mk_gpu_vec ty shape) 
+      outputShapes 
+      outputTypes
   in
+  (* create one CUDA thread per every input element *) 
+  let maxShape = match Shape.max_shape_list inputShapes with 
+    | Some maxShape -> maxShape  
+    | None -> assert false
+  in 
   let outputElts = Shape.nelts maxShape in
   let gridParams = 
     match HardwareInfo.get_grid_params ~device:0 
-      ~block_size:compiledModule.Cuda.threads_per_block  outputElts
+      ~block_size:compiledModule.Cuda.threads_per_block outputElts
     with
       | Some gridParams -> gridParams
       | None ->
         failwith (sprintf "Unable to get launch params for %d elts" outputElts)
   in
-  let args = Array.of_list (gpuVals @ outputVals) in
+  let args = 
+    create_gpu_args 
+
+      compiledModule.Cuda.module_ptr
+      ~inputs:gpuVals 
+      ~input_spaces:callingConventions.Ptx.input_spaces  
+      ~outputs:outputVals
+      ~preallocs:[]
+  in  
   LibPQ.launch_ptx compiledModule.Cuda.module_ptr fnName args gridParams; 
   outputVals
 
@@ -118,14 +203,14 @@ let run_reduce globalFunctions payload inputTypes outputTypes memState dynVals =
   let threadsPerBlock = compiledModule.Cuda.threads_per_block in
   assert (List.length outputTypes = 1); 
   let outputType = List.hd outputTypes in 
-  match compiledModule.Cuda.kernel_names, gpuVals with
+  match compiledModule.Cuda.kernels, gpuVals with
     (* WAYS THIS IS CURRENTLY WRONG: 
        - we are ignoring the initial value
        - we are only allowing reductions over a single array
        - we only deal with 1D arrays
        - only scalar outputs are allowed  
     *) 
-    | [fnName], _ :: [gpuVal] ->
+    | [fnName, _], _ :: [gpuVal] ->
       let numInputElts = Shape.nelts (GpuVal.get_shape gpuVal) in
       let rec aux inputArg curNumElts =
         if curNumElts > 1 then (
@@ -165,10 +250,10 @@ let compile_all_pairs globalFunctions payload argTypes retTypes =
       let impfn =
         ImpGenAllPairs.gen_all_pairs_2d_naive impPayload t1 t2 retTypes
       in
-      let ptx = ImpToPtx.translate_kernel impfn in
+      let kernel = ImpToPtx.translate_kernel impfn in
       let allPairsPrefix = "all_pairs_kernel" in 
       let name = allPairsPrefix ^ (string_of_int (ID.gen())) in  
-      mk_cuda_module [name, ptx] threadsPerBlock 
+      mk_cuda_module [name, kernel] threadsPerBlock 
       
     | _ -> failwith "[compile_all_pairs] invalid argument types "
 
@@ -187,14 +272,14 @@ let run_all_pairs globalFunctions payload inputTypes outputTypes memState dynVal
       m
     )
   in
-  match compiledModule.Cuda.kernel_names, dynVals with
+  match compiledModule.Cuda.kernels, dynVals with
     | _, [] 
     | _, [_] | _, _::_::_::_ ->  
         failwith "[run_all_pairs] wrong number of arguments"
     | [], _ 
     | _::_::_, _ ->
         failwith "[run_all_pairs] wrong number of functions" 
-    | [fnName], [x;y] ->
+    | [fnName, _], [x;y] ->
       (* until we have proper shape inference, we can only deal with functions 
         that return scalars 
       *) 

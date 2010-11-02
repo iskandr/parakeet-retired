@@ -33,6 +33,10 @@ let get_type = function
   | GpuArray v -> v.vec_t
   | GpuScalar n -> (PQNum.type_of_num n)
 
+let get_ptr = function 
+  | GpuArray v -> v.vec_ptr 
+  | GpuScalar _ -> failwith "Can't get GPU pointer to a scalar"
+
 let mk_scalar n = GpuScalar n  
   
 (* send a shape vector the gpu *) 

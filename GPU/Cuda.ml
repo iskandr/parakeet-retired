@@ -1,3 +1,4 @@
+open Base
 open HostVal
 
 module HostPtr = Int64 
@@ -24,10 +25,12 @@ type device_info = {
   texture_align : int;
 }
 
+
+   
 (* a module and a list of the kernel names in that module *) 
 type cuda_module = {
   module_ptr : CuModulePtr.t;
-  kernel_names : string list;
+  kernels : (string * (string Ptx.calling_conventions)) list;
   threads_per_block : int 
 }
 
@@ -35,6 +38,14 @@ type cuda_channel_format_kind =
   | Signed
   | Unsigned
   | Float
+
+let infer_channel_format = function 
+  | DynType.Int32T -> Signed
+  | DynType.UInt32T -> Unsigned
+  | DynType.Float32T -> Float
+  | t -> failwith $ 
+    Printf.sprintf "Cannot infer texture channel format for type %s"
+    (DynType.to_str t) 
 
 external cuda_malloc : int -> GpuPtr.t = "ocaml_cuda_malloc"
 external cuda_free : GpuPtr.t -> unit = "ocaml_cuda_free"

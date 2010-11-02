@@ -2,7 +2,7 @@ open Base
 open SSA
 
 let use_counts = object 
-    inherit [(ID.t, int) PMap.t] UntypedAnalysis.base_analysis
+    inherit [(ID.t, int) PMap.t] SSA_Base_Analysis.base_analysis
     method value counts vNode = match vNode.value with  
     | Var id -> 
       if PMap.mem id counts then PMap.add id (PMap.find id counts + 1) counts
@@ -11,4 +11,4 @@ let use_counts = object
 end
 
 let find_use_counts block = 
-  UntypedAnalysis.eval_block use_counts PMap.empty block
+  SSA_Base_Analysis.eval_block use_counts PMap.empty block

@@ -25,6 +25,7 @@ and eval_exp liveSet (expNode:exp_node) = match expNode.exp with
 and eval_value liveSet ( valNode: value_node) = match valNode.value with 
   | Lam fundef -> eval_block liveSet fundef.body 
   | Var id -> ID.Set.add id liveSet  
+  | GlobalFn _ 
   | Str _
   | Sym _
   | Unit _

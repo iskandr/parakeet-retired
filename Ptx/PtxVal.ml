@@ -2,7 +2,17 @@ open Base
 open Printf 
 
 
-type space = REG | SREG | CONST | GLOBAL | LOCAL | PARAM | SHARED | SURF | TEX
+type space =
+  | REG 
+  | SREG 
+  | CONST 
+  | GLOBAL 
+  | LOCAL 
+  | PARAM 
+  | SHARED 
+  | SURF 
+  | TEX
+ 
 let gpu_space_to_str = function 
     | REG -> "reg"
     | SREG -> "sreg" 

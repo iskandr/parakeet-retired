@@ -84,15 +84,27 @@ and instruction = {
 	label : label option; 
 	pred : guard
 }
+(* what data needs to be preallocated and what arguments are in which 
+   memory space before you can call a particular kernel. 
+   The 'a type parameter is used to abstract over how textures are named.
+   Within PTX code we can name textures using symids, but once
+   a module is compiled and the symbols table is lost then we use 
+   'a = string.  
+*)
+
+type 'a input_space =
+  ScalarInput | GlobalInput | TextureInput of 'a * geom 
+
+type 'a calling_conventions = {
+  input_spaces : 'a input_space array; 
+}
 and kernel = {
   params: (symid * PtxType.ty) array;
   decls: (symid, var_decl) Hashtbl.t; 
   symbols : (symid, string) Hashtbl.t; 
 	code: instruction array; 
-  (* maps every textured argument to the module-level texture 
-     which contains its data 
-  *) 
-  textures: (symid, symid) Hashtbl.t; 
+  calling_conventions: symid calling_conventions; 
+  textures: symid array;  
 }
 and gpu_compute_capability = SM_10 | SM_11 | SM_13 | SM_20
 and ptx_module = {
@@ -395,3 +407,10 @@ and compute_capability_to_str = function
   | SM_11 -> "sm_11"
   | SM_13 -> "sm_13"
   | SM_20 -> "sm_20"
+
+let module_from_named_kernels (kernels : (string * kernel) list) =
+  (* TODO: rename the textures for global consistency *) 
+  { 
+    kernels = PMap.of_enum (List.enum kernels);   
+    compute_capability = SM_13
+  } 

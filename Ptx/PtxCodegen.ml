@@ -99,6 +99,7 @@ class ptx_codegen  = object (self)
     | Some t -> t 
     | None -> failwith $ "[PtxCodegen] No type registered for " ^ (ID.to_str id) 
   
+  
   (* Any register pointing to a global array should also have an accompanying 
      register pointing to a shape vector.  
   *)
@@ -340,14 +341,19 @@ class ptx_codegen  = object (self)
     
   method finalize_kernel =
     debug "[ptx_codegen] finalizing ptx kernel"; 
-    PtxTidy.cleanup_kernel instructions allocations; 
+    PtxTidy.cleanup_kernel instructions allocations;
+    let paramsArray = DynArray.to_array parameters in   
+    let callingConventions = {
+      input_spaces = Array.map (fun (id,_) -> GlobalInput) paramsArray    
+    }
+    in 
     { 
-      params = DynArray.to_array parameters; 
+      params = paramsArray; 
       code = DynArray.to_array instructions; 
       decls = allocations;
       symbols = symbols; 
-      (* TODO: distinguish between textured and global inputs *)
-      textures = Hashtbl.create 1; 
+      calling_conventions = callingConventions;
+      textures = [||]; 
     }
 
 
