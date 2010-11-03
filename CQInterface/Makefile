@@ -77,6 +77,7 @@ SSA_to_Imp.cmx \
 QType.cmx HardwareInfo.cmx \
 GpuRuntime.cmx \
 Eval.cmx \
+Init.cmx \
 CodeTemplate.cmx Callbacks.cmx
 
 
