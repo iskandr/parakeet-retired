@@ -68,7 +68,7 @@ LINK       := g++-4.3 -fPIC
 
 # Includes
 INCLUDES  += -I. -I$(CUDA_INSTALL_PATH)/include -I$(COMMONDIR)/inc
-INCLUDES  += -I/usr/lib/ocaml -I../CQInterface
+INCLUDES  += -I/usr/lib/ocaml -I../CQInterface -I$(THRUST_DIR)
 
 # architecture flag for cubin build
 CUBIN_ARCH_FLAG := -m32
@@ -327,11 +327,25 @@ module_tester:
 tester: pqlib stubs tester.o
 	gcc -g tester.o -I. $(INCLUDES) -o tester $(LIB) -L. -lpq -lpq_stubs
 
+compaction: where.cu_o index.cu_o gen_idx.cu_o scan.cu_o compaction_tester.o \
+		base.o
+	gcc-4.3 where.cu_o index.cu_o gen_idx.cu_o scan.cu_o compaction_tester.o \
+	base.o -o compaction $(INCLUDES) $(LIB) -L.
+
 each: each.cu_o each_tester.o
 	gcc-4.3 each.cu_o each_tester.o -I. $(INCLUDES) -o each $(LIB) -L.
 
-index: index.cu_o index_tester.o
-	gcc-4.3 index.cu_o index_tester.o -I. $(INCLUDES) -o index $(LIB) -L.
+gen_idx: gen_idx.cu_o gen_idx_tester.o base.o
+	gcc-4.3 gen_idx.cu_o gen_idx_tester.o base.o -o gen_idx $(INCLUDES) $(LIB) -L.
+
+index: index.cu_o index_tester.o base.o
+	gcc-4.3 index.cu_o index_tester.o base.o -o index $(INCLUDES) $(LIB) -L.
+
+scan: scan.cu_o scan_tester.o
+	gcc-4.3 scan.cu_o scan_tester.o -o scan $(INCLUDES) $(LIB) -L.
+
+where: where.cu_o where_tester.o base.o
+	gcc-4.3 where.cu_o where_tester.o base.o -o where $(INCLUDES) $(LIB) -L.
 
 all_pairs: all_pairs_abs_diff.cu_o all_pairs_abs_diff_tester.o
 	gcc-4.3 all_pairs_abs_diff.cu_o all_pairs_abs_diff_tester.o -I. $(INCLUDES) \
@@ -354,11 +368,11 @@ multi: multi_index_reduce.cu_o multi_index_reduce_tester.o
 timing: timing.o
 	gcc timing.o  libpq.so -I. $(INCLUDES) -o timing $(LIB) -L. -lpq
 
-stubs:
+stubs: thrust_stubs.cu_o
 	echo $(INCLUDES)
 	$(CC) -c libpq_stubs.c -I. $(INCLUDES) -o libpq_stubs.o $(LIB) -L. 
 	$(CC) -c cuda_stubs.c -I. $(INCLUDES) -o cuda_stubs.o $(LIB) -lcuda -lcudart
-	ar rcs libpq_stubs.a libpq_stubs.o cuda_stubs.o 
+	ar rcs libpq_stubs.a libpq_stubs.o cuda_stubs.o thrust_stubs.cu_o
 
 clean:
 	rm -f libpq.so libpq_stubs.a *_o *.o tester timing *~

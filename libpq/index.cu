@@ -9,6 +9,8 @@
 #include <cuda.h>
 #include <stdio.h>
 
+#include "base.h"
+
 #define THREADS_PER_BLOCK 256
 #define THREADS_PER_DIM 16
 
@@ -16,11 +18,8 @@
 extern "C" {
 #endif
 
-int safe_div(int n, int d) {
-  return (n + d - 1) / d;
-}
-
-texture<int, 2, cudaReadModeElementType> vecsTex;
+//texture<int, 2, cudaReadModeElementType> vecsTex;
+texture<int, 1, cudaReadModeElementType> vecsTex;
 texture<int, 1, cudaReadModeElementType> idxsTex;
 __global__
 void index_kernel(int num_vecs, int vec_len, int num_idxs, int *output) {
@@ -36,7 +35,8 @@ void index_kernel(int num_vecs, int vec_len, int num_idxs, int *output) {
     int idx = id / vec_len;
     int offset = id - (idx * vec_len);
     int vec = tex1Dfetch(idxsTex, idx);
-    output[id] = tex2D(vecsTex, offset, vec);
+    //output[id] = tex2D(vecsTex, offset, vec);
+    output[id] = tex1Dfetch(vecsTex, vec*vec_len + offset);
   }
 }
 
@@ -71,7 +71,7 @@ void launch_index(int *vecs, int num_vecs, int *idxs, int num_idxs, int vec_len,
   int num_out_els = num_idxs * vec_len;
   int num_blocks = safe_div(num_out_els, THREADS_PER_BLOCK);
   int gridX, gridY;
-  if (safe_div(num_out_els, THREADS_PER_BLOCK) > 16384) {
+  if (num_blocks > 16384) {
     gridX = 16384;
     gridY = safe_div(num_blocks, 16384);
   } else {
@@ -87,8 +87,10 @@ void launch_index(int *vecs, int num_vecs, int *idxs, int num_idxs, int vec_len,
     cudaCreateChannelDesc(32, 0, 0, 0, cudaChannelFormatKindSigned);
   vecsTex.normalized = 0;
   idxsTex.normalized = 0;
-  cudaBindTexture2D(0, vecsTex, devVecs, vecsDesc,
-                    vec_len, num_vecs, vec_len * sizeof(int));
+/*  cudaBindTexture2D(0, vecsTex, devVecs, vecsDesc,
+                    vec_len, num_vecs, vec_len * sizeof(int));*/
+  cudaBindTexture(0, vecsTex, devVecs, vecsDesc,
+                  num_vecs * vec_len * sizeof(int));
   cudaBindTexture(0, idxsTex, devIdxs, idxsDesc, num_idxs * sizeof(int));
   printf("Num vecs, idxs, len_vec: %d %d %d\n",
          num_vecs, num_idxs, vec_len);
@@ -112,6 +114,56 @@ void launch_index(int *vecs, int num_vecs, int *idxs, int num_idxs, int vec_len,
   cudaFree(devVecs);
   cudaFree(devIdxs);
   cudaFree(devOutput);
+}
+
+void launch_index_dev(int *vecs, int num_vecs, int *idxs, int num_idxs,
+                      int vec_len, int *output, int memtime) {
+  cudaEvent_t start, stop;
+  float t;
+  if (memtime) {
+    cudaEventCreate(&start);
+    cudaEventCreate(&stop);
+    cudaEventRecord(start, 0);
+    cudaEventSynchronize(start);
+  }
+
+  //Invoke kernel
+  dim3 dimBlock(THREADS_PER_BLOCK);
+  int num_out_els = num_idxs * vec_len;
+  int num_blocks = safe_div(num_out_els, THREADS_PER_BLOCK);
+  int gridX, gridY;
+  if (safe_div(num_out_els, THREADS_PER_BLOCK) > 16384) {
+    gridX = 16384;
+    gridY = safe_div(num_blocks, 16384);
+  } else {
+    gridX = num_blocks;
+    gridY = 1;
+  }
+  dim3 dimGrid(gridX, gridY);
+  printf("[index] grid.x, grid.y: %d %d\n", dimGrid.x, dimGrid.y);
+
+  cudaChannelFormatDesc vecsDesc =
+    cudaCreateChannelDesc(32, 0, 0, 0, cudaChannelFormatKindSigned);
+  cudaChannelFormatDesc idxsDesc =
+    cudaCreateChannelDesc(32, 0, 0, 0, cudaChannelFormatKindSigned);
+  vecsTex.normalized = 0;
+  idxsTex.normalized = 0;
+/*  cudaBindTexture2D(0, vecsTex, vecs, vecsDesc,
+                    vec_len, num_vecs, vec_len * sizeof(int));*/
+  cudaBindTexture(0, vecsTex, vecs, vecsDesc,
+                  num_vecs * vec_len * sizeof(int));
+  cudaBindTexture(0, idxsTex, idxs, idxsDesc, num_idxs * sizeof(int));
+
+  index_kernel<<<dimGrid, dimBlock>>> (num_vecs, vec_len, num_idxs, output);
+
+  if (memtime) {
+    cudaEventRecord(stop, 0);
+    cudaEventSynchronize(stop);
+    cudaEventElapsedTime(&t, start, stop);
+    printf("Time for index: %f\n", t);
+    cudaEventDestroy(start);
+    cudaEventDestroy(stop);
+  }
 }
 
 #ifdef __cplusplus
