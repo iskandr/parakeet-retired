@@ -137,7 +137,7 @@ value ocaml_cuda_memcpy_to_host (value array,
 }
 
 CAMLprim
-value ocaml_module_get_tex_ref(value ocaml_module_ptr, value ocaml_name) {
+value ocaml_cuda_module_get_tex_ref(value ocaml_module_ptr, value ocaml_name) {
   CAMLparam2(ocaml_module_ptr, ocaml_name);
 
   CUtexref tex_ref;

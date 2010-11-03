@@ -25,29 +25,11 @@ let mk_cuda_module
   (* take an input space and change it from referring to 
      kernel-local symids to module-level names 
   *) 
-  let stringify_textured_input symbols = function 
-    | Ptx.GlobalInput -> Ptx.GlobalInput 
-    | Ptx.TextureInput (symid, geom) -> 
-        let texName= Hashtbl.find symbols symid in 
-        Ptx.TextureInput (texName, geom) 
-  in 
-  let get_calling_conventions kernel : string Ptx.calling_conventions  =
-    let callingConventions : Ptx.symid Ptx.calling_conventions =
-       kernel.Ptx.calling_conventions
-    in   
-    { 
-      Ptx.input_spaces = 
-        Array.map 
-          (stringify_textured_input kernel.Ptx.symbols)
-          callingConventions.Ptx.input_spaces  
-    }
-     
-  in 
   { 
     Cuda.module_ptr = modulePtr;
     kernels =  
       List.map 
-        (fun (name,kernel)-> name, get_calling_conventions kernel) 
+        (fun (name,kernel)-> name, kernel.Ptx.calling_conventions) 
         kernelList;
     threads_per_block =  threadsPerBlock
   } 
@@ -81,28 +63,26 @@ let create_input_arg modulePtr argsDynArray inputVal = function
     
       
 let create_gpu_args 
-      (modulePtr : Cuda.CuModulePtr.t) 
-      ~(inputs : GpuVal.gpu_val list)
-      ~(input_spaces : string Ptx.input_space array)  
-      ~( outputs : GpuVal.gpu_val list)
-      ~( preallocs : GpuVal.gpu_val list)  =
-  let argsArray : GpuVal.gpu_val DynArray.t = DynArray.create () in 
-  List.iter2 
+    modulePtr 
+    ~preallocs 
+    ~inputs
+    ~input_conventions  
+    ~outputs =  
+  let argsArray : GpuVal.gpu_val DynArray.t = DynArray.create () in
+  (* add all preallocated space *) 
+  List.iter (DynArray.add argsArray) preallocs;
+  (* add all inputs, each according to its specified convention *)    
+  Array.iter2 
     (create_input_arg modulePtr argsArray)
-    inputs
-    (Array.to_list input_spaces) 
+    (Array.of_list inputs)
+    input_conventions
   ;
+  (* add each output *) 
   List.iter (DynArray.add argsArray) outputs;
-  List.iter (DynArray.add argsArray) preallocs; 
   DynArray.to_array argsArray  
   
 let compile_map globalFunctions payload argTypes retTypes =
-   
   let mapThreadsPerBlock = 128 in
-  (* set of inputs, outputs and local temporaries which require heap 
-     allocation 
-  *) 
-  let allocSet = AllocationAnalysis.infer_fundef payload in  
   (* converting payload to Imp *) 
   let impPayload = SSA_to_Imp.translate_fundef globalFunctions payload in
   (* generating Imp kernel w/ embedded payload *)
@@ -113,7 +93,13 @@ let compile_map globalFunctions payload argTypes retTypes =
       (Array.of_list argTypes) 
       (Array.of_list retTypes) 
   in 
-  let kernel = ImpToPtx.translate_kernel impfn in
+  
+  (* set of inputs, outputs and local temporaries which require heap 
+     allocation 
+  *) 
+  let allocSet = AllocationAnalysis.infer_fundef payload in  
+  let allocList = ID.Set.elements allocSet in 
+  let kernel = ImpToPtx.translate_kernel impfn allocSet in
   let mapPrefix = "map_kernel" in 
   let name = mapPrefix ^ (string_of_int (ID.gen())) in
   mk_cuda_module [name, kernel] mapThreadsPerBlock
@@ -121,27 +107,29 @@ let compile_map globalFunctions payload argTypes retTypes =
 let mapCache : adverb_cache = Hashtbl.create 127
  
 let run_map globalFunctions payload inputTypes outputTypes memState dynVals =
- 
+  
+    
   let cacheKey = (payload.SSA.fn_id, inputTypes) in  
   let compiledModule = 
     if Hashtbl.mem mapCache cacheKey then 
       Hashtbl.find mapCache cacheKey
     else (
-      let m = compile_map globalFunctions payload inputTypes outputTypes in
+      let m = 
+        compile_map globalFunctions payload inputTypes outputTypes in
       Hashtbl.add mapCache cacheKey m; 
       m
     )  
   in      
-  assert (List.length compiledModule.Cuda.kernels = 1); 
-  let fnName, callingConventions = List.hd compiledModule.Cuda.kernels in
    (* for now just transfer everything to the GPU-- we can try to make this
      adaptive later 
   *)
   let gpuVals = List.map (MemoryState.get_gpu memState) dynVals in
+  
   let inputShapes = List.map GpuVal.get_shape gpuVals in
   let outputShapes, shapeEnv = 
     ShapeInference.infer_map globalFunctions payload inputShapes 
   in 
+  
   let outputVals =
     List.map2 
       (fun shape ty ->  GpuVal.mk_gpu_vec ty shape) 
@@ -154,6 +142,8 @@ let run_map globalFunctions payload inputTypes outputTypes memState dynVals =
     | None -> assert false
   in 
   let outputElts = Shape.nelts maxShape in
+  assert (List.length compiledModule.Cuda.kernels = 1); 
+  let fnName, callingConventions = List.hd compiledModule.Cuda.kernels in
   let gridParams = 
     match HardwareInfo.get_grid_params ~device:0 
       ~block_size:compiledModule.Cuda.threads_per_block outputElts
@@ -164,12 +154,12 @@ let run_map globalFunctions payload inputTypes outputTypes memState dynVals =
   in
   let args = 
     create_gpu_args 
-
-      compiledModule.Cuda.module_ptr
-      ~inputs:gpuVals 
-      ~input_spaces:callingConventions.Ptx.input_spaces  
-      ~outputs:outputVals
-      ~preallocs:[]
+        compiledModule.Cuda.module_ptr 
+        ~preallocs:[]
+        ~inputs:gpuVals 
+        ~input_conventions:callingConventions
+        ~outputs:outputVals 
+        
   in  
   LibPQ.launch_ptx compiledModule.Cuda.module_ptr fnName args gridParams; 
   outputVals
@@ -181,7 +171,7 @@ let compile_reduce globalFunctions payload retTypes =
   let impPayload = SSA_to_Imp.translate_fundef globalFunctions payload in
   let impfn = ImpGenReduce.gen_reduce impPayload redThreadsPerBlock retTypes in
   debug (Printf.sprintf "[compile_reduce] %s\n" (Imp.fn_to_str impfn));
-  let ptx = ImpToPtx.translate_kernel impfn in
+  let ptx = ImpToPtx.translate_kernel impfn ID.Set.empty in
   let reducePrefix = "reduce_kernel" in 
   let name = reducePrefix ^ (string_of_int (ID.gen())) in
   mk_cuda_module [name,ptx] redThreadsPerBlock
@@ -250,7 +240,8 @@ let compile_all_pairs globalFunctions payload argTypes retTypes =
       let impfn =
         ImpGenAllPairs.gen_all_pairs_2d_naive impPayload t1 t2 retTypes
       in
-      let kernel = ImpToPtx.translate_kernel impfn in
+      (* TODO: add input space annotations and nested data allocations *)
+      let kernel = ImpToPtx.translate_kernel impfn  ID.Set.empty in
       let allPairsPrefix = "all_pairs_kernel" in 
       let name = allPairsPrefix ^ (string_of_int (ID.gen())) in  
       mk_cuda_module [name, kernel] threadsPerBlock 

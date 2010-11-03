@@ -281,27 +281,53 @@ let rec gen_stmt codegen stmt =
 and gen_block codegen block = 
   List.iter (gen_stmt codegen) block
    
-let translate_kernel impfn = 
+let translate_kernel 
+    (impfn : Imp.fn) 
+    ?input_spaces 
+    (allocSet : ID.Set.t) =
+
   debug "[imp2ptx] ***** started translation ****";
   debug $ Imp.fn_to_str impfn;
   debug "[imp2ptx] ******************************";
+  
+  let inputSpaces = match input_spaces with
+    (* if we have no preferences about the space our inputs live in, 
+       put all scalars in PARAM and all vectors in GLOBAL 
+    *) 
+    | None -> 
+       Array.map
+         (fun t -> if DynType.is_scalar t then PtxVal.PARAM else PtxVal.GLOBAL) 
+         impfn.input_types
+    | Some inputSpaces -> inputSpaces  
+  in 
   let codegen = new ptx_codegen in
-  (* declare all local variables as either a scalar register or 
-     a shared array. 
+  (* declare all local variables as:
+      1) a scalar register 
+      2) a local array for which you receive a pointer 
+      3) a shared array 
   *)
-  Array.iter2 
-    (fun id dynT -> 
-      if PMap.mem id impfn.shared then
-        let dims = PMap.find id impfn.shared in   
-        codegen#declare_shared_vec id (DynType.elt_type dynT) dims
-      else 
-        codegen#declare_local id dynT
-    ) 
-    impfn.local_ids impfn.local_types 
-  ;
-  Array.iter2 codegen#declare_arg impfn.input_ids impfn.input_types;
-  Array.iter2 codegen#declare_arg impfn.output_ids impfn.output_types; 
+  let register_local id dynT = 
+    if PMap.mem id impfn.shared then
+      let dims = PMap.find id impfn.shared in   
+        ignore $ codegen#declare_shared_vec id (DynType.elt_type dynT) dims
+      else begin 
+        if ID.Set.mem id allocSet then 
+          ignore $ codegen#declare_storage_arg id dynT 
+         else
+           ignore $ codegen#declare_local id dynT
+      end 
+  in 
+  Array.iter2 register_local impfn.local_ids impfn.local_types;
+  let register_input id dynT space = 
+    if space = PtxVal.GLOBAL || space = PtxVal.PARAM then 
+      ignore $ codegen#declare_input id dynT 
+    else if space = PtxVal.TEX then 
+      ignore $ codegen#declare_texture_input id dynT  
+    else failwith "unexpected input space"
+  in   
+  Array.iter3 register_input impfn.input_ids impfn.input_types inputSpaces;
+  Array.iter2 codegen#declare_output impfn.output_ids impfn.output_types; 
   gen_block codegen impfn.body; 
-  codegen#run_rewrite_pass PtxSimplify.simplify;   
-  codegen#finalize_kernel
+  codegen#finalize_kernel 
+  
 

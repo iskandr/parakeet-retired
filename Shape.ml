@@ -118,7 +118,7 @@ let append shape1 shape2 =
 let append_dim dim shape = 
   let n = rank shape in 
   let shape' = create (n+1) in
-  set shape 0 dim;  
+  set shape' 0 dim;  
   for i = 0 to n - 1 do 
     set shape' (i+1) (get shape i)
   done; 

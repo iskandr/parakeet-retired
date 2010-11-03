@@ -176,21 +176,7 @@ class ptx_codegen  = object (self)
     Array.init count (fun _ -> self#fresh_reg gpuT)
 
   
-  (* if variable is a scalar then allocates one new register and returns
-     it. if it's a vector then allocate a register pair (data/shape) and
-     return the data register. If the vector is actually a slice through
-     a shared vector, then we don't need a shape pointer.  
-  *) 
-  method declare_local impId dynT =
-    let ptxT = PtxType.of_dyn_type dynT in 
-    let dataReg = self#fresh_reg ptxT in 
-    Hashtbl.add dataRegs impId dataReg;
-    Hashtbl.add dynTypes impId dynT; 
-    if not $ DynType.is_scalar dynT then  
-      ignore (self#fresh_shape_reg dataReg (DynType.nest_depth dynT))
-    ;
-    dataReg
- 
+
   method declare_shared_vec (id : ID.t) dynEltT (dims : int list)  = 
     Hashtbl.add dynTypes id dynEltT;
     let ptxEltType = PtxType.of_dyn_type dynEltT in
@@ -239,8 +225,11 @@ class ptx_codegen  = object (self)
        (* increment pointer to shape by 4 bytes to start at next dim *) 
        self#emit [add PtxType.ptrT sliceShapeReg shapeReg (int 4)]  
      end
-      
-  method declare_arg id dynT = 
+
+  (* shared between storage arguments-- used for local vectors, 
+     and global input arguments 
+  *) 
+  method private declare_arg (id : ID.t) (dynT : DynType.t) : PtxVal.value = 
     Hashtbl.add dynTypes id dynT; 
     let paramId = self#fresh_arg_id in  
     let gpuStorageT = PtxType.storage_of_dyn_type dynT in  
@@ -270,15 +259,53 @@ class ptx_codegen  = object (self)
       self#emit [ld_param PtxType.ptrT shapeReg shapeParam];
     );
     dataReg
-   
-
+    
+  val storageArgs : ID.t DynArray.t = DynArray.create () 
+  method  declare_storage_arg impId dynT = 
+    DynArray.add storageArgs impId; 
+    self#declare_arg impId dynT
+ 
+  val callingConventions : Ptx.calling_convention DynArray.t = DynArray.create()
+  method declare_input impId dynT = 
+    let cc = 
+      if DynType.is_scalar dynT then Ptx.ScalarInput
+      else Ptx.GlobalInput
+    in 
+    DynArray.add callingConventions cc;     
+    self#declare_arg impId dynT 
+    
+  method declare_output impId dynT = self#declare_arg impId dynT 
   
+  (* NOT YET IMPLEMENTED *) 
+  method declare_texture_input (impId : ID.t) (dynT : DynType.t)  =
+    self#declare_arg impId dynT 
+      
+  (* if variable is a scalar then allocates one new register and returns
+     it. if it's a vector then allocate a register pair (data/shape) and
+     return the data register. If the vector is a vector and requires 
+     storage (meaning it isn't just a slice through an existing vector)
+     then the optional argument external_alloc is set to true and a parameter 
+     is registered for the external storage.  
+       
+  *) 
+  method declare_local impId dynT =
+    let ptxT = PtxType.of_dyn_type dynT in 
+    let dataReg = self#fresh_reg ptxT in 
+    Hashtbl.add dataRegs impId dataReg;
+    Hashtbl.add dynTypes impId dynT; 
+    if not $ DynType.is_scalar dynT then  
+      ignore (self#fresh_shape_reg dataReg (DynType.nest_depth dynT))
+    ;
+    dataReg
+ 
+ 
   (* Need to consider the destination of a conversion when figuring out the
      type of the source since there is an implicit polymorphism 
      in PTX for scalar constants...
      which can be moved to registers of varying size
   *) 
-  val type_of_conversion_source = fun destType srcVal -> 
+  val type_of_conversion_source  = 
+    fun (destType : PtxType.ty) (srcVal : PtxVal.value) -> 
     match srcVal with   
       | PtxVal.Sym _ -> PtxVal.type_of_var srcVal 
       | PtxVal.FloatConst _ ->
@@ -339,21 +366,17 @@ class ptx_codegen  = object (self)
     DynArray.clear instructions;
     DynArray.append newCode instructions
     
-  method finalize_kernel =
-    debug "[ptx_codegen] finalizing ptx kernel"; 
+  method finalize_kernel : Ptx.kernel =
+    debug "[ptx_codegen] finalizing ptx kernel";
+    self#run_rewrite_pass PtxSimplify.simplify;   
     PtxTidy.cleanup_kernel instructions allocations;
-    let paramsArray = DynArray.to_array parameters in   
-    let callingConventions = {
-      input_spaces = Array.map (fun (id,_) -> GlobalInput) paramsArray    
-    }
-    in 
     { 
-      params = paramsArray; 
+      params = DynArray.to_array parameters; 
       code = DynArray.to_array instructions; 
       decls = allocations;
       symbols = symbols; 
-      calling_conventions = callingConventions;
-      textures = [||]; 
+      calling_conventions = DynArray.to_array callingConventions;
+      textures = [|(* nothign here yet *) |]; 
     }
 
 

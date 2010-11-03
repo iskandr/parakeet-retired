@@ -65,6 +65,13 @@
       f x.(i) y.(i)
     done 
   
+  let iter3 f x y z =     
+    let lenx, leny, lenz  = length x, length y, length z in
+    assert (lenx = leny && leny = lenz);
+    for i = 0 to lenx - 1 do 
+      f x.(i) y.(i) z.(i)
+    done 
+  
   let fold_left2 f init x y = 
     let lenx, leny  = length x, length y in
     assert (lenx = leny);

@@ -92,23 +92,21 @@ and instruction = {
    'a = string.  
 *)
 
-type 'a input_space =
-  ScalarInput | GlobalInput | TextureInput of 'a * geom 
+type calling_convention =
+  ScalarInput | GlobalInput | TextureInput of string * geom 
 
-type 'a calling_conventions = {
-  input_spaces : 'a input_space array; 
-}
 and kernel = {
   params: (symid * PtxType.ty) array;
   decls: (symid, var_decl) Hashtbl.t; 
   symbols : (symid, string) Hashtbl.t; 
 	code: instruction array; 
-  calling_conventions: symid calling_conventions; 
+  calling_conventions: calling_convention array; 
   textures: symid array;  
 }
 and gpu_compute_capability = SM_10 | SM_11 | SM_13 | SM_20
 and ptx_module = {
   kernels : (string, kernel) PMap.t;
+  
   compute_capability: gpu_compute_capability;
 }
 

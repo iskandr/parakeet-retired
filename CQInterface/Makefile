@@ -80,7 +80,6 @@ AllocationAnalysis.cmx \
 Cuda.cmx \
 GpuRuntime.cmx \
 Eval.cmx \
-Init.cmx \
 CodeTemplate.cmx Callbacks.cmx
 
 

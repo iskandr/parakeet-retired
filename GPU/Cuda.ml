@@ -30,7 +30,7 @@ type device_info = {
 (* a module and a list of the kernel names in that module *) 
 type cuda_module = {
   module_ptr : CuModulePtr.t;
-  kernels : (string * (string Ptx.calling_conventions)) list;
+  kernels : (string *  (Ptx.calling_convention array)) list;
   threads_per_block : int 
 }
 

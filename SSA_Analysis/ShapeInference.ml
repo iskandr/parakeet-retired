@@ -3,20 +3,6 @@ open SSA
 
 type shape_env = Shape.t ID.Map.t 
 
-
-(* returns a list of ID.t, Shape.t pairs for all non-scalar locals *)
-(*
-let gather_vector_locals shapeEnv inputIds outputIds = 
-  ID.Map.fold  
-      (fun id shape accList -> 
-          if not $ (List.mem id inputIds || List.mem id outputIds)
-          then (id, shape)::accList
-          else accList
-       )
-      shapeEnv 
-      []
-*)
-
 let get_output_shapes (fundef : SSA.fundef) (env : shape_env) : Shape.t list = 
   List.map (fun id -> ID.Map.find id env) fundef.output_ids
 
@@ -53,6 +39,10 @@ and infer_exp
       let argShapes = List.map (infer_value env) args in   
       let outputs, _ = infer_adverb fnTable op fundef argShapes in 
       outputs
+  | App (_, args) when 
+      List.for_all (fun arg -> DynType.is_scalar arg.value_type) args ->
+      [Shape.scalar_shape]
+  | App _ -> failwith "unsupported function type"
   | ArrayIndex (array, indices) -> 
       let arrayShape = infer_value env array in
       let nIndices = List.length indices in
@@ -83,7 +73,15 @@ and infer_exp
 and infer_stmt (fnTable : FnTable.t) (env : Shape.t ID.Map.t) stmtNode = 
   match stmtNode.stmt with  
   | Set (ids, rhs) ->  
-      ID.Map.extend env ids (infer_exp fnTable env rhs)  
+      let rhsShapes = infer_exp fnTable env rhs in
+      let nShapes = List.length rhsShapes in
+      let nIds = List.length ids in   
+      if nShapes <> nIds  then
+        failwith $ Printf.sprintf 
+          "[ShapeInference] statement \"%s\" expected %d inputs but received %d"
+          (SSA.stmt_node_to_str stmtNode) nIds nShapes 
+      else  
+      ID.Map.extend env ids rhsShapes    
   | Ignore exp -> env (* assume this can't change any shapes *)  
   | SetIdx(id, indices, rhs) -> env 
       (* assume we can't change the shape of an array with 

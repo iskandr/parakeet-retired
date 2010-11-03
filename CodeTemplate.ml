@@ -106,14 +106,9 @@ let run_template
     Specialize.specialize_function_id program untypedId signature 
   in
   debug "[run_template] calling evaluator on specialized code: \n";
-  debug (sprintf "%s\n" (SSA.fundef_to_str typedFundef));   
-  let result =
-    try 
-      let resultVals = Eval.eval program.typed_functions typedFundef args in
-      Success (List.hd resultVals)
-    with 
-      | e -> Error (Printexc.to_string e)
-  in     
+  debug (sprintf "%s\n" (SSA.fundef_to_str typedFundef)); 
+  let resultVals = Eval.eval program.typed_functions typedFundef args in  
+  let result = Success (List.hd resultVals)  in     
   debug (sprintf "Total Time: %f\n" (Unix.gettimeofday () -. startTime));
   flush stdout;  
   result
