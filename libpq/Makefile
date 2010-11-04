@@ -332,8 +332,8 @@ compaction: where.cu_o index.cu_o gen_idx.cu_o scan.cu_o compaction_tester.o \
 	gcc-4.3 where.cu_o index.cu_o gen_idx.cu_o scan.cu_o compaction_tester.o \
 	base.o -o compaction $(INCLUDES) $(LIB) -L.
 
-each: each.cu_o each_tester.o
-	gcc-4.3 each.cu_o each_tester.o -I. $(INCLUDES) -o each $(LIB) -L.
+each: each.cu_o each_tester.o base.o
+	gcc-4.3 each.cu_o each_tester.o base.o -I. $(INCLUDES) -o each $(LIB) -L.
 
 gen_idx: gen_idx.cu_o gen_idx_tester.o base.o
 	gcc-4.3 gen_idx.cu_o gen_idx_tester.o base.o -o gen_idx $(INCLUDES) $(LIB) -L.
@@ -341,11 +341,18 @@ gen_idx: gen_idx.cu_o gen_idx_tester.o base.o
 index: index.cu_o index_tester.o base.o
 	gcc-4.3 index.cu_o index_tester.o base.o -o index $(INCLUDES) $(LIB) -L.
 
+reduce2d: reduce2d.cu_o reduce2d_tester.o base.o
+	gcc-4.3 reduce2d.cu_o reduce2d_tester.o base.o -o reduce2d $(INCLUDES) $(LIB) \
+	-L.
+
 scan: scan.cu_o scan_tester.o
 	gcc-4.3 scan.cu_o scan_tester.o -o scan $(INCLUDES) $(LIB) -L.
 
 where: where.cu_o where_tester.o base.o
 	gcc-4.3 where.cu_o where_tester.o base.o -o where $(INCLUDES) $(LIB) -L.
+
+naivecpud: naivecpuapdiff.o base.o
+	gcc-4.3 -O3 naivecpuapdiff.o base.o -o naivecpud $(INCLUDES) $(LIB) -L.
 
 all_pairs: all_pairs_abs_diff.cu_o all_pairs_abs_diff_tester.o
 	gcc-4.3 all_pairs_abs_diff.cu_o all_pairs_abs_diff_tester.o -I. $(INCLUDES) \

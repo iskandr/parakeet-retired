@@ -20,7 +20,7 @@ let mk_cuda_module
  
   let ptxModule = Ptx.module_from_named_kernels kernelList in  
   let ptxStr = Ptx.ptx_module_to_str ptxModule in
-  print_string ptxStr;
+  (*print_string ptxStr;*)
   flush stdout; 
   let modulePtr = LibPQ.compile_module ptxStr threadsPerBlock in
   (* take an input space and change it from referring to 
