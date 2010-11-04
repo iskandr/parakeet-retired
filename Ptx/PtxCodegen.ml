@@ -367,7 +367,7 @@ class ptx_codegen  = object (self)
     DynArray.append newCode instructions
     
   method finalize_kernel : Ptx.kernel =
-    debug "[ptx_codegen] finalizing ptx kernel";
+    (*debug "[ptx_codegen] finalizing ptx kernel";*)
     self#run_rewrite_pass PtxSimplify.simplify;   
     PtxTidy.cleanup_kernel instructions allocations;
     { 

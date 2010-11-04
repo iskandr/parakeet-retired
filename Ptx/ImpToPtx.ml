@@ -286,9 +286,9 @@ let translate_kernel
     ?input_spaces 
     (allocSet : ID.Set.t) =
 
-  debug "[imp2ptx] ***** started translation ****";
+  (*debug "[imp2ptx] ***** started translation ****";
   debug $ Imp.fn_to_str impfn;
-  debug "[imp2ptx] ******************************";
+  debug "[imp2ptx] ******************************";*)
   
   let inputSpaces = match input_spaces with
     (* if we have no preferences about the space our inputs live in, 

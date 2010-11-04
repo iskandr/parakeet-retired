@@ -7,8 +7,8 @@ let rec fold_optimizations fnTable code lastChanged = function
   | (name, opt)::rest -> 
         
       let code', changed = opt fnTable code in
-      debug $ Printf.sprintf "[optimizer] Ran %s ...%s\n"
-        name (if changed then "MODIFIED" else "");
+(*      debug $ Printf.sprintf "[optimizer] Ran %s ...%s\n"
+        name (if changed then "MODIFIED" else "");*)
       fold_optimizations fnTable code' (changed || lastChanged)  rest 
   | [] -> code, lastChanged 
 
@@ -29,7 +29,7 @@ let optimize_block
   let block' = aux block in
   if inline then
     begin 
-      debug "[optimizer] Inlining functions...\n";
+      (*debug "[optimizer] Inlining functions...\n";*)
       let inlinedCode, inlineChanged = Inline.run_block_inliner block' in 
       if inlineChanged then aux inlinedCode 
       else block'
@@ -42,8 +42,8 @@ let optimize_fundef
       (fnTable : FnTable.t) 
       (fundef : SSA.fundef) 
       (optimizations : (string * optimization) list) =
-    debug $ Printf.sprintf "[optimize_fundef] running optimzer on function: %s" 
-      (SSA.fundef_to_str fundef);         
+    (*debug $ Printf.sprintf "[optimize_fundef] running optimzer on function: %s" 
+      (SSA.fundef_to_str fundef);*)         
     let aux : SSA.fundef -> SSA.fundef = 
       run_all fnTable maxiters optimizations
     in 
@@ -51,20 +51,20 @@ let optimize_fundef
     let fundef'' = 
       if inline then
       begin 
-        debug "[optimizer] Inlining functions...\n";
+        (*debug "[optimizer] Inlining functions...\n";*)
         let inlinedCode, inlineChanged = 
           Inline.run_fundef_inliner fnTable fundef' in 
         if inlineChanged then (
-          debug $ Printf.sprintf 
+          (*debug $ Printf.sprintf 
             "[optimize_fundef] inlined function: %s "
-            (SSA.fundef_to_str inlinedCode); 
+            (SSA.fundef_to_str inlinedCode); *)
           aux inlinedCode
         )
         else fundef'
       end
       else fundef'  
     in 
-    debug $ Printf.sprintf "[optimize_fundef] optimized function: %s" 
-      (SSA.fundef_to_str fundef'');         
+    (*debug $ Printf.sprintf "[optimize_fundef] optimized function: %s" 
+      (SSA.fundef_to_str fundef'');*)         
     fundef''    
  

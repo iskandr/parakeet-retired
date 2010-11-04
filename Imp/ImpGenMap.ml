@@ -4,8 +4,7 @@ open Imp
 open ImpCodegen
 
 (* assume all threadblocks are 1d row of size threadsPerBlock *) 
-let gen_map payload threadsPerBlock inTypes outTypes = 
-  print "gen_map_payload";
+let gen_map payload threadsPerBlock inTypes outTypes =
   let codegen = new imp_codegen in 
   let inputArgs = Array.map codegen#fresh_input inTypes in 
   let outputArgs = Array.map codegen#fresh_output outTypes in  

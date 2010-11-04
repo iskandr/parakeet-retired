@@ -433,11 +433,11 @@ void all_dists_1(float *left,  int left_len,
 
 /*  all_dists_3_kernel<<<dimGrid, dimBlock>>>
     (devLeft, left_len, devRight, right_len, vec_len, 16, devOutput);*/
-  all_dists_final_kernel<<<dimGrid, dimBlock>>>
-    (devLeft, left_len, devRight, right_len, vec_len, devOutput);
+  /*all_dists_final_kernel<<<dimGrid, dimBlock>>>
+    (devLeft, left_len, devRight, right_len, vec_len, devOutput);*/
 
   // Texture experiment
-  /*
+  
   cudaChannelFormatDesc leftDesc =
     cudaCreateChannelDesc(32, 0, 0, 0, cudaChannelFormatKindFloat);
   cudaChannelFormatDesc rightDesc =
@@ -450,7 +450,7 @@ void all_dists_1(float *left,  int left_len,
                     vec_len, right_len, vec_len * sizeof(float));
   all_dists_tex_kernel<<<dimGrid, dimBlock>>>
     (left_len, right_len, vec_len, devOutput);
-  */
+  
 
   if (!include_mem_in_time) {
     rslt = cudaThreadSynchronize();
