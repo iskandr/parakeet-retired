@@ -2,17 +2,84 @@ open Base
 open Imp 
 open Printf 
 
+
+
 class imp_codegen = 
   object (self)
     val types = Hashtbl.create 127
-    val sharedDims = Hashtbl.create 127
-    val code = DynArray.create () 
+    val sharedArrayAllocations = Hashtbl.create 127
+    val code = DynArray.create ()
     
     val inputs = (DynArray.create () : ((ID.t * DynType.t) DynArray.t)) 
     val outputs = (DynArray.create () : ((ID.t * DynType.t) DynArray.t)) 
     
+    val localIds : ( ID.t MutableSet.t) = MutableSet.create 127
+    (* keep track of localIds in the order they were created *) 
+    val localIdsArray : (ID.t DynArray.t) = DynArray.create () 
+    
+    (* keep both arrays and hashtbl of sizes to maintain order of size 
+       declarations but also make lookup efficient 
+    *)
+
+    val outputSizes : ((ID.t, Imp.exp list) Hashtbl.t) = Hashtbl.create 127
+    
+    val localSizes : ((ID.t, Imp.array_annot) Hashtbl.t) = Hashtbl.create 127 
+    
+    
+    method private add_static_size_annot id = function 
+      | [] -> ()
+      | sizes -> 
+          assert (MutableSet.mem localIds id); 
+          Hashtbl.add localSizes id (Imp.SharedArray sizes)
+      
+                
+    method private add_dynamic_size_annot id = function 
+      | [] -> ()
+      | sizes -> 
+        (* extract exp from exp_node *)
+        let sizes = List.map (fun e -> e.exp) sizes in 
+        if MutableSet.mem localIds id then 
+          Hashtbl.add localSizes id (Imp.PrivateArray sizes) 
+        else 
+          Hashtbl.add outputSizes id sizes; 
+    
+    method private add_slice_annot (sliceId : ID.t) (arrId : ID.t) = 
+      assert (MutableSet.mem localIds sliceId);
+      if MutableSet.mem localIds arrId  then (
+        assert (Hashtbl.mem localSizes arrId); 
+        match Hashtbl.find localSizes arrId  with 
+        | Imp.SharedArray dims -> 
+          assert (dims <> []); 
+          Hashtbl.add localSizes sliceId (Imp.SharedArray (List.tl dims))
+        | Imp.PrivateArray expressions -> 
+          assert (expressions <> []); 
+          Hashtbl.add localSizes sliceId (Imp.PrivateArray (List.tl expressions))            
+      ) 
+      else if Hashtbl.mem outputSizes arrId then 
+        let dims = Hashtbl.find outputSizes arrId in ( 
+        assert (dims <> []); 
+        Hashtbl.add localSizes sliceId (Imp.PrivateArray (List.tl dims))
+      )
+      else (* array must be an input *) (
+        let arrT =  Hashtbl.find types arrId in 
+        let rank = DynType.nest_depth arrT in
+        assert (rank > 0); 
+        let varNode = {Imp.exp=Imp.Var arrId; exp_type=arrT} in 
+        let  dims = 
+          List.map (fun i -> Imp.DimSize(i, varNode)) (List.til rank)
+        in 
+        Hashtbl.add localSizes sliceId (Imp.PrivateArray (List.tl dims))  
+      )
+        
     (* cache the ID's into which we store BlockDim, ThreadIdx, consts, etc..*)
     val expCache  = ((Hashtbl.create 127) : (Imp.exp, ID.t) Hashtbl.t)
+    
+    method private add_slice_annotations = function 
+      | [] -> () 
+      | (Set(id, {exp=Idx({exp=Var arrId}, _)}))::rest -> 
+          self#add_slice_annot id arrId; 
+          self#add_slice_annotations rest 
+      | _::rest -> self#add_slice_annotations rest 
     
     (* create a Set node and insert a cast if necessary *) 
      method private set_or_coerce id (rhs : exp_node) = 
@@ -23,7 +90,7 @@ class imp_codegen =
       let lhsType = Hashtbl.find types id in
       let rhsType = rhs.exp_type in 
       if lhsType <> rhsType then 
-        let id' = self#fresh_id rhsType in
+        let id' = self#fresh_local_id rhsType in
         let idExp' = {exp=Var id'; exp_type=rhsType} in 
         let castNode = 
           {exp = Cast(lhsType, idExp'); exp_type=lhsType}
@@ -50,7 +117,7 @@ class imp_codegen =
           else 
             (* if flattened arg is itself complex, assign it to a variable *)
             let argType = arg'.exp_type in  
-            let tempId =  self#fresh_id argType in
+            let tempId =  self#fresh_local_id argType in
             let setStmts = self#set_or_coerce tempId arg' in 
             let varExp = {exp = Var tempId; exp_type=argType} in 
             argStmts @  setStmts, varExp 
@@ -77,7 +144,9 @@ class imp_codegen =
       | Idx (lhs, rhs) ->
           let lhsStmts, lhs' = flatten_arg lhs in 
           let rhsStmts, rhs' = flatten_arg rhs in
-          lhsStmts @ rhsStmts, { expNode with exp = Idx(lhs', rhs') }   
+          let allStmts = lhsStmts @ rhsStmts in 
+          allStmts, { expNode with exp = Idx(lhs', rhs') } 
+            
       | Op (op, argType, args) ->
           let stmts, args' = flatten_args args in
           stmts, { expNode with exp = Op(op, argType, args') }    
@@ -96,7 +165,7 @@ class imp_codegen =
             (* don't pass a type environment since we're guaranteed to not
                be checking a variable's type  
             *) 
-            let id = self#fresh_id expNode.exp_type in
+            let id = self#fresh_local_id expNode.exp_type in
             Hashtbl.add expCache exp id;     
             [Set(id, expNode)], {expNode with exp = Var id }  
            
@@ -126,8 +195,10 @@ class imp_codegen =
      *) 
      | Set (id, rhs) -> 
         let rhsStmts, rhs' = self#flatten_exp rhs in
-        let setStmts = self#set_or_coerce id rhs' in 
-        rhsStmts @ setStmts 
+        let setStmts = self#set_or_coerce id rhs' in  
+        let allStmts = rhsStmts @ setStmts in 
+        self#add_slice_annotations allStmts;
+        allStmts   
          
      | SetIdx (id, indices, rhs) -> 
          let idxStmtLists, idxExps = 
@@ -143,34 +214,57 @@ class imp_codegen =
     method emit block =  
       let block' = List.concat (List.map self#flatten_stmt block) in 
       List.iter (DynArray.add code) block'
-    
+
+    method fresh_id t = 
+      let id = ID.gen() in 
+      Hashtbl.add types id t;
+      id
       
-    method fresh_id t =
-      let id = ID.gen() in (Hashtbl.add types id t; id)
-    
-    method fresh_var t = {exp = Var (self#fresh_id t); exp_type = t}
+    method fresh_local_id t =
+      let id = self#fresh_id t in  
+      MutableSet.add localIds id;
+      DynArray.add localIdsArray id;
+      id
+
+    method fresh_var t =
+      let id = self#fresh_local_id t in
+      {exp = Var id; exp_type = t}
+     
+     method fresh_array_var  t sizes =
+      let id = self#fresh_local_id t in
+      assert (not $ DynType.is_scalar t); 
+      self#add_dynamic_size_annot id sizes;
+      {exp = Var id; exp_type = t}  
       
-    method fresh_input_id t = 
-      let id = self#fresh_id t in 
+    method fresh_input_id t =
+      let id = self#fresh_id t in  
       DynArray.add inputs (id,t);
       id 
     
     method fresh_input t = {exp = Var (self#fresh_input_id t); exp_type=t} 
     
     method fresh_output_id t = 
-      let id = self#fresh_id t in
+      let id = self#fresh_id t in  
       DynArray.add outputs (id,t);
       id
-     
-    method fresh_output t = {exp= Var (self#fresh_output_id t); exp_type=t}
+      
+    method fresh_array_output t sizes = 
+      let id = self#fresh_output_id t in  
+      self#add_dynamic_size_annot id sizes;
+      {exp= Var id; exp_type=t}
     
-    method private fresh_ids n t = Array.init n (fun _ -> self#fresh_id t)   
+    method fresh_output t = 
+      let id = self#fresh_output_id t in
+      {exp= Var id; exp_type=t}
+    
+    method private fresh_ids n t = Array.init n (fun _ -> self#fresh_local_id t)   
     method fresh_vars n t = 
       Array.map (fun id -> {exp=Var id;exp_type=t}) $ self#fresh_ids n t   
     
-    method shared_vec_id t dims = 
-      let id = self#fresh_id (DynType.VecT t) in 
-      Hashtbl.add sharedDims id dims; 
+    method shared_vec_id t dims =
+      let id = self#fresh_local_id (DynType.VecT t) in  
+      Hashtbl.add sharedArrayAllocations id dims; 
+      self#add_static_size_annot id dims; 
       id 
       
     method shared_vec_var t dims = 
@@ -178,8 +272,8 @@ class imp_codegen =
       {exp =Var (self#shared_vec_id t dims); exp_type=DynType.VecT t} 
      
     method find_type id = Hashtbl.find types id
-    method is_shared id = Hashtbl.mem sharedDims id 
-    method shared_size id = Hashtbl.find sharedDims id
+    method is_shared id = Hashtbl.mem sharedArrayAllocations id 
+    method shared_size id = Hashtbl.find sharedArrayAllocations id
     
     
     method finalize = 
@@ -188,23 +282,25 @@ class imp_codegen =
       let inputTypes = DynArray.to_array $ DynArray.map snd inputs in  
       let outputIds = DynArray.to_array $ DynArray.map fst outputs in 
       let outputTypes = DynArray.to_array $ DynArray.map snd outputs in
-      (* use the type hashtbl to quickly filter out the id's of inputs 
-         and outputs, leaving behind only local variables 
-      *)
-      let localTypes = Hashtbl.copy types in
-      Array.iter (Hashtbl.remove localTypes) outputIds;
-      Array.iter (Hashtbl.remove localTypes) inputIds;      
-      let localIds = Array.of_enum $ Enum.map fst (Hashtbl.enum localTypes) in 
-      let localTypes = Array.of_enum $ Enum.map snd (Hashtbl.enum localTypes) in
+      
+      let localIds = DynArray.to_array localIdsArray in 
+      let localTypes = Array.map (fun id -> Hashtbl.find types id) localIds in
+          
       ImpSimplify.simplify_function {
         input_types =  inputTypes;
         input_ids = inputIds; 
+        
         output_types = outputTypes;   
-        output_ids = outputIds;  
+        output_ids = outputIds;
+        output_sizes = PMap.of_enum (Hashtbl.enum outputSizes); 
+          
         local_ids = localIds; 
-        local_types = localTypes; 
+        local_types = localTypes;
+        local_arrays = PMap.of_enum (Hashtbl.enum localSizes);
+           
         tenv = PMap.of_enum (Hashtbl.enum types);
-        shared = PMap.of_enum (Hashtbl.enum sharedDims);
+        shared_array_allocations = PMap.of_enum (Hashtbl.enum sharedArrayAllocations);
+        
         body = DynArray.to_list code;
       }
      
@@ -233,9 +329,22 @@ class imp_codegen =
         let idMap = PMap.mapi (fun id t -> self#fresh_id t) tenv' in
         (* make sure new names of shared variables are marked as shared *)
         PMap.iter 
-          (fun id sz -> Hashtbl.add sharedDims (PMap.find id idMap) sz) 
-          fn.shared;
-        (* replace old ids with their new names in body of function *)
+          (fun id sz -> 
+              Hashtbl.add sharedArrayAllocations (PMap.find id idMap) sz) 
+          fn.shared_array_allocations;
+        (* copy over all information about locals *)
+        let add_local (id : ID.t) = 
+          let (newId : ID.t) = PMap.find id idMap in 
+          DynArray.add localIdsArray newId; 
+          MutableSet.add localIds newId;
+          if PMap.mem id fn.local_arrays then 
+            Hashtbl.add localSizes newId (PMap.find id fn.local_arrays)  
+        in 
+        Array.iter add_local fn.local_ids;  
+          (* TODO: Also update output size decls
+    val outputSizes : ((ID.t, Imp.exp list) Hashtbl.t) = Hashtbl.create 127
+           *)
+      (* replace old ids with their new names in body of function *)
           
         let fnCode = List.map (ImpCommon.apply_id_map_to_stmt idMap) fn.body in
         List.map (ImpCommon.apply_exp_map_to_stmt inOutMap) fnCode   

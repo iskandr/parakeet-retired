@@ -4,6 +4,7 @@ open HostVal
 open Printf 
 
 open ShapeInference 
+open ImpShapeInference 
 
 exception InvalidGpuArgs 
 
@@ -87,7 +88,7 @@ let compile_map globalFunctions payload argTypes retTypes =
   let impPayload = SSA_to_Imp.translate_fundef globalFunctions payload in
   (* generating Imp kernel w/ embedded payload *)
   let impfn = 
-    ImpGenMap.gen_map 
+    ImpMapTemplate.gen_map 
       impPayload 
       mapThreadsPerBlock 
       (Array.of_list argTypes) 
@@ -169,7 +170,9 @@ let run_map globalFunctions payload inputTypes outputTypes memState dynVals =
 let compile_reduce globalFunctions payload retTypes =
   let redThreadsPerBlock = 128 in
   let impPayload = SSA_to_Imp.translate_fundef globalFunctions payload in
-  let impfn = ImpGenReduce.gen_reduce impPayload redThreadsPerBlock retTypes in
+  let impfn = 
+    ImpReduceTemplate.gen_reduce impPayload redThreadsPerBlock retTypes 
+  in
   debug (Printf.sprintf "[compile_reduce] %s\n" (Imp.fn_to_str impfn));
   let ptx = ImpToPtx.translate_kernel impfn ID.Set.empty in
   let reducePrefix = "reduce_kernel" in 
@@ -238,7 +241,7 @@ let compile_all_pairs globalFunctions payload argTypes retTypes =
       let threadsPerBlock = 128 in
       let impPayload = SSA_to_Imp.translate_fundef globalFunctions payload in
       let impfn =
-        ImpGenAllPairs.gen_all_pairs_2d_naive impPayload t1 t2 retTypes
+        ImpAllPairsTemplate.gen_all_pairs_2d_naive impPayload t1 t2 retTypes
       in
       (* TODO: add input space annotations and nested data allocations *)
       let kernel = ImpToPtx.translate_kernel impfn  ID.Set.empty in

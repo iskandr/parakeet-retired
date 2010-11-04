@@ -6,13 +6,9 @@ open PtxHelpers
 open PtxCodegen
 open Printf 
 
-let _ = Printexc.record_backtrace true
-
-
 let same_type t1 t2 = 
   if t1 <> t2 then  debug $ Printf.sprintf "Expected same types, got %s and %s "
     (PtxType.to_str t1) (PtxType.to_str t2) 
-
 
 let calc_index_widths dims eltSize =
   let n = Array.length dims in 
@@ -307,11 +303,20 @@ let translate_kernel
       3) a shared array 
   *)
   let register_local id dynT = 
-    if PMap.mem id impfn.shared then
-      let dims = PMap.find id impfn.shared in   
+    (* todo: this is wrong since we've change array annotations *)
+    if PMap.mem id impfn.shared_array_allocations then
+      let dims = PMap.find id impfn.shared_array_allocations in   
         ignore $ codegen#declare_shared_vec id (DynType.elt_type dynT) dims
       else begin 
         if ID.Set.mem id allocSet then 
+          (* TODO: make the storage arg of type (VecT dynT) 
+             then compute global threadId, and index into
+             storage arg to get your local array. 
+             ALSO: 
+             Shouldn't we be analyzing Imp kernels instead of SSA kernels? 
+             That way at least there's no confusion about which nesting
+             level we should look at. 
+          *) 
           ignore $ codegen#declare_storage_arg id dynT 
          else
            ignore $ codegen#declare_local id dynT

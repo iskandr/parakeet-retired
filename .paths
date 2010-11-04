@@ -146,3 +146,4 @@ _build/SSA
 _build/SSA_Analysis
 _build/SSA_Optimizations
 _build/UntypedSSA
+ImpKernelTemplates

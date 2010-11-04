@@ -97,7 +97,7 @@ and translate_exp codegen globalFunctions idEnv expectedType expNode =
 and translate_stmt globalFunctions idEnv codegen stmtNode =
   let get_imp_id ssaId t = 
     if ID.Map.mem ssaId idEnv then ID.Map.find ssaId idEnv 
-    else codegen#fresh_id t 
+    else codegen#fresh_local_id t 
   in  
   match stmtNode.SSA.stmt with
   | SSA.Set([id], expNode) ->

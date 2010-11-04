@@ -49,12 +49,12 @@ module String = struct
 end
 
 
-module Array = BaseArray
+module Array = BaseArray 
   
 module Hashtbl = struct 
     include ExtHashtbl.Hashtbl 
     
-    let from_list pairs = 
+    let of_list pairs = 
         let hash  = Hashtbl.create (List.length pairs) in 
         let iter_fn (a,b) = Hashtbl.add hash a b in 
         List.iter iter_fn pairs;

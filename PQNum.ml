@@ -118,3 +118,25 @@ let coerce_num n t =
     | Float64 f -> coerce_float f t  
     | Bool b -> if b then coerce_int 1 t else coerce_int 0 t 
     | Char c -> coerce_int (Char.code c) t
+
+
+let to_int = function
+  | UInt16 i 
+  | Int16 i -> i 
+  | UInt32 i -> Uint32.to_int i 
+  | Int32 i -> Int32.to_int i  
+  | UInt64 i -> Uint64.to_int i 
+  | Int64 i -> Int64.to_int i  
+  | Float32 f
+  | Float64 f -> Float.to_int f  
+  | Bool b -> if b then 1  else 0 
+  | Char c -> Char.code c
+
+let to_float = function 
+  | UInt32 i -> Uint32.to_float i 
+  | Int32 i -> Int32.to_float i 
+  | UInt64 i -> Uint64.to_float i 
+  | Int64 i -> Int64.to_float i
+  | Float32 f
+  | Float64 f -> f
+  | other -> Int.to_float (to_int other)

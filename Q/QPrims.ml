@@ -2,7 +2,7 @@ open Base
 open AST
 open Prim
 	
-let prim_hash =  Hashtbl.from_list [
+let prim_hash =  Hashtbl.of_list [
 			"+", ScalarOp Add;
 			"-", ScalarOp Sub; 
 			"%", ScalarOp Div;

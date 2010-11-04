@@ -14,6 +14,7 @@ OCAMLINCLUDES = -I $(BUILDPATH) -I $(BUILDPATH)/Analysis \
 	-I $(BUILDPATH)/Dump \
 	-I $(BUILDPATH)/AST   \
 	-I $(BUILDPATH)/Imp \
+	-I $(BUILDPATH)/ImpKernelTemplates \
 	-I $(BUILDPATH)/UntypedSSA \
 	-I $(BUILDPATH)/SSA \
 	-I $(BUILDPATH)/SSA_Optimizations \
@@ -33,6 +34,7 @@ OCAMLOBJSRAW := bigarray.cmxa unix.cmxa uint32.cmxa uint64.cmx extLib.cmxa \
 BaseCommon.cmx Tuple.cmx BaseArray.cmx BaseList.cmx  BaseSet.cmx  BaseMap.cmx \
 Graph.cmx \
 Bool.cmx Float.cmx Int.cmx PSet.cmx BasePMap.cmx Base.cmx \
+MutableSet.cmx \
 UID.cmx ID.cmx PQNum.cmx Prim.cmx DynType.cmx \
 QPrims.cmx \
 SourceInfo.cmx QSyntax.cmx AST_Info.cmx AST.cmx QSyntax_to_AST.cmx \
@@ -68,12 +70,16 @@ HostVal.cmx GpuVal.cmx InterpVal.cmx \
 MemoryState.cmx \
 PtxHelpers.cmx LibPQ.cmx \
 PtxSimplify.cmx PtxTidy.cmx PtxCodegen.cmx \
-Imp.cmx ImpCommon.cmx \
-ImpSimplify.cmx ImpCodegen.cmx \
-ImpGenAllPairs.cmx \
-ImpGenMap.cmx ImpGenReduce.cmx \
+Imp.cmx \
+ImpCommon.cmx \
+ImpSimplify.cmx \
+ImpCodegen.cmx \
+ImpAllPairsTemplate.cmx \
+ImpMapTemplate.cmx \
+ImpReduceTemplate.cmx \
 ImpToPtx.cmx \
 SSA_to_Imp.cmx \
+ImpShapeInference.cmx \
 QType.cmx HardwareInfo.cmx \
 ShapeInference.cmx \
 AllocationAnalysis.cmx \

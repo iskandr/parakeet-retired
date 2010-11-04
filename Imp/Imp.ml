@@ -28,17 +28,27 @@ and stmt =
   (* used to plug one function into another, shouldn't exist in final code *) 
   | SPLICE 
 and block = stmt list
-and fn = { input_ids : ID.t array;
-           input_types : DynType.t array;
-           output_ids : ID.t array; 
-           output_types : DynType.t array;
-           (* all IDs which aren't inputs or outputs are locals *)     
-           local_ids : ID.t array;   
-           local_types : DynType.t array;         
-           body : block;
-           tenv :(ID.t,DynType.t) PMap.t; 
-           shared : (ID.t, int list) PMap.t
-         }
+and array_annot = 
+  | SharedArray of int list 
+  | PrivateArray of exp list 
+and fn = {
+  input_ids : ID.t array;
+  input_types : DynType.t array;
+          
+  output_ids : ID.t array; 
+  output_types : DynType.t array;
+  output_sizes : (ID.t, exp list) PMap.t; 
+           
+  (* all IDs which aren't inputs or outputs are locals *)     
+  local_ids : ID.t array;   
+  local_types : DynType.t array;   
+  local_arrays : (ID.t, array_annot) PMap.t;
+                
+  body : block;
+  tenv :(ID.t, DynType.t) PMap.t;
+  (* doesn't count slices into the same array *) 
+  shared_array_allocations : (ID.t, int list) PMap.t
+}
 
 
 
@@ -258,7 +268,13 @@ let idx arr idx =
   let eltT = DynType.elt_type arr.exp_type in  
   {exp= Idx(arr, idx'); exp_type=eltT }
 
-let dim n x = uint_exp $ DimSize(n, x) 
+let dim n x = uint_exp $ DimSize(n, x)
+
+(* get a list of all the dimensions of an Imp array *) 
+let all_dims ( x : exp_node) : exp_node list =
+  let ndims = DynType.nest_depth x.exp_type in  
+  List.map (fun i -> dim i x) (List.til ndims)
+   
 let len x = uint_exp $ DimSize(1, x)
  
 
