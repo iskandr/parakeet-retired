@@ -3,7 +3,7 @@ open DynType
 open Imp
 open ImpCodegen
 
-let gen_gen_index =
+let gen_gen_index () =
   let codegen = new imp_codegen in
   let input = codegen#fresh_input (VecT Int32T) in
   let output = codegen#fresh_output (VecT Int32T) in
@@ -18,5 +18,3 @@ let gen_gen_index =
     ]
   ];
   codegen#finalize
-
-      
