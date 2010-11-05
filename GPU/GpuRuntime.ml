@@ -108,8 +108,6 @@ let compile_map globalFunctions payload argTypes retTypes =
 let mapCache : adverb_cache = Hashtbl.create 127
  
 let run_map globalFunctions payload inputTypes outputTypes memState dynVals =
-  
-    
   let cacheKey = (payload.SSA.fn_id, inputTypes) in  
   let compiledModule = 
     if Hashtbl.mem mapCache cacheKey then 

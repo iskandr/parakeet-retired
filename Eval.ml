@@ -60,7 +60,13 @@ let eval_adverb_on_gpu
   | Prim.Map, [fundef] ->
       GpuRuntime.run_map functions fundef  inputTypes outputTypes memState vals 
   | Prim.Reduce, [fundef] ->
-      GpuRuntime.run_reduce functions fundef inputTypes outputTypes memState vals 
+      GpuRuntime.run_reduce
+        functions
+        fundef
+        inputTypes
+        outputTypes
+        memState
+        vals 
   | Prim.AllPairs, [fundef] ->
       GpuRuntime.run_all_pairs 
         functions 
