@@ -36,6 +36,7 @@ and replace_exp idMap expNode =
       let lhs' = replace_value idMap lhs in 
       let args' = List.map (replace_value idMap) args in 
       ArrayIndex (lhs', args')
+  | Cast (t, vNode) -> Cast(t, replace_value idMap vNode)  
   in {expNode with exp = exp' } 
       
 and replace_stmt idMap stmtNode = 

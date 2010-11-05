@@ -95,7 +95,7 @@ let rec storage_of_dyn_type = function
   | DynType.Float32T ->  F32 
   | DynType.Float64T ->  F64
   (* storing bools as 16-bit for now *) 
-  | DynType.BoolT -> U16
+  | DynType.BoolT -> U8
   | DynType.TupleT types ->
      begin match types with
       | [|t1; t2|] ->

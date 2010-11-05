@@ -345,9 +345,30 @@ class ptx_codegen  = object (self)
     if srcType = destType then self#emit [mov destReg srcVal]
     else 
       if destType = Pred then 
-        self#emit [setp_eq srcType destReg srcVal (int 0)]
+        if PtxType.nbytes srcType > 1 then 
+          self#emit [setp_eq srcType destReg srcVal (int 0)]
+        else begin 
+          (* need to store into 16-bit register first since
+             setp doesn't work for 8-bit types 
+          *)
+          let tempType = larger_type srcType in 
+          let tempReg = self#fresh_reg tempType in
+          self#convert tempReg srcVal;  
+          self#emit [setp_eq tempType destReg srcVal (int 0)] 
+        end  
       else if srcType = Pred then 
-        self#emit [selp destReg (int 1) (int 0) srcVal]
+        if PtxType.nbytes destType > 1 then
+          self#emit [selp destReg (int 1) (int 0) srcVal]
+        else begin  
+        (*
+          need to store in 16-bit register, 
+          since selp doesn't work for 8-bit types 
+        *)
+          let tempType = larger_type destType in  
+          let tempReg = self#fresh_reg tempType in  
+          self#emit [selp tempReg (int 1) (int 0) srcVal];
+          self#convert ~destReg ~srcVal:tempReg 
+        end
       else if PtxType.is_int srcType && PtxType.is_float destType then
         self#emit [
           round Ptx.RoundNearest (cvt destType srcType destReg srcVal)

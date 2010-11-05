@@ -165,7 +165,7 @@ let rec annotate_exp context expNode =
           (* have a context available with an environment of literal value *)
           (* arguments and check whether the fnArg is in that environment. *)  
           let signature = { 
-            Signature.inputs = (Signature.Value fnArg.value)::
+            Signature.inputs = (Signature.Value fnArg.value) ::
               (List.map (fun t -> Signature.Type t) types);
             Signature.outputs = None
           } 
@@ -413,7 +413,7 @@ and specialize_function_value program v signature : SSA.value_node =
           ?forceOutputType:(Option.map List.hd signature.Signature.outputs) 
           (Signature.input_types signature)
                    
-      | Prim (Prim.ArrayOp op) ->
+      | Prim (Prim.ArrayOp op) when Prim.is_higher_order op ->
         (match signature.Signature.inputs with 
           | Signature.Value fnVal::restSig ->
             (* after the function value all the other arguments should *)
@@ -432,7 +432,8 @@ and specialize_function_value program v signature : SSA.value_node =
               ?forceOutputTypes:signature.Signature.outputs
               inputTypes
 
-          | _ -> failwith "expected function value"
+          | others -> 
+              failwith "expected function value for higher-order array operator"
         )
       | _ -> failwith "invalid value type for specialize_function_value"  
      in 
