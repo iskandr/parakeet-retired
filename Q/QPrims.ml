@@ -41,7 +41,7 @@ let prim_hash =  Hashtbl.of_list [
 			"\\:/:", ArrayOp AllPairs;
 			"\\", ArrayOp Scan;
       "/", ArrayOp Reduce; 
-      
+      "where", ArrayOp Where; 
       "enlist", ArrayOp Enlist; 
        
 			"til", ArrayOp Til;

@@ -33,6 +33,7 @@ type array_op =
   | Til 
   | Rand
   | Index
+  | Where 
 
 type impure_op = ResetTimer | GetTimer | Print 
                 
@@ -207,6 +208,7 @@ let array_op_to_str = function
   | AllPairs -> "/:\\:" 
   | AllPairsRight -> "\\:/:"  
   | Index -> "@"
+  | Where -> "where"
 
 let impure_op_to_str = function
   | ResetTimer -> "reset_timer"
