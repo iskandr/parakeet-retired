@@ -12,8 +12,9 @@ num_passed = 0
 num_failed = 0
 tests = glob.glob("test_*.q")
 for test in tests:
-  subprocess.check_call(["q", test])
   name = test[5:-2]
+  print "Running " + name
+  subprocess.check_call(["q", test])
   f = open("tmp/" + name + "_rslt")
   rslt = f.read(1)
   f.close()

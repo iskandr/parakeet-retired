@@ -38,7 +38,7 @@ type array_op =
 type impure_op = ResetTimer | GetTimer | Print 
                 
 
-type q_op =  Q_WriteOrLoadText | Q_WriteOrLoadBinary | Q_Rand |  Q_Dollar  
+type q_op =  Q_WriteOrLoadText | Q_WriteOrLoadBinary | Q_Question |  Q_Dollar  
       
 
 type prim =
@@ -201,8 +201,8 @@ let array_op_to_str = function
 	| Til -> "til"
 	| Rand -> "rand"
   | Map -> "map"
-  | EachLeft -> "each_left"
-  | EachRight -> "each_right"
+  | EachLeft -> "/:"
+  | EachRight -> "\\:"
   | Reduce -> "/"
   | Scan -> "\\"
   | AllPairs -> "/:\\:" 
@@ -218,7 +218,7 @@ let impure_op_to_str = function
 let q_op_to_str = function 
   | Q_WriteOrLoadText -> "0:"
   | Q_WriteOrLoadBinary -> "1:"
-  | Q_Rand -> "?"
+  | Q_Question -> "?"
   | Q_Dollar -> "$"
  
 let prim_to_str = function 

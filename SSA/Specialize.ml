@@ -154,7 +154,7 @@ let rec annotate_exp context expNode =
      *) 
        begin match fn.value with
        (* for now assume that all higher order primitives take a single *)
-       (* function argument which passed first *)  
+       (* function argument which is passed first *)  
        | Prim (Prim.ArrayOp p) when Prim.is_higher_order p -> 
           assert (List.length args > 1); 
           let fnArg = List.hd args in 
@@ -179,7 +179,7 @@ let rec annotate_exp context expNode =
              exp = App(specializedFn, dataArgs') 
            }
            in expNode', argsChanged
-      
+       
        (* for now assume all named functions are top-level and that none*)
        (* of the arguments are themselves functions. This means that for now *)
        (* the only higher order functions are built in primitives. *)  
@@ -425,7 +425,7 @@ and specialize_function_value program v signature : SSA.value_node =
                   | _ -> failwith "unexpected value")
                 restSig
             in  
-            specialize_array_prim 
+            specialize_higher_order_array_prim 
               program
               op 
               [fnVal]
@@ -435,6 +435,22 @@ and specialize_function_value program v signature : SSA.value_node =
           | others -> 
               failwith "expected function value for higher-order array operator"
         )
+        
+      (* array operators which don't take function arguments *) 
+      | Prim (Prim.ArrayOp op) -> 
+          specialize_first_order_array_prim 
+            program 
+            op 
+            ?forceOutputTypes:signature.Signature.outputs 
+            (Signature.input_types signature)
+      
+      (* make some sense of Q's highly ambiguous overloaded operators *) 
+      | Prim (Prim.Q_Op qOp) -> 
+          specialize_q_operator
+            program 
+            qOp
+            ?forceOutputTypes:signature.Signature.outputs
+            (Signature.input_types signature)
       | _ -> failwith "invalid value type for specialize_function_value"  
      in 
      let typedId = 
@@ -628,14 +644,13 @@ and specialize_all_pairs
       codegen#emit [mk_set (get_ids outputs) appNode]
     ) 
             
-and specialize_array_prim 
+and specialize_higher_order_array_prim 
     ( program : Program.program ) 
     ( op  : Prim.array_op ) 
     ( fnVals : value list )  
     ?( forceOutputTypes : DynType.t list option ) 
     ( inputTypes : DynType.t list)
    : SSA.fundef  =  
- 
   match op, fnVals, inputTypes with 
   | Prim.Map, [f], _ -> 
     specialize_map program f ?forceOutputTypes inputTypes
@@ -645,4 +660,31 @@ and specialize_array_prim
     specialize_reduce program f ?forceOutputTypes initType vecTypes
   | Prim.AllPairs, [f], [t1; t2] -> 
     specialize_all_pairs program f ?forceOutputTypes t1 t2 
-  | _ -> failwith "[specialize] array operator not yet implemented" 
+  | op, _, types -> failwith $ Printf.sprintf 
+      "[specialize] array operator %s not yet implemented for input of type %s"
+      (Prim.array_op_to_str op)
+      (DynType.type_list_to_str types) 
+
+and specialize_first_order_array_prim 
+    ( program : Program.program )
+    ( op : Prim.array_op )
+    ?( forceOutputTypes : DynType.t list option )
+    ( inputTypes : DynType.t list) 
+    : SSA.fundef =
+  match op, inputTypes with 
+    | Prim.Where, _ -> failwith "where not yet implemented"
+    | Prim.Index, _ -> failwith "index not yet implemented"
+    | other, types -> 
+        failwith $ Printf.sprintf 
+        "[Specialize] specializtion of %s not implemented for input of type %s"
+        (Prim.array_op_to_str other)
+        (DynType.type_list_to_str types) 
+
+and specialize_q_operator 
+    ( program : Program.program )
+    ( op : Prim.q_op )
+    ?( forceOutputTypes : DynType.t list option )
+    ( inputTypes : DynType.t list) =
+  match op, inputTypes with 
+    | _ ->  failwith "Q's not welcome here"
+            

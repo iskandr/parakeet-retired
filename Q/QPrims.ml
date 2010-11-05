@@ -52,7 +52,7 @@ let prim_hash =  Hashtbl.of_list [
       (* the degree of overloading in this language makes me want to 
          live in a cave and never use a computer again 
       *)       
-      "?", Q_Op Q_Rand; 	
+      "?", Q_Op Q_Question; 	
 
       "0:", Q_Op Q_WriteOrLoadText;
       "1:", Q_Op Q_WriteOrLoadBinary;
