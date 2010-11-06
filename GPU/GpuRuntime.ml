@@ -6,6 +6,16 @@ open Printf
 open ShapeInference 
 open ImpShapeInference 
 
+
+
+type adverb_impl = 
+ MemoryState.mem_state ->  FnTable.t -> SSA.fundef -> 
+    GpuVal.gpu_val list -> DynType.t list -> GpuVal.gpu_val list
+
+type simple_array_op_impl =
+  MemoryState.mem_state -> FnTable.t -> 
+    GpuVal.gpu_val list -> DynType.t list -> GpuVal.gpu_val list
+
 exception InvalidGpuArgs 
 
 let sizeof ty shape =
@@ -107,7 +117,8 @@ let compile_map globalFunctions payload argTypes retTypes =
 
 let mapCache : adverb_cache = Hashtbl.create 127
  
-let run_map globalFunctions payload inputTypes outputTypes memState dynVals =
+let run_map  memState globalFunctions payload gpuVals outputTypes =
+  let inputTypes = List.map GpuVal.get_type gpuVals in  
   let cacheKey = (payload.SSA.fn_id, inputTypes) in  
   let compiledModule = 
     if Hashtbl.mem mapCache cacheKey then 
@@ -119,10 +130,7 @@ let run_map globalFunctions payload inputTypes outputTypes memState dynVals =
       m
     )  
   in      
-   (* for now just transfer everything to the GPU-- we can try to make this
-     adaptive later 
-  *)
-  let gpuVals = List.map (MemoryState.get_gpu memState) dynVals in
+
   
   let inputShapes = List.map GpuVal.get_shape gpuVals in
   let outputShapes, shapeEnv = 
@@ -180,8 +188,13 @@ let compile_reduce globalFunctions payload retTypes =
 
 let reduceCache : adverb_cache  = Hashtbl.create 127 
 
-let run_reduce globalFunctions payload inputTypes outputTypes memState dynVals =
-  let gpuVals = List.map (MemoryState.get_gpu memState) dynVals in
+let run_reduce 
+      (memState : MemoryState.mem_state)
+      (globalFunctions : FnTable.t)
+      (payload : SSA.fundef)
+      (gpuVals : GpuVal.gpu_val list)
+      (outputTypes : DynType.t list) = 
+  let inputTypes = List.map GpuVal.get_type gpuVals in 
   let cacheKey = payload.SSA.fn_id, inputTypes in 
   let compiledModule = 
     if Hashtbl.mem reduceCache cacheKey then Hashtbl.find reduceCache cacheKey
@@ -251,7 +264,14 @@ let compile_all_pairs globalFunctions payload argTypes retTypes =
 
 let allPairsCache  = Hashtbl.create 127 
  
-let run_all_pairs globalFunctions payload inputTypes outputTypes memState dynVals =
+
+let run_all_pairs 
+      (memState : MemoryState.mem_state)
+      (globalFunctions : FnTable.t)
+      (payload : SSA.fundef)
+      (gpuVals : GpuVal.gpu_val list)
+      (outputTypes : DynType.t list) = 
+  let inputTypes = List.map GpuVal.get_type gpuVals in 
   let cacheKey = payload.SSA.fn_id, inputTypes in 
   let compiledModule = 
     if Hashtbl.mem allPairsCache cacheKey then 
@@ -264,21 +284,19 @@ let run_all_pairs globalFunctions payload inputTypes outputTypes memState dynVal
       m
     )
   in
-  match compiledModule.Cuda.kernels, dynVals with
+  match compiledModule.Cuda.kernels, gpuVals with
     | _, [] 
     | _, [_] | _, _::_::_::_ ->  
         failwith "[run_all_pairs] wrong number of arguments"
     | [], _ 
     | _::_::_, _ ->
         failwith "[run_all_pairs] wrong number of functions" 
-    | [fnName, _], [x;y] ->
+    | [fnName, _], [xGpu;yGpu] ->
       (* until we have proper shape inference, we can only deal with functions 
         that return scalars 
       *) 
       let fnReturnTypes = DynType.fn_output_types payload.SSA.fn_type in 
       assert (List.for_all DynType.is_scalar fnReturnTypes);  
-      let xGpu = MemoryState.get_gpu memState x  in
-      let yGpu = MemoryState.get_gpu memState y in
       let xShape, yShape = GpuVal.get_shape xGpu, GpuVal.get_shape yGpu in
       (* since we assume that the nested function returns scalars, 
          the result will always be 2D
@@ -312,3 +330,48 @@ let shutdown () =
   for i = 0 to DynArray.length HardwareInfo.device_contexts - 1 do 
     Cuda.cuda_ctx_destroy (DynArray.get HardwareInfo.device_contexts i)
   done 
+  
+  
+let eval_array_op 
+      (memState : MemoryState.mem_state) 
+      (functions : FnTable.t) 
+      (op : Prim.array_op)
+      (args : InterpVal.t list) 
+      (outputTypes : DynType.t list)
+      : GpuVal.gpu_val list =
+  match op, args  with  
+  | Prim.Map, (InterpVal.Closure(fnId, []))::dataArgs ->
+      let fundef = FnTable.find fnId functions in
+      let gpuVals = List.map (MemoryState.get_gpu memState) dataArgs in 
+      run_map memState functions   fundef gpuVals outputTypes 
+      
+  | Prim.Map, _ -> 
+      failwith "[GpuRuntime->eval_array_op] closures not yet supported for Map"
+      
+  | Prim.Reduce, (InterpVal.Closure(fnId, []))::dataArgs ->
+      let fundef = FnTable.find fnId functions in
+      let gpuVals = List.map (MemoryState.get_gpu memState) dataArgs in
+      run_reduce memState functions fundef gpuVals outputTypes
+  
+  | Prim.Reduce, _ -> 
+      failwith 
+        "[GpuRuntime->eval_array_op] closures not yet supported for Reduce"
+        
+  | Prim.AllPairs, (InterpVal.Closure(fnId, []))::dataArgs ->
+      let fundef = FnTable.find fnId functions in
+      let gpuVals = List.map (MemoryState.get_gpu memState) dataArgs in
+      run_all_pairs  memState functions fundef gpuVals outputTypes  
+  | Prim.AllPairs, _ ->
+      failwith 
+        "[GpuRuntime->eval_array_op] closures not yet supported for AllPairs"
+  | Prim.Index, _ -> 
+      failwith "indexing not implemented on GPU"
+  | Prim.Where, _ ->  
+      let gpuVals = List.map (MemoryState.get_gpu memState) args in 
+      let inputTypes = List.map GpuVal.get_type gpuVals in
+      failwith "where not implemented on GPU"
+         
+  | _ -> failwith $ Printf.sprintf 
+    "Array operator '%s' not yet implemented on GPU"
+    (Prim.array_op_to_str op)
+

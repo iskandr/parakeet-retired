@@ -147,3 +147,13 @@ _build/SSA_Analysis
 _build/SSA_Optimizations
 _build/UntypedSSA
 ImpKernelTemplates
+.git/objects/0b
+.git/objects/11
+.git/objects/4d
+.git/objects/51
+.git/objects/92
+.git/objects/a3
+.git/objects/bd
+.git/objects/e2
+.git/objects/e8
+_build/ImpKernelTemplates

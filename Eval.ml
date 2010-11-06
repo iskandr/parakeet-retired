@@ -6,9 +6,10 @@ open InterpVal
 
 let _ = Printexc.record_backtrace true;;
 
-type mem = DataId.t MemoryState.mem_state
+type mem = MemoryState.mem_state
 type env = (ID.t, InterpVal.t) PMap.t
 
+(*
 let get_fundef functions env fnValNode = match fnValNode.value with 
   | Lam fundef -> fundef 
   | GlobalFn fnId -> FnTable.find fnId functions    
@@ -21,7 +22,7 @@ let get_fundef functions env fnValNode = match fnValNode.value with
       else id 
     in FnTable.find fnId functions    
   | _ -> failwith "function expected"
-
+*)
     
 let eval_value 
     (memoryState : mem) 
@@ -30,52 +31,15 @@ let eval_value
   match valNode.value with 
   | Var id -> 
       if PMap.mem id env then PMap.find id env
-      else 
-        (* assume identifiers not in environment are global functions *)
-        InterpVal.Closure (id, [])     
-  | Num n -> MemoryState.add_host memoryState (HostVal.mk_host_scalar n) 
+      else failwith $ 
+        Printf.sprintf "[eval_value] variable %s not found!" (ID.to_str id)
+  | Num n -> MemoryState.add_host memoryState (HostVal.mk_host_scalar n)
+  | GlobalFn fnId -> InterpVal.Closure(fnId, []) 
   | Str _
   | Sym _
   | Unit
   | Prim _
   | Lam _ -> failwith "[eval_value] values of this type not yet implemented" 
-  
-let eval_adverb_on_gpu 
-      (memState : mem) 
-      (functions : FnTable.t) 
-      (env : env)
-      (op : Prim.array_op) 
-      (outputTypes : DynType.t list)
-      (args : SSA.value_node list) : GpuVal.gpu_val list =
-  let fnArgs, dataArgs = match op, args with
-  | Prim.Map, fn::dataArgs -> [fn], dataArgs
-  | Prim.Reduce, fn::dataArgs -> [fn], dataArgs
-  | Prim.AllPairs, fn::dataArgs -> [fn], dataArgs
-  | _ -> failwith "[eval_adverb_on_gpu] adverb not yet supported\n%!"
-  in
-  let inputTypes = List.map (fun vNode -> vNode.value_type) dataArgs in 
-  let vals = List.map (eval_value memState env) dataArgs in  
-  let fundefs = List.map (get_fundef functions env) fnArgs in  
-  match op, fundefs  with  
-  | Prim.Map, [fundef] ->
-      GpuRuntime.run_map functions fundef  inputTypes outputTypes memState vals 
-  | Prim.Reduce, [fundef] ->
-      GpuRuntime.run_reduce
-        functions
-        fundef
-        inputTypes
-        outputTypes
-        memState
-        vals 
-  | Prim.AllPairs, [fundef] ->
-      GpuRuntime.run_all_pairs 
-        functions 
-        fundef
-        inputTypes
-        outputTypes
-        memState
-        vals 
-  | _ -> failwith "This primitive not yet implemented on GPU"
  
 let rec eval globalFns fundef hostVals  =
   GpuRuntime.init(); 
@@ -139,15 +103,14 @@ and eval_exp
   match expNode.exp with 
   | Values valNodes -> List.map (eval_value memState env) valNodes         
   (* assume all array operators take only one function argument *) 
-  | App ({value=Prim (Prim.ArrayOp op); value_type=ty}, args) 
-    when Prim.is_adverb op ->
+  | App ({value=Prim (Prim.ArrayOp op); value_type=ty}, args) ->
       let outTypes = DynType.fn_output_types ty in
-      let gpuResults =
-        eval_adverb_on_gpu memState functions env op outTypes args
+      let argVals = List.map (eval_value memState env) args in 
+      let gpuResults = 
+        GpuRuntime.eval_array_op memState functions  op argVals outTypes 
       in 
       List.map (MemoryState.add_gpu memState) gpuResults 
-      
-  | App ({value=Prim _}, _) -> failwith "[eval] operator not yet implemented"
+  
   | App ({value=Var id}, args) ->
       failwith "calling closures not yet implemented"
   | App ({value=GlobalFn fnId}, args) -> 

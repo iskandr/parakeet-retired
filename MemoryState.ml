@@ -1,10 +1,12 @@
 open Base 
 open Printf
 
-type 'a mem_state = {
+type 'a generic_mem_state = {
   gpu_vals : ('a, GpuVal.gpu_val) Hashtbl.t;
   host_vals : ('a, HostVal.host_val) Hashtbl.t;
 }
+
+type mem_state = InterpVal.DataId.t generic_mem_state
 
 let create numvars = {
   gpu_vals = Hashtbl.create (2*numvars);
@@ -43,7 +45,8 @@ let get_host state = function
       let gpuVal = Hashtbl.find state.gpu_vals id in
       let hostVal = GpuVal.from_gpu gpuVal in
       Hashtbl.replace state.host_vals id hostVal;
-      Printf.printf "[MemoryState->get_host] Got %s \n" (HostVal.to_str hostVal);  
+      Printf.printf "[MemoryState->get_host] Got %s \n" 
+        (HostVal.to_str hostVal);  
       hostVal
   | InterpVal.Closure _ -> 
       failwith "[MemoryState->get_host] can't send function to host memory"
