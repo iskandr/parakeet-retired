@@ -11,7 +11,6 @@ exception InvalidGpuArgs
 let sizeof ty shape =
   DynType.sizeof (DynType.elt_type ty) * Shape.nelts shape  
 
-
 type adverb_cache = (ID.t * DynType.t list, Cuda.cuda_module) Hashtbl.t 
 
 let mk_cuda_module 
@@ -40,7 +39,8 @@ let mk_cuda_module
    of explicit args or it might become an implicit argument via a
    global texture
 *) 
-let create_input_arg modulePtr argsDynArray inputVal = function 
+let create_input_arg modulePtr argsDynArray inputVal = function
+  | Ptx.ScalarInput 
   | Ptx.GlobalInput ->  DynArray.add argsDynArray inputVal
   | Ptx.TextureInput (texName, geom) ->  
     let texRef = Cuda.cuda_module_get_tex_ref modulePtr texName in

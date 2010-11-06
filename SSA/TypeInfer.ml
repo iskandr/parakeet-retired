@@ -17,7 +17,6 @@ let rec fill_elt_type fill = function
    the type of the result 
 *) 
 
- 
 let infer_scalar_op op argTypes = match op, argTypes with 
   | op, [t1;t2] when Prim.is_binop op -> 
      begin match DynType.common_type t1 t2 with 
@@ -53,7 +52,7 @@ let infer_scalar_op op argTypes = match op, argTypes with
 let infer_unop op t = infer_scalar_op op [t] 
 let infer_binop op t1 t2 = infer_scalar_op op [t1; t2]
         
-let infer_array_op op argTypes = match op, argTypes with  
+let infer_simple_array_op op argTypes = match op, argTypes with  
   | Til, [t] when DynType.is_scalar t  -> 
       if DynType.common_type t Int32T <> AnyT then VecT Int32T 
       else failwith "operator 'til' requires an integer argument"
@@ -66,40 +65,71 @@ let infer_array_op op argTypes = match op, argTypes with
       failwith 
       "Can't assign static type to rand[t1;t2] where t1 isn't <: Int32"
   | Rand, _ -> raise WrongArity
+  | Where, [VecT BoolT] -> VecT Int32T 
+  | Where, _ -> failwith "operator 'where' expects a vector of booleans"
+  | Index, [VecT a; indexType] ->
+    (* can index by any subtype of Int32 or a vector of ints *) 
+    (match DynType.common_type indexType Int32T with 
+      | Int32T -> a 
+      | VecT Int32T -> VecT a 
+      | _ -> failwith "wrong index type passed to operator 'index'"
+    )  
+  | Index, [t; _] when DynType.is_scalar t -> 
+    failwith "can't index into a scalar"
+   
   | _ -> 
      failwith $ sprintf 
         "[core_type_infer] Could not infer type for %s\n" 
             (Prim.array_op_to_str op)
-    
+            
+let infer_adverb op inputTypes = match op, inputTypes with 
+  (* 
+     AllPairs operator takes a function 'a, 'b -> 'c^n and two data 
+     arguments of type vec 'a, vec 'b, returning n outputs vec (vec 'c)) 
+  *) 
+  | AllPairs, (DynType.FnT(nestedInTypes, nestedOutTypes))::[VecT a; VecT b] ->
+      assert (nestedInTypes = [a;b]);  
+      List.map (fun t -> VecT (VecT t)) nestedOutTypes
+  (* 
+    Map operator takes a function 'a^m -> 'b^m, and input data of type vec 'a
+    returning instead vec 'b
+  *) 
+  | Map, (DynType.FnT(_, nestedOutTypes)::_) ->
+      List.map (fun nestedOutT -> VecT nestedOutT) nestedOutTypes     
+  | _ -> failwith $ Printf.sprintf 
+           "inference not implemented for operator: %s"
+           (Prim.array_op_to_str op) 
+(*    
 let infer_op op argTypes = match op with 
   | ScalarOp op -> infer_scalar_op op argTypes 
   | ArrayOp op -> infer_array_op op argTypes 
   | _ -> failwith "type inference not yet implemented for this kind of operator"
-  
+*)  
 (* given an operator and types of its arguments, return list of types to which *)
 (* args must be converted for the operator to work properly *) 
-let required_op_arg_types op argtypes = 
+let required_scalar_op_types op argtypes = 
     match (op, argtypes) with 
-      | ScalarOp op, [t1; t2] when Prim.is_binop op ->
+      | op, [t1; t2] when Prim.is_binop op ->
             let t3 = DynType.common_type t1 t2 in 
             [t3; t3] 
-      | ScalarOp Select, [predT; t1; t2] -> 
+      | Select, [predT; t1; t2] -> 
             let t3 = DynType.common_type t1 t2 in
             let predT' = DynType.common_type predT BoolT in  
             [predT'; t3; t3] 
       (* upconvert non-float arguments to appropriate float size *) 
-      | ScalarOp op, [t]  
+      | op, [t]  
         when Prim.is_float_unop op && 
         DynType.sizeof t <= DynType.sizeof Float32T -> [Float32T]
       (* if type doesn't fit in float32 but is scalar use float64 *)
-      | ScalarOp op, [t] 
+      | op, [t] 
         when Prim.is_float_unop op && DynType.is_scalar t -> [Float64T]
       (* if not a floating unop, just keep type the same *) 
-      | ScalarOp op, [t] when Prim.is_unop op -> [t]  
+      | op, [t] when Prim.is_unop op -> [t]  
       | _ -> failwith 
-            ("no valid coercions for operator " ^ (Prim.prim_to_str op) ^ 
+            ("no valid coercions for operator " ^ (Prim.scalar_op_to_str op) ^ 
              " with input types " ^ (DynType.type_list_to_str argtypes)) 
 
+(*
 let rec infer_value (tLookup : ID.t -> DynType.t) = function 
   | Var id -> tLookup id  
   | Num n -> PQNum.type_of_num n
@@ -117,3 +147,4 @@ let rec infer_value (tLookup : ID.t -> DynType.t) = function
       FnT(inTypes, outTypes)
   | Prim _ -> 
     failwith "Primitives are both polymorphic and variadic -- not implemented "
+*)

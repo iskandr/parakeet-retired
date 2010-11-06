@@ -42,5 +42,17 @@ let rec sig_from_values = function
         if DynType.is_function vNode.SSA.value_type then Value vNode.SSA.value
         else Type vNode.SSA.value_type
       in curr :: (sig_from_values rest)  
+      
+let input_elt_to_str = function 
+  | Value v -> Printf.sprintf "Value (%s)" (SSA.value_to_str v) 
+  | Type t -> DynType.to_str t
 
-          
+
+let to_str signature =
+  let inputStr =  
+    String.concat ", " (List.map input_elt_to_str signature.inputs)
+  in 
+  match signature.outputs with 
+      | None -> inputStr
+      | Some outputs -> inputStr ^ " -> " ^ (DynType.type_list_to_str outputs)
+  

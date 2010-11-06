@@ -34,8 +34,8 @@ type program = {
 let default_untyped_optimizations = 
   [
     "simplify", Simplify.simplify_fundef;  
-    (*"elim partial applications", UntypedElimPartialApps.elim_partial_apps;*)
     "elim dead code", ElimDeadCode.elim_dead_code; 
+    (*"elim partial applications", UntypedElimPartialApps.elim_partial_apps;*)
     (*"elim common subexpression", UntypedSimpleCSE.cse;*) 
   ] 
   
@@ -82,14 +82,17 @@ let default_typed_optimizations =
     (*"function cloning", TypedFunctionCloning.function_cloning;*)   
     (*"elim dead code", TypedElimDeadCode.elim_dead_code;*)  
     "simplify", Simplify.simplify_fundef; 
-   (* "dead code elim", ElimDeadCode.elim_dead_code;*) 
+    "dead code elim", ElimDeadCode.elim_dead_code; 
    (* "adverb fusion", AdverbFusion.optimize_fundef;*) 
 
   ]  
  
 let add_specialization 
-    program ?(optimizations = default_typed_optimizations) 
-    untypedVal signature typedFundef =
+    program 
+    ?(optimizations = default_typed_optimizations) 
+    (untypedVal : SSA.value) 
+    (signature : Signature.t) 
+    (typedFundef : SSA.fundef) =
   let optimized = 
      RunOptimizations.optimize_fundef
       ~maxiters:10
@@ -100,6 +103,12 @@ let add_specialization
   in  
   let typedId = FnTable.add optimized program.typed_functions in  
   Hashtbl.add program.specializations (untypedVal, signature) typedId;
+  IFDEF DEBUG THEN
+    Printf.printf "Specialized %s for signature %s: \n %s\n%!"
+      (SSA.value_to_str untypedVal)
+      (Signature.to_str signature)
+      (SSA.fundef_to_str optimized)
+  END; 
   typedId 
 
 let maybe_get_specialization program v signature = 

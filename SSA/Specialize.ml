@@ -38,24 +38,24 @@ let annotate_value context valNode =
   | Str _ -> DynType.StrT 
   | Sym _ -> DynType.SymT  
   | Unit -> DynType.UnitT
-  | Prim _ -> DynType.AnyFnT 
-    (*failwith "cannot annotate primitive without its arguments"*)
+  | Prim _ -> 
+      failwith "[Specialize] cannot annotate primitive without its arguments"
   | GlobalFn _ 
-  | Lam _ -> DynType.AnyFnT 
-    (*failwith "cannot annotate a function without its arguments"*) 
+  | Lam _ -> 
+      failwith "[Specialize] cannot annotate a function without its arguments" 
  in 
     (* if the new type is different from the old, *)
     (* then indicate that a change has happened *)    
     let changed = valNode.value_type <> t in 
     let valNode' = {valNode with value_type = t} in  
-    valNode', changed  
+    valNode', t, changed  
 
 let rec annotate_values context = function 
-  | [] -> [], false  
+  | [] -> [], [], false  
   | v::vs ->
-      let v', currChanged = annotate_value context v in 
-      let vs', restChanged = annotate_values context vs in 
-      v'::vs', currChanged || restChanged 
+      let v', t, currChanged = annotate_value context v in 
+      let vs', ts, restChanged = annotate_values context vs in 
+      v'::vs', t::ts, currChanged || restChanged 
 
 (**************************************************************************)
 (*       SPECIALIZE A SCALAR OPERATOR FOR ALL SCALAR ARGUMENT TYPES       *)
@@ -70,9 +70,7 @@ let specialize_scalar_prim_for_scalar_args
     inputTypes
   : SSA.fundef  = 
    
-  let expectedTypes = 
-    TypeInfer.required_op_arg_types (Prim.ScalarOp op) inputTypes
-  in 
+  let expectedTypes = TypeInfer.required_scalar_op_types op inputTypes in 
   let inferredOutputT = TypeInfer.infer_scalar_op op inputTypes in
   let typedPrim = { 
     value = Prim (Prim.ScalarOp op); 
@@ -104,27 +102,28 @@ let rec annotate_exp context expNode =
   (* this taken into account at the bottom of the function *)  
   let expNode', changed = match expNode.exp with 
   | Values vNodes ->
-      let vNodes', anyChanged = annotate_values context vNodes in
+      let vNodes', vTypes, anyChanged = annotate_values context vNodes in
       let expNode' = { expNode with 
         exp= Values vNodes'; 
-        exp_types = List.map (fun v -> v.value_type) vNodes' 
+        exp_types = vTypes; 
       } 
       in 
       expNode', anyChanged  
-  | Cast(t, vNode) -> 
-      let vNode', changed = annotate_value context vNode in 
-      if vNode'.value_type = t then 
-        let expNode' = { expNode with exp = Values [vNode']; exp_types = [t] } 
-        in 
-        expNode', changed 
-      else 
-        let expNode' = { expNode with exp= Cast(t, vNode'); exp_types = [t] } 
-        in 
-        expNode', changed
+  | Cast(castType, vNode) -> 
+      let vNode',  vType, changed = annotate_value context vNode in 
+      let exp' = 
+        if vType = castType then Values [vNode'] 
+        else Cast(castType, vNode')
+      in 
+      let expNode' = { expNode with
+        exp = exp';  
+        exp_types = [castType] 
+      } 
+      in 
+      expNode', changed
          
   | Arr vs -> 
-      let vs', anyValueChanged = annotate_values context vs in 
-      let types = List.map (fun valNode -> valNode.value_type) vs' in 
+      let vs', types, anyValueChanged = annotate_values context vs in 
       begin match DynType.fold_type_list types with 
       | AnyT -> failwith "failed to find common type for elements of array"
       | commonT -> 
@@ -159,8 +158,9 @@ let rec annotate_exp context expNode =
           assert (List.length args > 1); 
           let fnArg = List.hd args in 
           let dataArgs = List.tl args in 
-          let dataArgs', argsChanged = annotate_values context dataArgs in
-          let types = List.map (fun v -> v.value_type) dataArgs' in
+          let dataArgs', types, argsChanged = 
+            annotate_values context dataArgs 
+          in
           (* for now just pass through the literal value but should eventually*)
           (* have a context available with an environment of literal value *)
           (* arguments and check whether the fnArg is in that environment. *)  
@@ -179,14 +179,13 @@ let rec annotate_exp context expNode =
              exp = App(specializedFn, dataArgs') 
            }
            in expNode', argsChanged
-       
+      
        (* for now assume all named functions are top-level and that none*)
        (* of the arguments are themselves functions. This means that for now *)
        (* the only higher order functions are built in primitives. *)  
        | GlobalFn _ 
        | Prim _ ->
-           let args', argsChanged = annotate_values context args in 
-           let types = List.map (fun valNode -> valNode.value_type) args' in
+           let args', types,  argsChanged = annotate_values context args in 
            let signature = Signature.from_input_types types in 
            let specializedFn = 
              specialize_function_value context.program fn.value signature 
@@ -244,7 +243,7 @@ and annotate_stmt context stmtNode =
   | Ignore exp -> failwith "Ignore stmt not yet implemented"
   | SetIdx (id, indices, rhs) -> failwith "SetIdx stmt not yet implemented"
   | If (cond, tBlock, fBlock, gate) -> 
-      let cond', condChanged = annotate_value context cond in
+      let cond', _, condChanged = annotate_value context cond in
       let tBlock', tTyEnv, tChanged = annotate_block context tBlock in 
       let fBlock', fTyEnv, fChanged = annotate_block context fBlock in     
       
@@ -516,15 +515,15 @@ and specialize_map
        Signature.outputs = forceOutputEltTypes }
   in 
   let nestedFn = specialize_function_value program f nestedSig in
-  let nestedOutputTypes = DynType.fn_output_types nestedFn.value_type in 
-  let outputTypes = List.map (fun t -> DynType.VecT t) nestedOutputTypes in
+  let outputTypes = 
+    TypeInfer.infer_adverb Prim.Map (nestedFn.value_type::inputTypes) 
+  in 
   let mapNode = { 
     value = Prim (Prim.ArrayOp Prim.Map);
     value_type = DynType.FnT(inputTypes, outputTypes); 
     value_src = None
   } 
   in
-  
   SSA_Codegen.mk_lambda inputTypes outputTypes 
     (fun codegen inputs outputs -> 
       let appNode = { 
@@ -620,12 +619,9 @@ and specialize_all_pairs
        Signature.outputs = forceOutputEltTypes }
   in 
   let nestedFn = specialize_function_value program f nestedSig in
-  let nestedOutputTypes = DynType.fn_output_types nestedFn.value_type in 
-  (* since we're doing all-pairs of inputs, create a 2d array of outputs *) 
-  
   let outputTypes = 
-    List.map (fun t -> DynType.VecT (DynType.VecT t)) nestedOutputTypes in
-  
+    TypeInfer.infer_adverb Prim.AllPairs (nestedFn.value_type :: inputTypes)
+  in  
   let allPairsNode = { 
     value = Prim (Prim.ArrayOp Prim.AllPairs);
     value_type = DynType.FnT(inputTypes, outputTypes); 
@@ -671,20 +667,49 @@ and specialize_first_order_array_prim
     ?( forceOutputTypes : DynType.t list option )
     ( inputTypes : DynType.t list) 
     : SSA.fundef =
-  match op, inputTypes with 
-    | Prim.Where, _ -> failwith "where not yet implemented"
+  if forceOutputTypes <> None then 
+     failwith  
+     "[Specialize->specialize_first_order_array_op] \ 
+      prespecified output types not implemented"
+  else
+  let outputType = TypeInfer.infer_simple_array_op op inputTypes in
+  let arrayOpNode = { 
+   value = Prim (Prim.ArrayOp op);
+   value_type = DynType.FnT(inputTypes, [outputType]); 
+   value_src = None
+  } 
+  in 
+  SSA_Codegen.mk_lambda inputTypes [outputType]
+    (fun codegen inputs outputs -> 
+       let appNode = { 
+        exp = App(arrayOpNode, inputs); 
+        exp_types = [outputType]; 
+        exp_src = None; 
+      } 
+      in 
+      codegen#emit [mk_set (get_ids outputs) appNode]
+    )
+ (*match op with 
+    | Prim.Where ->
+        
+        in  
+        
     | Prim.Index, _ -> failwith "index not yet implemented"
     | other, types -> 
         failwith $ Printf.sprintf 
         "[Specialize] specializtion of %s not implemented for input of type %s"
         (Prim.array_op_to_str other)
         (DynType.type_list_to_str types) 
-
+*)
 and specialize_q_operator 
     ( program : Program.program )
     ( op : Prim.q_op )
     ?( forceOutputTypes : DynType.t list option )
     ( inputTypes : DynType.t list) =
+  if forceOutputTypes <> None then 
+     failwith $ 
+     "[Specialize->specialize_q_op] prespecified output types not implemented"
+ else
   match op, inputTypes with 
     | _ ->  failwith "Q's not welcome here"
             

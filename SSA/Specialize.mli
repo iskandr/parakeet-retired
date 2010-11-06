@@ -33,12 +33,17 @@ val annotate_block
          
 val annotate_stmt 
     : context -> SSA.stmt_node -> (SSA.stmt_node * type_env * change_indicator)
-         
+
+                 
 val annotate_exp 
     : context -> SSA.exp_node -> (SSA.exp_node * change_indicator)
     
 val annotate_value 
-    : context -> SSA.value_node -> (SSA.value_node * change_indicator)  
+    : context -> SSA.value_node -> 
+        (SSA.value_node * DynType.t * change_indicator)  
 
+val annotate_values 
+    : context -> SSA.value_node list -> 
+         (SSA.value_node list * DynType.t list * change_indicator)
     
     
