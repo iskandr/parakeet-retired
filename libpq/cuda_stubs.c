@@ -136,6 +136,21 @@ value ocaml_cuda_memcpy_to_host (value array,
   CAMLreturn(Val_unit);
 }
 
+/* EEK */
+CAMLprim
+value ocaml_cuda_get_gpu_int_vec_element(value ocaml_gpu_vec, value ocaml_id) {
+  CAMLparam2(ocaml_gpu_vec, ocaml_id);
+  int *gpu_vec = (int*)Int32_val(ocaml_gpu_vec);
+  int32_t val = 0;
+  CUresult rslt =
+    cuMemcpyDtoH(&val, gpu_vec + Int_val(ocaml_id), sizeof(int32_t));
+  if (rslt) {
+    printf("Error getting element of gpu int vec: %d\n", rslt);
+    exit(1);
+  }
+  CAMLreturn(caml_copy_int32(val));
+}
+
 CAMLprim
 value ocaml_cuda_module_get_tex_ref(value ocaml_module_ptr, value ocaml_name) {
   CAMLparam2(ocaml_module_ptr, ocaml_name);

@@ -63,6 +63,9 @@ external cuda_memcpy_to_device  : HostPtr.t -> GpuPtr.t -> int -> unit
 external cuda_memcpy_to_host : HostPtr.t -> GpuPtr.t -> int -> unit
   = "ocaml_cuda_memcpy_to_host"
 
+external cuda_get_gpu_int_vec_element : GpuPtr.t -> int -> int
+  = "ocaml_cuda_get_gpu_int_vec_element"
+
 external cuda_device_get_count : unit -> int = "ocaml_cuda_device_get_count"
 
 external cuda_module_get_tex_ref : CuModulePtr.t -> string -> CuTexRef.t =

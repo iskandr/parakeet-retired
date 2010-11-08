@@ -89,8 +89,6 @@ int main(int argc, char **argv) {
   int same = 1;
   int left_idx, right_idx, x, y, k;
   float result, intermediate;
-  struct timeval *start, *end;
-  start = pq_gettime();
   for (y = 0; y < left_len; ++y) {
     for (x = 0; x < right_len; ++x) {
       left_idx  = vec_len * y;
@@ -101,19 +99,17 @@ int main(int argc, char **argv) {
           left[left_idx + k] - right[right_idx + k];
         result += intermediate * intermediate;
       }
-      result = sqrt(result);/*
-      if ((same && (fabs(1.0f - result / output[y * right_len + x]) >= 0.001f))
-         ) {
+      result = sqrt(result);
+      if (same &&
+          fabs((result - output[y * right_len + x]) / result) >= 0.001f) {
         printf("result[%d;%d]: %f\n", y, x, result);
         printf("output[%d;%d]: %f\n", y, x, output[y * right_len + x]);
-        printf("result/output: %f\n\n", fabs(1.0f - result /
-                                             output[y * right_len + x]));
+        printf("result/output: %f\n\n",
+               fabs((result - output[y * right_len + x]) / result));
       }
-      same &= (fabs(1.0f - result / output[y * right_len + x]) < 0.001f);*/
+      same &= ((result - output[y * right_len + x]) / result < 0.001f);
     }
   }
-  end = pq_gettime();
-  printf("CPU Time: %f\n", 1000* pq_diff_timers(start, end));
 
   if (same) {
     printf("Same!\n");

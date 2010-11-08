@@ -175,8 +175,8 @@ texture<float, 2, cudaReadModeElementType> leftTex;
 texture<float, 2, cudaReadModeElementType> rightTex;
 __global__ void all_dists_tex_kernel(int left_len, int right_len,
                                      int vec_len, float *output) {
-  int left_id  = blockIdx.x * THREADS_PER_DIM + threadIdx.x;
-  int right_id = blockIdx.y * THREADS_PER_DIM + threadIdx.y;
+  int left_id  = blockIdx.y * THREADS_PER_DIM + threadIdx.y;
+  int right_id = blockIdx.x * THREADS_PER_DIM + threadIdx.x;
   if (left_id < left_len && right_id < right_len) {
     float result = 0.0f;
     float intermediate;

@@ -3,7 +3,7 @@ open DynType
 open Imp
 open ImpCodegen
 
-let gen_gen_index () =
+let gen_where () =
   let codegen = new imp_codegen in
   let input = codegen#fresh_input (VecT Int32T) in
   let output = codegen#fresh_output (VecT Int32T) in
@@ -11,6 +11,8 @@ let gen_gen_index () =
   let id = codegen#fresh_var Int32T in
   let prev = codegen#fresh_var Int32T in
   codegen#emit [
+    set id (blockIdx.y *$ (int 16384) *$ blockDim.x +$
+            blockIdx.x *$ blockDim.x +$ threadIdx.x); 
     set prev (int 0);
     ifTrue (lt id (len input)) [
       ifTrue (gt id (int 0)) (set prev (idx input (sub id (int 1))));

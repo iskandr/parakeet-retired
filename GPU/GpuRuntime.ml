@@ -259,12 +259,12 @@ let compile_all_pairs globalFunctions payload argTypes retTypes =
 let allPairsCache  = Hashtbl.create 127 
  
 
-let run_all_pairs 
+let run_all_pairs
       (memState : MemoryState.mem_state)
       (globalFunctions : FnTable.t)
       (payload : SSA.fundef)
       (gpuVals : GpuVal.gpu_val list)
-      (outputTypes : DynType.t list) = 
+      (outputTypes : DynType.t list) =
   let inputTypes = List.map GpuVal.get_type gpuVals in 
   let cacheKey = payload.SSA.fn_id, inputTypes in 
   let compiledModule = 
@@ -297,8 +297,8 @@ let run_all_pairs
       *)
       let outputShape = Shape.create 2 in
       let nx = Shape.get xShape 0 in
-      let ny = Shape.get yShape 0 in  
-      Shape.set outputShape 0 nx; 
+      let ny = Shape.get yShape 0 in
+      Shape.set outputShape 0 nx;
       Shape.set outputShape 1 ny;
       let outputVals =
         List.map
@@ -313,7 +313,27 @@ let run_all_pairs
       in
       LibPQ.launch_ptx compiledModule.Cuda.module_ptr fnName args gridParams;
       outputVals
-    
+
+let run_where
+      (memState : MemoryState.mem_state)
+      (binVec   : GpuVal.gpu_val) =
+  Printf.printf "In run_where";
+  let scanShape = Shape.create 1 in
+  let nelts = GpuVal.nelts binVec in
+  Shape.set scanShape 0 nelts;
+  let scanInterm = GpuVal.mk_gpu_vec DynType.Int32T scanShape in
+  let gridParams = HardwareInfo.get_linear_grid_params nelts in
+  let binPtr = GpuVal.get_ptr binVec in
+  let scanPtr = GpuVal.get_ptr scanInterm in
+  Thrust.thrust_prefix_sum_int binPtr nelts scanPtr;
+  let numIdxs = Cuda.cuda_get_gpu_int_vec_element scanPtr (nelts - 1) in
+  Printf.printf "Number of idxs: %d" numIdxs;
+  let outputShape = Shape.create 1 in
+  Shape.set outputShape 0 numIdxs;
+  let output = GpuVal.mk_gpu_vec DynType.Int32T outputShape in
+  Kernels.bind_where_tex scanPtr nelts;
+  Kernels.where_tex nelts (GpuVal.get_ptr output);
+  [output]
 
 let init () = 
   (* initialize GPU contexts and device info *) 
@@ -323,16 +343,16 @@ let init () =
 let shutdown () = 
   for i = 0 to DynArray.length HardwareInfo.device_contexts - 1 do 
     Cuda.cuda_ctx_destroy (DynArray.get HardwareInfo.device_contexts i)
-  done 
+  done
   
-  
-let eval_array_op 
-      (memState : MemoryState.mem_state) 
-      (functions : FnTable.t) 
+let eval_array_op
+      (memState : MemoryState.mem_state)
+      (functions : FnTable.t)
       (op : Prim.array_op)
-      (args : InterpVal.t list) 
+      (args : InterpVal.t list)
       (outputTypes : DynType.t list)
       : GpuVal.gpu_val list =
+  Printf.printf "In eval array op";
   match op, args  with  
   | Prim.Map, (InterpVal.Closure(fnId, []))::dataArgs ->
       let fundef = FnTable.find fnId functions in
@@ -360,12 +380,12 @@ let eval_array_op
         "[GpuRuntime->eval_array_op] closures not yet supported for AllPairs"
   | Prim.Index, _ -> 
       failwith "indexing not implemented on GPU"
-  | Prim.Where, _ ->  
-      let gpuVals = List.map (MemoryState.get_gpu memState) args in 
-      let inputTypes = List.map GpuVal.get_type gpuVals in
-      failwith "where not implemented on GPU"
-         
+  | Prim.Where, [binVec] ->
+	    let gpuBinVec = MemoryState.get_gpu memState binVec in
+      run_where memState gpuBinVec
+  | Prim.Where, _ ->
+      failwith "[GpuRuntime->eval_array_op] where requires single binary vec"
+
   | _ -> failwith $ Printf.sprintf 
     "Array operator '%s' not yet implemented on GPU"
     (Prim.array_op_to_str op)
-
