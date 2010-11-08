@@ -36,5 +36,3 @@ let gen_map payload threadsPerBlock inTypes outTypes =
      codegen#emit [set (idx outputArgs.(i) mapIdx) outVars.(i)]
   done; 
   codegen#finalize
-   
-  

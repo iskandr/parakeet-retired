@@ -25,8 +25,11 @@ OCAMLINCLUDES = -I $(BUILDPATH) -I $(BUILDPATH)/Analysis \
 #COBJS = -ccopt $(PQ_PATH)/libpq.so 
 OBJS = cinterface.o
 COBJS = -ccopt -L/usr/lib/nvidia-current -ccopt $(PQ_PATH)/cuda_stubs.o \
-  $(PQ_PATH)/libpq_stubs.o $(PQ_PATH)/../OCAMLInterface/ocaml_interface.a -ccopt -lcuda \
-  -ccopt $(UINT_DIR)/libuint32_stubs.a -ccopt $(UINT_DIR)/libuint64_stubs.a 
+  $(PQ_PATH)/libpq_stubs.o $(PQ_PATH)/../OCAMLInterface/ocaml_interface.a \
+	-ccopt -lcuda -ccopt -L/usr/local/cuda/lib -ccopt -lcudart \
+	-ccopt $(PQ_PATH)/thrust_stubs.cu_o -ccopt $(PQ_PATH)/kernel_stubs.cu_o \
+	-ccopt $(PQ_PATH)/base.o \
+  -ccopt $(UINT_DIR)/libuint32_stubs.a -ccopt $(UINT_DIR)/libuint64_stubs.a
 
 OCAMLOBJS := $(shell find ../_build/ -name '*.cmx' | xargs -n1 basename ) 
 
@@ -103,7 +106,7 @@ all: cinterface
 cinterface: $(OBJS)
 	$(OCAMLCC) -linkall -ccopt -shared -ccopt -Wl,-Bsymbolic $(OBJS) \
 	$(OCAMLINCLUDES) $(COBJS) $(DEBUG) -ccopt -Wl,--start-group $(OCAMLOBJS) \
-	-ccopt -Wl,--end-group -o cinterface.so -verbose
+	-ccopt -Wl,--end-group -o cinterface.so -verbose -cclib -lstdc++
 
 cinterface.o: cinterface.c cinterface.h
 	$(OCAMLCC) $(OCAMLCFLAGS) $(DEBUG) -o cinterface.o cinterface.c

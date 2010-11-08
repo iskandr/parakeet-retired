@@ -57,3 +57,15 @@ let get_grid_params ?(device=0) ?(block_size=256) nThreads =
     Some {threads_x=block_size; threads_y=1; threads_z=1;
           grid_x=x; grid_y=y}
   else None
+
+let get_linear_grid_params ?(device=0) ?(block_size=256) nEls =
+  let deviceInfo = DynArray.get device_info device in
+  let max_gridx = deviceInfo.max_blocks_per_grid_x in
+  let max_gridy = deviceInfo.max_blocks_per_grid_y in
+  let num_blocks = safe_div nEls block_size in
+  if num_blocks <= max_gridx then
+    {threads_x=block_size; threads_y=1; threads_z=1;
+     grid_x=num_blocks; grid_y=1}
+  else
+    {threads_x=block_size; threads_y=1; threads_z=1;
+     grid_x=max_gridx; grid_y=safe_div num_blocks max_gridx}
