@@ -66,13 +66,7 @@ void calc_centroids(float *X, int num_vecs, int vec_len, int *assignment,
   int gridX, gridY;
   dim3 dimBlock(THREADS_PER_BLOCK);
   num_blocks = safe_div(num_vecs, THREADS_PER_BLOCK);
-  if (num_blocks > 16384) {
-    gridX = 16384;
-    gridY = safe_div(num_blocks, 16384);
-  } else {
-    gridX = num_blocks;
-    gridY = 1;
-  }
+  make_linear_grid(num_blocks, &gridX, &gridY);
   dim3 dimGrid(gridX, gridY);
   cudaChannelFormatDesc intDesc =
     cudaCreateChannelDesc(32, 0, 0, 0, cudaChannelFormatKindSigned);
@@ -110,13 +104,7 @@ void calc_centroids(float *X, int num_vecs, int vec_len, int *assignment,
                       num_matches * vec_len * sizeof(float));
     check_err(rslt, "Unable to malloc matches");
     num_blocks = safe_div(num_matches * vec_len, THREADS_PER_BLOCK);
-    if (num_blocks > 16384) {
-      gridX = 16384;
-      gridY = safe_div(num_blocks, 16384);
-    } else {
-      gridX = num_blocks;
-      gridY = 1;
-    }
+    make_linear_grid(num_blocks, &gridX, &gridY);
     dim3 dimIndexGrid(gridX, gridY);
     rslt = cudaBindTexture(0, indexIdxsTex, devIdxs, intDesc,
                            num_matches * sizeof(int));
@@ -133,13 +121,7 @@ void calc_centroids(float *X, int num_vecs, int vec_len, int *assignment,
 
     // Divide the result by the number of matches to get the average
     num_blocks = safe_div(vec_len, THREADS_PER_BLOCK);
-    if (num_blocks > 16384) {
-      gridX = 16384;
-      gridY = safe_div(num_blocks, 16384);
-    } else {
-      gridX = num_blocks;
-      gridY = 1;
-    }
+    make_linear_grid(num_blocks, &gridX, &gridY);
     dim3 dimDivideGrid(gridX, gridY);
     divide_map_kernel<<<dimDivideGrid, dimBlock>>>
       (num_matches, vec_len, devCurCentroid);
@@ -227,13 +209,7 @@ kmeans(float *X, int k, int *assignment, int maxiters,
                   safe_div(num_vecs, THREADS_PER_DIM));
   int num_min_blocks = safe_div(num_vecs, THREADS_PER_BLOCK);
   int grid_min_x, grid_min_y;
-  if (num_min_blocks > 16384) {
-    grid_min_x = 16384;
-    grid_min_y = safe_div(num_min_blocks, 16384);
-  } else {
-    grid_min_x = num_min_blocks;
-    grid_min_y = 1;
-  }
+  make_linear_grid(num_min_blocks, &grid_min_x, &grid_min_y);
   dim3 dim256Block(THREADS_PER_BLOCK);
   dim3 dimMinGrid(grid_min_x, grid_min_y);
   int converged = 0;

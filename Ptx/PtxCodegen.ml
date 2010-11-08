@@ -219,7 +219,7 @@ class ptx_codegen  = object (self)
    ***************************************************)
   val paramOrder : ID.t DynArray.t = DynArray.create()
   val dataLocations 
-    : (ID.t,  PtxCallingConventions.data_location) Hashtbl.t = Hashtbl.create 127 
+    : (ID.t, PtxCallingConventions.data_location) Hashtbl.t = Hashtbl.create 127 
   
 
 

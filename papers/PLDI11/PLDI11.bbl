@@ -1,0 +1,116 @@
+\begin{thebibliography}{10}
+
+\bibitem{AcceJa}
+{\sc Accelereyes}.
+\newblock Jacket.
+\newblock http://www.accelereyes.com.
+
+\bibitem{Alle08}
+{\sc Allen, E., Chase, D., Hallet, J., Luchangco, V., Maessen, J.-W., Ryu, S.,
+  Steele~Jr., G., and Tobin-Hochstadt, S.}
+\newblock The fortress language specification version 1.0, March 2008.
+\newblock http://research.sun.com/projects/plrg/fortress.pdf.
+
+\bibitem{Asan06}
+{\sc Asanovic, K., Bodik, R., Catanzaro, B.~C., Gebis, J.~J., Husbands, P.,
+  Keutzer, K., Patterson, D.~A., Plishker, W.~L., Shalf, J., Williams, S.~W.,
+  and Yelick, K.~A.}
+\newblock The landscape of parallel computing research: A view from {B}erkeley.
+\newblock Tech. Rep. UCB/EECS-2006-183, EECS Department, University of
+  California, Berkeley, Dec 2006.
+
+\bibitem{Bien08}
+{\sc Bienia, C., Kumar, S., Singh, J.~P., and Li, K.}
+\newblock The {PARSEC} benchmark suite: Characterization and architectural
+  implications.
+\newblock In {\em PACT '08: Proceedings of the 17th International Conference on
+  Processors, Architectures, and Compilation Techniques\/} (October 2008).
+
+\bibitem{Bill09}
+{\sc Billeter, M., Olsson, O., and Assarsson, U.}
+\newblock Efficient stream compaction on wide {SIMD} many-core architectures.
+\newblock In {\em HPG '09: Proceedings of the Conference on High Performance
+  Graphics 2009\/} (New York, NY, USA, 2009), ACM, pp.~159--166.
+
+\bibitem{Blel90}
+{\sc Blelloch, G.~E.}
+\newblock Prefix sums and their applications.
+\newblock Tech. Rep. CMU-CS-90-190, School of Computer Science, Carnegie Mellon
+  University, Nov 1990.
+
+\bibitem{Borr08}
+{\sc Borror, J.~A.}
+\newblock {\em Q For Mortals: A Tutorial In Q Programming}.
+\newblock CreateSpace, 2008.
+
+\bibitem{Minh08}
+{\sc Cao~Minh, C., Chung, J., Kozyrakis, C., and Olukotun, K.}
+\newblock {STAMP}: Stanford transactional applications for multi-processing.
+\newblock In {\em IISWC '08: Proceedings of The IEEE International Symposium on
+  Workload Characterization\/} (September 2008).
+
+\bibitem{Cata10}
+{\sc Catanzaro, B., Garland, M., and Keutzer, K.}
+\newblock Copperhead: Compiling an embedded data parallel language.
+\newblock Tech. Rep. UCB/EECS-2010-124, EECS Department, University of
+  California, Berkeley, Sep 2010.
+
+\bibitem{Char05}
+{\sc Charles, P., Grothoff, C., Saraswat, V., Donawa, C., Kielstra, A.,
+  Ebcioglu, K., von Praun, C., and Sarkar, V.}
+\newblock X10: An object-oriented approach to non-uniform cluster computing.
+\newblock In {\em OOPSLA '05: Proceedings of the 20th annual ACM SIGPLAN
+  conference on Object-Oriented Programming, Systems, Languages, and
+  Applications\/} (New York, NY, USA, 2005), ACM, pp.~519--538.
+
+\bibitem{Chen05}
+{\sc Chen, W.-Y., Iancu, C., and Yelick, K.}
+\newblock Communication optimizations for fine-grained {UPC} applications.
+\newblock In {\em PACT '05: Proceedings of the 14th International Conference on
+  Processors, Architectures, and Compilation Techniques\/} (Washington, DC,
+  USA, 2005), IEEE Computer Society, pp.~267--278.
+
+\bibitem{Cole04}
+{\sc Cole, M.}
+\newblock Bringing skeletons out of the closet: A pragmatic manifesto for
+  skeletal parallel programming.
+\newblock {\em Parallel Computing 30}, 3 (2004), 389--406.
+
+\bibitem{Elli04}
+{\sc Elliot, C.}
+\newblock Programming graphics processors functionally.
+\newblock In {\em Proceedings of the 2004 Haskell Workshop\/} (2004), ACM
+  Press.
+
+\bibitem{Muns08}
+{\sc Munshi, A.}
+\newblock {OpenCL}: Parallel computing on the {GPU} and {CPU}.
+\newblock Presentation at {SIGGRAPH} 2008
+  http://s08.idav.ucdavis.edu/munshi-opencl.pdf.
+
+\bibitem{NvidCU}
+{\sc {NVIDIA}}.
+\newblock {CUDA ZONE}.
+\newblock http://www.nvidia.com/cuda.
+
+\bibitem{Sven08}
+{\sc Svensson, J., Sheeran, M., and Claessen, K.}
+\newblock Obsidian: A domain specific embedded language for parallel
+  programming of graphics processors.
+\newblock In {\em Implementation and Application of Functional Languages, 20th
+  International Symposium, IFL 2008\/} (2008).
+
+\bibitem{Tard06}
+{\sc Tarditi, D., Puri, S., and Oglesby, J.}
+\newblock Accelerator: Using data parallelism to program gpus for
+  general-purpose uses.
+\newblock Tech. Rep. MSR-TR-2005-184, Microsoft Research, October 2006.
+
+\bibitem{Wolf91}
+{\sc Wolf, M.~E., and Lam, M.~S.}
+\newblock A data locality optimizing algorithm.
+\newblock In {\em PLDI '91: Proceedings of the 1991 ACM SIGPLAN conference on
+  Programming Languages Design and Implementation\/} (New York, NY, USA, 1991),
+  ACM, pp.~30--44.
+
+\end{thebibliography}
