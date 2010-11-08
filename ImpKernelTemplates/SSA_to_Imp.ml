@@ -29,31 +29,41 @@ and translate_exp codegen globalFunctions idEnv expectedType expNode =
         typed_op op vs' 
   (* assume you only have one array over which you're mapping for now *)
   | SSA.App({SSA.value=SSA.Prim (Prim.ArrayOp Prim.Map);
-            value_type = FnT([payloadT; arrT], [outputT])},
-            [payload; arr]) ->
+            value_type = FnT(payloadT :: arrayTypes, [outputType])},
+            payload :: arrays) ->
     (match payload.SSA.value with
-      | SSA.Var fnId ->
-        let fundef = FnTable.find fnId globalFunctions in
-        let fundef' = translate_fundef globalFunctions fundef in
-        let arr' = translate_value idEnv arr in
-        let output = codegen#fresh_var outputT in
+      | SSA.GlobalFn fnId ->
+        let fundef_ssa = FnTable.find fnId globalFunctions in
+        let fundef_imp = translate_fundef globalFunctions fundef_ssa in
+        let arrays_imp = List.map (translate_value idEnv) arrays in
+        let maxInput = 
+          ImpMapTemplate.find_largest_exp_by_type (Array.of_list arrays_imp) 
+        in 
+        let output =  
+          codegen#fresh_array_output outputType (all_dims maxInput) 
+        in 
         let i = codegen#fresh_var Int32T in
         let n = codegen#fresh_var Int32T in
         let bodyBlock = [
           set i (int 0);
-          set n (len arr');
+          set n (len maxInput);
           while_ (i <$ n) [SPLICE; set i (i +$ (int 1))]
         ] in
-        codegen#splice_emit fundef' [|idx arr' i|] [|idx output i|] bodyBlock;
+        let lhs = [|idx output i|] in 
+        let rhs = Array.of_list (List.map (fun arr -> idx arr i) arrays_imp) in 
+        codegen#splice_emit fundef_imp rhs lhs bodyBlock;
         output
       | _ -> failwith "[ssa->imp] Expected function identifier"
     )
+  | SSA.App({SSA.value=SSA.Prim (Prim.ArrayOp Prim.Map)}, _) -> 
+      failwith "Map not implemented"
+
   (* assume you only have one initial value, and one array to be reduced *)    
   | SSA.App({SSA.value=SSA.Prim (Prim.ArrayOp Prim.Reduce); 
              value_type =FnT([payloadT; initialT; arrT], [outputT])},
              [payload; initial; arr]) ->
     (match payload.SSA.value with 
-	    | SSA.Var fnId -> 
+	    | SSA.GlobalFn fnId -> 
 	      let fundef = FnTable.find fnId globalFunctions in 
         let fundef' = translate_fundef globalFunctions fundef in 
 	      let initial' = translate_value idEnv initial in 

@@ -3,17 +3,17 @@ open DynType
 open Imp
 open ImpCodegen
 
-let find_largest_input inVars inTypes =
-  let maxType = ref inTypes.(0) in 
-  (* find a variable of maximal type, 
+(* find a variable of maximal type, 
      keep track of the corresponding variable 
-  *)
-  let maxVar = ref inVars.(0) in   
-  for i = 1 to Array.length inTypes - 1 do
-    if DynType.is_structure_subtype !maxType inTypes.(i) then 
-      maxVar := inVars.(i)
+*)
+
+let find_largest_exp_by_type exps =
+  let maxExp = ref exps.(0) in   
+  for i = 1 to Array.length exps - 1 do
+    if DynType.is_structure_subtype !maxExp.exp_type exps.(i).exp_type then 
+      maxExp := exps.(i)
   done; 
-  !maxVar  
+  !maxExp  
       
 
 (* assume all threadblocks are 1d row of size threadsPerBlock *) 
@@ -22,7 +22,7 @@ let gen_map payload threadsPerBlock inTypes outTypes =
   assert (Array.length outTypes > 0); 
   let codegen = new imp_codegen in 
   let inputArgs = Array.map codegen#fresh_input inTypes in
-  let largestInput = find_largest_input inputArgs inTypes in
+  let largestInput = find_largest_exp_by_type inputArgs in
   let outputSizes = all_dims largestInput in  
   let outputArgs = 
     Array.map (fun t -> codegen#fresh_array_output t outputSizes) outTypes 
