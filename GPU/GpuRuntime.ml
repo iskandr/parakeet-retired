@@ -21,28 +21,13 @@ exception InvalidGpuArgs
 let sizeof ty shape =
   DynType.sizeof (DynType.elt_type ty) * Shape.nelts shape  
 
-type adverb_cache = (ID.t * DynType.t list, Cuda.cuda_module) Hashtbl.t 
-
-let mk_cuda_module 
-    (kernelList : (string * Ptx.kernel) list) 
-    threadsPerBlock =
- 
-  let ptxModule = Ptx.module_from_named_kernels kernelList in  
-  let ptxStr = Ptx.ptx_module_to_str ptxModule in
-  print_string ptxStr;
-  flush stdout; 
-  let modulePtr = LibPQ.compile_module ptxStr threadsPerBlock in
-  (* take an input space and change it from referring to 
-     kernel-local symids to module-level names 
-  *) 
-  { 
-    Cuda.module_ptr = modulePtr;
-    kernels =  
-      List.map 
-        (fun (name,kernel)-> name, kernel.Ptx.calling_conventions) 
-        kernelList;
-    threads_per_block =  threadsPerBlock
-  } 
+type code_cache_entry = { 
+  imp_source : Imp.fn; 
+  cc : PtxCallingConventions.calling_conventions;
+  cuda_module : Cuda.cuda_module
+} 
+   
+type code_cache = (ID.t * DynType.t list, code_cache_entry) Hashtbl.t 
 
 
 (* any given gpu argument might either get placed into the array 
@@ -50,9 +35,9 @@ let mk_cuda_module
    global texture
 *) 
 let create_input_arg modulePtr argsDynArray inputVal = function
-  | Ptx.ScalarInput 
-  | Ptx.GlobalInput ->  DynArray.add argsDynArray inputVal
-  | Ptx.TextureInput (texName, geom) ->  
+  | PtxCallingConventions.ScalarInput 
+  | PtxCallingConventions.GlobalInput ->  DynArray.add argsDynArray inputVal
+  | PtxCallingConventions.TextureInput (texName, geom) ->  
     let texRef = Cuda.cuda_module_get_tex_ref modulePtr texName in
     let inputShape = GpuVal.get_shape inputVal in
     let inputPtr = GpuVal.get_ptr inputVal in
@@ -73,25 +58,67 @@ let create_input_arg modulePtr argsDynArray inputVal = function
     end 
     
       
-let create_gpu_args 
-    modulePtr 
-    ~preallocs 
-    ~inputs
-    ~input_conventions  
-    ~outputs =  
-  let argsArray : GpuVal.gpu_val DynArray.t = DynArray.create () in
-  (* add all preallocated space *) 
-  List.iter (DynArray.add argsArray) preallocs;
-  (* add all inputs, each according to its specified convention *)    
-  Array.iter2 
-    (create_input_arg modulePtr argsArray)
-    (Array.of_list inputs)
-    input_conventions
-  ;
-  (* add each output *) 
-  List.iter (DynArray.add argsArray) outputs;
-  DynArray.to_array argsArray  
+let create_gpu_arg_env 
+    ~(input_ids : ID.t list)
+    ~(input_vals : GpuVal.gpu_val list)
+    ~(local_ids : ID.t list)
+    ~(output_ids : ID.t list) 
+    ~(shape_env : Shape.t ID.Map.t)
+    ~(type_env : (ID.t, DynType.t) PMap.t) =
+  (* for now ignore calling_conventions.data_locations *)
+  let initEnv =  
+    List.fold_left2 
+      (fun env id gpuVal  -> ID.Map.add id gpuVal env)
+      ID.Map.empty  
+      input_ids
+      input_vals
+  in 
+  List.fold_left  
+    (fun env id -> 
+      if not $ ID.Map.mem id env then (
+        let ty = PMap.find id type_env in
+        if not $ DynType.is_scalar ty then (
+          let shape = ID.Map.find id shape_env in
+          (* don't yet handle scalar outputs *) 
+          assert (Shape.rank shape > 0);
+          ID.Map.add id (GpuVal.mk_gpu_vec ty shape) env
+        )
+        else env 
+      )
+      else env   
+    )
+    initEnv
+    (local_ids @ output_ids)
   
+  
+let create_args 
+      (impfn : Imp.fn)
+      (cc : PtxCallingConventions.calling_conventions)
+      (inputs: GpuVal.gpu_val list) =
+  let inputShapes = List.map GpuVal.get_shape inputs in 
+  let shapeEnv = ImpShapeInference.infer_shapes impfn inputShapes in
+  let outputIds = (Array.to_list impfn.Imp.output_ids) in 
+  let valueEnv = 
+    create_gpu_arg_env
+      ~input_ids:(Array.to_list impfn.Imp.input_ids)
+      ~input_vals:inputs
+      ~local_ids:(Array.to_list impfn.Imp.local_ids)
+      ~output_ids:outputIds
+      ~shape_env:shapeEnv
+      ~type_env:impfn.Imp.tenv
+  in 
+  let paramsArray = 
+    Array.map 
+      (fun id -> ID.Map.find id valueEnv) 
+      cc.PtxCallingConventions.param_order
+  in
+  let outputsList = List.map (fun id -> ID.Map.find id valueEnv) outputIds in
+  paramsArray, outputsList 
+     
+     
+
+  
+let map_id_gen = mk_gen()
 let compile_map globalFunctions payload argTypes retTypes =
   let mapThreadsPerBlock = 128 in
   (* converting payload to Imp *) 
@@ -104,65 +131,48 @@ let compile_map globalFunctions payload argTypes retTypes =
       (Array.of_list argTypes) 
       (Array.of_list retTypes) 
   in   
-  let kernel = ImpToPtx.translate_kernel impfn in
-  let mapPrefix = "map_kernel" in 
-  let name = mapPrefix ^ (string_of_int (ID.gen())) in
-  mk_cuda_module [name, kernel] mapThreadsPerBlock
+  let kernel, cc = ImpToPtx.translate_kernel impfn in
+  let kernelName = "map_kernel" ^ (string_of_int (map_id_gen())) in
+  let cudaModule = 
+    LibPQ.cuda_module_from_kernel_list [kernelName, kernel] mapThreadsPerBlock
+  in    
+  {imp_source=impfn; cc=cc; cuda_module=cudaModule} 
 
-let mapCache : adverb_cache = Hashtbl.create 127
+let mapCache : code_cache = Hashtbl.create 127
  
-let run_map  memState globalFunctions payload gpuVals outputTypes =
+let run_map memState globalFunctions payload gpuVals outputTypes =
   let inputTypes = List.map GpuVal.get_type gpuVals in  
   let cacheKey = (payload.SSA.fn_id, inputTypes) in  
-  let compiledModule = 
+  let {imp_source=impKernel; cc=cc; cuda_module=cudaModule} = 
     if Hashtbl.mem mapCache cacheKey then 
       Hashtbl.find mapCache cacheKey
     else (
-      let m = 
-        compile_map globalFunctions payload inputTypes outputTypes in
-      Hashtbl.add mapCache cacheKey m; 
-      m
+      let entry = 
+        compile_map globalFunctions payload inputTypes outputTypes 
+      in
+      Hashtbl.add mapCache cacheKey entry; 
+      entry
     )  
   in      
-
-  
-  let inputShapes = List.map GpuVal.get_shape gpuVals in
-  let outputShapes, shapeEnv = 
-    ShapeInference.infer_map globalFunctions payload inputShapes 
-  in 
-  
-  let outputVals =
-    List.map2 
-      (fun shape ty ->  GpuVal.mk_gpu_vec ty shape) 
-      outputShapes 
-      outputTypes
-  in
+  let paramsArray, outputVals = create_args impKernel cc gpuVals in  
   (* create one CUDA thread per every input element *) 
-  let maxShape = match Shape.max_shape_list inputShapes with 
+  assert (List.length cudaModule.Cuda.kernel_names = 1); 
+  let fnName = List.hd cudaModule.Cuda.kernel_names in
+  let maxShape = 
+    match Shape.max_shape_list (List.map GpuVal.get_shape gpuVals) with 
     | Some maxShape -> maxShape  
     | None -> assert false
   in 
   let outputElts = Shape.nelts maxShape in
-  assert (List.length compiledModule.Cuda.kernels = 1); 
-  let fnName, callingConventions = List.hd compiledModule.Cuda.kernels in
   let gridParams = 
     match HardwareInfo.get_grid_params ~device:0 
-      ~block_size:compiledModule.Cuda.threads_per_block outputElts
+      ~block_size:cudaModule.Cuda.threads_per_block outputElts
     with
       | Some gridParams -> gridParams
       | None ->
         failwith (sprintf "Unable to get launch params for %d elts" outputElts)
   in
-  let args = 
-    create_gpu_args 
-        compiledModule.Cuda.module_ptr 
-        ~preallocs:[]
-        ~inputs:gpuVals 
-        ~input_conventions:callingConventions
-        ~outputs:outputVals 
-        
-  in  
-  LibPQ.launch_ptx compiledModule.Cuda.module_ptr fnName args gridParams; 
+  LibPQ.launch_ptx cudaModule.Cuda.module_ptr fnName paramsArray gridParams;
   outputVals
 
 
@@ -174,13 +184,16 @@ let compile_reduce globalFunctions payload retTypes =
     ImpReduceTemplate.gen_reduce impPayload redThreadsPerBlock retTypes 
   in
   debug (Printf.sprintf "[compile_reduce] %s\n" (Imp.fn_to_str impfn));
-  let ptx = ImpToPtx.translate_kernel impfn in
+  let ptx, cc = ImpToPtx.translate_kernel impfn in
   let reducePrefix = "reduce_kernel" in 
   let name = reducePrefix ^ (string_of_int (ID.gen())) in
-  mk_cuda_module [name,ptx] redThreadsPerBlock
+  let cudaModule = 
+    LibPQ.cuda_module_from_kernel_list [name,ptx] redThreadsPerBlock
+  in 
+  {imp_source=impfn; cc=cc; cuda_module=cudaModule} 
 
 
-let reduceCache : adverb_cache  = Hashtbl.create 127 
+let reduceCache : code_cache  = Hashtbl.create 127 
 
 let run_reduce 
       (memState : MemoryState.mem_state)
@@ -190,25 +203,27 @@ let run_reduce
       (outputTypes : DynType.t list) = 
   let inputTypes = List.map GpuVal.get_type gpuVals in 
   let cacheKey = payload.SSA.fn_id, inputTypes in 
-  let compiledModule = 
+  let {imp_source=impKernel; cc=_; cuda_module=compiledModule} =  
     if Hashtbl.mem reduceCache cacheKey then Hashtbl.find reduceCache cacheKey
     else (
-      let m = compile_reduce globalFunctions payload outputTypes in 
-      Hashtbl.add reduceCache cacheKey m; 
-      m
+      let entry =  
+        compile_reduce globalFunctions payload outputTypes 
+      in 
+      Hashtbl.add reduceCache cacheKey entry; 
+      entry
     )
   in 
   let threadsPerBlock = compiledModule.Cuda.threads_per_block in
   assert (List.length outputTypes = 1); 
   let outputType = List.hd outputTypes in 
-  match compiledModule.Cuda.kernels, gpuVals with
+  match compiledModule.Cuda.kernel_names, gpuVals with
     (* WAYS THIS IS CURRENTLY WRONG: 
        - we are ignoring the initial value
        - we are only allowing reductions over a single array
        - we only deal with 1D arrays
        - only scalar outputs are allowed  
     *) 
-    | [fnName, _], _ :: [gpuVal] ->
+    | [fnName], _ :: [gpuVal] ->
       let numInputElts = Shape.nelts (GpuVal.get_shape gpuVal) in
       let rec aux inputArg curNumElts =
         if curNumElts > 1 then (
@@ -248,16 +263,16 @@ let compile_all_pairs globalFunctions payload argTypes retTypes =
       let impfn =
         ImpAllPairsTemplate.gen_all_pairs_2d_naive impPayload t1 t2 retTypes
       in
-      (* TODO: add input space annotations and nested data allocations *)
-      let kernel = ImpToPtx.translate_kernel impfn in
+      let kernel, cc = ImpToPtx.translate_kernel impfn in
       let allPairsPrefix = "all_pairs_kernel" in 
-      let name = allPairsPrefix ^ (string_of_int (ID.gen())) in  
-      mk_cuda_module [name, kernel] threadsPerBlock 
-      
+      let name = allPairsPrefix ^ (string_of_int (ID.gen())) in
+      let compiledModule = 
+        LibPQ.cuda_module_from_kernel_list [name, kernel] threadsPerBlock 
+      in   
+      {imp_source=impfn; cc=cc; cuda_module=compiledModule} 
     | _ -> failwith "[compile_all_pairs] invalid argument types "
 
 let allPairsCache  = Hashtbl.create 127 
- 
 
 let run_all_pairs
       (memState : MemoryState.mem_state)
@@ -267,38 +282,37 @@ let run_all_pairs
       (outputTypes : DynType.t list) =
   let inputTypes = List.map GpuVal.get_type gpuVals in 
   let cacheKey = payload.SSA.fn_id, inputTypes in 
-  let compiledModule = 
+  let {imp_source=impKernel; cc=cc; cuda_module=compiledModule} = 
     if Hashtbl.mem allPairsCache cacheKey then 
       Hashtbl.find allPairsCache cacheKey
     else (
-      let m = 
+      let entry = 
         compile_all_pairs globalFunctions payload inputTypes outputTypes 
       in 
-      Hashtbl.add allPairsCache cacheKey m;
-      m
+      Hashtbl.add allPairsCache cacheKey entry;
+      entry
     )
   in
-  match compiledModule.Cuda.kernels, gpuVals with
+  match compiledModule.Cuda.kernel_names, gpuVals with
     | _, [] 
     | _, [_] | _, _::_::_::_ ->  
         failwith "[run_all_pairs] wrong number of arguments"
     | [], _ 
     | _::_::_, _ ->
         failwith "[run_all_pairs] wrong number of functions" 
-    | [fnName, _], [xGpu;yGpu] ->
-      (* until we have proper shape inference, we can only deal with functions 
-        that return scalars 
-      *) 
-      let fnReturnTypes = DynType.fn_output_types payload.SSA.fn_type in 
-      assert (List.for_all DynType.is_scalar fnReturnTypes);  
+    | [fnName], [xGpu;yGpu] ->
+
+      
       let xShape, yShape = GpuVal.get_shape xGpu, GpuVal.get_shape yGpu in
+      let nx = Shape.get xShape 0 in
+      let ny = Shape.get yShape 0 in
+      let paramsArray, outputVals = create_args impKernel cc gpuVals in 
+      
       (* since we assume that the nested function returns scalars, 
          the result will always be 2D
       *)
-      let outputShape = Shape.create 2 in
-      let nx = Shape.get xShape 0 in
-      let ny = Shape.get yShape 0 in
-      Shape.set outputShape 0 nx;
+      (*let outputShape = Shape.create 2 in*)
+      (*Shape.set outputShape 0 nx;
       Shape.set outputShape 1 ny;
       let outputVals =
         List.map
@@ -306,12 +320,13 @@ let run_all_pairs
           outputTypes
       in
       let args = Array.of_list (xGpu :: yGpu :: outputVals) in
+      *)
       let gridParams = {
           LibPQ.threads_x=16; threads_y=16; threads_z=1;
           grid_x=safe_div nx 16; grid_y=safe_div ny 16;
       }
       in
-      LibPQ.launch_ptx compiledModule.Cuda.module_ptr fnName args gridParams;
+      LibPQ.launch_ptx compiledModule.Cuda.module_ptr fnName paramsArray gridParams;
       outputVals
 
 let run_where

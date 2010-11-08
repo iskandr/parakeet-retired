@@ -2,9 +2,8 @@ open Base
 open Ptx
 open PtxType 
 open PtxVal 
-open PtxHelpers
 
-exception InvalidGpuOp of gpu_op
+exception InvalidGpuOp of ptx_op
 
 let rec simplify codegen instr  =
   match instr.op with

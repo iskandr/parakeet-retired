@@ -26,13 +26,7 @@ type device_info = {
 }
 
 
-   
-(* a module and a list of the kernel names in that module *) 
-type cuda_module = {
-  module_ptr : CuModulePtr.t;
-  kernels : (string *  (Ptx.calling_convention array)) list;
-  threads_per_block : int 
-}
+
 
 type cuda_channel_format_kind =
   | Signed
@@ -82,3 +76,14 @@ let cuda_bind_texture_2d_std_channel (texRef : CuTexRef.t)
       cuda_bind_texture_2d_std_channel_impl texRef devPtr width height 1
   | Float -> cuda_bind_texture_2d_std_channel_impl texRef devPtr width height 2
   | _ -> failwith "[cuda] Unsupported texture type"
+
+
+   
+(* a module and a list of the kernel names in that module *) 
+type cuda_module = {
+  module_ptr : CuModulePtr.t;
+  kernel_names : string list; 
+  threads_per_block : int; (* useless param *) 
+}
+
+  

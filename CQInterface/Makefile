@@ -71,7 +71,7 @@ Specialize.cmx \
 PtxType.cmx PtxVal.cmx Ptx.cmx Shape.cmx \
 HostVal.cmx GpuVal.cmx InterpVal.cmx \
 MemoryState.cmx \
-PtxHelpers.cmx LibPQ.cmx \
+LibPQ.cmx \
 PtxSimplify.cmx PtxTidy.cmx PtxCodegen.cmx \
 Imp.cmx \
 ImpCommon.cmx \
@@ -85,7 +85,6 @@ SSA_to_Imp.cmx \
 ImpShapeInference.cmx \
 QType.cmx HardwareInfo.cmx \
 ShapeInference.cmx \
-AllocationAnalysis.cmx \
 Cuda.cmx \
 GpuRuntime.cmx \
 Eval.cmx \

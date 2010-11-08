@@ -81,11 +81,12 @@ and exp_to_str = function
         (DynType.to_str tOld) 
         (DynType.to_str tNew) 
         (exp_node_to_str e)
-  | DimSize (k, e) -> sprintf "dimsize(%s, %d)" (exp_node_to_str e) k  
+  | DimSize (k, e) -> sprintf "dimsize(%s, %d)" (exp_node_to_str e) k
   | ThreadIdx c -> sprintf "threadidx.%s" (coord_to_str c)
   | BlockIdx c -> sprintf "blockidx.%s" (coord_to_str c)
   | BlockDim c -> sprintf "blockdim.%s" (coord_to_str c)
   | GridDim c -> sprintf "griddim.%s" (coord_to_str c)
+  
 
 and stmt_to_str ?(spaces="") = function 
   | If (cond, tBlock, fBlock) ->
@@ -276,7 +277,10 @@ let all_dims ( x : exp_node) : exp_node list =
   List.map (fun i -> dim i x) (List.til ndims)
    
 let len x = uint_exp $ DimSize(1, x)
- 
+
+
+let max_ ?t x y = typed_op Prim.Max ?t [x;y]
+let min_ ?t x y = typed_op Prim.Min ?t [x;y]  
 
 let mul ?t x y = typed_op Prim.Mult ?t [x;y] 
 let ( *$ ) = mul 

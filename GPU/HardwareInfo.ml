@@ -25,22 +25,19 @@ let hw_init () =
       DynArray.add device_info properties;
       let ctx = cuda_ctx_create i in 
       DynArray.add device_contexts ctx;
-      debug (sprintf "Properties of GPU device %d: \n" i); 
-      debug 
-        (sprintf 
-          "\t -- max threads per block: %d\n" 
-          properties.max_threads_per_block); 
-      debug (sprintf 
-              "\t -- max blocks per grid x: %d\n" 
-              properties.max_blocks_per_grid_x);
-      debug 
-        (sprintf "\t -- shared mem per block: %d\n"  
-          properties.shared_mem_per_block);      
-      debug 
-        (sprintf 
-          "\t -- total constant mem: %d\n" properties.total_constant_mem); 
-      debug (sprintf "\t -- warp size: %d\n" properties.warp_size); 
-      debug (sprintf "\t -- clock_rate: %d\n" properties.clock_rate_khz); 
+      IFDEF DEBUG THEN
+        printf "Properties of GPU device %d: \n" i; 
+        printf "\t -- max threads per block: %d\n" 
+          properties.max_threads_per_block;
+        printf "\t -- max blocks per grid x: %d\n" 
+              properties.max_blocks_per_grid_x;
+        printf "\t -- shared mem per block: %d\n"  
+          properties.shared_mem_per_block;
+        printf 
+          "\t -- total constant mem: %d\n" properties.total_constant_mem; 
+        printf "\t -- warp size: %d\n" properties.warp_size; 
+        printf "\t -- clock_rate: %d\n" properties.clock_rate_khz;
+     ENDIF; 
     done 
   end
 

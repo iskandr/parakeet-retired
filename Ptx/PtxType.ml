@@ -134,3 +134,12 @@ let rec to_str = function
   | B64 -> "b64"
   | V2 t -> "v2." ^ (to_str t)
   | V4 t -> "v4." ^ (to_str t)
+
+let rec suffix = function 
+  | U8 -> "c" | U16 -> "h" | U32 -> "u" | U64 -> "l"
+  | S8 -> "sc" | S16 -> "sh" | S32 -> "s" | S64 -> "sl"
+  | F16 -> "fh" | F32 -> "f" | F64 -> "d"
+  | B8 -> "b" | B16 -> "bh" | B32 -> "b" | B64 -> "bl"
+  | Pred -> "p"
+  | V2 t -> (suffix t) ^ "_v2" 
+  | V4 t -> (suffix t) ^ "_v4"

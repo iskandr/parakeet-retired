@@ -1,7 +1,12 @@
 open Base
 open Imp 
 
-let rec eval_size_expression shapeEnv = function 
+let rec eval_size_expression shapeEnv exp = 
+  IFDEF DEBUG THEN 
+    Printf.printf "[ImpShapeInference] evaluating size expression: %s\n"
+    (Imp.exp_to_str exp);
+  ENDIF; 
+  match exp with  
   | Op (Prim.Add, _, [arg1; arg2]) -> 
       let x1 = eval_size_expression shapeEnv arg1.exp in 
       let x2 = eval_size_expression shapeEnv arg2.exp in 
@@ -17,14 +22,25 @@ let rec eval_size_expression shapeEnv = function
   
   | Const n -> PQNum.to_int n
   | DimSize(dim, {exp=Var id}) -> 
-    let shape = ID.Map.find id shapeEnv in 
-    Shape.get shape dim    
+      if ID.Map.mem id shapeEnv then 
+        let shape = ID.Map.find id shapeEnv in 
+        Shape.get shape dim
+      else failwith $ Printf.sprintf 
+        "[ImpShapeInference] shape not found for %s" (ID.to_str id)    
   | other -> failwith $ 
       Printf.sprintf "[ShapeInference] Unexpected expression: %s"
       (Imp.exp_to_str other)
 
 
-let infer_shapes fn inputShapes =
+let infer_shapes fn (inputShapes : Shape.t list) =
+  IFDEF DEBUG THEN
+    Printf.printf 
+      "Inferring shapes for function (%s)->(%s) with input shapes %s\n "
+      (String.concat ", " (Array.to_list (Array.map ID.to_str fn.input_ids)))
+      (String.concat ", " (Array.to_list (Array.map ID.to_str fn.output_ids)))
+      (String.concat ", " (List.map Shape.to_str inputShapes)) 
+    ;
+  ENDIF; 
   (* shapes of all inputs *) 
   let inputEnv = 
     Array.fold_left2 

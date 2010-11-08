@@ -10,7 +10,6 @@
 open Base
 open Ptx
 open PtxVal 
-open PtxHelpers
 
 let initialNumRegs = 29 
   
@@ -147,16 +146,7 @@ class ptx_codegen  = object (self)
     shapeReg  
   
   method fresh_reg gpuT =
-    let rec reg_prefix = function 
-    | U8 -> "r_char_" | U16 -> "rh" | U32 -> "r" | U64 -> "rl"
-    | S8 -> "r_schar_" | S16 -> "rsh" | S32 -> "rs" | S64 -> "rsl"
-    | F16 -> "rfh" | F32 -> "rf" | F64 -> "rd"
-    | B8 -> "r_byte" | B16 -> "rbh" | B32 -> "rb" | B64 -> "rbl"
-    | Pred -> "p"
-    | V2 t -> (reg_prefix t) ^ "_v2" 
-    | V4 t -> (reg_prefix t) ^ "_v4"
-    in 
-    let reg_name = fun gpuT id -> (reg_prefix gpuT) ^ (string_of_int id) in 
+    let reg_name gpuT id = Printf.sprintf "r%s%d" (PtxType.suffix gpuT) id in 
     let currMax = match Hashtbl.find_option maxRegs gpuT with 
       | Some max -> max
       | None -> 0 
@@ -174,8 +164,6 @@ class ptx_codegen  = object (self)
  (** returns a list of register ids for requested type **)
   method fresh_regs gpuT count =
     Array.init count (fun _ -> self#fresh_reg gpuT)
-
-  
 
   method declare_shared_vec (id : ID.t) dynEltT (dims : int list)  = 
     Hashtbl.add dynTypes id dynEltT;
@@ -226,11 +214,22 @@ class ptx_codegen  = object (self)
        self#emit [add PtxType.ptrT sliceShapeReg shapeReg (int 4)]  
      end
 
+  (***************************************************
+               CALLING CONVENTIONS 
+   ***************************************************)
+  val paramOrder : ID.t DynArray.t = DynArray.create()
+  val dataLocations 
+    : (ID.t,  PtxCallingConventions.data_location) Hashtbl.t = Hashtbl.create 127 
+  
+
+
   (* shared between storage arguments-- used for local vectors, 
      and global input arguments 
   *) 
-  method private declare_arg (id : ID.t) (dynT : DynType.t) : PtxVal.value = 
-    Hashtbl.add dynTypes id dynT; 
+  method private declare_param  (id : ID.t) (dynT : DynType.t) : PtxVal.value =
+     
+    Hashtbl.add dynTypes id dynT;
+    DynArray.add paramOrder id;  
     let paramId = self#fresh_arg_id in  
     let gpuStorageT = PtxType.storage_of_dyn_type dynT in  
     self#add_param_decl paramId gpuStorageT;
@@ -239,16 +238,16 @@ class ptx_codegen  = object (self)
     self#emit [ld_param gpuStorageT storageReg dataParam];
     let gpuT = PtxType.of_dyn_type dynT in
     let dataReg =  
-        (* 
-           if storage and register types aren't the same, 
-           then we need conversion code (for types like bool, u8, etc..)
-        *) 
+        (* if storage and register types aren't the same, then convert *) 
         if gpuT = gpuStorageT then storageReg 
         else self#convert_fresh ~destType:gpuT ~srcVal:storageReg  
     in 
     Hashtbl.add dataRegs id dataReg;
     (* vectors need an additional param for their shape *) 
-    if not $ DynType.is_scalar dynT then  (
+    if DynType.is_scalar dynT then 
+      Hashtbl.add dataLocations id PtxCallingConventions.ScalarInput
+    else (
+      Hashtbl.add dataLocations id PtxCallingConventions.GlobalInput;
       let rank = DynType.nest_depth dynT in 
       let shapeReg = self#fresh_shape_reg dataReg rank in
       let shapeParamId = self#get_sym_id ("shape" ^ (string_of_int paramId)) in 
@@ -259,8 +258,7 @@ class ptx_codegen  = object (self)
       self#emit [ld_param PtxType.ptrT shapeReg shapeParam];
     );
     dataReg
-  
-         
+     
   (* if variable is a scalar then allocates one new register and returns
      it. if it's a vector then allocate a register pair (data/shape) and
      return the data register. If the vector is a vector and requires 
@@ -279,17 +277,106 @@ class ptx_codegen  = object (self)
     ;
     dataReg  
   
+  (*************************************************************
+                      CACHE ACCESS TO SPECIAL REGISTERS
+   *************************************************************)
+  
+  (* don't allocate registers for special registers until 
+     you need them 
+  *) 
+  val registerCache 
+    : (PtxVal.value * PtxType.ty, PtxVal.value) Hashtbl.t = Hashtbl.create 17
+  method cached_value ?ty ptxVal =
+    let ty = match ty with 
+        | Some ty -> ty 
+        | None -> PtxVal.type_of_value ptxVal 
+    in 
+    let key = ptxVal, ty in 
+    if Hashtbl.mem registerCache key then 
+      Hashtbl.find registerCache key
+    else (
+      let reg = self#fresh_reg ty in 
+      self#emit [mov reg ptxVal];
+      Hashtbl.add registerCache key reg; 
+      reg
+    )   
+  method is_cached ptxVal ty = Hashtbl.mem registerCache (ptxVal,ty)
+    
+  method tid_x = self#cached_value tid.x     
+  method tid_y = self#cached_value tid.y 
+  method tid_z = self#cached_value tid.z 
+ 
+  method ntid_x = self#cached_value ntid.x 
+  method ntid_y = self#cached_value ntid.y
+  method ntid_z = self#cached_value ntid.z 
+  
+  method ctaid_x = self#cached_value ctaid.x 
+  method ctaid_y = self#cached_value ctaid.y
+  
+  method nctaid_x = self#cached_value nctaid.y    
+  method nctaid_y = self#cached_value nctaid.y
   
   (*************************************************************
                       INDEX COMPUTATIONS
    *************************************************************) 
-  val linearThreadIndex : PtxVal.value option ref = ref None
   
-  (* only emit the code to compute the linear thread index once *)  
-  method get_linear_thread_index = match !linearThreadIndex with 
-    | None -> failwith "not implemented"
-    | Some reg -> reg  
+  val mutable threadsPerBlock : PtxVal.value option = None
+  method compute_threads_per_block = match threadsPerBlock with 
+    | Some reg -> reg
+    | None -> 
+        let t1, t2 = self#fresh_reg U32, self#fresh_reg U32 in
+        let x = self#cached_value ntid.x in 
+        let y = self#cached_value ntid.y in 
+        let z = self#cached_value ~ty:U32 ntid.z in 
+        self#emit [mul_wide U16 t1 x y];
+        self#emit [mul U32 t2 t1 z];
+        threadsPerBlock <- Some t2; 
+        t2 
   
+  val mutable linearBlockId : PtxVal.value option = None
+  method compute_linear_block_index = match linearBlockId with 
+    | Some reg -> reg
+    | None -> 
+        let x = self#cached_value nctaid.x in 
+        let y = self#cached_value nctaid.y in
+        let blockId = self#fresh_reg U32 in 
+        (* grids can only be two-dimensional, so z component always = 1 *) 
+        self#emit [mul_wide U16 blockId x y];
+        linearBlockId <- Some blockId;
+        blockId
+  
+  (* which thread are you in your block? *)
+  val mutable linearBlockOffset : PtxVal.value option = None
+  method compute_linear_block_offset = match linearBlockOffset with 
+    | Some reg -> reg
+    | None -> 
+        let regs = self#fresh_regs U32 5 in
+        self#emit [
+          mul_wide U16 regs.(0) (self#ntid_y) (self#ntid_z);
+          mul_wide U16 regs.(1) (self#tid_x) regs.(0); 
+          mul_wide U16 regs.(2) (self#tid_y) (self#ntid_z); 
+          add U32 regs.(3) regs.(1) regs.(2); 
+          add U32 regs.(4) (self#tid_z) regs.(3)
+        ];
+        linearBlockOffset <- Some regs.(4); 
+        regs.(4)    
+           
+  (* which thread are you in the entire computational grid? *) 
+  val mutable linearThreadIndex : PtxVal.value option =  None
+  method compute_linear_thread_index = match linearThreadIndex with 
+    | Some reg -> reg
+    | None ->
+      let blockId = self#compute_linear_block_index in 
+      let threadsPerBlock = self#compute_threads_per_block in
+      let blockOffset = self#compute_linear_block_offset in 
+      let regs = self#fresh_regs U32 2 in 
+      self#emit [
+        mul U32 regs.(0) blockId threadsPerBlock; 
+        add U32 regs.(1) blockOffset regs.(0)
+      ]; 
+      linearThreadIndex <- Some regs.(1); 
+      regs.(1)      
+      
   val calc_index_widths = fun dims eltSize ->
     let n = Array.length dims in 
     let result = Array.copy dims in 
@@ -322,10 +409,10 @@ class ptx_codegen  = object (self)
       let widths = calc_index_widths (self#get_shared_dims baseReg) eltSize in
       for i = 0 to numIndices - 1 do
         let multReg = self#fresh_reg U64 in
-        let width = PtxHelpers.int widths.(i) in   
+        let width = int widths.(i) in   
         self#emit [
-          PtxHelpers.mul_lo U64 multReg idxRegs64.(i) width;
-          PtxHelpers.add U64 address address multReg
+          mul_lo U64 multReg idxRegs64.(i) width;
+          add U64 address address multReg
         ]
       done
     else
@@ -357,43 +444,49 @@ class ptx_codegen  = object (self)
     end; 
     address 
   
-
-    
   
+
+  (* storage args are those that supply private heap space to each thread *)
   val storageArgs : ID.t DynArray.t = DynArray.create () 
   method  declare_storage_arg impId dynT = 
+    Hashtbl.add dataLocations impId PtxCallingConventions.GlobalInput;
     DynArray.add storageArgs impId; 
     (* storage is a giant vector in memory, where each 
        element of this vector corresponds to a single thread's
        storage requirements
     *)
-    let giantVectorReg = self#declare_arg impId (DynType.VecT dynT) in
-    (* don't map impId to the huge global vector, we epxect that
+    let giantVectorReg = self#declare_param impId (DynType.VecT dynT) in
+    (* don't map impId to the huge global vector, we expect that
        declare_local will instead later associate impId with 
        this thread's local slice into the storage vector 
     *) 
     Hashtbl.remove dataRegs impId;  
-    let myStorageSlice = self#declare_local impId dynT in
-    let linearIndexReg = self#get_linear_thread_index in
-    giantVectorReg   
-    
- 
-  val callingConventions : Ptx.calling_convention DynArray.t = DynArray.create()
-  method declare_input impId dynT = 
-    let cc = 
-      if DynType.is_scalar dynT then Ptx.ScalarInput
-      else Ptx.GlobalInput
+    let linearIndexReg = self#compute_linear_thread_index in
+    let eltBytes = 
+      PtxType.nbytes  
+        (PtxType.storage_of_dyn_type (DynType.elt_type dynT))
     in 
-    DynArray.add callingConventions cc;     
-    self#declare_arg impId dynT 
-    
-  method declare_output impId dynT = self#declare_arg impId dynT 
+    (* the starting address of a thread's private slice into the 
+       global storage vector
+    *) 
+    let address = 
+      self#compute_address giantVectorReg eltBytes [|linearIndexReg|]
+    in 
+    self#declare_slice giantVectorReg address;
+    let myStorageSlice = self#declare_local impId dynT in
+    self#emit [mov myStorageSlice address];  
+    myStorageSlice
+
   
-  (* NOT YET IMPLEMENTED *) 
-  method declare_texture_input (impId : ID.t) (dynT : DynType.t)  =
-    self#declare_arg impId dynT 
- 
- 
+  method declare_input impId dynT = function 
+    | PtxVal.PARAM 
+    | PtxVal.GLOBAL -> self#declare_param impId dynT 
+    | other -> failwith $ Printf.sprintf 
+        "kernel inputs via %s space not yet implemented"
+        (PtxVal.ptx_space_to_str other) 
+  
+  method declare_output impId dynT = self#declare_param impId dynT 
+  
  
   (* Need to consider the destination of a conversion when figuring out the
      type of the source since there is an implicit polymorphism 
@@ -423,7 +516,10 @@ class ptx_codegen  = object (self)
       ~(srcVal: PtxVal.value) : PtxVal.value  =
     let srcType = type_of_conversion_source destType srcVal in 
     if destType = srcType then srcVal 
-    else 
+    else if PtxVal.is_ptx_constant srcVal && self#is_cached srcVal destType 
+    then  
+      self#cached_value ~ty:destType srcVal
+    else
       let destReg = self#fresh_reg destType in 
       (self#convert ~destReg ~srcVal; destReg) 
     
@@ -436,7 +532,7 @@ class ptx_codegen  = object (self)
   method convert 
       ~(destReg : PtxVal.value) 
       ~(srcVal : PtxVal.value) : unit =
-    let destType = PtxVal.type_of_var destReg in 
+    let destType = PtxVal.type_of_var destReg in
     let srcType = type_of_conversion_source destType srcVal in  
     if srcType = destType then self#emit [mov destReg srcVal]
     else 
@@ -483,18 +579,28 @@ class ptx_codegen  = object (self)
     DynArray.clear instructions;
     DynArray.append newCode instructions
     
-  method finalize_kernel : Ptx.kernel =
+  method finalize_kernel 
+         : Ptx.kernel * PtxCallingConventions.calling_conventions =
     (*debug "[ptx_codegen] finalizing ptx kernel";*)
     self#run_rewrite_pass PtxSimplify.simplify;   
     PtxTidy.cleanup_kernel instructions allocations;
-    { 
+    let kernel = { 
       params = DynArray.to_array parameters; 
       code = DynArray.to_array instructions; 
       decls = allocations;
       symbols = symbols; 
-      calling_conventions = DynArray.to_array callingConventions;
       textures = [|(* nothign here yet *) |]; 
-    }
-
+    } 
+    in
+    let cc = { 
+      PtxCallingConventions.data_locations =    
+        Hashtbl.fold 
+          (fun id loc env -> ID.Map.add id loc env) 
+          dataLocations
+          ID.Map.empty;
+       param_order = DynArray.to_array paramOrder
+    } 
+    in 
+    kernel, cc 
 
 end

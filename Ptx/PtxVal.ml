@@ -2,7 +2,7 @@ open Base
 open Printf 
 
 
-type space =
+type ptx_space =
   | REG 
   | SREG 
   | CONST 
@@ -13,7 +13,7 @@ type space =
   | SURF 
   | TEX
  
-let gpu_space_to_str = function 
+let ptx_space_to_str = function 
     | REG -> "reg"
     | SREG -> "sreg" 
     | CONST -> "const" 
@@ -25,7 +25,7 @@ let gpu_space_to_str = function
     | TEX -> "tex"  
 
 type symid = int
-and typed_symbol = { id: symid; ptx_type: PtxType.ty ; space: space} 
+and typed_symbol = { id: symid; ptx_type: PtxType.ty ; space: ptx_space} 
 
 type value =    
   | Sym of typed_symbol 
@@ -80,9 +80,16 @@ and special_register_to_str = function
   | GridId -> "%gridid" 
   | Clock -> "%clock"
 
-let is_ptx_constant = function  
+let is_ptx_num = function  
   | IntConst _ 
   | FloatConst _ -> true
+  | _ -> false
+
+(* values which can't change within a single thread's execution *)
+let is_ptx_constant = function 
+  | IntConst _ 
+  | FloatConst _
+  | Special _ -> true 
   | _ -> false 
 
 let type_of_special_register = function 
@@ -105,3 +112,24 @@ let get_id = function
 let type_of_var = function 
   | Sym {ptx_type=t} -> t
   | _ -> failwith "[ptx_val->type_of_var] not a variable"
+
+
+let rec type_of_value = function 
+  | Sym {ptx_type=t}-> t
+  (* without context literals get their largest possible type *) 
+  | IntConst _ -> PtxType.S64
+  | FloatConst _ -> PtxType.F64
+  | Special s -> type_of_special_register s 
+  (* careful not to nest these! *) 
+  | Vec2 (v1, v2) -> 
+      let t1 = type_of_value v1 in 
+      let t2 = type_of_value v2 in 
+      assert(t1 = t2); 
+      PtxType.V2 t1  
+  | Vec4 (v1, v2, v3, v4) -> 
+      let t1 = type_of_value v1 in 
+      let t2 = type_of_value v2 in 
+      let t3 = type_of_value v3 in 
+      let t4 = type_of_value v4 in 
+      assert (t1 = t2 && t2 = t3 && t3 = t4); 
+      PtxType.V4 t1   

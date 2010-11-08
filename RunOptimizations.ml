@@ -36,35 +36,27 @@ let optimize_block
     end  
   else block' 
 
+let rec exhaustive_inline ?(iter=0) fnTable optimizer fundef =
+  if iter > 10 then fundef 
+  else 
+    let inlinedCode, inlineChanged = Inline.run_fundef_inliner fnTable fundef in
+    if inlineChanged then
+      let optimized = optimizer inlinedCode in
+      exhaustive_inline ~iter:(iter+1) fnTable optimizer optimized
+    else inlinedCode
+    
+
 let optimize_fundef 
       ?(maxiters=100) 
       ?(inline=false) 
       (fnTable : FnTable.t) 
       (fundef : SSA.fundef) 
       (optimizations : (string * optimization) list) =
-    (*debug $ Printf.sprintf "[optimize_fundef] running optimzer on function: %s" 
-      (SSA.fundef_to_str fundef);*)         
-    let aux : SSA.fundef -> SSA.fundef = 
+ 
+    let optimizer : SSA.fundef -> SSA.fundef = 
       run_all fnTable maxiters optimizations
     in 
-    let fundef' = aux fundef  in
-    let fundef'' = 
-      if inline then
-      begin 
-        (*debug "[optimizer] Inlining functions...\n";*)
-        let inlinedCode, inlineChanged = 
-          Inline.run_fundef_inliner fnTable fundef' in 
-        if inlineChanged then (
-          (*debug $ Printf.sprintf 
-            "[optimize_fundef] inlined function: %s "
-            (SSA.fundef_to_str inlinedCode); *)
-          aux inlinedCode
-        )
-        else fundef'
-      end
-      else fundef'  
-    in 
-    (*debug $ Printf.sprintf "[optimize_fundef] optimized function: %s" 
-      (SSA.fundef_to_str fundef'');*)         
-    fundef''    
- 
+    let optimized = optimizer fundef  in
+    if inline then exhaustive_inline fnTable optimizer optimized
+    else optimized
+    

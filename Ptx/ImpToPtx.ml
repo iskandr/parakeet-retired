@@ -2,7 +2,6 @@ open Base
 open Imp
 open Ptx
 open PtxType
-open PtxHelpers
 open PtxCodegen
 open Printf 
 
@@ -14,7 +13,7 @@ let translate_coord = function | Imp.X -> X | Imp.Y -> Y  | Imp.Z -> Z
  
 let translate_simple_exp codegen = function 
   | Imp.Var id -> codegen#imp_reg id 
-  | Imp.Const n -> PtxHelpers.num_to_ptx_const n 
+  | Imp.Const n -> num_to_ptx_const n 
   | other -> failwith $ 
            Printf.sprintf "cannot translate complex Imp expression: %s\n"
            (Imp.exp_to_str other)  
@@ -24,7 +23,7 @@ let translate_simple_exp codegen = function
 *) 
 
 let translate_special = function 
-  | Imp.GridDim coord ->  Special (NumCtaId (translate_coord coord))
+  | Imp.GridDim coord  ->  Special (NumCtaId (translate_coord coord))
   | Imp.BlockDim coord ->  Special (NumThreadId (translate_coord coord))
   | Imp.BlockIdx coord  -> Special (CtaId (translate_coord coord))
   | Imp.ThreadIdx coord -> Special (ThreadId (translate_coord coord))
@@ -34,7 +33,6 @@ let gen_exp
     (codegen : PtxCodegen.ptx_codegen)
     ?destReg
     (expNode : Imp.exp_node) : PtxVal.value  =
-  (* debug $ Printf.sprintf "[imp2ptx] --- exp: %s" (Imp.exp_node_to_str expNode); *)
   let dynResultT = expNode.Imp.exp_type in 
   let ptxResultT = PtxType.of_dyn_type dynResultT in  
   let destReg, destType = match destReg with 
@@ -55,7 +53,7 @@ let gen_exp
       assert (destType = ptxResultT);  
       let rhs = translate_simple_exp codegen exp in
       codegen#emit [mov destReg rhs]  
-  | Imp.GridDim _ 
+  | Imp.GridDim _   
   | Imp.BlockDim _ 
   | Imp.BlockIdx _  
   | Imp.ThreadIdx _ -> 
@@ -74,7 +72,7 @@ let gen_exp
         let dims = codegen#get_shared_dims arrayReg in 
         assert (dim <= Array.length dims);
         let size = dims.(dim - 1) in 
-        codegen#emit [mov destReg (PtxHelpers.int size)]
+        codegen#emit [mov destReg (int size)]
      else if codegen#is_global_array_ptr arrayReg then 
         let rank = codegen#get_global_array_rank arrayReg in 
         assert (dim <= rank);
@@ -89,8 +87,8 @@ let gen_exp
       assert (ptxResultT = destType);
       let ptxArgT = PtxType.of_dyn_type dynArgType in
       let args' = List.map (fun x -> translate_arg x ptxArgT) args in
-      let ptxop = PtxHelpers.prim_to_ptx_op op ptxArgT in 
-      codegen#emit [PtxHelpers.mkop ptxop (destReg::args')]
+      let ptxop = prim_to_ptx_op op ptxArgT in 
+      codegen#emit [mkop ptxop (destReg::args')]
    | Imp.Select(t, cond, trueExp, falseExp) -> 
       let t' = PtxType.of_dyn_type t in
       assert (t' = destType);  
@@ -112,9 +110,10 @@ let gen_exp
           sprintf "[imp2ptx] array index expected to be 32-bit, received: %s" 
           (PtxType.to_str idxPtxT);
       let idxReg = translate_arg idx idxPtxT in
-      let gpuEltT = PtxType.of_dyn_type dynResultT in  
-      let gpuStorageT = PtxType.storage_of_dyn_type dynResultT in 
-      let eltBytes = PtxType.nbytes gpuStorageT in
+      let eltBytes = 
+        PtxType.nbytes 
+          (PtxType.storage_of_dyn_type (DynType.elt_type dynResultT))
+      in
       let isShared = codegen#is_shared_ptr baseReg in 
       if not isShared && not (codegen#is_global_array_ptr baseReg) then 
         failwith "[imp2ptx] cannot generate indexing code: \"
@@ -124,6 +123,7 @@ let gen_exp
       let address = codegen#compute_address baseReg eltBytes [|idxReg|] in  
       (* indexing into a 1D array yields a scalar *)  
       if rank = 1 then (
+        let gpuStorageT = PtxType.storage_of_dyn_type dynResultT in 
         let storageReg = codegen#fresh_reg gpuStorageT in 
         if isShared then
           codegen#emit [ld_shared gpuStorageT storageReg address] 
@@ -157,7 +157,6 @@ let gen_exp
   destReg 
 
 let rec gen_stmt codegen stmt = 
-  (*debug $ Printf.sprintf "[imp2ptx] stmt: %s" (Imp.stmt_to_str stmt);*) 
   codegen#emit [comment (Imp.stmt_to_str stmt)];
   match stmt with 
   | Imp.Set (id,rhs) ->
@@ -189,8 +188,8 @@ let rec gen_stmt codegen stmt =
         else
           codegen#emit [st_global rhsStorageT address rhsRegCvt]
        ) 
-  | Imp.SyncThreads -> codegen#emit [PtxHelpers.bar]  
-  | Imp.Comment str -> codegen#emit [PtxHelpers.comment ("Imp comment: " ^ str)]
+  | Imp.SyncThreads -> codegen#emit [bar]  
+  | Imp.Comment str -> codegen#emit [comment ("Imp comment: " ^ str)]
   | Imp.While (cond, block) -> 
       let predReg = gen_exp codegen  cond in 
       let testLabel = codegen#fresh_label in 
@@ -206,7 +205,7 @@ let rec gen_stmt codegen stmt =
       let predReg = gen_exp codegen cond in  
       let endLabel = codegen#fresh_label in 
       let trueLabel = codegen#fresh_label in 
-      codegen#emit [pred predReg (PtxHelpers.bra trueLabel)];
+      codegen#emit [pred predReg (bra trueLabel)];
       gen_block codegen fBlock; 
       codegen#emit [bra endLabel; label trueLabel (comment "true branch")]; 
       gen_block codegen tBlock; 
@@ -218,11 +217,10 @@ and gen_block codegen block =
    
 let translate_kernel ?input_spaces (impfn : Imp.fn) =
   IFDEF DEBUG THEN 
-    print_string  "[imp2ptx] ***** started translation ****";
-    print_string "\n";
+    print_string  "\n[imp2ptx] ***** started translation ****\n";
     print_string (Imp.fn_to_str impfn);
     print_string "\n";
-    print_string "[imp2ptx] ******************************";
+    print_string "\n[imp2ptx] ******************************\n";
   ENDIF; 
   let inputSpaces = match input_spaces with
     (* if we have no preferences about the space our inputs live in, 
@@ -245,26 +243,22 @@ let translate_kernel ?input_spaces (impfn : Imp.fn) =
     if PMap.mem id impfn.shared_array_allocations then
       let dims = PMap.find id impfn.shared_array_allocations in   
         ignore $ codegen#declare_shared_vec id (DynType.elt_type dynT) dims
-      else begin 
-        if PMap.mem id impfn.local_arrays then 
-          (* TODO: make the storage arg of type (VecT dynT) 
-             then compute global threadId, and index into
-             storage arg to get your local array.  
-          *) 
-          ignore $ codegen#declare_storage_arg id dynT 
+      else (
+        if PMap.mem id impfn.local_arrays then ( 
+          IFDEF DEBUG THEN 
+            Printf.printf "[imp2ptx] declaring local array %s : %s\n" 
+              (ID.to_str id)
+              (DynType.to_str dynT);
+          ENDIF;   
+          ignore $ codegen#declare_storage_arg id dynT
+         ) 
          else
            ignore $ codegen#declare_local id dynT
-      end 
+      )
   in 
   Array.iter2 register_local impfn.local_ids impfn.local_types;
-  let register_input id dynT space = 
-    if space = PtxVal.GLOBAL || space = PtxVal.PARAM then 
-      ignore $ codegen#declare_input id dynT 
-    else if space = PtxVal.TEX then 
-      ignore $ codegen#declare_texture_input id dynT  
-    else failwith "unexpected input space"
-  in   
-  Array.iter3 register_input impfn.input_ids impfn.input_types inputSpaces;
+  Array.iter3 
+    codegen#declare_input impfn.input_ids impfn.input_types inputSpaces;
   Array.iter2 codegen#declare_output impfn.output_ids impfn.output_types; 
   gen_block codegen impfn.body; 
   codegen#finalize_kernel 

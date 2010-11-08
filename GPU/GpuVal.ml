@@ -1,14 +1,14 @@
 open Base
-open Cuda
 open DynType
 open HostVal
+open Cuda 
 
 type gpu_vec = {
-  vec_ptr: GpuPtr.t;
+  vec_ptr: Int32.t;
   vec_nbytes : int;
   vec_len : int;
 
-  vec_shape_ptr: GpuPtr.t;
+  vec_shape_ptr: Int32.t;
   vec_shape_nbytes: int;
 
   vec_shape : Shape.t;
@@ -17,9 +17,6 @@ type gpu_vec = {
 
 type gpu_val = GpuScalar of PQNum.num | GpuArray of gpu_vec  
 
-let free = function
-  | GpuScalar _ -> ()
-  | GpuArray v ->  cuda_free v.vec_ptr; cuda_free v.vec_shape_ptr
 
 let nelts = function
   | GpuScalar _-> 1
@@ -38,7 +35,12 @@ let get_ptr = function
   | GpuScalar _ -> failwith "Can't get GPU pointer to a scalar"
 
 let mk_scalar n = GpuScalar n  
-  
+
+
+let free = function
+  | GpuScalar _ -> ()
+  | GpuArray v ->  cuda_free v.vec_ptr; cuda_free v.vec_shape_ptr
+    
 (* send a shape vector the gpu *) 
 let shape_to_gpu shape =
   let shapeBytes = Shape.nbytes shape in
@@ -105,3 +107,5 @@ let from_gpu = function
           host_t = v.vec_t; 
           shape = v.vec_shape; 
         }
+
+

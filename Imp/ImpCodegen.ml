@@ -2,8 +2,6 @@ open Base
 open Imp 
 open Printf 
 
-
-
 class imp_codegen = 
   object (self)
     val types = Hashtbl.create 127
@@ -47,28 +45,34 @@ class imp_codegen =
       assert (MutableSet.mem localIds sliceId);
       if MutableSet.mem localIds arrId  then (
         assert (Hashtbl.mem localSizes arrId); 
-        match Hashtbl.find localSizes arrId  with 
+        match Hashtbl.find localSizes arrId  with
+        | Imp.SharedArray [] -> failwith "[imp_codegen] expected array"
+        | Imp.SharedArray [_] -> () 
         | Imp.SharedArray dims -> 
-          assert (dims <> []); 
           Hashtbl.add localSizes sliceId (Imp.SharedArray (List.tl dims))
+        | Imp.PrivateArray [] -> failwith "[imp_codegen] expected array"
+        | Imp.PrivateArray [_] -> ()
         | Imp.PrivateArray expressions -> 
-          assert (expressions <> []); 
           Hashtbl.add localSizes sliceId (Imp.PrivateArray (List.tl expressions))            
       ) 
-      else if Hashtbl.mem outputSizes arrId then 
-        let dims = Hashtbl.find outputSizes arrId in ( 
-        assert (dims <> []); 
-        Hashtbl.add localSizes sliceId (Imp.PrivateArray (List.tl dims))
+      else if Hashtbl.mem outputSizes arrId then ( 
+        match Hashtbl.find outputSizes arrId with 
+          | [] -> failwith "[imp_codegen] expected array" 
+          | [_] -> () (* nothing to do with scalar *)  
+          | dims -> 
+            Hashtbl.add localSizes sliceId (Imp.PrivateArray (List.tl dims))
       )
       else (* array must be an input *) (
         let arrT =  Hashtbl.find types arrId in 
-        let rank = DynType.nest_depth arrT in
-        assert (rank > 0); 
-        let varNode = {Imp.exp=Imp.Var arrId; exp_type=arrT} in 
-        let  dims = 
-          List.map (fun i -> Imp.DimSize(i, varNode)) (List.til rank)
-        in 
-        Hashtbl.add localSizes sliceId (Imp.PrivateArray (List.tl dims))  
+        match DynType.nest_depth arrT with
+          | 0 -> failwith "expected array"
+          | 1 -> () (* nothing to do with scalar result *) 
+          | rank -> 
+              let varNode = {Imp.exp=Imp.Var arrId; exp_type=arrT} in 
+              let  dims = 
+                List.map (fun i -> Imp.DimSize(i, varNode)) (List.til rank)
+              in 
+              Hashtbl.add localSizes sliceId (Imp.PrivateArray (List.tl dims))  
       )
         
     (* cache the ID's into which we store BlockDim, ThreadIdx, consts, etc..*)

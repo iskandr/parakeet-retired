@@ -78,7 +78,7 @@
     if lenx = 0 then init 
     else 
     let acc = ref init in (
-    for i = 1 to lenx - 1 do 
+    for i = 0 to lenx - 1 do 
       acc := f !acc x.(i) y.(i)
     done; 
     !acc
