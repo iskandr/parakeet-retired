@@ -141,9 +141,10 @@ and translate_fundef globalFunctions fn =
   let idEnv = ID.Map.combine 
     (ID.Map.of_list (List.combine fn.SSA.input_ids freshInputIds)) 
     (ID.Map.of_list (List.combine fn.SSA.output_ids freshOutputIds)) in 
-  let _ = List.fold_left 
+  let _ = List.fold_left
     (fun idEnv stmt -> translate_stmt globalFunctions idEnv codegen stmt) 
     idEnv
-    fn.SSA.body in 
+    fn.SSA.body 
+  in 
   codegen#finalize  
   

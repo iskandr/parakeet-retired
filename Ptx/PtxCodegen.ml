@@ -259,27 +259,8 @@ class ptx_codegen  = object (self)
       self#emit [ld_param PtxType.ptrT shapeReg shapeParam];
     );
     dataReg
-    
-  val storageArgs : ID.t DynArray.t = DynArray.create () 
-  method  declare_storage_arg impId dynT = 
-    DynArray.add storageArgs impId; 
-    self#declare_arg impId dynT
- 
-  val callingConventions : Ptx.calling_convention DynArray.t = DynArray.create()
-  method declare_input impId dynT = 
-    let cc = 
-      if DynType.is_scalar dynT then Ptx.ScalarInput
-      else Ptx.GlobalInput
-    in 
-    DynArray.add callingConventions cc;     
-    self#declare_arg impId dynT 
-    
-  method declare_output impId dynT = self#declare_arg impId dynT 
   
-  (* NOT YET IMPLEMENTED *) 
-  method declare_texture_input (impId : ID.t) (dynT : DynType.t)  =
-    self#declare_arg impId dynT 
-      
+         
   (* if variable is a scalar then allocates one new register and returns
      it. if it's a vector then allocate a register pair (data/shape) and
      return the data register. If the vector is a vector and requires 
@@ -296,7 +277,122 @@ class ptx_codegen  = object (self)
     if not $ DynType.is_scalar dynT then  
       ignore (self#fresh_shape_reg dataReg (DynType.nest_depth dynT))
     ;
-    dataReg
+    dataReg  
+  
+  
+  (*************************************************************
+                      INDEX COMPUTATIONS
+   *************************************************************) 
+  val linearThreadIndex : PtxVal.value option ref = ref None
+  
+  (* only emit the code to compute the linear thread index once *)  
+  method get_linear_thread_index = match !linearThreadIndex with 
+    | None -> failwith "not implemented"
+    | Some reg -> reg  
+  
+  val calc_index_widths = fun dims eltSize ->
+    let n = Array.length dims in 
+    let result = Array.copy dims in 
+    result.(n-1) <- eltSize; 
+    for i = n - 2 downto 0 do 
+      result.(i) <- dims.(i+1) * result.(i+1)
+    done;
+    result
+  
+  (* compute the absolute address of an element in an array 
+     given that array's base address register, the size of the
+     elements contained in the array and an array of registers 
+     containing indices. Assumes that the baseReg has been 
+     registered either as a shared array, an array input, 
+     or a "local" storage array. 
+  *) 
+  method compute_address baseReg eltSize idxRegs  = 
+    let rank = self#get_array_rank baseReg in
+    let numIndices = Array.length idxRegs in  
+    let baseReg64 = self#convert_fresh ~destType:U64 ~srcVal:baseReg in
+    let idxRegs64 = 
+      Array.map 
+        (fun reg -> self#convert_fresh ~destType:U64 ~srcVal:reg) 
+        idxRegs 
+    in
+    let address = self#fresh_reg U64 in
+    self#emit [mov address baseReg64]; 
+    begin 
+    if self#is_shared_ptr baseReg then 
+      let widths = calc_index_widths (self#get_shared_dims baseReg) eltSize in
+      for i = 0 to numIndices - 1 do
+        let multReg = self#fresh_reg U64 in
+        let width = PtxHelpers.int widths.(i) in   
+        self#emit [
+          PtxHelpers.mul_lo U64 multReg idxRegs64.(i) width;
+          PtxHelpers.add U64 address address multReg
+        ]
+      done
+    else
+      let shapeReg = self#get_shape_reg baseReg in
+      for i = 0 to numIndices - 1 do
+      (* size of slice through array each index accounts for *) 
+        let sliceReg = self#fresh_reg U64 in
+        (* at the very least each increase in this index has to go up by the
+           bytesize of the element
+        *) 
+        self#emit [mov sliceReg (int eltSize)];
+        (* indexing the first dimension effectively slices through all 
+           other dimensions. If this is, however, a 1D vector then this 
+           loop never runs
+        *) 
+        for j = (i+1) to rank - 1 do 
+          let shapeEltReg = self#fresh_reg U32 in
+          let shapeEltReg64 = self#fresh_reg U64 in
+          self#emit [ld_global U32 shapeEltReg shapeReg ~offset:(4*j)];
+          self#convert ~destReg:shapeEltReg64 ~srcVal:shapeEltReg; 
+          self#emit [mul_lo U64 sliceReg sliceReg shapeEltReg64]  
+        done;  
+        let offset = self#fresh_reg U64 in 
+        self#emit [
+          mul U64 offset idxRegs64.(i) sliceReg;
+          add U64 address address offset  
+        ]
+      done 
+    end; 
+    address 
+  
+
+    
+  
+  val storageArgs : ID.t DynArray.t = DynArray.create () 
+  method  declare_storage_arg impId dynT = 
+    DynArray.add storageArgs impId; 
+    (* storage is a giant vector in memory, where each 
+       element of this vector corresponds to a single thread's
+       storage requirements
+    *)
+    let giantVectorReg = self#declare_arg impId (DynType.VecT dynT) in
+    (* don't map impId to the huge global vector, we epxect that
+       declare_local will instead later associate impId with 
+       this thread's local slice into the storage vector 
+    *) 
+    Hashtbl.remove dataRegs impId;  
+    let myStorageSlice = self#declare_local impId dynT in
+    let linearIndexReg = self#get_linear_thread_index in
+    giantVectorReg   
+    
+ 
+  val callingConventions : Ptx.calling_convention DynArray.t = DynArray.create()
+  method declare_input impId dynT = 
+    let cc = 
+      if DynType.is_scalar dynT then Ptx.ScalarInput
+      else Ptx.GlobalInput
+    in 
+    DynArray.add callingConventions cc;     
+    self#declare_arg impId dynT 
+    
+  method declare_output impId dynT = self#declare_arg impId dynT 
+  
+  (* NOT YET IMPLEMENTED *) 
+  method declare_texture_input (impId : ID.t) (dynT : DynType.t)  =
+    self#declare_arg impId dynT 
+ 
  
  
   (* Need to consider the destination of a conversion when figuring out the

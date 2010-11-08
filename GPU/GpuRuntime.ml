@@ -103,14 +103,8 @@ let compile_map globalFunctions payload argTypes retTypes =
       mapThreadsPerBlock 
       (Array.of_list argTypes) 
       (Array.of_list retTypes) 
-  in 
-  
-  (* set of inputs, outputs and local temporaries which require heap 
-     allocation 
-  *) 
-  let allocSet = AllocationAnalysis.infer_fundef payload in  
-  let allocList = ID.Set.elements allocSet in 
-  let kernel = ImpToPtx.translate_kernel impfn allocSet in
+  in   
+  let kernel = ImpToPtx.translate_kernel impfn in
   let mapPrefix = "map_kernel" in 
   let name = mapPrefix ^ (string_of_int (ID.gen())) in
   mk_cuda_module [name, kernel] mapThreadsPerBlock
@@ -180,7 +174,7 @@ let compile_reduce globalFunctions payload retTypes =
     ImpReduceTemplate.gen_reduce impPayload redThreadsPerBlock retTypes 
   in
   debug (Printf.sprintf "[compile_reduce] %s\n" (Imp.fn_to_str impfn));
-  let ptx = ImpToPtx.translate_kernel impfn ID.Set.empty in
+  let ptx = ImpToPtx.translate_kernel impfn in
   let reducePrefix = "reduce_kernel" in 
   let name = reducePrefix ^ (string_of_int (ID.gen())) in
   mk_cuda_module [name,ptx] redThreadsPerBlock
@@ -255,7 +249,7 @@ let compile_all_pairs globalFunctions payload argTypes retTypes =
         ImpAllPairsTemplate.gen_all_pairs_2d_naive impPayload t1 t2 retTypes
       in
       (* TODO: add input space annotations and nested data allocations *)
-      let kernel = ImpToPtx.translate_kernel impfn  ID.Set.empty in
+      let kernel = ImpToPtx.translate_kernel impfn in
       let allPairsPrefix = "all_pairs_kernel" in 
       let name = allPairsPrefix ^ (string_of_int (ID.gen())) in  
       mk_cuda_module [name, kernel] threadsPerBlock 

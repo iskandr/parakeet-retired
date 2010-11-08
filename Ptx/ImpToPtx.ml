@@ -10,68 +10,7 @@ let same_type t1 t2 =
   if t1 <> t2 then  debug $ Printf.sprintf "Expected same types, got %s and %s "
     (PtxType.to_str t1) (PtxType.to_str t2) 
 
-let calc_index_widths dims eltSize =
-  let n = Array.length dims in 
-  let result = Array.copy dims in 
-  result.(n-1) <- eltSize; 
-  for i = n - 2 downto 0 do 
-    result.(i) <- dims.(i+1) * result.(i+1)
-  done;
-  result
-
-let compute_address codegen baseReg eltSize (idxRegs : PtxVal.value array) = 
-  let rank = codegen#get_array_rank baseReg in
-  let numIndices = Array.length idxRegs in  
-  let baseReg64 = codegen#convert_fresh ~destType:U64 ~srcVal:baseReg in
-  let idxRegs64 = 
-    Array.map 
-      (fun reg -> codegen#convert_fresh ~destType:U64 ~srcVal:reg) 
-      idxRegs 
-  in
-  let address = codegen#fresh_reg U64 in
-  codegen#emit [mov address baseReg64]; 
-  begin 
-  if codegen#is_shared_ptr baseReg then 
-    let widths = calc_index_widths (codegen#get_shared_dims baseReg) eltSize in
-    for i = 0 to numIndices - 1 do
-      let multReg = codegen#fresh_reg U64 in 
-      codegen#emit [
-        PtxHelpers.mul_lo U64 multReg idxRegs64.(i) (PtxHelpers.int widths.(i));
-        PtxHelpers.add U64 address address multReg
-      ]
-    done
-  else
-    let shapeReg = codegen#get_shape_reg baseReg in
-    for i = 0 to numIndices - 1 do
-      (* size of slice through array each index accounts for *) 
-      let sliceReg = codegen#fresh_reg U64 in
-      (* at the very least each increase in this index has to go up by the
-         bytesize of the element
-      *) 
-      codegen#emit [mov sliceReg (int eltSize)];
-      (* indexing the first dimension effectively slices through all 
-         other dimensions. If this is, however, a 1D vector then this 
-         loop never runs
-      *) 
-      for j = (i+1) to rank - 1 do 
-        let shapeEltReg = codegen#fresh_reg U32 in
-        let shapeEltReg64 = codegen#fresh_reg U64 in
-        codegen#emit [ld_global U32 shapeEltReg shapeReg ~offset:(4*j)];
-        codegen#convert ~destReg:shapeEltReg64 ~srcVal:shapeEltReg; 
-        codegen#emit [mul_lo U64 sliceReg sliceReg shapeEltReg64]  
-      done;  
-      let offset = codegen#fresh_reg U64 in 
-      codegen#emit [
-        mul U64 offset idxRegs64.(i) sliceReg;
-        add U64 address address offset  
-      ]
-    done 
- end; address 
-
-let translate_coord = function 
-  | Imp.X -> X
-  | Imp.Y -> Y 
-  | Imp.Z -> Z 
+let translate_coord = function | Imp.X -> X | Imp.Y -> Y  | Imp.Z -> Z 
  
 let translate_simple_exp codegen = function 
   | Imp.Var id -> codegen#imp_reg id 
@@ -182,7 +121,7 @@ let gen_exp
                  base address register is neither global nor shared pointer"
       else 
       let rank = codegen#get_array_rank baseReg in
-      let address = compute_address codegen baseReg eltBytes [|idxReg|] in  
+      let address = codegen#compute_address baseReg eltBytes [|idxReg|] in  
       (* indexing into a 1D array yields a scalar *)  
       if rank = 1 then (
         let storageReg = codegen#fresh_reg gpuStorageT in 
@@ -240,7 +179,7 @@ let rec gen_stmt codegen stmt =
        let rhsEltT = DynType.elt_type rhsT in
        let rhsStorageT = PtxType.storage_of_dyn_type rhsT in
        let eltSize = PtxType.nbytes rhsStorageT in   
-       let address = compute_address codegen base eltSize idxRegs in 
+       let address = codegen#compute_address base eltSize idxRegs in 
        let rhsReg = gen_exp codegen rhs in 
        let rhsRegCvt = 
          codegen#convert_fresh ~destType:rhsStorageT ~srcVal:rhsReg 
@@ -277,15 +216,14 @@ let rec gen_stmt codegen stmt =
 and gen_block codegen block = 
   List.iter (gen_stmt codegen) block
    
-let translate_kernel 
-    (impfn : Imp.fn) 
-    ?input_spaces 
-    (allocSet : ID.Set.t) =
-
-  (*debug "[imp2ptx] ***** started translation ****";
-  debug $ Imp.fn_to_str impfn;
-  debug "[imp2ptx] ******************************";*)
-  
+let translate_kernel ?input_spaces (impfn : Imp.fn) =
+  IFDEF DEBUG THEN 
+    print_string  "[imp2ptx] ***** started translation ****";
+    print_string "\n";
+    print_string (Imp.fn_to_str impfn);
+    print_string "\n";
+    print_string "[imp2ptx] ******************************";
+  ENDIF; 
   let inputSpaces = match input_spaces with
     (* if we have no preferences about the space our inputs live in, 
        put all scalars in PARAM and all vectors in GLOBAL 
@@ -308,14 +246,10 @@ let translate_kernel
       let dims = PMap.find id impfn.shared_array_allocations in   
         ignore $ codegen#declare_shared_vec id (DynType.elt_type dynT) dims
       else begin 
-        if ID.Set.mem id allocSet then 
+        if PMap.mem id impfn.local_arrays then 
           (* TODO: make the storage arg of type (VecT dynT) 
              then compute global threadId, and index into
-             storage arg to get your local array. 
-             ALSO: 
-             Shouldn't we be analyzing Imp kernels instead of SSA kernels? 
-             That way at least there's no confusion about which nesting
-             level we should look at. 
+             storage arg to get your local array.  
           *) 
           ignore $ codegen#declare_storage_arg id dynT 
          else
@@ -334,5 +268,3 @@ let translate_kernel
   Array.iter2 codegen#declare_output impfn.output_ids impfn.output_types; 
   gen_block codegen impfn.body; 
   codegen#finalize_kernel 
-  
-
