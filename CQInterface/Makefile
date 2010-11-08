@@ -15,7 +15,6 @@ OCAMLINCLUDES = -I $(BUILDPATH) -I $(BUILDPATH)/Analysis \
 	-I $(BUILDPATH)/AST   \
 	-I $(BUILDPATH)/Imp \
 	-I $(BUILDPATH)/ImpKernelTemplates \
-	-I $(BUILDPATH)/UntypedSSA \
 	-I $(BUILDPATH)/SSA \
 	-I $(BUILDPATH)/SSA_Optimizations \
  	-I $(BUILDPATH)/SSA_Analysis \
@@ -48,19 +47,18 @@ FnTable.cmx \
 ConstantLattice.cmx \
 SSA_Base_Analysis.cmx \
 FindConstants.cmx \
-UntypedFindDefs.cmx \
+FindDefs.cmx \
 UntypedFindGenSet.cmx \
 UntypedFindUseSets.cmx \
 FindUseCounts.cmx \
 UntypedReplace.cmx \
 Inline.cmx \
-UntypedElimDeadCode.cmx \
-Simplify.cmx \
-UntypedElimPartialApps.cmx \
-UntypedSimpleCSE.cmx \
 FindLiveIds.cmx \
 ElimDeadCode.cmx \
+ElimPartialApps.cmx \
+Simplify.cmx \
 AdverbFusion.cmx \
+CSE.cmx \
 RunOptimizations.cmx \
 TypeInfer.cmx \
 Signature.cmx \

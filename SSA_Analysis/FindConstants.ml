@@ -32,13 +32,11 @@ and eval_stmt env stmtNode =
           (List.length rhsLatticeVals)
           
       else 
-      let folder (env, changed) id rhsLatticeVal = 
-        (*if not $ ID.Map.mem id env then ID.Map.add id rhsLatticeVal env, true 
-        else
-        *)   
+      let folder (env, changed) id rhsLatticeVal =   
           let oldVal = ID.Map.find_default id env ConstantLattice.bottom in 
-          let combinedVal = ConstantLattice.join oldVal rhsLatticeVal in  
-          ID.Map.add id combinedVal env, changed || (combinedVal <> oldVal)
+          let combinedVal = ConstantLattice.join oldVal rhsLatticeVal in
+          let combinedChanged =  changed || (combinedVal <> oldVal) in 
+          ID.Map.add id combinedVal env, combinedChanged
       in   
       List.fold_left2 folder (rhsEnv, rhsChanged) ids rhsLatticeVals 
       
@@ -121,8 +119,7 @@ let rec find_constants ?(free_vars = []) code =
     in
     let env_to_str env =
       "{ " ^ (String.concat "; " (List.map pair_to_str (ID.Map.to_list env))) ^"}"
-    in   
-    (*debug $ env_to_str env; *) 
+    in 
     env
     
 (* useful for extracting the equivalence classes of IDs all referencing

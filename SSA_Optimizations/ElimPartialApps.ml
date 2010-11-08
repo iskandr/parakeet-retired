@@ -1,6 +1,6 @@
 open Base
 open SSA
-open UntypedFindDefs
+open FindDefs
 
 
 let rec eval_block defEnv constEnv block =  
@@ -30,12 +30,12 @@ and eval_stmt defEnv constEnv stmtNode =
   | other -> stmtNode, false
 and eval_exp defEnv constEnv expNode = 
   match expNode.exp with 
-  | App ({value=Var fnId} as fnNode, args) -> 
+  | App ({value=GlobalFn fnId} as fnNode, args) -> 
     (match ID.Map.find fnId defEnv with 
-     | SingleDef (App({value=Var fnId'}, args')) 
+     | SingleDef (App({value=GlobalFn fnId'}, args')) 
        when FindConstants.is_function_constant constEnv fnId' ->
        {expNode with exp = 
-            App({fnNode with value = Var fnId'}, args' @ args)
+            App({fnNode with value = GlobalFn fnId'}, args' @ args)
        }, true
      | _ -> expNode, false
     )
@@ -59,8 +59,11 @@ and eval_value_list defEnv constEnv = function
     v'::vs', currChanged || restChanged
         
 let elim_partial_apps fnTable fundef =
+  let defEnv = FindDefs.find_function_defs fundef in
   let block = fundef.SSA.body in  
-  let defEnv = UntypedFindDefs.find_defs block in
   let constEnv = FindConstants.find_constants block in
-  (* need to include fnTable! *)  
-  eval_block defEnv constEnv block 
+  let body', changed  = 
+    eval_block defEnv constEnv block
+  in 
+  {  fundef with body = body'}, changed 
+  

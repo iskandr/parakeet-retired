@@ -5,11 +5,7 @@ open SSA
 (* include these for now to keep from having to 
     rewrite the CQInterface Makefile
 *)
-open AdverbFusion
-open ElimDeadCode 
-open UntypedElimPartialApps
-open UntypedElimDeadCode
-open UntypedSimpleCSE
+
 
 (* A program is a mapping of function names to their functions.*)
 (* These functions exist in both untyped and typed forms, as well as *)
@@ -35,8 +31,8 @@ let default_untyped_optimizations =
   [
     "simplify", Simplify.simplify_fundef;  
     "elim dead code", ElimDeadCode.elim_dead_code; 
-    (*"elim partial applications", UntypedElimPartialApps.elim_partial_apps;*)
-    (*"elim common subexpression", UntypedSimpleCSE.cse;*) 
+    "elim partial applications", ElimPartialApps.elim_partial_apps;
+    "elim common subexpression", CSE.cse; 
   ] 
   
 let create_untyped fnNameMap fundefMap =
@@ -80,10 +76,9 @@ let create_untyped fnNameMap fundefMap =
 let default_typed_optimizations = 
   [
     (*"function cloning", TypedFunctionCloning.function_cloning;*)   
-    (*"elim dead code", TypedElimDeadCode.elim_dead_code;*)  
     "simplify", Simplify.simplify_fundef; 
     "dead code elim", ElimDeadCode.elim_dead_code; 
-   (* "adverb fusion", AdverbFusion.optimize_fundef;*) 
+    "adverb fusion", AdverbFusion.optimize_fundef; 
 
   ]  
  
@@ -104,8 +99,14 @@ let add_specialization
   let typedId = FnTable.add optimized program.typed_functions in  
   Hashtbl.add program.specializations (untypedVal, signature) typedId;
   IFDEF DEBUG THEN
+    let valStr = SSA.value_to_str untypedVal in   
     Printf.printf "Specialized %s for signature %s: \n %s\n%!"
-      (SSA.value_to_str untypedVal)
+      (match untypedVal with 
+        | GlobalFn untypedId ->
+          let fnName = Hashtbl.find program.untyped_id_to_name untypedId in  
+          Printf.sprintf "\"%s\" (%s)" fnName valStr
+        | _ -> valStr      
+      )
       (Signature.to_str signature)
       (SSA.fundef_to_str optimized)
   END; 

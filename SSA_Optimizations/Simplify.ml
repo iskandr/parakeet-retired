@@ -1,7 +1,8 @@
 open Base
 open DynType 
 open SSA
-open UntypedFindDefs 
+open FindDefs
+ 
 
 (* chain together function which return a changed boolean *) 
 let (>>) (value,changed) f = 
@@ -10,7 +11,7 @@ let (>>) (value,changed) f =
 
 let replace_with_def defEnv id = 
   if ID.Map.mem id defEnv then match ID.Map.find id defEnv with 
-    | UntypedFindDefs.SingleDef (Values [{value=Var id'}]) ->  Var id', true
+    | FindDefs.SingleDef (Values [{value=Var id'}]) ->  Var id', true
     | _ -> Var id, false
   else Var id, false 
 
@@ -163,14 +164,9 @@ let simplify_typed_block
      (functions : FnTable.t)
      (block : SSA.block) =
   let constEnv  = FindConstants.find_constants ~free_vars block in
-  
   let useCounts,_ = FindUseCounts.find_use_counts block in
-  
-  let defEnv  = UntypedFindDefs.find_defs block in 
+  let defEnv  = FindDefs.find_block_defs block in 
   rewrite_block constEnv useCounts defEnv tenv block     
-  
-let simplify_untyped_block = 
-  simplify_typed_block ~tenv:ID.Map.empty ~free_vars:[]
   
 let simplify_fundef (functions:FnTable.t) fundef = 
   
@@ -181,6 +177,5 @@ let simplify_fundef (functions:FnTable.t) fundef =
       functions 
       fundef.body
   in 
-  let fundef' = {fundef with body = body'} in 
-  fundef', changed 
+  {fundef with body = body'}, changed 
                                                                                                                                                                                        

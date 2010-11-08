@@ -2,7 +2,6 @@
 /usr/local/lib/ocaml/3.11.2/extlib
 .
 libpq
-UntypedSSA
 Tests
 SSA
 Q

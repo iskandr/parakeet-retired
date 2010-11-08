@@ -72,7 +72,9 @@ and eval_fundef (liveSet : ID.Set.t) fundef =
   in 
   {fundef with body = body'}, changed   
 
-let elim_dead_code (fnTable : FnTable.t) fundef = 
+let elim_dead_code 
+      (fnTable : FnTable.t) 
+      (fundef : SSA.fundef) : SSA.fundef * bool = 
   let liveSet : ID.Set.t = FindLiveIds.find_live_ids fundef in 
   eval_fundef liveSet fundef 
 

@@ -15,4 +15,3 @@
 "ImpKernelTemplates" : include
 "OCAMLInterface" : include
 "stubs" : include
-"UntypedSSA" : include

@@ -26,7 +26,8 @@ type adverb_descriptor = {
 
 (* is the fusion of a2 (a1 data) allowed? *) 
 let compat_adverbs (a1:adverb_descriptor) (a2:adverb_descriptor) =
-  match a1.adverb,a2.adverb with 
+  match a1.adverb,a2.adverb with
+ (* | Prim.Map, Prim.Reduce*) 
   | Prim.Map, Prim.Map -> 
     (* conservative condition is that all input data must be produced by 
        the predecessor. This is because we always replace the pred with the
@@ -205,7 +206,7 @@ let split_adverb_args op args =
   | Prim.Map, f::rest -> [f], rest
   | _ -> failwith "adverb not yet implemented" 
   in 
-  let fnIds = List.map SSA.get_id fnArgs in
+  let fnIds = List.map SSA.get_fn_id fnArgs in
   let fnTypes = List.map (fun vNode -> vNode.value_type) fnArgs in  
   fnIds, fnTypes, dataArgs 
     

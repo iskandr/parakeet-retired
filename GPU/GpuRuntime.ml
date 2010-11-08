@@ -294,33 +294,15 @@ let run_all_pairs
     )
   in
   match compiledModule.Cuda.kernel_names, gpuVals with
-    | _, [] 
-    | _, [_] | _, _::_::_::_ ->  
+    | _, [] | _, [_] | _, _::_::_::_ ->  
         failwith "[run_all_pairs] wrong number of arguments"
-    | [], _ 
-    | _::_::_, _ ->
+    | [], _ | _::_::_, _ ->
         failwith "[run_all_pairs] wrong number of functions" 
     | [fnName], [xGpu;yGpu] ->
-
-      
       let xShape, yShape = GpuVal.get_shape xGpu, GpuVal.get_shape yGpu in
       let nx = Shape.get xShape 0 in
       let ny = Shape.get yShape 0 in
       let paramsArray, outputVals = create_args impKernel cc gpuVals in 
-      
-      (* since we assume that the nested function returns scalars, 
-         the result will always be 2D
-      *)
-      (*let outputShape = Shape.create 2 in*)
-      (*Shape.set outputShape 0 nx;
-      Shape.set outputShape 1 ny;
-      let outputVals =
-        List.map
-          (fun ty -> GpuVal.mk_gpu_vec ty outputShape)
-          outputTypes
-      in
-      let args = Array.of_list (xGpu :: yGpu :: outputVals) in
-      *)
       let gridParams = {
           LibPQ.threads_x=16; threads_y=16; threads_z=1;
           grid_x=safe_div nx 16; grid_y=safe_div ny 16;
