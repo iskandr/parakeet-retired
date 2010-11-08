@@ -36,9 +36,7 @@ and translate_exp codegen globalFunctions idEnv expectedType expNode =
         let fundef_ssa = FnTable.find fnId globalFunctions in
         let fundef_imp = translate_fundef globalFunctions fundef_ssa in
         let arrays_imp = List.map (translate_value idEnv) arrays in
-        let maxInput = 
-          ImpMapTemplate.find_largest_exp_by_type (Array.of_list arrays_imp) 
-        in 
+        let maxInput = largest_val (Array.of_list arrays_imp) in 
         let output =  
           codegen#fresh_array_output outputType (all_dims maxInput) 
         in 
