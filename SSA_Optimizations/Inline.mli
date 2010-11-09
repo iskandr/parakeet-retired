@@ -1,0 +1,1 @@
+val run_fundef_inliner : FnTable.t -> SSA.fundef -> SSA.fundef * bool  
