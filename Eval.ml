@@ -42,7 +42,6 @@ let eval_value
   | Lam _ -> failwith "[eval_value] values of this type not yet implemented" 
  
 let rec eval globalFns fundef hostVals  =
-  GpuRuntime.init(); 
   let memState = MemoryState.create 127 (* arbitrary *) in
   (* create unique identifiers for data items *) 
   let vals = List.map (fun h -> MemoryState.add_host memState h) hostVals in 
@@ -58,11 +57,10 @@ let rec eval globalFns fundef hostVals  =
     in   
     let hostVals = List.map  (MemoryState.get_host memState) outputVals 
     in
-    MemoryState.free_all_gpu memState; 
-    GpuRuntime.shutdown(); 
+    MemoryState.free_all_gpu memState;
     hostVals
   with exn ->
-    MemoryState.free_all_gpu memState; GpuRuntime.shutdown(); raise exn
+    MemoryState.free_all_gpu memState; raise exn
 
 and eval_block 
       (memState : mem) 

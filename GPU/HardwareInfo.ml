@@ -12,19 +12,27 @@ open Printf
 *)
 
 (* The number of devices, and the array which stores their info *)
-let device_info = DynArray.create () 
+
+let device_info = DynArray.create ()
+(*
 let device_contexts = DynArray.create ()
+*)
 let inited = ref false
 
 let hw_init () =
-  if !inited = false then begin 
+  if !inited = false then begin
     inited := true;
-    let ndevices = cuda_device_get_count () in 
-    for i = 0 to ndevices - 1 do 
-      let properties = cuda_device_get_properties i in 
+    cuda_init_runtime ();
+    (* TODO: For now, we'll just handle a single device, and handle *)
+    (* contexts by using the one created by the runtime API *)
+    let ndevices = cuda_device_get_count () in
+    for i = 0 to ndevices - 1 do
+      let properties = cuda_device_get_properties i in
       DynArray.add device_info properties;
-      let ctx = cuda_ctx_create i in 
+      (*
+      let ctx = cuda_ctx_create i in
       DynArray.add device_contexts ctx;
+      *)
       IFDEF DEBUG THEN
         printf "Properties of GPU device %d: \n" i; 
         printf "\t -- max threads per block: %d\n" 
@@ -37,9 +45,10 @@ let hw_init () =
           "\t -- total constant mem: %d\n" properties.total_constant_mem; 
         printf "\t -- warp size: %d\n" properties.warp_size; 
         printf "\t -- clock_rate: %d\n" properties.clock_rate_khz;
-     ENDIF; 
-    done 
-  end
+     ENDIF;
+    done
+  end;
+  ()
 
 let safe_div x y = (x + y - 1) / y
 

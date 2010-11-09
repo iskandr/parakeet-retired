@@ -332,33 +332,36 @@ let run_all_pairs
 let run_where
       (memState : MemoryState.mem_state)
       (binVec   : GpuVal.gpu_val) =
-  Printf.printf "In run_where";
-  let scanShape = Shape.create 1 in
   let nelts = GpuVal.nelts binVec in
-  Shape.set scanShape 0 nelts;
+  let scanShape = GpuVal.get_shape binVec in
   let scanInterm = GpuVal.mk_gpu_vec DynType.Int32T scanShape in
   let gridParams = HardwareInfo.get_linear_grid_params nelts in
   let binPtr = GpuVal.get_ptr binVec in
   let scanPtr = GpuVal.get_ptr scanInterm in
-  Thrust.thrust_prefix_sum_int binPtr nelts scanPtr;
+  Thrust.thrust_prefix_sum_bool_to_int binPtr nelts scanPtr;
   let numIdxs = Cuda.cuda_get_gpu_int_vec_element scanPtr (nelts - 1) in
-  Printf.printf "Number of idxs: %d" numIdxs;
   let outputShape = Shape.create 1 in
   Shape.set outputShape 0 numIdxs;
   let output = GpuVal.mk_gpu_vec DynType.Int32T outputShape in
   Kernels.bind_where_tex scanPtr nelts;
   Kernels.where_tex nelts (GpuVal.get_ptr output);
+  Kernels.unbind_where_tex;
   [output]
 
-let init () = 
-  (* initialize GPU contexts and device info *) 
-  LibPQ.cuda_init(); 
+(*
+let init () =
+  (* initialize GPU contexts and device info *)
+  LibPQ.cuda_init();
   HardwareInfo.hw_init()
+*)
   
-let shutdown () = 
+let shutdown () =
+  ()
+  (*
   for i = 0 to DynArray.length HardwareInfo.device_contexts - 1 do 
     Cuda.cuda_ctx_destroy (DynArray.get HardwareInfo.device_contexts i)
   done
+  *)
   
 let eval_array_op
       (memState : MemoryState.mem_state)

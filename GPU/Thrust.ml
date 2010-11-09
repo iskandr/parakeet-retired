@@ -1,5 +1,8 @@
 open Cuda
 
+external thrust_prefix_sum_bool_to_int : GpuPtr.t -> int -> GpuPtr.t -> unit
+  = "ocaml_thrust_prefix_sum_bool_to_int"
+
 external thrust_prefix_sum_int : GpuPtr.t -> int -> GpuPtr.t -> unit
   = "ocaml_thrust_prefix_sum_int"
 

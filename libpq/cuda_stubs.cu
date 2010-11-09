@@ -10,6 +10,8 @@
 #include <stdint.h>
 #include <stdio.h>
 
+extern "C" {
+
 #include "caml/alloc.h"
 #include "caml/bigarray.h"
 #include "caml/callback.h"
@@ -104,6 +106,17 @@ CAMLprim value ocaml_cuda_ctx_destroy(value ctx) {
   CAMLreturn(Val_unit);
 }
 
+CAMLprim
+value ocaml_cuda_init_runtime(void) {
+  CAMLparam0();
+
+  cudaEvent_t dummy;
+  cudaEventCreate(&dummy);
+  cudaEventDestroy(dummy);
+
+  CAMLreturn(Val_unit);
+}
+
 /* Int64.t -> Int32.t -> int -> unit */
 CAMLprim
 value ocaml_cuda_memcpy_to_device (value array,
@@ -142,13 +155,13 @@ value ocaml_cuda_get_gpu_int_vec_element(value ocaml_gpu_vec, value ocaml_id) {
   CAMLparam2(ocaml_gpu_vec, ocaml_id);
   int *gpu_vec = (int*)Int32_val(ocaml_gpu_vec);
   int32_t val = 0;
-  CUresult rslt =
-    cuMemcpyDtoH(&val, gpu_vec + Int_val(ocaml_id), sizeof(int32_t));
+  cudaError_t rslt = cudaMemcpy(&val, gpu_vec + Int_val(ocaml_id),
+                                sizeof(int32_t), cudaMemcpyDeviceToHost);
   if (rslt) {
     printf("Error getting element of gpu int vec: %d\n", rslt);
     exit(1);
   }
-  CAMLreturn(caml_copy_int32(val));
+  CAMLreturn(Val_int(val));
 }
 
 CAMLprim
@@ -159,8 +172,7 @@ value ocaml_cuda_module_get_tex_ref(value ocaml_module_ptr, value ocaml_name) {
   cuModuleGetTexRef(&tex_ref, *(CUmodule*)Int64_val(ocaml_module_ptr),
                     String_val(ocaml_name));
 
-  printf("sizeof(texref): %d\n", sizeof(CUtexref));
-  CAMLreturn(caml_copy_int32((int32_t)tex_ref));
+  CAMLreturn(caml_copy_int64((int64_t)tex_ref));
 }
 
 CAMLprim
@@ -205,5 +217,9 @@ CAMLprim
 value ocaml_unbind_texture(value tex_ref) {
   CAMLparam1(tex_ref);
 
+  cudaUnbindTexture((textureReference*)Int32_val(tex_ref));
   
+  CAMLreturn(Val_unit);
+}
+
 }

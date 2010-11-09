@@ -51,6 +51,8 @@ external cuda_device_get_properties : int -> device_info
 external cuda_ctx_create : int -> CuCtxPtr.t = "ocaml_cuda_ctx_create"
 external cuda_ctx_destroy : CuCtxPtr.t -> unit = "ocaml_cuda_ctx_destroy"
 
+external cuda_init_runtime : unit -> unit = "ocaml_cuda_init_runtime"
+
 external cuda_memcpy_to_device  : HostPtr.t -> GpuPtr.t -> int -> unit
   = "ocaml_cuda_memcpy_to_device"
 
