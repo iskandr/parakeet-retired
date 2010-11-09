@@ -1,6 +1,6 @@
 
 type scalar_op =
-  | Add | Sub | Mult | Div | Pow | Log 
+  | Add | Sub | Mult | SafeDiv | Div | Pow | Log 
   | Mod  | Min | Max  
   | Eq | Neq  | Lt | Lte | Gt | Gte
   | And| Or | Not   
@@ -64,6 +64,7 @@ let is_binop = function
   | Sub 
   | Mult 
   | Div 
+  | SafeDiv
   | Pow 
   | Log 
   | Mod  
@@ -158,6 +159,7 @@ let scalar_op_to_str = function
 	| Sub -> "-"
 	| Mult -> "*"
 	| Div -> "%"
+  | SafeDiv -> "safediv"
 	| Mod -> "mod"
 	| Min -> "min"
 	| Max -> "max"

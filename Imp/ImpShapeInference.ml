@@ -13,6 +13,10 @@ let rec eval_size_expression shapeEnv exp =
       x1 + x2   
   | Op(Prim.Add, _, _) -> 
       failwith "[ImpShapeInference] wrong number of args for addition"
+  | Op(Prim.SafeDiv, _, [arg1; arg2]) -> 
+      let x1 = eval_size_expression shapeEnv arg1.exp in 
+      let x2 = eval_size_expression shapeEnv arg2.exp in 
+      safe_div x1 x2 
   | Op (Prim.Mult, _, [arg1; arg2]) ->
       let x1 = eval_size_expression shapeEnv arg1.exp in 
       let x2 = eval_size_expression shapeEnv arg2.exp in 

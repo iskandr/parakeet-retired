@@ -308,6 +308,8 @@ let ( -$ ) = sub
 let mod_ ?t  x y = typed_op Prim.Mod ?t  [x; y]
 let ( %$ ) = mod_ 
 
+let safe_div_ ?t x y = typed_op Prim.SafeDiv ?t [x;y]
+
 let lt ?t x y = cmp_op Prim.Lt ?t  [x; y]
 let ( <$ ) = lt
  
