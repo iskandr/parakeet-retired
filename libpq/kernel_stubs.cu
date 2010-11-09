@@ -115,7 +115,7 @@ ocaml_index_float(value ocaml_num_vecs, value ocaml_vec_len,
   dim3 dimGrid(gridX, gridY);
   index_float_kernel<<<dimGrid, dimBlock>>>
     (num_vecs, vec_len, num_idxs, output);
-  check_err(cudaGetLastError(), "Problem launching index int");
+  check_err(cudaGetLastError(), "Problem launching index float");
   CAMLreturn(Val_unit);
 }
 
