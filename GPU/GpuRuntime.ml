@@ -180,12 +180,12 @@ let run_map memState globalFunctions payload gpuVals outputTypes =
 let compile_reduce globalFunctions payload retTypes =
   let redThreadsPerBlock = 128 in
   let impPayload = SSA_to_Imp.translate_fundef globalFunctions payload in
-  let impfn = 
+  let impfn =
     ImpReduceTemplate.gen_reduce impPayload redThreadsPerBlock retTypes 
   in
   debug (Printf.sprintf "[compile_reduce] %s\n" (Imp.fn_to_str impfn));
   let ptx, cc = ImpToPtx.translate_kernel impfn in
-  let reducePrefix = "reduce_kernel" in 
+  let reducePrefix = "reduce_kernel" in
   let name = reducePrefix ^ (string_of_int (ID.gen())) in
   let cudaModule = 
     LibPQ.cuda_module_from_kernel_list [name,ptx] redThreadsPerBlock
@@ -241,6 +241,8 @@ let run_reduce
 	            | None -> failwith
 	                (sprintf "Unable to get launch params for %d elts" curNumElts)
 	        in
+          Printf.printf "Launching with %d inputs, %d outputs\n"
+            curNumElts numOutputElts;
           LibPQ.launch_ptx
             compiledModule.Cuda.module_ptr fnName args gridParams;
           if curNumElts < numInputElts then GpuVal.free args.(0);
@@ -251,7 +253,7 @@ let run_reduce
       in
       let ret = aux gpuVal numInputElts in
       [ret]
-    | _ -> failwith "expect one map kernel"
+    | _ -> failwith "expect one reduce kernel"
 
 
 let compile_all_pairs globalFunctions payload argTypes retTypes =

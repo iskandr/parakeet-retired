@@ -5,22 +5,27 @@ open DynType
 
 (* reduces each block's subvector to a single output element *) 
 let gen_reduce payload threadsPerBlock outTypes =
-  assert (List.length outTypes = 1); 
+  assert (List.length outTypes = 1);
   let ty = List.hd outTypes in
   let codegen = new imp_codegen in
   let input = codegen#fresh_input (VecT ty) in
-  let output = codegen#fresh_output (VecT ty) in
-  let cache = codegen#shared_vec_var ty [threadsPerBlock] in 
+  let head::tail = all_dims input in
+  let output = codegen#fresh_array_output (VecT ty)
+                 ((safe_div_ head (int $ threadsPerBlock * 2))::tail) in
+
+  let cache = codegen#shared_vec_var ty [threadsPerBlock] in
+
   let tid = codegen#fresh_var UInt32T in
-  let i = codegen#fresh_var UInt32T in
   let linearBlockIdx = codegen#fresh_var UInt32T in
   let startBlock = codegen#fresh_var UInt32T in
+  let i = codegen#fresh_var UInt32T in
   codegen#emit [
     set tid threadIdx.x;
     set linearBlockIdx (blockIdx.x +$ (blockIdx.y *$ gridDim.x));
     set startBlock ((int $ threadsPerBlock * 2) *$ linearBlockIdx);
     set i (threadIdx.x +$ startBlock)
   ];
+  
   let temp = codegen#fresh_var ty in
   let tmp1 = codegen#fresh_var ty in
   let tmp2 = codegen#fresh_var ty in
@@ -41,16 +46,16 @@ let gen_reduce payload threadsPerBlock outTypes =
   codegen#splice_emit payload [|tmp1;tmp2|] [|temp|] template;
   
   let lenBlock = codegen#fresh_var UInt32T in
-  debug "A";
+  let tmpInt = codegen#fresh_var UInt32T in
   codegen#emit [
     set lenBlock (int $ threadsPerBlock * 2);
-    ifTrue ((len input -$ startBlock) <$ lenBlock) [
-      set lenBlock (len input -$ startBlock)
+    set tmpInt ((len input) -$ startBlock);
+    ifTrue (tmpInt <$ lenBlock) [
+      set lenBlock tmpInt 
     ]
   ];
   let j = ref (threadsPerBlock / 2) in
   while !j >= 1 do
-    debug (Printf.sprintf "B : %d" !j);
     let template = [
       ifTrue (tid <$ (int !j) &&$ (tid +$ (int !j) <$ lenBlock))
          [SPLICE; set (idx cache tid) temp];
