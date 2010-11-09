@@ -6,8 +6,6 @@ open Printf
 open ShapeInference 
 open ImpShapeInference 
 
-
-
 type adverb_impl = 
  MemoryState.mem_state ->  FnTable.t -> SSA.fundef -> 
     GpuVal.gpu_val list -> DynType.t list -> GpuVal.gpu_val list
@@ -395,7 +393,9 @@ let eval_array_op
       (args : InterpVal.t list)
       (outputTypes : DynType.t list)
       : GpuVal.gpu_val list =
-  Printf.printf "In eval array op";
+  IFDEF DEBUG THEN 
+     Printf.printf "In eval array op\n";
+  ENDIF; 
   match op, args  with  
   | Prim.Map, (InterpVal.Closure(fnId, []))::dataArgs ->
       let fundef = FnTable.find fnId functions in

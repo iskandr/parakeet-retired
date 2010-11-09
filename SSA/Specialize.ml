@@ -314,12 +314,11 @@ and annotate_block context = function
 and scalarize_fundef program untypedId untypedFundef vecSig = 
   let scalarSig = Signature.peel_vec_types vecSig in 
   let scalarFundef = specialize_fundef program untypedFundef scalarSig in
-  let scalarFnId = 
-    Program.add_specialization program 
-      (GlobalFn untypedId) 
-      scalarSig 
-      scalarFundef 
-  in 
+  Program.add_specialization program 
+    (GlobalFn untypedId) 
+    scalarSig 
+    scalarFundef 
+  ;
   let scalarOutputTypes = DynType.fn_output_types scalarFundef.fn_type in  
   let inputTypes = Signature.input_types vecSig in  
   let outputTypes = List.map (fun t -> VecT t) scalarOutputTypes in
@@ -335,7 +334,7 @@ and scalarize_fundef program untypedId untypedFundef vecSig =
   let scalarFnType = scalarFundef.fn_type in  
   let mapType = FnT(scalarFnType :: inputTypes, outputTypes) in  
   let mapNode = SSA.mk_val ~ty:mapType (SSA.Prim (Prim.ArrayOp Prim.Map)) in
-  let fnNode = SSA.mk_val ~ty:scalarFnType (GlobalFn scalarFnId) in     
+  let fnNode = SSA.mk_val ~ty:scalarFnType (GlobalFn scalarFundef.fn_id) in     
   let dataNodes =
     List.map2 (fun id t -> SSA.mk_var ~ty:t id) freshInputIds inputTypes
   in
@@ -365,13 +364,13 @@ and specialize_function_id program untypedId signature =
          then scalarize_fundef program untypedId untypedFundef signature 
          else specialize_fundef program untypedFundef signature
        in
-       let _ = 
-        Program.add_specialization 
-          program 
-          (GlobalFn untypedId) 
-          signature 
-          typedFundef
-       in typedFundef  
+       Program.add_specialization 
+           program 
+           (GlobalFn untypedId) 
+           signature 
+           typedFundef
+       ;
+       typedFundef   
     | Some typedId -> Program.get_typed_function program typedId 
           
 and specialize_fundef program untypedFundef signature = 
@@ -420,7 +419,6 @@ and specialize_function_value program v signature : SSA.value_node =
       | GlobalFn untypedId  -> 
          specialize_function_id program untypedId signature
          
-        
       (* first handle the simple case when it's a scalar op with scalar args *)
       | Prim (Prim.ScalarOp op) when 
           List.for_all DynType.is_scalar (Signature.input_types signature)  ->
@@ -476,10 +474,8 @@ and specialize_function_value program v signature : SSA.value_node =
             (Signature.input_types signature)
       | _ -> failwith "invalid value type for specialize_function_value"  
      in 
-     let typedId = 
-       Program.add_specialization program v signature  typedFundef 
-     in
-     { value = GlobalFn typedId; 
+     Program.add_specialization program v signature  typedFundef; 
+     { value = GlobalFn typedFundef.fn_id; 
        value_type = typedFundef.fn_type; 
        value_src = None 
      }      

@@ -133,7 +133,8 @@ let fuse
         [fn], [ty], Prim.Map 
     | _ -> failwith "[adverb_fusion->fuse] adverb pair not yet implemented"
   in 
-  let fusedIds = List.map (fun fundef -> FnTable.add fundef fns) fusedFns in
+  List.iter (fun fundef -> FnTable.add fundef fns) fusedFns; 
+  let fusedIds = List.map (fun fundef -> fundef.fn_id) fusedFns in
   let is_data_dependency vNode = match vNode.value with 
      | Var id -> not (ID.Set.mem id overlap) 
      | _ -> true
