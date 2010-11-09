@@ -5,8 +5,6 @@ open SourceInfo
 
 open AST
 
-let _ = Printexc.record_backtrace true
-
 let gen_template_id = mk_gen () 
 let gen_template_name () = "pq_template" ^ Int.to_string (gen_template_id())
 
@@ -250,14 +248,16 @@ let process_lexbuf ~debug lexbuf =
       with 
       | QParser.Error ->
         let pos = Lexing.lexeme_start_p lexbuf in  
-        Printf.fprintf stdout "Parser error at line %d, column %d.\n" 
-        pos.Lexing.pos_lnum (pos.Lexing.pos_cnum - pos.Lexing.pos_bol + 1)
-        ; exit 1
+        eprintf "Parser error at line %d, column %d.\n" 
+          pos.Lexing.pos_lnum (pos.Lexing.pos_cnum - pos.Lexing.pos_bol + 1)
+        ; 
+        exit 1
      | QLexer.Error msg -> 
         let pos = Lexing.lexeme_start_p lexbuf in  
-        Printf.fprintf stdout "Lexer error at line %d, column %d: %s\n" 
-        pos.Lexing.pos_lnum (pos.Lexing.pos_cnum - pos.Lexing.pos_bol + 1) msg
-        ; exit 1 
+        eprintf "Lexer error at line %d, column %d: %s\n" 
+          pos.Lexing.pos_lnum (pos.Lexing.pos_cnum - pos.Lexing.pos_bol + 1) msg
+        ; 
+        exit 1 
     in 
     (* convert the syntax tree into a language agnostic AST *)
   	let ast = QSyntax_to_AST.syntax_to_ast syntax_node in
@@ -270,20 +270,21 @@ let process_lexbuf ~debug lexbuf =
     let infoMap = PMap.map (fun  ast -> ast.ast_info) astMap in
      
     let print_info key info = 
-        print_string key;
-        print_string " : ";
-        print_string (AST_Info.to_str info);
-        print_endline "" in
-    
-    if debug then (print_endline "[direct AST info]";
-    PMap.iter print_info infoMap;
-    print_endline ""); 
+        eprintf "%s : %s\n"  key (AST_Info.to_str info)
+    in
+    if debug then ( 
+      eprintf "[direct AST info]\n";  
+      PMap.iter print_info infoMap;
+      eprintf "\n"; 
+    );
     
     let transInfo = Analyze_AST.transitive_closure infoMap in
     
-    if debug then (print_endline "[transitive closure of AST info]";
-    PMap.iter print_info transInfo;
-    print_endline "");
+    if debug then ( 
+      eprintf "[transitive closure of AST info]\n";
+      PMap.iter print_info transInfo;
+      eprintf "\n";
+    );
     
     (* we want the transitive properties except for is_function, which should
        only apply if the function was clearly a lambda 
@@ -296,15 +297,18 @@ let process_lexbuf ~debug lexbuf =
     let globalFnSet = PSet.of_enum (PMap.keys globalFnMap) in 
     let globalDataSet = PSet.of_enum (PMap.keys globalDataMap) in 
     
-    if debug then printf "Global data: {%s} \n"
-      (String.concat ", " (PSet.to_list globalDataSet)); 
-    
+    if debug then (
+       eprintf "Global data: {%s} \n"
+        (String.concat ", " (PSet.to_list globalDataSet)); 
+    );
     let volatileFnSet = PSet.inter volatileSet globalFnSet in         
     let safeFns, unsafeFns = 
       Analyze_AST.find_safe_functions globalFnMap volatileFnSet in  
     
-    if debug then printf "Safe functions: {%s}\n" 
-      (String.concat ", " (PSet.to_list safeFns));   
+    if debug then ( 
+        eprintf "Safe functions: {%s}\n" 
+          (String.concat ", " (PSet.to_list safeFns));   
+    );
     
     let safeFnDefs = 
       PMap.filter_by_key (fun k -> PSet.mem k safeFns) astMap in  
@@ -327,9 +331,6 @@ let process_lexbuf ~debug lexbuf =
     let astStr = AST.node_to_str ast'' in
     (* temporary: load the dt.so shared library *) 
     let astStr = "\\l dt.q\n" ^ astStr in 
-    if debug then  (
-       print_endline "\n ---code---\n"
-    );
     print_endline astStr
     
     

@@ -11,7 +11,7 @@ let (>>) (value,changed) f =
 
 let replace_with_def defEnv id = 
   if ID.Map.mem id defEnv then match ID.Map.find id defEnv with 
-    | FindDefs.SingleDef (Values [{value=Var id'}]) ->  Var id', true
+    | FindDefs.SingleDef (Values [{value=Var id'}], _) ->  Var id', true
     | _ -> Var id, false
   else Var id, false 
 
@@ -20,13 +20,7 @@ let replace_with_const constEnv id =
   if ID.Map.mem id constEnv then match ID.Map.find id constEnv with
     | ConstantLattice.Const (Lam fundef) -> nochange  
     (* any constant but a function is fine to inline everywhere *)
-    | ConstantLattice.Const v ->
-               debug $ Printf.sprintf 
-                 "[simplify->rewrite_value found constant value for %s: %s"
-                 (ID.to_str id)
-                 (SSA.value_to_str v)
-               ;
-               v, true
+    | ConstantLattice.Const v -> v, true
     | _ -> nochange
   else nochange  
 
@@ -135,7 +129,7 @@ and rewrite_value constEnv useCounts defEnv tenv valNode =
           let ids', changed = rename_dummy_outputs ids in
           if ID.Map.mem id defEnv then 
             match ID.Map.find id defEnv with 
-            | SingleDef (Values [{value=Var id'}]) -> id'::ids', true     
+            | SingleDef (Values [{value=Var id'}], _) -> id'::ids', true     
             |  _ -> id::ids', changed 
           else id::ids', changed
         | [] -> [], false
@@ -159,22 +153,22 @@ and rewrite_value_list constEnv useCounts defEnv tenv = function
 
 (* run single pass of constant detection and propagation *) 
 let simplify_typed_block 
+    (functions : FnTable.t)
     ~tenv
+    ~def_env 
     ~(free_vars:ID.t list) 
-     (functions : FnTable.t)
      (block : SSA.block) =
   let constEnv  = FindConstants.find_constants ~free_vars block in
   let useCounts,_ = FindUseCounts.find_use_counts block in
-  let defEnv  = FindDefs.find_block_defs block in 
-  rewrite_block constEnv useCounts defEnv tenv block     
+  rewrite_block constEnv useCounts def_env tenv block     
   
-let simplify_fundef (functions:FnTable.t) fundef = 
-  
+let simplify_fundef (functions:FnTable.t) fundef =
+  let defEnv =  FindDefs.find_function_defs fundef in
   let body', changed = 
-    simplify_typed_block 
+    simplify_typed_block functions 
       ~tenv:fundef.tenv 
+      ~def_env:defEnv   
       ~free_vars:fundef.input_ids  
-      functions 
       fundef.body
   in 
   {fundef with body = body'}, changed 

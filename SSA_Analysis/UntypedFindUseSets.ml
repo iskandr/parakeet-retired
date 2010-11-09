@@ -1,8 +1,6 @@
 open Base 
 open SSA
 
-
-
 let rec eval_block useMap block =
   let rec aux accLive accMap = function 
     | [] -> accLive, accMap 
@@ -90,5 +88,4 @@ let rec find_top_bindings = function
       ID.Set.union gateSet (ID.Set.union tSet fSet)  
   | _::rest -> find_top_bindings rest
  
-let find_use_sets block = 
-  eval_block PMap.empty block 
+let find_use_sets block = eval_block PMap.empty block 

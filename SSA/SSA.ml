@@ -187,15 +187,19 @@ let mk_if ?(src=None) condVal tBlock fBlock gate =
 (* get the id of a variable value node *) 
 let get_id valNode = match valNode.value with 
   | Var id -> id 
-  | _ -> failwith "variable expected"
+  | other -> failwith $ Printf.sprintf 
+     "[SSA->get_id] expected variable, received %s"
+     (value_to_str other)
 
 (* get the ids from a list of variable value nodes *) 
 let get_ids vars = List.map get_id vars 
 
-
 let get_fn_id valNode = match valNode.value with 
   | GlobalFn fnId -> fnId
-  | _ -> failwith "function reference expected"
+  | other -> failwith $ 
+      Printf.sprintf 
+        "[SSA->get_fn_id] expected global function, received %s"
+        (value_to_str other)
   
 
 let get_fn_ids valNodes = List.map get_fn_id valNodes  

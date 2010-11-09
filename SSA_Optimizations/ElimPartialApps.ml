@@ -28,14 +28,17 @@ and eval_stmt defEnv constEnv stmtNode =
     in 
     stmtNode', trueChanged || falseChanged     
   | other -> stmtNode, false
+ 
 and eval_exp defEnv constEnv expNode = 
   match expNode.exp with 
-  | App ({value=GlobalFn fnId} as fnNode, args) -> 
-    (match ID.Map.find fnId defEnv with 
-     | SingleDef (App({value=GlobalFn fnId'}, args')) 
-       when FindConstants.is_function_constant constEnv fnId' ->
+  | App ({value=Var id} as fnNode, args) -> 
+    (match ID.Map.find id defEnv with 
+     (* assume that function was partially applied and thus returns 
+        just a single value -- the closure 
+     *)
+     | SingleDef (App({value=GlobalFn fnId}, closureArgs), 0) ->
        {expNode with exp = 
-            App({fnNode with value = GlobalFn fnId'}, args' @ args)
+            App({fnNode with value = GlobalFn fnId}, closureArgs @ args)
        }, true
      | _ -> expNode, false
     )

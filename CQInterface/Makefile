@@ -46,12 +46,11 @@ SSA_Gates.cmx SSA.cmx AST_to_SSA.cmx \
 FnTable.cmx \
 ConstantLattice.cmx \
 SSA_Base_Analysis.cmx \
-FindConstants.cmx \
-FindDefs.cmx \
 UntypedFindGenSet.cmx \
-UntypedFindUseSets.cmx \
 FindUseCounts.cmx \
 UntypedReplace.cmx \
+FindConstants.cmx \
+FindDefs.cmx \
 Inline.cmx \
 FindLiveIds.cmx \
 ElimDeadCode.cmx \

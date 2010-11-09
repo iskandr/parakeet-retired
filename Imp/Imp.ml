@@ -28,9 +28,12 @@ and stmt =
   (* used to plug one function into another, shouldn't exist in final code *) 
   | SPLICE 
 and block = stmt list
+   
 and array_annot = 
   | SharedArray of int list 
   | PrivateArray of exp list 
+  | OutputArray of exp list 
+  | InputArray of int  
 and fn = {
   input_ids : ID.t array;
   input_types : DynType.t array;

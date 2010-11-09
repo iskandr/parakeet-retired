@@ -56,10 +56,6 @@ and eval_exp (env : (exp,value) PMap.t) expNode =
   | Arr vs -> 
       let vs', changed = eval_value_list env vs in 
       Arr vs', changed
-  (*| Tuple vs -> 
-      let vs', changed = eval_value_list env vs in 
-      Tuple vs', changed
-  *)
   | App(fn, args) -> 
       let fn', fnChanged = eval_value env fn in 
       let args', argsChanged = eval_value_list env args in 

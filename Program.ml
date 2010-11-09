@@ -73,12 +73,13 @@ let create_untyped fnNameMap fundefMap =
      untyped_id_to_name = idToName; 
   }
  
+open AdverbFusion 
 let default_typed_optimizations = 
   [
     (*"function cloning", TypedFunctionCloning.function_cloning;*)   
     "simplify", Simplify.simplify_fundef; 
     "dead code elim", ElimDeadCode.elim_dead_code; 
-    "adverb fusion", AdverbFusion.optimize_fundef; 
+    (*"adverb fusion", AdverbFusion.optimize_fundef;*) 
 
   ]  
  
@@ -88,6 +89,19 @@ let add_specialization
     (untypedVal : SSA.value) 
     (signature : Signature.t) 
     (typedFundef : SSA.fundef) =
+  IFDEF DEBUG THEN
+    let valStr = SSA.value_to_str untypedVal in   
+    Printf.printf 
+      "\nSpecialized %s for signature %s: \n[BEFORE OPTIMIZATION] %s \n"
+      (match untypedVal with 
+        | GlobalFn untypedId ->
+          let fnName = Hashtbl.find program.untyped_id_to_name untypedId in  
+          Printf.sprintf "\"%s\" (untyped %s)" fnName valStr
+        | _ -> valStr      
+      )
+      (Signature.to_str signature)
+      (SSA.fundef_to_str typedFundef)
+  ENDIF; 
   let optimized = 
      RunOptimizations.optimize_fundef
       ~maxiters:10
@@ -95,21 +109,12 @@ let add_specialization
       program.typed_functions 
       typedFundef
       optimizations
-  in  
-  let typedId = FnTable.add optimized program.typed_functions in  
+  in
+  IFDEF DEBUG THEN 
+      Printf.printf "[OPTIMIZED] %s \n%!" (SSA.fundef_to_str optimized)
+  END;
+  let typedId = FnTable.add optimized program.typed_functions in
   Hashtbl.add program.specializations (untypedVal, signature) typedId;
-  IFDEF DEBUG THEN
-    let valStr = SSA.value_to_str untypedVal in   
-    Printf.printf "Specialized %s for signature %s: \n %s\n%!"
-      (match untypedVal with 
-        | GlobalFn untypedId ->
-          let fnName = Hashtbl.find program.untyped_id_to_name untypedId in  
-          Printf.sprintf "\"%s\" (%s)" fnName valStr
-        | _ -> valStr      
-      )
-      (Signature.to_str signature)
-      (SSA.fundef_to_str optimized)
-  END; 
   typedId 
 
 let maybe_get_specialization program v signature = 
