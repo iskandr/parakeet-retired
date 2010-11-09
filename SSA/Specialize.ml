@@ -96,8 +96,91 @@ let specialize_scalar_prim_for_scalar_args
         codegen#emit [mk_set (get_ids outputs) appNode]
     ) 
 
-        
-let rec annotate_exp context expNode =
+
+(*
+   THIS IS THE HEART OF THE TYPE INFERENCE / SPECIALIZATION ALGORITHM:
+   ANNOTATION AND SPECIALIZATION ARE BOUND TOGETHER THROUGH POLYVARIANCE. 
+   ----------------------------------------------------------------------
+   Polyvariance means that at every function call site we specialize 
+   that function for that particular argument signature. In the case 
+   of higher order functions the function values are included in the 
+   signature. 
+*) 
+     
+let rec annotate_app context expSrc fn args = match fn.value with
+  (* for now assume that all higher order primitives take a single *)
+  (* function argument which is passed first *)  
+  | Prim (Prim.ArrayOp p) when Prim.is_higher_order p -> 
+    assert (List.length args > 1); 
+    let fnArg = List.hd args in 
+    let dataArgs = List.tl args in 
+    let dataArgs', types, argsChanged = annotate_values context dataArgs in
+    (* for now just pass through the literal value but should eventually*)
+    (* have a context available with an environment of literal value *)
+    (* arguments and check whether the fnArg is in that environment. *)  
+    let signature = { 
+      Signature.inputs = 
+        (Signature.Value fnArg.value) 
+        :: (List.map (fun t -> Signature.Type t) types);
+      outputs = None
+    } 
+    in 
+    let specializedFn = 
+      specialize_function_value context.program fn.value signature 
+    in
+    let expNode = { 
+      exp_src = expSrc;  
+      exp_types = DynType.fn_output_types specializedFn.value_type; 
+      exp = App(specializedFn, dataArgs') 
+    }
+    in expNode, argsChanged
+      
+  (* for now assume all named functions are top-level and that none*)
+  (* of the arguments are themselves functions. This means that for now *)
+  (* the only higher order functions are built in primitives. *)  
+  | GlobalFn _ 
+  | Prim _ ->
+    let args', types,  argsChanged = annotate_values context args in 
+    let signature = Signature.from_input_types types in 
+    let specializedFn = 
+      specialize_function_value context.program fn.value signature 
+    in
+    let expNode = {
+      exp_src = expSrc;  
+      exp_types = DynType.fn_output_types specializedFn.value_type; 
+      exp = App(specializedFn, args') 
+    }
+    in expNode, argsChanged               
+  | Lam _ -> failwith "anonymous functions should have been named by now"
+  | Var arrayId -> 
+    (* assume we're conflating array indexing and function application. *)
+    let arrayType = ID.Map.find arrayId context.type_env in
+    let arrNode = { fn with value_type = arrayType } in  
+    if DynType.is_scalar arrayType then 
+        failwith "indexing requires lhs to be an array"
+    ;  
+    (* ignore changes to the args since we know we're definitely 
+       changing this node from application of a Var to Prim.Index
+    *)
+    let args', argTypes, _ = annotate_values context args in
+    let resultType = DynType.slice_type arrayType argTypes in
+    let indexNode = { fn with 
+      value_type = DynType.FnT(arrayType :: argTypes, [resultType]);
+      value = Prim (Prim.ArrayOp Prim.Index); 
+    } 
+    in 
+    let expNode = {  
+      exp_src= expSrc;  
+      exp_types = [resultType]; 
+      exp = App(indexNode, arrNode :: args');
+    }
+    in expNode, true
+    
+  | other -> failwith $ Printf.sprintf 
+      "expected either a function or an array, received: %s" 
+      (SSA.value_to_str other) 
+           
+and annotate_exp context expNode =
   (* if the overall types returned by the expression change then *)
   (* this taken into account at the bottom of the function *)  
   let expNode', changed = match expNode.exp with 
@@ -121,7 +204,7 @@ let rec annotate_exp context expNode =
       } 
       in 
       expNode', changed
-         
+      
   | Arr vs -> 
       let vs', types, anyValueChanged = annotate_values context vs in 
       begin match DynType.fold_type_list types with 
@@ -140,66 +223,7 @@ let rec annotate_exp context expNode =
             in 
             expNode', anyValueChanged || anyUpcast
       end
-  
-  | App (fn, args) -> 
-     (*
-       THIS IS THE HEART OF THE TYPE INFERENCE / SPECIALIZATION ALGORITHM:
-       ANNOTATION AND SPECIALIZATION ARE BOUND TOGETHER THROUGH POLYVARIANCE. 
-       ----------------------------------------------------------------------
-       Polyvariance means that at every function call site we specialize 
-       that function for that particular argument signature. In the case 
-       of higher order functions the function values are included in the 
-       signature. 
-     *) 
-       begin match fn.value with
-       (* for now assume that all higher order primitives take a single *)
-       (* function argument which is passed first *)  
-       | Prim (Prim.ArrayOp p) when Prim.is_higher_order p -> 
-          assert (List.length args > 1); 
-          let fnArg = List.hd args in 
-          let dataArgs = List.tl args in 
-          let dataArgs', types, argsChanged = 
-            annotate_values context dataArgs 
-          in
-          (* for now just pass through the literal value but should eventually*)
-          (* have a context available with an environment of literal value *)
-          (* arguments and check whether the fnArg is in that environment. *)  
-          let signature = { 
-            Signature.inputs = (Signature.Value fnArg.value) ::
-              (List.map (fun t -> Signature.Type t) types);
-            Signature.outputs = None
-          } 
-          in 
-          let specializedFn = 
-             specialize_function_value context.program fn.value signature 
-           in
-           let outTypes = DynType.fn_output_types specializedFn.value_type in 
-           let expNode' = { expNode with 
-             exp_types = outTypes; 
-             exp = App(specializedFn, dataArgs') 
-           }
-           in expNode', argsChanged
-      
-       (* for now assume all named functions are top-level and that none*)
-       (* of the arguments are themselves functions. This means that for now *)
-       (* the only higher order functions are built in primitives. *)  
-       | GlobalFn _ 
-       | Prim _ ->
-           let args', types,  argsChanged = annotate_values context args in 
-           let signature = Signature.from_input_types types in 
-           let specializedFn = 
-             specialize_function_value context.program fn.value signature 
-           in
-           let outTypes = DynType.fn_output_types specializedFn.value_type in 
-           let expNode' = { expNode with 
-             exp_types = outTypes; 
-             exp = App(specializedFn, args') 
-           }
-           in expNode', argsChanged               
-       | Lam _ -> 
-            failwith "anonymous functions should have been named by now"
-       | _ -> failwith "invalid object where function was expected"
-       end 
+  | App (fn, args) -> annotate_app context expNode.exp_src fn args 
   | ArrayIndex (arr, indices) -> 
         failwith "annotation of array indexing not yet supported"
   in 

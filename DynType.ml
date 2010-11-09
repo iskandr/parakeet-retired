@@ -225,3 +225,16 @@ let fn_output_arity t = List.length (fn_output_types t)
 let rec replace_elt_type vecType newEltType = match vecType with 
   | VecT vecType' -> VecT (replace_elt_type vecType' newEltType)
   | _ -> newEltType 
+
+
+(* what's the return type of multidimensional indexing or slicing *) 
+let rec slice_type arrayType types = match arrayType, types with 
+  (* if we're not slicing an array, just return the same type *)
+  | _, [] -> arrayType
+  | VecT nestedT, (VecT idxT)::rest when is_integer idxT -> 
+      VecT (slice_type nestedT rest)
+  | VecT nestedT, idxT::rest when is_integer idxT ->
+      slice_type nestedT rest 
+  | _ when is_scalar arrayType -> 
+      failwith "[slice_type] indexing into scalar not allowed"
+  | _ -> assert false  

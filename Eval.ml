@@ -9,21 +9,6 @@ let _ = Printexc.record_backtrace true;;
 type mem = MemoryState.mem_state
 type env = (ID.t, InterpVal.t) PMap.t
 
-(*
-let get_fundef functions env fnValNode = match fnValNode.value with 
-  | Lam fundef -> fundef 
-  | GlobalFn fnId -> FnTable.find fnId functions    
-  | Var id -> 
-    let fnId = 
-      if PMap.mem id env then match PMap.find id env with 
-      | Closure (fnId, []) -> fnId
-      | Closure (fnId, _) -> failwith "closures not yet supported" 
-      | _ -> failwith "function expected"
-      else id 
-    in FnTable.find fnId functions    
-  | _ -> failwith "function expected"
-*)
-    
 let eval_value 
     (memoryState : mem) 
     (env : env) 
@@ -113,7 +98,9 @@ and eval_exp
       failwith "calling closures not yet implemented"
   | App ({value=GlobalFn fnId}, args) -> 
       let fundef = FnTable.find fnId functions in
-      debug (Printf.sprintf "[eval_exp] calling function %d" fnId);
+      IFDEF DEBUG THEN 
+        Printf.printf "[eval_exp] calling function %s" (FnId.to_str fnId);
+      ENDIF;
       let argVals = List.map (eval_value memState env) args in  
       (* create an augmented memory state where input ids are bound to the *)
       (* argument values on the gpu *) 
@@ -126,9 +113,8 @@ and eval_exp
       in
       let env'' = eval_block memState functions env' fundef.body in
       List.map (fun id -> PMap.find id env'') fundef.output_ids
- 
   | ArrayIndex (arr, indices) -> 
-        failwith "[eval] array indexing not implemented"
+      failwith "[eval] array indexing not implemented" 
   | Arr elts -> failwith "[eval] array constructor not implemented"
   | Cast (t, valNode) -> failwith "[eval] cast not implemented"
        

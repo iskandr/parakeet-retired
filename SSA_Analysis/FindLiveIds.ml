@@ -16,8 +16,16 @@ and eval_stmt liveSet stmtNode = match stmtNode.stmt with
       let liveSet1 = eval_value liveSet cond in 
       let liveSet2 = eval_block liveSet1 tBlock in 
       eval_block liveSet2 fBlock  
-      
+  | SetIdx(id, indices, rhs) -> 
+      let liveSet1 = eval_value_list liveSet indices in
+      let liveSet2 = eval_value liveSet1 rhs in
+      (* does a variable become live just because we're
+         modifying it? 
+      *)
+      ID.Set.add id liveSet2  
+  | WhileLoop _ -> failwith "[FindLiveIds] loops not yet implemented"
 and eval_exp liveSet (expNode:exp_node) = match expNode.exp with  
+  | ArrayIndex (lhs, args)
   | App (lhs, args) -> eval_value_list liveSet (lhs::args) 
   | Cast (_, rhs) -> eval_value liveSet rhs  
   | Arr vs -> eval_value_list liveSet vs
