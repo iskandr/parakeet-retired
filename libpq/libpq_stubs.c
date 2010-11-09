@@ -19,7 +19,6 @@
 #define ALIGN_UP(offset, alignment) \
   (offset) = ((offset) + (alignment) - 1) & ~((alignment) - 1)
 
-
 /* unit -> unit */
 CAMLprim value ocaml_pq_init(value unit) {
   CAMLparam1 (unit);
@@ -98,9 +97,6 @@ CAMLprim value ocaml_pq_destroy_module(value module_ptr) {
   free(cuModule);
 	CAMLreturn(Val_unit);
 }
-
-
-
 
 CAMLprim value ocaml_pq_launch_ptx (
   value ocaml_module_ptr,

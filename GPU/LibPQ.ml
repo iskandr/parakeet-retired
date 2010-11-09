@@ -26,7 +26,16 @@ external launch_ptx_impl
   : CuModulePtr.t -> string -> GpuVal.gpu_val array ->
          int -> int -> int -> int -> int -> unit =
                 "ocaml_pq_launch_ptx_bytecode" "ocaml_pq_launch_ptx"
-    
+
+let inited = ref false
+
+let init () =
+  if !inited = false then begin
+    inited := true;
+    cuda_init ()
+  end;
+  ()
+
 let launch_ptx (cudaModule : CuModulePtr.t) (fnName : string) 
       (args : GpuVal.gpu_val array)
       (gridParams : grid_params) =

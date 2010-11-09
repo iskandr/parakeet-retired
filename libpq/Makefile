@@ -335,6 +335,9 @@ compaction: where.cu_o index.cu_o gen_idx.cu_o scan.cu_o compaction_tester.o \
 each: each.cu_o each_tester.o base.o
 	gcc-4.3 each.cu_o each_tester.o base.o -I. $(INCLUDES) -o each $(LIB) -L.
 
+boolscan: boolscantester.cu_o
+	gcc-4.3 boolscantester.cu_o -o boolscan -I. $(INCLUDES) $(LIB) -L.
+
 kmeans: kmeans.cu_o scan.cu_o base.o
 	gcc-4.3 kmeans.cu_o scan.cu_o base.o -o kmeans -I. $(INCLUDES) $(LIB) -L.
 
@@ -378,11 +381,10 @@ multi: multi_index_reduce.cu_o multi_index_reduce_tester.o
 timing: timing.o
 	gcc timing.o  libpq.so -I. $(INCLUDES) -o timing $(LIB) -L. -lpq
 
-stubs: thrust_stubs.cu_o kernel_stubs.cu_o base.o
+stubs: thrust_stubs.cu_o kernel_stubs.cu_o cuda_stubs.cu_o base.o
 	echo $(INCLUDES)
 	$(CC) -c libpq_stubs.c -I. $(INCLUDES) -o libpq_stubs.o $(LIB) -L. 
-	$(CC) -c cuda_stubs.c -I. $(INCLUDES) -o cuda_stubs.o $(LIB) -lcuda -lcudart
-	ar rcs libpq_stubs.a libpq_stubs.o cuda_stubs.o thrust_stubs.cu_o \
+	ar rcs libpq_stubs.a libpq_stubs.o cuda_stubs.cu_o thrust_stubs.cu_o \
 		kernel_stubs.cu_o base.o
 
 clean:

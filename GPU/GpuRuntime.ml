@@ -311,36 +311,79 @@ let run_all_pairs
       LibPQ.launch_ptx compiledModule.Cuda.module_ptr fnName paramsArray gridParams;
       outputVals
 
+let run_index
+      (memState : MemoryState.mem_state)
+      (inputVec : GpuVal.gpu_val) 
+      (indexVec : GpuVal.gpu_val) =
+  let inputShape = GpuVal.get_shape inputVec in
+  let ninputs = Shape.nelts inputShape in
+  let nidxs = GpuVal.nelts indexVec in
+  let r = Shape.rank inputShape in
+  let outputShape = Shape.create r in
+  Shape.set outputShape 0 nidxs;
+  if r > 2 or r < 1 then
+    failwith "Index only works for 1D and 2D inputs for now";
+  let vec_len = if r = 1 then
+    Shape.get inputShape 0
+  else begin
+    let len = Shape.get inputShape 1 in
+    Shape.set outputShape 1 len;
+    len
+  end
+  in
+  let elType = DynType.elt_type (GpuVal.get_type inputVec) in
+  let output = GpuVal.mk_gpu_vec (GpuVal.get_type inputVec) outputShape in
+  let inputPtr = GpuVal.get_ptr inputVec in
+  let indexPtr = GpuVal.get_ptr indexVec in
+  let outputPtr = GpuVal.get_ptr output in
+  Kernels.bind_index_idxs_tex indexPtr nidxs;
+  begin match elType with
+    | DynType.Int32T -> begin
+        Kernels.bind_index_int_vecs_tex inputPtr ninputs;
+        Kernels.index_int (Shape.get inputShape 0) vec_len nidxs outputPtr;
+        Kernels.unbind_index_int_vecs_tex ()
+      end
+    | DynType.Float32T -> begin
+        Kernels.bind_index_float_vecs_tex inputPtr ninputs;
+        Kernels.index_float (Shape.get inputShape 0) vec_len nidxs outputPtr;
+        Kernels.unbind_index_float_vecs_tex ()
+      end
+    | _ -> failwith "[run_index] unsupported type for indexing"
+  end;
+  [output]
+
 let run_where
       (memState : MemoryState.mem_state)
       (binVec   : GpuVal.gpu_val) =
-  Printf.printf "In run_where";
-  let scanShape = Shape.create 1 in
   let nelts = GpuVal.nelts binVec in
-  Shape.set scanShape 0 nelts;
-  let scanInterm = GpuVal.mk_gpu_vec DynType.Int32T scanShape in
-  let gridParams = HardwareInfo.get_linear_grid_params nelts in
+  let scanShape = GpuVal.get_shape binVec in
+  let scanInterm = GpuVal.mk_gpu_vec (DynType.VecT DynType.Int32T) scanShape in
   let binPtr = GpuVal.get_ptr binVec in
   let scanPtr = GpuVal.get_ptr scanInterm in
-  Thrust.thrust_prefix_sum_int binPtr nelts scanPtr;
+  Thrust.thrust_prefix_sum_bool_to_int binPtr nelts scanPtr;
   let numIdxs = Cuda.cuda_get_gpu_int_vec_element scanPtr (nelts - 1) in
-  Printf.printf "Number of idxs: %d" numIdxs;
   let outputShape = Shape.create 1 in
   Shape.set outputShape 0 numIdxs;
-  let output = GpuVal.mk_gpu_vec DynType.Int32T outputShape in
+  let output = GpuVal.mk_gpu_vec (DynType.VecT DynType.Int32T) outputShape in
   Kernels.bind_where_tex scanPtr nelts;
   Kernels.where_tex nelts (GpuVal.get_ptr output);
+  Kernels.unbind_where_tex ();
   [output]
 
-let init () = 
-  (* initialize GPU contexts and device info *) 
-  LibPQ.cuda_init(); 
+(*
+let init () =
+  (* initialize GPU contexts and device info *)
+  LibPQ.cuda_init();
   HardwareInfo.hw_init()
+*)
   
-let shutdown () = 
+let shutdown () =
+  ()
+  (*
   for i = 0 to DynArray.length HardwareInfo.device_contexts - 1 do 
     Cuda.cuda_ctx_destroy (DynArray.get HardwareInfo.device_contexts i)
   done
+  *)
   
 let eval_array_op
       (memState : MemoryState.mem_state)
@@ -375,8 +418,14 @@ let eval_array_op
   | Prim.AllPairs, _ ->
       failwith 
         "[GpuRuntime->eval_array_op] closures not yet supported for AllPairs"
-  | Prim.Index, _ -> 
-      failwith "indexing not implemented on GPU"
+
+  | Prim.Index, [inputVec;indexVec] ->
+      let gpuInputVec = MemoryState.get_gpu memState inputVec in
+      let gpuIndexVec = MemoryState.get_gpu memState indexVec in
+      run_index memState gpuInputVec gpuIndexVec
+  | Prim.Index, _ ->
+      failwith "[GpuRuntime->eval_array_op] index requires 2 vec inputs"
+
   | Prim.Where, [binVec] ->
 	    let gpuBinVec = MemoryState.get_gpu memState binVec in
       run_where memState gpuBinVec

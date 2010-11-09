@@ -85,6 +85,10 @@ let run_template
     (globals : HostVal.host_val list)  
     (locals : HostVal.host_val list) =
   debug "entered run_template... \n";
+  (* TODO: For now, make these calls here. *)
+  HardwareInfo.hw_init ();
+  LibPQ.init ();
+  (* TODO: Make the timings more controllable (mem transfer e.g.) *)
   let startTime =   Unix.gettimeofday () in
   let args = globals @ locals in
   let argTypes = List.map HostVal.get_type args in
