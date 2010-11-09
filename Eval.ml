@@ -36,17 +36,14 @@ let rec eval globalFns fundef hostVals  =
     fundef.input_ids 
     vals
   in  
-  try 
-    let env' = eval_block memState globalFns env fundef.body in 
-    let outputVals = List.map (fun id -> PMap.find id env') fundef.output_ids
-    in   
-    let hostVals = List.map  (MemoryState.get_host memState) outputVals 
-    in
-    MemoryState.free_all_gpu memState;
-    hostVals
-  with exn ->
-    MemoryState.free_all_gpu memState; raise exn
-
+  let env' = eval_block memState globalFns env fundef.body in 
+  let outputVals = List.map (fun id -> PMap.find id env') fundef.output_ids
+  in   
+  let hostVals = List.map  (MemoryState.get_host memState) outputVals 
+  in
+  MemoryState.free_all_gpu memState;
+  hostVals
+  
 and eval_block 
       (memState : mem) 
       (functions : FnTable.t) 
