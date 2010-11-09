@@ -308,7 +308,8 @@ let run_all_pairs
           grid_x=safe_div nx 16; grid_y=safe_div ny 16;
       }
       in
-      LibPQ.launch_ptx compiledModule.Cuda.module_ptr fnName paramsArray gridParams;
+      LibPQ.launch_ptx
+        compiledModule.Cuda.module_ptr fnName paramsArray gridParams;
       outputVals
 
 let run_index
@@ -316,15 +317,15 @@ let run_index
       (inputVec : GpuVal.gpu_val) 
       (indexVec : GpuVal.gpu_val) =
   let inputShape = GpuVal.get_shape inputVec in
-  let ninputs = Shape.nelts inputShape in
+  let ninputels = Shape.nelts inputShape in
   let nidxs = GpuVal.nelts indexVec in
+  let ninputs = Shape.get inputShape 0 in
   let r = Shape.rank inputShape in
   let outputShape = Shape.create r in
   Shape.set outputShape 0 nidxs;
   if r > 2 or r < 1 then
     failwith "Index only works for 1D and 2D inputs for now";
-  let vec_len = if r = 1 then
-    Shape.get inputShape 0
+  let vec_len = if r = 1 then 1
   else begin
     let len = Shape.get inputShape 1 in
     Shape.set outputShape 1 len;
@@ -339,13 +340,13 @@ let run_index
   Kernels.bind_index_idxs_tex indexPtr nidxs;
   begin match elType with
     | DynType.Int32T -> begin
-        Kernels.bind_index_int_vecs_tex inputPtr ninputs;
-        Kernels.index_int (Shape.get inputShape 0) vec_len nidxs outputPtr;
+        Kernels.bind_index_int_vecs_tex inputPtr ninputels;
+        Kernels.index_int ninputs vec_len nidxs outputPtr;
         Kernels.unbind_index_int_vecs_tex ()
       end
     | DynType.Float32T -> begin
-        Kernels.bind_index_float_vecs_tex inputPtr ninputs;
-        Kernels.index_float (Shape.get inputShape 0) vec_len nidxs outputPtr;
+        Kernels.bind_index_float_vecs_tex inputPtr ninputels;
+        Kernels.index_float ninputs vec_len nidxs outputPtr;
         Kernels.unbind_index_float_vecs_tex ()
       end
     | _ -> failwith "[run_index] unsupported type for indexing"
