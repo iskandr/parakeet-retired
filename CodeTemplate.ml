@@ -57,7 +57,7 @@ let rec build_untyped_program
      (fnNames : SSA.FnId.t String.Map.t) 
      (fundefs : SSA.fundef FnId.Map.t) = function 
   | [] -> Program.create_untyped fnNames fundefs  
-  
+     
   | (name,locals,globals,bodyText)::rest ->
       let bodyAST = build_function_body_ast bodyText in
       let env = AST_to_SSA.Env.GlobalScope fnNames in
@@ -75,16 +75,14 @@ let gen_module_template entries =
    build_untyped_program String.Map.empty FnId.Map.empty entries 
   
 let get_function_template program name =
-  let untypedId = 
-    Hashtbl.find program.Program.name_to_untyped_id name
-  in
+  let untypedId = Program.get_untyped_id program name in 
   (untypedId, program) 
   
 let run_template 
     (untypedId, program) 
     (globals : HostVal.host_val list)  
     (locals : HostVal.host_val list) =
-  debug "entered run_template... \n";
+  IFDEF DEBUG THEN printf "entered run_template... \n"; ENDIF; 
   (* TODO: For now, make these calls here. *)
   HardwareInfo.hw_init ();
   LibPQ.init ();
@@ -92,27 +90,38 @@ let run_template
   let startTime =   Unix.gettimeofday () in
   let args = globals @ locals in
   let argTypes = List.map HostVal.get_type args in
-  let untypedFn = FnTable.find untypedId program.untyped_functions in
-  debug 
-    (sprintf 
-      "[run_template] untyped function body: %s\n" 
-      (SSA.fundef_to_str untypedFn)); 
+  let untypedFn = Program.get_untyped_function program untypedId in 
+  IFDEF DEBUG THEN 
+     printf "[run_template] untyped function body: %s\n" 
+      (SSA.fundef_to_str untypedFn);
+  ENDIF;  
   let nargs = List.length args in
   let arity = List.length (untypedFn.input_ids) in 
   if nargs <> arity then failwith
     (sprintf "[run_template] arity mismatch-- expected %d, got %d" arity nargs)
   else
   let signature = Signature.from_input_types argTypes in
-  debug (sprintf
-    "[run_template] calling specialzer for argument types: %s \n"
-    (DynType.type_list_to_str argTypes));  
-  let typedFundef = 
+  IFDEF DEBUG THEN 
+    printf
+      "[run_template] calling specialzer for argument types: %s \n"
+      (DynType.type_list_to_str argTypes);
+  ENDIF;
+  (* ignore the returned fundef because it's unoptimized *)  
+  let unoptimized = 
     Specialize.specialize_function_id program untypedId signature 
   in
-  debug "[run_template] calling evaluator on specialized code: \n";
-  debug (sprintf "%s\n" (SSA.fundef_to_str typedFundef)); 
-  let resultVals = Eval.eval program.typed_functions typedFundef args in  
+  Program.optimize_typed_functions program; 
+  let typedFundef = Program.get_typed_function program unoptimized.fn_id in 
+  IFDEF DEBUG THEN 
+    printf "[run_template] calling evaluator on specialized code: \n";
+    printf "%s\n" (SSA.fundef_to_str typedFundef);
+  ENDIF;  
+  let resultVals = 
+    Eval.eval (Program.get_typed_function_table program) typedFundef args 
+  in  
   let result = Success (List.hd resultVals)  in     
-  debug (sprintf "Total Time: %f\n" (Unix.gettimeofday () -. startTime));
-  flush stdout;  
+  IFDEF DEBUG THEN 
+    printf "Total Time: %f\n" (Unix.gettimeofday () -. startTime);
+    flush stdout;
+  ENDIF; 
   result

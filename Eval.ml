@@ -53,10 +53,14 @@ and eval_block
       (env : env) : (SSA.stmt_node list -> env) = function  
   | [] -> env
   | stmtNode::rest ->
-      debug (Printf.sprintf "[eval_block] stmtNode::rest: %s \n%!"
-             (SSA.stmt_node_to_str stmtNode));
+      IFDEF DEBUG THEN 
+        Printf.sprintf "[eval_block] stmtNode::rest: %s \n%!"
+             (SSA.stmt_node_to_str stmtNode);
+      ENDIF; 
       let (env' : env) = eval_stmt memState functions env stmtNode in
-      debug "[eval_block] evaluated stmt\n%!";
+      IFDEF DEBUG THEN 
+        Printf.printf "[eval_block] evaluated stmt\n%!";
+      ENDIF; 
       eval_block memState functions env' rest
 
 and eval_stmt 
@@ -65,9 +69,14 @@ and eval_stmt
       (env : env ) 
       (stmtNode : SSA.stmt_node) : env = match stmtNode.stmt with 
   | Set (ids, expNode) ->
-      debug $ Printf.sprintf "[eval_stmt] %s" (SSA.stmt_node_to_str stmtNode);
+      IFDEF DEBUG THEN
+        Printf.printf "[eval_stmt] %s\n" (SSA.stmt_node_to_str stmtNode);
+      ENDIF; 
       let results =  eval_exp memState functions env expNode in
-      debug "[eval_stmt] after eval_exp";
+      IFDEF DEBUG THEN
+        debug "[eval_stmt] after eval_exp\n";
+        assert (List.length ids = List.length results); 
+      ENDIF; 
       List.fold_left2 
         (fun accEnv id v -> PMap.add id v accEnv) 
         env 
@@ -99,7 +108,8 @@ and eval_exp
   | App ({value=GlobalFn fnId}, args) -> 
       let fundef = FnTable.find fnId functions in
       IFDEF DEBUG THEN 
-        Printf.printf "[eval_exp] calling function %s" (FnId.to_str fnId);
+        Printf.printf "[eval_exp] calling function %s\n" (FnId.to_str fnId);
+        assert (List.length fundef.input_ids = List.length args); 
       ENDIF;
       let argVals = List.map (eval_value memState env) args in  
       (* create an augmented memory state where input ids are bound to the *)
