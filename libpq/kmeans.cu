@@ -78,7 +78,7 @@ void calc_centroids(float *X, int num_vecs, int vec_len, int *assignment,
   rslt = cudaBindTexture(0, whereInputTex, devBin, intDesc,
                          num_vecs * sizeof(int));
   check_err(rslt, "Unable to bind whereInputTex");
-  rslt = cudaBindTexture(0, indexVecsTex, X, floatDesc,
+  rslt = cudaBindTexture(0, indexFloatVecsTex, X, floatDesc,
                          num_vecs * vec_len * sizeof(float));
   check_err(rslt, "Unable to bind indexVecsTex");
   int num_matches, i;
