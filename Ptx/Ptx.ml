@@ -322,7 +322,7 @@ and ptx_bits_to_str = function
 and ptx_comp_to_str = function 	
 	| EQ -> "eq"
 	| NE -> "ne"
-	| LT -> "lt"
+  | LT -> "lt"
 	| LE -> "le"
 	| GT -> "gt"
 	| GE -> "ge"
@@ -429,9 +429,13 @@ let prim_to_ptx_binop op t = match op,t with
   | Prim.Div, F32 -> Binop (FloatDiv Approx, F32)
   | Prim.Div, F64 -> Binop (FloatDiv RN, F64)
   | Prim.Div, _ -> Binop (IntDiv, t)
-  | Prim.Lt, _ -> Binop(Setp LT,t)
+  | Prim.Lt, t when PtxType.is_signed t ->  Binop(Setp LO,t)
+  | Prim.Lt, _ ->  Binop(Setp LT,t)
+  | Prim.Gt, t when PtxType.is_signed t -> Binop(Setp HI,t)
   | Prim.Gt, _ -> Binop(Setp GT,t)
+  | Prim.Gte, t when PtxType.is_signed t -> Binop(Setp HS,t)
   | Prim.Gte, _ -> Binop(Setp GE,t)
+  | Prim.Lte, t when PtxType.is_signed t-> Binop(Setp LS,t)
   | Prim.Lte, _ -> Binop(Setp LE,t)
   | Prim.Eq, _ -> Binop(Setp EQ,t)
   | Prim.Neq, _ -> Binop(Setp NE,t)
@@ -520,10 +524,30 @@ let sub = binop Sub
 (* for floats and ints-- and need to fail for small types like u8, pred, etc *) 
 let mad ty ~dest ~src1 ~src2 ~src3 = failwith "MAD not implemented"
 
-let setp_le = binop (Setp LE)
-let setp_lt = binop (Setp LT)
-let setp_gt = binop (Setp GT)
-let setp_ge = binop (Setp GE)
+let setp_le ty = 
+  if PtxType.is_signed ty then 
+    binop (Setp LE) ty
+  else 
+    binop (Setp LS) ty 
+    
+let setp_lt ty = 
+  if PtxType.is_signed ty then 
+    binop (Setp LT) ty
+  else
+    binop (Setp LO) ty 
+ 
+let setp_gt ty =
+  if PtxType.is_signed ty then
+    binop (Setp GT) ty
+  else 
+    binop (Setp HI) ty 
+    
+let setp_ge ty = 
+  if PtxType.is_signed ty then 
+    binop (Setp GE) ty 
+  else 
+    binop (Setp HS) ty 
+
 let setp_eq = binop (Setp EQ)
 
 let slct tDest tSwitch ~dest ~left ~right ~switch = 
