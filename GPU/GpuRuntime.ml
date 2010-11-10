@@ -229,7 +229,14 @@ let run_reduce
           let newShape = Shape.of_list [numOutputElts] in
           let newOut = GpuVal.mk_gpu_vec (DynType.VecT outputType) newShape in 
           let args = Array.of_list ([inputArg; newOut]) in
-	        let gridParams = match
+          (*
+          let gridParams = {
+            LibPQ.threads_x=16; threads_y=16; threads_z=1;
+            grid_x=safe_div nx 16; grid_y=safe_div ny 16;
+          }
+          in
+          *)
+          let gridParams = match
 	            HardwareInfo.get_grid_params
 	              ~device:0
 	              ~block_size:threadsPerBlock
@@ -239,6 +246,7 @@ let run_reduce
 	            | None -> failwith
 	                (sprintf "Unable to get launch params for %d elts" curNumElts)
 	        in
+          
           Printf.printf "Launching with %d inputs, %d outputs\n"
             curNumElts numOutputElts;
           LibPQ.launch_ptx
@@ -404,7 +412,7 @@ let eval_array_op
       
   | Prim.Map, _ -> 
       failwith "[GpuRuntime->eval_array_op] closures not yet supported for Map"
-      
+
   | Prim.Reduce, (InterpVal.Closure(fnId, []))::dataArgs ->
       let fundef = FnTable.find fnId functions in
       let gpuVals = List.map (MemoryState.get_gpu memState) dataArgs in

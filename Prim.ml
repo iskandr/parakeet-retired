@@ -33,7 +33,8 @@ type array_op =
   | Til 
   | Rand
   | Index
-  | Where 
+  | Where
+  | Find 
 
 type impure_op = ResetTimer | GetTimer | Print 
                 

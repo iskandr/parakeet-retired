@@ -110,8 +110,9 @@ reduce_int_kernel(int *input, int *output, unsigned int num_input)
 }
 */
 
+texture<int, 1, cudaReadModeElementType> reduceIntVecsTex;
 __global__ void
-reduce_int_kernel_nonopt(int *input, int *output, unsigned int num_input)
+reduce_int_kernel_nonopt(int *output, unsigned int num_input)
 {
     __shared__ int cache[THREADS_PER_BLOCK];
 
@@ -124,11 +125,11 @@ reduce_int_kernel_nonopt(int *input, int *output, unsigned int num_input)
 
     if (i < num_input) {
       if ((i + THREADS_PER_BLOCK) < num_input) {
-        int tmp1 = input[i];
-        int tmp2 = input[i + THREADS_PER_BLOCK];
+        int tmp1 = tex1Dfetch(reduceIntVecsTex, i);
+        int tmp2 = tex1Dfetch(reduceIntVecsTex, i + THREADS_PER_BLOCK);
         cache[tid] = tmp1 + tmp2;
       } else {
-        cache[tid] = input[i];
+        cache[tid] = tex1Dfetch(reduceIntVecsTex, i);
       }
     }
     __syncthreads();
@@ -173,8 +174,6 @@ void reduce(int *input, int* output, int num_input) {
   cudaEventCreate(&start);
   cudaEventCreate(&stop);
 
-  CUmodule *cuModule = pq_compile_module(ptx);
-
   // Alloc device copies
   int *devInput;
   int *devOutput;
@@ -185,12 +184,18 @@ void reduce(int *input, int* output, int num_input) {
   rslt = cudaMemcpy(devInput, input, num_input * sizeof(int),
                     cudaMemcpyHostToDevice);
   if (rslt != 0) printf("failed to copy input: %d\n", rslt);
+  cudaChannelFormatDesc inputDesc =
+    cudaCreateChannelDesc(32, 0, 0, 0, cudaChannelFormatKindSigned);
+  reduceIntVecsTex.normalized = 0;
+  
   int curNum = num_input;
   while (curNum > 1) {
     int numBlocks = safe_div(curNum, THREADS_PER_BLOCK * 2);
     rslt = cudaMalloc((void**)&devOutput, numBlocks * sizeof(int));
     if (rslt != 0) printf("failed to malloc dev Output: %d\n", rslt);
 
+    cudaBindTexture(0, reduceIntVecsTex, devInput, inputDesc,
+                    curNum * sizeof(int));
     // Invoke kernel
     dim3 dimBlock(THREADS_PER_BLOCK);
     int gridX, gridY;
@@ -204,7 +209,9 @@ void reduce(int *input, int* output, int num_input) {
     dim3 dimGrid(gridX, gridY);
     printf("grid.x, grid.y: %d %d\n", dimGrid.x, dimGrid.y);
     reduce_int_kernel_nonopt<<<dimGrid, dimBlock>>>
-      (devInput, devOutput, curNum);
+      (devOutput, curNum);
+    cudaUnbindTexture(reduceIntVecsTex);
+    
     curNum = numBlocks;
     cudaFree(devInput);
     devInput = devOutput;

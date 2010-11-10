@@ -79,6 +79,8 @@ and translate_exp codegen globalFunctions idEnv expectedType expNode =
 	      acc
       | _ -> failwith "[ssa->imp] Expected function identifier"
     )
+  (*| SSA.App({SSA.value=SSA.Prim (Prim.ArrayOp Prim.Find);
+            value_type = [arrT; valT]*)
   | SSA.App({SSA.value=SSA.GlobalFn fnId}, _) -> 
       failwith $ 
         Printf.sprintf  
