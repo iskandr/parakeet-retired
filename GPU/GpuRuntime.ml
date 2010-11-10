@@ -178,12 +178,12 @@ let run_map memState globalFunctions payload gpuVals outputTypes =
 let compile_reduce globalFunctions payload retTypes =
   let redThreadsPerBlock = 128 in
   let impPayload = SSA_to_Imp.translate_fundef globalFunctions payload in
-  let impfn = 
+  let impfn =
     ImpReduceTemplate.gen_reduce impPayload redThreadsPerBlock retTypes 
   in
   debug (Printf.sprintf "[compile_reduce] %s\n" (Imp.fn_to_str impfn));
   let ptx, cc = ImpToPtx.translate_kernel impfn in
-  let reducePrefix = "reduce_kernel" in 
+  let reducePrefix = "reduce_kernel" in
   let name = reducePrefix ^ (string_of_int (ID.gen())) in
   let cudaModule = 
     LibPQ.cuda_module_from_kernel_list [name,ptx] redThreadsPerBlock
@@ -229,7 +229,14 @@ let run_reduce
           let newShape = Shape.of_list [numOutputElts] in
           let newOut = GpuVal.mk_gpu_vec (DynType.VecT outputType) newShape in 
           let args = Array.of_list ([inputArg; newOut]) in
-	        let gridParams = match
+          (*
+          let gridParams = {
+            LibPQ.threads_x=16; threads_y=16; threads_z=1;
+            grid_x=safe_div nx 16; grid_y=safe_div ny 16;
+          }
+          in
+          *)
+          let gridParams = match
 	            HardwareInfo.get_grid_params
 	              ~device:0
 	              ~block_size:threadsPerBlock
@@ -239,6 +246,9 @@ let run_reduce
 	            | None -> failwith
 	                (sprintf "Unable to get launch params for %d elts" curNumElts)
 	        in
+          
+          Printf.printf "Launching with %d inputs, %d outputs\n"
+            curNumElts numOutputElts;
           LibPQ.launch_ptx
             compiledModule.Cuda.module_ptr fnName args gridParams;
           if curNumElts < numInputElts then GpuVal.free args.(0);
@@ -249,7 +259,7 @@ let run_reduce
       in
       let ret = aux gpuVal numInputElts in
       [ret]
-    | _ -> failwith "expect one map kernel"
+    | _ -> failwith "expect one reduce kernel"
 
 
 let compile_all_pairs globalFunctions payload argTypes retTypes =
@@ -402,7 +412,7 @@ let eval_array_op
       
   | Prim.Map, _ -> 
       failwith "[GpuRuntime->eval_array_op] closures not yet supported for Map"
-      
+
   | Prim.Reduce, (InterpVal.Closure(fnId, []))::dataArgs ->
       let fundef = FnTable.find fnId functions in
       let gpuVals = List.map (MemoryState.get_gpu memState) dataArgs in

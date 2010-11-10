@@ -9,8 +9,8 @@
 #include <cuda.h>
 #include <stdio.h>
 
-#include "all_pairs_dists_kernel.cu"
-//#include "all_pairs_dists_1dtex_kernel.cu"
+//#include "all_pairs_dists_kernel.cu"
+#include "all_pairs_dists_1dtex_kernel.cu"
 #include "base.h"
 #include "divide_map_kernel.cu"
 #include "equal_kernel.cu"
@@ -48,6 +48,7 @@ void usage(void) {
          "-v n       : set number of vectors to be v\n"
          "-c n       : set number of centroids to be n\n"
          "-i n       : set max iterations to be n\n"
+         "-f <name>  : use <name> as the input file\n"
          "-m         : include memory allocs & transfers in timing\n"
          );
 }
@@ -95,6 +96,11 @@ void calc_centroids(float *X, int num_vecs, int vec_len, int *assignment,
     rslt = cudaMemcpy(&num_matches, devBin + num_vecs - 1, sizeof(int),
                       cudaMemcpyDeviceToHost);
     check_err(rslt, "Unable to get number of matches");
+
+    // Not exactly sure what to do here, but it's bad news to try to bind a
+    // 0-byte texture
+    if (!num_matches) continue;
+    
     rslt = cudaMalloc((void**)&devIdxs, num_matches * sizeof(int));
     check_err(rslt, "Unable to malloc devIdxs");
     where_kernel<<<dimGrid, dimBlock>>> (num_vecs, devIdxs);
@@ -109,7 +115,7 @@ void calc_centroids(float *X, int num_vecs, int vec_len, int *assignment,
     rslt = cudaBindTexture(0, indexIdxsTex, devIdxs, intDesc,
                            num_matches * sizeof(int));
     check_err(rslt, "Unable to bind indexIdxsTex");
-    index_kernel<<<dimIndexGrid, dimBlock>>>
+    index_float_kernel<<<dimIndexGrid, dimBlock>>>
       (num_vecs, vec_len, num_matches, devMatches);
     check_err(cudaGetLastError(), "Error launching index kernel");
     rslt = cudaUnbindTexture(indexIdxsTex);
@@ -186,21 +192,23 @@ kmeans(float *X, int k, int *assignment, int maxiters,
   
   cudaChannelFormatDesc floatDesc =
     cudaCreateChannelDesc(32, 0, 0, 0, cudaChannelFormatKindFloat);
-  
+
+  /*
   rslt = cudaBindTexture2D(0, allDistsLeftTex, devX, floatDesc,
                            vec_len, num_vecs, vec_len * sizeof(float));
   check_err(rslt, "Unable to bind allDistsLeftTex");
   rslt = cudaBindTexture2D(0, allDistsRightTex, devC, floatDesc,
                            vec_len, k, vec_len * sizeof(float));
   check_err(rslt, "Unable to bind allDistsRightTex");
-  /*
+  */
+  
   rslt = cudaBindTexture(0, allDistsLeftTex, devX, floatDesc,
                          num_vecs * vec_len * sizeof(float));
   check_err(rslt, "Unable to bind allDistsLeftTex");
   rslt = cudaBindTexture(0, allDistsRightTex, devC, floatDesc,
                          k * vec_len * sizeof(float));
   check_err(rslt, "Unable to bind allDistsRightTex");
-  */
+  
   rslt = cudaBindTexture(0, findMinInputTex, devD, floatDesc,
                          num_vecs * k * sizeof(float));
   check_err(rslt, "Unable to bind findMinInputTex");
@@ -222,8 +230,8 @@ kmeans(float *X, int k, int *assignment, int maxiters,
     devAssignment = tmp;
 
     // Calculate distances to all the centroids
-    //all_pairs_dists_1dtex_kernel<<<dimAPDGrid, dimAPDBlock>>>
-    all_pairs_dists_kernel<<<dimAPDGrid, dimAPDBlock>>>
+    all_pairs_dists_1dtex_kernel<<<dimAPDGrid, dimAPDBlock>>>
+    //all_pairs_dists_kernel<<<dimAPDGrid, dimAPDBlock>>>
       (num_vecs, k, vec_len, devD);
     check_err(cudaGetLastError(), "Error launching all pairs dists");
 
@@ -399,8 +407,10 @@ int main(int argc, char **argv) {
   int num_vecs = 30000;
   int k = 10;
   int maxiters = 100;
+  int usefile = 0;
+  char *filename;
   int memtime = 0;
-  int i;
+  int i, j;
 
   // Process command line
   for (i = 1; i < argc; ++i) {
@@ -432,20 +442,95 @@ int main(int argc, char **argv) {
       }
       i += 1;
       maxiters = atoi(argv[i]);
+    } else if (!strcmp(argv[i], "-f")) {
+      if (argc < i + 2) {
+        usage();
+        exit(-1);
+      }
+      usefile = 1;
+      filename = argv[i+1];
     } else if (!strcmp(argv[i], "-m")) {
       memtime = 1;
     }
   }
 
-  // Create input data
-  float *X = (float*)malloc(num_vecs * vec_len * sizeof(float));
-  int *assignment = (int*)malloc(num_vecs * sizeof(int));
-  float d;
-  for (i = 0; i < num_vecs * vec_len; ++i) {
-    d = (float)rand();
-    if (d < 1.0f) d = 1.0f;
-    X[i] = rand() / d;
+  float *X;
+  int *assignment;
+  srand(7);
+
+  if (usefile) {
+    char line[1024];
+    FILE *infile;
+
+    if ((infile = fopen(filename, "r")) == NULL) {
+      fprintf(stderr, "Error: no such file (%s)\n", filename);
+      exit(1);
+    }
+
+    num_vecs = 0;
+    while (fgets(line, 1024, infile) != NULL)
+      if (strtok(line, " \t\n") != 0)
+        num_vecs++;
+    rewind(infile);
+
+    vec_len = 0;
+    while (fgets(line, 1024, infile) != NULL) {
+      if (strtok(line, " \t\n") != 0) {
+        /* ignore the id (first attribute): nfeatures = 1; */
+        while (strtok(NULL, " ,\t\n") != NULL) vec_len++;
+        break;
+      }
+    }
+
+    /* allocate space for features[] and read attributes of all objects */
+    X = (float*)malloc(num_vecs * vec_len * sizeof(float));
+    i = 0;
+    while (fgets(line, 1024, infile) != NULL) {
+      if (strtok(line, " \t\n") == NULL) continue;
+      for (j=0; j<vec_len; j++) {
+        X[i] = atof(strtok(NULL, " ,\t\n"));
+        i++;
+      }
+    }
+    fclose(infile);
+
+    /*
+    //initialize the random clusters
+    //TODO: Set this up to be the same as in Rodinia
+    initial = (int*)malloc(num_vecs * sizeof(int));
+    for (i = 0; i < num_vecs; i++)
+    {
+      initial[i] = i;
+    }
+    int initial_points = num_vecs;
+
+    //randomly pick cluster centers
+    int n = 0;
+    for (i = 0; i < k && initial_points >= 0; i++) {
+      for (j=0; j < vec_len; j++)
+        clusters[i][j] = X[initial[n]*vec_len + j];
+
+      temp = initial[n];
+      initial[n] = initial[initial_points-1];
+      initial[initial_points-1] = temp;
+      initial_points--;
+      n++;
+    }
+    assignment = (int*)malloc(num_vecs * sizeof(int));
+    */
+  } else {
+    // Create input data
+    X = (float*)malloc(num_vecs * vec_len * sizeof(float));
+    float d;
+    for (i = 0; i < num_vecs * vec_len; ++i) {
+      d = (float)rand();
+      if (d < 1.0f) d = 1.0f;
+      X[i] = rand() / d;
+    }
   }
+
+  // Perform initial assignment
+  assignment = (int*)malloc(num_vecs * sizeof(int));
   for (i = 0; i < num_vecs; ++i) {
     assignment[i] = rand() % k;
   }
@@ -463,7 +548,7 @@ int main(int argc, char **argv) {
   }
   
   i = 0;
-  int j, l, m;
+  int l, m;
   int *tmp;
   int converged = 0;
   float interm, dist;
@@ -512,12 +597,12 @@ int main(int argc, char **argv) {
   printf("Time for serial C: %fms\n", 1000*pq_diff_timers(ss, se));
 
   int same = 1;
-  float tol = 0.01f;
+  float tol = 0.1f;
   for (i = 0; i < k; ++i) {
     for (j = 0; j < vec_len; ++j) {
       if (same && fabs((rslt.C[i*vec_len + j] - centroids[i*vec_len + j]) /
                        rslt.C[i*vec_len + j]) >= tol) {
-        same = 0;
+        //same = 0;
         printf("CPU and GPU different for centroid %d at idx %d: (%f,%f)\n",
                i, j, rslt.C[i*vec_len + j], centroids[i*vec_len + j]);
       }
