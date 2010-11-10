@@ -48,6 +48,7 @@ ConstantLattice.cmx \
 SSA_Base_Analysis.cmx \
 UntypedFindGenSet.cmx \
 FindUseCounts.cmx \
+TypeCheck.cmx \
 UntypedReplace.cmx \
 FindConstants.cmx \
 FindDefs.cmx \

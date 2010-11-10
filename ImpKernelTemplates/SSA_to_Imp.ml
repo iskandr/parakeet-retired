@@ -75,12 +75,27 @@ and translate_exp codegen globalFunctions idEnv expectedType expNode =
 	        set acc initial'; 
 	        while_ (i <$ n) [SPLICE; set i (i +$ (int 1))] 
 	      ] in 
-        codegen#splice_emit fundef' [|acc; idx arr' i|] [|acc|] bodyBlock; 
+        codegen#splice_emit fundef' [|acc; idx arr' i|] [|acc|] bodyBlock;
 	      acc
       | _ -> failwith "[ssa->imp] Expected function identifier"
     )
-  (*| SSA.App({SSA.value=SSA.Prim (Prim.ArrayOp Prim.Find);
-            value_type = [arrT; valT]*)
+  | SSA.App({SSA.value=SSA.Prim (Prim.ArrayOp Prim.Find);
+            value_type = FnT([arrT; valT], _)},
+            [inArray; elToFind]) ->
+    let inArray' = translate_value idEnv inArray in
+    let elToFind' = translate_value idEnv elToFind in
+    let i = codegen#fresh_var Int32T in
+    let index = codegen#fresh_var Int32T in
+    let n = codegen#fresh_var Int32T in
+    codegen#emit [
+      set i (int 0);
+      set n (len inArray');
+      set index n;
+      while_ (i <$ n &&$ index =$ n) [
+        ifTrue ((idx inArray' i) =$ elToFind') [set index i]
+      ]
+    ];
+    index
   | SSA.App({SSA.value=SSA.GlobalFn fnId}, _) -> 
       failwith $ 
         Printf.sprintf  
@@ -138,7 +153,6 @@ and translate_stmt globalFunctions idEnv codegen stmtNode =
   | SSA.Set(_::_::_, _) -> 
       failwith "[ssa->imp] multiple return values not implemented"
   | _ -> failwith "[ssa->imp] stmt not implemented"      
-      
 
 and translate_fundef globalFunctions fn =
   let codegen  = new ImpCodegen.imp_codegen in
