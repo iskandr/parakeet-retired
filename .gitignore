@@ -1,0 +1,6 @@
+qcode/.*
+*/*.o
+*/*.cu_o
+.project
+.settings
+*/*.a
