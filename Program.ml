@@ -98,7 +98,7 @@ let default_typed_optimizations =
     (*"function cloning", TypedFunctionCloning.function_cloning;*)   
     "simplify", Simplify.simplify_fundef; 
     "dead code elim", ElimDeadCode.elim_dead_code; 
-   (* "adverb fusion", AdverbFusion.optimize_fundef;*) 
+    "adverb fusion", AdverbFusion.optimize_fundef; 
     "inlining", Inline.run_fundef_inliner;  
   ]  
   

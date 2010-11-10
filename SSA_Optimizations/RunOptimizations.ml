@@ -41,14 +41,15 @@ let optimize_all_fundefs ?(maxiters=100) (fnTable : FnTable.t) optimizations =
     in
     IFDEF DEBUG THEN 
       assert (fundef.fn_id = optimized.fn_id);
+      Printf.printf "Optimizing %s..."; 
       let status = 
         if iters > 1 then  
           Printf.sprintf "modified (%d iters):\n %s" 
             iters 
             (SSA.fundef_to_str optimized)
-         else "unmodified"  
+         else ""  
       in 
-      Printf.printf "Optimizing %s...%s\n" (FnId.to_str fundef.fn_id) status;
+      Printf.printf "%s\n" (FnId.to_str fundef.fn_id) status;
     ENDIF;
     FnTable.update  optimized fnTable       
   done  

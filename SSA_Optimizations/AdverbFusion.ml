@@ -207,6 +207,13 @@ let split_adverb_args op args =
   | Prim.Map, f::rest -> [f], rest
   | _ -> failwith "adverb not yet implemented" 
   in 
+  IFDEF DEBUG THEN 
+    Printf.printf "[AdverbFusion] Splitting adverb %s into %s and %s\n"
+      (Prim.array_op_to_str op)
+      (SSA.value_node_list_to_str fnArgs)
+      (SSA.value_node_list_to_str dataArgs)
+    ;
+  ENDIF; 
   let fnIds = List.map SSA.get_fn_id fnArgs in
   let fnTypes = List.map (fun vNode -> vNode.value_type) fnArgs in  
   fnIds, fnTypes, dataArgs 
