@@ -4,3 +4,8 @@ qcode/.*
 .project
 .settings
 */*.a
+*~
+*.aux
+*.log
+*.native
+_build
