@@ -5,4 +5,7 @@ qcode/.*
 .settings
 */*.a
 _build
-preprocess.native
+*~
+*.aux
+*.log
+*.native

@@ -150,8 +150,10 @@ let gen_reduce_2d_capable payload threadsPerBlock outTypes =
 	      set cur_y (cur_y /$ (int 2))
 	    ];
 	    ifTrue ((threadIdx.y =$ (int 0)) &&$ (threadIdx.x <$ bx)) [
-	      (*setidx output [((vec_len *$ blockIdx.y) +$ id_x)] (idx cache threadIdx.x)*)
-        setidx output [((vec_len *$ blockIdx.y) +$ id_x)] vec_len
+	      setidx
+          output
+          [((vec_len *$ blockIdx.y) +$ id_x)]
+          (idx cache threadIdx.x)
 	    ]
     ]
   ] in
