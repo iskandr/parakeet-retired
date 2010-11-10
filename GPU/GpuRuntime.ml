@@ -89,7 +89,7 @@ let create_gpu_arg_env
     (local_ids @ output_ids)
   
   
-let create_args 
+let create_args
       (impfn : Imp.fn)
       (cc : PtxCallingConventions.calling_conventions)
       (inputs: GpuVal.gpu_val list) =
@@ -112,10 +112,9 @@ let create_args
   in
   let outputsList = List.map (fun id -> ID.Map.find id valueEnv) outputIds in
   paramsArray, outputsList 
-     
-     
 
-  
+
+(** MAP **)
 let map_id_gen = mk_gen()
 let compile_map globalFunctions payload argTypes retTypes =
   let mapThreadsPerBlock = 128 in
@@ -173,15 +172,17 @@ let run_map memState globalFunctions payload gpuVals outputTypes =
   LibPQ.launch_ptx cudaModule.Cuda.module_ptr fnName paramsArray gridParams;
   outputVals
 
-
-
+(** REDUCE **)
 let compile_reduce globalFunctions payload retTypes =
-  let redThreadsPerBlock = 128 in
+  let redThreadsPerBlock = 256 in
   let impPayload = SSA_to_Imp.translate_fundef globalFunctions payload in
   let impfn =
-    ImpReduceTemplate.gen_reduce impPayload redThreadsPerBlock retTypes 
+    ImpReduceTemplate.gen_reduce_2d_capable impPayload redThreadsPerBlock retTypes 
   in
-  debug (Printf.sprintf "[compile_reduce] %s\n" (Imp.fn_to_str impfn));
+  IFDEF DEBUG THEN
+	  Printf.sprintf "[compile_reduce] %s\n" (Imp.fn_to_str impfn);
+	  flush stdout;
+  ENDIF;
   let ptx, cc = ImpToPtx.translate_kernel impfn in
   let reducePrefix = "reduce_kernel" in
   let name = reducePrefix ^ (string_of_int (ID.gen())) in
@@ -189,7 +190,6 @@ let compile_reduce globalFunctions payload retTypes =
     LibPQ.cuda_module_from_kernel_list [name,ptx] redThreadsPerBlock
   in 
   {imp_source=impfn; cc=cc; cuda_module=cudaModule} 
-
 
 let reduceCache : code_cache  = Hashtbl.create 127 
 
@@ -213,7 +213,7 @@ let run_reduce
   in 
   let threadsPerBlock = compiledModule.Cuda.threads_per_block in
   assert (List.length outputTypes = 1); 
-  let outputType = List.hd outputTypes in 
+  let outputType = List.hd outputTypes in
   match compiledModule.Cuda.kernel_names, gpuVals with
     (* WAYS THIS IS CURRENTLY WRONG: 
        - we are ignoring the initial value
@@ -229,13 +229,13 @@ let run_reduce
           let newShape = Shape.of_list [numOutputElts] in
           let newOut = GpuVal.mk_gpu_vec (DynType.VecT outputType) newShape in 
           let args = Array.of_list ([inputArg; newOut]) in
-          (*
+          (* TODO: Only will work for width 1 *)
           let gridParams = {
-            LibPQ.threads_x=16; threads_y=16; threads_z=1;
-            grid_x=safe_div nx 16; grid_y=safe_div ny 16;
+            LibPQ.threads_x=1; threads_y=256; threads_z=1;
+            grid_x=1; grid_y=numOutputElts;
           }
           in
-          *)
+          (*
           let gridParams = match
 	            HardwareInfo.get_grid_params
 	              ~device:0
@@ -246,9 +246,10 @@ let run_reduce
 	            | None -> failwith
 	                (sprintf "Unable to get launch params for %d elts" curNumElts)
 	        in
-          
+          *)
           Printf.printf "Launching with %d inputs, %d outputs\n"
             curNumElts numOutputElts;
+          flush stdout;
           LibPQ.launch_ptx
             compiledModule.Cuda.module_ptr fnName args gridParams;
           if curNumElts < numInputElts then GpuVal.free args.(0);
@@ -261,7 +262,7 @@ let run_reduce
       [ret]
     | _ -> failwith "expect one reduce kernel"
 
-
+(** ALLPAIRS **)
 let compile_all_pairs globalFunctions payload argTypes retTypes =
   match argTypes with 
     | [t1; t2] ->  
@@ -320,6 +321,7 @@ let run_all_pairs
         compiledModule.Cuda.module_ptr fnName paramsArray gridParams;
       outputVals
 
+(** INDEX **)
 let run_index
       (memState : MemoryState.mem_state)
       (inputVec : GpuVal.gpu_val) 
@@ -361,6 +363,7 @@ let run_index
   end;
   [output]
 
+(** WHERE **)
 let run_where
       (memState : MemoryState.mem_state)
       (binVec   : GpuVal.gpu_val) =

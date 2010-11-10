@@ -9,7 +9,7 @@
 #include <cuda.h>
 #include <stdio.h>
 
-#define THREADS_PER_BLOCK 128
+#define THREADS_PER_BLOCK 256
 
 /*
  * Assumes that the size of the output array is equal to the number of thread
@@ -140,6 +140,9 @@ reduce_int_kernel_nonopt(int *output, unsigned int num_input)
     }
 
     // do reduction in shared mem
+    if (tid < 128 && (tid + 128) < lenBlock) {
+      cache[tid] += cache[tid + 128];
+    } __syncthreads();
     if (tid < 64 && (tid + 64) < lenBlock) {
       cache[tid] += cache[tid + 64];
     } __syncthreads();

@@ -60,8 +60,6 @@ let mk_gpu_vec ?nbytes ?len ty shape =
        len * eltSize 
     | Some n -> n 
   in
-  Printf.printf "Making gpu vec";
-  flush stdout;
   let outputPtr = cuda_malloc nbytes in
 
   let shapePtr, shapeSize = shape_to_gpu shape in
@@ -80,7 +78,6 @@ let mk_gpu_vec ?nbytes ?len ty shape =
 let to_gpu = function 
   | HostScalar n -> GpuScalar n
   | HostArray { ptr=ptr; host_t=host_t; shape=shape; nbytes=nbytes } ->
-    Printf.printf "Copying to GPU";  
     let gpuPtr = cuda_malloc nbytes in
     cuda_memcpy_to_device ptr gpuPtr nbytes;
     let shapeDevPtr, shapeBytes = shape_to_gpu shape in

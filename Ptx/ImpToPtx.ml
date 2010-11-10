@@ -190,13 +190,13 @@ let rec gen_stmt codegen stmt =
        ) 
   | Imp.SyncThreads -> codegen#emit [bar]  
   | Imp.Comment str -> codegen#emit [comment ("Imp comment: " ^ str)]
-  | Imp.While (cond, block) -> 
-      let predReg = gen_exp codegen  cond in 
-      let testLabel = codegen#fresh_label in 
-      codegen#emit [label testLabel (comment "loop test")]; 
-      let exitLabel = codegen#fresh_label in 
-      codegen#emit [pred_not predReg (bra exitLabel)]; 
-      gen_block codegen block; 
+  | Imp.While (cond, block) ->
+      let testLabel = codegen#fresh_label in
+      codegen#emit [label testLabel (comment "loop test")];
+      let predReg = gen_exp codegen cond in
+      let exitLabel = codegen#fresh_label in
+      codegen#emit [pred_not predReg (bra exitLabel)];
+      gen_block codegen block;
       codegen#emit [
         bra testLabel;
         label exitLabel (comment "loop exit")
@@ -221,7 +221,7 @@ let translate_kernel ?input_spaces (impfn : Imp.fn) =
     print_string (Imp.fn_to_str impfn);
     print_string "\n";
     print_string "\n[imp2ptx] ******************************\n";
-  ENDIF; 
+  ENDIF;
   let inputSpaces = match input_spaces with
     (* if we have no preferences about the space our inputs live in, 
        put all scalars in PARAM and all vectors in GLOBAL 

@@ -61,9 +61,9 @@ let cuda_module_from_kernel_list
       (threadsPerBlock : int) = 
   let ptxModule = Ptx.module_from_named_kernels kernelList in  
   let ptxStr = Ptx.ptx_module_to_str ptxModule in
-  IFDEF DEBUG THEN 
+  (*IFDEF DEBUG THEN*) 
     print_string ptxStr;
-  ENDIF; 
+  (*ENDIF;*)
   let modulePtr = compile_module ptxStr threadsPerBlock in
   (* take an input space and change it from referring to 
      kernel-local symids to module-level names 

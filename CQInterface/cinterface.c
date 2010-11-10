@@ -206,14 +206,18 @@ K run_template(K t, K args, K globals) {
   ocaml_globals  = args_list_to_ocaml_list(globals);
   ocaml_args     = args_list_to_ocaml_list(args);
 
+#ifdef DEBUG
   inspect_block(ocaml_args);
+#endif
 
   // Now actually call the OCaml function to build and run the CUDA function
   if(!ocaml_run_template) { printf("ERROR: run_template not found\n"); exit(1); }
   ocaml_ret = caml_callback3(
     *ocaml_run_template, ocaml_template, ocaml_globals, ocaml_args);
 
+#ifdef DEBUG
   inspect_block(ocaml_ret);
+#endif
 
   // Have to unpack and repack the OCaml return value for Q
   K q_status, q_retval, q_ret;

@@ -37,6 +37,7 @@ value ocaml_pq_compile_module(value ptx_string, value threads_per_block)
   CAMLparam2(ptx_string, threads_per_block);
   CUmodule *cuModule = (CUmodule*)(malloc(sizeof(CUmodule)));
 
+#ifdef DEBUG
   // in this branch we use compilation with parameters
   const unsigned int jitNumOptions = 6;
   CUjit_option jitOptions[] =  {
@@ -58,19 +59,26 @@ value ocaml_pq_compile_module(value ptx_string, value threads_per_block)
       (void*)jitLogBufferSize,
       ibuf,
       (void*) nthreads,
-      (void*) 0, /* since wall time is an output only variable, don't need anything here */ 
+      (void*) 0, /* since wall time is an output only variable,
+                    don't need anything here */
   };
 
   CUresult result = cuModuleLoadDataEx(cuModule, String_val(ptx_string),
 	     jitNumOptions, jitOptions, jitOptVals);
 
   printf("JIT info log: %s\n", ibuf);
+#else
+  CUresult result = cuModuleLoadData(cuModule, String_val(ptx_string));
+#endif
+
   if (result != 0) {
     printf("Error #%d compiling module %p \n", result, cuModule);
 
+#ifndef DEBUG
+    exit(1);
+#else
 	  printf("JIT error log: %s\n", ebuf);
-	exit(1);
-#ifdef DEBUG
+    exit(1);
   } else {
     printf("JIT max threads per block: %d (requested: %d)\n",
            (int) jitOptVals[4], nthreads);

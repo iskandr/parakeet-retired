@@ -58,7 +58,6 @@ ElimPartialApps.cmx \
 Simplify.cmx \
 AdverbFusion.cmx \
 CSE.cmx \
-TypeCheck.cmx \
 RunOptimizations.cmx \
 TypeInfer.cmx \
 Signature.cmx \

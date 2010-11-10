@@ -9,11 +9,12 @@ let gen_reduce payload threadsPerBlock outTypes =
   let ty = List.hd outTypes in
   let codegen = new imp_codegen in
   let input = codegen#fresh_input (VecT ty) in
+  let eltype = DynType.elt_type ty in
   let head::tail = all_dims input in
   let output = codegen#fresh_array_output (VecT ty)
                  ((safe_div_ head (int $ threadsPerBlock * 2))::tail) in
 
-  let cache = codegen#shared_vec_var ty [threadsPerBlock] in
+  let cache = codegen#shared_vec_var eltype [threadsPerBlock] in
 
   let tid = codegen#fresh_var UInt32T in
   let linearBlockIdx = codegen#fresh_var UInt32T in
@@ -26,9 +27,9 @@ let gen_reduce payload threadsPerBlock outTypes =
     set i (threadIdx.x +$ startBlock)
   ];
   
-  let temp = codegen#fresh_var ty in
-  let tmp1 = codegen#fresh_var ty in
-  let tmp2 = codegen#fresh_var ty in
+  let temp = codegen#fresh_var eltype in
+  let tmp1 = codegen#fresh_var eltype in
+  let tmp2 = codegen#fresh_var eltype in
   let template = [
     ifTrue (i <$ len input) [
       if_ ((i +$ (int threadsPerBlock)) <$ len input) [
@@ -85,6 +86,9 @@ let gen_reduce_2d_capable payload threadsPerBlock outTypes =
 
   let cache = codegen#shared_vec_var eltype [threadsPerBlock] in
   
+  let num_vecs = codegen#fresh_var Int32T in
+  codegen#emit [set num_vecs (len input)];
+  
   let vec_len = codegen#fresh_var Int32T in
   let ndims = DynType.nest_depth (VecT ty) in
   if ndims = 1 then
@@ -115,47 +119,43 @@ let gen_reduce_2d_capable payload threadsPerBlock outTypes =
   let firstvec = codegen#fresh_var Int32T in
   let elidx = codegen#fresh_var Int32T in
   let cacheid = codegen#fresh_var Int32T in
-  let template1 = [
-    set firstvec ((int 2) *$ id_y);
-    set elidx ((firstvec *$ vec_len) +$ id_x);
-    set cacheid ((bx *$ threadIdx.y) +$ threadIdx.x);
-    ifTrue (firstvec <$ (len input)) [
-      setidx cache [cacheid] (idx input elidx)
-    ];
-    ifTrue ((firstvec +$ (int 1)) <$ (len input)) [
-      set spin1 (idx cache cacheid);
-      set spin2 (idx input (elidx +$ vec_len));
-      SPLICE;
-      setidx cache [cacheid] spout
-    ];
-    syncthreads;
-  ] in
-  let spliced1 = codegen#splice payload [|spin1;spin2|] [|spout|] template1 in
-  
   let cur_y = codegen#fresh_var Int32T in
-  let template2 = [
-    (* TODO: Redo this as a bit-shift *)
-    set cur_y (by /$ (int 2));
-    while_ (cur_y >$ (int 0)) [
-      ifTrue ((threadIdx.y <$ cur_y) &&$ ((id_y +$ cur_y) <$ (len input))) [
-        set spin1 (idx cache cacheid);
-        set spin2 (idx cache (cacheid +$ (cur_y *$ bx)));
-        SPLICE;
-        setidx cache [cacheid] spout
-      ];
-      syncthreads;
-      set cur_y (cur_y /$ (int 2))
-    ];
-    
-    ifTrue ((threadIdx.y =$ (int 0)) &&$ (threadIdx.x <$ bx)) [
-      setidx output [((vec_len *$ blockIdx.y) +$ id_x)] (idx cache threadIdx.x)
+  let template = [
+    ifTrue (id_x <$ vec_len) [
+	    set firstvec ((int 2) *$ id_y);
+	    set elidx ((firstvec *$ vec_len) +$ id_x);
+	    set cacheid ((bx *$ threadIdx.y) +$ threadIdx.x);
+      
+	    ifTrue (firstvec <$ num_vecs) [
+	      setidx cache [cacheid] (idx input elidx)
+	    ];
+	    ifTrue ((firstvec +$ (int 1)) <$ num_vecs) [
+	      set spin1 (idx cache cacheid);
+	      set spin2 (idx input (elidx +$ vec_len));
+	      SPLICE;
+	      setidx cache [cacheid] spout
+	    ];
+	    syncthreads;
+	  
+	    (* TODO: Redo this as a bit-shift *)
+	    set cur_y (by /$ (int 2));
+	    while_ (cur_y >$ (int 0)) [
+	      ifTrue ((threadIdx.y <$ cur_y) &&$ ((id_y +$ cur_y) <$ num_vecs)) [
+	        set spin1 (idx cache cacheid);
+	        set spin2 (idx cache (cacheid +$ (cur_y *$ bx)));
+	        SPLICE;
+	        setidx cache [cacheid] spout
+	      ];
+	      syncthreads;
+	      set cur_y (cur_y /$ (int 2))
+	    ];
+	    ifTrue ((threadIdx.y =$ (int 0)) &&$ (threadIdx.x <$ bx)) [
+	      (*setidx output [((vec_len *$ blockIdx.y) +$ id_x)] (idx cache threadIdx.x)*)
+        setidx output [((vec_len *$ blockIdx.y) +$ id_x)] vec_len
+	    ]
     ]
   ] in
-  let spliced2 = codegen#splice payload [|spin1;spin2|] [|spout|] template2 in
-  
-  codegen#emit [
-    ifTrue (id_x <$ vec_len) (spliced1 @ spliced2)
-  ];
+  codegen#splice_emit payload [|spin1;spin2|] [|spout|] template;
   codegen#finalize
 
 (* reduces each block's subvector to a single output element *) 
