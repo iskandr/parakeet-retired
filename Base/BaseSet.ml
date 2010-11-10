@@ -24,4 +24,7 @@ module Make (M: ORD) = struct
     
   (* takes a list of sets, returns their union *)
   let union_list lst = BaseList.fold_left union empty lst 
+  
+  let map f set = 
+    fold (fun elt accSet -> add (f elt) accSet) set empty 
 end

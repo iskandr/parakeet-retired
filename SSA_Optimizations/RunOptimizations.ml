@@ -3,15 +3,32 @@ open SSA
 
 type optimization = FnTable.t -> SSA.fundef -> SSA.fundef * bool   
 
-let rec fold_optimizations fnTable code lastChanged = function
+let rec fold_optimizations ?(type_check=false) fnTable fundef lastChanged = 
+  function
   | (name, opt)::rest -> 
-        
-      let code', changed = opt fnTable code in
-(*      debug $ Printf.sprintf "[optimizer] Ran %s ...%s\n"
-        name (if changed then "MODIFIED" else "");*)
-      fold_optimizations fnTable code' (changed || lastChanged)  rest 
-  | [] -> code, lastChanged 
-
+      let fundef', changed = opt fnTable fundef in
+      IFDEF DEBUG THEN  
+        if type_check then  
+        let errorLog = TypeCheck.check_fundef fundef' in 
+        if not $ Queue.is_empty errorLog then ( 
+        Printf.printf 
+            "--- Errors found in %s after %s ---\n"
+            (FnId.to_str fundef.SSA.fn_id)
+            name
+          ;
+          Printf.printf "[BEFORE OPTIMIZATION] \n%s\n" 
+            (SSA.fundef_to_str fundef)
+          ;
+          Printf.printf "[AFTER OPTIMIZATION] \n%s\n"
+            (SSA.fundef_to_str fundef)
+          ;
+          TypeCheck.print_all_errors errorLog; exit 1 
+       
+        );
+      ENDIF;
+      fold_optimizations fnTable fundef' (changed || lastChanged)  rest 
+  | [] -> fundef, lastChanged
+(*
 let rec run_all ?(iter=1) fnTable maxiters optimizations code =      
   let code', changed = fold_optimizations fnTable code false optimizations in 
   if changed && iter < maxiters then 
@@ -24,24 +41,52 @@ let optimize_block
       (fnTable : FnTable.t)  
       (block  : SSA.block)  
       optimizations = run_all fnTable maxiters optimizations block 
-       
-let optimize_fundef 
+*)       
+let rec optimize_fundef
+      ?(type_check=false)
+      ?(iter=1) 
       ?(maxiters=100) 
       (fnTable : FnTable.t) 
       (fundef : SSA.fundef) 
-      (optimizations : (string * optimization) list)
-       = run_all fnTable maxiters optimizations fundef
+      (optimizations : (string * optimization) list) =
+  let fundef', changed = 
+    fold_optimizations ~type_check fnTable fundef false optimizations 
+  in
+  if changed && iter < maxiters then 
+    optimize_fundef 
+      ~type_check 
+      ~iter:(iter+1)  
+      ~maxiters 
+      fnTable 
+      fundef' 
+      optimizations   
+  else fundef', iter
       
 (* update each function in the unoptimized queue of the FnTable *)  
-let optimize_all_fundefs ?(maxiters=100) (fnTable : FnTable.t) optimizations =
+let optimize_all_fundefs 
+      ?(type_check=false) 
+      ?(maxiters=100) 
+      (fnTable : FnTable.t) 
+      (optimizations : (string * optimization) list) =
   while FnTable.have_unoptimized fnTable do
-    let fundef = FnTable.get_unoptimized fnTable in 
+    let fundef = FnTable.get_unoptimized fnTable in
+    IFDEF DEBUG THEN  
+        if type_check then  
+        let errorLog = TypeCheck.check_fundef fundef in 
+        if not $ Queue.is_empty errorLog then (
+          Printf.printf "--- found errors in %s before optimization ---\n%s\n" 
+            (FnId.to_str fundef.SSA.fn_id)
+            (SSA.fundef_to_str fundef);
+          TypeCheck.print_all_errors errorLog;
+          exit 1  
+        )
+    ENDIF; 
     let optimized, iters = 
-      optimize_fundef ~maxiters fnTable fundef optimizations 
+      optimize_fundef ~type_check ~maxiters fnTable fundef optimizations 
     in
     IFDEF DEBUG THEN 
       assert (fundef.fn_id = optimized.fn_id);
-      Printf.printf "Optimizing %s..."; 
+      Printf.printf "Optimizing %s..." (FnId.to_str fundef.fn_id); 
       let status = 
         if iters > 1 then  
           Printf.sprintf "modified (%d iters):\n %s" 
@@ -49,7 +94,7 @@ let optimize_all_fundefs ?(maxiters=100) (fnTable : FnTable.t) optimizations =
             (SSA.fundef_to_str optimized)
          else ""  
       in 
-      Printf.printf "%s\n" (FnId.to_str fundef.fn_id) status;
+      Printf.printf "%s\n" status;
     ENDIF;
     FnTable.update  optimized fnTable       
   done  

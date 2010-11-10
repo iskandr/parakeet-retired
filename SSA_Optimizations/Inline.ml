@@ -7,7 +7,14 @@ let get_constant_function lookup = function
   | GlobalFn id -> lookup id
   | _ -> None       
 
-(* TODO: inliner doesn't preserve type environments! *) 
+
+(* create fresh names for all variables in a body, 
+   replace names everywhere,
+   bind input ids to given argument expressions,  
+   return list of id, type pairs to augment 
+   the type environment of whichever function this code
+   will be spliced into 
+*)
 
 let do_inline fundef argVals = 
   let bodyIds, _ = UntypedFindGenSet.block_gens fundef.body in 
@@ -36,44 +43,63 @@ let do_inline fundef argVals =
   let outputValNodes = 
     List.map2 (fun id t -> SSA.mk_var ~ty:t id) newOutputIds outTypes 
   in 
-  let outputExp = mk_exp ~types:outTypes (Values outputValNodes) in  
-  argAssignments :: body', outputExp   
+  let outputExp = mk_exp ~types:outTypes (Values outputValNodes) in
+  (* list of new ids and their types *) 
+  let types = 
+    List.map2 
+      (fun id id' -> let t = ID.Map.find id fundef.tenv in (id', t))
+      allIds 
+      freshIds
+  in 
+  argAssignments :: body', outputExp, types   
   
 
 let rec inline_block lookup block = 
-  let allStmts, allChanged = 
-    List.split (List.map (inline_stmt lookup) block) in 
+  let allStmts, allTypesLists, allChanged  = 
+    List.split3 (List.map (inline_stmt lookup) block) in 
   let anyChanged = List.fold_left (||) false allChanged in 
   let flatStmts = List.concat allStmts in 
-  flatStmts, anyChanged
+  let flatTypesList = List.concat allTypesLists in 
+  flatStmts, flatTypesList, anyChanged
+
 and inline_fundef lookup fundef = 
-  let body',changed  = inline_block lookup fundef.body in
-  { fundef with body = body'} , changed 
+  let body', types, changed  = inline_block lookup fundef.body in
+  let tenv' = 
+    List.fold_left 
+      (fun accEnv (id,t) -> ID.Map.add id t accEnv) 
+      fundef.tenv 
+      types
+  in 
+  { fundef with body = body'; tenv = tenv'} , changed 
        
 and inline_stmt constEnv node =
   match node.stmt with
   | Set (ids, rhs) -> 
-    let rhs', changed, extraStmts = inline_exp constEnv rhs in 
-    extraStmts @ [{node with stmt=Set(ids, rhs')}], changed
+    let rhs', changed, extraStmts, extraTypes = inline_exp constEnv rhs in 
+    extraStmts @ [{node with stmt=Set(ids, rhs')}], extraTypes, changed
   | Ignore rhs ->
-    let rhs', changed, extraStmts = inline_exp constEnv rhs in 
-    extraStmts @ [{node with stmt = Ignore rhs'}], changed  
+    let rhs', changed, extraStmts, extraTypes = inline_exp constEnv rhs in 
+    extraStmts @ [{node with stmt = Ignore rhs'}], extraTypes, changed  
   | If (condVal, tBlock, fBlock, ifGate) ->
     let condVal', condChanged = inline_value constEnv condVal in 
-    let tBlock', tChanged = inline_block constEnv tBlock in 
-    let fBlock', fChanged = inline_block constEnv fBlock in 
-    let changed = condChanged || tChanged || fChanged in 
-    [{node with stmt = If (condVal', tBlock', fBlock', ifGate)}], changed
+    let tBlock', tTypes, tChanged = inline_block constEnv tBlock in 
+    let fBlock', fTypes, fChanged = inline_block constEnv fBlock in 
+    let changed = condChanged || tChanged || fChanged in
+    let types = tTypes @ fTypes in  
+    [{node with stmt = If (condVal', tBlock', fBlock', ifGate)}], types, changed
   | SetIdx(id, indices, rhsVal) -> 
     let indices', indicesChanged = inline_value_list constEnv indices in 
     let rhsVal', rhsChanged = inline_value constEnv rhsVal in
     let changed = indicesChanged || rhsChanged  in  
-    [{node with stmt = SetIdx(id, indices', rhsVal')}], changed  
+    [{node with stmt = SetIdx(id, indices', rhsVal')}], [], changed
+      
 and inline_exp lookup node =
   match node.exp with 
   | App ({value=GlobalFn id} as fn, argNodes) -> 
       let argNodes', argsChanged = inline_value_list lookup argNodes in
-      let noInline = {node with exp = App(fn, argNodes')}, argsChanged, [] in 
+      let noInline = 
+        {node with exp = App(fn, argNodes')}, argsChanged, [], [] 
+      in 
       (
         match lookup id with 
         | None -> noInline 
@@ -81,40 +107,40 @@ and inline_exp lookup node =
           (* make sure arity lines up *)
           if List.length fundef.input_ids <> List.length argNodes' then noInline
           else 
-          let inlineCode, outputExp = do_inline fundef argNodes' in
+          let inlineCode, outputExp, typesList = do_inline fundef argNodes' in
           assert (outputExp.exp_types = node.exp_types); 
-          {outputExp with exp_src=node.exp_src }, true, inlineCode
+          {outputExp with exp_src=node.exp_src }, true, inlineCode, typesList
       )
   | App({value=Lam fundef} as fn, args) -> 
       let fundef', fundefChanged = inline_fundef lookup fundef in 
       let args', argsChanged = inline_value_list lookup args in
       let fn' = { fn with value= Lam fundef' } in 
       let noInline = 
-        {node with exp = App(fn', args') }, fundefChanged || argsChanged, []
+        {node with exp = App(fn', args') }, fundefChanged || argsChanged, [], []
       in 
       if List.length fundef.input_ids <> List.length args then noInline
       else 
-      let inlineCode, outputExp = do_inline fundef args' in
+      let inlineCode, outputExp, typesList = do_inline fundef args' in
       assert (outputExp.exp_types = node.exp_types); 
-      {outputExp with exp_src=node.exp_src }, true, inlineCode
+      {outputExp with exp_src=node.exp_src }, true, inlineCode, typesList
   | App(fn, args) -> 
       let args', argsChanged = inline_value_list lookup args in 
-      {node with exp=App(fn, args')}, argsChanged, []          
+      {node with exp=App(fn, args')}, argsChanged, [], []          
   | ArrayIndex (arr, indices) ->
       let arr', arrChanged = inline_value lookup arr in 
       let indices', indicesChanged = inline_value_list lookup indices in
       let node' = {node with exp = ArrayIndex(arr', indices')} in 
       let changed = arrChanged || indicesChanged in 
-      node', changed, []
+      node', changed, [], []
   | Arr vs ->   
       let vs', changed = inline_value_list lookup vs in
-      {node with exp = Arr vs'}, changed, []
+      {node with exp = Arr vs'}, changed, [], []
   | Values vs ->
       let vs', changed = inline_value_list lookup vs in 
-      {node with exp = Values vs'}, changed, []
+      {node with exp = Values vs'}, changed, [], []
   | Cast(t, rhs) -> 
       let rhs', changed = inline_value lookup rhs in 
-      { node with exp = Cast(t, rhs') }, changed, [] 
+      { node with exp = Cast(t, rhs') }, changed, [], [] 
 and inline_value lookup vNode = 
   let value', changed = match vNode.value with   
   | Lam fundef  -> 
@@ -145,11 +171,17 @@ let run_block_inliner ?(fn_lookup : (ID.t -> SSA.fundef option) option) code =
               | _ -> None 
           else None)   
     | Some fn -> fn 
-  in 
-  let code', changed = inline_block lookup code in 
-  code', changed   
+  in inline_block lookup code  
 
 let run_fundef_inliner (functions : FnTable.t) fundef = 
   let lookup = fun id -> FnTable.find_option id functions in 
-  let body', changed = run_block_inliner ~fn_lookup:lookup fundef.body in 
-  {fundef with body = body' }, changed        
+  let body', typesList, changed = 
+    run_block_inliner ~fn_lookup:lookup fundef.body   
+  in 
+  let tenv' = 
+    List.fold_left 
+      (fun accEnv (id,t) -> ID.Map.add id t accEnv) 
+      fundef.tenv 
+      typesList  
+  in 
+  {fundef with body = body'; tenv = tenv' }, changed        

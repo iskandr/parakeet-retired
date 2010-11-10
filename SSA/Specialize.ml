@@ -644,7 +644,7 @@ and specialize_all_pairs
   in  
   let allPairsNode = { 
     value = Prim (Prim.ArrayOp Prim.AllPairs);
-    value_type = DynType.FnT(inputTypes, outputTypes); 
+    value_type = DynType.FnT(nestedFn.value_type :: inputTypes, outputTypes); 
     value_src = None
   } 
   in

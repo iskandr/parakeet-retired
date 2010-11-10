@@ -37,8 +37,7 @@ let add_specialization
        but make sure it really is the same function 
     *) 
     IFDEF DEBUG THEN 
-      let oldFundef = FnTable.find fnId program.typed_functions in 
-      assert (oldFundef = typedFundef) 
+      assert (FnTable.find fnId program.typed_functions = typedFundef) 
     ENDIF; 
     ()
   )
@@ -46,15 +45,29 @@ let add_specialization
   ; 
   Hashtbl.add program.specializations (untypedVal, signature) typedFundef.fn_id;
   IFDEF DEBUG THEN
-    let valStr = SSA.value_to_str untypedVal in   
-    Printf.printf 
-      "\nSpecialized %s for signature %s: \n %s \n"
-      (match untypedVal with 
-        | GlobalFn untypedId ->
-          let fnName = Hashtbl.find program.untyped_id_to_name untypedId in  
-          Printf.sprintf "\"%s\" (untyped %s)" fnName valStr
-        | _ -> valStr      
-      )
+    let untypedValStr = 
+      match untypedVal with 
+      | GlobalFn untypedId ->
+        let fnName = Hashtbl.find program.untyped_id_to_name untypedId in  
+        Printf.sprintf 
+          "\"%s\" (untyped %s)" fnName (SSA.value_to_str untypedVal)
+      | _ -> SSA.value_to_str untypedVal
+    in  
+    let errorLog = TypeCheck.check_fundef typedFundef in
+    if not $ Queue.is_empty errorLog then (
+      print_string "\n --- ";
+      Printf.printf 
+        "Errors in specialization of %s for signature \"%s\"\n"
+        untypedValStr 
+        (Signature.to_str signature)
+      ; 
+      Printf.printf "%s\n" (SSA.fundef_to_str typedFundef);
+      TypeCheck.print_all_errors errorLog;
+      exit 1
+    )
+    else 
+      Printf.printf "\nSpecialized %s for signature \"%s\": \n %s \n"
+      untypedValStr
       (Signature.to_str signature)
       (SSA.fundef_to_str typedFundef)
   END 
@@ -104,6 +117,7 @@ let default_typed_optimizations =
   
 let optimize_typed_functions program = 
   RunOptimizations.optimize_all_fundefs 
+    ~type_check:true
     ~maxiters:100
     program.typed_functions
     default_typed_optimizations

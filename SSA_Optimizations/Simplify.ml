@@ -11,7 +11,7 @@ let (>>) (value,changed) f =
 
 let replace_with_def defEnv id = 
   if ID.Map.mem id defEnv then match ID.Map.find id defEnv with 
-    | FindDefs.SingleDef (Values [{value=Var id'}], _) ->  Var id', true
+    | FindDefs.SingleDef (Values [{value=Var id'}], _, _) ->  Var id', true
     | _ -> Var id, false
   else Var id, false 
 
@@ -129,7 +129,7 @@ and rewrite_value constEnv useCounts defEnv tenv valNode =
           let ids', changed = rename_dummy_outputs ids in
           if ID.Map.mem id defEnv then 
             match ID.Map.find id defEnv with 
-            | SingleDef (Values [{value=Var id'}], _) -> id'::ids', true     
+            | SingleDef (Values [{value=Var id'}], _, _) -> id'::ids', true     
             |  _ -> id::ids', changed 
           else id::ids', changed
         | [] -> [], false
@@ -156,20 +156,65 @@ let simplify_typed_block
     (functions : FnTable.t)
     ~tenv
     ~def_env 
+    ~use_counts
     ~(free_vars:ID.t list) 
      (block : SSA.block) =
   let constEnv  = FindConstants.find_constants ~free_vars block in
-  let useCounts,_ = FindUseCounts.find_use_counts block in
-  rewrite_block constEnv useCounts def_env tenv block     
+  rewrite_block constEnv use_counts def_env tenv block     
+
+(* sometimes we find ourselves in the silly situation such that 
+     x1 = some complex expression  
+     x2 = x1
+   and our current optimizations are too weak to remove the extra assignment.
+   We eliminate some obvious cases by rewriting 
+     x2 = some complex expression 
+   when (1) x1 has a unique known definition, (2) x1 is only used once (by x2)
   
+   TODO: generalize for multi-assignments, allow for statements other than set.
+   PROBLEM: causes weird duplication of outputs...don't use for now.    
+*)  
+
+let rec remove_redundant_assignments defEnv useCounts = function  
+  | ({stmt=Set([id], expNode)} as stmtNode) ::rest ->
+      let rest', restChanged = 
+          remove_redundant_assignments defEnv useCounts rest 
+      in
+     
+      (match expNode.exp with 
+      | Values [{value=Var rhsId}] ->
+        let curr, currChanged = 
+          if ID.Map.find rhsId useCounts = 1 then 
+          match ID.Map.find rhsId defEnv with
+          | SingleDef (exp, 1, 1) ->
+             {stmtNode with stmt = Set([id], { expNode with exp = exp})}, true
+          | _ ->
+                 stmtNode, restChanged
+          else stmtNode, restChanged  
+        in curr::rest', currChanged || restChanged
+      | _ -> stmtNode::rest', restChanged
+      )   
+  | stmtNode::rest ->
+    let rest', restChanged = 
+      remove_redundant_assignments defEnv useCounts rest
+    in  
+    stmtNode::rest', restChanged
+  | [] -> [], false
+
 let simplify_fundef (functions:FnTable.t) fundef =
   let defEnv =  FindDefs.find_function_defs fundef in
+  let useCounts, _ = FindUseCounts.find_fundef_use_counts fundef in
+  (*
+  let body', changed' = 
+    remove_redundant_assignments defEnv useCounts fundef.body
+  in
+  *)      
   let body', changed = 
     simplify_typed_block functions 
       ~tenv:fundef.tenv 
-      ~def_env:defEnv   
+      ~def_env:defEnv
+      ~use_counts:useCounts    
       ~free_vars:fundef.input_ids  
       fundef.body
   in 
-  {fundef with body = body'}, changed 
+  {fundef with body = body'}, changed
                                                                                                                                                                                        

@@ -216,6 +216,9 @@ let mk_val ?(src=None) ?(ty=DynType.BottomT) (v:value) : value_node =
 let mk_var ?(src=None) ?(ty=DynType.BottomT) (id:ID.t) : value_node = 
   { value = Var id; value_src = src; value_type = ty }    
 
+let mk_globalfn ?(src=None) ?(ty=DynType.BottomT) (id:FnId.t) : value_node=
+  { value = GlobalFn id; value_src = src; value_type = ty } 
+
 (*** 
     helpers for expressions 
  ***) 

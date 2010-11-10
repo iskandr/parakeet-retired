@@ -36,7 +36,7 @@ and eval_exp defEnv constEnv expNode =
      (* assume that function was partially applied and thus returns 
         just a single value -- the closure 
      *)
-     | SingleDef (App({value=GlobalFn fnId}, closureArgs), 0) ->
+     | SingleDef (App({value=GlobalFn fnId}, closureArgs), 1, 1) ->
        {expNode with exp = 
             App({fnNode with value = GlobalFn fnId}, closureArgs @ args)
        }, true

@@ -4,9 +4,10 @@ open SSA
 
 
 (* SingleDef is the combination of an expression 
-   and index into multiple return values 
+   index into multiple return values, 
+   number of returned values into total 
 *)
-type def = SingleDef of SSA.exp * int | CombineDef of ID.Set.t | FunArg
+type def = SingleDef of SSA.exp * int * int | CombineDef of ID.Set.t | FunArg
    
 let rec eval_block env code = 
   List.fold_left eval_stmt env code
@@ -27,8 +28,8 @@ and eval_stmt env node =
       let combineBranches accEnv outId (trueId, falseId) = 
         let def = 
           match ID.Map.find trueId trueEnv, ID.Map.find falseId falseEnv with
-          | SingleDef (e1,i), SingleDef (e2,j) -> 
-            if i = j && e1 = e2 then SingleDef (e1, i) 
+          | SingleDef (e1,i,m), SingleDef (e2,j,n) -> 
+            if i = j && m=n && e1 = e2 then SingleDef (e1, i,m) 
             else CombineDef (ID.Set.of_list [trueId; falseId]) 
           | CombineDef ids1, CombineDef ids2 -> 
             CombineDef (ID.Set.union ids1 ids2)
@@ -42,10 +43,12 @@ and eval_stmt env node =
  
 and eval_exp expNode = 
   match expNode.exp with 
-  | Values vs -> List.map (fun v -> SingleDef (Values [v], 0)) vs  
+  | Values vs -> List.map (fun v -> SingleDef (Values [v], 1, 1)) vs  
   | other -> 
       let numReturnVals = List.length expNode.exp_types in 
-      List.map (fun i -> SingleDef (other, i)) (List.til numReturnVals)  
+      List.map 
+        (fun i -> SingleDef (other, i+1, numReturnVals)) 
+        (List.til numReturnVals)  
 
 let find_block_defs block = eval_block ID.Map.empty block
 
