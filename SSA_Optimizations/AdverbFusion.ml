@@ -439,24 +439,33 @@ let process_stmt
             in 
             adverbMap', producerMap', graveyard, replaced
         | Some (predStmtId, predDescriptor) ->
-            (* kill off the current statement *)
-            let graveyard' = StmtSet.add stmtNode.stmt_id graveyard in
-            (* record that the predecessor should be killed off *)
-            let replaced' = StmtSet.add predStmtId replaced in   
+            (* 
+               since we assume that no one used the predecessor's 
+               data except the successor, we replace the successor 
+               with the fused operation, and kill the predecessor 
+            *)
+             
+            let graveyard' = StmtSet.add predStmtId graveyard in
+            (* record that the current node should also be replaced *)
+            let succStmtId = stmtNode.stmt_id in 
+            let replaced' = StmtSet.add succStmtId replaced in   
             let combinedDescriptor : adverb_descriptor = 
               fuse fns use_counts predDescriptor descriptor 
             in
-            (* replace the descriptor of the predecessor with the new fused
-               adverb
-            *) 
+             
             let adverbMap' : adverb_descriptor StmtMap.t = 
-              StmtMap.add predStmtId combinedDescriptor adverb_map 
+              StmtMap.add succStmtId combinedDescriptor adverb_map 
             in
+            
+            (* We might also want to remove any data that died, 
+               but since it isn't used by any other statement perhaps
+               it's OK to leave it in the map.  
+            *)   
             let producerMap' : StmtId.t ID.Map.t = 
               List.fold_left 
-                (fun accMap id -> ID.Map.add id predStmtId accMap)
+                (fun accMap id -> ID.Map.add id succStmtId accMap)
                 producer_map
-                predDescriptor.produces_list
+                combinedDescriptor.produces_list
             in  
             adverbMap', producerMap', graveyard', replaced' 
       end

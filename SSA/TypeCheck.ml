@@ -13,16 +13,18 @@ let rec check_stmt
           (stmtNode:stmt_node) 
           : ID.Set.t =
   let err msg = Queue.add (stmtNode.stmt_src, msg) errorLog in
-  let type_exists (id :ID.t) : bool = 
-    let found = ID.Map.mem id tenv in  
-    if not found then 
-      err $ Printf.sprintf "no type found for variable %s" (ID.to_str id)
-    ;
-    found
-  in   
   match stmtNode.stmt with 
   | Set (ids, rhs) ->
-      check_exp errorLog tenv defined rhs;
+      check_exp errorLog tenv defined rhs; 
+      let type_exists (id :ID.t) : bool = 
+        let found = ID.Map.mem id tenv in  
+        if not found then 
+          err $ Printf.sprintf 
+            "no type found for variable %s on lhs of assignment" 
+            (ID.to_str id)
+        ;
+        found
+      in   
       if List.for_all type_exists ids then ( 
         let lhsTypes = List.map (fun id -> ID.Map.find id tenv) ids in 
         let rhsTypes = rhs.exp_types in 
@@ -122,6 +124,7 @@ and check_value (errorLog:errors)(tenv:tenv) (defined : ID.Set.t) vNode : unit =
   | GlobalFn _ -> 
       if not $ DynType.is_function vNode.value_type then 
         err "expected function annotation"  
+  | Sym _ | Str _ | Unit -> ()
 and check_value_list errorLog tenv defined values = 
   List.iter (check_value errorLog tenv defined) values
 and check_block (errorLog : errors) (tenv : DynType.t ID.Map.t) defined block = 
@@ -131,7 +134,7 @@ and check_block (errorLog : errors) (tenv : DynType.t ID.Map.t) defined block =
     block 
 and check_fundef ?(errorLog=Queue.create()) fundef =
   let defined = ID.Set.of_list fundef.input_ids in  
-  check_block errorLog fundef.tenv defined fundef.body;
+  let _ = check_block errorLog fundef.tenv defined fundef.body in 
   errorLog
 
 let err_printer = function 

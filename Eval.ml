@@ -4,7 +4,6 @@ open Base
 open SSA 
 open InterpVal 
 
-let _ = Printexc.record_backtrace true;;
 
 type mem = MemoryState.mem_state
 type env = (ID.t, InterpVal.t) PMap.t
@@ -18,7 +17,8 @@ let eval_value
       if PMap.mem id env then PMap.find id env
       else failwith $ 
         Printf.sprintf "[eval_value] variable %s not found!" (ID.to_str id)
-  | Num n -> MemoryState.add_host memoryState (HostVal.mk_host_scalar n)
+  | Num n -> InterpVal.Scalar n 
+        (*MemoryState.add_host memoryState (HostVal.mk_host_scalar n)*)
   | GlobalFn fnId -> InterpVal.Closure(fnId, []) 
   | Str _
   | Sym _
@@ -123,7 +123,11 @@ and eval_exp
   | ArrayIndex (arr, indices) -> 
       failwith "[eval] array indexing not implemented" 
   | Arr elts -> failwith "[eval] array constructor not implemented"
-  | Cast (t, valNode) -> failwith "[eval] cast not implemented"
-       
+  | Cast (t, valNode) when DynType.is_scalar t -> 
+      (match eval_value  memState env valNode with 
+        | InterpVal.Scalar n -> [InterpVal.Scalar (PQNum.coerce_num n t)]
+        | _ -> failwith "[eval] expected scalar"
+      )  
+  | Cast (t, valNode) -> failwith "[eval] cast only implemented for scalars"
   | _ -> failwith "[eval] eval_exp failed; node not implemented"
  

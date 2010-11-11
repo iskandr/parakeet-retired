@@ -245,18 +245,11 @@ let gridDim = mk_vec3 (fun coord -> uint16_exp $ GridDim coord)
  
 
 (* GENERAL IMP EXPRESSIONS *)
-
-
 let uint32 i = uint_exp $ Const (PQNum.Int32 i)    
-let int32 i = 
-  if i < Int32.zero then int_exp $ Const (PQNum.Int32 i)
-  else uint32 i 
+let int32 i = int_exp $ Const (PQNum.Int32 i)
 
 let uint i = uint_exp $ Const (PQNum.Int32 (Int32.of_int i))
-let int i = 
-  if i < 0 then 
-    int_exp $ Const (PQNum.Int32 (Int32.of_int i))
-  else uint i    
+let int i =  int_exp $ Const (PQNum.Int32 (Int32.of_int i))
   
 let float f = f32_exp $ Const (PQNum.Float32 f)  
 let double d = f64_exp $ Const (PQNum.Float64 d) 
@@ -268,11 +261,13 @@ let select cond tNode fNode =
   } 
     
 let idx arr idx = 
-  let idx' = cast DynType.UInt32T idx in  
+  let idx' = cast DynType.Int32T idx in  
   let eltT = DynType.elt_type arr.exp_type in  
   {exp= Idx(arr, idx'); exp_type=eltT }
 
-let dim n x = uint_exp $ DimSize(n, x)
+let dim n x = int_exp $ (DimSize(n, x))
+ 
+     
 
 (* get a list of all the dimensions of an Imp array *) 
 let all_dims ( x : exp_node) : exp_node list =

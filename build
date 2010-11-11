@@ -30,6 +30,7 @@ fi
 if [ "debug" == "$1" ]; then
   PPFLAGS="-ppflag -DDEBUG"
   MAKEFLAGS="DEBUG=-g"
+  export dbg=1
 fi
 
 OCAMLPP="-pp camlp4o -ppflag pa_macro.cmo"

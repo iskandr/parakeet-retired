@@ -203,7 +203,7 @@ let array_op_to_str = function
 	| Enlist -> "enlist"
 	| Til -> "til"
 	| Rand -> "rand"
-  | Map -> "map"
+  | Map -> "each"
   | EachLeft -> "/:"
   | EachRight -> "\\:"
   | Reduce -> "/"

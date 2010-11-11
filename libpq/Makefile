@@ -104,21 +104,25 @@ CFLAGS    := $(CWARN_FLAGS)
 # Common flags
 COMMONFLAGS += $(INCLUDES) -DUNIX
 
+NVCCFLAGS   += --compiler-options '-fno-strict-aliasing,-fPIC' --shared
+
 # Debug/release configuration
 ifeq ($(dbg),1)
-	COMMONFLAGS += -g
+	COMMONFLAGS += -g -D_DEBUG -DDEBUG
 	NVCCFLAGS   += -D_DEBUG -DDEBUG
 	BINSUBDIR   := debug
 	LIBSUFFIX   := D
-else 
-	COMMONFLAGS += -O3
+else
+  COMMONFLAGS += -O3
 	BINSUBDIR   := release
 	LIBSUFFIX   :=
-	NVCCFLAGS   += --compiler-options '-fno-strict-aliasing,-fPIC' --shared \
-	               --opencc-options -OPT:Olimit=99999
+	NVCCFLAGS += --opencc-options -OPT:Olimit=99999
 	CXXFLAGS    += -fno-strict-aliasing
-	CFLAGS      += -fno-strict-aliasing
+  CFLAGS      += -fno-strict-aliasing
 endif
+
+ 
+
 
 # append optional arch/SM version flags (such as -arch sm_11)
 #NVCCFLAGS += $(SMVERSIONFLAGS)
@@ -319,7 +323,7 @@ all: stubs
 
 pqlib:
 	nvcc -o libpq.so --compiler-options '-fPIC' --shared \
-	pqlib.cu $(INCLUDES) $(LIB) -lcuda
+	pqlib.cu $(INCLUDES) $(LIB) -lcuda 
 
 module_tester:
 	gcc-4.3 -o module_tester module_tester.c -I. $(INCLUDES) -lcuda -lrt
@@ -383,9 +387,11 @@ timing: timing.o
 
 stubs: thrust_stubs.cu_o kernel_stubs.cu_o cuda_stubs.cu_o base.o
 	echo $(INCLUDES)
-	$(CC) -c libpq_stubs.c -I. $(INCLUDES) -o libpq_stubs.o $(LIB) -L. 
+	$(CC) -c libpq_stubs.c -I. $(INCLUDES) \
+	      -o libpq_stubs.o $(COMMONFLAGS) $(LIB) -L. 
 	ar rcs libpq_stubs.a libpq_stubs.o cuda_stubs.cu_o thrust_stubs.cu_o \
-		kernel_stubs.cu_o base.o
+		kernel_stubs.cu_o base.o 
+		
 
 clean:
 	rm -f libpq.so libpq_stubs.a *_o *.o tester timing *~

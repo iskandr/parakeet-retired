@@ -286,7 +286,7 @@ class ptx_codegen  = object (self)
   *) 
   val registerCache 
     : (PtxVal.value * PtxType.ty, PtxVal.value) Hashtbl.t = Hashtbl.create 17
-  method cached_value ?ty ptxVal =
+  method cached ?ty ptxVal =
     let ty = match ty with 
         | Some ty -> ty 
         | None -> PtxVal.type_of_value ptxVal 
@@ -302,19 +302,19 @@ class ptx_codegen  = object (self)
     )   
   method is_cached ptxVal ty = Hashtbl.mem registerCache (ptxVal,ty)
     
-  method tid_x = self#cached_value tid.x     
-  method tid_y = self#cached_value tid.y 
-  method tid_z = self#cached_value tid.z 
+  method tid_x = self#cached tid.x     
+  method tid_y = self#cached tid.y 
+  method tid_z = self#cached tid.z 
  
-  method ntid_x = self#cached_value ntid.x 
-  method ntid_y = self#cached_value ntid.y
-  method ntid_z = self#cached_value ntid.z 
+  method ntid_x = self#cached ntid.x 
+  method ntid_y = self#cached ntid.y
+  method ntid_z = self#cached ntid.z 
   
-  method ctaid_x = self#cached_value ctaid.x 
-  method ctaid_y = self#cached_value ctaid.y
+  method ctaid_x = self#cached ctaid.x 
+  method ctaid_y = self#cached ctaid.y
   
-  method nctaid_x = self#cached_value nctaid.y    
-  method nctaid_y = self#cached_value nctaid.y
+  method nctaid_x = self#cached nctaid.y    
+  method nctaid_y = self#cached nctaid.y
   
   (*************************************************************
                       INDEX COMPUTATIONS
@@ -325,11 +325,11 @@ class ptx_codegen  = object (self)
     | Some reg -> reg
     | None -> 
         let t1, t2 = self#fresh_reg U32, self#fresh_reg U32 in
-        let x = self#cached_value ntid.x in 
-        let y = self#cached_value ntid.y in 
-        let z = self#cached_value ~ty:U32 ntid.z in 
-        self#emit [mul_wide U16 t1 x y];
-        self#emit [mul U32 t2 t1 z];
+        self#emit [
+          comment "computing threads per block";
+          mul_wide U16 t1 (self#cached ntid.x)  (self#cached ntid.y);
+          mul U32 t2 t1 (self#cached ~ty:U32 ntid.z)
+        ];
         threadsPerBlock <- Some t2; 
         t2 
   
@@ -337,8 +337,8 @@ class ptx_codegen  = object (self)
   method compute_linear_block_index = match linearBlockId with 
     | Some reg -> reg
     | None -> 
-        let x = self#cached_value nctaid.x in 
-        let y = self#cached_value nctaid.y in
+        let x = self#cached nctaid.x in 
+        let y = self#cached nctaid.y in
         let blockId = self#fresh_reg U32 in 
         (* grids can only be two-dimensional, so z component always = 1 *) 
         self#emit [mul_wide U16 blockId x y];
@@ -352,11 +352,12 @@ class ptx_codegen  = object (self)
     | None -> 
         let regs = self#fresh_regs U32 5 in
         self#emit [
-          mul_wide U16 regs.(0) (self#ntid_y) (self#ntid_z);
-          mul_wide U16 regs.(1) (self#tid_x) regs.(0); 
+          comment "compute linear index within block";
+          mul_wide U16 regs.(0) (self#cached ntid.y) (self#cached ntid.z);
+          mul U32 regs.(1) (self#cached ~ty:U32 tid.x) regs.(0); 
           mul_wide U16 regs.(2) (self#tid_y) (self#ntid_z); 
-          add U32 regs.(3) regs.(1) regs.(2); 
-          add U32 regs.(4) (self#tid_z) regs.(3)
+          add U32 regs.(3) regs.(1) regs.(2);
+          add U32 regs.(4) (self#cached ~ty:U32 tid.z) regs.(3) 
         ];
         linearBlockOffset <- Some regs.(4); 
         regs.(4)    
@@ -371,6 +372,7 @@ class ptx_codegen  = object (self)
       let blockOffset = self#compute_linear_block_offset in 
       let regs = self#fresh_regs U32 2 in 
       self#emit [
+        comment "compute linear thread index";
         mul U32 regs.(0) blockId threadsPerBlock; 
         add U32 regs.(1) blockOffset regs.(0)
       ]; 
@@ -518,7 +520,7 @@ class ptx_codegen  = object (self)
     if destType = srcType then srcVal 
     else if PtxVal.is_ptx_constant srcVal && self#is_cached srcVal destType 
     then  
-      self#cached_value ~ty:destType srcVal
+      self#cached ~ty:destType srcVal
     else
       let destReg = self#fresh_reg destType in 
       (self#convert ~destReg ~srcVal; destReg) 
@@ -564,6 +566,10 @@ class ptx_codegen  = object (self)
       else if PtxType.is_int srcType && PtxType.is_float destType then
         self#emit [
           round Ptx.RoundNearest (cvt destType srcType destReg srcVal)
+        ]
+      else if PtxType.is_float srcType && PtxType.is_int destType then
+        self#emit [
+          round Ptx.RoundNearest_Int (cvt destType srcType destReg srcVal)
         ]
       else self#emit [cvt destType srcType destReg srcVal]
       

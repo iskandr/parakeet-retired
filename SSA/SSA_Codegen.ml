@@ -35,7 +35,7 @@ class typed_ssa_codegen =
           exp_types = [to_type]
         }
         in 
-        let freshId = ID.gen() in 
+        let freshId = self#fresh_var to_type in 
         let stmtNode = mk_set [freshId] castNode in  
         DynArray.add code stmtNode; 
         {value = Var freshId; value_type = to_type; value_src = None } 

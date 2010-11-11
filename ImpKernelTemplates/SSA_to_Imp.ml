@@ -74,18 +74,29 @@ and translate_exp codegen globalFunctions idEnv expectedType expNode =
 	      let acc = codegen#fresh_var initialT in
 	      let i = codegen#fresh_var Int32T in
         let n = codegen#fresh_var Int32T in  
-	      let bodyBlock = [
-	        set i (int 0);
-          (* assume arrays are of the same length *) 
-	        set n (len $ List.hd impArrays);  
-	        set acc impInit; 
-	        while_ (i <$ n) [SPLICE; set i (i +$ (int 1))] 
-	      ] in 
-        let arrayElts = List.map (fun arr -> idx arr i) impArrays in
+        (* alex: fixing a bug wherein the "arrays" are actually scalars *)
+        let arrayElts = 
+            List.map2 
+              (fun arr t -> if DynType.is_scalar t then arr else idx arr i) 
+              impArrays
+              arrayTypes   
+        in
         let payloadArgs = Array.of_list (acc :: arrayElts) in
-        let payloadOutputs = [|acc|] in    
-        codegen#splice_emit impPayload payloadArgs payloadOutputs bodyBlock;  
-	      acc
+        let payloadOutputs = [|acc|] in
+        let bodyBlock = 
+          if List.exists DynType.is_vec arrayTypes then  
+	        [
+	          set i (int 0);
+            (* assume arrays are of the same length *) 
+	          set n (len $ List.hd impArrays);  
+	          set acc impInit; 
+	          while_ (i <$ n) [SPLICE; set i (i +$ (int 1))] 
+	        ]
+          (* if all arguments are scalars, just call the function directly *)
+          else [SPLICE] 
+        in 
+        codegen#splice_emit impPayload payloadArgs payloadOutputs bodyBlock;
+        acc
       | _ -> failwith "[ssa->imp] Expected function identifier"
     )
   | SSA.App({SSA.value=SSA.Prim (Prim.ArrayOp Prim.Find);

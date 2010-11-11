@@ -122,9 +122,15 @@ and rewrite_exp constEnv useCounts defEnv tenv node =
       return (Arr vs') changed 
   
   | Cast(t, v) ->
-      let v', changed = rewrite_value constEnv useCounts defEnv tenv v in 
-      if v.value_type = t then return (Values [v]) true 
-      else return (Cast(t,v')) changed 
+      let v', changed = rewrite_value constEnv useCounts defEnv tenv v in
+      (match v'.value with 
+        | Num n -> 
+          let coercedNum = {v' with value = Num (PQNum.coerce_num n t)} in  
+          return (Values [coercedNum]) true 
+        | _ ->    
+          if v'.value_type = t then return (Values [v']) true 
+          else return (Cast(t,v')) changed
+      ) 
 
     
 and rewrite_value constEnv useCounts defEnv tenv valNode =
