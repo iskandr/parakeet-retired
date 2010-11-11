@@ -62,7 +62,7 @@ CSE.cmx \
 RunOptimizations.cmx \
 TypeInfer.cmx \
 Signature.cmx \
-Program.cmx \
+InterpState.cmx \
 SSA_Codegen.cmx \
 InsertCoercions.cmx \
 Specialize.cmx \

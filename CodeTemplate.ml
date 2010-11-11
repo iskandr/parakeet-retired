@@ -57,10 +57,10 @@ let build_function_body_ast body =
 (* assume functions have been sorted so that a function def appears
    before it's used 
 *) 
-let rec build_untyped_program
+let rec build_interp_state
      (fnNames : SSA.FnId.t String.Map.t) 
      (fundefs : SSA.fundef FnId.Map.t) = function 
-  | [] -> Program.create_untyped fnNames fundefs  
+  | [] -> InterpState.create_untyped fnNames fundefs  
      
   | (name,locals,globals,bodyText)::rest ->
       let bodyAST = build_function_body_ast bodyText in
@@ -70,20 +70,20 @@ let rec build_untyped_program
       let fnId = fundef.SSA.fn_id in   
       let fnNames' = String.Map.add name fnId fnNames in
       let fundefs' = FnId.Map.add fnId fundef fundefs in  
-      build_untyped_program fnNames' fundefs' rest 
+      build_interp_state fnNames' fundefs' rest 
    
-(* replace the concept of a "module" with just an untyped program 
+(* replace the concept of a "module" with just an untyped interpState 
    which also preserves the original string names of its functions
 *)   
 let gen_module_template entries =
-   build_untyped_program String.Map.empty FnId.Map.empty entries 
+   build_interp_state String.Map.empty FnId.Map.empty entries 
   
-let get_function_template program name =
-  let untypedId = Program.get_untyped_id program name in 
-  (untypedId, program) 
+let get_function_template interpState name =
+  let untypedId = InterpState.get_untyped_id interpState name in 
+  (untypedId, interpState) 
   
 let run_template 
-    (untypedId, program) 
+    (untypedId, interpState) 
     (globals : HostVal.host_val list)  
     (locals : HostVal.host_val list) =
   IFDEF DEBUG THEN printf "entered run_template... \n"; ENDIF; 
@@ -94,7 +94,7 @@ let run_template
   let startTime =   Unix.gettimeofday () in
   let args = globals @ locals in
   let argTypes = List.map HostVal.get_type args in
-  let untypedFn = Program.get_untyped_function program untypedId in 
+  let untypedFn = InterpState.get_untyped_function interpState untypedId in 
   IFDEF DEBUG THEN 
      printf "[run_template] untyped function body: %s\n" 
       (SSA.fundef_to_str untypedFn);
@@ -112,17 +112,16 @@ let run_template
   ENDIF;
   (* ignore the returned fundef because it's unoptimized *)  
   let unoptimized = 
-    Specialize.specialize_function_id program untypedId signature 
+    Specialize.specialize_function_id interpState untypedId signature 
   in
-  Program.optimize_typed_functions program; 
-  let typedFundef = Program.get_typed_function program unoptimized.fn_id in 
+  InterpState.optimize_typed_functions interpState; 
+  let typedFundef = InterpState.get_typed_function interpState unoptimized.fn_id in 
   IFDEF DEBUG THEN 
     printf "[run_template] calling evaluator on specialized code: \n";
     printf "%s\n" (SSA.fundef_to_str typedFundef);
   ENDIF;  
-  let resultVals = 
-    Eval.eval (Program.get_typed_function_table program) typedFundef args 
-  in  
+  let fnTable = InterpState.get_typed_function_table interpState in 
+  let resultVals = Eval.eval fnTable typedFundef args in  
   let result = Success (List.hd resultVals)  in     
   printf "Total Time: %f\n" (Unix.gettimeofday () -. startTime);
   IFDEF DEBUG THEN flush stdout; ENDIF; 

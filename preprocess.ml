@@ -1,8 +1,6 @@
-
 open Printf 
 open Base
 open SourceInfo
-
 open AST
 
 let gen_template_id = mk_gen () 
@@ -13,6 +11,57 @@ let rename_global x = "pq_global_" ^ x
 let old_fn_name fnName = "pq_old_" ^ fnName 
 let moduleTemplateName = "pq_module_template"
 
+
+(* These two functions "prepend_old" and "fold_prepend_old" rewrite the names
+   of referenced variables such that any function names start with "pq_old_"
+*)
+let rec fold_prepend_old (knownFunctions : String.Set.t) ?(accNodes =[]) = 
+  function 
+    | [] -> List.rev accNodes, knownFunctions 
+    | node::rest -> 
+        let node', knownFunctions' = prepend_old knownFunctions node in 
+        fold_prepend_old knownFunctions' ~accNodes:(node'::accNodes) rest 
+
+and prepend_old (knownFunctions : String.Set.t) ast = match ast.data with 
+  | Var x -> 
+    if String.Set.mem x knownFunctions then 
+      { ast with data = Var (old_fn_name x) }, knownFunctions
+    else ast, knownFunctions 
+  | Def (name, rhs) ->
+    let rhs', knownFunctions' = prepend_old knownFunctions rhs in
+    (* if we're redefining a known function, assume rhs is a non-function 
+       value and remove name from the set 
+    *)
+    let knownFunctions'' = String.Set.remove name knownFunctions' in 
+    { ast with data = Def(name, rhs') }, knownFunctions''
+  | Block nodes -> 
+    let nodes', knownFunctions' = fold_prepend_old knownFunctions nodes in 
+    { ast with data = Block nodes' }, knownFunctions'    
+  | Lam(ids, body) ->
+    let knownFunctions' = 
+      List.fold_left 
+        (fun knownFns name -> String.Set.remove name knownFns)
+        knownFunctions
+        ids 
+    in 
+    let body', _ = prepend_old knownFunctions' body in 
+    { ast with data = Lam (ids, body')}, knownFunctions 
+         
+  | App(fn, args) ->
+    let args', knownFunctions' = fold_prepend_old knownFunctions args in 
+    let fn', knownFunctions'' = prepend_old knownFunctions' fn in 
+    { ast with data = App(fn', args') }, knownFunctions''    
+  | SetIdx(lhs, indices, rhs) ->
+    let rhs', knownFunctions' = prepend_old knownFunctions rhs in 
+    let indices', knownFunctions'' = 
+      fold_prepend_old knownFunctions' indices
+    in 
+    { ast with data = SetIdx(lhs, indices', rhs') }, knownFunctions'
+  | Arr nodes -> 
+    let nodes', knownFunctions' = fold_prepend_old knownFunctions nodes in 
+    { ast with data = Arr nodes' }, knownFunctions'   
+  | _ -> ast, knownFunctions  (* TODO: if, loops *) 
+  
 (* 
    rewrite function calls to known functions to also send 
    the global variables of those functions. 
@@ -190,8 +239,19 @@ let rec rewrite_ast safeFnMap dataReadsMap ast =
       if PMap.mem fnName safeFnMap then 
         (* process any definitions that may be on rhs *) 
         let rhsOriginal', moduleEntries', fnTemplates' =
-          aux moduleEntries fnTemplates rhsOriginal in   
-        let ast' = mk_def_node (old_fn_name fnName) rhsOriginal' in
+          aux moduleEntries fnTemplates rhsOriginal 
+        in
+        (* have to rename all function variable names to start with pq_old_
+           so that we call Q code and not into our interpreter
+        *)
+        let fnNameSet = 
+          List.fold_left 
+            (fun accSet (name, _) -> String.Set.add name accSet)
+            String.Set.empty 
+            fnTemplates 
+        in     
+        let rhsOldNames, _ = prepend_old fnNameSet rhsOriginal' in  
+        let ast' = mk_def_node (old_fn_name fnName) rhsOldNames in
         (* use the rhs from the safeFnMap instead of rhsOriginal
            since the map has already pulled out lambda nodes from 
            code like f:g:h:{x+y}
@@ -225,11 +285,6 @@ let rec rewrite_ast safeFnMap dataReadsMap ast =
     | [] ->  ast'
     | _ ->  
       let orderedEntries = topsort_function_entries safeFnMap moduleEntries in
-      (*
-      let fixString (x,y,z,code) = 
-          (x,y,z, (Str.global_replace (Str.regexp_string "\\\"") "\"") code) in  
-      let orderedEntries' = List.map fixString orderedEntries in 
-      *) 
       let orderedEntryNodes = 
         List.map (Tuple.uncurry4 gen_module_entry_node) orderedEntries in 
      
@@ -272,19 +327,17 @@ let process_lexbuf ~debug lexbuf =
     let print_info key info = 
         eprintf "%s : %s\n"  key (AST_Info.to_str info)
     in
-    if debug then ( 
+    IFDEF DEBUG THEN 
       eprintf "[direct AST info]\n";  
       PMap.iter print_info infoMap;
       eprintf "\n"; 
-    );
-    
+    ENDIF;
     let transInfo = Analyze_AST.transitive_closure infoMap in
-    
-    if debug then ( 
+    IFDEF DEBUG THEN 
       eprintf "[transitive closure of AST info]\n";
       PMap.iter print_info transInfo;
       eprintf "\n";
-    );
+    ENDIF; 
     
     (* we want the transitive properties except for is_function, which should
        only apply if the function was clearly a lambda 

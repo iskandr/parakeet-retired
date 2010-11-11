@@ -5,7 +5,7 @@ type const_env = SSA.value ID.Map.t
 type context = {
   type_env : type_env;
   const_env : const_env;
-  program : Program.program 
+  interp_state : InterpState.t; 
 }  
 
 type change_indicator = bool 
@@ -18,13 +18,13 @@ type change_indicator = bool
 (* annotations to insert any necessary coercions *) 
 
 val specialize_function_value 
-    : Program.program-> SSA.value -> Signature.t -> SSA.value_node 
+    : InterpState.t-> SSA.value -> Signature.t -> SSA.value_node 
 
 val specialize_fundef 
-    : Program.program -> SSA.fundef -> Signature.t -> SSA.fundef 
+    : InterpState.t -> SSA.fundef -> Signature.t -> SSA.fundef 
   
 val specialize_function_id 
-    : Program.program -> ID.t -> Signature.t -> SSA.fundef
+    : InterpState.t -> ID.t -> Signature.t -> SSA.fundef
 
 
 val annotate_block 

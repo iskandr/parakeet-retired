@@ -10,7 +10,7 @@ type const_env = SSA.value ID.Map.t
 type context = {
   type_env : type_env; 
   const_env : const_env; 
-  program : Program.program 
+  interp_state : InterpState.t 
 }  
 
 type change_indicator = bool    
@@ -126,7 +126,7 @@ let rec annotate_app context expSrc fn args = match fn.value with
     } 
     in 
     let specializedFn = 
-      specialize_function_value context.program fn.value signature 
+      specialize_function_value context.interp_state fn.value signature 
     in
     let expNode = { 
       exp_src = expSrc;  
@@ -143,7 +143,7 @@ let rec annotate_app context expSrc fn args = match fn.value with
     let args', types,  argsChanged = annotate_values context args in 
     let signature = Signature.from_input_types types in 
     let specializedFn = 
-      specialize_function_value context.program fn.value signature 
+      specialize_function_value context.interp_state fn.value signature 
     in
     let expNode = {
       exp_src = expSrc;  
@@ -311,10 +311,10 @@ and annotate_block context = function
    potentially scalar operators, and wrap this function in a map over
    1D vector data 
 *)
-and scalarize_fundef program untypedId untypedFundef vecSig = 
+and scalarize_fundef interpState untypedId untypedFundef vecSig = 
   let scalarSig = Signature.peel_vec_types vecSig in 
-  let scalarFundef = specialize_fundef program untypedFundef scalarSig in
-  Program.add_specialization program 
+  let scalarFundef = specialize_fundef interpState untypedFundef scalarSig in
+  InterpState.add_specialization interpState 
     (GlobalFn untypedId) 
     scalarSig 
     scalarFundef 
@@ -346,12 +346,12 @@ and scalarize_fundef program untypedId untypedFundef vecSig =
     ~input_ids:freshInputIds
     ~output_ids:freshOutputIds  
 
-and specialize_function_id program untypedId signature =
+and specialize_function_id interpState untypedId signature =
   match 
-    Program.maybe_get_specialization program (GlobalFn untypedId) signature 
+    InterpState.maybe_get_specialization interpState (GlobalFn untypedId) signature 
   with 
     | None ->
-       let untypedFundef = Program.get_untyped_function program untypedId in 
+       let untypedFundef = InterpState.get_untyped_function interpState untypedId in 
      (* SPECIAL CASE OPTIMIZATION: if we see a function of all scalar operators
         applied to all 1D vectors, then we can directly generate a single 
         Map adverb over all the argument vectors 
@@ -361,19 +361,19 @@ and specialize_function_id program untypedId signature =
          if all_scalar_stmts untypedFundef.body  
             && List.for_all DynType.is_scalar_or_vec inputTypes 
             && List.exists DynType.is_vec inputTypes 
-         then scalarize_fundef program untypedId untypedFundef signature 
-         else specialize_fundef program untypedFundef signature
+         then scalarize_fundef interpState untypedId untypedFundef signature 
+         else specialize_fundef interpState untypedFundef signature
        in
-       Program.add_specialization 
-           program 
+       InterpState.add_specialization 
+           interpState 
            (GlobalFn untypedId) 
            signature 
            typedFundef
        ;
        typedFundef   
-    | Some typedId -> Program.get_typed_function program typedId 
+    | Some typedId -> InterpState.get_typed_function interpState typedId 
           
-and specialize_fundef program untypedFundef signature = 
+and specialize_fundef interpState untypedFundef signature = 
   let aux (tyEnv, constEnv) id = function
     | Signature.Type t -> ID.Map.add id t tyEnv, constEnv 
     | Signature.Value v -> tyEnv, ID.Map.add id v constEnv
@@ -384,7 +384,12 @@ and specialize_fundef program untypedFundef signature =
       untypedFundef.input_ids 
       signature.Signature.inputs   
   in 
-  let context = { type_env = tyEnv; const_env = constEnv; program = program } in
+  let context = { 
+    type_env = tyEnv; 
+    const_env = constEnv; 
+    interp_state = interpState 
+  }
+  in
   let annotatedBody, tenv', _ = annotate_block context untypedFundef.body in
   (* annotation returned a mapping of all identifiers to their types, *)
   (* now use this type info (along with annotatins on values) to insert all *)
@@ -404,10 +409,10 @@ and specialize_fundef program untypedFundef signature =
 (****************************************************************************)
 (*              SPECIALIZE FUNCTION VALUE                                   *)
 (****************************************************************************)
-and specialize_function_value program v signature : SSA.value_node = 
-  match Program.maybe_get_specialization program v signature with 
+and specialize_function_value interpState v signature : SSA.value_node = 
+  match InterpState.maybe_get_specialization interpState v signature with 
     | Some fnId -> 
-        let fundef =  Program.get_typed_function program fnId in 
+        let fundef =  InterpState.get_typed_function interpState fnId in 
         { value = GlobalFn fnId; 
           value_type = fundef.fn_type; 
           value_src = None 
@@ -417,19 +422,19 @@ and specialize_function_value program v signature : SSA.value_node =
       let typedFundef = match v with
         (* specialize the untyped function -- assuming it is one *) 
       | GlobalFn untypedId  -> 
-         specialize_function_id program untypedId signature
+         specialize_function_id interpState untypedId signature
          
       (* first handle the simple case when it's a scalar op with scalar args *)
       | Prim (Prim.ScalarOp op) when 
           List.for_all DynType.is_scalar (Signature.input_types signature)  ->
         specialize_scalar_prim_for_scalar_args
-          program 
+          interpState 
           op 
           ?forceOutputType:(Option.map List.hd signature.Signature.outputs) 
           (Signature.input_types signature)
       | Prim (Prim.ScalarOp op) (* not scalar args *) -> 
         specialize_scalar_prim_for_vec_args
-          program 
+          interpState 
           op
           ?forceOutputType:(Option.map List.hd signature.Signature.outputs) 
           (Signature.input_types signature)
@@ -447,7 +452,7 @@ and specialize_function_value program v signature : SSA.value_node =
                 restSig
             in  
             specialize_higher_order_array_prim 
-              program
+              interpState
               op 
               [fnVal]
               ?forceOutputTypes:signature.Signature.outputs
@@ -460,7 +465,7 @@ and specialize_function_value program v signature : SSA.value_node =
       (* array operators which don't take function arguments *) 
       | Prim (Prim.ArrayOp op) -> 
           specialize_first_order_array_prim 
-            program 
+            interpState 
             op 
             ?forceOutputTypes:signature.Signature.outputs 
             (Signature.input_types signature)
@@ -468,13 +473,13 @@ and specialize_function_value program v signature : SSA.value_node =
       (* make some sense of Q's highly ambiguous overloaded operators *) 
       | Prim (Prim.Q_Op qOp) -> 
           specialize_q_operator
-            program 
+            interpState 
             qOp
             ?forceOutputTypes:signature.Signature.outputs
             (Signature.input_types signature)
       | _ -> failwith "invalid value type for specialize_function_value"  
      in 
-     Program.add_specialization program v signature  typedFundef; 
+     InterpState.add_specialization interpState v signature  typedFundef; 
      { value = GlobalFn typedFundef.fn_id; 
        value_type = typedFundef.fn_type; 
        value_src = None 
@@ -482,8 +487,11 @@ and specialize_function_value program v signature : SSA.value_node =
 
   (* if we're applying a scalar operator to at least one vector, transform *)
   (* the whole operation into a map *) 
-and specialize_scalar_prim_for_vec_args program op ?forceOutputType inputTypes 
-    : SSA.fundef =  
+and specialize_scalar_prim_for_vec_args 
+      interpState 
+      op 
+      ?forceOutputType 
+      inputTypes : SSA.fundef =  
     let eltTypes = List.map DynType.elt_type inputTypes in
     let nestedSig = {
       Signature.inputs = List.map (fun t -> Signature.Type t) eltTypes; 
@@ -491,7 +499,8 @@ and specialize_scalar_prim_for_vec_args program op ?forceOutputType inputTypes
     } 
     in 
     let nestedFn = 
-      specialize_function_value program (Prim (Prim.ScalarOp op)) nestedSig  in
+      specialize_function_value interpState (Prim (Prim.ScalarOp op)) nestedSig  
+    in
     let nestedOutputTypes = DynType.fn_output_types nestedFn.value_type in
     (* the final output will be the nested output wrapped in a layer of VecT *)
     let outputTypes = List.map (fun t -> VecT t) nestedOutputTypes in    
@@ -516,7 +525,7 @@ and specialize_scalar_prim_for_vec_args program op ?forceOutputType inputTypes
 (* function f over arguments of type 'inputTypes' and returns a value of*)
 (* either the inferred types or of 'forceOutputTypes' if provided. *) 
 and specialize_map 
-    program 
+    interpState 
     (f : value) 
     ?(forceOutputTypes : DynType.t list option) 
     (inputTypes :DynType.t list)
@@ -534,7 +543,7 @@ and specialize_map
     { (Signature.from_input_types eltTypes) with 
        Signature.outputs = forceOutputEltTypes }
   in 
-  let nestedFn = specialize_function_value program f nestedSig in
+  let nestedFn = specialize_function_value interpState f nestedSig in
   let outputTypes = 
     TypeInfer.infer_adverb Prim.Map (nestedFn.value_type::inputTypes) 
   in 
@@ -567,7 +576,7 @@ and specialize_map
  Rough type rule for reducing a single vector - 
     REDUCE(f, i, xs) : (a, b -> a), c <: a, b vec -> a vec 
 *)   
-and specialize_reduce program f ?forceOutputTypes baseType vecTypes 
+and specialize_reduce interpState f ?forceOutputTypes baseType vecTypes 
         : SSA.fundef =
   let forceOutputEltTypes = 
     Option.map (List.map DynType.elt_type ) forceOutputTypes 
@@ -580,7 +589,7 @@ and specialize_reduce program f ?forceOutputTypes baseType vecTypes
       outputs = forceOutputEltTypes; 
   } 
   in   
-  let nestedFn = specialize_function_value program f nestedSig in
+  let nestedFn = specialize_function_value interpState f nestedSig in
   (* have to specialize twice in case output of reduction function doesn't *)
   (* match baseType *)
   let outputTypes =  DynType.fn_output_types nestedFn.value_type in 
@@ -588,7 +597,7 @@ and specialize_reduce program f ?forceOutputTypes baseType vecTypes
     | [t] when t = baseType -> nestedFn
     | [t] -> 
         let nestedSig' = { nestedSig with Signature.outputs = Some [t] } in 
-        specialize_function_value program f nestedSig' 
+        specialize_function_value interpState f nestedSig' 
     | [] -> failwith "reduction function with 0 outputs not supported"
     | _ -> failwith "reduction function with multiple outputs not supported"
   in 
@@ -623,7 +632,7 @@ and specialize_reduce program f ?forceOutputTypes baseType vecTypes
 (* and returns values of either the inferred types *)
 (* or of 'forceOutputTypes' if provided. *) 
 and specialize_all_pairs 
-    program 
+    interpState 
     (f : value) 
     ?(forceOutputTypes : DynType.t list option) 
     (inputType1 : DynType.t)
@@ -638,7 +647,7 @@ and specialize_all_pairs
     { (Signature.from_input_types eltTypes ) with 
        Signature.outputs = forceOutputEltTypes }
   in 
-  let nestedFn = specialize_function_value program f nestedSig in
+  let nestedFn = specialize_function_value interpState f nestedSig in
   let outputTypes = 
     TypeInfer.infer_adverb Prim.AllPairs (nestedFn.value_type :: inputTypes)
   in  
@@ -661,7 +670,7 @@ and specialize_all_pairs
     ) 
             
 and specialize_higher_order_array_prim 
-    ( program : Program.program ) 
+    ( interpState : InterpState.t ) 
     ( op  : Prim.array_op ) 
     ( fnVals : value list )  
     ?( forceOutputTypes : DynType.t list option ) 
@@ -669,20 +678,20 @@ and specialize_higher_order_array_prim
    : SSA.fundef  =  
   match op, fnVals, inputTypes with 
   | Prim.Map, [f], _ -> 
-    specialize_map program f ?forceOutputTypes inputTypes
+    specialize_map interpState f ?forceOutputTypes inputTypes
   (* for reduction, split the type of the initial value from the vectors *)
   (* being reduced *)  
   | Prim.Reduce,  [f], (initType::vecTypes) -> 
-    specialize_reduce program f ?forceOutputTypes initType vecTypes
+    specialize_reduce interpState f ?forceOutputTypes initType vecTypes
   | Prim.AllPairs, [f], [t1; t2] -> 
-    specialize_all_pairs program f ?forceOutputTypes t1 t2 
+    specialize_all_pairs interpState f ?forceOutputTypes t1 t2 
   | op, _, types -> failwith $ Printf.sprintf 
       "[specialize] array operator %s not yet implemented for input of type %s"
       (Prim.array_op_to_str op)
       (DynType.type_list_to_str types) 
 
 and specialize_first_order_array_prim 
-    ( program : Program.program )
+    ( interpState : InterpState.t )
     ( op : Prim.array_op )
     ?( forceOutputTypes : DynType.t list option )
     ( inputTypes : DynType.t list) 
@@ -722,7 +731,7 @@ and specialize_first_order_array_prim
         (DynType.type_list_to_str types) 
 *)
 and specialize_q_operator 
-    ( program : Program.program )
+    ( interpState : InterpState.t )
     ( op : Prim.q_op )
     ?( forceOutputTypes : DynType.t list option )
     ( inputTypes : DynType.t list) =

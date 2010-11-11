@@ -6,7 +6,7 @@ open InterpVal
 
 
 type mem = MemoryState.mem_state
-type env = (ID.t, InterpVal.t) PMap.t
+type env = InterpVal.t ID.Map.t 
 
 let eval_value 
     (memoryState : mem) 
@@ -14,7 +14,7 @@ let eval_value
     (valNode : SSA.value_node) : InterpVal.t = 
   match valNode.value with 
   | Var id -> 
-      if PMap.mem id env then PMap.find id env
+      if ID.Map.mem id env then ID.Map.find id env
       else failwith $ 
         Printf.sprintf "[eval_value] variable %s not found!" (ID.to_str id)
   | Num n -> InterpVal.Scalar n 
@@ -31,13 +31,13 @@ let rec eval globalFns fundef hostVals  =
   (* create unique identifiers for data items *) 
   let vals = List.map (fun h -> MemoryState.add_host memState h) hostVals in 
   let (env : env) = List.fold_left2 
-    (fun accEnv varId v -> PMap.add varId v accEnv) 
-    PMap.empty
+    (fun accEnv varId v -> ID.Map.add varId v accEnv) 
+    ID.Map.empty
     fundef.input_ids 
     vals
   in  
   let env' = eval_block memState globalFns env fundef.body in 
-  let outputVals = List.map (fun id -> PMap.find id env') fundef.output_ids
+  let outputVals = List.map (fun id -> ID.Map.find id env') fundef.output_ids
   in   
   let hostVals = List.map  (MemoryState.get_host memState) outputVals 
   in
@@ -75,7 +75,7 @@ and eval_stmt
         assert (List.length ids = List.length results); 
       ENDIF; 
       List.fold_left2 
-        (fun accEnv id v -> PMap.add id v accEnv) 
+        (fun accEnv id v -> ID.Map.add id v accEnv) 
         env 
         ids 
         results 
@@ -113,13 +113,13 @@ and eval_exp
       (* argument values on the gpu *) 
       let env' = 
         List.fold_left2 
-          (fun accEnv id v -> PMap.add id v accEnv)
+          (fun accEnv id v -> ID.Map.add id v accEnv)
           env 
           fundef.input_ids
           argVals
       in
       let env'' = eval_block memState functions env' fundef.body in
-      List.map (fun id -> PMap.find id env'') fundef.output_ids
+      List.map (fun id -> ID.Map.find id env'') fundef.output_ids
   | ArrayIndex (arr, indices) -> 
       failwith "[eval] array indexing not implemented" 
   | Arr elts -> failwith "[eval] array constructor not implemented"
