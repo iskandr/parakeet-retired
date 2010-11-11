@@ -3,11 +3,11 @@ open Base
 open Imp
 
 let rec translate_value idEnv vNode =
-  let vExp =  match vNode.SSA.value with  
-  | SSA.Var id -> Var (ID.Map.find id idEnv) 
-  | SSA.Num n -> Const n  
+  let vExp =  match vNode.SSA.value with
+  | SSA.Var id -> Var (ID.Map.find id idEnv)
+  | SSA.Num n -> Const n
   | _ -> failwith "[ssa->imp] value not implemented "
-  in 
+  in
   { Imp.exp = vExp; Imp.exp_type = vNode.SSA.value_type }
 
 and translate_exp codegen globalFunctions idEnv expectedType expNode = 
@@ -118,17 +118,17 @@ and translate_exp codegen globalFunctions idEnv expectedType expNode =
     (SSA.exp_to_str expNode) 
   else  
   impExpNode
-    
+
 and translate_stmt globalFunctions idEnv codegen stmtNode =
-  let get_imp_id ssaId t = 
-    if ID.Map.mem ssaId idEnv then ID.Map.find ssaId idEnv 
-    else codegen#fresh_local_id t 
-  in  
+  let get_imp_id ssaId t =
+    if ID.Map.mem ssaId idEnv then ID.Map.find ssaId idEnv
+    else codegen#fresh_local_id t
+  in
   match stmtNode.SSA.stmt with
   | SSA.Set([id], expNode) ->
-      (match expNode.SSA.exp_types with 
-        | [t] -> 
-          let id' = get_imp_id id t in  
+      (match expNode.SSA.exp_types with
+        | [t] ->
+          let id' = get_imp_id id t in
           let exp' =
              translate_exp codegen globalFunctions idEnv t expNode 
           in
