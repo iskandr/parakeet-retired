@@ -37,6 +37,7 @@ value ocaml_pq_compile_module(value ptx_string, value threads_per_block)
   CAMLparam2(ptx_string, threads_per_block);
   CUmodule *cuModule = (CUmodule*)(malloc(sizeof(CUmodule)));
 
+
 #ifdef DEBUG
   // in this branch we use compilation with parameters
   const unsigned int jitNumOptions = 6;

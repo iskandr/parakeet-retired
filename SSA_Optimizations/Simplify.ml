@@ -39,6 +39,14 @@ let rec create_assignments tenv newIds oldIds =
      let assign = mk_set [newId] expNode in 
      assign :: (create_assignments tenv newRest oldRest) 
 
+let is_useless useCounts id =
+  (* by convention, having 0 use counts excludes a varialbe from the 
+     useCount map, but check just in case 
+  *) 
+  if ID.Map.mem id useCounts 
+  then ID.Map.find id useCounts = 0 
+  else true  
+
 let rec rewrite_block constEnv useCounts defEnv tenv block = 
   let allStmts, allChanged = 
     List.split (List.map (rewrite_stmt constEnv useCounts defEnv tenv) block) in 
@@ -53,7 +61,11 @@ and rewrite_stmt constEnv useCounts defEnv tenv node =
   let s_val = rewrite_value constEnv useCounts defEnv tenv in 
   let s_vals = rewrite_value_list constEnv useCounts defEnv tenv in 
   let s_exp = rewrite_exp constEnv useCounts defEnv tenv in 
-  match node.stmt with  
+  match node.stmt with
+  (* 
+    TODO: make this work when only some variables in an assignment are useless 
+  *) 
+  | Set (ids, rhs) when List.for_all (is_useless useCounts) ids -> [], true 
   | Set (ids, rhs) ->
       let rhs', changed = s_exp rhs in return (Set(ids, rhs')) changed
   | Ignore expNode ->
@@ -110,9 +122,15 @@ and rewrite_exp constEnv useCounts defEnv tenv node =
       return (Arr vs') changed 
   
   | Cast(t, v) ->
-      let v', changed = rewrite_value constEnv useCounts defEnv tenv v in 
-      if v.value_type = t then return (Values [v]) true 
-      else return (Cast(t,v')) changed 
+      let v', changed = rewrite_value constEnv useCounts defEnv tenv v in
+      (match v'.value with 
+        | Num n -> 
+          let coercedNum = {v' with value = Num (PQNum.coerce_num n t)} in  
+          return (Values [coercedNum]) true 
+        | _ ->    
+          if v'.value_type = t then return (Values [v']) true 
+          else return (Cast(t,v')) changed
+      ) 
 
     
 and rewrite_value constEnv useCounts defEnv tenv valNode =
@@ -171,15 +189,15 @@ let simplify_typed_block
    when (1) x1 has a unique known definition, (2) x1 is only used once (by x2)
   
    TODO: generalize for multi-assignments, allow for statements other than set.
-   PROBLEM: causes weird duplication of outputs...don't use for now.    
+   WARNING: This optimization will duplicate work unless it is immediately
+   followed by a simplification step which will clean up useless assignments.   
 *)  
 
-let rec remove_redundant_assignments defEnv useCounts = function  
+let rec copy_redundant_assignments defEnv useCounts = function  
   | ({stmt=Set([id], expNode)} as stmtNode) ::rest ->
       let rest', restChanged = 
-          remove_redundant_assignments defEnv useCounts rest 
+          copy_redundant_assignments defEnv useCounts rest 
       in
-     
       (match expNode.exp with 
       | Values [{value=Var rhsId}] ->
         let curr, currChanged = 
@@ -195,7 +213,7 @@ let rec remove_redundant_assignments defEnv useCounts = function
       )   
   | stmtNode::rest ->
     let rest', restChanged = 
-      remove_redundant_assignments defEnv useCounts rest
+      copy_redundant_assignments defEnv useCounts rest
     in  
     stmtNode::rest', restChanged
   | [] -> [], false
@@ -203,18 +221,20 @@ let rec remove_redundant_assignments defEnv useCounts = function
 let simplify_fundef (functions:FnTable.t) fundef =
   let defEnv =  FindDefs.find_function_defs fundef in
   let useCounts, _ = FindUseCounts.find_fundef_use_counts fundef in
-  (*
-  let body', changed' = 
-    remove_redundant_assignments defEnv useCounts fundef.body
+  (* forward propagate expressions through linear use chains...
+     will create redundant work unless followed by a simplification 
+  *)
+  let body1, changed1 = 
+    copy_redundant_assignments defEnv useCounts fundef.body
   in
-  *)      
-  let body', changed = 
+  (* perform simple constant propagation and useless assignment elim *)
+  let body2, changed2 = 
     simplify_typed_block functions 
       ~tenv:fundef.tenv 
       ~def_env:defEnv
       ~use_counts:useCounts    
       ~free_vars:fundef.input_ids  
-      fundef.body
+      body1
   in 
-  {fundef with body = body'}, changed
+  {fundef with body = body2}, changed1 || changed2
                                                                                                                                                                                        

@@ -34,6 +34,7 @@ let get_gpu state = function
       Hashtbl.replace state.gpu_vals id gpuVal; 
       gpuVal
    )
+  | InterpVal.Scalar n -> GpuVal.GpuScalar n  
   | InterpVal.Closure _ -> 
       failwith "[MemoryState->get_gpu] can't send function to gpu"
 
@@ -48,6 +49,7 @@ let get_host state = function
       Printf.printf "[MemoryState->get_host] Got %s \n" 
         (HostVal.to_str hostVal);  
       hostVal
+  | InterpVal.Scalar n -> HostVal.HostScalar n 
   | InterpVal.Closure _ -> 
       failwith "[MemoryState->get_host] can't send function to host memory"
 

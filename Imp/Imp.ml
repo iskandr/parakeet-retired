@@ -149,25 +149,33 @@ let while_ cond code = While(cond, code)
 let comment str = Comment str
 
 
-let rec collect_nested_indices_from_node e = collect_nested_indices e.exp 
-and collect_nested_indices = function   
+ 
+let rec collect_rev_indices_from_node node = collect_rev_indices node.exp 
+and collect_rev_indices = function  
   | Var id -> id, [] 
   | Idx (lhs, idx) -> 
-     let id, otherIndices = collect_nested_indices_from_node lhs in 
+     let id, otherIndices = collect_rev_indices_from_node lhs in 
      id, idx :: otherIndices
   | _ -> failwith "[set] Expected variable"
    
+let collect_indices exp = 
+  let id, indices = collect_rev_indices exp in  
+  id, List.rev indices 
+  
+let collect_indices_from_node node = collect_indices node.exp  
+  
+     
 let set v rhs = match v.exp with 
   | Var id -> Set(id,rhs)
   | other -> 
-    let id, indices = collect_nested_indices_from_node v in 
+    let id, indices = collect_indices other in 
     SetIdx(id, indices,rhs)
   
   
 let rec setidx v indices rhs = match v.exp with 
   | Var id -> SetIdx(id, indices, rhs)
   | other -> 
-     let id, indices' = collect_nested_indices_from_node v in 
+     let id, indices' = collect_indices other in 
      SetIdx(id, indices' @ indices, rhs)
   
  
@@ -245,18 +253,11 @@ let gridDim = mk_vec3 (fun coord -> uint16_exp $ GridDim coord)
  
 
 (* GENERAL IMP EXPRESSIONS *)
-
-
 let uint32 i = uint_exp $ Const (PQNum.Int32 i)    
-let int32 i = 
-  if i < Int32.zero then int_exp $ Const (PQNum.Int32 i)
-  else uint32 i 
+let int32 i = int_exp $ Const (PQNum.Int32 i)
 
 let uint i = uint_exp $ Const (PQNum.Int32 (Int32.of_int i))
-let int i = 
-  if i < 0 then 
-    int_exp $ Const (PQNum.Int32 (Int32.of_int i))
-  else uint i    
+let int i =  int_exp $ Const (PQNum.Int32 (Int32.of_int i))
   
 let float f = f32_exp $ Const (PQNum.Float32 f)  
 let double d = f64_exp $ Const (PQNum.Float64 d) 
@@ -268,11 +269,13 @@ let select cond tNode fNode =
   } 
     
 let idx arr idx = 
-  let idx' = cast DynType.UInt32T idx in  
+  let idx' = cast DynType.Int32T idx in  
   let eltT = DynType.elt_type arr.exp_type in  
   {exp= Idx(arr, idx'); exp_type=eltT }
 
-let dim n x = uint_exp $ DimSize(n, x)
+let dim n x = int_exp $ (DimSize(n, x))
+ 
+     
 
 (* get a list of all the dimensions of an Imp array *) 
 let all_dims ( x : exp_node) : exp_node list =

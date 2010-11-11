@@ -79,8 +79,16 @@ class imp_codegen =
     
     method private add_slice_annot (sliceId : ID.t) (arrId : ID.t) = 
       IFDEF DEBUG THEN 
-        assert (MutableSet.mem localIdSet sliceId);
-        assert (self#is_array arrId); 
+        if not $ MutableSet.mem localIdSet sliceId then 
+          failwith $ Printf.sprintf 
+            "[add_slice_annot] expected slice lhs %s to be a local variable"
+            (ID.to_str sliceId)
+        ; 
+        if not $ self#is_array arrId then 
+          failwith $ Printf.sprintf 
+            "[add_slice_annot] expected slice rhs %s to be an array" 
+            (ID.to_str arrId)
+        ; 
       ENDIF;
       match self#get_array_annot arrId with
         (* the array to be slice should be of at least rank 1 *) 
@@ -192,7 +200,7 @@ class imp_codegen =
       | DimSize (i, arg) -> 
           let stmts, arg' = flatten_arg arg in
           let expNode' = {expNode with exp = DimSize(i,arg') } in 
-           stmts, expNode'   
+         stmts, expNode'   
       | Idx (lhs, rhs) ->
           let lhsStmts, lhs' = flatten_arg lhs in 
           let rhsStmts, rhs' = flatten_arg rhs in
@@ -250,9 +258,10 @@ class imp_codegen =
          
      | SetIdx (id, indices, rhs) -> 
          let idxStmtLists, idxExps = 
-           List.split $ List.map self#flatten_exp indices in 
+           List.split $ List.map self#flatten_exp indices 
+         in 
          let rhsStmts, rhsExp = self#flatten_exp rhs in 
-          (List.concat idxStmtLists) @ rhsStmts @ [SetIdx(id, idxExps, rhsExp)]
+         (List.concat idxStmtLists) @ rhsStmts @ [SetIdx(id, idxExps, rhsExp)]
         
      | simple -> [simple]
      

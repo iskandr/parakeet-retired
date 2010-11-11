@@ -4,9 +4,13 @@ open HostVal
 open Printf
 open Program
 open SourceInfo
+(* need the TypeCheck module included to not break the release build...
+   we really need a more resilient build script for CQInterface
+*)
+open TypeCheck 
 open SSA 
 
-let _ = Printexc.record_backtrace true
+let _ = Printexc.record_backtrace true 
 
 let checkpoint p =
   Gc.compact ();
@@ -103,7 +107,7 @@ let run_template
   let signature = Signature.from_input_types argTypes in
   IFDEF DEBUG THEN 
     printf
-      "[run_template] calling specialzer for argument types: %s \n"
+      "[run_template] calling specializer for argument types: %s \n"
       (DynType.type_list_to_str argTypes);
   ENDIF;
   (* ignore the returned fundef because it's unoptimized *)  
@@ -120,8 +124,6 @@ let run_template
     Eval.eval (Program.get_typed_function_table program) typedFundef args 
   in  
   let result = Success (List.hd resultVals)  in     
-  IFDEF DEBUG THEN 
-    printf "Total Time: %f\n" (Unix.gettimeofday () -. startTime);
-    flush stdout;
-  ENDIF; 
+  printf "Total Time: %f\n" (Unix.gettimeofday () -. startTime);
+  IFDEF DEBUG THEN flush stdout; ENDIF; 
   result

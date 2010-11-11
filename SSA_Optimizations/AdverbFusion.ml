@@ -24,86 +24,122 @@ type adverb_descriptor = {
   consumes_list : ID.t list;   
 } 
 
-(* is the fusion of a2 (a1 data) allowed? *) 
-let compat_adverbs (a1:adverb_descriptor) (a2:adverb_descriptor) =
-  match a1.adverb,a2.adverb with
- (* | Prim.Map, Prim.Reduce*) 
-  | Prim.Map, Prim.Map -> 
-    (* conservative condition is that all input data must be produced by 
-       the predecessor. This is because we always replace the pred with the
-       fused map--- but this might be impossible if there is a dependency on 
-       data which is not created until later. 
-    *)
-    ID.Set.for_all (fun id -> ID.Set.mem id a1.produces_set) a2.consumes_set 
-  | _ -> false 
+let count_matches  pred lst = 
+  let rec aux counter = function
+    | [] -> counter 
+    | elt::rest -> if pred elt then aux (counter+1) rest else aux counter rest
+  in 
+  aux 0 lst 
+  
+(* is the fusion of succ (pred data) allowed? *) 
+let compat_adverbs (pred:adverb_descriptor) (succ:adverb_descriptor) useCounts =
+  (match pred.adverb, succ.adverb with
+  | Prim.Map, Prim.Map 
+  | Prim.Map, Prim.Reduce -> true
+  | _ -> false)
+  &&  
+  (* 
+     conservative condition: 
+     all data produced by predecessor must be consumed by successor, 
+     and not by any other statement
+  *)
+  (ID.Set.subset pred.produces_set succ.consumes_set)
+  && 
+  (ID.Set.for_all 
+    (fun id -> 
+      let nUsesInSucc = count_matches ((=) id) succ.consumes_list in 
+      ID.Map.find id useCounts = nUsesInSucc) 
+    pred.produces_set
+  )
+  
 
 let fuse_map_map 
       (pred:adverb_descriptor)
       (predFn : SSA.fundef)
       (succ:adverb_descriptor)
       (succFn : SSA.fundef) 
-      (* every input to the successor paired with its corresponding output from 
-         the predecessor 
-      *) 
-      (dependencyPairs : ID.t ID.Map.t)
-
-      (* which corresponding nested predecessor outputs are dead? *)
+      (nestedSuccToPred : ID.t ID.Map.t)
       (deadNestedPredOutputs : ID.Set.t) =
-    let tenv = ID.Map.combine predFn.tenv succFn.tenv in  
-    
-    (*
-    (* combine type environments of both functions, but leave out identifiers
-       which are now dead 
-    *)
-       ID.Map.fold 
-        (fun id t combinedMap -> 
-            if ID.Set.mem id deadNestedPred then combinedMap
-            else ID.Map.add id t combinedMap 
-        )
-        predFn.tenv 
-        succFn.tenv
-      in
-    *)
-    let overlapDefs =
-      ID.Map.fold 
-        (fun succId predId defsAcc ->
-            let succType = ID.Map.find succId tenv in
-            let predType = ID.Map.find predId tenv in 
-            assert (predType = succType); 
-            let rhs =
-              SSA.mk_exp ~types:[predType] $ 
-                Values [SSA.mk_var ~ty:predType predId] 
-            in 
-            let def = SSA.mk_set [succId] rhs in
-            def::defsAcc
-        ) 
-        dependencyPairs
-        []
-    in 
-    let body = predFn.body @ overlapDefs @ succFn.body in
-    (* get rid of successor inputs which have already been computed by 
-       predecessor
-    *)  
-    let succInputs' = 
-      List.filter 
-        (fun id -> not (ID.Map.mem id dependencyPairs)) 
+        
+  let keptSuccInputIds = 
+    List.filter 
+      (fun id -> not $ ID.Map.mem id nestedSuccToPred) 
+      succFn.input_ids
+  in 
+  let inputIds = keptSuccInputIds @ predFn.input_ids in
+  let inlineArgs = 
+      List.map 
+        (fun succId -> 
+           let t = ID.Map.find succId succFn.tenv in    
+           if ID.Map.mem succId nestedSuccToPred then 
+             let predId = ID.Map.find succId nestedSuccToPred in 
+             SSA.mk_var ~ty:t predId 
+           else SSA.mk_var ~ty:t succId   
+         )
         succFn.input_ids
-    in  
-    let inputIds = predFn.input_ids @ succInputs' in 
-    let inputTypes = List.map (fun id -> ID.Map.find id tenv) inputIds in
-    (* exclude outputs we know are not used outside this fused computation *)
-    let outputIds =
-      List.filter 
-        (fun id -> not $ ID.Set.mem id deadNestedPredOutputs)
-        predFn.output_ids @ succFn.output_ids 
-    in 
-    let outputTypes = List.map (fun id -> ID.Map.find id tenv) outputIds in
-    let fnType = DynType.FnT(inputTypes, outputTypes) in  
-    let fundef = 
-      SSA.mk_fundef ~body ~tenv ~input_ids:inputIds ~output_ids:outputIds
-    in  
-    fundef, fundef.SSA.fn_type 
-     
+  in
+  let succBody, returnValsExp, typesList = Inline.do_inline succFn inlineArgs in  
+  let body = 
+    predFn.body @ succBody @ [SSA.mk_set succFn.output_ids returnValsExp] 
+  in
+  let tenv =
+    List.fold_left (fun accEnv (id,t) -> ID.Map.add id t accEnv)
+    (ID.Map.combine predFn.tenv succFn.tenv) 
+    typesList
+  in   
+  (* exclude outputs we know are not used outside this fused computation *)
+  let outputIds =
+    List.filter 
+      (fun id -> not $ ID.Set.mem id deadNestedPredOutputs)
+      predFn.output_ids @ succFn.output_ids 
+  in 
+  SSA.mk_fundef ~body ~tenv ~input_ids:inputIds ~output_ids:outputIds
+
+let fuse_map_reduce 
+      (pred:adverb_descriptor)
+      (predFn : SSA.fundef)
+      (succ:adverb_descriptor)
+      (succFn : SSA.fundef) 
+      (nestedSuccToPred : ID.t ID.Map.t)
+      (deadNestedPredOutputs : ID.Set.t) =
+  (* inputs to the fused reduction will be the accumulators,
+     any data not originating from the predecessor and 
+     the inputs of the preceding map 
+  *)
+  let keptSuccInputIds = 
+    List.filter 
+      (fun id -> not $ ID.Map.mem id nestedSuccToPred) 
+      succFn.input_ids
+  in 
+  let inputIds = keptSuccInputIds @ predFn.input_ids in
+  let inlineArgs =
+    List.map 
+      (fun succId ->
+        let t = ID.Map.find succId succFn.tenv in    
+        if ID.Map.mem succId nestedSuccToPred then
+          SSA.mk_var ~ty:t $ ID.Map.find succId nestedSuccToPred 
+        else SSA.mk_var ~ty:t succId
+      )
+      succFn.input_ids
+      
+  in      
+  let succBody, returnValsExp, typesList = Inline.do_inline succFn inlineArgs in
+  let body = 
+    predFn.body @ succBody @ [SSA.mk_set succFn.output_ids returnValsExp] 
+  in 
+  let tenv =
+    List.fold_left (fun accEnv (id,t) -> ID.Map.add id t accEnv) 
+    (ID.Map.combine predFn.tenv succFn.tenv)
+    typesList 
+  in     
+  (* exclude outputs we know are not used outside this fused computation *)
+  let outputIds =
+    List.filter 
+      (fun id -> not $ ID.Set.mem id deadNestedPredOutputs)
+      predFn.output_ids @ succFn.output_ids 
+  in 
+  SSA.mk_fundef ~body ~tenv ~input_ids:inputIds ~output_ids:outputIds        
+         
 let fuse 
       (fns : FnTable.t)  
       (use_counts : int ID.Map.t)
@@ -158,14 +194,17 @@ let fuse
   let nestedSuccToPred : ID.t ID.Map.t =  
     List.fold_left   
       (fun accMap gInput  ->
-        (* for now we're assuming that every input to the successor
-           originates as an output of the predecessor...
-           if we didn't assume this we'd have to check whether or not
-           a successor "outer" id also had an entry in predOuterToNested
-        *)
-         let outerId = ID.Map.find gInput succNestedToOuter in  
-         let fOutput = ID.Map.find outerId predOuterToNested in
-         ID.Map.add gInput fOutput accMap 
+         (* if an input to the nested function comes from 
+            a non-constant source...
+         *)
+         if ID.Map.mem gInput succNestedToOuter then 
+           let outerId = ID.Map.find gInput succNestedToOuter in
+           (* if the predecessor produced this input... *) 
+           if ID.Set.mem outerId pred.produces_set then     
+             let fOutput = ID.Map.find outerId predOuterToNested in
+             ID.Map.add gInput fOutput accMap
+           else accMap
+        else accMap   
       ) 
       ID.Map.empty
       g.input_ids            
@@ -209,14 +248,22 @@ let fuse
       deadTemps
       ID.Set.empty 
   in      
-  let fusedFns, fusedTypes, finalAdverb = 
+  let fusedFns, finalAdverb = 
     match pred.adverb, succ.adverb with 
     | Prim.Map, Prim.Map -> 
-      let f, ty = fuse_map_map pred f succ g nestedSuccToPred deadNestedPred in
-      [f], [ty], Prim.Map  
-          
-    | _ -> failwith "[adverb_fusion->fuse] adverb pair not yet implemented"
+      let fused = fuse_map_map pred f succ g nestedSuccToPred deadNestedPred in
+      [fused], Prim.Map  
+    | Prim.Map, Prim.Reduce -> 
+      let fused = 
+        fuse_map_reduce pred f succ g nestedSuccToPred deadNestedPred
+      in 
+      [fused], Prim.Reduce        
+    | _ -> failwith $ Printf.sprintf 
+             "[adverb_fusion->fuse] fusion of %s into %s not yet implemented"
+             (Prim.array_op_to_str pred.adverb)
+             (Prim.array_op_to_str succ.adverb)
   in 
+
   List.iter (fun fundef -> FnTable.add fundef fns) fusedFns; 
   let fusedIds = List.map (fun fundef -> fundef.fn_id) fusedFns in
   let is_data_dependency vNode = match vNode.value with 
@@ -227,7 +274,7 @@ let fuse
      function 
   *)  
   let filteredDataArgs =
-    List.filter is_data_dependency (pred.data_args @ succ.data_args)
+    List.filter is_data_dependency (succ.data_args @ pred.data_args )
   in 
   let filteredTypes = 
     List.map (fun vNode -> vNode.value_type) filteredDataArgs 
@@ -261,12 +308,13 @@ let fuse
      (ID.Set.union pred.consumes_set succ.consumes_set)
      overlap
   in     
+  let fusedFnTypes = List.map (fun fused -> fused.SSA.fn_type) fusedFns in 
   {
     adverb = finalAdverb; 
     adverb_type = 
-      DynType.FnT(fusedTypes @ filteredTypes, combinedProducesTypes); 
+      DynType.FnT(fusedFnTypes @ filteredTypes, combinedProducesTypes); 
     function_arg_ids = fusedIds;
-    function_arg_types = fusedTypes; 
+    function_arg_types = fusedFnTypes; 
     data_args = filteredDataArgs;  
     produces_list = combinedProducesIds; 
     produces_set = ID.Set.of_list combinedProducesIds;  
@@ -290,11 +338,9 @@ let find_fusable_pred
   let rec try_pair = function 
     | [] -> None  
     | (otherId, otherDesc)::rest ->
-        if compat_adverbs otherDesc descriptor then Some (otherId, otherDesc) 
-        else try_pair rest    
+        let compat = compat_adverbs otherDesc descriptor use_counts in
+        if compat then Some (otherId, otherDesc) else try_pair rest        
   in try_pair candidateDescriptors    
-
-
 
 let split_adverb_args op args =
   let fnArgs, dataArgs = match op, args with 
@@ -306,13 +352,19 @@ let split_adverb_args op args =
   let fnIds = List.map SSA.get_fn_id fnArgs in
   let fnTypes = List.map (fun vNode -> vNode.value_type) fnArgs in  
   fnIds, fnTypes, dataArgs 
-    
+
+(*    
 let rec collect_vars = function 
   | {value = SSA.Var id}::rest -> 
       let set = collect_vars rest in        
       ID.Set.add id set 
   | _::rest -> collect_vars rest 
   | [] -> ID.Set.empty 
+*)
+let rec collect_var_list = function 
+  | {value = SSA.Var id}::rest -> id::collect_var_list rest 
+  | _::rest -> collect_var_list rest 
+  | [] -> [] 
 
 let exp_is_adverb = function 
   | App({value= Prim (Prim.ArrayOp op)}, _) -> Prim.is_adverb op
@@ -324,7 +376,7 @@ let describe = function
          exp_types = outputTypes 
       }) when Prim.is_adverb op -> 
       let fnIds, fnTypes, dataArgs = split_adverb_args op args in
-      let consumesSet = collect_vars dataArgs in  
+      let consumesList = collect_var_list dataArgs in  
       { adverb = op; 
         adverb_type = opType; 
         function_arg_ids = fnIds; 
@@ -333,8 +385,8 @@ let describe = function
         produces_list = ids;
         produces_set = ID.Set.of_list ids; 
         (* only IDs corresponding to data, not including functions *)
-        consumes_set = consumesSet;  
-        consumes_list = ID.Set.to_list consumesSet; 
+        consumes_list = consumesList;   
+        consumes_set = ID.Set.of_list consumesList;  
         (*data_arg_types = List.map (fun v -> v.value_type) dataArgs; 
         adverb_output_types =  outputTypes*)
       }
@@ -387,24 +439,33 @@ let process_stmt
             in 
             adverbMap', producerMap', graveyard, replaced
         | Some (predStmtId, predDescriptor) ->
-            (* kill off the current statement *)
-            let graveyard' = StmtSet.add stmtNode.stmt_id graveyard in
-            (* record that the predecessor should be killed off *)
-            let replaced' = StmtSet.add predStmtId replaced in   
+            (* 
+               since we assume that no one used the predecessor's 
+               data except the successor, we replace the successor 
+               with the fused operation, and kill the predecessor 
+            *)
+             
+            let graveyard' = StmtSet.add predStmtId graveyard in
+            (* record that the current node should also be replaced *)
+            let succStmtId = stmtNode.stmt_id in 
+            let replaced' = StmtSet.add succStmtId replaced in   
             let combinedDescriptor : adverb_descriptor = 
               fuse fns use_counts predDescriptor descriptor 
             in
-            (* replace the descriptor of the predecessor with the new fused
-               adverb
-            *) 
+             
             let adverbMap' : adverb_descriptor StmtMap.t = 
-              StmtMap.add predStmtId combinedDescriptor adverb_map 
+              StmtMap.add succStmtId combinedDescriptor adverb_map 
             in
+            
+            (* We might also want to remove any data that died, 
+               but since it isn't used by any other statement perhaps
+               it's OK to leave it in the map.  
+            *)   
             let producerMap' : StmtId.t ID.Map.t = 
               List.fold_left 
-                (fun accMap id -> ID.Map.add id predStmtId accMap)
+                (fun accMap id -> ID.Map.add id succStmtId accMap)
                 producer_map
-                predDescriptor.produces_list
+                combinedDescriptor.produces_list
             in  
             adverbMap', producerMap', graveyard', replaced' 
       end
@@ -496,7 +557,6 @@ let optimize_block (fns : FnTable.t) useCounts block =
       ~graveyard:StmtSet.empty 
       ~replaced:StmtSet.empty 
       block
- 
   in 
   rewrite_block adverbMap graveyard replaced block 
 
