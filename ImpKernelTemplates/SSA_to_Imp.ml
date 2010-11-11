@@ -56,26 +56,35 @@ and translate_exp codegen globalFunctions idEnv expectedType expNode =
   | SSA.App({SSA.value=SSA.Prim (Prim.ArrayOp Prim.Map)}, _) -> 
       failwith "Map not implemented"
 
-  (* assume you only have one initial value, and one array to be reduced *)    
-  | SSA.App({SSA.value=SSA.Prim (Prim.ArrayOp Prim.Reduce); 
-             value_type =FnT([payloadT; initialT; arrT], [outputT])},
-             [payload; initial; arr]) ->
+  (* assume you only have one initial value, and only one scalar output *)    
+  | SSA.App({SSA.value=
+               SSA.Prim (Prim.ArrayOp Prim.Reduce); 
+             value_type =
+               FnT(payloadT::initialT::arrayTypes, [outputT])
+            },
+            payload::initial::arrays) ->
     (match payload.SSA.value with 
 	    | SSA.GlobalFn fnId -> 
 	      let fundef = FnTable.find fnId globalFunctions in 
-        let fundef' = translate_fundef globalFunctions fundef in 
-	      let initial' = translate_value idEnv initial in 
-	      let arr' = translate_value idEnv arr in
+        let impPayload = translate_fundef globalFunctions fundef in 
+	      let impInit = translate_value idEnv initial in
+        assert (arrays <> []);  (* assume at least one array *) 
+	      let impArrays = List.map (translate_value idEnv) arrays in
+        (* for now assume acc is a scalar *) 
 	      let acc = codegen#fresh_var initialT in
 	      let i = codegen#fresh_var Int32T in
         let n = codegen#fresh_var Int32T in  
 	      let bodyBlock = [
 	        set i (int 0);
-	        set n (len arr');  
-	        set acc initial'; 
+          (* assume arrays are of the same length *) 
+	        set n (len $ List.hd impArrays);  
+	        set acc impInit; 
 	        while_ (i <$ n) [SPLICE; set i (i +$ (int 1))] 
 	      ] in 
-        codegen#splice_emit fundef' [|acc; idx arr' i|] [|acc|] bodyBlock;
+        let arrayElts = List.map (fun arr -> idx arr i) impArrays in
+        let payloadArgs = Array.of_list (acc :: arrayElts) in
+        let payloadOutputs = [|acc|] in    
+        codegen#splice_emit impPayload payloadArgs payloadOutputs bodyBlock;  
 	      acc
       | _ -> failwith "[ssa->imp] Expected function identifier"
     )

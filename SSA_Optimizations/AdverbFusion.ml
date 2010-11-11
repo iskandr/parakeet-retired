@@ -33,22 +33,6 @@ let count_matches  pred lst =
   
 (* is the fusion of succ (pred data) allowed? *) 
 let compat_adverbs (pred:adverb_descriptor) (succ:adverb_descriptor) useCounts =
-  IFDEF DEBUG THEN 
-    Printf.printf "%B, %B\n"
-      (ID.Set.subset pred.produces_set succ.consumes_set)
-      (ID.Set.for_all 
-        (fun id -> 
-          let nUsesInSucc = count_matches ((=) id) succ.consumes_list in 
-          let nGlobalUses = ID.Map.find id useCounts in 
-          Printf.printf "\t %s: %d, %d\n"
-            (ID.to_str id)
-            nUsesInSucc
-            nGlobalUses
-          ; 
-          nGlobalUses = nUsesInSucc) 
-          pred.produces_set
-      );
-  ENDIF; 
   (match pred.adverb, succ.adverb with
   | Prim.Map, Prim.Map 
   | Prim.Map, Prim.Reduce -> true
@@ -74,47 +58,42 @@ let fuse_map_map
       (predFn : SSA.fundef)
       (succ:adverb_descriptor)
       (succFn : SSA.fundef) 
-      (* every input to the successor paired with its corresponding output from 
-         the predecessor 
-      *) 
-      (dependencyPairs : ID.t ID.Map.t)
-
-      (* which corresponding nested predecessor outputs are dead? *)
+      (nestedSuccToPred : ID.t ID.Map.t)
       (deadNestedPredOutputs : ID.Set.t) =
-    let tenv = ID.Map.combine predFn.tenv succFn.tenv in  
-    let overlapDefs =
-      ID.Map.fold 
-        (fun succId predId defsAcc ->
-            let succType = ID.Map.find succId tenv in
-            let predType = ID.Map.find predId tenv in 
-            assert (predType = succType); 
-            let rhs =
-              SSA.mk_exp ~types:[predType] $ 
-                Values [SSA.mk_var ~ty:predType predId] 
-            in 
-            let def = SSA.mk_set [succId] rhs in
-            def::defsAcc
-        ) 
-        dependencyPairs
-        []
-    in 
-    let body = predFn.body @ overlapDefs @ succFn.body in
-    (* get rid of successor inputs which have already been computed by 
-       predecessor
-    *)  
-    let succInputs' = 
-      List.filter 
-        (fun id -> not (ID.Map.mem id dependencyPairs)) 
+        
+  let keptSuccInputIds = 
+    List.filter 
+      (fun id -> not $ ID.Map.mem id nestedSuccToPred) 
+      succFn.input_ids
+  in 
+  let inputIds = keptSuccInputIds @ predFn.input_ids in
+  let inlineArgs = 
+      List.map 
+        (fun succId -> 
+           let t = ID.Map.find succId succFn.tenv in    
+           if ID.Map.mem succId nestedSuccToPred then 
+             let predId = ID.Map.find succId nestedSuccToPred in 
+             SSA.mk_var ~ty:t predId 
+           else SSA.mk_var ~ty:t succId   
+         )
         succFn.input_ids
-    in  
-    let inputIds = succInputs' @ predFn.input_ids  in 
-    (* exclude outputs we know are not used outside this fused computation *)
-    let outputIds =
-      List.filter 
-        (fun id -> not $ ID.Set.mem id deadNestedPredOutputs)
-        predFn.output_ids @ succFn.output_ids 
-    in 
-    SSA.mk_fundef ~body ~tenv ~input_ids:inputIds ~output_ids:outputIds
+  in
+  let succBody, returnValsExp, typesList = Inline.do_inline succFn inlineArgs in  
+  let body = 
+    predFn.body @ succBody @ [SSA.mk_set succFn.output_ids returnValsExp] 
+  in
+  let tenv =
+    List.fold_left (fun accEnv (id,t) -> ID.Map.add id t accEnv)
+    (ID.Map.combine predFn.tenv succFn.tenv) 
+    typesList
+  in   
+  (* exclude outputs we know are not used outside this fused computation *)
+  let outputIds =
+    List.filter 
+      (fun id -> not $ ID.Set.mem id deadNestedPredOutputs)
+      predFn.output_ids @ succFn.output_ids 
+  in 
+  SSA.mk_fundef ~body ~tenv ~input_ids:inputIds ~output_ids:outputIds
 
 let fuse_map_reduce 
       (pred:adverb_descriptor)
@@ -360,16 +339,6 @@ let find_fusable_pred
     | [] -> None  
     | (otherId, otherDesc)::rest ->
         let compat = compat_adverbs otherDesc descriptor use_counts in
-        IFDEF DEBUG THEN 
-          Printf.printf "Comparing %s(%s) --> %s(%s): %s\n"
-            (Prim.array_op_to_str otherDesc.adverb)
-            (String.concat ", " 
-              (List.map FnId.to_str otherDesc.function_arg_ids))
-            (Prim.array_op_to_str descriptor.adverb)
-            (String.concat ", "
-              (List.map FnId.to_str descriptor.function_arg_ids))
-            (if compat then "CAN FUSE" else "can't fuse");
-        ENDIF;
         if compat then Some (otherId, otherDesc) else try_pair rest        
   in try_pair candidateDescriptors    
 
