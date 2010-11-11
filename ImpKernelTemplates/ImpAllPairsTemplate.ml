@@ -48,9 +48,9 @@ let gen_all_pairs_2d_naive payload t1 t2 outTypes =
   let output = 
     codegen#fresh_array_output outType[dim 0 input1; dim 0 input2]
   in
-  let left_id = codegen#fresh_var UInt32T in
-  let right_id = codegen#fresh_var UInt32T in
-  let threadsPerDim = 16 in
+  let left_id = codegen#fresh_var Int32T in
+  let right_id = codegen#fresh_var Int32T in
+  let threadsPerDim = 32 in
   codegen#emit [
     set left_id (threadIdx.x +$ (blockIdx.x *$ (int threadsPerDim)));
     set right_id (threadIdx.y +$ (blockIdx.y *$ (int threadsPerDim)))
@@ -59,7 +59,7 @@ let gen_all_pairs_2d_naive payload t1 t2 outTypes =
     [|(idx input1 left_id);(idx input2 right_id)|]
     [|idx (idx output left_id) right_id|]
     [
-      ifTrue (and_ (lt left_id (len input1)) (lt right_id (len input2))) [
+      ifTrue (and_ (left_id <$ (len input1)) (right_id  <$ (len input2))) [
         SPLICE;
       ]
     ];

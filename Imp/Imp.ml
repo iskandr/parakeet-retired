@@ -149,25 +149,33 @@ let while_ cond code = While(cond, code)
 let comment str = Comment str
 
 
-let rec collect_nested_indices_from_node e = collect_nested_indices e.exp 
-and collect_nested_indices = function   
+ 
+let rec collect_rev_indices_from_node node = collect_rev_indices node.exp 
+and collect_rev_indices = function  
   | Var id -> id, [] 
   | Idx (lhs, idx) -> 
-     let id, otherIndices = collect_nested_indices_from_node lhs in 
+     let id, otherIndices = collect_rev_indices_from_node lhs in 
      id, idx :: otherIndices
   | _ -> failwith "[set] Expected variable"
    
+let collect_indices exp = 
+  let id, indices = collect_rev_indices exp in  
+  id, List.rev indices 
+  
+let collect_indices_from_node node = collect_indices node.exp  
+  
+     
 let set v rhs = match v.exp with 
   | Var id -> Set(id,rhs)
   | other -> 
-    let id, indices = collect_nested_indices_from_node v in 
+    let id, indices = collect_indices other in 
     SetIdx(id, indices,rhs)
   
   
 let rec setidx v indices rhs = match v.exp with 
   | Var id -> SetIdx(id, indices, rhs)
   | other -> 
-     let id, indices' = collect_nested_indices_from_node v in 
+     let id, indices' = collect_indices other in 
      SetIdx(id, indices' @ indices, rhs)
   
  

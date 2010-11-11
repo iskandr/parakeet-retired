@@ -34,7 +34,7 @@ let rec apply_exp_map_to_stmt (eMap : exp_map) stmt =
          match exp' with 
          | Var id' ->  Set(id', rhs')
          | Idx _ -> 
-            let arrayId, indices = Imp.collect_nested_indices exp' in
+            let arrayId, indices = Imp.collect_indices exp' in
             SetIdx (arrayId, indices, rhs')
          | other -> 
             failwith $ sprintf 

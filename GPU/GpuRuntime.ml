@@ -313,8 +313,8 @@ let run_all_pairs
       let ny = Shape.get yShape 0 in
       let paramsArray, outputVals = create_args impKernel cc gpuVals in 
       let gridParams = {
-          LibPQ.threads_x=16; threads_y=16; threads_z=1;
-          grid_x=safe_div nx 16; grid_y=safe_div ny 16;
+          LibPQ.threads_x=32; threads_y=32; threads_z=1;
+          grid_x=safe_div nx 32; grid_y=safe_div ny 32;
       }
       in
       LibPQ.launch_ptx

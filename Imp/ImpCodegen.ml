@@ -258,9 +258,10 @@ class imp_codegen =
          
      | SetIdx (id, indices, rhs) -> 
          let idxStmtLists, idxExps = 
-           List.split $ List.map self#flatten_exp indices in 
+           List.split $ List.map self#flatten_exp indices 
+         in 
          let rhsStmts, rhsExp = self#flatten_exp rhs in 
-          (List.concat idxStmtLists) @ rhsStmts @ [SetIdx(id, idxExps, rhsExp)]
+         (List.concat idxStmtLists) @ rhsStmts @ [SetIdx(id, idxExps, rhsExp)]
         
      | simple -> [simple]
      
