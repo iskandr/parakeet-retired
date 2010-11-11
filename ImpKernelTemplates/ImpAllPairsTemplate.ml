@@ -44,13 +44,14 @@ let gen_all_pairs_2d_naive_1dpayload payload t1 t2 outTypes =
 let gen_all_pairs_2d_naive payload t1 t2 outTypes =
   let outType = List.hd outTypes in
   let codegen = new imp_codegen in
-  let input1, input2 = codegen#fresh_input t1, codegen#fresh_input t2 in
+  let input1 = codegen#fresh_input t1 in 
+  let input2 = codegen#fresh_input t2 in
   let output = 
     codegen#fresh_array_output outType[dim 0 input1; dim 0 input2]
   in
   let left_id = codegen#fresh_var Int32T in
   let right_id = codegen#fresh_var Int32T in
-  let threadsPerDim = 32 in
+  let threadsPerDim = 16 in
   codegen#emit [
     set left_id (threadIdx.x +$ (blockIdx.x *$ (int threadsPerDim)));
     set right_id (threadIdx.y +$ (blockIdx.y *$ (int threadsPerDim)))

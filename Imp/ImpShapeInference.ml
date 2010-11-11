@@ -2,10 +2,12 @@ open Base
 open Imp 
 
 let rec eval_size_expression shapeEnv exp = 
+  (*
   IFDEF DEBUG THEN 
     Printf.printf "[ImpShapeInference] evaluating size expression: %s\n"
     (Imp.exp_to_str exp);
-  ENDIF; 
+  ENDIF;
+  *) 
   match exp with  
   | Op (Prim.Add, _, [arg1; arg2]) -> 
       let x1 = eval_size_expression shapeEnv arg1.exp in 
@@ -39,7 +41,7 @@ let rec eval_size_expression shapeEnv exp =
 let infer_shapes fn (inputShapes : Shape.t list) =
   IFDEF DEBUG THEN
     Printf.printf 
-      "Inferring shapes for function (%s)->(%s) with input shapes %s\n "
+      "Inferring shapes for function (%s)->(%s) with input shapes %s\n"
       (String.concat ", " (Array.to_list (Array.map ID.to_str fn.input_ids)))
       (String.concat ", " (Array.to_list (Array.map ID.to_str fn.output_ids)))
       (String.concat ", " (List.map Shape.to_str inputShapes)) 
@@ -54,8 +56,15 @@ let infer_shapes fn (inputShapes : Shape.t list) =
     (Array.of_list inputShapes)
   in     
   let aux id sizeExpressions shapeEnv  =
-    let dims = List.map (eval_size_expression shapeEnv) sizeExpressions in 
+    let dims = List.map (eval_size_expression shapeEnv) sizeExpressions in
+     
     let shape = Shape.of_list dims in   
+    IFDEF DEBUG THEN 
+      Printf.printf "Inferred shape for %s: %s  \n"
+        (ID.to_str id)
+        (Shape.to_str shape)
+      ;
+    ENDIF; 
     ID.Map.add id shape shapeEnv     
   in 
   (* shapes of inputs and outputs *) 
