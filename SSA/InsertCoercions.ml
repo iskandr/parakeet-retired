@@ -91,25 +91,20 @@ and rewrite_value tenv valNode =
       let actualType = ID.Map.find id tenv in 
       let annotatedType = valNode.value_type in 
       if actualType <> annotatedType then
-        let coerceExp = {
-          exp=Cast(annotatedType, valNode); 
-          exp_src = valNode.value_src; 
-          exp_types = [annotatedType]
-        } 
-        in   
+        let coerceExp =
+          SSA.mk_cast ?src:valNode.value_src annotatedType valNode 
+        in    
         let id' =  ID.gen() in 
-        let stmts = [mk_set ~src:valNode.value_src [id'] coerceExp] in 
+        let stmts = [mk_set ?src:valNode.value_src [id'] coerceExp] in 
         (  
           if List.length coerceExp.exp_types <> 1 then 
             failwith "coercion can't change arity of expression"
           else
             let coerceType = List.hd coerceExp.exp_types in 
-            let valNode' = { 
-              value=Var id'; 
-              value_type = coerceType;
-              value_src = valNode.value_src
-            } 
-            in valNode', stmts, ID.Map.add id' coerceType tenv  
+            let valNode' = 
+              SSA.mk_var ?src:valNode.value_src ~ty:coerceType id'
+            in 
+            valNode', stmts, ID.Map.add id' coerceType tenv  
         )   
         else nochange 
   | Num n ->

@@ -1,6 +1,5 @@
 open Base
 open SSA
-open SSA_Gates
 open Printf 
 
 module M = ID.Map 

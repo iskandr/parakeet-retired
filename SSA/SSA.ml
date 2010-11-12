@@ -194,13 +194,13 @@ let mk_fundef  ?(tenv=ID.Map.empty) ~input_ids ~output_ids ~body =
 let mk_stmt ?src ?(id=StmtId.gen()) stmt = 
   { stmt = stmt; stmt_src = src; stmt_id = id }   
 
-let mk_set ?(src=None) ids rhs = 
+let mk_set ?src ids rhs = 
   { stmt = Set(ids, rhs); 
     stmt_src = src; 
     stmt_id = StmtId.gen() 
   }
 
-let mk_if ?(src=None) condVal tBlock fBlock gate = 
+let mk_if ?src condVal tBlock fBlock gate = 
   { stmt = If(condVal, tBlock, fBlock, gate); 
     stmt_src=src; 
     stmt_id = StmtId.gen() 
@@ -233,27 +233,27 @@ let get_fn_ids valNodes = List.map get_fn_id valNodes
  ***)
 
 
-let mk_val ?(src=None) ?(ty=DynType.BottomT) (v:value) : value_node = 
+let mk_val ?src ?(ty=DynType.BottomT) (v:value) : value_node = 
   { value = v; value_src = src; value_type = ty }
 
-let mk_var ?(src=None) ?(ty=DynType.BottomT) (id:ID.t) : value_node = 
+let mk_var ?src ?(ty=DynType.BottomT) (id:ID.t) : value_node = 
   { value = Var id; value_src = src; value_type = ty }    
 
-let mk_op ?ty op = mk_val ?ty (SSA.Prim op) 
+let mk_op ?src ?ty op = mk_val ?src ?ty (Prim op) 
 
-let mk_globalfn ?(src=None) ?(ty=DynType.BottomT) (id:FnId.t) : value_node=
+let mk_globalfn ?src ?(ty=DynType.BottomT) (id:FnId.t) : value_node=
   { value = GlobalFn id; value_src = src; value_type = ty } 
 
-let mk_num ?src ?(ty=DynType.BottomT) n = 
+let mk_num ?src ?ty n = 
   let ty = match ty with 
     | None -> PQNum.type_of_num n 
     | Some t -> t 
   in 
   mk_val ?src ~ty (Num n)
 
-let mk_bool b = SSA.mk_num ~ty:DynType.BoolT (PQNum.Bool b)
-let mk_int32 i = SSA.mk_num ~ty:DynType.Int32T (PQNum.Int32 (Int32.of_int i))
-let mk_float32 f = SSA.mk_num ~ty:DynType.Float32T (PQNum.Float32 f)
+let mk_bool ?src b = mk_num ?src ~ty:DynType.BoolT (PQNum.Bool b)
+let mk_int32 ?src i = mk_num ?src ~ty:DynType.Int32T (PQNum.Int32 (Int32.of_int i))
+let mk_float32 ?src f = mk_num ?src ~ty:DynType.Float32T (PQNum.Float32 f)
   
   
 
@@ -266,33 +266,33 @@ let map_default_types optTypes values =
     | None -> List.map (fun vNode -> vNode.value_type) values 
     | Some ts -> ts
 
-let mk_app ?(src=None) ?types fn args =
+let mk_app ?src ?types fn args =
   let types' = map_default_types types args in  
   { exp=App(fn,args); exp_src = src; exp_types = types' }  
 
-let mk_arr ?(src=None) ?types elts =
+let mk_arr ?src ?types elts =
   let types' = map_default_types  types elts in  
   { exp=Arr elts; exp_src=src; exp_types = types' } 
  
-let mk_val_exp ?(src=None) ?ty (v: value) =
+let mk_val_exp ?src ?ty (v: value) =
   let ty' = match ty with 
     | None -> DynType.BottomT 
     | Some ty -> ty 
   in 
-  { exp=Values [mk_val ~src v]; exp_src=src; exp_types = [ty'] } 
+  { exp=Values [mk_val ?src v]; exp_src=src; exp_types = [ty'] } 
 
-let mk_vals_exp ?(src=None) ?types ( vs : value list) =
-  let valNodes = List.map (mk_val ~src) vs in 
+let mk_vals_exp ?src ?types ( vs : value list) =
+  let valNodes = List.map (mk_val ?src) vs in 
   let types' = map_default_types types valNodes in 
   { exp = Values valNodes; exp_src = src; exp_types=types' } 
 
-let mk_arr_idx ?(src=None) ?(types=[DynType.BottomT]) lhs indices =
+let mk_arr_idx ?src ?(types=[DynType.BottomT]) lhs indices =
   { exp = ArrayIndex(lhs, indices); exp_src=src; exp_types=types} 
         
-let mk_cast ?(src=None)  t v = 
+let mk_cast ?src t v = 
   { exp = Cast(t, v); exp_types = [t]; exp_src = src }      
 
-let mk_exp ?(src=None) ?types exp =
+let mk_exp ?src ?types exp =
   (* WARNING--- function calls may need more than 1 return type, in which 
      case the default [BottomT] is wrong 
   *) 

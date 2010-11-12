@@ -42,7 +42,8 @@ QPrims.cmx \
 SourceInfo.cmx QSyntax.cmx AST_Info.cmx AST.cmx QSyntax_to_AST.cmx \
 QParser.cmx \
 QLexer.cmx  \
-SSA_Gates.cmx SSA.cmx AST_to_SSA.cmx \
+FnId.cmx StmtId.cmx \
+SSA.cmx AST_to_SSA.cmx \
 FnTable.cmx \
 ConstantLattice.cmx \
 SSA_Base_Analysis.cmx \
@@ -85,6 +86,7 @@ QType.cmx HardwareInfo.cmx \
 ShapeInference.cmx \
 Cuda.cmx \
 GpuRuntime.cmx \
+QStdLib.cmx \
 Eval.cmx \
 CodeTemplate.cmx Callbacks.cmx
 
