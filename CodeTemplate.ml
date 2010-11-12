@@ -9,6 +9,9 @@ open SourceInfo
 *)
 open TypeCheck 
 open SSA 
+open QStdLib 
+
+let _ = Printf.printf "any: %s\n" (SSA.fundef_to_str QStdLib.any) 
 
 let _ = Printexc.record_backtrace true 
 
@@ -58,7 +61,7 @@ let build_function_body_ast body =
    before it's used 
 *) 
 let rec build_interp_state
-     (fnNames : SSA.FnId.t String.Map.t) 
+     (fnNames : FnId.t String.Map.t) 
      (fundefs : SSA.fundef FnId.Map.t) = function 
   | [] -> InterpState.create_untyped fnNames fundefs  
      

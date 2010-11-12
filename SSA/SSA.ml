@@ -1,17 +1,39 @@
 open Base
 open SourceInfo 
 
-include SSA_Gates 
 
-(* eventually also need a gate for while loops with merges for variables in 
-   the loop and merges for after the loop *)
 
-module StmtId = 
-  UID.Make(struct let to_str sId  = "stmt" ^ (string_of_int sId) end)
-  
-module FnId = 
-  UID.Make(struct let to_str fId = "fn" ^ (string_of_int fId) end)
+type tenv = DynType.t ID.Map.t 
+
+ (* this IF generates the following set of identifiers, 
+     whose values might be taken from either branch 
+  *)  
  
+type if_gate = { 
+  if_output_ids : ID.t list;
+  true_ids : ID.t list; 
+  false_ids : ID.t list 
+}
+
+type loop_gate = { 
+  (* what variables are assigned in the body of this loop? *) 
+  loop_ids : ID.t list; 
+  
+  (* from which external identifiers do internal variables 
+     get their initial values 
+  *) 
+  loop_inputs : ID.t ID.Map.t;
+  
+  (* what variables visible after this loop are generated, and
+     from which internal var do they get their value?  
+  *)
+  loop_outputs : ID.t ID.Map.t;
+  
+  (* when repeating the loop body, which variables at the end of the
+     body feed back into variables at the beginning? 
+  *) 
+  loop_header : ID.t ID.Map.t;  
+}
 
 type stmt = 
   | Set of ID.t list * exp_node 
@@ -55,7 +77,7 @@ and value =
   | Lam of fundef
 and fundef = {
   body: block;
-  tenv : DynType.t ID.Map.t; 
+  tenv : tenv;
   input_ids:ID.t list;
   output_ids: ID.t list; 
   fn_type : DynType.t; 
@@ -210,14 +232,30 @@ let get_fn_ids valNodes = List.map get_fn_id valNodes
     helpers for values 
  ***)
 
+
 let mk_val ?(src=None) ?(ty=DynType.BottomT) (v:value) : value_node = 
   { value = v; value_src = src; value_type = ty }
 
 let mk_var ?(src=None) ?(ty=DynType.BottomT) (id:ID.t) : value_node = 
   { value = Var id; value_src = src; value_type = ty }    
 
+let mk_op ?ty op = mk_val ?ty (SSA.Prim op) 
+
 let mk_globalfn ?(src=None) ?(ty=DynType.BottomT) (id:FnId.t) : value_node=
   { value = GlobalFn id; value_src = src; value_type = ty } 
+
+let mk_num ?src ?(ty=DynType.BottomT) n = 
+  let ty = match ty with 
+    | None -> PQNum.type_of_num n 
+    | Some t -> t 
+  in 
+  mk_val ?src ~ty (Num n)
+
+let mk_bool b = SSA.mk_num ~ty:DynType.BoolT (PQNum.Bool b)
+let mk_int32 i = SSA.mk_num ~ty:DynType.Int32T (PQNum.Int32 (Int32.of_int i))
+let mk_float32 f = SSA.mk_num ~ty:DynType.Float32T (PQNum.Float32 f)
+  
+  
 
 (*** 
     helpers for expressions 

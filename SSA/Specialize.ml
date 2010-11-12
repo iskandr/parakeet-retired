@@ -293,9 +293,9 @@ and annotate_stmt context stmtNode =
       let finalTyEnv = List.fold_left3 
         aux 
         mergedTyEnv 
-        gate.SSA_Gates.true_ids  
-        gate.SSA_Gates.false_ids
-        gate.SSA_Gates.if_output_ids 
+        gate.SSA.true_ids  
+        gate.SSA.false_ids
+        gate.SSA.if_output_ids 
       in 
       stmtNode', finalTyEnv, changed 
           

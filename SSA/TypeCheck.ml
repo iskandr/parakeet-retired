@@ -60,7 +60,7 @@ let rec check_stmt
       let _ = check_block errorLog tenv defined tBlock in  
       let _ = check_block errorLog tenv defined fBlock in 
       (* TODO: check to make sure information in SSA gate is valid *) 
-      ID.Set.add_list gate.SSA_Gates.if_output_ids defined
+      ID.Set.add_list gate.SSA.if_output_ids defined
   | WhileLoop _ -> failwith "type checking of loops not yet implemented"
 and check_exp errorLog tenv (defined : ID.Set.t) (expNode : exp_node) : unit = 
   let err msg = Queue.add (expNode.exp_src, msg) errorLog in

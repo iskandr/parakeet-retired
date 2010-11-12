@@ -2,8 +2,8 @@
 open Base
 
 type t = {
-  fundefs: (SSA.FnId.t, SSA.fundef) Hashtbl.t;
-  unoptimized_queue : SSA.FnId.t Queue.t;
+  fundefs: (FnId.t, SSA.fundef) Hashtbl.t;
+  unoptimized_queue : FnId.t Queue.t;
 }
 
 let add fundef cache =

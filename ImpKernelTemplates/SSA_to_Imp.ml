@@ -120,7 +120,7 @@ and translate_exp codegen globalFunctions idEnv expectedType expNode =
       failwith $ 
         Printf.sprintf  
           "Encountered call to %s, global functions must be inlined"
-          (SSA.FnId.to_str fnId)	 
+          (FnId.to_str fnId)	 
   | SSA.Cast (t, vNode) -> cast t (translate_value idEnv vNode)  
   | SSA.Values [v] -> translate_value idEnv v
   | SSA.Values [] -> failwith "[ssa->imp] unexpected empty value list"
