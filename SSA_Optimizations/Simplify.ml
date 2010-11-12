@@ -193,46 +193,59 @@ let simplify_typed_block
    followed by a simplification step which will clean up useless assignments.   
 *)  
 
-let rec copy_redundant_assignments defEnv useCounts = function  
-  | ({stmt=Set([id], expNode)} as stmtNode) ::rest ->
-      let rest', restChanged = 
-          copy_redundant_assignments defEnv useCounts rest 
-      in
-      (match expNode.exp with 
-      | Values [{value=Var rhsId}] ->
-        let curr, currChanged = 
-          if ID.Map.find rhsId useCounts = 1 then 
-          match ID.Map.find rhsId defEnv with
-          | SingleDef (exp, 1, 1) ->
-             {stmtNode with stmt = Set([id], { expNode with exp = exp})}, true
-          | _ ->
-                 stmtNode, restChanged
-          else stmtNode, restChanged  
-        in curr::rest', currChanged || restChanged
-      | _ -> stmtNode::rest', restChanged
-      )   
-  | stmtNode::rest ->
-    let rest', restChanged = 
-      copy_redundant_assignments defEnv useCounts rest
-    in  
-    stmtNode::rest', restChanged
-  | [] -> [], false
+let copy_redundant_stmt stmtNode defEnv useCounts = 
+  let nochange = stmtNode, false, useCounts, defEnv in 
+  match stmtNode.stmt with 
+  | Set([id], expNode) ->
+   
+     (match expNode.exp with 
+      | Values [{value=Var rhsId}] when ID.Map.find rhsId useCounts = 1 ->
+          (match ID.Map.find rhsId defEnv with
+          | SingleDef (exp, 1, 1) as def->
+             {stmtNode with stmt = Set([id], { expNode with exp = exp})}, 
+             true, 
+             ID.Map.add rhsId 0 useCounts, 
+             ID.Map.remove rhsId (ID.Map.add id def defEnv)
+          | _ -> nochange
+          ) 
+     | _ -> nochange
+     )    
+  | _ -> nochange  
 
+let rec copy_redundant_block  
+        ?(changed=false) 
+        ?(accBody=[]) 
+        defEnv 
+        useCounts = 
+  function
+  | [] -> List.rev accBody, changed, useCounts, defEnv 
+  | stmt::rest -> 
+      let stmt', changed', useCounts', defEnv'  = 
+        copy_redundant_stmt stmt defEnv useCounts 
+      in   
+      copy_redundant_block 
+        ~changed:(changed||changed') 
+        ~accBody:(stmt'::accBody)
+        defEnv' 
+        useCounts'          
+        rest
+  
+    
 let simplify_fundef (functions:FnTable.t) fundef =
   let defEnv =  FindDefs.find_function_defs fundef in
   let useCounts, _ = FindUseCounts.find_fundef_use_counts fundef in
   (* forward propagate expressions through linear use chains...
      will create redundant work unless followed by a simplification 
   *)
-  let body1, changed1 = 
-    copy_redundant_assignments defEnv useCounts fundef.body
+  let body1, changed1, useCounts1, defEnv1 = 
+    copy_redundant_block defEnv useCounts fundef.body
   in
   (* perform simple constant propagation and useless assignment elim *)
   let body2, changed2 = 
     simplify_typed_block functions 
       ~tenv:fundef.tenv 
-      ~def_env:defEnv
-      ~use_counts:useCounts    
+      ~def_env:defEnv1
+      ~use_counts:useCounts1    
       ~free_vars:fundef.input_ids  
       body1
   in 

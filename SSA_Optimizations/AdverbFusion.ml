@@ -353,14 +353,6 @@ let split_adverb_args op args =
   let fnTypes = List.map (fun vNode -> vNode.value_type) fnArgs in  
   fnIds, fnTypes, dataArgs 
 
-(*    
-let rec collect_vars = function 
-  | {value = SSA.Var id}::rest -> 
-      let set = collect_vars rest in        
-      ID.Set.add id set 
-  | _::rest -> collect_vars rest 
-  | [] -> ID.Set.empty 
-*)
 let rec collect_var_list = function 
   | {value = SSA.Var id}::rest -> id::collect_var_list rest 
   | _::rest -> collect_var_list rest 

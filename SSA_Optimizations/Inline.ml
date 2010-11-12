@@ -44,12 +44,17 @@ let do_inline fundef argVals =
     List.map2 (fun id t -> SSA.mk_var ~ty:t id) newOutputIds outTypes 
   in 
   let outputExp = mk_exp ~types:outTypes (Values outputValNodes) in
-  (* list of new ids and their types *) 
+  (* list of new ids and their types-- ignore types missing from tenv *) 
   let types = 
-    List.map2 
-      (fun id id' -> let t = ID.Map.find id fundef.tenv in (id', t))
-      allIds 
-      freshIds
+    List.fold_left2 
+      (fun accList id id' ->
+          if ID.Map.mem id fundef.tenv then 
+            (id', ID.Map.find id fundef.tenv)::accList
+          else accList
+      )
+      []
+      allIds
+      freshIds 
   in 
   argAssignments :: body', outputExp, types   
   

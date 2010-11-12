@@ -139,7 +139,14 @@ let fn_to_str fn =
     (String.concat ", " outputs) 
     bodyStr  
            
-
+let always_const expNode = match expNode.exp with
+  | Const _  
+  | DimSize _   
+  | ThreadIdx _   
+  | BlockIdx _  
+  | BlockDim _  
+  | GridDim _ -> true 
+  | _ -> false  
 
 (* IMP STATEMENTS *)
 let syncthreads = SyncThreads

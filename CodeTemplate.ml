@@ -60,26 +60,31 @@ let build_function_body_ast body =
 (* assume functions have been sorted so that a function def appears
    before it's used 
 *) 
-let rec build_interp_state
-     (fnNames : FnId.t String.Map.t) 
-     (fundefs : SSA.fundef FnId.Map.t) = function 
-  | [] -> InterpState.create_untyped fnNames fundefs  
-     
+let rec extend_interp_state interpState = function 
+  | [] -> interpState  
   | (name,locals,globals,bodyText)::rest ->
       let bodyAST = build_function_body_ast bodyText in
-      let env = AST_to_SSA.Env.GlobalScope fnNames in
+      (* global function lookup function used by AST_to_SSA conversion *)
+      let ssaEnv = 
+        AST_to_SSA.Env.GlobalScope (InterpState.get_untyped_id interpState)  
+      in
       let argNames = locals @ globals in  
-      let fundef = AST_to_SSA.translate_fn env argNames bodyAST in  
-      let fnId = fundef.SSA.fn_id in   
-      let fnNames' = String.Map.add name fnId fnNames in
-      let fundefs' = FnId.Map.add fnId fundef fundefs in  
-      build_interp_state fnNames' fundefs' rest 
+      let fundef = AST_to_SSA.translate_fn ssaEnv argNames bodyAST in  
+      InterpState.add_untyped interpState ~opt_queue:true name fundef; 
+      extend_interp_state interpState rest 
    
 (* replace the concept of a "module" with just an untyped interpState 
    which also preserves the original string names of its functions
 *)   
 let gen_module_template entries =
-   build_interp_state String.Map.empty FnId.Map.empty entries 
+(* should 'state' be a returned value? it's actually just an 
+   imperative modification of QStdLib.initState 
+*)
+  let interpState = extend_interp_state QStdLib.initState entries in
+  (* run optimizations on accumulated queue of user-defined functions *) 
+  InterpState.optimize_untyped_functions interpState; 
+  interpState  
+     
   
 let get_function_template interpState name =
   let untypedId = InterpState.get_untyped_id interpState name in 
@@ -118,7 +123,9 @@ let run_template
     Specialize.specialize_function_id interpState untypedId signature 
   in
   InterpState.optimize_typed_functions interpState; 
-  let typedFundef = InterpState.get_typed_function interpState unoptimized.fn_id in 
+  let typedFundef = 
+    InterpState.get_typed_function interpState unoptimized.fn_id 
+  in 
   IFDEF DEBUG THEN 
     printf "[run_template] calling evaluator on specialized code: \n";
     printf "%s\n" (SSA.fundef_to_str typedFundef);

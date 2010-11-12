@@ -1,3 +1,5 @@
+let _ = Printexc.record_backtrace true 
+
 include ExtList.List
 
   let rec fill x = function 

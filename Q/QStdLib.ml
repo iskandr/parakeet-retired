@@ -42,7 +42,12 @@ let any = fn1 $ fun x y -> [
 let sum = fn1 $ fun x y -> [ 
   [y] := reduce @@ [scalar_op Prim.Add; mk_int32 0; x]]
 
-let sum = fn1 $ fun x y -> [ 
-  [y] := reduce @@ [scalar_op Prim.Add; mk_int32 0; x]]
+let prod = fn1 $ fun x y -> [ 
+  [y] := reduce @@ [scalar_op Prim.Mult; mk_int32 1; x]]
 
-
+let initState = InterpState.create_from_untyped_list ~opt_queue:false [ 
+  "any", any; 
+  "all", all; 
+  "sum", sum; 
+  "prod", prod;
+]

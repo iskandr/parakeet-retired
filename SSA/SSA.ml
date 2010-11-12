@@ -16,23 +16,23 @@ type if_gate = {
 }
 
 type loop_gate = { 
-  (* what variables are assigned in the body of this loop? *) 
-  loop_ids : ID.t list; 
-  
-  (* from which external identifiers do internal variables 
-     get their initial values 
-  *) 
-  loop_inputs : ID.t ID.Map.t;
-  
   (* what variables visible after this loop are generated, and
      from which internal var do they get their value?  
   *)
-  loop_outputs : ID.t ID.Map.t;
+  loop_outputs : ID.t list; 
   
-  (* when repeating the loop body, which variables at the end of the
-     body feed back into variables at the beginning? 
+  (* what variables are assigned in the body of this loop? *) 
+  loop_local_defs : ID.t list;
+  
+  (* every loop local variable gets its value either from above the 
+     loop on the first iteration, or from a further loop variable on 
+     a repeat iteration  
   *) 
-  loop_header : ID.t ID.Map.t;  
+  loop_header_map : (ID.t * ID.t) ID.Map.t;
+  (* every loop output can either come a loop variable or from some
+     variable preceding the loop (including, presumably, undefined)
+  *)
+  loop_output_map : (ID.t * ID.t) ID.Map.t;  
 }
 
 type stmt = 
@@ -169,6 +169,20 @@ let fundef_to_str fundef =
     (typed_id_list_to_str fundef.tenv fundef.output_ids)
     (block_to_str ~space:"\t" ~tenv:fundef.tenv fundef.body)
   
+  
+(*  
+let rec collect_assigned_ids = function  
+  | (Set (ids, _))::rest ->  ids @ (collect_assigned_ids rest)
+  | (If (_, tBlock, fBlock, ifGate))::rest -> 
+      let tList = collect_assigned_ids tBlock in 
+      let fList = collect_assigned_ids fBlock in 
+      let gateList = ifGate.if_output_ids in 
+      tList @ fList @ gateList @ (collect_assigned_ids rest)
+  | (WhileLoop (_, body,loopGate))::rest ->
+      let bodyList = collect_assigned_ids body in 
+      loopGate.loop_outputs @ bodyList @ (collect_assigned_ids rest) 
+  | _::rest -> collect_assigned_ids rest 
+*)
 
 let mk_fundef  ?(tenv=ID.Map.empty) ~input_ids ~output_ids ~body =
   let inTypes = 
@@ -267,8 +281,12 @@ let map_default_types optTypes values =
     | Some ts -> ts
 
 let mk_app ?src ?types fn args =
-  let types' = map_default_types types args in  
-  { exp=App(fn,args); exp_src = src; exp_types = types' }  
+  let retTypes = match types, fn.value_type with 
+    | Some types, _ -> types 
+    | None, DynType.FnT(_, types) -> types 
+    | _ -> [DynType.BottomT]
+  in 
+  { exp=App(fn,args); exp_src = src; exp_types = retTypes }  
 
 let mk_arr ?src ?types elts =
   let types' = map_default_types  types elts in  

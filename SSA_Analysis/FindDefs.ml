@@ -17,7 +17,15 @@ and eval_stmt env node =
   | Set (ids, rhs) ->
       let rhsDefs = eval_exp rhs in 
       IFDEF DEBUG THEN
-        assert (List.length rhsDefs = List.length ids); 
+        if not (List.length rhsDefs = List.length ids) then 
+          failwith $ 
+            Printf.sprintf 
+              "[FindDefs] error in \"%s\", %d ids for %d expressions : %s\n" 
+              (SSA.stmt_node_to_str node)
+              (List.length ids)
+              (List.length rhsDefs)
+              (DynType.type_list_to_str rhs.exp_types)  
+            ;
       ENDIF; 
       List.fold_left2 
         (fun accEnv id def -> ID.Map.add id def accEnv) env ids rhsDefs    

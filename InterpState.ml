@@ -26,6 +26,84 @@ type t = {
   untyped_id_to_name : (FnId.t, string) Hashtbl.t;   
 } 
 
+
+let create () =
+  let n = 127 in 
+  {
+    untyped_functions = FnTable.create n; 
+    typed_functions = FnTable.create n; 
+    specializations = Hashtbl.create n ; 
+    name_to_untyped_id = Hashtbl.create n; 
+    untyped_id_to_name = Hashtbl.create n; 
+  }
+
+
+let add_untyped interpState ?(opt_queue=true) name fundef = 
+  let id = fundef.SSA.fn_id in 
+  Hashtbl.add interpState.name_to_untyped_id name id; 
+  Hashtbl.add interpState.untyped_id_to_name id name;
+  FnTable.add ~opt_queue fundef interpState.untyped_functions
+  
+let add_untyped_list 
+      interpState 
+      ?(opt_queue=true) 
+      (fundefList: (string*SSA.fundef) list) =
+  List.iter 
+    (fun (name,fundef) -> add_untyped interpState  ~opt_queue name fundef) 
+    fundefList
+  
+let add_untyped_map interpState ?(opt_queue=true) fundefMap = 
+  String.Map.iter (add_untyped interpState ~opt_queue) fundefMap 
+
+let default_untyped_optimizations = 
+  [
+    "simplify", Simplify.simplify_fundef;  
+    "elim dead code", ElimDeadCode.elim_dead_code; 
+    "elim partial applications", ElimPartialApps.elim_partial_apps;
+    "elim common subexpression", CSE.cse;
+    "inlining", Inline.run_fundef_inliner;  
+  ] 
+
+let optimize_untyped_functions program = 
+  RunOptimizations.optimize_all_fundefs 
+    ~maxiters:100
+    program.untyped_functions
+    default_untyped_optimizations
+
+
+let default_typed_optimizations = 
+  [
+    (*"function cloning", TypedFunctionCloning.function_cloning;*)   
+    "simplify", Simplify.simplify_fundef; 
+    "dead code elim", ElimDeadCode.elim_dead_code; 
+    "adverb fusion", AdverbFusion.optimize_fundef; 
+    "inlining", Inline.run_fundef_inliner;  
+  ]  
+  
+let optimize_typed_functions program = 
+  RunOptimizations.optimize_all_fundefs 
+    ~type_check:true
+    ~maxiters:100
+    program.typed_functions
+    default_typed_optimizations
+        
+                  
+let create_from_untyped_map ?(opt_queue=true) fundefMap =
+  let interpState = create () in
+  add_untyped_map interpState ~opt_queue fundefMap;    
+  interpState 
+
+let create_from_untyped_list ?(opt_queue=true) fundefList = 
+  let interpState = create () in 
+  add_untyped_list interpState ~opt_queue fundefList;  
+  interpState  
+
+let get_untyped_name program id = Hashtbl.find program.untyped_id_to_name id
+let get_untyped_id program name = Hashtbl.find program.name_to_untyped_id name
+
+let get_typed_function_table program = program.typed_functions
+let get_untyped_function_table program = program.untyped_functions     
+
 let add_specialization 
     program 
     (untypedVal : SSA.value) 
@@ -72,87 +150,22 @@ let add_specialization
       (SSA.fundef_to_str typedFundef)
   END 
 
-let maybe_get_specialization program v signature = 
-  if Hashtbl.mem program.specializations (v, signature) then 
-    Some (Hashtbl.find program.specializations (v, signature))
+let maybe_get_specialization interpState v signature = 
+  if Hashtbl.mem interpState.specializations (v, signature) then 
+    Some (Hashtbl.find interpState.specializations (v, signature))
   else None   
 
-let get_untyped_function program untypedId =
-  FnTable.find untypedId program.untyped_functions  
+let get_untyped_function interpState untypedId =
+  FnTable.find untypedId interpState.untyped_functions  
 
-let get_typed_function program typedId =
-  FnTable.find typedId program.typed_functions 
+let get_typed_function interpState typedId =
+  FnTable.find typedId interpState.typed_functions 
 
-let get_typed_fundef_from_value program = function 
-  | GlobalFn fnId -> FnTable.find fnId program.typed_functions  
+let get_typed_fundef_from_value interpState = function 
+  | GlobalFn fnId -> FnTable.find fnId interpState.typed_functions  
   | Lam fundef -> fundef  
   | _ -> failwith "expected a function" 
 
+let have_untyped_function interpState name = 
+  Hashtbl.mem interpState.name_to_untyped_id name     
 
-let default_untyped_optimizations = 
-  [
-    "simplify", Simplify.simplify_fundef;  
-    "elim dead code", ElimDeadCode.elim_dead_code; 
-    "elim partial applications", ElimPartialApps.elim_partial_apps;
-    "elim common subexpression", CSE.cse;
-    "inlining", Inline.run_fundef_inliner;  
-  ] 
-
-let optimize_untyped_functions program = 
-  RunOptimizations.optimize_all_fundefs 
-    ~maxiters:100
-    program.untyped_functions
-    default_untyped_optimizations
-
-        
-open AdverbFusion 
-let default_typed_optimizations = 
-  [
-    (*"function cloning", TypedFunctionCloning.function_cloning;*)   
-    "simplify", Simplify.simplify_fundef; 
-    "dead code elim", ElimDeadCode.elim_dead_code; 
-    "adverb fusion", AdverbFusion.optimize_fundef; 
-    "inlining", Inline.run_fundef_inliner;  
-  ]  
-  
-let optimize_typed_functions program = 
-  RunOptimizations.optimize_all_fundefs 
-    ~type_check:true
-    ~maxiters:100
-    program.typed_functions
-    default_typed_optimizations
-    
-    
-let create_untyped fnNameMap fundefMap =
-  (* no idea how to properly set the hashtbl sizes *) 
-  let n = 127 in 
-  let untyped = FnTable.create n in 
-  let nameToId = Hashtbl.create n in 
-  let idToName = Hashtbl.create n in
-  String.Map.iter 
-    (fun name id -> 
-        Hashtbl.add nameToId name id; Hashtbl.add idToName id name
-    )
-    fnNameMap; 
-  FnId.Map.iter 
-    (fun id fundef ->
-        IFDEF DEBUG THEN assert (id = fundef.SSA.fn_id); ENDIF;
-        FnTable.add fundef untyped
-    )
-    fundefMap;    
-  let program = {
-     untyped_functions = untyped; 
-     typed_functions = FnTable.create n; 
-     specializations = Hashtbl.create n ; 
-     name_to_untyped_id = nameToId; 
-     untyped_id_to_name = idToName; 
-  }
-  in optimize_untyped_functions program; 
-  program  
-  
-  
-let get_untyped_name program id = Hashtbl.find program.untyped_id_to_name id
-let get_untyped_id program name = Hashtbl.find program.name_to_untyped_id name
-
-let get_typed_function_table program = program.typed_functions
-let get_untyped_function_table program = program.untyped_functions  

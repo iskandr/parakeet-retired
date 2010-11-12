@@ -6,16 +6,19 @@ type optimization = FnTable.t -> SSA.fundef -> SSA.fundef * bool
 let rec fold_optimizations ?(type_check=false) fnTable fundef lastChanged = 
   function
   | (name, opt)::rest -> 
+      IFDEF DEBUG THEN 
+        Printf.printf "Before optimization %s:\n %s\n"
+          name
+          (SSA.fundef_to_str fundef)
+        ; 
+      ENDIF;  
+        
       let optimized, changed = opt fnTable fundef in
-      IFDEF DEBUG THEN  
-        (*
-        if changed then 
-          Printf.printf "--- %s modified by %s:\n%s\n"
-            (FnId.to_str fundef.fn_id)
-            name
-            (SSA.fundef_to_str optimized)
-        ;
-        *)
+      IFDEF DEBUG THEN
+        Printf.printf "After optimization %s:\n %s\n"
+          name
+          (SSA.fundef_to_str optimized)
+        ;  
         if type_check then  
         let errorLog = TypeCheck.check_fundef optimized in 
         if not $ Queue.is_empty errorLog then ( 

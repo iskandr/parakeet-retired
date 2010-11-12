@@ -9,4 +9,13 @@ let emptySourceInfo = {
   filename=None 
 }
 
-let mk_source_info ?filename line col = {line=line; col= col; filename=filename}
+let mk_source_info ?filename line col = {
+  line=line; 
+  col= col; 
+  filename=filename
+}
+
+let to_str src = 
+  Printf.sprintf "line %d, column %d%s"
+    src.line src.col 
+    (match src.filename with None -> "" | Some str -> " in file " ^ str) 

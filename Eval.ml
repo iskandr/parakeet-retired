@@ -29,7 +29,10 @@ let eval_value
 let rec eval globalFns fundef hostVals  =
   let memState = MemoryState.create 127 (* arbitrary *) in
   (* create unique identifiers for data items *) 
-  let vals = List.map (fun h -> MemoryState.add_host memState h) hostVals in 
+  let vals = List.map (fun h -> MemoryState.add_host memState h) hostVals in
+  IFDEF DEBUG THEN 
+    assert (List.length fundef.input_ids = List.length vals); 
+  ENDIF;  
   let (env : env) = List.fold_left2 
     (fun accEnv varId v -> ID.Map.add varId v accEnv) 
     ID.Map.empty
@@ -104,11 +107,12 @@ and eval_exp
       failwith "calling closures not yet implemented"
   | App ({value=GlobalFn fnId}, args) -> 
       let fundef = FnTable.find fnId functions in
+       let argVals = List.map (eval_value memState env) args in  
       IFDEF DEBUG THEN 
         Printf.printf "[eval_exp] calling function %s\n" (FnId.to_str fnId);
-        assert (List.length fundef.input_ids = List.length args); 
+        assert (List.length fundef.input_ids = List.length argVals); 
       ENDIF;
-      let argVals = List.map (eval_value memState env) args in  
+     
       (* create an augmented memory state where input ids are bound to the *)
       (* argument values on the gpu *) 
       let env' = 

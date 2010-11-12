@@ -1,5 +1,7 @@
 include BaseCommon
-  
+
+let _ = Printexc.record_backtrace true 
+    
 module PMap = BasePMap
 module List = BaseList 
 (* extensions to existing modules go here, whereas entirely new modules

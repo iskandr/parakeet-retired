@@ -3,6 +3,7 @@ open AST
 open Prim
 open Printf
 
+let _ = Printexc.record_backtrace true 
 
 type scope_info = { 
   volatile_local : string PSet.t; 	 
@@ -171,7 +172,16 @@ let collect_defs ast =
 
 let transitive_closure infoMap =
    let grow key info (map, keepGoing) =
-      let folder var acc = PMap.find var map <+> acc in 
+      let folder var acc = 
+        if PMap.mem var map then (PMap.find var map <+> acc) 
+        else
+        (* if the variable isn't recognized as a user-defined global, 
+           check if it's defined in the standard library 
+        *) 
+        if InterpState.have_untyped_function QStdLib.initState var then acc 
+        else failwith $ 
+          Printf.sprintf "couldn't find info for global var %s" var
+      in 
       let newInfo = PSet.fold folder info.reads_global info in 
       let changed =  PSet.cardinal newInfo.reads_global >
                      PSet.cardinal info.reads_global in 
@@ -196,11 +206,18 @@ let find_safe_functions globalFnMap volatileFnSet =
        believed to be unsafe 
     *)     
     let rec aux prevUnsafe name (currSafe, currUnsafe) =
-      let info = PMap.find name globalFnMap in   
-      if PSet.is_empty (PSet.inter info.reads_global prevUnsafe) then
-        PSet.add name currSafe, currUnsafe
+      if PMap.mem name globalFnMap then 
+        let info = PMap.find name globalFnMap in (   
+        if PSet.is_empty (PSet.inter info.reads_global prevUnsafe) then
+          PSet.add name currSafe, currUnsafe
+        else 
+          currSafe, PSet.add name currUnsafe
+        )
       else 
-        currSafe, PSet.add name currUnsafe 
+      (* function is in the standard library  *) 
+      if InterpState.have_untyped_function QStdLib.initState name then 
+        currSafe, currUnsafe 
+      else failwith $ Printf.sprintf "binding for variable %s not found " name
     in
     (* repeatedly expand unsafe set until we reach a fixpoint *)  
     let rec iterate safe unsafe =

@@ -129,8 +129,11 @@ class imp_codegen =
           self#add_slice_annotations rest 
       | _::rest -> self#add_slice_annotations rest 
     
-    (* create a Set node and insert a cast if necessary *) 
-     method private set_or_coerce id (rhs : exp_node) = 
+    (* cache variables which are casts of constant expressions *) 
+    val coercionCache 
+        : (Imp.exp * DynType.t, Imp.exp_node) Hashtbl.t = Hashtbl.create 127
+    (* create a Set node and insert a cast if necessary *)     
+    method private set_or_coerce id (rhs : exp_node) = 
       if not (Hashtbl.mem types id) then
         failwith $ 
           sprintf "[imp_codegen->set_or_coerce] no type for: %s" (ID.to_str id)
@@ -141,12 +144,20 @@ class imp_codegen =
         IFDEF DEBUG THEN 
           assert (DynType.is_scalar lhsType && DynType.is_scalar rhsType);
         ENDIF;   
-        let id' = self#fresh_local_id rhsType in
-        let idExp' = {exp=Var id'; exp_type=rhsType} in 
-        let castNode = 
-          {exp = Cast(lhsType, idExp'); exp_type=lhsType}
-        in   
-        [Set(id',rhs); Set(id, castNode)]
+        let cacheKey = rhs.exp, lhsType in 
+        if Hashtbl.mem coercionCache cacheKey then 
+          [Set(id, Hashtbl.find coercionCache cacheKey)]
+        else (
+          let id' = self#fresh_local_id rhsType in
+          if Imp.always_const rhs then 
+            Hashtbl.add coercionCache cacheKey {exp=Var id; exp_type=lhsType}
+          ; 
+          let idExp' = {exp=Var id'; exp_type=rhsType} in 
+          let castNode = 
+            {exp = Cast(lhsType, idExp'); exp_type=lhsType}
+          in   
+          [Set(id',rhs); Set(id, castNode)]
+        )
       )
       (* if renaming an array, need to track its if undeclared bounds *) 
       else match rhs.exp with 
@@ -248,7 +259,7 @@ class imp_codegen =
           let condStmts, condExp = self#flatten_exp cond in 
           let loopBody' = List.concat $ List.map self#flatten_stmt loopBody in 
           condStmts @ [While(condExp, loopBody')]
-     
+      
       | Set (id, rhs) -> 
           let rhsStmts, rhs' = self#flatten_exp rhs in
           let setStmts = self#set_or_coerce id rhs' in  
@@ -374,7 +385,8 @@ class imp_codegen =
         local_arrays = PMap.of_enum (Hashtbl.enum localSizes);
            
         tenv = PMap.of_enum (Hashtbl.enum types);
-        shared_array_allocations = PMap.of_enum (Hashtbl.enum sharedArrayAllocations);
+        shared_array_allocations = 
+          PMap.of_enum (Hashtbl.enum sharedArrayAllocations);
         
         body = DynArray.to_list code;
       }
@@ -383,7 +395,23 @@ class imp_codegen =
     (* with those provided. Then removes the input/output vars, splices the *)
     (* modified code into the target code. Returns code as a statement list *)
     method splice fn inputs outputs targetCode = 
-      let oldIds = Array.to_list $ Array.append fn.input_ids fn.output_ids in
+      IFDEF DEBUG THEN 
+        if (Array.length fn.input_ids  <> Array.length inputs) then 
+          failwith $ Printf.sprintf 
+            "Cannot splice Imp function of arity %d where %d was expected"
+            (Array.length fn.input_ids)
+            (Array.length inputs)
+        ;
+        if (Array.length fn.output_ids  <> Array.length outputs) then 
+          failwith $ Printf.sprintf 
+            "Cannot splice Imp function with %d output(s) where %d was expected"
+            (Array.length fn.output_ids)
+            (Array.length outputs)
+        ;   
+      ENDIF; 
+      let oldIds = 
+        Array.to_list $ Array.append fn.input_ids fn.output_ids 
+      in
       (* remove the input/output ids since they will be replaced *)
       let tenv' = PMap.remove_list oldIds fn.tenv in
       (* have to rewrite the input/output variables to the expressions *)

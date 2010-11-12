@@ -286,7 +286,7 @@ class ptx_codegen  = object (self)
   *) 
   val registerCache 
     : (PtxVal.value * PtxType.ty, PtxVal.value) Hashtbl.t = Hashtbl.create 17
-  method cached ?ty ptxVal =
+  method cached ?ty ptxVal = 
     let ty = match ty with 
         | Some ty -> ty 
         | None -> PtxVal.type_of_value ptxVal 
@@ -300,21 +300,21 @@ class ptx_codegen  = object (self)
       Hashtbl.add registerCache key reg; 
       reg
     )   
-  method is_cached ptxVal ty = Hashtbl.mem registerCache (ptxVal,ty)
+  method private is_cached ptxVal ty = Hashtbl.mem registerCache (ptxVal,ty)
     
-  method tid_x = self#cached tid.x     
-  method tid_y = self#cached tid.y 
-  method tid_z = self#cached tid.z 
+  method private tid_x = self#cached tid.x     
+  method private tid_y = self#cached tid.y 
+  method private tid_z = self#cached tid.z 
  
-  method ntid_x = self#cached ntid.x 
-  method ntid_y = self#cached ntid.y
-  method ntid_z = self#cached ntid.z 
+  method private ntid_x = self#cached ntid.x 
+  method private ntid_y = self#cached ntid.y
+  method private ntid_z = self#cached ntid.z 
   
-  method ctaid_x = self#cached ctaid.x 
-  method ctaid_y = self#cached ctaid.y
+  method private ctaid_x = self#cached ctaid.x 
+  method private ctaid_y = self#cached ctaid.y
   
-  method nctaid_x = self#cached nctaid.y    
-  method nctaid_y = self#cached nctaid.y
+  method private nctaid_x = self#cached nctaid.y    
+  method private nctaid_y = self#cached nctaid.y
   
   (*************************************************************
                       INDEX COMPUTATIONS
@@ -573,7 +573,7 @@ class ptx_codegen  = object (self)
         ]
       else self#emit [cvt destType srcType destReg srcVal]
       
-  method run_rewrite_pass f  = 
+  method private  run_rewrite_pass f  = 
     let n = DynArray.length instructions in
     let newCode = DynArray.make n in
     let insert = (DynArray.add newCode) in

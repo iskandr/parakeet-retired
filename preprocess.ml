@@ -3,6 +3,8 @@ open Base
 open SourceInfo
 open AST
 
+let _ = Printexc.record_backtrace true
+
 let gen_template_id = mk_gen () 
 let gen_template_name () = "pq_template" ^ Int.to_string (gen_template_id())
 
@@ -68,7 +70,14 @@ and prepend_old (knownFunctions : String.Set.t) ast = match ast.data with
    Also, rewrite access to a global to prepend "_global_".  
 *) 
 
-let rewrite_global_reads globalDataVars globalDataMap ast =
+let get_global x globalDataMap = 
+  if PMap.mem x globalDataMap then PMap.find x globalDataMap 
+  else failwith $ Printf.sprintf "%s not found in global data map" x
+
+let rewrite_global_reads 
+      (globalDataVars : string PSet.t) 
+      (globalDataMap : (string,string PSet.t) PMap.t)
+      ast =
   (* map every function name to a list of global arguments, renamed to be 
      distinctively global 
   *)
@@ -76,20 +85,31 @@ let rewrite_global_reads globalDataVars globalDataMap ast =
     | [] -> List.rev revNewNodes, locals
     | node::nodes -> let ast', locals' = self locals node in 
       fold_block locals' (ast'::revNewNodes) nodes 
-   and  self locals ast =  match ast.data with 
-    | Var x -> 
+   and  self locals ast = 
+     match ast.data with 
+    | Var x ->
         let ast' = 
-          if PSet.mem x locals then ast
+          if PSet.mem x locals  then ast
           else if PSet.mem x globalDataVars then 
             update_var_node ast (rename_global x)
-          else
-            let globals = 
-              PSet.to_list (PMap.find x globalDataMap) in 
-            let globalsRenamed = List.map rename_global globals  in
-            let globalVars = List.map mk_var_node globalsRenamed in  
-            (* BUG! What if we're passing this function an adverb? *) 
-            (*mk_app_node ast globalVars*) 
-            ast 
+          else if PMap.mem x globalDataMap then (  
+            let globals = PMap.find x globalDataMap in 
+            let globalsRenamed = 
+              List.map rename_global (PSet.to_list globals)  
+            in
+            let globalVars = List.map mk_var_node globalsRenamed in
+            (* what do we do with globalVars? *)   
+            ast
+         )
+         (* if the variable is neither local nor globally defined, 
+            is it in the standard library? 
+          *)
+         else if InterpState.have_untyped_function QStdLib.initState x then
+            ast
+         else failwith $ 
+            Printf.sprintf "Couldn't find global variable %s on %s"
+            x
+            (SourceInfo.to_str ast.src)  
         in ast', locals
     | Def (name, rhs) -> 
         let rhs', locals' = self locals rhs in 
@@ -344,32 +364,44 @@ let process_lexbuf ~debug lexbuf =
     *)
     let globalFnMap, globalDataMap  =
       PMap.partition_by_key 
-        (fun x -> (PMap.find x infoMap).is_function) 
+        (fun x -> 
+            if PMap.mem x infoMap then (PMap.find x infoMap).is_function
+            else failwith $ Printf.sprintf "no info about global variable %s" x    
+        ) 
         infoMap in
         
     let globalFnSet = PSet.of_enum (PMap.keys globalFnMap) in 
     let globalDataSet = PSet.of_enum (PMap.keys globalDataMap) in 
     
-    if debug then (
+    IFDEF DEBUG THEN 
        eprintf "Global data: {%s} \n"
         (String.concat ", " (PSet.to_list globalDataSet)); 
-    );
+    ENDIF; 
     let volatileFnSet = PSet.inter volatileSet globalFnSet in         
     let safeFns, unsafeFns = 
       Analyze_AST.find_safe_functions globalFnMap volatileFnSet in  
     
-    if debug then ( 
+    IFDEF DEBUG THEN  
         eprintf "Safe functions: {%s}\n" 
           (String.concat ", " (PSet.to_list safeFns));   
-    );
+    ENDIF;
     
     let safeFnDefs = 
       PMap.filter_by_key (fun k -> PSet.mem k safeFns) astMap in  
     let globalReadsMap = 
-      PMap.map (fun info -> info.reads_global) transInfo in
+      PMap.map (fun info -> info.reads_global) transInfo 
+    in
+    
     let globalDataReadsMap =
-      PMap.map 
-       (fun set -> PSet.inter globalDataSet set) globalReadsMap in
+      PMap.map
+       (fun set -> 
+          PSet.filter 
+            (fun name -> not $ 
+              InterpState.have_untyped_function QStdLib.initState name)
+          (PSet.inter globalDataSet set)
+       ) 
+       globalReadsMap
+    in
     
     (* rename all the global variables used in safe functions so they never 
        conflict with locals 
@@ -378,10 +410,12 @@ let process_lexbuf ~debug lexbuf =
     let safeFnDefs' =
        PMap.map 
         (rewrite_global_reads globalDataSet globalDataReadsMap)
-        safeFnDefs in  
-    let ast' = rewrite_ast safeFnDefs' globalDataReadsMap ast in 
-    let ast'' = flatten_block ast' in 
-    let astStr = AST.node_to_str ast'' in
+        safeFnDefs 
+    in  
+    let ast' = 
+      flatten_block $
+        rewrite_ast safeFnDefs' globalDataReadsMap ast in 
+    let astStr = AST.node_to_str ast' in
     (* temporary: load the dt.so shared library *) 
     let astStr = "\\l dt.q\n" ^ astStr in 
     print_endline astStr

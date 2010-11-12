@@ -6,10 +6,10 @@ type t = {
   unoptimized_queue : FnId.t Queue.t;
 }
 
-let add fundef cache =
+let add ?(opt_queue=true) fundef cache =
   let id = fundef.SSA.fn_id in 
   Hashtbl.add cache.fundefs id fundef;
-  Queue.add id cache.unoptimized_queue 
+  if opt_queue then Queue.add id cache.unoptimized_queue 
   
 let find id cache = Hashtbl.find cache.fundefs id  
 

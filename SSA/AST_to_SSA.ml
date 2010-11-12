@@ -9,9 +9,12 @@ module Env = struct
 
   (* Assume all functions have been moved to global scope via lambda lifting. 
      For now don't support data at global scope.
+     Also, the global scope is described by an abstract function 
+     from names to FnId's so we can easily pass in accessors to 
+     either Hashtbl's or ID.Map.t. 
   *) 
   type t = 
-  | GlobalScope of FnId.t String.Map.t 
+  | GlobalScope of (string -> FnId.t) 
   | LocalScope of (ID.t String.Map.t) * t
   
 
@@ -35,7 +38,7 @@ module Env = struct
      SSA value-- either Var _ for data or Fn _ for a function   
   *) 
   let rec lookup_ssa env name = match env with 
-  | GlobalScope fnEnv -> SSA.GlobalFn (String.Map.find name fnEnv)
+  | GlobalScope fnLookup ->  SSA.GlobalFn (fnLookup name)
   | LocalScope (dataEnv, parent) -> 
       if String.Map.mem name dataEnv then 
         SSA.Var (String.Map.find name dataEnv)

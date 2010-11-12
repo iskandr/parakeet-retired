@@ -139,10 +139,7 @@ let rec simplify_stmt
             Set(id, rhs'), constEnv'  
           else 
             (* map id->id' *) 
-            Set (id, rhs), PMap.add (Var id) rhs constEnv 
-        | Const n -> 
-            let constEnv' = PMap.add (Var id) rhs constEnv in 
-            Set (id, rhs), constEnv'  
+            Set (id, rhs), PMap.add (Var id) rhs constEnv
         | Op (op, t, args) -> 
             let args' = List.map (simplify_exp constEnv volatileSet) args in
             let rhs' = {rhs with exp = Op(op,t, args') } in  
@@ -171,6 +168,9 @@ let rec simplify_stmt
             let nestedNode' = simplify_exp constEnv volatileSet  nestedNode in
             let rhs' = {rhs with exp = DimSize(dim, nestedNode') } in 
             Set(id, rhs'), constEnv 
+        | _ when Imp.always_const rhs -> 
+            let constEnv' = PMap.add (Var id) rhs constEnv in 
+            Set (id, rhs), constEnv'
         | _ -> nochange   
       
        in stmt', constEnv', definedSet, volatileSet 

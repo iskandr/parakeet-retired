@@ -75,6 +75,9 @@ and translate_exp codegen globalFunctions idEnv expectedType expNode =
 	      let i = codegen#fresh_var Int32T in
         let n = codegen#fresh_var Int32T in  
         (* alex: fixing a bug wherein the "arrays" are actually scalars *)
+        IFDEF DEBUG THEN 
+          assert (List.length impArrays = List.length arrayTypes); 
+        ENDIF; 
         let arrayElts = 
             List.map2 
               (fun arr t -> if DynType.is_scalar t then arr else idx arr i) 
@@ -176,19 +179,25 @@ and translate_stmt globalFunctions idEnv codegen stmtNode =
 
 and translate_fundef globalFunctions fn =
   let codegen  = new ImpCodegen.imp_codegen in
-  let inputTypes = DynType.fn_input_types fn.SSA.fn_type in 
-  let outputTypes = DynType.fn_output_types fn.SSA.fn_type in 
+  let inputTypes = DynType.fn_input_types fn.SSA.fn_type in
+  let outputTypes = DynType.fn_output_types fn.SSA.fn_type in
   let freshInputIds = 
     List.map codegen#fresh_input_id inputTypes   
   in 
-  let freshOutputIds = List.map codegen#fresh_output_id  outputTypes in  
+  let freshOutputIds = List.map codegen#fresh_output_id  outputTypes in
+  IFDEF DEBUG THEN 
+    assert (List.length fn.SSA.input_ids = List.length freshInputIds);
+    assert (List.length fn.SSA.output_ids = List.length freshOutputIds); 
+  ENDIF; 
   let idEnv = ID.Map.combine 
     (ID.Map.of_list (List.combine fn.SSA.input_ids freshInputIds)) 
-    (ID.Map.of_list (List.combine fn.SSA.output_ids freshOutputIds)) in 
+    (ID.Map.of_list (List.combine fn.SSA.output_ids freshOutputIds)) 
+  in
   let _ = List.fold_left
     (fun idEnv stmt -> translate_stmt globalFunctions idEnv codegen stmt) 
     idEnv
     fn.SSA.body 
   in 
-  codegen#finalize  
+  codegen#finalize
+  
   

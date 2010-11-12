@@ -64,6 +64,14 @@ let create_gpu_arg_env
     ~(shape_env : Shape.t ID.Map.t)
     ~(type_env : (ID.t, DynType.t) PMap.t) =
   (* for now ignore calling_conventions.data_locations *)
+  IFDEF DEBUG THEN 
+    if List.length input_ids <> List.length input_vals then 
+      failwith $ Printf.sprintf 
+      "Cannot create GPU arguments: length mismatch between %d ids and %d vals"
+      (List.length input_ids)
+      (List.length input_vals)
+    ;
+  ENDIF;
   let initEnv =  
     List.fold_left2 
       (fun env id gpuVal  -> ID.Map.add id gpuVal env)
@@ -200,9 +208,13 @@ let run_reduce
       (gpuVals : GpuVal.gpu_val list)
       (outputTypes : DynType.t list) = 
   let inputTypes = List.map GpuVal.get_type gpuVals in 
+  IFDEF DEBUG THEN 
+    Printf.printf "Launching Reduce kernel\n";
+  ENDIF;
   let cacheKey = payload.SSA.fn_id, inputTypes in 
   let {imp_source=impKernel; cc=_; cuda_module=compiledModule} =  
-    if Hashtbl.mem reduceCache cacheKey then Hashtbl.find reduceCache cacheKey
+    if Hashtbl.mem reduceCache cacheKey then 
+      Hashtbl.find reduceCache cacheKey
     else (
       let entry =  
         compile_reduce globalFunctions payload outputTypes 
@@ -417,6 +429,7 @@ let eval_array_op
       failwith "[GpuRuntime->eval_array_op] closures not yet supported for Map"
 
   | Prim.Reduce, (InterpVal.Closure(fnId, []))::dataArgs ->
+
       let fundef = FnTable.find fnId functions in
       let gpuVals = List.map (MemoryState.get_gpu memState) dataArgs in
       run_reduce memState functions fundef gpuVals outputTypes

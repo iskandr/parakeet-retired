@@ -11,24 +11,24 @@ let same_type t1 t2 =
 
 let translate_coord = function | Imp.X -> X | Imp.Y -> Y  | Imp.Z -> Z 
  
-let translate_simple_exp codegen = function 
+let translate_simple_exp (codegen:PtxCodegen.ptx_codegen) = function 
   | Imp.Var id -> codegen#imp_reg id 
-  | Imp.Const n -> num_to_ptx_const n 
+  | Imp.Const n -> num_to_ptx_const n
+  | Imp.GridDim coord  -> 
+     codegen#cached $ Special (NumCtaId (translate_coord coord))
+  | Imp.BlockDim coord ->
+     codegen#cached $ Special (NumThreadId (translate_coord coord))
+  | Imp.BlockIdx coord  -> 
+     codegen#cached $ Special (CtaId (translate_coord coord))
+  | Imp.ThreadIdx coord ->
+     codegen#cached $ Special (ThreadId (translate_coord coord))
   | other -> failwith $ 
            Printf.sprintf "cannot translate complex Imp expression: %s\n"
            (Imp.exp_to_str other)  
-          
+            
 (* translate a simple expression and potentially convert it to some desired
    type 
 *) 
-
-let translate_special = function 
-  | Imp.GridDim coord  ->  Special (NumCtaId (translate_coord coord))
-  | Imp.BlockDim coord ->  Special (NumThreadId (translate_coord coord))
-  | Imp.BlockIdx coord  -> Special (CtaId (translate_coord coord))
-  | Imp.ThreadIdx coord -> Special (ThreadId (translate_coord coord))
-  | _ -> failwith "[imp2ptx] expected special register"
-
 let gen_exp 
     (codegen : PtxCodegen.ptx_codegen)
     ?destReg
@@ -44,44 +44,7 @@ let gen_exp
     codegen#convert_fresh ~destType:ptxT ~srcVal:ptxVal
   in 
   let exp = expNode.Imp.exp in 
-  begin match exp with 
-  (* when dealing with a number or simple variable reference, just
-     allocate a new register and move the value into it 
-  *) 
-  | Imp.Var _  | Imp.Const _ ->
-      same_type destType ptxResultT;
-      assert (destType = ptxResultT);  
-      let rhs = translate_simple_exp codegen exp in
-      codegen#emit [mov destReg rhs]  
-  | Imp.GridDim _   
-  | Imp.BlockDim _ 
-  | Imp.BlockIdx _  
-  | Imp.ThreadIdx _ -> 
-      let special = translate_special exp in  
-      if destType = U16 then 
-        codegen#emit [mov destReg special]
-      else
-        let reg16 = codegen#fresh_reg U16 in  begin
-          codegen#emit [mov reg16 special]; 
-          codegen#convert ~destReg:destReg ~srcVal:reg16
-        end
-  
-  | DimSize(dim, {Imp.exp=Var id}) ->
-      let arrayReg = codegen#imp_reg id in 
-      if codegen#is_shared_ptr arrayReg then 
-        let dims = codegen#get_shared_dims arrayReg in 
-        assert (dim <= Array.length dims);
-        let size = dims.(dim - 1) in 
-        codegen#emit [mov destReg (int size)]
-     else if codegen#is_global_array_ptr arrayReg then 
-        let rank = codegen#get_global_array_rank arrayReg in 
-        assert (dim <= rank);
-        let shapeReg = codegen#get_shape_reg arrayReg in
-        (* this works if we're looking at 1st dimension, 
-           what about bigger ones?..we need constant offset + dim-1*32 
-        *) 
-        codegen#emit [ld_global U32 destReg shapeReg] 
-     else failwith "[imp2ptx] attempting to get DimSize of a scalar"       
+  begin match exp with
   | Imp.Op(op,dynArgType, args) -> 
       same_type ptxResultT destType;
       assert (ptxResultT = destType);
@@ -148,9 +111,42 @@ let gen_exp
       let oldName = DynType.to_str tOld in 
       let newName = DynType.to_str tNew in  
       codegen#convert ~destReg ~srcVal:x' 
-      
+  
+  | DimSize(dim, {Imp.exp=Var id}) ->
+      let arrayReg = codegen#imp_reg id in 
+      if codegen#is_shared_ptr arrayReg then 
+        let dims = codegen#get_shared_dims arrayReg in 
+        assert (dim <= Array.length dims);
+        let size = dims.(dim - 1) in 
+        codegen#emit [mov destReg (int size)]
+     else if codegen#is_global_array_ptr arrayReg then 
+        let rank = codegen#get_global_array_rank arrayReg in 
+        assert (dim <= rank);
+        let shapeReg = codegen#get_shape_reg arrayReg in
+        (* this works if we're looking at 1st dimension, 
+           what about bigger ones?..we need constant offset + dim-1*32 
+        *) 
+        codegen#emit [ld_global U32 destReg shapeReg] 
+     else failwith "[imp2ptx] attempting to get DimSize of a scalar"
+  
+  (* when dealing with a constant or simple variable reference, just
+     allocate a new register and move the value into it. 
+     Note that although Imp array dimensions are also technically constants, 
+     we deal with them separately above. 
+  *) 
+ 
+  | ThreadIdx _ 
+  | BlockIdx _ 
+  | BlockDim _ 
+  | GridDim _    
+  | Const _ 
+  | Var _ ->
+      same_type destType ptxResultT;
+      assert (destType = ptxResultT);
+      let rhs = translate_simple_exp codegen exp in
+      codegen#emit [mov destReg rhs]      
   | other -> 
-     failwith (sprintf "unexpected simple imp expression: %s" 
+     failwith (sprintf "unexpected imp expression: %s" 
                (Imp.exp_to_str other))
   end
   ; 
@@ -232,7 +228,7 @@ let translate_kernel ?input_spaces (impfn : Imp.fn) =
          impfn.input_types
     | Some inputSpaces -> inputSpaces  
   in 
-  let codegen = new ptx_codegen in
+  let codegen = new PtxCodegen.ptx_codegen in
   (* declare all local variables as:
       1) a scalar register 
       2) a local array for which you receive a pointer 
