@@ -148,7 +148,7 @@ let fundef_to_str fundef =
     (block_to_str ~space:"\t" ~tenv:fundef.tenv fundef.body)
   
 
-let mk_fundef ~body ~tenv ~input_ids ~output_ids =
+let mk_fundef  ?(tenv=ID.Map.empty) ~input_ids ~output_ids ~body =
   let inTypes = 
     List.map (fun id -> ID.Map.find_default id tenv DynType.BottomT) input_ids 
   in 

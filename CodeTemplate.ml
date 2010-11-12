@@ -2,7 +2,7 @@ open Base
 
 open HostVal
 open Printf
-open Program
+open InterpState 
 open SourceInfo
 (* need the TypeCheck module included to not break the release build...
    we really need a more resilient build script for CQInterface
