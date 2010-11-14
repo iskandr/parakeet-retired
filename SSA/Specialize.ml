@@ -389,7 +389,13 @@ and specialize_fundef interpState untypedFundef signature =
   IFDEF DEBUG THEN
     let nActual = List.length untypedFundef.input_ids in 
     let nExpected = List.length signature.Signature.inputs in 
-    assert (nActual = nExpected); 
+    if nActual <> nExpected then failwith $ Printf.sprintf 
+      "mismatch between fn arity: actual (%d), expected (%d) for %s : %s"
+      nActual 
+      nExpected 
+      (FnId.to_str untypedFundef.fn_id) 
+      (Signature.to_str signature)
+    ;  
   ENDIF;  
   let tyEnv, constEnv =
     List.fold_left2 aux 
