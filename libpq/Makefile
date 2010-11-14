@@ -364,6 +364,9 @@ where: where.cu_o where_tester.o base.o
 naivecpud: naivecpuapdiff.o base.o
 	gcc-4.3 -O3 naivecpuapdiff.o base.o -o naivecpud $(INCLUDES) $(LIB) -L.
 
+ap1d2d: all_pairs_dists_tester.cu_o base.o
+	gcc-4.3 all_pairs_dists_tester.cu_o base.o -o ap1d2d $(INCLUDES) $(LIB) -L.
+
 all_pairs: all_pairs_abs_diff.cu_o all_pairs_abs_diff_tester.o
 	gcc-4.3 all_pairs_abs_diff.cu_o all_pairs_abs_diff_tester.o -I. $(INCLUDES) \
 	-o all_pairs $(LIB) -L.

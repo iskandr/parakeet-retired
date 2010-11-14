@@ -149,7 +149,10 @@ K gen_module_template(K functions) {
     module_templates = new_vector;
   }
   caml_register_global_root(&module_templates[num_module_templates]);
-  if (!ocaml_gen_module_template) { printf("ERROR: gen_module_template not found\n"); exit(1); }
+  if (!ocaml_gen_module_template) {
+    printf("ERROR: gen_module_template not found\n");
+    exit(1);
+  }
   module_templates[num_module_templates] =
     caml_callback(*ocaml_gen_module_template, func_list1);
 
@@ -183,7 +186,10 @@ K get_function_template(K mod_temp, K func_name) {
     function_templates = new_vector;
   }
   caml_register_global_root(&function_templates[num_function_templates]);
-  if (!ocaml_get_function_template) { printf("ERROR: get_function_template not found\n"); exit(1); }
+  if (!ocaml_get_function_template) {
+    printf("ERROR: get_function_template not found\n");
+    exit(1);
+  }
   function_templates[num_function_templates] = caml_callback2(
     *ocaml_get_function_template, camlmod_temp, camlfunc_name);
   K t = ki((I)num_function_templates);
@@ -211,7 +217,10 @@ K run_template(K t, K args, K globals) {
 #endif
 
   // Now actually call the OCaml function to build and run the CUDA function
-  if(!ocaml_run_template) { printf("ERROR: run_template not found\n"); exit(1); }
+  if(!ocaml_run_template) {
+    printf("ERROR: run_template not found\n");
+    exit(1);
+  }
   ocaml_ret = caml_callback3(
     *ocaml_run_template, ocaml_template, ocaml_globals, ocaml_args);
 
@@ -303,6 +312,7 @@ value args_list_to_ocaml_list(K args) {
    // Loop over the args, building an OCaml list of host_vals
   int num_args = args->n;
   int i;
+
   if (num_args > 0) {
     if (args->t == 0) {
       // Mixed list
@@ -321,7 +331,6 @@ value args_list_to_ocaml_list(K args) {
       }
     } else {
       // List of all the same type of scalar
-     // printf("list of all same type\n");
       for (i = num_args - 2; i >= 0; --i) {
         // create a new cons cell
         ocaml_arg2 = caml_alloc_tuple(2);
@@ -523,7 +532,10 @@ void get_kvar_representation(K kvar, int *num_bytes, value *ocaml_dyn_type,
 
     // Allocate a value to store the dyn_type of the children
     *ocaml_dyn_type = caml_alloc(1, VecT);
-    if(!ocaml_ktypenum_to_ocaml_type) { printf("ERROR: ktypenum_to_ocaml_type not found\n"); exit(1); }
+    if(!ocaml_ktypenum_to_ocaml_type) {
+      printf("ERROR: ktypenum_to_ocaml_type not found\n");
+      exit(1);
+    }
     Store_field(*ocaml_dyn_type, 0,
                 caml_callback(*ocaml_ktypenum_to_ocaml_type,
                               Val_int(kvar->t)));
@@ -808,7 +820,10 @@ K dump_variables(K filename, K vars) {
     } else {
       type = tmp->t;
     }
-    if(!ocaml_ktypenum_to_ocaml_type) { printf("ERROR: ktypenum_to_ocaml_type not found\n"); exit(1); }
+    if(!ocaml_ktypenum_to_ocaml_type) {
+      printf("ERROR: ktypenum_to_ocaml_type not found\n");
+      exit(1);
+    }
     ocaml_scalar_type =
       caml_callback(*ocaml_ktypenum_to_ocaml_type, Val_int(type));
 

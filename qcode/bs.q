@@ -8,6 +8,7 @@ CNDF:{[InputX]
 
   expValues:exp -0.5e * xInput * xInput;
   xNPrimeofX:expValues * inv_sqrt_2xPI;
+  xNPrimeofX:expValues * 0.398;
   
   xK2:1.0e % 1.0e + 0.2316419e * xInput;
   xK2_2:xK2 * xK2;
@@ -50,7 +51,7 @@ BlkSchlsEqEuroNoDiv:{[xStockPrice; xStrikePrice; xRiskFreeRate; xVolatility; xTi
   
   OptionPrice}
 
-options:ReadOptionFile["in_10M.txt"];
+options:ReadOptionFile["../unit/bs_1M.txt"];
 / options:ReadOptionFile["small_bs_data.txt"];
 / options: ReadOptionFile["in_100M.txt"]; 
 xStockPrice:options[`Stockprice];

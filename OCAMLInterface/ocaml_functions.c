@@ -14,15 +14,15 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "variants.h"
 #include "ocaml_functions.h"
+#include "variants.h"
 
 
 /* given a PQNum value, wrap it in a HostScalar constructor */
 value build_ocaml_host_scalar(value num) {
   CAMLparam1(num);
   CAMLlocal1(hostScalar);
-  num = caml_alloc(1, HostScalar);
+  hostScalar = caml_alloc(1, HostScalar);
   Store_field(hostScalar, 0, num);
   CAMLreturn(hostScalar);
 }
@@ -94,8 +94,10 @@ value build_pqnum_float32(float f) {
    * floats stores these floats inline. Thus we need to allocate
    * a 64-bit block and use the special Store_double_field macro.
    */
+  printf("in build_pqnum_float32\n");
   num = caml_alloc(2, PQNUM_FLOAT32);
   Store_double_field(num, 0, f);
+  printf("about to return from build_pqnum_float32\n");
   CAMLreturn(num);
 }
 

@@ -82,11 +82,9 @@
 \newblock In {\em Proceedings of the 2004 Haskell Workshop\/} (2004), ACM
   Press.
 
-\bibitem{Muns08}
+\bibitem{Muns10}
 {\sc Munshi, A.}
-\newblock {OpenCL}: Parallel computing on the {GPU} and {CPU}.
-\newblock Presentation at {SIGGRAPH} 2008
-  http://s08.idav.ucdavis.edu/munshi-opencl.pdf.
+\newblock The {O}pen{CL} specification version 1.1, September 2010.
 
 \bibitem{NvidCU}
 {\sc {NVIDIA}}.
