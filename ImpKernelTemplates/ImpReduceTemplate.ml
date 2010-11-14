@@ -117,21 +117,37 @@ let gen_reduce_2d_capable payload threadsPerBlock outTypes =
   ];
   
   let firstvec = codegen#fresh_var Int32T in
-  let elidx = codegen#fresh_var Int32T in
   let cacheid = codegen#fresh_var Int32T in
   let cur_y = codegen#fresh_var Int32T in
+  
+  let fetch1 =
+    if ndims = 1 then
+      setidx cache [cacheid] (idx input firstvec)
+    else
+      setidx cache [cacheid] (idx (idx input firstvec) id_x)
+  in
+  let fetch2 =
+    if ndims = 1 then
+      set spin2 (idx input (firstvec +$ (int 1)))
+    else
+      set spin2 (idx (idx input (firstvec +$ (int 1))) id_x)
+  in
+  let outidxs =
+    if ndims = 1 then
+      [blockIdx.y]
+    else
+      [blockIdx.y;id_x]
+  in
+  
   let template = [
     ifTrue (id_x <$ vec_len) [
 	    set firstvec ((int 2) *$ id_y);
-	    set elidx ((firstvec *$ vec_len) +$ id_x);
 	    set cacheid ((bx *$ threadIdx.y) +$ threadIdx.x);
       
-	    ifTrue (firstvec <$ num_vecs) [
-	      setidx cache [cacheid] (idx input elidx)
-	    ];
+	    ifTrue (firstvec <$ num_vecs) [fetch1];
 	    ifTrue ((firstvec +$ (int 1)) <$ num_vecs) [
 	      set spin1 (idx cache cacheid);
-	      set spin2 (idx input (elidx +$ vec_len));
+        fetch2;
 	      SPLICE;
 	      setidx cache [cacheid] spout
 	    ];
@@ -140,7 +156,8 @@ let gen_reduce_2d_capable payload threadsPerBlock outTypes =
 	    (* TODO: Redo this as a bit-shift *)
 	    set cur_y (by /$ (int 2));
 	    while_ (cur_y >$ (int 0)) [
-	      ifTrue ((threadIdx.y <$ cur_y) &&$ ((id_y +$ cur_y) <$ num_vecs)) [
+	      ifTrue ((threadIdx.y <$ cur_y) &&$
+                (((id_y +$ cur_y) *$ (int 2)) <$ num_vecs)) [
 	        set spin1 (idx cache cacheid);
 	        set spin2 (idx cache (cacheid +$ (cur_y *$ bx)));
 	        SPLICE;
@@ -150,10 +167,7 @@ let gen_reduce_2d_capable payload threadsPerBlock outTypes =
 	      set cur_y (cur_y /$ (int 2))
 	    ];
 	    ifTrue ((threadIdx.y =$ (int 0)) &&$ (threadIdx.x <$ bx)) [
-	      setidx
-          output
-          [((vec_len *$ blockIdx.y) +$ id_x)]
-          (idx cache threadIdx.x)
+	      setidx output outidxs (idx cache threadIdx.x)
 	    ]
     ]
   ] in
