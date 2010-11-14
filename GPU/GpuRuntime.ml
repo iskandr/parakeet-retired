@@ -6,15 +6,15 @@ open Printf
 open ShapeInference 
 open ImpShapeInference 
 
-type adverb_impl = 
- MemoryState.mem_state ->  FnTable.t -> SSA.fundef -> 
+type adverb_impl =
+ MemoryState.mem_state ->  FnTable.t -> SSA.fundef ->
     GpuVal.gpu_val list -> DynType.t list -> GpuVal.gpu_val list
 
 type simple_array_op_impl =
-  MemoryState.mem_state -> FnTable.t -> 
+  MemoryState.mem_state -> FnTable.t ->
     GpuVal.gpu_val list -> DynType.t list -> GpuVal.gpu_val list
 
-exception InvalidGpuArgs 
+exception InvalidGpuArgs
 
 let sizeof ty shape =
   DynType.sizeof (DynType.elt_type ty) * Shape.nelts shape  
@@ -62,7 +62,8 @@ let create_gpu_arg_env
     ~(local_ids : ID.t list)
     ~(output_ids : ID.t list) 
     ~(shape_env : Shape.t ID.Map.t)
-    ~(type_env : (ID.t, DynType.t) PMap.t) =
+    ~(type_env : (ID.t, DynType.t) PMap.t)
+    ~(shared_env : (ID.t, int list) PMap.t) =
   (* for now ignore calling_conventions.data_locations *)
   IFDEF DEBUG THEN 
     if List.length input_ids <> List.length input_vals then 
@@ -83,7 +84,7 @@ let create_gpu_arg_env
     (fun env id -> 
       if not $ ID.Map.mem id env then (
         let ty = PMap.find id type_env in
-        if not $ DynType.is_scalar ty then (
+        if not (DynType.is_scalar ty || PMap.mem id shared_env) then (
           let shape = ID.Map.find id shape_env in
           (* don't yet handle scalar outputs *) 
           assert (Shape.rank shape > 0);
@@ -112,6 +113,7 @@ let create_args
       ~output_ids:outputIds
       ~shape_env:shapeEnv
       ~type_env:impfn.Imp.tenv
+      ~shared_env:impfn.Imp.shared_array_allocations
   in 
   let paramsArray = 
     Array.map 
@@ -212,7 +214,7 @@ let run_reduce
     Printf.printf "Launching Reduce kernel\n";
   ENDIF;
   let cacheKey = payload.SSA.fn_id, inputTypes in 
-  let {imp_source=impKernel; cc=_; cuda_module=compiledModule} =  
+  let {imp_source=impKernel; cc=cc; cuda_module=compiledModule} =  
     if Hashtbl.mem reduceCache cacheKey then 
       Hashtbl.find reduceCache cacheKey
     else (
@@ -230,48 +232,33 @@ let run_reduce
     (* WAYS THIS IS CURRENTLY WRONG: 
        - we are ignoring the initial value
        - we are only allowing reductions over a single array
-       - we only deal with 1D arrays
-       - only scalar outputs are allowed  
-    *) 
+    *)
     | [fnName], _ :: [gpuVal] ->
-      let numInputElts = Shape.nelts (GpuVal.get_shape gpuVal) in
-      let rec aux inputArg curNumElts =
+      let inShape = GpuVal.get_shape gpuVal in
+      let numInputElts = Shape.get inShape 0 in
+      let rec aux inputArgs curNumElts =
         if curNumElts > 1 then (
           let numOutputElts = safe_div curNumElts (threadsPerBlock * 2) in
-          let newShape = Shape.of_list [numOutputElts] in
-          let newOut = GpuVal.mk_gpu_vec (DynType.VecT outputType) newShape in 
-          let args = Array.of_list ([inputArg; newOut]) in
-          (* TODO: Only will work for width 1 *)
+          let args, outputsList = create_args impKernel cc inputArgs in
+          let x_threads = 1 in
+          let x_grid =
+            if Shape.rank inShape = 1 then 1
+            else Shape.get inShape 1 / x_threads
+          in
           let gridParams = {
-            LibPQ.threads_x=1; threads_y=256; threads_z=1;
-            grid_x=1; grid_y=numOutputElts;
+            LibPQ.threads_x=x_threads; threads_y=256; threads_z=1;
+            grid_x=x_grid; grid_y=numOutputElts;
           }
           in
-          (*
-          let gridParams = match
-	            HardwareInfo.get_grid_params
-	              ~device:0
-	              ~block_size:threadsPerBlock
-	              (safe_div curNumElts 2)
-	            with
-	            | Some gridParams -> gridParams
-	            | None -> failwith
-	                (sprintf "Unable to get launch params for %d elts" curNumElts)
-	        in
-          *)
-          Printf.printf "Launching with %d inputs, %d outputs\n"
-            curNumElts numOutputElts;
-          flush stdout;
           LibPQ.launch_ptx
             compiledModule.Cuda.module_ptr fnName args gridParams;
           if curNumElts < numInputElts then GpuVal.free args.(0);
-          aux newOut numOutputElts
+          aux outputsList numOutputElts
           )
         else
-          inputArg
+          inputArgs
       in
-      let ret = aux gpuVal numInputElts in
-      [ret]
+      aux [gpuVal] numInputElts
     | _ -> failwith "expect one reduce kernel"
 
 (** ALLPAIRS **)

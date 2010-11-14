@@ -12,34 +12,53 @@
 \preprintfooter{PLDI 2011}
 \titlebanner{DRAFT---Do not distribute}
 
-\title{Parakeet: An Array-Based Framework for High-Level GPGPU Programming}
+\title{Parakeet: General Purpose GPU Programming with High Level Array
+Languages}
 %\authorinfo{Anonymous}
 
 \maketitle
 
 \begin{abstract}
-GPUs are now often being used as general-purpose accelerators, since they have
-far greater memory bandwith and processor count per dollar and per watt than
-contemporary CPUs.  However, the current tools, such as CUDA and OpenCL,
-available for programming GPUs are cumbersome and very low level, thus forcing
-a tradeoff between programmer productivity and program performance.
+Contemporary GPUs offer staggering performance potential, which has
+led to an explosion in recent work on enabling the execution of
+general-purpose programs on GPUs. Despite various advances in making
+general-purpose GPU programming easier, the two commonly used
+frameworks (NVIDIA's CUDA and OpenCL) are cumbersome and require
+detailed architectural knowledge on the part of the programmer to
+fully harness this performance potential.
 
-In orderWe present Parakeet, a dynamic runtime/JIT compiler for high level,
-dynamic array languages that targets NVIDIA GPUs.
+The potential performance advantage over contemporary CPUs that GPUs
+offer is due in large part to their having been heavily optimized for
+data parallel workloads.  Array-oriented programming--which encourages
+the use of data parallel array operators (such as map, reduce, and
+scan), and de-emphasizes the importance of explicit loops--is thus a
+natural model for high level programming of GPUs.
 
-for Q,  a high-level array
-language of the APL family, which targets NVIDIA GPUs. Q is a highly dynamic
-language with a rich set of
-array operators and is well suited for rapid prototyping. The extensive use of
-array operators in Q programs organizes a program's parallelism in such a way
-that allows us to parallelize automatically and transparently
-many computational kernels while avoiding the common pitfalls
-associated with the analysis of loops. Our optimization techniques allow Q
-implementations of two benchmark problems to achieve speeds within a
-factor of XX of hand-coded GPU programs for those problems.
+We present Parakeet, an intelligent runtime for executing high level
+array-oriented programs on GPUs.  The heart of Parakeet is an
+interpreter, which upon reaching an array operator synthesizes and
+executes a GPU program to implement that operator. Parakeet takes
+advantage of runtime information both to choose between different
+possible implementations of a GPU program and to set execution
+parameters which greatly impact performance. Parakeet transparently
+moves data to and from the GPU and performs garbage collection of GPU
+memory.
+
+We evaluate our system on two standard benchmarks: Black-Scholes
+option pricing, and K-Means clustering.  We compare high level
+array-oriented implementations to hand-written tuned GPU versions from
+the CUDA SDK and the Rodinia GPU benchmark suite. Despite having
+orders of magnitude fewer lines of code, the high level
+implementations perform competitively when executed by our system.
 \end{abstract}
 
 \section{Introduction}
+
+Contemporary GPUs boast massive performance potential--in some cases orders of
+magnitude higher performance per dollar than that of CPUs.  This has led to an
+explosion in recent work on enabling the execution of general-purpose programs
+on GPUs in order to harness this performance for non-graphics tasks
+\cite{Cata10}.  Despite this, the 
 
 Parallelism has become ubiquitous in modern processors, with all major CPU
 manufacturers increasing processor performance by adding more and more cores as
