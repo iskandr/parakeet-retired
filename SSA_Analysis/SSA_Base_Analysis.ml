@@ -33,7 +33,8 @@ and eval_stmt logic env node =
   | SetIdx (_, indices, rhs)->  
     let indicesEnv, indicesChanged = eval_value_list logic env indices in 
     let rhsEnv, rhsChanged = eval_value logic indicesEnv rhs in 
-    logic#stmt rhsEnv node, (indicesChanged || rhsChanged)  
+    logic#stmt rhsEnv node, (indicesChanged || rhsChanged)
+  
   in 
   env', changed || (env != env')      
 and eval_exp logic env expNode = 

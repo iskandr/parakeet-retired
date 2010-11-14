@@ -12,6 +12,8 @@ type num =
   | Int64 of Int64.t
   | Float32 of float
   | Float64 of float
+  | Inf of DynType.t
+  | NegInf of DynType.t 
 
 let num_to_str = function
   | UInt16 x  
@@ -21,7 +23,9 @@ let num_to_str = function
   | Float32 x 
   | Float64 x -> Float.to_string x
   | Bool x -> Int.to_string (Bool.to_int x)
-  | Char c ->  Char.to_string c  
+  | Char c ->  Char.to_string c
+  | Inf t -> Printf.sprintf "inf : %s" (DynType.to_str t)
+  | NegInf t -> Printf.sprintf "-inf : %s" (DynType.to_str t)  
 
 let type_of_num = function 
   | UInt16 _ -> UInt16T 
@@ -34,7 +38,8 @@ let type_of_num = function
   | Float64 _ -> Float64T 
 	| Bool _ -> BoolT
   | Char _ -> CharT 
-
+  | Inf t
+  | NegInf t -> t 
 
 let coerce_int i = function
   | UInt16T -> assert (i >= 0); UInt16 i 
@@ -107,7 +112,7 @@ let coerce_float f = function
         else Char (Char.chr (int_of_float f))
   | _ -> failwith "coercion for this type not implemented"
 
-
+         
 let coerce_num n t =
   match n with 
     | Int16 i
@@ -118,7 +123,8 @@ let coerce_num n t =
     | Float64 f -> coerce_float f t  
     | Bool b -> if b then coerce_int 1 t else coerce_int 0 t 
     | Char c -> coerce_int (Char.code c) t
-
+    | Inf _ -> Inf t 
+    | NegInf _ -> NegInf t  
 
 let to_int = function
   | UInt16 i 
@@ -131,6 +137,9 @@ let to_int = function
   | Float64 f -> Float.to_int f  
   | Bool b -> if b then 1  else 0 
   | Char c -> Char.code c
+  | Inf _ -> max_int
+  | NegInf _ -> min_int
+  
 
 let to_float = function 
   | UInt32 i -> Uint32.to_float i 
@@ -139,4 +148,6 @@ let to_float = function
   | Int64 i -> Int64.to_float i
   | Float32 f
   | Float64 f -> f
+  | Inf _ -> max_float
+  | NegInf _ -> min_float 
   | other -> Int.to_float (to_int other)

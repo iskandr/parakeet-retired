@@ -193,7 +193,14 @@ let rec node_to_str ?(inBlock=false) node =
       let fStr = node_to_str ~inBlock:true fNode in 
       sprintf "$[%s;%s;%s]" testStr tStr fStr 
   | Void -> "::"
-  | _ -> "<no representation>"
-
+  | WhileLoop (test,body) -> 
+      sprintf "while[%s; %s]"
+        (node_to_str ~inBlock:true test)
+        (node_to_str ~inBlock:true body)
+  | CountLoop (count, body) -> 
+      sprintf "do[%s; %s]"
+        (node_to_str ~inBlock:true count)
+        (node_to_str ~inBlock:true body)
+  | _ -> failwith "no representation for ast node"
 and args_to_str ?(delim="; ") args = 
     String.concat delim (List.map (node_to_str ~inBlock:true) args)

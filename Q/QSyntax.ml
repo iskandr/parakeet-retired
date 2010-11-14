@@ -44,7 +44,8 @@ let rec syntax_to_str = function
   | ArrExp elts -> sprintf "(%s)" (nodes_to_str "; " elts)  
   | AppExp (lhs, args) ->
        sprintf "%s[%s]" (node_to_str lhs) (nodes_to_str "; " args)
-  | ControlExp (name, args) -> "<control>" 
+  | ControlExp (name, args) -> 
+       sprintf "%s[%s]" name (nodes_to_str ";\n" args) 
   | BlockExp stmts -> sprintf "[%s]" (nodes_to_str ";\n" stmts)
   | DefExp (name, rhs) -> sprintf "%s: %s" name (node_to_str rhs) 
   | SetIdxExp (name, indices, rhs) -> "<setidx>"

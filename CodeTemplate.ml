@@ -11,8 +11,6 @@ open TypeCheck
 open SSA 
 open QStdLib 
 
-let _ = Printf.printf "any: %s\n" (SSA.fundef_to_str QStdLib.any) 
-
 let _ = Printexc.record_backtrace true 
 
 let checkpoint p =

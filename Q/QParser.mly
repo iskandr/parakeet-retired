@@ -99,6 +99,8 @@ compound_exp:
 | arg1=simple_exp; name=ID; adverb=ADVERB; arg2=compound_exp
    { mk $ AppExp(mk $ Id adverb, [mk $ Id name; arg1; arg2]) }
 */ 
+| control=CONTROL LBRACKET args=args_list RBRACKET 
+   { mk $ ControlExp (control, args) }  
 | arg1=simple_exp; op=simple_exp; adverb=ADVERB; arg2=compound_exp
    { mk $ AppExp(mk $ Id adverb, [op; arg1; arg2]) }
  

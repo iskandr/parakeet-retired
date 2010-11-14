@@ -39,7 +39,15 @@ let analyze_ast ast =
 				let scopeInfo' = aux ~inFunction scopeInfo node in
 				let blockInfo' = node.ast_info <+> blockInfo in  
 				fold_block ~inFunction scopeInfo' blockInfo' nodes 				 
-  and aux ~inFunction scopeInfo node = 
+  and aux ~inFunction scopeInfo node =
+    let analyze_block nodes = 
+      let emptyBlockInfo = mk_ast_info () in 
+      let scopeInfo', blockInfo =
+        fold_block ~inFunction scopeInfo emptyBlockInfo nodes 
+      in 
+      node.ast_info <- blockInfo; 
+      scopeInfo'          
+    in      
 		match node.data with  
 		| Lam (ids, body) ->
        node.ast_info.is_function <- true; 
@@ -53,13 +61,12 @@ let analyze_ast ast =
         { scopeInfo with volatile_global = 
             PSet.union scopeInfo.volatile_global fnScopeInfo'.volatile_global 
         }
- 		| Arr nodes      
-		| Block nodes -> 
-        let emptyBlockInfo = mk_ast_info () in 
-				let scopeInfo', blockInfo =
-           fold_block ~inFunction scopeInfo emptyBlockInfo nodes in 
-				node.ast_info <- blockInfo; 
-				scopeInfo' 			
+    
+    | CountLoop (a,b) 
+    | WhileLoop (a,b) -> analyze_block [a;b]  
+            
+ 		| Arr nodes  
+		| Block nodes -> analyze_block nodes 
         
     | If(test, tNode, fNode) ->
 				let testInfo = aux ~inFunction scopeInfo test in
@@ -80,13 +87,14 @@ let analyze_ast ast =
           fold_block ~inFunction scopeInfo emptyArgsInfo (List.rev args) in
         
         let scopeInfo'' = aux ~inFunction scopeInfo' fn in
-        (*   printf "--- app: [fn info] %s \n" (AST_Info.to_str fn.ast_info); 
-             printf "--- app: [args info] %s \n "(AST_Info.to_str argsInfo);
-        *)   
-				node.ast_info <- fn.ast_info <+> argsInfo;
+        node.ast_info <- fn.ast_info <+> argsInfo;
         (* 
-           printf "--- app: [post-merge] %s \n" (AST_Info.to_str node.ast_info); 
+          HACK: 
+          for now assume function calls don't produce functions 
         *)
+        node.ast_info.is_function <- false; 
+        
+        
 				scopeInfo'' 
 				
     | SetIdx (name, indices, rhs) -> 
@@ -128,14 +136,15 @@ let analyze_ast ast =
       else 
         node.ast_info.defs_global <- PSet.add name node.ast_info.defs_global
       end;
-      if PSet.mem name scopeInfo'.locals then  
+      if PSet.mem name scopeInfo'.locals then (  
+        node.ast_info.writes_local <- PSet.add name node.ast_info.writes_local;
         { scopeInfo' with 
-            volatile_local = PSet.add name scopeInfo'.volatile_local } 
+            volatile_local = PSet.add name scopeInfo'.volatile_local }
+      ) 
 			else 
         { scopeInfo' with locals = PSet.add name scopeInfo'.locals } 
     
-    | CountLoop _ 
-		| WhileLoop _ -> failwith "loops not yet supported"
+   
     | Prim op ->
          (if not $ is_pure_op op then 
            node.ast_info.io <- true); 
@@ -173,7 +182,11 @@ let collect_defs ast =
 let transitive_closure infoMap =
    let grow key info (map, keepGoing) =
       let folder var acc = 
-        if PMap.mem var map then (PMap.find var map <+> acc) 
+        if PMap.mem var map then (
+          (* only combine if the referenced variable is a function *)  
+          let varInfo = PMap.find var map  in 
+          if varInfo.is_function then varInfo <+> acc else acc
+        ) 
         else
         (* if the variable isn't recognized as a user-defined global, 
            check if it's defined in the standard library 
@@ -232,9 +245,13 @@ let find_safe_functions globalFnMap volatileFnSet =
       else iterate safe' unsafe' 
     in 
     (* a function is very obviously unsafe if it performs I/O or writes to 
-       a global variable
+       a global variable, or FOR NOW, writes to a local variable 
     *) 
-    let simple_filt info = info.io || not (PSet.is_empty info.writes_global) in
+    let simple_filt info = 
+      info.io || 
+      not (PSet.is_empty info.writes_global) || 
+      not (PSet.is_empty info.writes_local)
+    in
     let simpleUnsafe, simpleSafe = 
       Tuple.map2 (fun set ->PSet.of_enum (PMap.keys set)) 
         (PMap.partition_by_value simple_filt globalFnMap) in

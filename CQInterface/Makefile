@@ -37,7 +37,11 @@ BaseCommon.cmx Tuple.cmx BaseArray.cmx BaseList.cmx  BaseSet.cmx  BaseMap.cmx \
 Graph.cmx \
 Bool.cmx Float.cmx Int.cmx PSet.cmx BasePMap.cmx Base.cmx \
 MutableSet.cmx \
-UID.cmx ID.cmx PQNum.cmx Prim.cmx DynType.cmx \
+DynType.cmx \
+UID.cmx \
+ID.cmx \
+PQNum.cmx \
+Prim.cmx \
 QPrims.cmx \
 SourceInfo.cmx QSyntax.cmx AST_Info.cmx AST.cmx QSyntax_to_AST.cmx \
 QParser.cmx \

@@ -170,13 +170,15 @@ and translate_exp env node =
       let fundef = translate_fn env vars body in 
       value (Lam fundef) 
        
-  | AST.Arr _ 
-  | AST.If _ 
-  | AST.Def _
-  | AST.SetIdx _ 
-  | AST.Block _ 
-  | AST.WhileLoop _
-  | AST.CountLoop _ -> assert false  
+  | AST.Arr args -> 
+      let stmts, ssaEnv, ssaArgs = translate_args env args in 
+      stmts, ssaEnv, SSA.mk_arr ssaArgs
+  | AST.If _  -> failwith "unexpected If while converting to SSA"
+  | AST.Def _ -> failwith "unexpected Def while converting to SSA"
+  | AST.SetIdx _ -> failwith "unexpected SetIdx while converting to SSA"
+  | AST.Block _  -> failwith "unexpected Block while converting to SSA"
+  | AST.WhileLoop _ -> failwith "unexpected WhileLoop while converting to SSA"
+  | AST.CountLoop _ -> failwith "unexpected CountLoop while converting to SSA"
    
                     
 and translate_value env node =

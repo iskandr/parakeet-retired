@@ -49,6 +49,7 @@ let whitespace = [' ' '\t' ]+
   
 let basic_binop = "+" | "-" | "*" | "%" | "^" | "=" | "<>"  | "<"|"<="|">"|">=" 
 					  | "?"| "~" | "&" | "|" | "," | "@" | "."  | "#" | "$" | "!"  | "_"
+            | "|" | "&"
 
 let binop = basic_binop | "ij" | "xprev" | "xbar" | "rotate" | "msum" | "mmin" 
 						| "mmax" | "mdev" | "mcount" | "mavg" | "wsum" | "mavg" | "mmu"  

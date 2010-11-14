@@ -83,13 +83,14 @@ let rewrite_global_reads
   *)
   let rec fold_block locals revNewNodes oldNodes = match oldNodes with 
     | [] -> List.rev revNewNodes, locals
-    | node::nodes -> let ast', locals' = self locals node in 
+    | node::nodes -> 
+      let ast', locals' = self locals node in 
       fold_block locals' (ast'::revNewNodes) nodes 
-   and  self locals ast = 
+   and  self locals ast =  
      match ast.data with 
     | Var x ->
         let ast' = 
-          if PSet.mem x locals  then ast
+          if PSet.mem x locals then ast
           else if PSet.mem x globalDataVars then 
             update_var_node ast (rename_global x)
           else if PMap.mem x globalDataMap then (  
@@ -113,17 +114,15 @@ let rewrite_global_reads
         in ast', locals
     | Def (name, rhs) -> 
         let rhs', locals' = self locals rhs in 
-        let locals'' = PSet.add name locals' in 
         let ast' = update_def_node ast name rhs' in 
-        ast', locals''    
+        ast', PSet.add name locals'
     | Block nodes -> 
         let nodes', locals' = fold_block locals [] nodes in 
         update_block_node ast nodes', locals'
     | Lam(ids, body) -> 
-        let locals = PSet.from_list ids in
-        let body', locals' = self locals body in 
+        let body', _ = self (PSet.from_list ids) body in 
         let ast' = update_lam_node ast ids body' in
-        ast', locals' 
+        ast', locals 
     | App(fn, args) -> 
         let args',locals' = fold_block locals [] args in 
         let fn',locals'' = self locals' fn in
@@ -352,7 +351,9 @@ let process_lexbuf ~debug lexbuf =
       PMap.iter print_info infoMap;
       eprintf "\n"; 
     ENDIF;
-    let transInfo = Analyze_AST.transitive_closure infoMap in
+    let transInfo = 
+      Analyze_AST.transitive_closure infoMap 
+    in
     IFDEF DEBUG THEN 
       eprintf "[transitive closure of AST info]\n";
       PMap.iter print_info transInfo;
@@ -395,6 +396,10 @@ let process_lexbuf ~debug lexbuf =
     let globalDataReadsMap =
       PMap.map
        (fun set -> 
+          (* HACK: exclude library functions from global reads--
+             This is wrong if the user actually defines some global
+             data with the same name as a library function 
+          *) 
           PSet.filter 
             (fun name -> not $ 
               InterpState.have_untyped_function QStdLib.initState name)

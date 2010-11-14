@@ -252,18 +252,22 @@ and annotate_stmt context stmtNode =
       let commonTypes = List.map2 DynType.common_type oldTypes newTypes in 
       if List.exists ((=) DynType.AnyT) commonTypes then  
         failwith "error during type inference"
-      else
-      let tenv' = 
-        List.fold_left2  
+      
+      else (
+        IFDEF DEBUG THEN 
+          assert (List.length ids = List.length newTypes); 
+        ENDIF; 
+        let tenv' = 
+          List.fold_left2  
             (fun accEnv id t -> ID.Map.add id t accEnv)
             context.type_env 
             ids 
             newTypes
-       in  
-       let changed = rhsChanged || List.exists2 (<>) oldTypes newTypes in  
-       let stmtNode' = { stmtNode with stmt = Set(ids, rhs') } in 
-       stmtNode', tenv', changed 
-       
+         in  
+         let changed = rhsChanged || List.exists2 (<>) oldTypes newTypes in  
+         let stmtNode' = { stmtNode with stmt = Set(ids, rhs') } in 
+         stmtNode', tenv', changed 
+      ) 
   | Ignore exp -> failwith "Ignore stmt not yet implemented"
   | SetIdx (id, indices, rhs) -> failwith "SetIdx stmt not yet implemented"
   | If (cond, tBlock, fBlock, gate) -> 
@@ -325,6 +329,10 @@ and scalarize_fundef interpState untypedId untypedFundef vecSig =
   let freshInputIds = List.map (fun _ -> ID.gen()) untypedFundef.input_ids in
   let freshOutputIds = List.map (fun _ -> ID.gen()) untypedFundef.output_ids in
   let extend_env accEnv id t = ID.Map.add id t accEnv in 
+  IFDEF DEBUG THEN 
+    assert (List.length freshInputIds = List.length inputTypes);
+    assert (List.length freshOutputIds = List.length outputTypes);  
+  ENDIF; 
   let inputTyEnv = 
     List.fold_left2 extend_env ID.Map.empty freshInputIds inputTypes  
   in 
@@ -378,6 +386,11 @@ and specialize_fundef interpState untypedFundef signature =
     | Signature.Type t -> ID.Map.add id t tyEnv, constEnv 
     | Signature.Value v -> tyEnv, ID.Map.add id v constEnv
   in  
+  IFDEF DEBUG THEN
+    let nActual = List.length untypedFundef.input_ids in 
+    let nExpected = List.length signature.Signature.inputs in 
+    assert (nActual = nExpected); 
+  ENDIF;  
   let tyEnv, constEnv =
     List.fold_left2 aux 
       (ID.Map.empty, ID.Map.empty) 

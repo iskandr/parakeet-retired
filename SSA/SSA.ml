@@ -40,7 +40,7 @@ type stmt =
   | Ignore of exp_node
   | SetIdx of ID.t * (value_node list) * value_node
   | If of value_node * block * block * if_gate
-  | WhileLoop of exp_node * block * loop_gate 
+  | WhileLoop of block * ID.t * block * loop_gate 
 and stmt_node = { 
     stmt: stmt;
     stmt_src: source_info option;

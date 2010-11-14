@@ -35,6 +35,7 @@ type array_op =
   | Index
   | Where
   | Find 
+  | DimSize
 
 type impure_op = ResetTimer | GetTimer | Print 
                 
@@ -138,10 +139,12 @@ let min_prim_arity = function
   | ScalarOp Select -> 3  
   | ScalarOp _ -> 1   
   | ArrayOp Til
+  | ArrayOp Where 
   | ArrayOp Enlist -> 1
   | ArrayOp Concat 
   | ArrayOp Zip
-  | ArrayOp Rand -> 2
+  | ArrayOp Rand 
+  | ArrayOp DimSize 
   | ArrayOp Index -> 2 
   | ArrayOp _ -> 3
   | ImpureOp Print  -> 1
@@ -212,6 +215,7 @@ let array_op_to_str = function
   | AllPairsRight -> "\\:/:"  
   | Index -> "@"
   | Where -> "where"
+  | DimSize -> "dimsize" 
 
 let impure_op_to_str = function
   | ResetTimer -> "reset_timer"
@@ -231,6 +235,6 @@ let prim_to_str = function
   | Q_Op op -> q_op_to_str op 
   
 let is_pure_op  = function 
-  | Q_Op op -> op = Q_Dollar    
+  | Q_Op op -> op = Q_Dollar || op = Q_Question      
   | ImpureOp _ -> false
   | _ -> true  
