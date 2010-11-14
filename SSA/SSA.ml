@@ -289,8 +289,12 @@ let mk_app ?src ?types fn args =
   { exp=App(fn,args); exp_src = src; exp_types = retTypes }  
 
 let mk_arr ?src ?types elts =
-  let types' = map_default_types  types elts in  
-  { exp=Arr elts; exp_src=src; exp_types = types' } 
+  let argTypes = map_default_types  types elts in
+  IFDEF DEBUG THEN 
+     assert (List.length argTypes > 0); 
+     assert (List.for_all ((=) (List.hd argTypes)) (List.tl argTypes));
+  ENDIF;   
+  { exp=Arr elts; exp_src=src; exp_types = [DynType.VecT (List.hd argTypes)] } 
  
 let mk_val_exp ?src ?ty (v: value) =
   let ty' = match ty with 

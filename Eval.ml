@@ -97,12 +97,23 @@ and eval_exp
   (* assume all array operators take only one function argument *) 
   | App ({value=Prim (Prim.ArrayOp op); value_type=ty}, args) ->
       let outTypes = DynType.fn_output_types ty in
-      let argVals = List.map (eval_value memState env) args in 
+      let argVals = List.map (eval_value memState env) args in
       let gpuResults = 
-        GpuRuntime.eval_array_op memState functions  op argVals outTypes 
-      in 
-      List.map (MemoryState.add_gpu memState) gpuResults 
-  
+          GpuRuntime.eval_array_op memState functions  op argVals outTypes 
+        in 
+        List.map (MemoryState.add_gpu memState) gpuResults 
+      (*
+      let gpuCost = GpuCost.array_op op argVals in 
+      let hostCost = HostCost.array_op op argVals in 
+      if gpuCost < hostCost then 
+        let gpuResults = 
+          GpuRuntime.eval_array_op memState functions  op argVals outTypes 
+        in 
+        List.map (MemoryState.add_gpu memState) gpuResults
+      else
+        let hostResults = eval_array_op op functions op argVals in 
+        List.map (MemoryState.add_host memState) hostResults
+       *)  
   | App ({value=Var id}, args) ->
       failwith "calling closures not yet implemented"
   | App ({value=GlobalFn fnId}, args) -> 

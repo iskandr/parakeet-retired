@@ -30,9 +30,6 @@ external c_free : Int64.t -> unit = "ocaml_free"
 
 let free h = if DynType.is_vec h.host_t then c_free h.ptr
        
-
-
-
 let mk_host_scalar n = HostScalar n
   
 let mk_host_vec ?nbytes ?len ty shape =
@@ -54,7 +51,9 @@ let mk_host_vec ?nbytes ?len ty shape =
 
 let get_type = function 
   | HostArray { host_t = host_t } -> host_t
-  | HostScalar n -> PQNum.type_of_num n  
+  | HostScalar n -> PQNum.type_of_num n
+
+
 
 (*
 let set_vec_elt hostVec idx v =

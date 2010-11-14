@@ -549,14 +549,14 @@ and specialize_map
     ?(forceOutputTypes : DynType.t list option) 
     (inputTypes :DynType.t list)
     : SSA.fundef  = 
-  let eltTypes =  List.map DynType.elt_type inputTypes in 
+  let eltTypes =  List.map DynType.peel_vec inputTypes in 
   (* if the outputs need to be coerced, pass on that information to the *)
   (* nested function so that coercions get inserted at the scalar level.*)
   (* For example, if we have "map {x*x} 1 2 3" : float vec, it's preferable*)
   (* to specialize into " map {[x] y = cast(x,float); y*y} 1 2 3" *)
   (* rather than:  "cast(map {x*x} 1 2 3, float vec)" *)
   let forceOutputEltTypes : DynType.t list option = 
-    Option.map (List.map DynType.elt_type) forceOutputTypes 
+    Option.map (List.map DynType.peel_vec) forceOutputTypes 
   in
   let nestedSig = 
     { (Signature.from_input_types eltTypes) with 
@@ -598,10 +598,10 @@ and specialize_map
 and specialize_reduce interpState f ?forceOutputTypes baseType vecTypes 
         : SSA.fundef =
   let forceOutputEltTypes = 
-    Option.map (List.map DynType.elt_type ) forceOutputTypes 
+    Option.map (List.map DynType.peel_vec ) forceOutputTypes 
   in
   
-  let nestedVecTypes = List.map DynType.elt_type vecTypes in  
+  let nestedVecTypes = List.map DynType.peel_vec vecTypes in  
   let nestedSig = {
       Signature.inputs = 
         List.map (fun t -> Signature.Type t) (baseType::nestedVecTypes); 
@@ -634,10 +634,12 @@ and specialize_reduce interpState f ?forceOutputTypes baseType vecTypes
   mk_lambda (baseType::vecTypes) outputTypes
    (fun codegen inputs outputs -> 
       let baseVal = List.hd inputs in 
+      
       let baseVal' =
          codegen#cvt ~from_type:baseType ~to_type:baseType' baseVal in
+      
       let appNode = 
-      { exp = App(reduceNode, fnNode :: baseVal' :: (List.tl inputs));  
+      { exp = App(reduceNode, fnNode :: baseVal :: (List.tl inputs));  
         exp_types = [baseType']; 
         exp_src = None;
       }
@@ -660,7 +662,7 @@ and specialize_all_pairs
   let inputTypes = [inputType1; inputType2] in    
   let eltTypes = List.map DynType.peel_vec inputTypes in   
   let forceOutputEltTypes : DynType.t list option = 
-    Option.map (List.map DynType.elt_type) forceOutputTypes 
+    Option.map (List.map DynType.peel_vec) forceOutputTypes 
   in
   let nestedSig = 
     { (Signature.from_input_types eltTypes ) with 
