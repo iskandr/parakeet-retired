@@ -12,7 +12,7 @@
 \preprintfooter{PLDI 2011}
 \titlebanner{DRAFT---Do not distribute}
 
-\title{NameXX: An Array-Based Framework for High-Level GPGPU Programming}
+\title{Parakeet: An Array-Based Framework for High-Level GPGPU Programming}
 %\authorinfo{Anonymous}
 
 \maketitle
@@ -24,14 +24,15 @@ contemporary CPUs.  However, the current tools, such as CUDA and OpenCL,
 available for programming GPUs are cumbersome and very low level, thus forcing
 a tradeoff between programmer productivity and program performance.
 
-In orderWe present NameXX, a dynamic runtime/JIT compiler for high level,
+In orderWe present Parakeet, a dynamic runtime/JIT compiler for high level,
 dynamic array languages that targets NVIDIA GPUs.
 
 for Q,  a high-level array
 language of the APL family, which targets NVIDIA GPUs. Q is a highly dynamic
 language with a rich set of
 array operators and is well suited for rapid prototyping. The extensive use of
-array operators in Q programs organizes a program's parallelism in such a way that allows us to parallelize automatically and transparently
+array operators in Q programs organizes a program's parallelism in such a way
+that allows us to parallelize automatically and transparently
 many computational kernels while avoiding the common pitfalls
 associated with the analysis of loops. Our optimization techniques allow Q
 implementations of two benchmark problems to achieve speeds within a
@@ -40,29 +41,17 @@ factor of XX of hand-coded GPU programs for those problems.
 
 \section{Introduction}
 
-The era of multicore computing has arrived, with all major CPU manufacturers
-increasing processor performance by adding more and more cores as opposed to
-boosting processor clock speeds \cite{Asan06}.  Thus programmers can no longer
-write sequential programs and expect them to run faster as-is on future
-processors with faster clocks, but must instead write parallel programs which
-are able to take advantage of the newer parallel hardware.  However, parallel
-programming is traditionally far more difficult than sequential
-programming--both in terms of ensuring correctness and coding for
-efficiency--and so there has been much recent work focused on making parallel
-programming easier [INSERT CITES].
-
-In addition to the move to multicore CPUs, the massive increase in performance
+Parallelism has become ubiquitous in modern processors, with all major CPU
+manufacturers increasing processor performance by adding more and more cores as
+opposed to boosting processor clock speeds \cite{Asan06}.  In addition to the
+move to multicore CPUs, the massive increase in performance
 of modern GPUs and the development of frameworks for doing general-purpose
 programming on them has led to much recent interest in general-purpose GPU
-programming (GPGPU).  NVIDIA's CUDA is one such framework that is comprised of
-a series of C extensions that allows programmers to write general-purpose
-kernels which are executed on GPUs \cite{NvidCU}.  GPGPU programming adds an
-even further layer of complexity to the already-difficult problem of writing
-parallel programs in that it both (1) demands that programmers be explicitly aware
-of many low-level architectural details in order to realize the potential
-performance gains; and (2) requires that programmers deal with the
-heterogenous system of CPU+GPU by manually dividing work between the two
-processors and optimizing code for each individually.
+programming (GPGPU) as a way to speed up various computational workloads. While
+with the advent of frameworks such as OpenCL \cite{Muns10} and NVIDIA's CUDA
+\cite{NvidCU}, GPGPU programming has gotten somewhat easier, it is still much
+more difficult than traditional sequential programming, requiring much
+domain-specific and architectural knowledge.
 
 % The following paragraph was inspired by, and is perhaps too similar to, the
 % same paragraph from the Copperhead intro
