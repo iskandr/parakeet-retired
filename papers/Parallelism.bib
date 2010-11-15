@@ -7,6 +7,8 @@ Macros:
 
 Conferences/Workshops/Journals:
 ------------
+@STRING{ASPLOS  = "International Conference on Architectural Support for
+                   Programming Languages and Operating Systems"}
 @STRING{Haskell = "Haskell Workshop"}
 @STRING{IFL     = "Implementation and Application of Functional Languages"}
 @STRING{OOPSLA  = "ACM SIGPLAN conference on Object-Oriented Programming,
@@ -19,8 +21,12 @@ Conferences/Workshops/Journals:
 
 Conference Years:
 -----------------
+ASPLOS
+@STRING{ASPLOS06 = "ASPLOS '06: Proceedings of the 12th " # ASPLOS}
+
 Haskell
 @STRING{Haskell04 = "Proceedings of the 2004 " # Haskell}
+@STRING{Haskell10 = "Proceedings of the 2010 " # Haskell}
 
 IFL
 @STRING{IFL08 = IFL # ", 20th International Symposium, IFL 2008"}
@@ -107,7 +113,7 @@ AAAA
 @MISC{AcceJa,
   Author      = {Accelereyes},
   Title       = {Jacket},
-  Note        = {http://www.accelereyes.com}
+  Note        = {{\tt http://www.accelereyes.com}}
 }
 
 @MISC{Alle08,
@@ -115,7 +121,7 @@ AAAA
                  Luchangco, Victor and Maessen, Jan-Willem and
                  Ryu, Sukyoung and Steele Jr., Guy and Tobin-Hochstadt, Sam},
   Title       = {The Fortress Language Specification Version 1.0},
-  Note        = {http://research.sun.com/projects/plrg/fortress.pdf},
+  Note        = {{\tt http://research.sun.com/projects/plrg/fortress.pdf}},
   Month       = {March},
   Year        = {2008}
 }
@@ -131,8 +137,8 @@ AAAA
   Institution = {EECS Department, University of California, Berkeley},
   Year        = {2006},
   Month       = {Dec},
-  URL         = {http://www.eecs.berkeley.edu/Pubs/TechRpts/2006/
-                 EECS-2006-183.html},
+  URL         = {{\tt http://www.eecs.berkeley.edu/Pubs/TechRpts/2006/
+                 EECS-2006-183.html}},
   Number      = {UCB/EECS-2006-183}
 }
 
@@ -163,6 +169,16 @@ BBBB
   Address     = {New York, NY, USA},
 }
 
+@ARTICLE{Blac73,
+  Author      = {Black, Fischer and Scholes, Myron},
+  Title       = {The Pricing of Options and Corporate Liabilities},
+  Journal     = {The Journal of Political Economy},
+  Volume      = {81},
+  Number      = {3},
+  Pages       = {637--654},
+  Year        = {1973}
+}
+
 @TECHREPORT{Blel90,
   Author      = {Blelloch, Guy E.},
   Title       = {Prefix Sums and Their Applications},
@@ -188,8 +204,8 @@ CCCC
   Number      = {UCB/EECS-2010-124},
   Month       = {Sep},
   Year        = {2010},
-  URL         = {http://www.eecs.berkeley.edu/Pubs/TechRpts/2010/
-                 EECS-2010-124.html}
+  URL         = {{\tt http://www.eecs.berkeley.edu/Pubs/TechRpts/2010/
+                 EECS-2010-124.html}}
 }
 
 @INPROCEEDINGS{Char05,
@@ -206,6 +222,18 @@ CCCC
   Doi         = {http://doi.acm.org/10.1145/1094811.1094852},
   Publisher   = {ACM},
   Address     = {New York, NY, USA},
+}
+
+@INPROCEEDINGS{Che09,
+  Author     = {Che, Shuai and Boyer, Michael and Meng, Jiayuan and
+                Tarjan, David and Sheaffer, Jeremy and Lee, Sang-ha and
+                Skadron, Kevin},
+  Title      = {Rodinia: A Benchmark Suite for Heterogeneous Computing},
+  Booktitle  = {Proceedings of the IEEE International Symposium on Workload
+                Characterization (IISWC)},
+  Year       = {2009},
+  Pages      = {44-54},
+  Month      = {October}
 }
 
 @INPROCEEDINGS{Chen05,
@@ -241,7 +269,7 @@ EEEE
 @INPROCEEDINGS{Elli04,
   Title       = {Programming Graphics Processors Functionally},
   Author      = {Elliot, Conal},
-  URL         = {http://conal.net/papers/Vertigo},
+  URL         = {{\tt http://conal.net/papers/Vertigo}},
   Booktitle   = Haskell04,
   Publisher   = {ACM Press},
   Year        = {2004}
@@ -252,13 +280,34 @@ HHHH
 @MISC{Hobe10,
   Title       = {Thrust: A Parallel Template Library},
   Author      = {Hoberock, Jared and Bell, Nathan},
-  URL         = {http://www.meganewtons.com/},
+  URL         = {{\tt http://www.meganewtons.com/}},
   Year        = {2010},
   Note        = {Version 1.3.0}
 }
 
+LLLL
+----
+@MASTERSTHESIS{Latt02,
+  Author      = {Lattner, Chris},
+  Title       = {{LLVM}: An Infrastructure for Multi-Stage Optimization},
+  School      = {Computer Science Dept., University of Illinois at
+                 Urbana-Champaign},
+  Year        = {2002},
+  Address     = {Urbana, IL},
+  Month       = {Dec},
+  Note        = {{\em See {\tt http://llvm.cs.uiuc.edu}.}}
+}
+
 MMMM
 ----
+@INPROCEEDINGS{Main10,
+  Title       = {Nikola: Embedding Compiled {GPU} Functions in Haskell},
+  Author      = {Mainland, Geoffrey and Morrisett, Greg},
+  Booktitle   = Haskell10,
+  Year        = {2010},
+  Month       = {September}
+}
+
 @INPROCEEDINGS{Minh08,
   Title       = {{STAMP}: Stanford Transactional Applications for
                 Multi-Processing},
@@ -284,7 +333,13 @@ NNNN
 @MISC{NvidCU,
   Author      = {{NVIDIA}},
   Title       = {{CUDA ZONE}},
-  Note        = {http://www.nvidia.com/cuda}
+  Note        = {{\tt http://www.nvidia.com/cuda}}
+}
+
+@MISC{NvidSD,
+  Author      = {{NVIDIA}},
+  Title       = {{NVIDIA} {CUDA} {SDK} 3.2},
+  Note        = {{\tt http://www.nvidia.com/cuda}}
 }
 
 SSSS
@@ -299,14 +354,14 @@ ____
 
 TTTT
 ____
-@TECHREPORT{Tard06,
+@INPROCEEDINGS{Tard06,
   Author      = {Tarditi, David and Puri, Sidd and Oglesby, Jose},
   Title       = {Accelerator: Using Data Parallelism to Program GPUs for
                  General-Purpose Uses},
+  Booktitle   = ASPLOS06,
   Institution = {Microsoft Research},
   Year        = {2006},
-  Month       = {October},
-  Number      = {MSR-TR-2005-184}
+  Month       = {November},
 }
 
 WWWW

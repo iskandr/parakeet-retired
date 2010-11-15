@@ -125,6 +125,7 @@ let create_args
   paramsArray, outputsList 
 
 
+
 (** MAP **)
 let map_id_gen = mk_gen()
 let compile_map globalFunctions payload argTypes retTypes =
@@ -233,6 +234,7 @@ let run_reduce
     (* WAYS THIS IS CURRENTLY WRONG: 
        - we are ignoring the initial value
        - we are only allowing reductions over a single array
+       - in the 2D case, we only support embedded maps
     *)
     | [fnName], _ :: [gpuVal] ->
       let inShape = GpuVal.get_shape gpuVal in
@@ -411,7 +413,16 @@ let eval_array_op
   let gpuVals = match op, args  with  
   | Prim.Map, (InterpVal.Closure(fnId, []))::dataArgs ->
       let fundef = FnTable.find fnId fnTable in
-      let gpuVals = List.map (MemoryState.get_gpu memState) dataArgs in 
+      (*
+		  let inputShapes = List.map (MemoryState.get_shape memState) dataArgs in
+		  let outputShapes, _ =
+        ShapeInference.infer_map functions fundef inputShapes in
+      let argsOnHost =
+        List.filter (fun arg -> not (MemoryState.is_on_gpu memState arg))
+                    dataArgs
+      in
+      *)
+      let gpuVals = List.map (MemoryState.get_gpu memState) dataArgs in
       run_map memState fnTable fundef gpuVals outputTypes 
       
   | Prim.Map, _ -> 

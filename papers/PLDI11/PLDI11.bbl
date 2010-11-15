@@ -3,21 +3,13 @@
 \bibitem{AcceJa}
 {\sc Accelereyes}.
 \newblock Jacket.
-\newblock http://www.accelereyes.com.
+\newblock {\tt http://www.accelereyes.com}.
 
 \bibitem{Alle08}
 {\sc Allen, E., Chase, D., Hallet, J., Luchangco, V., Maessen, J.-W., Ryu, S.,
   Steele~Jr., G., and Tobin-Hochstadt, S.}
 \newblock The fortress language specification version 1.0, March 2008.
-\newblock http://research.sun.com/projects/plrg/fortress.pdf.
-
-\bibitem{Asan06}
-{\sc Asanovic, K., Bodik, R., Catanzaro, B.~C., Gebis, J.~J., Husbands, P.,
-  Keutzer, K., Patterson, D.~A., Plishker, W.~L., Shalf, J., Williams, S.~W.,
-  and Yelick, K.~A.}
-\newblock The landscape of parallel computing research: A view from {B}erkeley.
-\newblock Tech. Rep. UCB/EECS-2006-183, EECS Department, University of
-  California, Berkeley, Dec 2006.
+\newblock {\tt http://research.sun.com/projects/plrg/fortress.pdf}.
 
 \bibitem{Bien08}
 {\sc Bienia, C., Kumar, S., Singh, J.~P., and Li, K.}
@@ -26,11 +18,10 @@
 \newblock In {\em PACT '08: Proceedings of the 17th International Conference on
   Processors, Architectures, and Compilation Techniques\/} (October 2008).
 
-\bibitem{Bill09}
-{\sc Billeter, M., Olsson, O., and Assarsson, U.}
-\newblock Efficient stream compaction on wide {SIMD} many-core architectures.
-\newblock In {\em HPG '09: Proceedings of the Conference on High Performance
-  Graphics 2009\/} (New York, NY, USA, 2009), ACM, pp.~159--166.
+\bibitem{Blac73}
+{\sc Black, F., and Scholes, M.}
+\newblock The pricing of options and corporate liabilities.
+\newblock {\em The Journal of Political Economy 81}, 3 (1973), 637--654.
 
 \bibitem{Blel90}
 {\sc Blelloch, G.~E.}
@@ -42,12 +33,6 @@
 {\sc Borror, J.~A.}
 \newblock {\em Q For Mortals: A Tutorial In Q Programming}.
 \newblock CreateSpace, 2008.
-
-\bibitem{Minh08}
-{\sc Cao~Minh, C., Chung, J., Kozyrakis, C., and Olukotun, K.}
-\newblock {STAMP}: Stanford transactional applications for multi-processing.
-\newblock In {\em IISWC '08: Proceedings of The IEEE International Symposium on
-  Workload Characterization\/} (September 2008).
 
 \bibitem{Cata10}
 {\sc Catanzaro, B., Garland, M., and Keutzer, K.}
@@ -62,6 +47,13 @@
 \newblock In {\em OOPSLA '05: Proceedings of the 20th annual ACM SIGPLAN
   conference on Object-Oriented Programming, Systems, Languages, and
   Applications\/} (New York, NY, USA, 2005), ACM, pp.~519--538.
+
+\bibitem{Che09}
+{\sc Che, S., Boyer, M., Meng, J., Tarjan, D., Sheaffer, J., Lee, S.-h., and
+  Skadron, K.}
+\newblock Rodinia: A benchmark suite for heterogeneous computing.
+\newblock In {\em Proceedings of the IEEE International Symposium on Workload
+  Characterization (IISWC)\/} (October 2009), pp.~44--54.
 
 \bibitem{Chen05}
 {\sc Chen, W.-Y., Iancu, C., and Yelick, K.}
@@ -82,6 +74,18 @@
 \newblock In {\em Proceedings of the 2004 Haskell Workshop\/} (2004), ACM
   Press.
 
+\bibitem{Latt02}
+{\sc Lattner, C.}
+\newblock {LLVM}: An infrastructure for multi-stage optimization.
+\newblock Master's thesis, Computer Science Dept., University of Illinois at
+  Urbana-Champaign, Urbana, IL, Dec 2002.
+\newblock {\em See {\tt http://llvm.cs.uiuc.edu}.}
+
+\bibitem{Main10}
+{\sc Mainland, G., and Morrisett, G.}
+\newblock Nikola: Embedding compiled {GPU} functions in haskell.
+\newblock In {\em Proceedings of the 2010 Haskell Workshop\/} (September 2010).
+
 \bibitem{Muns10}
 {\sc Munshi, A.}
 \newblock The {O}pen{CL} specification version 1.1, September 2010.
@@ -89,7 +93,12 @@
 \bibitem{NvidCU}
 {\sc {NVIDIA}}.
 \newblock {CUDA ZONE}.
-\newblock http://www.nvidia.com/cuda.
+\newblock {\tt http://www.nvidia.com/cuda}.
+
+\bibitem{NvidSD}
+{\sc {NVIDIA}}.
+\newblock {NVIDIA} {CUDA} {SDK} 3.2.
+\newblock {\tt http://www.nvidia.com/cuda}.
 
 \bibitem{Sven08}
 {\sc Svensson, J., Sheeran, M., and Claessen, K.}
@@ -102,13 +111,8 @@
 {\sc Tarditi, D., Puri, S., and Oglesby, J.}
 \newblock Accelerator: Using data parallelism to program gpus for
   general-purpose uses.
-\newblock Tech. Rep. MSR-TR-2005-184, Microsoft Research, October 2006.
-
-\bibitem{Wolf91}
-{\sc Wolf, M.~E., and Lam, M.~S.}
-\newblock A data locality optimizing algorithm.
-\newblock In {\em PLDI '91: Proceedings of the 1991 ACM SIGPLAN conference on
-  Programming Languages Design and Implementation\/} (New York, NY, USA, 1991),
-  ACM, pp.~30--44.
+\newblock In {\em ASPLOS '06: Proceedings of the 12th International Conference
+  on Architectural Support for Programming Languages and Operating Systems\/}
+  (November 2006).
 
 \end{thebibliography}

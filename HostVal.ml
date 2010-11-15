@@ -71,6 +71,7 @@ let get_type = function
   | HostArray { host_t = host_t } -> host_t
   | HostScalar n -> PQNum.type_of_num n
 
+
 let get_shape = function 
   | HostArray { shape = shape } -> shape
   | HostScalar _ -> Shape.scalar_shape 

@@ -83,6 +83,19 @@ value ocaml_cuda_device_get_properties(value idx) {
   CAMLreturn(ocaml_dev_info);
 }
 
+CAMLprim
+value ocaml_cuda_device_get_free_and_total_mem(void) {
+  CAMLparam0();
+  CAMLlocal1(ocaml_mem_info);
+  size_t free, total;
+  cudaMemGetInfo(&free, &total);
+  ocaml_mem_info = caml_alloc_tuple(2);
+  Store_field(ocaml_mem_info, 0, Int_val(free));
+  Store_field(ocaml_mem_info, 1, Int_val(total));
+
+  CAMLreturn(ocaml_mem_info);
+}
+
 /* int -> Int64.t */
 CAMLprim value ocaml_cuda_ctx_create(value dev_num) {
   CAMLparam1(dev_num);

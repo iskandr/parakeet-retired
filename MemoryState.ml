@@ -86,6 +86,7 @@ let get_gpu memState = function
     if Hashtbl.mem memState.gpu_vals id then
       Hashtbl.find memState.gpu_vals id
     else (
+
       let hostVal = Hashtbl.find memState.host_vals id in
       IFDEF DEBUG THEN Printf.printf "--%s\n" (HostVal.to_str hostVal); ENDIF; 
       let gpuVal = GpuVal.to_gpu hostVal in
