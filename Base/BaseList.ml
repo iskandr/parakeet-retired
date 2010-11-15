@@ -39,3 +39,5 @@ include ExtList.List
       | x::xs', y::ys', z::zs' ->
         (f x y z)::(map3 f xs' ys' zs') 
       | _ -> failwith "map3 - mismatched list lengths" 
+
+  let sum xs = fold_left (+) 0 xs 

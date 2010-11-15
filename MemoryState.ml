@@ -1,4 +1,5 @@
 (* pp: -parser o pa_macro.cmo *)
+
 open Base 
 open Printf
 
@@ -48,6 +49,7 @@ let rec get_type memState = function
       let eltT = get_type memState arr.(0) in 
       DynType.VecT eltT 
  | InterpVal.Closure _ -> failwith "can't get type of closure"
+
 
 let is_on_gpu memState = function 
   | InterpVal.Data id -> Hashtbl.mem memState.gpu_vals id 
@@ -177,3 +179,46 @@ let free state id = free_gpu state id; free_host state id
 let free_all_gpu state =
   Hashtbl.iter (fun _ gpuVal -> GpuVal.free gpuVal) state.gpu_vals;
   Hashtbl.clear state.gpu_vals
+  
+let rec sizeof memState interpVal = 
+  let t = get_type memState interpVal in 
+  match interpVal with  
+  | InterpVal.Scalar n -> DynType.sizeof t  
+  | InterpVal.Closure _ -> failwith "can't get size of closure" 
+  | InterpVal.Data _ -> 
+      let s = get_shape memState interpVal in 
+      Shape.nelts s * (DynType.sizeof (DynType.elt_type t))
+  | InterpVal.Array arr ->  
+      Array.fold_left (fun sum elt -> sum + sizeof memState elt) 0 arr 
+  
+(* TIME IN MILLISECONDS-- ignore device->device copy costs for now  *) 
+let rec gpu_transfer_time memState interpVal =  
+  match interpVal with
+  | InterpVal.Data id -> 
+      if Hashtbl.mem memState.gpu_vals id then 0
+      else  
+        (* assume 2MB / millisecond *) 
+        let transferRate = 2097152 in
+        let nbytes = sizeof memState interpVal in
+        (* assume initiating a transfer requires at least 1 millisecond *)
+        1 + nbytes / transferRate   
+  | InterpVal.Scalar _ -> 0 
+  | InterpVal.Array arr -> 
+      Array.sum (Array.map (gpu_transfer_time memState) arr) 
+  | InterpVal.Closure _ -> failwith "Can't transfer closures to GPU"
+
+let rec host_transfer_time memState interpVal = 
+  match interpVal with 
+  | InterpVal.Data id -> 
+      if Hashtbl.mem memState.host_vals id then 0
+      else  
+        (* assume 2MB / millisecond *) 
+        let transferRate = 2097152 in
+        let nbytes = sizeof memState interpVal in
+        (* assume initiating a transfer requires at least 1 millisecond *)
+        1 + nbytes / transferRate   
+  | InterpVal.Scalar _ -> 0 
+  | InterpVal.Array arr -> 
+      Array.sum (Array.map (host_transfer_time memState) arr) 
+  | InterpVal.Closure _ -> failwith "Can't transfer closures to Host"
+  

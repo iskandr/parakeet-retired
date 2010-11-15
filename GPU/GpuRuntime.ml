@@ -405,7 +405,10 @@ let shutdown () =
   done
   *)
  
-  
+let implements_array_op = function 
+  | Prim.Reduce | Prim.Map | Prim.AllPairs | Prim.Index | Prim.Where -> true
+  | _ -> false 
+ 
 let eval_array_op
       (memState : MemoryState.t)
       (fnTable : FnTable.t)

@@ -83,3 +83,5 @@
     done; 
     !acc
     )
+    
+  let sum xs = fold_left (+) 0 xs 

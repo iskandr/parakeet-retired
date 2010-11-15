@@ -1,3 +1,5 @@
+open Base 
+
 module DataId = UID.Make(struct let to_str x = "data" ^ (string_of_int x) end)
 
 type t = 
@@ -14,3 +16,11 @@ let rec to_str = function
   | Closure (fnId, args) -> 
     Printf.sprintf "closure{%d, [%s]}"
       fnId (String.concat ", " (List.map to_str args))
+
+let to_int = function 
+  | Scalar n -> PQNum.to_int n 
+  | other -> failwith $ Printf.sprintf  
+           "Can't get integer from non-scalar value: %s"
+           (to_str other) 
+
+let of_int i = Scalar (PQNum.Int32 (Int32.of_int i))

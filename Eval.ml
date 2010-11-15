@@ -11,29 +11,18 @@ let _ = Printexc.record_backtrace true
 module GpuCost = struct 
   let array_op memState fnTable op argVals = match op, argVals with 
   | Prim.Map, (InterpVal.Closure(fnId, []))::dataArgs -> 
-    let shapes = 
-      List.map (MemoryState.get_shape memState) dataArgs
-    in 
-    (* assume every kernel will take 5ms to launch *) 
-    let launchCost = 5 in
+    let launchCost = 1 in
     (* assume we can transfer 100,000 elements per millsecond to GPU, 
            and that allocation costs 3ms no matter the size 
          *)
-    let memoryCosts =  
-      List.fold_left2 
-       (fun sum v shape -> 
-           sum +  
-          if MemoryState.is_on_gpu memState v then 0 
-          else 3 + (Shape.nelts shape / 100000)
-       )
-       0 
-      dataArgs
-      shapes 
-    in
+    let memoryCosts = 
+      List.sum (List.map (MemoryState.gpu_transfer_time memState) dataArgs)
+    in  
+    let shapes = List.map (MemoryState.get_shape memState) dataArgs in  
     let maxShape = match Shape.max_shape_list shapes with 
-      | Some maxShape -> maxShape 
-      | None -> failwith "max shape not found"
-    in
+      | Some maxShape -> maxShape
+      | None -> failwith "no common shape found"
+    in  
     (* assume each processor can process 1000 elements per millisecond, and 
        we have 100 processors
     *)
@@ -45,9 +34,10 @@ end
 module HostCost = struct 
   let array_op memState fnTable op argVals = match op, argVals with 
   | Prim.Map, (InterpVal.Closure(fnId, []))::dataArgs ->
-    let shapes = 
-      List.map (MemoryState.get_shape memState) dataArgs
-    in 
+    let memoryCosts = 
+      List.sum (List.map (MemoryState.host_transfer_time memState) dataArgs)
+    in
+    let shapes = List.map (MemoryState.get_shape memState) dataArgs in 
     let maxShape = match Shape.max_shape_list shapes with 
       | Some maxShape -> maxShape 
       | None -> failwith "max shape not found"
@@ -55,12 +45,14 @@ module HostCost = struct
     (* assume we process 100 elements per millisecond on the host, 
        but also assume nested computations are free
      *) 
-    (Shape.get  maxShape 0) / 100  
-     
+    let runCost = (Shape.get maxShape 0) / 100 in 
+    2 + memoryCosts + runCost  
   | _ -> max_int (* don't run anything else on the host *)  
 end
 
+
 type env = InterpVal.t ID.Map.t 
+
 
 let rec eval_value 
     (memoryState : MemoryState.t) 
@@ -153,26 +145,10 @@ and eval_exp
   | App ({value=Prim (Prim.ArrayOp op); value_type=ty}, args) ->
       let outTypes = DynType.fn_output_types ty in
       let argVals = List.map (eval_value memState env) args in
-      let gpuCost = GpuCost.array_op memState fnTable op argVals in 
-      let hostCost = HostCost.array_op memState fnTable op argVals in 
-      Printf.printf 
-        "Estimated cost of running array op %s on host: %d, on gpu: %d\n"
-        (Prim.array_op_to_str op)
-        hostCost
-        gpuCost 
-      ; 
-      if gpuCost < hostCost then 
-        GpuRuntime.eval_array_op memState fnTable  op argVals outTypes 
-      else 
-        eval_array_op memState fnTable env op argVals 
-      (*
-      let gpuResults = 
-          GpuRuntime.eval_array_op memState functions  op argVals outTypes 
-        in 
-        List.map (MemoryState.add_gpu memState) gpuResults 
-      
-      
-       *)  
+      eval_array_op memState fnTable env op argVals outTypes
+  | App ({value=Prim (Prim.ScalarOp op)}, args) -> 
+      let argVals = List.map (eval_value memState env) args in 
+      eval_scalar_op memState op argVals   
   | App ({value=Var id}, args) ->
       failwith "calling closures not yet implemented"
   | App ({value=GlobalFn fnId}, args) -> 
@@ -188,7 +164,12 @@ and eval_exp
         | _ -> failwith "[eval] expected scalar"
       )  
   | Cast (t, valNode) -> failwith "[eval] cast only implemented for scalars"
-  | _ -> failwith "[eval] eval_exp failed; node not implemented"
+  | _ -> 
+      failwith $ Printf.sprintf 
+        "[eval_exp] no implementation for: %s\n"
+        (SSA.exp_to_str expNode)
+ 
+
 and eval_app memState fnTable env fundef args = 
  
   (* create an augmented memory state where input ids are bound to the *)
@@ -202,54 +183,66 @@ and eval_app memState fnTable env fundef args =
   in
   let env3 = eval_block memState fnTable env2 fundef.body in
   List.map (fun id -> ID.Map.find id env3) fundef.output_ids
-  
-and eval_array_op memState fnTable env op argVals : InterpVal.t list =
-  match op, argVals  with 
+and eval_scalar_op memState args = failwith "not implemented"
+and eval_array_op memState fnTable env op argVals outTypes : InterpVal.t list =
+  let runOnGpu = GpuRuntime.implements_array_op op && 
+    (let gpuCost = GpuCost.array_op memState fnTable op argVals in 
+     let hostCost = HostCost.array_op memState fnTable op argVals in 
+     Printf.printf 
+      "Estimated cost of running array op %s on host: %d, on gpu: %d\n"
+      (Prim.array_op_to_str op)
+      hostCost
+      gpuCost 
+     ;
+     gpuCost <= hostCost)
+  in  
+  if runOnGpu then 
+    GpuRuntime.eval_array_op memState fnTable  op argVals outTypes 
+  else match op, argVals with
   | Prim.Map, (InterpVal.Closure(fnId, [])::dataArgs) ->
-      Printf.printf "Running MAP on host!\n";
       let fundef = FnTable.find fnId fnTable in
-      let dataShapes = List.map (MemoryState.get_shape memState) dataArgs in
-      let maxShape = match Shape.max_shape_list dataShapes with 
-        | Some maxShape -> maxShape 
-        | None -> 
-          failwith "Incompatible array shapes encountered while evaluating Map"
-      in 
+      eval_map memState fnTable env fundef dataArgs 
+  | Prim.DimSize, [array; idx] -> 
+      let s = MemoryState.get_shape memState array in
+      let i = InterpVal.to_int idx in
+      [InterpVal.of_int (Shape.get s i)] 
       
-      (* if trying to map over scalars, just evaluate this function directly *)  
-      if Shape.rank maxShape = 0 then 
-        eval_app memState fnTable env fundef dataArgs    
-      else 
-        let n = Shape.get maxShape 0 in
-        (*let outputShapes, _ = 
-          ShapeInference.infer_map fnTable fundef dataShapes 
-        in
-        *)  
-        
-        let outputIds = Array.of_list (fundef.output_ids) in
-        let nOutputs = Array.length outputIds in  
-        let allResults = Array.init nOutputs  (fun _ -> DynArray.create ()) in 
-        for i = 0 to n - 1 do
-          let slices = 
-            List.map 
-              (fun v ->
-                 let t = MemoryState.get_type memState v in 
-                 if DynType.is_vec t then 
-                   MemoryState.slice memState v i
-                  else v   
-              ) 
-              dataArgs
-                 
-          in      
-          let currResults = 
-            Array.of_list (eval_app memState fnTable env fundef slices) 
-          in
-          for i = 0 to nOutputs - 1 do               
-            let dynArr = allResults.(i) in
-            DynArray.add dynArr currResults.(i)
-          done             
-        done;
-        Array.to_list $ 
-          Array.map 
-          (fun dynArray -> InterpVal.Array (DynArray.to_array dynArray))
-          allResults  
+and eval_map memState fnTable env fundef argVals : InterpVal.t list =
+  Printf.printf "Running MAP on host!\n";
+  let dataShapes = List.map (MemoryState.get_shape memState) argVals in
+  let maxShape = match Shape.max_shape_list dataShapes with 
+  | Some maxShape -> maxShape 
+  | None -> 
+      failwith "Incompatible array shapes encountered while evaluating Map"
+  in 
+  (* if trying to map over scalars, just evaluate this function directly *)  
+  if Shape.rank maxShape = 0 then 
+    eval_app memState fnTable env fundef argVals    
+  else 
+  let n = Shape.get maxShape 0 in
+  let outputIds = Array.of_list (fundef.output_ids) in
+  let nOutputs = Array.length outputIds in  
+  let allResults = Array.init nOutputs  (fun _ -> DynArray.create ()) in 
+  for i = 0 to n - 1 do
+  let slices = 
+    List.map 
+      (fun v ->
+         let t = MemoryState.get_type memState v in 
+         if DynType.is_vec t then MemoryState.slice memState v i
+         else v   
+      ) 
+      argVals
+  in      
+  let currResults = 
+    Array.of_list (eval_app memState fnTable env fundef slices) 
+  in
+  for i = 0 to nOutputs - 1 do               
+    let dynArr = allResults.(i) in
+      DynArray.add dynArr currResults.(i)
+    done             
+  done;
+  Array.to_list $ 
+    Array.map 
+      (fun dynArray -> InterpVal.Array (DynArray.to_array dynArray))
+    allResults  
      

@@ -25,7 +25,14 @@ let infer_scalar_op op argTypes = match op, argTypes with
           "[infer_binop] Cannot find concrete common type for %s and %s"
           (DynType.to_str t1) (DynType.to_str t2)  
      | t3 -> 
-        if Prim.is_comparison op then fill_elt_type BoolT t3
+        if Prim.is_comparison op then 
+          fill_elt_type BoolT t3
+        else if Prim.is_float_binop op then 
+          let resultT = 
+            if DynType.sizeof t3 <= DynType.sizeof Float32T then Float32T
+            else Float64T 
+          in 
+          fill_elt_type resultT t3     
         else t3
      end
   | op, [t1] when Prim.is_unop op ->
@@ -108,14 +115,23 @@ let infer_op op argTypes = match op with
 (* given an operator and types of its arguments, return list of types to which *)
 (* args must be converted for the operator to work properly *) 
 let required_scalar_op_types op argtypes = 
-    match (op, argtypes) with 
+    match (op, argtypes) with
+      (* division returns a float *)  
+      | op, [t1; t2] when Prim.is_float_binop op -> 
+          let t3 = DynType.common_type t1 t2 in
+          let resultT = 
+            if DynType.sizeof t3 <= DynType.sizeof Float32T then Float32T
+            else Float64T 
+          in 
+          [resultT; resultT]    
+
       | op, [t1; t2] when Prim.is_binop op ->
-            let t3 = DynType.common_type t1 t2 in 
-            [t3; t3] 
+          let t3 = DynType.common_type t1 t2 in 
+          [t3; t3] 
       | Select, [predT; t1; t2] -> 
-            let t3 = DynType.common_type t1 t2 in
-            let predT' = DynType.common_type predT BoolT in  
-            [predT'; t3; t3] 
+          let t3 = DynType.common_type t1 t2 in
+          let predT' = DynType.common_type predT BoolT in  
+          [predT'; t3; t3] 
       (* upconvert non-float arguments to appropriate float size *) 
       | op, [t]  
         when Prim.is_float_unop op && 
