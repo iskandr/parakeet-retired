@@ -18,6 +18,11 @@
 \newblock In {\em PACT '08: Proceedings of the 17th International Conference on
   Processors, Architectures, and Compilation Techniques\/} (October 2008).
 
+\bibitem{Blac73}
+{\sc Black, F., and Scholes, M.}
+\newblock The pricing of options and corporate liabilities.
+\newblock {\em The Journal of Political Economy 81}, 3 (1973), 637--654.
+
 \bibitem{Blel90}
 {\sc Blelloch, G.~E.}
 \newblock Prefix sums and their applications.

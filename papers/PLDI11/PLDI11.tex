@@ -449,6 +449,9 @@ pairs of each of its inputs--in this case, all pairs of rows from \texttt{a} and
 rows from \texttt{b}.  The resulting \texttt{all\_dists} variable will contain a
 matrix of all the Euclidean distances between rows of \texttt{a} and \texttt{b}.
 
+We now turn to how Parakeet executes Q programs, including synthesizing GPU
+kernels to accelerate them.
+
 \section{Compilation Pipeline}
 \label{Compilation}
 
@@ -869,50 +872,56 @@ would imagine.
 
 \subsection{CUDA Back End}
 
-In this section we give an overview of modern GPU architecture (specifically,
-the NVIDIA GT200 architecture which we use in our evaluation) and the CUDA
-programming model.  Modern graphics processors are made up of arrays of simple
-shader processors, and when performing graphics computations these processors
-execute shader programs for performing rendering tasks.  With the advent of CUDA
-and other GPGPU programming environments such as OpenCL \cite{Muns08},
-programmers can execute general-purpose programs directly on these processors as
-well.  For workloads amenable to streaming, data-parallel processing, GPUs can
-give orders of magnitude performance improvement over general-purpose CPUs.
+In this section we give an overview of modern GPU architecture and the CUDA
+programming model.  Modern graphics processors are made up of hierarchical
+arrays of simple processors, with each level of the hierarchy sharing some
+commmon hardware resources.  When performing graphics computations these
+processors execute shader programs for performing rendering tasks.  With the
+advent of GPGPU programming environments such as NVIDIA's CUDA \cite{NvidCU} and
+OpenCL \cite{Muns10}, programmers can execute general-purpose programs directly
+on these processors as well.
 
-In CUDA, a program is organized into {\it kernels}, which are sequential code
-run across many threads on the GPU's, or {\it device}'s, processors; and {\it
-host} code, which is the code run on the CPU.  Typically, a host thread launches
-a kernel onto the GPU, waits for results, and then launches further kernels.
+The current back end for Parakeet targets the CUDA platform by emitting PTX, the
+pseudoassembly language in which CUDA programs are ultimately implemented.
+In CUDA, a program is organized into {\it kernels} and {\it host} code.
+Kernels are sequential code that is run by typically many thousands of ultra
+lightweight threads on the GPU's, or {\it device}'s, processors.  Host code is
+the code run on the CPU. Typically, a host thread launches a kernel onto the
+GPU, waits for results, and then potentially launches further kernels.
 
 A CUDA kernel's threads are organized into {\it thread blocks}, which are groups
-of threads that can communicate and share local resources.  Threads within a
-block can perform barrier synchronizations with each other via a CUDA intrinsic,
-but threads across blocks have no way to perform synchronization.  Thus, global
-synchronization among all threads in a kernel requires the program to be broken
-up into multiple kernel launches.  When launching a kernel, the programmer
-specifies how many thread blocks are required and how many threads to launch per
-block.  The standard idiom is for each thread to be assigned a small computation
-to be performed on a small subset of some large input data set.  The threads
-each are assigned a unique index which is used to determine the data for which
-they are responsible.
+of at most a few hundred threads that can communicate and share local resources.
+Threads within a block can perform barrier synchronizations with each other via
+a CUDA intrinsic, but threads from different blocks have no way to perform
+synchronization other than for the kernel to terminate.  Thus algorithms that
+require global synchronization must be broken up into multiple kernel launches,
+each of which incurs a small fixed performance overhead.  The body of a
+kernel can be written so as to be agnostic to the number of threads and
+blocks with which it is launched, with the programmer specifying at runtime how
+many thread blocks are required and how many threads to launch per block. This
+allows the kernel programs to be scalable to different datasizes without
+requiring them to be rewritten. The standard idiom is for each thread to be
+assigned a small computation to be performed on a small subset of some large
+input data set.  The threads are each assigned a unique index in the kernel's
+{\it grid} of threads, which is used to determine the data for which they are
+responsible.
 
-\begin{figure}
-\includegraphics[height=80mm]{GPUdiagram1.jpg}
-\caption{GT200 Architecture}
-\label{GPUdiagram}
-\end{figure}
+The GPU consists of a series--typically a few hundred--simple processors that
+are organized into small groups (on current chips between 8 and 48) of
+processors called {\it symmetric multiprocessors} or SMs.  SMs form the basic
+hardware scheduling unit, with processors within an SM sharing instruction
+fetch and decode units and thread blocks executing in their entirety on a
+single SM.
 
-The device's processors, shown in Figure \ref{GPUdiagram}, are
-grouped hierarchically, with each level of the hierarchy sharing certain
-hardware resources.  At the lowest level are symmetric processors or SPs, which
-are very simple sequential shader processors.  At the next level are symmetric
-multiprocessors or SMs, which are groups of 8 SPs that share an instruction
-issue and decode unit.  This means that all SPs within an SM execute their
-instructions in lockstep.  In the CUDA model, thread blocks are scheduled to run
-in their entirety on a single SM.  The SPs are then grouped to share texture
-processing units, and then these groups along with L2 caches make up the GPU
-chip.  The graphics card bundles the GPU along with a large block of off-chip
-DRAM, typically on the order of a few gigabytes in modern cards.
+At the lowest level of the processor hierarchy are symmetric
+processors or SPs, which are very simple sequential processors.  At the
+next level are symmetric multiprocessors or SMs, which are groups of 8 SPs that
+share an instruction issue and decode unit.  This means that all SPs within an
+SM execute their instructions in lockstep.  In the CUDA model, thread blocks are
+scheduled to run in their entirety on a single SM.  The SPs are then grouped to
+share texture processing units, and then these groups along with L2 caches make
+up the GPU chip.  The graphics card bundles the GPU along with a large block of
+off-chip DRAM, typically on the order of a few gigabytes in modern cards.
 
 The CUDA model is a Single Instruction Multiple Thread or SIMT model, meaning
 that multiple threads with a block each execute the same instruction at the same
@@ -929,18 +938,40 @@ can only be reached with careful access patterns on the part of threads within a
 block.  In addition, each SM has a 16KB scratchpad called {\it shared memory}.
 The programmer must explicitly manage shared memory, and careful usage of it can
 result in orders of magnitude performance improvements over naively-written CUDA
-programs.  In addition, data must be manually moved between system RAM and the
+programs.  Further, data must be manually moved between system RAM and the
 graphics card's DRAM.  Modern GPUs use PCI-Express, which has a maximum transfer
 rate of around 4GB/sec, which can easily become the major bottleneck in CUDA
-programs if memory transfers aren't managed carefully.
+programs if memory transfers aren't managed carefully.  Finally, graphics cards
+tend to have limited global memory (typically between 500MB and 2GB), and a
+user's windowing system can consume much of this on its own (on our office
+desktops, X Windows tends to consume around 600MB).  Thus GPU RAM is an
+important scarce resource to be managed.
 
 Various constraints limit how a programmer can structure his or her CUDA
-programs.  Each SM is able to execute a maximum of 8 thread blocks and a maximum
-of 1024 threads at a time.  In addition, a group of thread blocks can be
-co-scheduled on an SM only if they consume at most 16K registers, as each SM
-shares a register pool.  Finally, no more than 16KB of shared memory per SM can
-be used at a time, and so thread blocks with in aggregate exceed this limit
-cannot be co-scheduled.
+programs.  Each SM is able to execute a maximum of 8 thread blocks and
+a maximum of 768-1536 threads at a time.  In addition, a group of thread blocks
+can be co-scheduled on an SM only if they consume at most 8K-32K registers, as
+each SM shares a register pool.  Finally, no more than 16-48KB of shared
+memory per SM can be used at a time, and so thread blocks which in aggregate
+exceed this limit cannot be co-scheduled.
+
+The complexity of programming in the CUDA platform should be evident.  Parakeet
+aims to manage these low level details efficiently and transparently for the
+programmer.
+
+%\subsection{GPU Memory Management}
+%
+%When
+%Parakeet synthesizes a GPU program, it first determines whether the input and
+%output arguments for that program will fit in their entirety in the available
+%GPU memory.  Typically, GPUs have around 500MB to 2GB of RAM, and a significant
+%portion of this can be taken up by a user's windowing system.  (In our
+%experiments, on a card with 896MB of memory, X Windows can consume well over
+%600MB on its own during simple office usage.)  If the data does fit, Parakeet
+%copies whatever inputs are not already on the GPU to it and allocates storage
+%for the output.  If not, Parakeet chunks the data up into manageable portions,
+%copying down one section at a time to the GPU, and then transfering the
+%partial result back to the CPU to build the complete result.
 
 \section{Evaluation}
 \label{Evaluation}
@@ -970,7 +1001,14 @@ For our Parakeet benchmarks, the desktop system we used had a BLAH processor
 with BLAH specs.
 
 \subsection{Black-Scholes}
+Black-Scholes option pricing \cite{Blac73} is a standard benchmark for data
+parallel workloads, since it is embarrassingly parallel--the calculation of the
+price of a given option doesn't impact that of any other, and the benchmark
+consists of simply running thousands of independent threads in parallel for
+computing the prices of thousands of options.
 
+We compare our system against the multithreaded OpenMP CPU implementation
+from the PARSEC \cite{Bien08} benchmark suite for 1 to 12 threads and 
 
 \subsection{K-Means Clustering}
 
@@ -998,6 +1036,9 @@ kmeans:{[X;k;assignment;maxiters]
 \caption{Q K-Means Clustering}
 \label{QKMeans}
 \end{figure}
+
+\subsection{Dynamic Tuning}
+In order to test the effects of our dynamic tuning optimizations, 
 
 \section{Related Work}
 \label{RelatedWork}
