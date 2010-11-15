@@ -50,18 +50,19 @@ and special_register =
   | Clock
 
 let rec to_str symbols = function
-  | Sym {id=id; space=REG} ->  sprintf "%%%s" (Hashtbl.find symbols id)
+  | Sym {id=id; space=REG} -> sprintf "%%%s" (Hashtbl.find symbols id)
+  | Sym {id=id; space=TEX} -> sprintf "%%%s" (Hashtbl.find symbols id)
   | Sym {id=id} -> Hashtbl.find symbols id
   | IntConst i -> Int64.to_string i
   | FloatConst f -> Float.to_string f
   | Special s -> special_register_to_str s
   | Vec2 (x,y) -> sprintf "{%s, %s}" (to_str symbols x) (to_str symbols y)
-  | Vec4 (x,y,z,w) -> 
+  | Vec4 (x,y,z,w) ->
       sprintf "{%s, %s, %s, %s}"
         (to_str symbols x)
         (to_str symbols y)
         (to_str symbols z)
-        (to_str symbols w)  
+        (to_str symbols w)
  
 and register_dim_to_str = function 
   | X -> "x"
@@ -104,22 +105,20 @@ let type_of_special_register = function
   | MaxProcessors
   | Clock  -> PtxType.U32
 
-
 let get_id = function
-  | Sym {id=id} -> id 
+  | Sym {id=id} -> id
   | _ -> failwith "not a register"
 
-let type_of_var = function 
+let type_of_var = function
   | Sym {ptx_type=t} -> t
   | _ -> failwith "[ptx_val->type_of_var] not a variable"
 
-
-let rec type_of_value = function 
+let rec type_of_value = function
   | Sym {ptx_type=t}-> t
-  (* without context literals get their largest possible type *) 
+  (* without context literals get their largest possible type *)
   | IntConst _ -> PtxType.S64
   | FloatConst _ -> PtxType.F64
-  | Special s -> type_of_special_register s 
+  | Special s -> type_of_special_register s
   (* careful not to nest these! *) 
   | Vec2 (v1, v2) -> 
       let t1 = type_of_value v1 in 

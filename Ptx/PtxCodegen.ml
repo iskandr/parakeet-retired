@@ -87,9 +87,8 @@ class ptx_codegen = object (self)
     DynArray.add parameters (id, newParam)
   
   (* TEXTURE REFERENCES *)
-  val textures: (Ptx.symid * PtxType.ty) DynArray.t = DynArray.create ()
-  method private add_tex_decl id newTexParam =
-    DynArray.add textures (id, newTexParam)
+  val textures: Ptx.symid DynArray.t = DynArray.create ()
+  method private add_tex_decl id = DynArray.add textures id
 
   (* number of registers currently allocated for every type *)
   val maxRegs : (PtxType.ty, int) Hashtbl.t =  Hashtbl.create initialNumRegs
@@ -283,11 +282,12 @@ class ptx_codegen = object (self)
     dataReg
   
   (* Texture inputs *)
-  method declare_tex_param impId dynT =
+  method private declare_tex_param impId dynT =
     Hashtbl.add dynTypes impId dynT;
     DynArray.add paramOrder impId;
     let ptxT = PtxType.of_dyn_type dynT in
-        
+    let tmpReg = self#fresh_reg ptxT in
+    tmpReg
   
   (*************************************************************
                       CACHE ACCESS TO SPECIAL REGISTERS
@@ -608,7 +608,7 @@ class ptx_codegen = object (self)
       code = DynArray.to_array instructions; 
       decls = allocations;
       symbols = symbols; 
-      textures = DynArray.to_arry textures; 
+      textures = DynArray.to_array textures; 
     } 
     in
     let cc = { 

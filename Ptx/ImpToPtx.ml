@@ -67,7 +67,7 @@ let gen_exp
      so only expect a variable on the lhs 
   *)
   | Imp.Idx({exp=Var id; exp_type=arrDynT}, idx) ->
-      let isTex = codgen#
+      (*let isTex = codgen#*)
       let baseReg = codegen#imp_reg id in
       let idxDynT = idx.exp_type in 
       let idxPtxT = PtxType.of_dyn_type idxDynT in 

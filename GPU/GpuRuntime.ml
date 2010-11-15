@@ -144,11 +144,12 @@ let compile_map globalFunctions payload argTypes retTypes =
       (Array.of_list retTypes)
   in
   (* Testing the request for all inputs to be textures *)
-  let inputSpaces = Array.map (fun t -> PtxVal.TEX) (Array.of_list argTypes) in
+  (* let inputSpaces = Array.map (fun t -> PtxVal.TEX) (Array.of_list argTypes) in
   let kernel, cc = ImpToPtx.translate_kernel
-                     ?input_spaces:(Some inputSpaces) impfn in
+                     ?input_spaces:(Some inputSpaces) impfn in *)
+  let kernel, cc = ImpToPtx.translate_kernel impfn in
   let kernelName = "map_kernel" ^ (string_of_int (map_id_gen())) in
-  let cudaModule = 
+  let cudaModule =
     LibPQ.cuda_module_from_kernel_list [kernelName, kernel] mapThreadsPerBlock
   in    
   {imp_source=impfn; cc=cc; cuda_module=cudaModule} 
