@@ -80,6 +80,20 @@ value ocaml_set_int(value ptr, value idx, value v) {
     CAMLreturn(Val_unit);
 }
 
+value ocaml_get_char(value ptr, value idx) {
+    CAMLparam2(ptr, idx);
+    char* p = (char*) Int64_val(ptr);
+    char c = p[Int_val(idx)];
+    CAMLreturn(Val_int(c));
+}
+value ocaml_set_char(value ptr, value idx, value v) {
+    CAMLparam3(ptr,idx,v);
+    char* p = (char*) Int64_val(ptr);
+    p[Int_val(idx)] = Long_val(v);
+    CAMLreturn(Val_unit);
+}
+
+
 // double
 
 value ocaml_cast_double(value ptr) {
@@ -101,6 +115,23 @@ value ocaml_set_double(value ptr, value idx, value v) {
     p[Int_val(idx)] = Double_val(v);
     CAMLreturn(Val_unit);
 }
+
+
+value ocaml_get_float(value ptr, value idx) {
+    CAMLparam2(ptr, idx);
+    float* p = (float*) Int64_val(ptr);
+    float f = p[Int_val(idx)];
+    CAMLreturn(copy_double(f));
+}
+
+value ocaml_set_float(value ptr, value idx, value v) {
+    CAMLparam3(ptr,idx,v);
+    float* p = (float*) Int64_val(ptr);
+    p[Int_val(idx)] = Double_val(v);
+    CAMLreturn(Val_unit);
+}
+
+
 
 value get_bigarray_ptr(value bigarray) {
     CAMLparam1(bigarray);

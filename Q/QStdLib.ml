@@ -64,7 +64,7 @@ let count = fn1 $ fun x y ->
 
 let avg = fn 1 1 2 $ fun inputs outputs locals -> [
     [locals.(0)] := reduce @@ [scalar_op Prim.Add; mk_int32 0; inputs.(0)];
-    [locals.(1)] := mk_app (array_op Prim.DimSize) [locals.(0); mk_int32 0];  
+    [locals.(1)] := mk_app (array_op Prim.DimSize) [inputs.(0); mk_int32 0];  
     [outputs.(0)] := mk_app (scalar_op Prim.Div) [locals.(0); locals.(1)]
   ]  
    

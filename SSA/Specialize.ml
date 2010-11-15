@@ -1,3 +1,5 @@
+(* pp: -parser o pa_macro.cmo *)
+
 open Base
 open SSA
 open SSA_Codegen 
@@ -431,6 +433,11 @@ and specialize_fundef interpState untypedFundef signature =
 and specialize_function_value interpState v signature : SSA.value_node = 
   match InterpState.maybe_get_specialization interpState v signature with 
     | Some fnId -> 
+        Printf.printf "Found %s for %s : %s" 
+          (FnId.to_str fnId)
+          (SSA.value_to_str v)
+          (Signature.to_str signature)
+        ; 
         let fundef =  InterpState.get_typed_function interpState fnId in 
         { value = GlobalFn fnId; 
           value_type = fundef.fn_type; 
@@ -568,7 +575,7 @@ and specialize_map
   in 
   let mapNode = { 
     value = Prim (Prim.ArrayOp Prim.Map);
-    value_type = DynType.FnT(inputTypes, outputTypes); 
+    value_type = DynType.FnT(nestedFn.value_type::inputTypes, outputTypes); 
     value_src = None
   } 
   in
@@ -597,6 +604,8 @@ and specialize_map
 *)   
 and specialize_reduce interpState f ?forceOutputTypes baseType vecTypes 
         : SSA.fundef =
+          
+  Printf.printf "[specialize_reduce] 1\n";
   let forceOutputEltTypes = 
     Option.map (List.map DynType.peel_vec ) forceOutputTypes 
   in
@@ -607,22 +616,38 @@ and specialize_reduce interpState f ?forceOutputTypes baseType vecTypes
         List.map (fun t -> Signature.Type t) (baseType::nestedVecTypes); 
       outputs = forceOutputEltTypes; 
   } 
-  in   
+  in
+  Printf.printf "[specialize_reduce] 2\n";   
   let nestedFn = specialize_function_value interpState f nestedSig in
+  Printf.printf "[specialize_reduce] 3\n";
   (* have to specialize twice in case output of reduction function doesn't *)
   (* match baseType *)
   let outputTypes =  DynType.fn_output_types nestedFn.value_type in 
-  let nestedFn' = match outputTypes with 
-    | [t] when t = baseType -> nestedFn
-    | [t] -> 
-        let nestedSig' = { nestedSig with Signature.outputs = Some [t] } in 
+  let fnNode = match outputTypes with 
+    | [t] ->
+       Printf.printf "[specialize] %s=?%s!\n"
+         (DynType.to_str t)
+         (DynType.to_str baseType)
+         ;
+      if t = baseType then (
+       
+          nestedFn
+      ) 
+      else    
+        let nestedSig' = { 
+          Signature.inputs = 
+            List.map (fun t -> Signature.Type t) (t::nestedVecTypes);  
+            Signature.outputs = Some [t] 
+        } 
+        in 
         specialize_function_value interpState f nestedSig' 
     | [] -> failwith "reduction function with 0 outputs not supported"
     | _ -> failwith "reduction function with multiple outputs not supported"
-  in 
-  let baseType' = List.hd outputTypes in 
+  in
+  Printf.printf "[specialize_reduce] 3\n"; 
+  let accType = List.hd outputTypes in 
   let reduceType = 
-    DynType.FnT([nestedFn'.value_type; baseType']@ vecTypes, [baseType'])
+    DynType.FnT([fnNode.value_type; accType]@ vecTypes, [accType])
   in 
   let reduceNode = 
     { value=Prim (Prim.ArrayOp Prim.Reduce); 
@@ -630,17 +655,16 @@ and specialize_reduce interpState f ?forceOutputTypes baseType vecTypes
       value_src = None 
     }
   in 
-  let fnNode = nestedFn' in  
   mk_lambda (baseType::vecTypes) outputTypes
    (fun codegen inputs outputs -> 
       let baseVal = List.hd inputs in 
       
-      let baseVal' =
-         codegen#cvt ~from_type:baseType ~to_type:baseType' baseVal in
+      let baseVal' = 
+         codegen#cvt ~from_type:baseType ~to_type:accType baseVal in
       
       let appNode = 
-      { exp = App(reduceNode, fnNode :: baseVal :: (List.tl inputs));  
-        exp_types = [baseType']; 
+      { exp = App(reduceNode, fnNode :: baseVal' :: (List.tl inputs));  
+        exp_types = [accType]; 
         exp_src = None;
       }
       in   

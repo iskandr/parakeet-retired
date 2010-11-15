@@ -72,6 +72,7 @@ let infer_shapes fn (inputShapes : Shape.t list) =
     PMap.foldi aux fn.output_sizes inputEnv 
   in 
   let aux2 id annot shapeEnv = match annot with 
+    | Imp.InputSlice sizes 
     | Imp.PrivateArray sizes -> aux id sizes shapeEnv
     | Imp.SharedArray _ -> shapeEnv  
   in         

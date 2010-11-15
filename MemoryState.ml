@@ -1,42 +1,131 @@
+(* pp: -parser o pa_macro.cmo *)
 open Base 
 open Printf
 
-type 'a generic_mem_state = {
-  gpu_vals : ('a, GpuVal.gpu_val) Hashtbl.t;
-  host_vals : ('a, HostVal.host_val) Hashtbl.t;
+type t = {
+  gpu_vals : (InterpVal.DataId.t, GpuVal.gpu_val) Hashtbl.t;
+  host_vals : (InterpVal.DataId.t, HostVal.host_val) Hashtbl.t; 
+  types : (InterpVal.DataId.t, DynType.t) Hashtbl.t; 
+  shapes : (InterpVal.DataId.t, Shape.t) Hashtbl.t; 
 }
-
-type mem_state = InterpVal.DataId.t generic_mem_state
-
 let create numvars = {
   gpu_vals = Hashtbl.create (2*numvars);
   host_vals = Hashtbl.create (2*numvars); 
+  types = Hashtbl.create (2*numvars); 
+  shapes = Hashtbl.create (2* numvars); 
 }
+
 
 let add_host state hostVal = 
   let id = InterpVal.DataId.gen() in 
-  Hashtbl.replace state.host_vals id hostVal; 
+  Hashtbl.add state.host_vals id hostVal;
+  Hashtbl.add state.types id (HostVal.get_type hostVal); 
+  Hashtbl.add state.shapes id (HostVal.get_shape hostVal); 
   InterpVal.Data id 
   
 let add_gpu state gpuVal = 
   let id = InterpVal.DataId.gen() in 
-  Hashtbl.replace state.gpu_vals id gpuVal; 
+  Hashtbl.add state.gpu_vals id gpuVal;
+  Hashtbl.add state.types id (GpuVal.get_type gpuVal); 
+  Hashtbl.add state.shapes id (GpuVal.get_shape gpuVal);   
   InterpVal.Data id 
 
-let get_gpu state = function 
+
+let rec get_shape memState = function  
+  | InterpVal.Scalar _ -> Shape.scalar_shape 
+  | InterpVal.Data id -> Hashtbl.find memState.shapes id 
+  | InterpVal.Array arr -> 
+      (* assume uniform arrays *)
+      let eltShape = get_shape memState arr.(0) in
+      Shape.append_dim (Array.length arr) eltShape 
+  | InterpVal.Closure _ -> failwith "closures have no shape"
+
+let rec get_type memState = function 
+  | InterpVal.Scalar n -> PQNum.type_of_num n 
+  | InterpVal.Data id -> Hashtbl.find memState.types id
+  | InterpVal.Array arr -> 
+      (* for now, assume uniformity of element types *) 
+      let eltT = get_type memState arr.(0) in 
+      DynType.VecT eltT 
+ | InterpVal.Closure _ -> failwith "can't get type of closure"
+
+let is_on_gpu memState = function 
+  | InterpVal.Data id -> Hashtbl.mem memState.gpu_vals id 
+  | InterpVal.Scalar _ -> true
+  (* even if all the array's elements are on the GPU, no guarantee 
+     they are a contiguous chunk 
+  *)
+  | InterpVal.Array _ 
+  | InterpVal.Closure _ -> false
+
+
+let is_on_host memState = function 
+  | InterpVal.Data id -> Hashtbl.mem memState.host_vals id 
+  | InterpVal.Scalar _ -> true
+  | InterpVal.Array _ 
+  | InterpVal.Closure _ -> false  
+
+let rec sizeof state = function 
   | InterpVal.Data id -> 
-    if Hashtbl.mem state.gpu_vals id then
-      Hashtbl.find state.gpu_vals id
+      if Hashtbl.mem state.gpu_vals id then 
+        let gpuVal = Hashtbl.find state.gpu_vals id in 
+        GpuVal.sizeof gpuVal 
+      else 
+        let hostVal = Hashtbl.find state.host_vals id in 
+        HostVal.sizeof hostVal  
+  | InterpVal.Scalar n -> DynType.sizeof (PQNum.type_of_num n)
+  | InterpVal.Closure _ -> failwith "Can't calculate size of closure"
+  | InterpVal.Array a -> 
+      (* for now assume array is uniform *) 
+      Array.length a * (sizeof state a.(0)) 
+      
+
+
+let get_gpu memState = function 
+  | InterpVal.Data id -> 
+    if Hashtbl.mem memState.gpu_vals id then
+      Hashtbl.find memState.gpu_vals id
     else (
-      let hostVal = Hashtbl.find state.host_vals id in
-      debug $ HostVal.to_str hostVal; 
+      let hostVal = Hashtbl.find memState.host_vals id in
+      IFDEF DEBUG THEN Printf.printf "--%s\n" (HostVal.to_str hostVal); ENDIF; 
       let gpuVal = GpuVal.to_gpu hostVal in
-      Hashtbl.replace state.gpu_vals id gpuVal; 
+      Hashtbl.replace memState.gpu_vals id gpuVal; 
       gpuVal
    )
   | InterpVal.Scalar n -> GpuVal.GpuScalar n  
   | InterpVal.Closure _ -> 
       failwith "[MemoryState->get_gpu] can't send function to gpu"
+  | InterpVal.Array arr ->
+      (* for now, assume all rows are of uniform type/size *)
+      let nrows = Array.length arr in   
+      let elt = arr.(0) in 
+      let eltSize = sizeof memState elt in
+      let eltType = get_type memState elt in 
+      let eltShape = get_shape memState elt in  
+      let nbytes = nrows * eltSize in
+      let finalShape = Shape.append_dim nrows eltShape in 
+      let destVal = GpuVal.mk_gpu_vec (DynType.VecT eltType) finalShape in
+      let destPtr = GpuVal.get_ptr destVal in 
+      for i = 0 to nrows - 1 do 
+        let currPtr = Int32.add destPtr (Int32.of_int $ i * eltSize) in 
+        match arr.(i) with 
+          | InterpVal.Scalar (PQNum.Int32 i32) -> 
+              Cuda.cuda_set_gpu_int32_vec_elt currPtr 0 i32 
+          | InterpVal.Scalar (PQNum.Float32 f32) -> 
+              Cuda.cuda_set_gpu_float32_vec_elt currPtr 0 f32 
+          | InterpVal.Data id -> 
+              if Hashtbl.mem memState.gpu_vals id then 
+                let eltVal = Hashtbl.find memState.gpu_vals id in 
+                let eltPtr = GpuVal.get_ptr eltVal in 
+                Cuda.cuda_memcpy_device_to_device currPtr eltPtr eltSize 
+              else
+                let eltHostVal = Hashtbl.find memState.host_vals id in 
+                let eltHostPtr = HostVal.get_ptr eltHostVal in 
+                Cuda.cuda_memcpy_to_device eltHostPtr currPtr eltSize  
+          | _ -> assert false
+       done; 
+       destVal 
+       
 
 let get_host state = function 
   | InterpVal.Data id -> 
@@ -50,8 +139,24 @@ let get_host state = function
         (HostVal.to_str hostVal);  
       hostVal
   | InterpVal.Scalar n -> HostVal.HostScalar n 
+  | InterpVal.Array arr -> failwith "Can't move array onto host"
   | InterpVal.Closure _ -> 
       failwith "[MemoryState->get_host] can't send function to host memory"
+
+  
+  (* slice on the GPU or CPU? *) 
+let slice memState arr idx = match arr with 
+  | InterpVal.Scalar _ -> failwith "[MemoryState] Can't slice a scalar"
+  | InterpVal.Array arr -> arr.(idx)
+  | InterpVal.Data id -> 
+      if Hashtbl.mem memState.gpu_vals id then 
+        let gpuVal = Hashtbl.find memState.gpu_vals id in 
+        add_gpu memState (GpuVal.get_slice gpuVal idx) 
+      else 
+        let hostVal = Hashtbl.find memState.host_vals id in 
+        add_host memState (HostVal.get_slice hostVal idx)   
+  | InterpVal.Closure _ -> failwith "Can't slice a closure"
+
 
 let free_gpu state id =
   if Hashtbl.mem state.gpu_vals id then begin

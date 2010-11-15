@@ -57,6 +57,8 @@ let rec to_str = function
   | BottomFnT -> "bottom_fn"
 and type_list_to_str ts = String.concat ", " (List.map to_str ts)
 
+let type_array_to_str ts = type_list_to_str (Array.to_list ts)
+ 
 (* number of bytes needed to represent a value of a given type *) 
 exception UnknownSize of string  
 let sizeof = function

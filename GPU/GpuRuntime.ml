@@ -1,3 +1,5 @@
+(* pp: -parser o pa_macro.cmo *)
+
 open Base
 open Bigarray
 open HostVal
@@ -7,11 +9,11 @@ open ShapeInference
 open ImpShapeInference 
 
 type adverb_impl =
- MemoryState.mem_state ->  FnTable.t -> SSA.fundef ->
+ MemoryState.t ->  FnTable.t -> SSA.fundef ->
     GpuVal.gpu_val list -> DynType.t list -> GpuVal.gpu_val list
 
 type simple_array_op_impl =
-  MemoryState.mem_state -> FnTable.t ->
+  MemoryState.t -> FnTable.t ->
     GpuVal.gpu_val list -> DynType.t list -> GpuVal.gpu_val list
 
 exception InvalidGpuArgs
@@ -57,46 +59,42 @@ let create_input_arg modulePtr argsDynArray inputVal = function
     
       
 let create_gpu_arg_env 
-    ~(input_ids : ID.t list)
-    ~(input_vals : GpuVal.gpu_val list)
-    ~(local_ids : ID.t list)
-    ~(output_ids : ID.t list) 
+    ~(input_ids : ID.t Enum.t)
+    ~(input_vals : GpuVal.gpu_val Enum.t)
+    ~(local_array_ids : ID.t Enum.t) 
+    ~(output_ids : ID.t Enum.t) 
     ~(shape_env : Shape.t ID.Map.t)
     ~(type_env : (ID.t, DynType.t) PMap.t)
     ~(shared_env : (ID.t, int list) PMap.t) =
   (* for now ignore calling_conventions.data_locations *)
   IFDEF DEBUG THEN 
-    if List.length input_ids <> List.length input_vals then 
+    if Enum.count input_ids <> Enum.count input_vals then 
       failwith $ Printf.sprintf 
       "Cannot create GPU arguments: length mismatch between %d ids and %d vals"
-      (List.length input_ids)
-      (List.length input_vals)
+      (Enum.count input_ids)
+      (Enum.count input_vals)
     ;
   ENDIF;
   let initEnv =  
-    List.fold_left2 
-      (fun env id gpuVal  -> ID.Map.add id gpuVal env)
+    Enum.fold2  
+      (fun id gpuVal  env -> ID.Map.add id gpuVal env)
       ID.Map.empty  
       input_ids
       input_vals
   in 
-  List.fold_left  
-    (fun env id -> 
-      if not $ ID.Map.mem id env then (
-        let ty = PMap.find id type_env in
-        if not (DynType.is_scalar ty || PMap.mem id shared_env) then (
-          let shape = ID.Map.find id shape_env in
-          (* don't yet handle scalar outputs *) 
-          assert (Shape.rank shape > 0);
-          ID.Map.add id (GpuVal.mk_gpu_vec ty shape) env
-        )
-        else env 
-      )
-      else env   
+  Enum.fold 
+    (fun  id env ->
+      assert (PMap.mem id type_env); 
+      (* don't yet handle scalar outputs *)
+      let ty = PMap.find id type_env in  
+      assert (DynType.is_vec ty); 
+      assert (ID.Map.mem id shape_env);  
+      let shape = ID.Map.find id shape_env in
+      assert (Shape.rank shape > 0);
+      ID.Map.add id (GpuVal.mk_gpu_vec ty shape) env
     )
     initEnv
-    (local_ids @ output_ids)
-  
+    (Enum.append local_array_ids output_ids)
   
 let create_args
       (impfn : Imp.fn)
@@ -104,13 +102,12 @@ let create_args
       (inputs: GpuVal.gpu_val list) =
   let inputShapes = List.map GpuVal.get_shape inputs in 
   let shapeEnv = ImpShapeInference.infer_shapes impfn inputShapes in
-  let outputIds = (Array.to_list impfn.Imp.output_ids) in 
   let valueEnv = 
     create_gpu_arg_env
-      ~input_ids:(Array.to_list impfn.Imp.input_ids)
-      ~input_vals:inputs
-      ~local_ids:(Array.to_list impfn.Imp.local_ids)
-      ~output_ids:outputIds
+      ~input_ids:(Array.enum impfn.Imp.input_ids)
+      ~input_vals:(List.enum inputs)
+      ~local_array_ids:(Enum.map fst $ PMap.enum impfn.Imp.local_arrays)
+      ~output_ids:(Array.enum impfn.Imp.output_ids) 
       ~shape_env:shapeEnv
       ~type_env:impfn.Imp.tenv
       ~shared_env:impfn.Imp.shared_array_allocations
@@ -120,7 +117,11 @@ let create_args
       (fun id -> ID.Map.find id valueEnv) 
       cc.PtxCallingConventions.param_order
   in
-  let outputsList = List.map (fun id -> ID.Map.find id valueEnv) outputIds in
+  let outputsList = 
+    List.map 
+      (fun id -> ID.Map.find id valueEnv) 
+      (Array.to_list impfn.Imp.output_ids)
+  in
   paramsArray, outputsList 
 
 
@@ -204,7 +205,7 @@ let compile_reduce globalFunctions payload retTypes =
 let reduceCache : code_cache  = Hashtbl.create 127 
 
 let run_reduce 
-      (memState : MemoryState.mem_state)
+      (memState : MemoryState.t)
       (globalFunctions : FnTable.t)
       (payload : SSA.fundef)
       (gpuVals : GpuVal.gpu_val list)
@@ -283,7 +284,7 @@ let compile_all_pairs globalFunctions payload argTypes retTypes =
 let allPairsCache  = Hashtbl.create 127 
 
 let run_all_pairs
-      (memState : MemoryState.mem_state)
+      (memState : MemoryState.t)
       (globalFunctions : FnTable.t)
       (payload : SSA.fundef)
       (gpuVals : GpuVal.gpu_val list)
@@ -322,7 +323,7 @@ let run_all_pairs
 
 (** INDEX **)
 let run_index
-      (memState : MemoryState.mem_state)
+      (memState : MemoryState.t)
       (inputVec : GpuVal.gpu_val) 
       (indexVec : GpuVal.gpu_val) =
   let inputShape = GpuVal.get_shape inputVec in
@@ -364,7 +365,7 @@ let run_index
 
 (** WHERE **)
 let run_where
-      (memState : MemoryState.mem_state)
+      (memState : MemoryState.t)
       (binVec   : GpuVal.gpu_val) =
   let nelts = GpuVal.nelts binVec in
   let scanShape = GpuVal.get_shape binVec in
@@ -395,40 +396,48 @@ let shutdown () =
     Cuda.cuda_ctx_destroy (DynArray.get HardwareInfo.device_contexts i)
   done
   *)
+ 
   
 let eval_array_op
-      (memState : MemoryState.mem_state)
-      (functions : FnTable.t)
+      (memState : MemoryState.t)
+      (fnTable : FnTable.t)
       (op : Prim.array_op)
       (args : InterpVal.t list)
       (outputTypes : DynType.t list)
-      : GpuVal.gpu_val list =
+      : InterpVal.t list =
   IFDEF DEBUG THEN 
      Printf.printf "In eval array op\n";
   ENDIF; 
-  match op, args  with  
+  let gpuVals = match op, args  with  
   | Prim.Map, (InterpVal.Closure(fnId, []))::dataArgs ->
-      let fundef = FnTable.find fnId functions in
+      let fundef = FnTable.find fnId fnTable in
       let gpuVals = List.map (MemoryState.get_gpu memState) dataArgs in 
-      run_map memState functions   fundef gpuVals outputTypes 
+      run_map memState fnTable fundef gpuVals outputTypes 
       
   | Prim.Map, _ -> 
       failwith "[GpuRuntime->eval_array_op] closures not yet supported for Map"
 
   | Prim.Reduce, (InterpVal.Closure(fnId, []))::dataArgs ->
 
-      let fundef = FnTable.find fnId functions in
+      let fundef = FnTable.find fnId fnTable in
+      (* the current reduce kernel works either for 1d data or 
+         for maps over 2d data 
+      *) 
+      let fundef2 = match SSA.extract_nested_map_fn_id fundef with 
+        | Some nestedFnId -> FnTable.find nestedFnId fnTable
+        | None -> fundef 
+      in  
       let gpuVals = List.map (MemoryState.get_gpu memState) dataArgs in
-      run_reduce memState functions fundef gpuVals outputTypes
+      run_reduce memState fnTable fundef2 gpuVals outputTypes
   
   | Prim.Reduce, _ -> 
       failwith 
         "[GpuRuntime->eval_array_op] closures not yet supported for Reduce"
         
   | Prim.AllPairs, (InterpVal.Closure(fnId, []))::dataArgs ->
-      let fundef = FnTable.find fnId functions in
+      let fundef = FnTable.find fnId fnTable in
       let gpuVals = List.map (MemoryState.get_gpu memState) dataArgs in
-      run_all_pairs  memState functions fundef gpuVals outputTypes  
+      run_all_pairs  memState fnTable fundef gpuVals outputTypes  
   | Prim.AllPairs, _ ->
       failwith 
         "[GpuRuntime->eval_array_op] closures not yet supported for AllPairs"
@@ -449,3 +458,5 @@ let eval_array_op
   | _ -> failwith $ Printf.sprintf 
     "Array operator '%s' not yet implemented on GPU"
     (Prim.array_op_to_str op)
+  in 
+  List.map (MemoryState.add_gpu memState) gpuVals 

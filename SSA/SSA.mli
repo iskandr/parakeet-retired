@@ -54,6 +54,7 @@ and value =
   | Unit
   | Prim of Prim.prim
   | Lam of fundef
+  | Stream of value_node * DynType.t  
 and fundef = {
   body: block;
   tenv : tenv;
@@ -83,7 +84,9 @@ val value_node_list_to_str : ?sep:string -> value_node list -> string
 val value_list_to_str : ?sep:string -> value list -> string  
   
 val fundef_to_str : fundef -> string  
-  
+
+val extract_nested_map_fn_id : fundef -> FnId.t option 
+    
 val mk_fundef : 
       ?tenv:tenv -> input_ids:ID.t list -> output_ids:ID.t list -> 
         body:block -> fundef 
@@ -128,7 +131,10 @@ val mk_bool : ?src:SourceInfo.source_info -> bool -> value_node
 val mk_int32 
     : ?src:SourceInfo.source_info -> int -> value_node
 val mk_float32
-    : ?src:SourceInfo.source_info -> float -> value_node  
+    : ?src:SourceInfo.source_info -> float -> value_node
+
+val mk_stream 
+    : ?src:SourceInfo.source_info -> value_node -> DynType.t -> value_node    
 (*** 
     helpers for expressions 
  ***) 

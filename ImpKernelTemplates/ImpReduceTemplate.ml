@@ -76,10 +76,19 @@ let gen_reduce payload threadsPerBlock outTypes =
 
 let gen_reduce_2d_capable payload threadsPerBlock outTypes =
   (* For now only works on 1D and 2D inputs *)
+  
   let codegen = new imp_codegen in
+  (* THIS ASSUMPTION SUCKS: You might output different values than your inputs*)
   let ty = List.hd outTypes in
   let input = codegen#fresh_input (VecT ty) in
   let eltype = DynType.elt_type ty in
+  IFDEF DEBUG THEN 
+    Printf.printf 
+      "Creating reduce kernel with output types %s with payload (%s) -> (%s)\n"
+      (DynType.type_list_to_str outTypes)
+      (DynType.type_array_to_str payload.input_types)
+      (DynType.type_array_to_str payload.output_types);
+  ENDIF;  
   let head::tail = all_dims input in
   let output = codegen#fresh_array_output (VecT ty)
                  ((safe_div_ head (int $ threadsPerBlock * 2))::tail) in
@@ -105,14 +114,18 @@ let gen_reduce_2d_capable payload threadsPerBlock outTypes =
   let bx = codegen#fresh_var Int32T in
   let by = codegen#fresh_var Int32T in
   codegen#emit [
+    comment "bx = blockDim.x"; 
     set bx blockDim.x;
+    comment "by = blockDim.y";
     set by blockDim.y
   ];
   
   let id_x = codegen#fresh_var Int32T in
   let id_y = codegen#fresh_var Int32T in
   codegen#emit [
+    comment "idx_x = blockIdx.x * bx + threadIdx.x";
     set id_x ((blockIdx.x *$ bx) +$ threadIdx.x);
+    comment "id_y = blockIdx.y * by + threadIdx.y";
     set id_y ((blockIdx.y *$ by) +$ threadIdx.y)
   ];
   
@@ -140,6 +153,7 @@ let gen_reduce_2d_capable payload threadsPerBlock outTypes =
   in
   
   let template = [
+    comment "start of template";
     ifTrue (id_x <$ vec_len) [
 	    set firstvec ((int 2) *$ id_y);
 	    set cacheid ((bx *$ threadIdx.y) +$ threadIdx.x);

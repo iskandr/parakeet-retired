@@ -22,24 +22,26 @@ class typed_ssa_codegen =
     
     method cvt ~to_type ~from_type valNode = 
       if from_type = to_type then valNode 
-      else begin 
+      else ( 
         if DynType.nest_depth from_type > DynType.nest_depth  to_type then 
           failwith "Cannot convert from vector to scalar" 
-        else if DynType.nest_depth to_type > DynType.nest_depth from_type then 
-          failwith "Cannot convert from scalar to vector"
-        else  
-        let castNode = 
-        { 
-          exp = Cast(to_type, valNode);  
-          exp_src = None; 
-          exp_types = [to_type]
-        }
-        in 
-        let freshId = self#fresh_var to_type in 
-        let stmtNode = mk_set [freshId] castNode in  
-        DynArray.add code stmtNode; 
-        {value = Var freshId; value_type = to_type; value_src = None } 
-       end   
+        else if DynType.nest_depth to_type > DynType.nest_depth from_type then
+          (* THIS IS A HACK!!! BEWARE. *)  
+          (print_string"HACKHACKHACK!"; mk_stream valNode to_type) 
+        else ( 
+          let castNode = 
+          { 
+            exp = Cast(to_type, valNode);  
+            exp_src = None; 
+            exp_types = [to_type]
+          }
+          in 
+          let freshId = self#fresh_var to_type in 
+          let stmtNode = mk_set [freshId] castNode in  
+          DynArray.add code stmtNode; 
+          {value = Var freshId; value_type = to_type; value_src = None } 
+       )
+    )
     
     method cvt_list ~to_type ~from_types args = 
         List.map2 

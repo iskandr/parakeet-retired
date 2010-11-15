@@ -48,7 +48,6 @@ and stmt_node = {
 }
 and block = stmt_node list 
 and  exp = 
-       
   | App of  value_node * value_node list
   | ArrayIndex of value_node * value_node list
   | Arr of value_node list
@@ -75,6 +74,11 @@ and value =
   | Unit
   | Prim of Prim.prim
   | Lam of fundef
+  (* place holder for initial values of reductions, 
+     which for now are not supported but still need to 
+     be given sensible types
+  *) 
+  | Stream of value_node * DynType.t  
 and fundef = {
   body: block;
   tenv : tenv;
@@ -150,6 +154,7 @@ and value_to_str = function
   | Sym s -> "`" ^ s
   | Unit -> "()"
   | Prim p -> "PRIM(" ^ (Prim.prim_to_str p) ^ ")"
+  | Stream (v,t) -> "STREAM<" ^ (value_node_to_str v) ^">"   
   | Lam fundef -> 
     Format.sprintf "fun input:[%s] output:[%s] { \n @[<hov 2> %s @] \n}" 
       (String.concat ", " (List.map ID.to_str fundef.input_ids))
@@ -169,7 +174,18 @@ let fundef_to_str fundef =
     (typed_id_list_to_str fundef.tenv fundef.output_ids)
     (block_to_str ~space:"\t" ~tenv:fundef.tenv fundef.body)
   
-  
+ 
+(* if a function contains nothing but a map, extracted the nested 
+   function being mapped 
+*) 
+let extract_nested_map_fn_id (fundef : fundef) = 
+  match fundef.body with 
+    | [{stmt=
+          Set(_,{exp=App(map, {value=GlobalFn fnId}::dataArgs)})
+       }
+      ] when map.value = Prim (Prim.ArrayOp Prim.Map) ->
+        Some fnId 
+    | _ -> None   
 (*  
 let rec collect_assigned_ids = function  
   | (Set (ids, _))::rest ->  ids @ (collect_assigned_ids rest)
@@ -268,9 +284,8 @@ let mk_num ?src ?ty n =
 let mk_bool ?src b = mk_num ?src ~ty:DynType.BoolT (PQNum.Bool b)
 let mk_int32 ?src i = mk_num ?src ~ty:DynType.Int32T (PQNum.Int32 (Int32.of_int i))
 let mk_float32 ?src f = mk_num ?src ~ty:DynType.Float32T (PQNum.Float32 f)
+let mk_stream ?src v t = mk_val ~ty:t (Stream(v,t))  
   
-  
-
 (*** 
     helpers for expressions 
  ***) 

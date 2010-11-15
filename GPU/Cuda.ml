@@ -58,9 +58,31 @@ external cuda_memcpy_to_device  : HostPtr.t -> GpuPtr.t -> int -> unit
 
 external cuda_memcpy_to_host : HostPtr.t -> GpuPtr.t -> int -> unit
   = "ocaml_cuda_memcpy_to_host"
+  
+external cuda_memcpy_device_to_device : GpuPtr.t -> GpuPtr.t -> int -> unit 
+  = "ocaml_cuda_memcpy_device_to_device"
 
+
+(** READ ARRAY ELEMENTS **) 
 external cuda_get_gpu_int_vec_element : GpuPtr.t -> int -> int
-  = "ocaml_cuda_get_gpu_int_vec_element"
+  = "ocaml_cuda_get_gpu_int_vec_elt"
+  
+external cuda_get_gpu_int32_vec_elt : GpuPtr.t -> int -> Int32.t
+  = "ocaml_cuda_get_gpu_int32_vec_elt" 
+
+external cuda_get_gpu_float32_vec_elt : GpuPtr.t -> int -> float 
+  = "ocaml_cuda_get_gpu_float32_vec_elt"
+
+(** MODIFY ARRAY ELEMENTS **) 
+(*
+external cuda_set_gpu_int_vec_element : GpuPtr.t -> int -> int -> unit 
+  = "ocaml_cuda_set_gpu_int_vec_element"
+*)
+external cuda_set_gpu_int32_vec_elt : GpuPtr.t -> int -> Int32.t -> unit
+  = "ocaml_cuda_set_gpu_int32_vec_elt" 
+
+external cuda_set_gpu_float32_vec_elt : GpuPtr.t -> int -> float -> unit 
+  = "ocaml_cuda_set_gpu_float32_vec_elt"
 
 external cuda_device_get_count : unit -> int = "ocaml_cuda_device_get_count"
 

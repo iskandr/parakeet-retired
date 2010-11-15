@@ -1,3 +1,5 @@
+(* pp: -parser o pa_macro.cmo *)
+
 open Base
 open SSA
 open Printf 
@@ -124,7 +126,7 @@ and check_value (errorLog:errors)(tenv:tenv) (defined : ID.Set.t) vNode : unit =
   | GlobalFn _ -> 
       if not $ DynType.is_function vNode.value_type then 
         err "expected function annotation"  
-  | Sym _ | Str _ | Unit -> ()
+  | Sym _ | Str _ | Unit | Stream _ -> ()
 and check_value_list errorLog tenv defined values = 
   List.iter (check_value errorLog tenv defined) values
 and check_block (errorLog : errors) (tenv : DynType.t ID.Map.t) defined block = 

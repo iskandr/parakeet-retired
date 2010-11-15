@@ -1,3 +1,5 @@
+(* pp: -parser o pa_macro.cmo *)
+
 (* state of the code generator includes:
     -- instructions thus far emitted
     -- free registers of all GPU types

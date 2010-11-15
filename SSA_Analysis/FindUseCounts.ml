@@ -3,7 +3,8 @@ open SSA
 
 let use_counts = object 
     inherit [int ID.Map.t] SSA_Base_Analysis.base_analysis
-    method value counts vNode = match vNode.value with  
+    method value counts vNode = match vNode.value with
+    | Stream ({value=Var id}, _)  
     | Var id -> 
       let oldCount = ID.Map.find_default id counts 0 in 
       ID.Map.add id (oldCount+1) counts  

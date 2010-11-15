@@ -76,7 +76,7 @@ let infer_simple_array_op op argTypes = match op, argTypes with
     )  
   | Index, [t; _] when DynType.is_scalar t -> 
     failwith "can't index into a scalar"
-   
+  | DimSize, _ -> Int32T 
   | _ -> 
      failwith $ sprintf 
         "[core_type_infer] Could not infer type for %s\n" 

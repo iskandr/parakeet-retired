@@ -1,3 +1,5 @@
+(* pp: -parser o pa_macro.cmo *)
+
 open Base 
 
 type coord = X | Y | Z
@@ -34,6 +36,7 @@ and array_annot =
   | PrivateArray of exp list 
   | OutputArray of exp list 
   | InputArray of int  
+  | InputSlice of exp list 
 and fn = {
   input_ids : ID.t array;
   input_types : DynType.t array;
@@ -277,7 +280,7 @@ let select cond tNode fNode =
     
 let idx arr idx = 
   let idx' = cast DynType.Int32T idx in  
-  let eltT = DynType.elt_type arr.exp_type in  
+  let eltT = DynType.peel_vec arr.exp_type in  
   {exp= Idx(arr, idx'); exp_type=eltT }
 
 let dim n x = int_exp $ (DimSize(n, x))

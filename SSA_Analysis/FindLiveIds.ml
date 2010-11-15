@@ -33,6 +33,7 @@ and eval_exp liveSet (expNode:exp_node) = match expNode.exp with
 and eval_value liveSet ( valNode: value_node) = match valNode.value with 
   | Lam fundef -> eval_block liveSet fundef.body 
   | Var id -> ID.Set.add id liveSet  
+  | Stream (vNode, t) -> eval_value liveSet vNode 
   | GlobalFn _ 
   | Str _
   | Sym _

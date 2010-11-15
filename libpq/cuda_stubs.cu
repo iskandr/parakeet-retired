@@ -133,6 +133,27 @@ value ocaml_cuda_memcpy_to_device (value array,
   CAMLreturn(Val_unit);
 }
 
+/* Int32.t -> Int32.t -> int -> unit */ 
+
+
+
+CAMLprim
+value ocaml_cuda_memcpy_device_to_device (value src,
+                    value dst,
+                    value num_bytes) {
+  CAMLparam3(src, dst, num_bytes);
+  CUdeviceptr source = Int32_val(src);
+  CUdeviceptr dest = Int32_val(dst);
+  
+  CUresult result = cuMemcpyDtoD(dest, source, Int_val(num_bytes));
+  if (result != 0) {
+    printf ("Error copying memory from GPU to GPU: %d \n", result);
+    exit(1);
+  }
+  CAMLreturn(Val_unit);
+}
+
+
 /* Int64.t -> Int32.t -> int -> unit */
 CAMLprim
 value ocaml_cuda_memcpy_to_host (value array,
@@ -149,9 +170,11 @@ value ocaml_cuda_memcpy_to_host (value array,
   CAMLreturn(Val_unit);
 }
 
-/* EEK */
+/* EEK:  
+   Access a GPU array element 
+*/ 
 CAMLprim
-value ocaml_cuda_get_gpu_int_vec_element(value ocaml_gpu_vec, value ocaml_id) {
+value ocaml_cuda_get_gpu_int_vec_elt(value ocaml_gpu_vec, value ocaml_id) {
   CAMLparam2(ocaml_gpu_vec, ocaml_id);
   int *gpu_vec = (int*)Int32_val(ocaml_gpu_vec);
   int32_t val = 0;
@@ -163,6 +186,85 @@ value ocaml_cuda_get_gpu_int_vec_element(value ocaml_gpu_vec, value ocaml_id) {
   }
   CAMLreturn(Val_int(val));
 }
+
+/*external cuda_get_gpu_int32_vec_elt : GpuPtr.t -> int -> Int32.t
+  = "ocaml_cuda_get_gpu_int32_vec_elt" 
+*/ 
+CAMLprim
+value 
+ocaml_cuda_get_gpu_int32_vec_elt(value ocaml_gpu_vec, value ocaml_id) {
+  CAMLparam2(ocaml_gpu_vec, ocaml_id);
+  int32_t *gpu_vec = (int*)Int32_val(ocaml_gpu_vec);
+  int32_t val = 0;
+  cudaError_t rslt = cudaMemcpy(&val, gpu_vec + Int_val(ocaml_id),
+                                sizeof(int32_t), cudaMemcpyDeviceToHost);
+  if (rslt) {
+    printf("Error getting element of gpu int vec: %d\n", rslt);
+    exit(1);
+  }
+  CAMLreturn(copy_int32(val));
+}
+
+
+
+/*external cuda_get_gpu_float32_vec_elt : GpuPtr.t -> int -> float 
+  = "ocaml_cuda_get_gpu_float_vec_elt"
+*/
+CAMLprim
+value 
+ocaml_cuda_get_gpu_float32_vec_elt(value ocaml_gpu_vec, value ocaml_id) {
+  CAMLparam2(ocaml_gpu_vec, ocaml_id);
+  float *gpu_vec = (float*)Int32_val(ocaml_gpu_vec);
+  float val = 0.0;
+  cudaError_t rslt = cudaMemcpy(&val, gpu_vec + Int_val(ocaml_id),
+                                sizeof(float), cudaMemcpyDeviceToHost);
+  if (rslt) {
+    printf("Error getting element of gpu int vec: %d\n", rslt);
+    exit(1);
+  }
+  CAMLreturn(copy_double(val));
+}
+
+/* 
+   Set a GPU array element 
+*/ 
+
+/*external cuda_set_gpu_int32_vec_elt : GpuPtr.t -> int -> Int32.t -> unit
+*/ 
+CAMLprim
+void 
+ocaml_cuda_set_gpu_int32_vec_elt(value ocaml_gpu_vec, value ocaml_id, 
+                                     value ocaml_elt) {
+                                     
+  CAMLparam3(ocaml_gpu_vec, ocaml_id, ocaml_elt);
+  int32_t gpu_vec = Int32_val(ocaml_gpu_vec);
+  int32_t arr[1]; 
+  arr[0] = Int32_val(ocaml_elt);
+  CUresult result = cuMemcpyHtoD(gpu_vec, arr, sizeof(int32_t));
+  if (result) {
+    printf("Error setting int32 element of gpu int vec: %d\n", result);
+    exit(1);
+  }
+  CAMLreturn0;
+}
+
+CAMLprim
+void 
+ocaml_cuda_set_gpu_float32_vec_elt(value ocaml_gpu_vec, value ocaml_id, 
+                                     value ocaml_elt) {
+  CAMLparam3(ocaml_gpu_vec, ocaml_id, ocaml_elt);
+  int32_t gpu_vec = Int32_val(ocaml_gpu_vec);
+  float arr[1]; 
+  arr[0] = Double_val(ocaml_elt);
+  CUresult result = cuMemcpyHtoD(gpu_vec, arr, sizeof(float));
+  if (result) {
+    printf("Error setting float32 element of gpu int vec: %d\n", result);
+    exit(1);
+  }
+  CAMLreturn0;
+}
+
+
 
 CAMLprim
 value ocaml_cuda_module_get_tex_ref(value ocaml_module_ptr, value ocaml_name) {

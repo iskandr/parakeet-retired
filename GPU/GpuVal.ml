@@ -75,10 +75,17 @@ let mk_gpu_vec ?nbytes ?len ty shape =
     vec_t = ty;
   }
 
-let to_gpu = function 
+let sizeof = function 
+  | GpuArray arr -> arr.vec_nbytes 
+  | GpuScalar n -> DynType.sizeof (PQNum.type_of_num n)  
+
+let to_gpu ?prealloc = function 
   | HostScalar n -> GpuScalar n
   | HostArray { ptr=ptr; host_t=host_t; shape=shape; nbytes=nbytes } ->
-    let gpuPtr = cuda_malloc nbytes in
+    let gpuPtr = match prealloc with 
+      | None -> cuda_malloc nbytes 
+      | Some ptr -> ptr 
+    in 
     cuda_memcpy_to_device ptr gpuPtr nbytes;
     let shapeDevPtr, shapeBytes = shape_to_gpu shape in
     GpuArray  {
@@ -93,10 +100,13 @@ let to_gpu = function
       vec_t = host_t 
     }
     
-let from_gpu = function 
+let from_gpu ?prealloc = function 
     | GpuScalar n -> HostScalar n
     | GpuArray v ->
-        let dataHostPtr = c_malloc v.vec_nbytes in
+        let dataHostPtr =  match prealloc with 
+          | None -> c_malloc v.vec_nbytes 
+          | Some ptr -> ptr 
+        in 
         cuda_memcpy_to_host dataHostPtr v.vec_ptr v.vec_nbytes; 
         HostArray { 
           ptr = dataHostPtr; 
@@ -105,4 +115,25 @@ let from_gpu = function
           shape = v.vec_shape; 
         }
 
-
+let get_slice gpuVal idx = match gpuVal with   
+  | GpuScalar _ -> failwith "can't slice a GPU scalar"
+  | GpuArray arr ->
+    let sliceShape = Shape.slice_shape arr.vec_shape [0] in
+    let sliceType = DynType.peel_vec arr.vec_t in
+    if DynType.is_scalar sliceType then 
+      failwith "getting a single gpu element not yet implemented"
+    else 
+      let bytesPerElt = DynType.sizeof (DynType.elt_type sliceType) in
+      let nelts =  Shape.nelts sliceShape in 
+      let sliceBytes = bytesPerElt * nelts in
+      let sliceInfo = { 
+          vec_ptr = Int32.add arr.vec_ptr (Int32.of_int (sliceBytes * idx));  
+          vec_nbytes = sliceBytes; 
+          vec_len = nelts; 
+          vec_shape_ptr = Int32.add arr.vec_shape_ptr (Int32.of_int 4); 
+          vec_shape_nbytes = arr.vec_shape_nbytes - 4; 
+          vec_shape = sliceShape; 
+          vec_t = sliceType
+      }
+      in 
+      GpuArray sliceInfo  

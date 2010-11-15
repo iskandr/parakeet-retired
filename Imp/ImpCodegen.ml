@@ -1,3 +1,5 @@
+(* pp: -parser o pa_macro.cmo *)
+
 open Base
 open Imp 
 open Printf 
@@ -6,10 +8,11 @@ class imp_codegen =
   object (self)
     val types = Hashtbl.create 127
     val sharedArrayAllocations = Hashtbl.create 127
-    val code = DynArray.create ()
+    val code : Imp.stmt DynArray.t = DynArray.create ()
     
     val inputs = (DynArray.create () : ((ID.t * DynType.t) DynArray.t))
     val inputSet : (ID.t MutableSet.t) = MutableSet.create 17
+    
       
     val outputs = (DynArray.create () : ((ID.t * DynType.t) DynArray.t))
     val outputSet : (ID.t MutableSet.t) = MutableSet.create 17  
@@ -25,8 +28,18 @@ class imp_codegen =
 
     val outputSizes : ((ID.t, Imp.exp list) Hashtbl.t) = Hashtbl.create 127
     
-    val localSizes : ((ID.t, Imp.array_annot) Hashtbl.t) = Hashtbl.create 127 
+    val localSizes : ((ID.t, Imp.array_annot) Hashtbl.t) = Hashtbl.create 127
     
+    (* prints last 10 stmts before throwing exceptions *) 
+    method private fail_with_context msg = 
+      let nStmts = DynArray.length code in
+      Printf.eprintf "\n..."; 
+      for i = max 0 (nStmts - 20) to nStmts - 1 do 
+        Printf.eprintf "%d:\t %s\n" 
+          (i + 1) 
+          (Imp.stmt_to_str (DynArray.get code i));
+      done; 
+      failwith $ Printf.sprintf "ERROR IN IMP CODEGEN: %s" msg  
     
     method get_type id = Hashtbl.find types id 
     method is_shared id = Hashtbl.mem sharedArrayAllocations id 
@@ -76,28 +89,34 @@ class imp_codegen =
       | Imp.PrivateArray exps -> self#add_dynamic_size_annot id exps
       | Imp.OutputArray exps -> self#add_dynamic_size_annot id exps 
       | Imp.SharedArray dims -> self#add_static_size_annot id dims 
+      | Imp.InputSlice exps -> 
+        Hashtbl.add localSizes id (Imp.InputSlice exps) 
+        
     
     method private add_slice_annot (sliceId : ID.t) (arrId : ID.t) = 
       IFDEF DEBUG THEN 
         if not $ MutableSet.mem localIdSet sliceId then 
-          failwith $ Printf.sprintf 
+          self#fail_with_context $ Printf.sprintf 
             "[add_slice_annot] expected slice lhs %s to be a local variable"
             (ID.to_str sliceId)
         ; 
         if not $ self#is_array arrId then 
-          failwith $ Printf.sprintf 
-            "[add_slice_annot] expected slice rhs %s to be an array" 
+          self#fail_with_context $ Printf.sprintf 
+            "[add_slice_annot] expected slice rhs %s : %s to be an array" 
             (ID.to_str arrId)
+            (DynType.to_str $ self#get_type arrId)
         ; 
       ENDIF;
       match self#get_array_annot arrId with
         (* the array to be slice should be of at least rank 1 *) 
         | Imp.InputArray 0 
+        | Imp.InputSlice []
         | Imp.OutputArray []  
         | Imp.PrivateArray [] 
         | Imp.SharedArray [] -> failwith "[imp_codegen] expected array"
         (* slice is a scalar, no new annotation needed *)
-        | Imp.InputArray 1 
+        | Imp.InputArray 1
+        | Imp.InputSlice [_]
         | Imp.PrivateArray [_]
         | Imp.OutputArray [_]   
         | Imp.SharedArray [_] -> ()  
@@ -110,14 +129,20 @@ class imp_codegen =
         | Imp.PrivateArray expressions -> 
           Hashtbl.add localSizes sliceId 
             (Imp.PrivateArray (List.tl expressions))
+        | Imp.InputSlice expressions -> 
+          Hashtbl.add localSizes sliceId 
+            (Imp.InputSlice (List.tl expressions))
         | Imp.InputArray rank ->
+            (*Hashtbl.add localSizes sliceId (Imp.InputArray (rank -1))*)
+          
+            Printf.printf "RANK: %d\n" rank; 
             let arrT = self#get_type arrId in  
             let varNode = {Imp.exp=Imp.Var arrId; exp_type=arrT} in 
             let dims = 
               List.map (fun i -> Imp.DimSize(i, varNode)) (List.til rank)
             in 
-            Hashtbl.add localSizes sliceId (Imp.PrivateArray (List.tl dims))  
-    
+            Hashtbl.add localSizes sliceId (Imp.InputSlice (List.tl dims))  
+            
         
     (* cache the ID's into which we store BlockDim, ThreadIdx, consts, etc..*)
     val expCache  = ((Hashtbl.create 127) : (Imp.exp, ID.t) Hashtbl.t)
@@ -135,7 +160,7 @@ class imp_codegen =
     (* create a Set node and insert a cast if necessary *)     
     method private set_or_coerce id (rhs : exp_node) = 
       if not (Hashtbl.mem types id) then
-        failwith $ 
+        self#fail_with_context $ 
           sprintf "[imp_codegen->set_or_coerce] no type for: %s" (ID.to_str id)
       ;  
       let lhsType = self#get_type id in
@@ -173,6 +198,11 @@ class imp_codegen =
        expression yielding the same value as the original compound expression 
     *) 
     method private flatten_exp expNode : Imp.stmt list * Imp.exp_node =
+      (*IFDEF DEBUG THEN 
+        Printf.printf "[ImpCodegen] Flattening exp: %s\n"
+          (Imp.exp_node_to_str expNode); 
+      ENDIF;
+      *) 
       let is_simple eNode = 
         match eNode.exp with Var _ | Const _ -> true | _ -> false 
       in   
@@ -247,7 +277,7 @@ class imp_codegen =
           (Hashtbl.length types)  
           (Imp.stmt_to_str stmt)
       ENDIF;
-      *)   
+      *) 
       match stmt with 
       | If (cond, tBlock, fBlock) -> 
           let condStmts, condExp = self#flatten_exp cond in 
@@ -262,8 +292,15 @@ class imp_codegen =
       
       | Set (id, rhs) -> 
           let rhsStmts, rhs' = self#flatten_exp rhs in
+          
           let setStmts = self#set_or_coerce id rhs' in  
           let allStmts = rhsStmts @ setStmts in 
+          (*
+          IFDEF DEBUG THEN 
+            Printf.printf "[ImpCodegen->flatten_stmt] ... %s\n"
+               (String.concat "\n" (List.map Imp.stmt_to_str allStmts));
+          ENDIF;
+          *) 
           self#add_slice_annotations allStmts;
           allStmts   
          
@@ -282,7 +319,7 @@ class imp_codegen =
     method emit block =  
       let block' = List.concat (List.map self#flatten_stmt block) in 
       List.iter (DynArray.add code) block'
-
+      
     method fresh_id t = 
       let id = ID.gen() in 
       Hashtbl.add types id t;
@@ -308,6 +345,12 @@ class imp_codegen =
       
     method fresh_input_id t =
       let id = self#fresh_id t in
+      IFDEF DEBUG THEN 
+        Printf.printf "[ImpCodegen] Creating input %d : %s\n"
+          id
+          (DynType.to_str t)
+        ;
+      ENDIF; 
       MutableSet.add inputSet id; 
       DynArray.add inputs (id,t);
       id 
@@ -371,7 +414,16 @@ class imp_codegen =
       
       let localIds = DynArray.to_array localIds in 
       let localTypes = Array.map self#get_type localIds in
-          
+      (* only keep PrivateArray annotations for local_arrays field of final
+         function-- maybe rename this field to "private_arrays"? 
+      *) 
+      let localArrays = 
+        PMap.of_enum 
+            (Enum.filter 
+               (function (_, Imp.PrivateArray _) -> true | _ -> false)
+               (Hashtbl.enum localSizes)
+            )
+      in 
       ImpSimplify.simplify_function {
         input_types =  inputTypes;
         input_ids = inputIds; 
@@ -382,7 +434,7 @@ class imp_codegen =
           
         local_ids = localIds; 
         local_types = localTypes;
-        local_arrays = PMap.of_enum (Hashtbl.enum localSizes);
+        local_arrays = localArrays;  
            
         tenv = PMap.of_enum (Hashtbl.enum types);
         shared_array_allocations = 

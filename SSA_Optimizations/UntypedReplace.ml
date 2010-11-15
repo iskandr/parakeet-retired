@@ -13,7 +13,8 @@ let rec replace_block idMap = function
 and replace_value idMap vNode = match vNode.value with  
   | Var id -> let id' = PMap.find_default id idMap id in 
     { vNode with value=Var id'} 
- 
+  | Stream (v,t) -> 
+    { vNode with value = Stream(replace_value idMap v, t) }
   | Lam fundef -> 
     { vNode with value = 
        Lam {fundef with body = replace_block idMap fundef.body }

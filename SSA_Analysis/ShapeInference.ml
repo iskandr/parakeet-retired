@@ -19,6 +19,7 @@ and infer_value (env : Shape.t ID.Map.t) (vNode : SSA.value_node) : Shape.t =
   | Str _  
   | Sym _ 
   | Unit -> Shape.scalar_shape
+  | Stream (v, _) -> infer_value env v 
   | Prim _
   | Lam _
   | GlobalFn _ -> failwith "[ShapeInference] functions have no shape"
