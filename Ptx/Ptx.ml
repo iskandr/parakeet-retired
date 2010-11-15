@@ -563,8 +563,8 @@ let cvt ~t1 ~t2 ~dest ~src =
   (* float to int conversion *) 
   else if PtxType.is_int t1 && PtxType.is_float t2 then 
     round RoundNearest_Int instr
-  (* float to float *)  
-  else if PtxType.is_float t1 && PtxType.is_float t2 then 
+  (* float to float or int to float *)  
+  else if PtxType.is_float t1 then 
     round RoundNearest instr 
   else failwith 
     (Printf.sprintf "[ptx_cvt] uncertain how to convert %s into %s" 

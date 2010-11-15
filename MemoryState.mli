@@ -26,3 +26,8 @@ val slice : t -> InterpVal.t -> int -> InterpVal.t
 val free : t -> InterpVal.DataId.t -> unit 
 
 val free_all_gpu : t -> unit 
+
+val sizeof : t -> InterpVal.t -> int 
+
+val gpu_transfer_time : t -> InterpVal.t -> int 
+val host_transfer_time : t -> InterpVal.t -> int 

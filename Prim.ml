@@ -1,18 +1,43 @@
 
 type scalar_op =
-  | Add | Sub | Mult | SafeDiv | Div | Pow | Log 
-  | Mod  | Min | Max  
-  | Eq | Neq  | Lt | Lte | Gt | Gte
-  | And| Or | Not   
+  | Add 
+  | Sub 
+  | Mult 
+  | SafeDiv 
+  | Div 
+  | Pow 
+  | Log 
+  | Mod 
+  | Min 
+  | Max  
+  | Eq 
+  | Neq  
+  | Lt 
+  | Lte 
+  | Gt 
+  | Gte
+  | And
+  | Or 
+  | Not   
   | Neg 
   | Sqrt 
   | Sign 
   | Reciprocal 
   | Abs 
-  | Ceil | Floor | Round  
-  | Exp | Exp2
-  | Sin | Cos | Tan | Sinh | Cosh | Tanh 
-  | Ln | Lg2 | Log10 
+  | Ceil 
+  | Floor 
+  | Round  
+  | Exp 
+  | Exp2
+  | Sin 
+  | Cos 
+  | Tan 
+  | Sinh 
+  | Cosh 
+  | Tanh 
+  | Ln 
+  | Lg2 
+  | Log10 
   | Select
       (* returns array where i'th element is from 2nd arg if 
          i'th conditional element is true, otherwise choose from 3rd arg
@@ -128,6 +153,9 @@ let is_float_unop = function
   | Reciprocal | Exp -> true 
   | _ -> false  
 
+let is_float_binop = function 
+  | Div | Log -> true
+  | _ -> false 
 
  
 module PrimOrd = struct type t = prim let compare = compare end
