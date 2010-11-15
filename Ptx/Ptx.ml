@@ -235,10 +235,10 @@ and ptx_op_name = function
   | Comment _ -> ""
 (* print everything after the op name and rounding/ftz/sat modifiers *) 
 and ptx_op_args_to_buffer b symbols op args = match op with
-  | Tex geom * ty ->
+  | Tex geom, ty ->
       bprintf b ".%s.v4.%s.%s %s, [%s, %s];"
-        (ptx_geom_to_str ty)
-        
+        (ptx_geom_to_str geom)
+        (PtxType.to_str 
   | Bra label -> bprintf b " %s;" (Hashtbl.find symbols label) 
   | Exit -> Buffer.add_string b ";"
   | Comment str -> bprintf b "\t /* %s */" str
