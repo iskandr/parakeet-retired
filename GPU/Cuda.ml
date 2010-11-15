@@ -87,10 +87,13 @@ external cuda_set_gpu_int32_vec_elt : GpuPtr.t -> int -> Int32.t -> unit
 external cuda_set_gpu_float32_vec_elt : GpuPtr.t -> int -> float -> unit 
   = "ocaml_cuda_set_gpu_float32_vec_elt"
 
-external cuda_device_get_count : unit -> int = "ocaml_cuda_device_get_count"
+(** TEXTURES **)
 
 external cuda_module_get_tex_ref : CuModulePtr.t -> string -> CuTexRef.t =
   "ocaml_cuda_module_get_tex_ref"
+
+external cuda_bind_texture_1d : CuTexRef.t -> GpuPtr.t -> int -> unit =
+  "ocaml_cuda_bind_texture_1d"
 
 external cuda_bind_texture_2d_std_channel_impl
   : CuTexRef.t -> GpuPtr.t -> int -> int -> int -> unit =
@@ -105,6 +108,7 @@ let cuda_bind_texture_2d_std_channel (texRef : CuTexRef.t)
   | _ -> failwith "[cuda] Unsupported texture type"
 
 
+(** CUDA MODULE **)
    
 (* a module and a list of the kernel names in that module *) 
 type cuda_module = {

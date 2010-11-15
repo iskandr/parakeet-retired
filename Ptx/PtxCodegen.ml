@@ -11,11 +11,11 @@
 
 open Base
 open Ptx
-open PtxVal 
+open PtxVal
 
 let initialNumRegs = 29 
   
-class ptx_codegen  = object (self)  
+class ptx_codegen = object (self)  
   
   (* SYMBOL TABLE *) 
   val symbols : (int, string) Hashtbl.t = Hashtbl.create 31 
@@ -53,12 +53,12 @@ class ptx_codegen  = object (self)
     | PtxVal.Sym {id=id} -> Hashtbl.mem sharedDims id
     | _ -> false   
   
-  method get_shared_dims = function 
-    | PtxVal.Sym{id=id} -> 
-        assert (Hashtbl.mem sharedDims id); 
+  method get_shared_dims = function
+    | PtxVal.Sym{id=id} ->
+        assert (Hashtbl.mem sharedDims id);
         Hashtbl.find sharedDims id
-    | other -> 
-      failwith $ 
+    | other ->
+      failwith $
       "can't get shared dimesions for PTX value " ^
       (PtxVal.to_str symbols other) 
   
@@ -83,10 +83,15 @@ class ptx_codegen  = object (self)
   
   (* FUNCTION PARAMETERS *) 
   val parameters: (Ptx.symid * PtxType.ty) DynArray.t = DynArray.create ()
-  method private add_param_decl id newParam = 
-    DynArray.add parameters (id, newParam) 
+  method private add_param_decl id newParam =
+    DynArray.add parameters (id, newParam)
+  
+  (* TEXTURE REFERENCES *)
+  val textures: (Ptx.symid * PtxType.ty) DynArray.t = DynArray.create ()
+  method private add_tex_decl id newTexParam =
+    DynArray.add textures (id, newTexParam)
 
-  (* number of registers currently allocated for every type *) 
+  (* number of registers currently allocated for every type *)
   val maxRegs : (PtxType.ty, int) Hashtbl.t =  Hashtbl.create initialNumRegs
   
   (* Mapping from Imp identifiers to their corresponding registers *)  
@@ -222,62 +227,67 @@ class ptx_codegen  = object (self)
   val paramOrder : ID.t DynArray.t = DynArray.create()
   val dataLocations 
     : (ID.t, PtxCallingConventions.data_location) Hashtbl.t = Hashtbl.create 127 
-  
 
 
   (* shared between storage arguments-- used for local vectors, 
      and global input arguments 
   *) 
-  method private declare_param  (id : ID.t) (dynT : DynType.t) : PtxVal.value =
-     
+  method private declare_param (id : ID.t) (dynT : DynType.t) : PtxVal.value =
     Hashtbl.add dynTypes id dynT;
-    DynArray.add paramOrder id;  
-    let paramId = self#fresh_arg_id in  
-    let gpuStorageT = PtxType.storage_of_dyn_type dynT in  
+    DynArray.add paramOrder id;
+    let paramId = self#fresh_arg_id in
+    let gpuStorageT = PtxType.storage_of_dyn_type dynT in
     self#add_param_decl paramId gpuStorageT;
-    let dataParam =  Sym { id = paramId; ptx_type=gpuStorageT; space=PARAM} in 
-    let storageReg = self#fresh_reg gpuStorageT in 
+    let dataParam =  Sym {id = paramId; ptx_type=gpuStorageT; space=PARAM} in
+    let storageReg = self#fresh_reg gpuStorageT in
     self#emit [ld_param gpuStorageT storageReg dataParam];
     let gpuT = PtxType.of_dyn_type dynT in
-    let dataReg =  
-        (* if storage and register types aren't the same, then convert *) 
-        if gpuT = gpuStorageT then storageReg 
-        else self#convert_fresh ~destType:gpuT ~srcVal:storageReg  
-    in 
+    let dataReg =
+        (* if storage and register types aren't the same, then convert *)
+        if gpuT = gpuStorageT then storageReg
+        else self#convert_fresh ~destType:gpuT ~srcVal:storageReg
+    in
     Hashtbl.add dataRegs id dataReg;
-    (* vectors need an additional param for their shape *) 
-    if DynType.is_scalar dynT then 
+    (* vectors need an additional param for their shape *)
+    if DynType.is_scalar dynT then
       Hashtbl.add dataLocations id PtxCallingConventions.ScalarInput
     else (
       Hashtbl.add dataLocations id PtxCallingConventions.GlobalInput;
-      let rank = DynType.nest_depth dynT in 
+      let rank = DynType.nest_depth dynT in
       let shapeReg = self#fresh_shape_reg dataReg rank in
-      let shapeParamId = self#get_sym_id ("shape" ^ (string_of_int paramId)) in 
-      let shapeParam = 
-        Sym {id=shapeParamId; ptx_type=PtxType.ptrT; space=PARAM}  
-      in 
-      self#add_param_decl shapeParamId PtxType.ptrT ; 
+      let shapeParamId = self#get_sym_id ("shape" ^ (string_of_int paramId)) in
+      let shapeParam =
+        Sym {id=shapeParamId; ptx_type=PtxType.ptrT; space=PARAM}
+      in
+      self#add_param_decl shapeParamId PtxType.ptrT;
       self#emit [ld_param PtxType.ptrT shapeReg shapeParam];
     );
     dataReg
      
-  (* if variable is a scalar then allocates one new register and returns
+  (*
+     if variable is a scalar then allocates one new register and returns
      it. if it's a vector then allocate a register pair (data/shape) and
      return the data register. If the vector is a vector and requires 
      storage (meaning it isn't just a slice through an existing vector)
      then the optional argument external_alloc is set to true and a parameter 
-     is registered for the external storage.  
-       
+     is registered for the external storage.
   *) 
   method declare_local impId dynT =
-    let ptxT = PtxType.of_dyn_type dynT in 
-    let dataReg = self#fresh_reg ptxT in 
+    let ptxT = PtxType.of_dyn_type dynT in
+    let dataReg = self#fresh_reg ptxT in
     Hashtbl.add dataRegs impId dataReg;
-    Hashtbl.add dynTypes impId dynT; 
-    if not $ DynType.is_scalar dynT then  
+    Hashtbl.add dynTypes impId dynT;
+    if not $ DynType.is_scalar dynT then
       ignore (self#fresh_shape_reg dataReg (DynType.nest_depth dynT))
     ;
-    dataReg  
+    dataReg
+  
+  (* Texture inputs *)
+  method declare_tex_param impId dynT =
+    Hashtbl.add dynTypes impId dynT;
+    DynArray.add paramOrder impId;
+    let ptxT = PtxType.of_dyn_type dynT in
+        
   
   (*************************************************************
                       CACHE ACCESS TO SPECIAL REGISTERS
@@ -389,22 +399,22 @@ class ptx_codegen  = object (self)
       result.(i) <- dims.(i+1) * result.(i+1)
     done;
     result
-  
-  (* compute the absolute address of an element in an array 
+
+  (* compute the absolute address of an element in an array
      given that array's base address register, the size of the
-     elements contained in the array and an array of registers 
-     containing indices. Assumes that the baseReg has been 
-     registered either as a shared array, an array input, 
+     elements contained in the array and an array of registers
+     containing indices. Assumes that the baseReg has been
+     registered either as a shared array, an array input,
      or a "local" storage array. 
-  *) 
-  method compute_address baseReg eltSize idxRegs  = 
+  *)
+  method compute_address baseReg eltSize idxRegs =
     let rank = self#get_array_rank baseReg in
-    let numIndices = Array.length idxRegs in  
+    let numIndices = Array.length idxRegs in
     let baseReg64 = self#convert_fresh ~destType:U64 ~srcVal:baseReg in
-    let idxRegs64 = 
-      Array.map 
-        (fun reg -> self#convert_fresh ~destType:U64 ~srcVal:reg) 
-        idxRegs 
+    let idxRegs64 =
+      Array.map
+        (fun reg -> self#convert_fresh ~destType:U64 ~srcVal:reg)
+        idxRegs
     in
     let address = self#fresh_reg U64 in
     self#emit [mov address baseReg64]; 
@@ -447,8 +457,7 @@ class ptx_codegen  = object (self)
       done 
     end; 
     address 
-  
-  
+
 
   (* storage args are those that supply private heap space to each thread *)
   val storageArgs : ID.t DynArray.t = DynArray.create () 
@@ -481,10 +490,13 @@ class ptx_codegen  = object (self)
     self#emit [mov myStorageSlice address];  
     myStorageSlice
 
-  
+
   method declare_input impId dynT = function 
     | PtxVal.PARAM 
-    | PtxVal.GLOBAL -> self#declare_param impId dynT 
+    | PtxVal.GLOBAL -> self#declare_param impId dynT
+    (* For now, assume dumbly that we can surely use textures for anything *)
+    (* that was requested to use them *)
+    | PtxVal.TEX -> self#declare_tex_param impId dynT
     | other -> failwith $ Printf.sprintf 
         "kernel inputs via %s space not yet implemented"
         (PtxVal.ptx_space_to_str other) 
@@ -508,8 +520,7 @@ class ptx_codegen  = object (self)
           if PtxType.is_int destType then destType
           else PtxType.S64
       | _ -> failwith "[ptx_codegen] don't know how to convert this value"
-    
-  
+
   (* 
      first create a register then convert value to fit in that register,
      and lastly return the register. Might also just return the srcVal 
@@ -597,7 +608,7 @@ class ptx_codegen  = object (self)
       code = DynArray.to_array instructions; 
       decls = allocations;
       symbols = symbols; 
-      textures = [|(* nothign here yet *) |]; 
+      textures = DynArray.to_arry textures; 
     } 
     in
     let cc = { 
@@ -606,9 +617,9 @@ class ptx_codegen  = object (self)
           (fun id loc env -> ID.Map.add id loc env) 
           dataLocations
           ID.Map.empty;
-       param_order = DynArray.to_array paramOrder
-    } 
-    in 
-    kernel, cc 
+      param_order = DynArray.to_array paramOrder
+    }
+    in
+    kernel, cc
 
 end

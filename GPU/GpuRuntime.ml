@@ -45,7 +45,10 @@ let create_input_arg modulePtr argsDynArray inputVal = function
       Cuda.infer_channel_format 
         (DynType.elt_type $ GpuVal.get_type inputVal)
     in  
-    begin match geom with 
+    begin match geom with
+    | Ptx.Tex1D ->
+      assert (Shape.rank inputShape = 1);
+      Cuda.cuda_bind_texture_1d texRef inputPtr (Shape.nbytes inputShape)
     | Ptx.Tex2D ->
       assert (Shape.rank inputShape = 2); 
       Cuda.cuda_bind_texture_2d_std_channel
@@ -129,18 +132,21 @@ let create_args
 (** MAP **)
 let map_id_gen = mk_gen()
 let compile_map globalFunctions payload argTypes retTypes =
-  let mapThreadsPerBlock = 128 in
+  let mapThreadsPerBlock = 256 in
   (* converting payload to Imp *) 
   let impPayload = SSA_to_Imp.translate_fundef globalFunctions payload in
   (* generating Imp kernel w/ embedded payload *)
-  let impfn = 
-    ImpMapTemplate.gen_map 
-      impPayload 
-      mapThreadsPerBlock 
-      (Array.of_list argTypes) 
-      (Array.of_list retTypes) 
-  in   
-  let kernel, cc = ImpToPtx.translate_kernel impfn in
+  let impfn =
+    ImpMapTemplate.gen_map
+      impPayload
+      mapThreadsPerBlock
+      (Array.of_list argTypes)
+      (Array.of_list retTypes)
+  in
+  (* Testing the request for all inputs to be textures *)
+  let inputSpaces = Array.map (fun t -> PtxVal.TEX) (Array.of_list argTypes) in
+  let kernel, cc = ImpToPtx.translate_kernel
+                     ?input_spaces:(Some inputSpaces) impfn in
   let kernelName = "map_kernel" ^ (string_of_int (map_id_gen())) in
   let cudaModule = 
     LibPQ.cuda_module_from_kernel_list [kernelName, kernel] mapThreadsPerBlock

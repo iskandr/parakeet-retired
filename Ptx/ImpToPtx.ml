@@ -65,8 +65,9 @@ let gen_exp
       ]
   (* by this point all the index expressions should have been flattened, 
      so only expect a variable on the lhs 
-  *) 
-  | Imp.Idx({exp=Var id; exp_type=arrDynT}, idx) -> 
+  *)
+  | Imp.Idx({exp=Var id; exp_type=arrDynT}, idx) ->
+      let isTex = codgen#
       let baseReg = codegen#imp_reg id in
       let idxDynT = idx.exp_type in 
       let idxPtxT = PtxType.of_dyn_type idxDynT in 
@@ -79,7 +80,7 @@ let gen_exp
         PtxType.nbytes 
           (PtxType.storage_of_dyn_type (DynType.elt_type dynResultT))
       in
-      let isShared = codegen#is_shared_ptr baseReg in 
+      let isShared = codegen#is_shared_ptr baseReg in
       if not isShared && not (codegen#is_global_array_ptr baseReg) then 
         failwith "[imp2ptx] cannot generate indexing code: \"
                  base address register is neither global nor shared pointer"
@@ -88,19 +89,19 @@ let gen_exp
       let address = codegen#compute_address baseReg eltBytes [|idxReg|] in  
       (* indexing into a 1D array yields a scalar *)  
       if rank = 1 then (
-        let gpuStorageT = PtxType.storage_of_dyn_type dynResultT in 
-        let storageReg = codegen#fresh_reg gpuStorageT in 
+        let gpuStorageT = PtxType.storage_of_dyn_type dynResultT in
+        let storageReg = codegen#fresh_reg gpuStorageT in
         if isShared then
-          codegen#emit [ld_shared gpuStorageT storageReg address] 
+          codegen#emit [ld_shared gpuStorageT storageReg address]
         else
           codegen#emit [ld_global gpuStorageT storageReg address]
         ;
         codegen#convert ~destReg ~srcVal:storageReg
       )
-      (* generate an array slice *)      
+      (* generate an array slice *)
       else (
-        codegen#convert ~destReg ~srcVal:address; 
-        codegen#declare_slice baseReg destReg 
+        codegen#convert ~destReg ~srcVal:address;
+        codegen#declare_slice baseReg destReg
      )     
            
   | Imp.Idx(_, _) -> failwith "[imp2ptx] attempted to index into non-array"
@@ -215,7 +216,7 @@ and gen_block codegen block =
    
 let translate_kernel ?input_spaces (impfn : Imp.fn) =
   IFDEF DEBUG THEN 
-    print_string  "\n[imp2ptx] ***** started translation ****\n";
+    print_string "\n[imp2ptx] ***** started translation ****\n";
     print_string (Imp.fn_to_str impfn);
     print_string "\n";
     print_string "\n[imp2ptx] ******************************\n";
@@ -237,21 +238,21 @@ let translate_kernel ?input_spaces (impfn : Imp.fn) =
       3) a shared array 
   *)
   let register_local id dynT = 
-    (* todo: this is wrong since we've change array annotations *)
+    (* TODO: this is wrong since we've changed array annotations *)
     if PMap.mem id impfn.shared_array_allocations then
-      let dims = PMap.find id impfn.shared_array_allocations in   
+      let dims = PMap.find id impfn.shared_array_allocations in
         ignore $ codegen#declare_shared_vec id (DynType.elt_type dynT) dims
       else (
         if PMap.mem id impfn.local_arrays then ( 
-          IFDEF DEBUG THEN 
-            Printf.printf "[imp2ptx] declaring local array %s : %s\n" 
+          IFDEF DEBUG THEN
+            Printf.printf "[imp2ptx] declaring local array %s : %s\n"
               (ID.to_str id)
               (DynType.to_str dynT);
-          ENDIF;   
+          ENDIF;
           ignore $ codegen#declare_storage_arg id dynT
-         ) 
-         else
-           ignore $ codegen#declare_local id dynT
+          )
+        else
+          ignore $ codegen#declare_local id dynT
       )
   in 
   Array.iter2 register_local impfn.local_ids impfn.local_types;
@@ -259,4 +260,4 @@ let translate_kernel ?input_spaces (impfn : Imp.fn) =
     codegen#declare_input impfn.input_ids impfn.input_types inputSpaces;
   Array.iter2 codegen#declare_output impfn.output_ids impfn.output_types; 
   gen_block codegen impfn.body; 
-  codegen#finalize_kernel 
+  codegen#finalize_kernel

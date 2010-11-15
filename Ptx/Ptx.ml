@@ -44,7 +44,7 @@ and ptx_binop =
     | Mul24 of ptx_bits
 and ptx_virtual_unop = Exp | Ln
 and ptx_virtual_binop =  Pow
-and geom = Tex1D | Tex2D | Tex3D 
+and geom = Tex1D | Tex2D | Tex3D
 and ptx_op =
   | Unop of ptx_unop * PtxType.ty
   | Binop of ptx_binop * PtxType.ty
@@ -95,7 +95,7 @@ and kernel = {
   textures: symid array;  
 }
 
-and ptx_compute_capability = SM_10 | SM_11 | SM_13 | SM_20
+and ptx_compute_capability = SM_10 | SM_11 | SM_13 | SM_20 | SM_21
 and ptx_module = {
   kernels : (string, kernel) PMap.t;
   compute_capability: ptx_compute_capability;
@@ -118,7 +118,6 @@ let is_int_rounding_mode = function
   | RoundNearest_Int |  RoundZero_Int
   | RoundNegInf_Int | RoundPosInf_Int -> true
   | _ -> false
-
 
 
 (*********************************************************
@@ -189,10 +188,10 @@ and add_kernel_decls_to_buffer buffer symbols decls =
     Hashtbl.iter add_decl decls
 
 and add_kernel_body_to_buffer b symbols code =
-  Array.iter 
-    (fun instr -> 
-      add_instruction_to_buffer b symbols instr; 
-      Buffer.add_string b "\n") 
+  Array.iter
+    (fun instr ->
+      add_instruction_to_buffer b symbols instr;
+      Buffer.add_string b "\n")
     code
 
 and add_instruction_to_buffer b symbols instr = 
@@ -229,12 +228,17 @@ and ptx_op_name = function
   | Ld _ -> "ld" 
   | St _ -> "st" 
   | Mov _ -> "mov"				
-  | Bra _  -> "bra" 
+  | Bra _  -> "bra"
   | Exit -> "exit"
   | Bar d -> "bar.sync " ^ (string_of_int d)
+  | Tex _ -> "tex"
   | Comment _ -> ""
 (* print everything after the op name and rounding/ftz/sat modifiers *) 
-and ptx_op_args_to_buffer b symbols op args = match op with 
+and ptx_op_args_to_buffer b symbols op args = match op with
+  | Tex geom * ty ->
+      bprintf b ".%s.v4.%s.%s %s, [%s, %s];"
+        (ptx_geom_to_str ty)
+        
   | Bra label -> bprintf b " %s;" (Hashtbl.find symbols label) 
   | Exit -> Buffer.add_string b ";"
   | Comment str -> bprintf b "\t /* %s */" str
@@ -378,7 +382,6 @@ and ptx_binop_to_str = function
   | Xor -> "xor"
   | Sub -> "sub"
 	(*
-  | Tex -> "tex"
 	| Atom -> "atom"
   | Bar -> "bar"
   | Brkpt -> "brkpt"
@@ -410,8 +413,11 @@ and compute_capability_to_str = function
   | SM_11 -> "sm_11"
   | SM_13 -> "sm_13"
   | SM_20 -> "sm_20"
-
-
+  | SM_21 -> "sm_21"
+and ptx_geom_to_str = function
+  | Tex1D -> "1d"
+  | Tex2D -> "2d"
+  | Tex3D -> "3d"
 
 
 

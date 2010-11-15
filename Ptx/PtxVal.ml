@@ -15,20 +15,20 @@ type ptx_space =
  
 let ptx_space_to_str = function 
     | REG -> "reg"
-    | SREG -> "sreg" 
-    | CONST -> "const" 
+    | SREG -> "sreg"
+    | CONST -> "const"
     | GLOBAL -> "global"
     | LOCAL -> "local"
     | PARAM -> "param"
     | SHARED -> "shared"
     | SURF -> "surf"
-    | TEX -> "tex"  
+    | TEX -> "tex"
 
 type symid = int
-and typed_symbol = { id: symid; ptx_type: PtxType.ty ; space: ptx_space} 
+and typed_symbol = {id: symid; ptx_type: PtxType.ty; space: ptx_space}
 
 type value =    
-  | Sym of typed_symbol 
+  | Sym of typed_symbol
   | IntConst of Int64.t
   | FloatConst of float
   | Special of special_register
@@ -49,11 +49,11 @@ and special_register =
   | GridId
   | Clock
 
-let rec to_str symbols = function 
-  | Sym {id=id; space=REG} ->  sprintf "%%%s" (Hashtbl.find symbols id) 
+let rec to_str symbols = function
+  | Sym {id=id; space=REG} ->  sprintf "%%%s" (Hashtbl.find symbols id)
   | Sym {id=id} -> Hashtbl.find symbols id
   | IntConst i -> Int64.to_string i
-  | FloatConst f -> Float.to_string f 
+  | FloatConst f -> Float.to_string f
   | Special s -> special_register_to_str s
   | Vec2 (x,y) -> sprintf "{%s, %s}" (to_str symbols x) (to_str symbols y)
   | Vec4 (x,y,z,w) -> 

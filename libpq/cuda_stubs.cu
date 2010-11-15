@@ -277,7 +277,7 @@ ocaml_cuda_set_gpu_float32_vec_elt(value ocaml_gpu_vec, value ocaml_id,
   CAMLreturn0;
 }
 
-
+/** Textures **/
 
 CAMLprim
 value ocaml_cuda_module_get_tex_ref(value ocaml_module_ptr, value ocaml_name) {
@@ -288,6 +288,16 @@ value ocaml_cuda_module_get_tex_ref(value ocaml_module_ptr, value ocaml_name) {
                     String_val(ocaml_name));
 
   CAMLreturn(caml_copy_int64((int64_t)tex_ref));
+}
+
+CAMLprim
+value ocaml_cuda_bind_texture_1d(value tex_ref, value dev_ptr, value bytes) {
+  CAMLparam3(tex_ref, dev_ptr, bytes);
+
+  // For now, we assume that the offset is 0
+  cuTexRefSetAddress(0, (CUtexref)Int32_val(tex_ref),
+                     (CUdeviceptr)Int32_val(dev_ptr), Int_val(bytes));
+  CAMLreturn(Val_unit);
 }
 
 CAMLprim
