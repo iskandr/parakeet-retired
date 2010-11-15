@@ -22,8 +22,10 @@
 value build_ocaml_host_scalar(value num) {
   CAMLparam1(num);
   CAMLlocal1(hostScalar);
+  printf("building ocaml host scalar\n");
   hostScalar = caml_alloc(1, HostScalar);
   Store_field(hostScalar, 0, num);
+  printf("built\n");
   CAMLreturn(hostScalar);
 }
 

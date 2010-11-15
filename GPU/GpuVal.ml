@@ -52,10 +52,10 @@ let shape_to_gpu shape =
 (* creates a fresh vec on the gpu -- allow optional size argument if that's 
    already precomputed *)
 let mk_gpu_vec ?nbytes ?len ty shape =
-  let len = match len with None -> Shape.nelts shape | Some len -> len in 
-  let nbytes = match nbytes with 
+  let len = match len with None -> Shape.nelts shape | Some len -> len in
+  let nbytes = match nbytes with
     | None ->
-       let eltT = DynType.elt_type ty in 
+       let eltT = DynType.elt_type ty in
        let eltSize = DynType.sizeof eltT in
        len * eltSize 
     | Some n -> n 
@@ -89,20 +89,18 @@ let to_gpu = function
       vec_shape_ptr = shapeDevPtr;
       vec_shape_nbytes = shapeBytes; 
 
-      vec_shape = shape;  
-      vec_t = host_t 
+      vec_shape = shape;
+      vec_t = host_t
     }
-    
+
 let from_gpu = function 
-    | GpuScalar n -> HostScalar n
-    | GpuArray v ->
-        let dataHostPtr = c_malloc v.vec_nbytes in
-        cuda_memcpy_to_host dataHostPtr v.vec_ptr v.vec_nbytes; 
-        HostArray { 
-          ptr = dataHostPtr; 
-          nbytes = v.vec_nbytes;
-          host_t = v.vec_t; 
-          shape = v.vec_shape; 
-        }
-
-
+  | GpuScalar n -> HostScalar n
+  | GpuArray v ->
+      let dataHostPtr = c_malloc v.vec_nbytes in
+      cuda_memcpy_to_host dataHostPtr v.vec_ptr v.vec_nbytes; 
+      HostArray { 
+        ptr = dataHostPtr; 
+        nbytes = v.vec_nbytes;
+        host_t = v.vec_t; 
+        shape = v.vec_shape; 
+      }

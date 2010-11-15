@@ -28,13 +28,13 @@ CNDF:{[InputX]
   
   OutputX}
 
-BlkSchlsEqEuroNoDiv:{[xStockPrice; xStrikePrice; xRiskFreeRate; xVolatility; xTime; xCallput]
+BlkSchlsEqEuroNoDiv:{[xTest; xStockPrice; xStrikePrice; xRiskFreeRate; xVolatility; xTime; xCallput]
   
   xLogTerm: log xStockPrice % xStrikePrice;
 
   xPowerTerm: xVolatility * xVolatility * 0.5e;
 
-  xDen:xVolatility * sqrt xTime;
+  xDen:xTest * xVolatility * sqrt xTime;
 
   xD1: (xLogTerm + xTime * xRiskFreeRate + xPowerTerm) % xDen;
 
@@ -60,5 +60,5 @@ xRiskFreeRate:options[`Rate];
 xVolatility:options[`Volatility];
 xTime:options[`Time];
 xCallput:options[`Callput]; 
-result: BlkSchlsEqEuroNoDiv[xStockPrice; xStrikePrice; xRiskFreeRate; xVolatility; xTime; xCallput];   
+result: BlkSchlsEqEuroNoDiv[1.2e; xStockPrice; xStrikePrice; xRiskFreeRate; xVolatility; xTime; xCallput];   
 

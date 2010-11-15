@@ -121,7 +121,7 @@ let create_args
       cc.PtxCallingConventions.param_order
   in
   let outputsList = List.map (fun id -> ID.Map.find id valueEnv) outputIds in
-  paramsArray, outputsList 
+  paramsArray, outputsList
 
 
 (** MAP **)
@@ -232,6 +232,7 @@ let run_reduce
     (* WAYS THIS IS CURRENTLY WRONG: 
        - we are ignoring the initial value
        - we are only allowing reductions over a single array
+       - in the 2D case, we only support embedded maps
     *)
     | [fnName], _ :: [gpuVal] ->
       let inShape = GpuVal.get_shape gpuVal in
@@ -409,8 +410,17 @@ let eval_array_op
   match op, args  with  
   | Prim.Map, (InterpVal.Closure(fnId, []))::dataArgs ->
       let fundef = FnTable.find fnId functions in
-      let gpuVals = List.map (MemoryState.get_gpu memState) dataArgs in 
-      run_map memState functions   fundef gpuVals outputTypes 
+      (*
+		  let inputShapes = List.map (MemoryState.get_shape memState) dataArgs in
+		  let outputShapes, _ =
+        ShapeInference.infer_map functions fundef inputShapes in
+      let argsOnHost =
+        List.filter (fun arg -> not (MemoryState.is_on_gpu memState arg))
+                    dataArgs
+      in
+      *)
+      let gpuVals = List.map (MemoryState.get_gpu memState) dataArgs in
+      run_map memState functions fundef gpuVals outputTypes 
       
   | Prim.Map, _ -> 
       failwith "[GpuRuntime->eval_array_op] closures not yet supported for Map"

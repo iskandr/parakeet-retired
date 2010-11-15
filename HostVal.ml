@@ -53,7 +53,9 @@ let get_type = function
   | HostArray { host_t = host_t } -> host_t
   | HostScalar n -> PQNum.type_of_num n
 
-
+let get_shape = function
+  | HostArray v -> v.shape
+  | HostScalar _ -> Shape.scalar_shape 
 
 (*
 let set_vec_elt hostVec idx v =

@@ -48,6 +48,9 @@ external cuda_device_get_count : unit -> int = "ocaml_cuda_device_get_count"
 external cuda_device_get_properties : int -> device_info
   = "ocaml_cuda_device_get_properties"
 
+external cuda_device_get_free_and_total_mem : unit -> (int * int)
+  = "ocaml_cuda_device_get_free_and_total_mem"
+
 external cuda_ctx_create : int -> CuCtxPtr.t = "ocaml_cuda_ctx_create"
 external cuda_ctx_destroy : CuCtxPtr.t -> unit = "ocaml_cuda_ctx_destroy"
 

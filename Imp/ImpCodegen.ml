@@ -141,18 +141,18 @@ class imp_codegen =
       let lhsType = self#get_type id in
       let rhsType = rhs.exp_type in 
       if lhsType <> rhsType  then (
-        IFDEF DEBUG THEN 
+        IFDEF DEBUG THEN
           assert (DynType.is_scalar lhsType && DynType.is_scalar rhsType);
-        ENDIF;   
-        let cacheKey = rhs.exp, lhsType in 
-        if Hashtbl.mem coercionCache cacheKey then 
+        ENDIF;
+        let cacheKey = rhs.exp, lhsType in
+        if Hashtbl.mem coercionCache cacheKey then
           [Set(id, Hashtbl.find coercionCache cacheKey)]
         else (
           let id' = self#fresh_local_id rhsType in
-          if Imp.always_const rhs then 
+          if Imp.always_const rhs then
             Hashtbl.add coercionCache cacheKey {exp=Var id; exp_type=lhsType}
-          ; 
-          let idExp' = {exp=Var id'; exp_type=rhsType} in 
+          ;
+          let idExp' = {exp=Var id'; exp_type=rhsType} in
           let castNode = 
             {exp = Cast(lhsType, idExp'); exp_type=lhsType}
           in   

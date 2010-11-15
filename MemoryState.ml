@@ -13,6 +13,26 @@ let create numvars = {
   host_vals = Hashtbl.create (2*numvars); 
 }
 
+(*
+let is_on_gpu state = function
+  | InterpVal.Data id -> Hashtbl.mem state.gpu_vals id
+  | _ -> failwith "Can't query location of non-data InterpVal"
+
+let is_on_host state = function
+  | InterpVal.Data id -> Hashtbl.mem state.host_vals id
+  | _ -> failwith "Can't query location of non-data InterpVal"
+
+let get_shape state = function
+  | InterpVal.Data id ->
+    if is_on_gpu state id then
+      let gpuVal = get_gpu state id in
+      GpuVal.get_shape gpuVal
+    else
+      let hostVal = get_host state id in
+      HostVal.get_shape hostVal
+  | _ -> "Can't get shape of non-data InterpVal"
+*)
+
 let add_host state hostVal = 
   let id = InterpVal.DataId.gen() in 
   Hashtbl.replace state.host_vals id hostVal; 
@@ -29,7 +49,7 @@ let get_gpu state = function
       Hashtbl.find state.gpu_vals id
     else (
       let hostVal = Hashtbl.find state.host_vals id in
-      debug $ HostVal.to_str hostVal; 
+      IFDEF DEBUG THEN Printf.printf "%s\n" (HostVal.to_str hostVal); ENDIF; 
       let gpuVal = GpuVal.to_gpu hostVal in
       Hashtbl.replace state.gpu_vals id gpuVal; 
       gpuVal
