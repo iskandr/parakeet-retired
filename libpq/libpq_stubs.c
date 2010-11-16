@@ -209,7 +209,7 @@ CAMLprim value ocaml_pq_launch_ptx (
 
       case PQNUM_INT32:
         int32_val = get_pqnum_int32(ocaml_gpu_val);
-        printf("Sending %d : int32 to GPU\n", int32_val);
+        // printf("Sending %d : int32 to GPU\n", int32_val);
         ptr_arg = (void*) &int32_val;
         arg_size = sizeof(int32_t);
         break;
@@ -223,7 +223,7 @@ CAMLprim value ocaml_pq_launch_ptx (
       case PQNUM_FLOAT32:
         /* get the bits of a float32 */
         f = (float)Double_val(Field(ocaml_gpu_val, 0));
-        printf("Sending %f : float32 to GPU\n", f);
+        // printf("Sending %f : float32 to GPU\n", f);
         ptr_arg = (void*) &f;
         arg_size = sizeof(float);
         break;
