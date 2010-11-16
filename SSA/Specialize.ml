@@ -17,6 +17,10 @@ type context = {
 
 type change_indicator = bool    
   
+let min_arity context = function 
+  | Prim op -> Prim.min_prim_arity op
+  | GlobalFn fnId -> InterpState.get_untyped_arity context.interp_state fnId 
+  
 let sig_from_type = function 
   | FnT([], inTypes, outTypes) -> Signature.from_types inTypes outTypes
   | FnT(_::_, _, _) -> failwith "closures not yet supported" 
@@ -114,76 +118,82 @@ let rec annotate_app context expSrc fn args = match fn.value with
   (* for now assume that all higher order primitives take a single *)
   (* function argument which is passed first *)  
   | Prim (Prim.ArrayOp p) when Prim.is_higher_order p -> 
-    IFDEF DEBUG THEN 
-      assert (List.length args > 1);
-    ENDIF  
-    
-    let dataArgs = List.tl args in 
-    let dataArgs', types, argsChanged = annotate_values context dataArgs in
-    (* for now just pass through the literal value but should eventually*)
-    (* have a context available with an environment of literal value *)
-    (* arguments and check whether the fnArg is in that environment. *)
-    let fnVal = (List.hd args).value in 
-    IFDEF DEBUG THEN
-      assert (match fnVal with SSA.GlobalFn _ | SSA.Prim _ -> true | _ -> false) 
-    ENDIF;  
-    let fnSigElt = Signature.Closure (fnVal, []) in 
-    let signature = { 
-      Signature.inputs = 
-        fnSigElt :: (List.map (fun t -> Signature.Type t) types);
-      outputs = None
-    } 
-    in 
-    let specializedFn = 
-      specialize_function_value context.interp_state fn.value signature 
-    in
-    let expNode = { 
-      exp_src = expSrc;  
-      exp_types = DynType.fn_output_types specializedFn.value_type; 
-      exp = App(specializedFn, dataArgs') 
-    }
-    in expNode, argsChanged
+      IFDEF DEBUG THEN 
+        assert (List.length args > 1);
+      ENDIF;
+      let dataArgs = List.tl args in 
+      let dataArgs', types, argsChanged = annotate_values context dataArgs in
+      (* for now just pass through the literal value but should eventually*)
+      (* have a context available with an environment of literal value *)
+      (* arguments and check whether the fnArg is in that environment. *)
+      let fnVal = (List.hd args).value in 
+      IFDEF DEBUG THEN
+        let ok = match fnVal with 
+          | SSA.GlobalFn _ | SSA.Prim _ -> true 
+          | _ -> false
+        in 
+        assert ok  
+      ENDIF;  
+      let fnSigElt = Signature.Closure (fnVal, []) in 
+      let signature = { 
+        Signature.inputs = 
+          fnSigElt :: (List.map (fun t -> Signature.Type t) types);
+        outputs = None
+      } 
+      in 
+      let specializedFn = 
+        specialize_function_value context.interp_state fn.value signature 
+      in
+      let expNode = { 
+        exp_src = expSrc;  
+        exp_types = DynType.fn_output_types specializedFn.value_type; 
+        exp = App(specializedFn, dataArgs') 
+      }
+      in 
+      expNode, argsChanged
       
   (* for now assume all named functions are top-level and that none*)
   (* of the arguments are themselves functions. This means that for now *)
   (* the only higher order functions are built in primitives. *)  
   | GlobalFn _ 
   | Prim _ ->
-    let args', types,  argsChanged = annotate_values context args in 
-    let signature = Signature.from_input_types types in 
-    let specializedFn = 
-      specialize_function_value context.interp_state fn.value signature 
-    in
-    let expNode = {
-      exp_src = expSrc;  
-      exp_types = DynType.fn_output_types specializedFn.value_type; 
-      exp = App(specializedFn, args') 
-    }
-    in expNode, argsChanged               
-  | Lam _ -> failwith "anonymous functions should have been named by now"
-  | Var arrayId -> 
-    (* assume we're conflating array indexing and function application. *)
-    let arrayType = ID.Map.find arrayId context.type_env in
-    let arrNode = { fn with value_type = arrayType } in  
-    if DynType.is_scalar arrayType then 
-        failwith "indexing requires lhs to be an array"
-    ;  
-    (* ignore changes to the args since we know we're definitely 
-       changing this node from application of a Var to Prim.Index
-    *)
-    let args', argTypes, _ = annotate_values context args in
-    let resultType = DynType.slice_type arrayType argTypes in
-    let indexNode = { fn with 
-      value_type = DynType.FnT([], arrayType :: argTypes, [resultType]);
-      value = Prim (Prim.ArrayOp Prim.Index); 
-    } 
-    in 
-    let expNode = {  
-      exp_src= expSrc;  
-      exp_types = [resultType]; 
-      exp = App(indexNode, arrNode :: args');
-    }
-    in expNode, true
+      let args', types,  argsChanged = annotate_values context args in 
+      let signature = Signature.from_input_types types in 
+      let specializedFn = 
+        specialize_function_value context.interp_state fn.value signature 
+      in
+      let expNode = {
+        exp_src = expSrc;  
+        exp_types = DynType.fn_output_types specializedFn.value_type; 
+        exp = App(specializedFn, args') 
+      }
+      in 
+      expNode, argsChanged               
+    | Lam _ -> failwith "anonymous functions should have been named by now"
+    | Var arrayId -> 
+      (* assume we're conflating array indexing and function application. *)
+      let arrayType = ID.Map.find arrayId context.type_env in
+      let arrNode = { fn with value_type = arrayType } in  
+      if DynType.is_scalar arrayType then 
+          failwith "indexing requires lhs to be an array"
+      ;  
+      (* ignore changes to the args since we know we're definitely 
+         changing this node from application of a Var to Prim.Index
+      *)
+      let args', argTypes, _ = annotate_values context args in
+      let resultType = DynType.slice_type arrayType argTypes in
+      let indexNode = { fn with 
+        value_type = DynType.FnT([], arrayType :: argTypes, [resultType]);
+        value = Prim (Prim.ArrayOp Prim.Index); 
+      } 
+      in 
+      let expNode = {  
+        exp_src= expSrc;  
+        exp_types = [resultType]; 
+        exp = App(indexNode, arrNode :: args');
+      }
+      in 
+      expNode, true
     
   | other -> failwith $ Printf.sprintf 
       "expected either a function or an array, received: %s" 
@@ -245,6 +255,10 @@ and annotate_stmt context stmtNode =
     else DynType.BottomT
   in  
   match stmtNode.stmt with 
+  (* SPECIAL CASE FOR PARTIAL APPLICATION? 
+     How do we look up arity of functions? 
+  | Set([id], {exp=App(fnVal, argVals)}) when
+  *)  
   | Set(ids, rhs) ->  
       let rhs', rhsChanged = annotate_exp context rhs in 
       let oldTypes = List.map get_type ids in   
@@ -266,13 +280,7 @@ and annotate_stmt context stmtNode =
         IFDEF DEBUG THEN 
           assert (List.length ids = List.length newTypes); 
         ENDIF; 
-        let tenv' = 
-          List.fold_left2  
-            (fun accEnv id t -> ID.Map.add id t accEnv)
-            context.type_env 
-            ids 
-            newTypes
-         in  
+        let tenv' = ID.Map.extend context.type_env ids newTypes in 
          let changed = rhsChanged || List.exists2 (<>) oldTypes newTypes in  
          let stmtNode' = { stmtNode with stmt = Set(ids, rhs') } in 
          stmtNode', tenv', changed 

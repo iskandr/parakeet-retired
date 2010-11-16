@@ -26,6 +26,7 @@ val get_typed_function_table : t -> FnTable.t
 val get_untyped_function_table : t -> FnTable.t 
 
 val have_untyped_function : t -> string -> bool 
+val get_untyped_arity : t -> FnId.t -> int 
 
 val optimize_typed_functions : t -> unit
 val optimize_untyped_functions : t -> unit     
