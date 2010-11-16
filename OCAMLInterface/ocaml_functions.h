@@ -14,7 +14,7 @@
 
 value build_ocaml_host_scalar(value num);
 value build_ocaml_host_array(int num_bytes, value ocaml_dyn_type,
-                          int *shape, int shape_len, char *flattened);
+                             int *shape, int shape_len, char *flattened);
 
 /* wrap numbers in PQNum variant */
 value build_pqnum_int64(int64_t);

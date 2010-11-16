@@ -1,19 +1,18 @@
 // OCaml interface to PQ library functions
 
+#include <caml/alloc.h>
+#include <caml/bigarray.h>
+#include <caml/callback.h>
+#include <caml/fail.h>
+#include <caml/memory.h>
+#include <caml/mlvalues.h>
+
 #include <stdint.h>
 #include <stdio.h>
+#include <string.h>
 #include <time.h>
 
-#include "caml/mlvalues.h"
-#include "caml/memory.h"
-#include "caml/bigarray.h"
-#include "caml/alloc.h"
-#include "caml/fail.h"
-#include "caml/callback.h"
-#include "caml/custom.h"
-
 #include "../OCAMLInterface/variants.h"
-#include "string.h"
 #include "pqlib.h"
 
 #define ALIGN_UP(offset, alignment) \
@@ -122,9 +121,9 @@ CAMLprim value ocaml_pq_launch_ptx (
   CAMLxparam3(ocaml_threadsz, ocaml_gridwidth, ocaml_gridheight);
   CAMLlocal2(ocaml_gpu_arg, ocaml_gpu_val);
 
-  int threadsx = Int_val(ocaml_threadsx); 
-  int threadsy = Int_val(ocaml_threadsy); 
-  int threadsz = Int_val(ocaml_threadsz); 
+  int threadsx = Int_val(ocaml_threadsx);
+  int threadsy = Int_val(ocaml_threadsy);
+  int threadsz = Int_val(ocaml_threadsz);
 
 #ifdef DEBUG
   printf("Block dimensions: x: %d y: %d z: %d\n",threadsx, threadsy, threadsz);
@@ -159,19 +158,18 @@ CAMLprim value ocaml_pq_launch_ptx (
     printf("Error in cuFuncSetBlockShape: %d\n", result);
   }
 
-
   int num_args = Wosize_val(ocaml_args);
   void *ptr_arg = NULL;
   int offset = 0;
   int arg_size = 0;
   int i;
+  double e;
+  float wtf;
 
 #ifdef DEBUG
   printf("Setting up %d GPU arguments\n", num_args);
 #endif
   for (i = 0; i < num_args; ++i) {
-
-
     ocaml_gpu_arg = Field(ocaml_args, i);
 
     if (Tag_val(ocaml_gpu_arg) == GpuArray) {
@@ -204,8 +202,8 @@ CAMLprim value ocaml_pq_launch_ptx (
       /* locals used to pull out number values */
       int32_t int32_val;
       int64_t int64_val;
-      union { int32_t fbits; float f; } f32_union = { 0 };
-      union { int64_t dbits; double d; } f64_union = { 0 };
+      float f;
+      double d;
 
       switch (pqnum_tag) {
 
@@ -223,17 +221,15 @@ CAMLprim value ocaml_pq_launch_ptx (
 
       case PQNUM_FLOAT32:
         /* get the bits of a float32 */
-        f32_union.f =  get_pqnum_float32(ocaml_gpu_val);
-        printf("Got PQNUM.f32: %f\n", f32_union.f);
-        ptr_arg = (void*) &(f32_union.fbits);
+        f = (float)Double_val(Field(ocaml_gpu_val, 0));
+        ptr_arg = (void*) &f;
         arg_size = sizeof(float);
         break;
 
       case PQNUM_FLOAT64:
         /* get the bits of a float64 */
-        f64_union.d = get_pqnum_float64(ocaml_gpu_val);
-        printf("Got PQNUM.f64: %f\n", f64_union.d);
-        ptr_arg = (void*) &(f64_union.dbits);
+        d = Double_val(Field(ocaml_gpu_val, 0));
+        ptr_arg = (void*) &d;
         arg_size = sizeof(double);
         break;
 

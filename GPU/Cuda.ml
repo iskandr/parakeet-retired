@@ -25,9 +25,6 @@ type device_info = {
   texture_align : int;
 }
 
-
-
-
 type cuda_channel_format_kind =
   | Signed
   | Unsigned

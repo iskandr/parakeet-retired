@@ -22,10 +22,8 @@
 value build_ocaml_host_scalar(value num) {
   CAMLparam1(num);
   CAMLlocal1(hostScalar);
-  printf("building ocaml host scalar\n");
   hostScalar = caml_alloc(1, HostScalar);
   Store_field(hostScalar, 0, num);
-  printf("built\n");
   CAMLreturn(hostScalar);
 }
 
@@ -91,15 +89,8 @@ value build_host_int64(int64_t i) {
 value build_pqnum_float32(float f) {
   CAMLparam0();
   CAMLlocal1(num);
-  /* OCaml uses an optimization of questionable wisdom
-   * whereby any variant or records whose elements are all
-   * floats stores these floats inline. Thus we need to allocate
-   * a 64-bit block and use the special Store_double_field macro.
-   */
-  printf("in build_pqnum_float32\n");
-  num = caml_alloc(2, PQNUM_FLOAT32);
-  Store_double_field(num, 0, f);
-  printf("about to return from build_pqnum_float32\n");
+  num = caml_alloc(1, PQNUM_FLOAT32);
+  Store_field(num, 0, caml_copy_double((double)f));
   CAMLreturn(num);
 }
 
@@ -108,14 +99,11 @@ value build_host_float32(float f) {
   return build_ocaml_host_scalar(build_pqnum_float32(f));
 }
 
-
 value build_pqnum_float64(double d) {
   CAMLparam0();
   CAMLlocal1(num);
-  // allocate 64-bit block to store doubles directly, see above for
-  // explanation
-  num = caml_alloc(2, PQNUM_FLOAT64);
-  Store_double_field(num, 0, d);
+  num = caml_alloc(1, PQNUM_FLOAT64);
+  Store_field(num, 0, caml_copy_double(d));
   CAMLreturn(num);
 }
 
@@ -123,7 +111,6 @@ value build_pqnum_float64(double d) {
 value build_host_float64(double d) {
    return build_ocaml_host_scalar(build_pqnum_float64(d));
 }
-
 
 int32_t get_pqnum_int32(value pqnum) {
   CAMLparam1(pqnum);
@@ -134,12 +121,17 @@ int64_t get_pqnum_int64(value pqnum) {
   CAMLreturnT(int64_t, Int64_val(Field(pqnum,0)));
 
 }
+
+// TODO: Note! These don't seem to work for some ungodly and unknown reason!
+//       The return value gets mangled after it leaves this function!
 float get_pqnum_float32(value pqnum) {
   CAMLparam1(pqnum);
-  CAMLreturnT(float, Double_field(pqnum, 0));
+  float ret = (float)Double_val(Field(pqnum, 0));
+  CAMLreturnT(float, ret);
 }
 
 double get_pqnum_float64(value pqnum) {
-   CAMLparam1(pqnum);
-   CAMLreturnT(double, Double_field(pqnum, 0));
+  CAMLparam1(pqnum);
+  double ret = Double_val(Field(pqnum, 0));
+  CAMLreturnT(double, ret);
 }

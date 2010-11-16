@@ -7,7 +7,7 @@ type num =
   | UInt16 of int 
   | Int16 of int 
   | UInt32 of Uint32.t
-  | Int32 of Int32.t 
+  | Int32 of Int32.t
   | UInt64 of Uint64.t   
   | Int64 of Int64.t
   | Float32 of float
@@ -20,7 +20,7 @@ let num_to_str = function
   | Int16 x -> string_of_int x
   | Int32 x -> Int32.to_string x
   | Int64 x -> Int64.to_string x
-  | Float32 x 
+  | Float32 x
   | Float64 x -> Float.to_string x
   | Bool x -> Int.to_string (Bool.to_int x)
   | Char c ->  Char.to_string c
@@ -139,7 +139,6 @@ let to_int = function
   | Char c -> Char.code c
   | Inf _ -> max_int
   | NegInf _ -> min_int
-  
 
 let to_float = function 
   | UInt32 i -> Uint32.to_float i 

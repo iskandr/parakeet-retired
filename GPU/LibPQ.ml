@@ -47,15 +47,6 @@ let launch_ptx (cudaModule : CuModulePtr.t) (fnName : string)
         gridParams.grid_x
         gridParams.grid_y
 
-(* external get_time : unit -> TimeSpecPtr.t = "ocaml_pq_gettime" 
-external time_mem_transfer : int -> float = "ocaml_pq_time_mem_transfer"
-
-external diff_timers : TimeSpecPtr.t -> TimeSpecPtr.t -> float =
-  "ocaml_pq_diff_timers"
-
-*)
-
-
 let cuda_module_from_kernel_list  
       (kernelList : (string * Ptx.kernel) list)
       (threadsPerBlock : int) = 
@@ -73,6 +64,3 @@ let cuda_module_from_kernel_list
     kernel_names = List.map fst kernelList;  
     threads_per_block = threadsPerBlock; 
   } 
-  
-  
-

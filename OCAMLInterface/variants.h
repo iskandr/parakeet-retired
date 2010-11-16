@@ -52,9 +52,18 @@ enum dyn_type_with_data {
 
 
 enum pqnum_tag {
-     PQNUM_BOOL = 0, PQNUM_CHAR, PQNUM_UINT16, PQNUM_INT16,
-     PQNUM_UINT32, PQNUM_INT32, PQNUM_UINT64, PQNUM_INT64,
-     PQNUM_FLOAT32, PQNUM_FLOAT64
+     PQNUM_BOOL = 0,
+     PQNUM_CHAR,
+     PQNUM_UINT16,
+     PQNUM_INT16,
+     PQNUM_UINT32,
+     PQNUM_INT32,
+     PQNUM_UINT64,
+     PQNUM_INT64,
+     PQNUM_FLOAT32,
+     PQNUM_FLOAT64,
+     PQNUM_INF,
+     PQNUM_NEGINF
 };
 
 enum host_val_tag { HostScalar = 0, HostArray };

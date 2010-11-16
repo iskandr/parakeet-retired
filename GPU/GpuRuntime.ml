@@ -128,7 +128,6 @@ let create_args
   paramsArray, outputsList 
 
 
-
 (** MAP **)
 let map_id_gen = mk_gen()
 let compile_map globalFunctions payload argTypes retTypes =
