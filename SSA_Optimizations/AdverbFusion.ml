@@ -312,7 +312,7 @@ let fuse
   {
     adverb = finalAdverb; 
     adverb_type = 
-      DynType.FnT(fusedFnTypes @ filteredTypes, combinedProducesTypes); 
+      DynType.FnT([], fusedFnTypes @ filteredTypes, combinedProducesTypes); 
     function_arg_ids = fusedIds;
     function_arg_types = fusedFnTypes; 
     data_args = filteredDataArgs;  

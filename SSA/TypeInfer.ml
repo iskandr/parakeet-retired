@@ -1,3 +1,5 @@
+(* pp: -parser o pa_macro.cmo *)
+
 open Base
 open Prim
 open DynType 
@@ -89,29 +91,42 @@ let infer_simple_array_op op argTypes = match op, argTypes with
         "[core_type_infer] Could not infer type for %s\n" 
             (Prim.array_op_to_str op)
             
-let infer_adverb op inputTypes = match op, inputTypes with 
+let infer_adverb op inputTypes = 
+  
+  match op, inputTypes with
   (* 
      AllPairs operator takes a function 'a, 'b -> 'c^n and two data 
      arguments of type vec 'a, vec 'b, returning n outputs vec (vec 'c)) 
   *) 
-  | AllPairs, (DynType.FnT(nestedInTypes, nestedOutTypes))::[VecT a; VecT b] ->
-      assert (nestedInTypes = [a;b]);  
-      List.map (fun t -> VecT (VecT t)) nestedOutTypes
+  | AllPairs, (fnT::rest) ->
+    IFDEF DEBUG THEN 
+      assert (DynType.is_function fnT); 
+      if List.length rest <> 2 then 
+        failwith $ Printf.sprintf 
+          "Expected 2 data arguments for AllPairs operator, received: %s\n"
+          (DynType.type_list_to_str rest)
+      ; 
+    ENDIF;  
+    let nestedOutTypes = DynType.fn_output_types fnT in
+    List.map (fun t -> VecT (VecT t)) nestedOutTypes
+    
   (* 
     Map operator takes a function 'a^m -> 'b^m, and input data of type vec 'a
     returning instead vec 'b
   *) 
-  | Map, (DynType.FnT(_, nestedOutTypes)::_) ->
-      List.map (fun nestedOutT -> VecT nestedOutT) nestedOutTypes     
+  | Map, (fnT::rest) ->
+      IFDEF DEBUG THEN 
+        assert (List.length rest > 0); 
+        assert (DynType.is_function fnT);
+      ENDIF;  
+      let nestedOutTypes = DynType.fn_output_types fnT in 
+      List.map (fun nestedOutT -> VecT nestedOutT) nestedOutTypes
+           
   | _ -> failwith $ Printf.sprintf 
-           "inference not implemented for operator: %s"
+           "inference not implemented for operator: %s with inputs %s"
            (Prim.array_op_to_str op) 
-(*    
-let infer_op op argTypes = match op with 
-  | ScalarOp op -> infer_scalar_op op argTypes 
-  | ArrayOp op -> infer_array_op op argTypes 
-  | _ -> failwith "type inference not yet implemented for this kind of operator"
-*)  
+           (DynType.type_list_to_str inputTypes)
+
 (* given an operator and types of its arguments, return list of types to which *)
 (* args must be converted for the operator to work properly *) 
 let required_scalar_op_types op argtypes = 
@@ -144,23 +159,3 @@ let required_scalar_op_types op argtypes =
       | _ -> failwith 
             ("no valid coercions for operator " ^ (Prim.scalar_op_to_str op) ^ 
              " with input types " ^ (DynType.type_list_to_str argtypes)) 
-
-(*
-let rec infer_value (tLookup : ID.t -> DynType.t) = function 
-  | Var id -> tLookup id  
-  | Num n -> PQNum.type_of_num n
-  | Str _ -> StrT
-  | Sym _ -> SymT 
-  | Unit -> UnitT
-  | Lam fundef -> 
-      (* since we specialize lambdas at call sites, 
-         just use AnyT as a polymorphic wildcard 
-      *)
-      let inTypes = 
-        List.map (fun _ -> AnyT) (List.til (List.length fundef.input_ids)) in
-      let outTypes =  
-        List.map (fun _ -> AnyT) (List.til (List.length fundef.output_ids)) in
-      FnT(inTypes, outTypes)
-  | Prim _ -> 
-    failwith "Primitives are both polymorphic and variadic -- not implemented "
-*)

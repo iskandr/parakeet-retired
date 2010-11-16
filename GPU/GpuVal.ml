@@ -13,9 +13,17 @@ type gpu_vec = {
 
   vec_shape : Shape.t;
   vec_t : DynType.t;
+  
+  (* if this is a slice into some other array, 
+     then note the start pointer to avoid calling
+     free twice and assist garbage collection 
+  *)  
+  vec_slice_start: Int32.t option; 
 }
 
-type gpu_val = GpuScalar of PQNum.num | GpuArray of gpu_vec  
+type gpu_val = 
+  | GpuScalar of PQNum.num 
+  | GpuArray of gpu_vec 
 
 
 let nelts = function
@@ -39,7 +47,13 @@ let mk_scalar n = GpuScalar n
 
 let free = function
   | GpuScalar _ -> ()
-  | GpuArray v ->  cuda_free v.vec_ptr; cuda_free v.vec_shape_ptr
+  | GpuArray v ->
+      (* don't free a gpu vector if it's a slice into some other 
+         value 
+      *) 
+      if v.vec_slice_start = None then   
+        (cuda_free v.vec_ptr; cuda_free v.vec_shape_ptr)
+      
     
 (* send a shape vector the gpu *) 
 let shape_to_gpu shape =
@@ -73,6 +87,7 @@ let mk_gpu_vec ?nbytes ?len ty shape =
 
     vec_shape = shape;
     vec_t = ty;
+    vec_slice_start = None; 
   }
 
 let sizeof = function 
@@ -97,7 +112,8 @@ let to_gpu ?prealloc = function
       vec_shape_nbytes = shapeBytes; 
 
       vec_shape = shape;
-      vec_t = host_t
+      vec_t = host_t; 
+      vec_slice_start=None; 
     }
     
 let from_gpu ?prealloc = function 
@@ -115,13 +131,28 @@ let from_gpu ?prealloc = function
           shape = v.vec_shape; 
         }
 
+  
+
+let index arr idx =
+  match DynType.elt_type arr.vec_t with 
+    | DynType.Int32T -> 
+        let i32 = Cuda.cuda_get_gpu_int32_vec_elt arr.vec_ptr idx in 
+        GpuScalar (PQNum.Int32 i32)         
+    | DynType.Float32T ->
+        let f = Cuda.cuda_get_gpu_float32_vec_elt arr.vec_ptr idx in  
+        GpuScalar (PQNum.Float32 f) 
+
+    | _ -> failwith $ Printf.sprintf 
+               "Indexing into GPU vectors not implemented for type %s"
+               (DynType.to_str $  DynType.elt_type arr.vec_t)
+
 let get_slice gpuVal idx = match gpuVal with   
   | GpuScalar _ -> failwith "can't slice a GPU scalar"
   | GpuArray arr ->
     let sliceShape = Shape.slice_shape arr.vec_shape [0] in
     let sliceType = DynType.peel_vec arr.vec_t in
     if DynType.is_scalar sliceType then 
-      failwith "getting a single gpu element not yet implemented"
+      index arr idx
     else 
       let bytesPerElt = DynType.sizeof (DynType.elt_type sliceType) in
       let nelts =  Shape.nelts sliceShape in 
@@ -133,7 +164,8 @@ let get_slice gpuVal idx = match gpuVal with
           vec_shape_ptr = Int32.add arr.vec_shape_ptr (Int32.of_int 4); 
           vec_shape_nbytes = arr.vec_shape_nbytes - 4; 
           vec_shape = sliceShape; 
-          vec_t = sliceType
+          vec_t = sliceType;
+          vec_slice_start = Some arr.vec_ptr; 
       }
       in 
       GpuArray sliceInfo  

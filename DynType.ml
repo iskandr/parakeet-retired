@@ -22,8 +22,9 @@ type t  =
   | TableT of t String.Map.t
   | BottomFnT (* function about which we know nothing *) 
   | AnyFnT (* overspecified function type *)
-  | FnT of t list * t list (* function with specific types *) 
-   
+  (* function with closure args, inputs, outputs *)
+  | FnT of t list * t list * t list 
+            
   
 let rec to_str = function 
   | BottomT -> "bottom"
@@ -45,14 +46,14 @@ let rec to_str = function
   | TupleT ts -> 
     "(" ^ (String.concat " * " (Array.to_list (Array.map to_str ts))) ^ ")"
   | TableT _ -> "table"
-  | FnT (x,y) -> 
-      let sx, sy = (type_list_to_str x), (type_list_to_str y) in 
-      (match List.length x > 1, List.length y > 1 with 
-      | true, true ->  sprintf "{%s} -> {%s}" sx sy
-      | true, false -> sprintf "{%s} -> %s" sx sy
-      | false, true -> sprintf "%s -> {%s}" sx sy
-      | _ -> sprintf "%s -> %s" sx sy
-      )   
+  | FnT (c, x,y) -> 
+      let sc = type_list_to_str c in
+      let sx = type_list_to_str x in
+      let sy = type_list_to_str y in
+      sprintf "%s%s -> %s"
+        (if List.length c > 0 then sc ^ " => " else "")
+        (if List.length x > 0 then "{" ^ sx ^ "}" else sx)
+        (if List.length y > 0 then "{" ^ sy ^ "}" else sy)   
   | AnyFnT -> "? -> ?"
   | BottomFnT -> "bottom_fn"
 and type_list_to_str ts = String.concat ", " (List.map to_str ts)
@@ -98,12 +99,12 @@ let is_scalar t = is_number t || t = UnitT || t = SymT
 let is_compound t = not (is_scalar t)
 
 let is_vec = function
-    | VecT t -> true
+    | VecT _ -> true
     | _ -> false
 
 (* are you a scalar or a vector of scalars? *) 
 let is_scalar_or_vec = function 
-  | VecT t -> is_scalar t 
+  | VecT t -> is_scalar t
   | t -> is_scalar t 
 
 let is_numvec = function
@@ -173,7 +174,7 @@ let rec common_type t1 t2  =
 	if t1 = t2 then t1
 	else if is_scalar_subtype t1 t2 then t2
 	else if is_scalar_subtype t2 t1 then t1
-	else match t1, t2 with
+  else match t1, t2 with 
 	| (VecT t1'), (VecT t2')
   (* upgrade scalars to vectors *) 
   | (VecT t1'), t2'
@@ -211,14 +212,19 @@ let fold_type_list = function
   | [] -> AnyT 
   | t::ts -> List.fold_left common_type_folder t ts
 
+let fn_closure_types = function 
+  | FnT(closureTypes, _, _) -> closureTypes 
+  | _ -> failwith "[DynType] fn_closure_types: expected function"
+ 
 let fn_input_types = function 
-  | FnT(inputs, _) -> inputs
-  | _ -> failwith "[DynType.fn_input_types] expected function"
+  | FnT(_,inputs, _) -> inputs
+  | _ -> failwith "[DynType] fn_input_types: expected function"
 
 let fn_output_types = function 
-  | FnT (_, outputs) -> outputs
-  | _ -> failwith "expected function"
+  | FnT (_, _, outputs) -> outputs
+  | _ -> failwith "[DynType] fn_output_types: expected function"
 
+let fn_closure_arity t = List.length (fn_closure_types t)
 let fn_input_arity t = List.length (fn_input_types t)
 let fn_output_arity t = List.length (fn_output_types t)
 

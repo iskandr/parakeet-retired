@@ -1,7 +1,7 @@
+(* pp: -parser o pa_macro.cmo *)
+
 open Base
 open SourceInfo 
-
-
 
 type tenv = DynType.t ID.Map.t 
 
@@ -212,7 +212,7 @@ let mk_fundef  ?(tenv=ID.Map.empty) ~input_ids ~output_ids ~body =
     tenv = tenv; 
     input_ids = input_ids; 
     output_ids = output_ids; 
-    fn_type = DynType.FnT(inTypes, outTypes); 
+    fn_type = DynType.FnT([], inTypes, outTypes); 
     fn_id = FnId.gen()  
   }  
   
@@ -298,7 +298,7 @@ let map_default_types optTypes values =
 let mk_app ?src ?types fn args =
   let retTypes = match types, fn.value_type with 
     | Some types, _ -> types 
-    | None, DynType.FnT(_, types) -> types 
+    | None, DynType.FnT(_, _, types) -> types 
     | _ -> [DynType.BottomT]
   in 
   { exp=App(fn,args); exp_src = src; exp_types = retTypes }  

@@ -18,7 +18,8 @@ type context = {
 type change_indicator = bool    
   
 let sig_from_type = function 
-  | FnT(inTypes, outTypes) -> Signature.from_types inTypes outTypes 
+  | FnT([], inTypes, outTypes) -> Signature.from_types inTypes outTypes
+  | FnT(_::_, _, _) -> failwith "closures not yet supported" 
   | _ -> failwith "expected function type"
 
 (* TODO: make this complete for all SSA statements *) 
@@ -76,7 +77,7 @@ let specialize_scalar_prim_for_scalar_args
   let inferredOutputT = TypeInfer.infer_scalar_op op inputTypes in
   let typedPrim = { 
     value = Prim (Prim.ScalarOp op); 
-    value_type = DynType.FnT(expectedTypes, [inferredOutputT]); 
+    value_type = DynType.FnT([], expectedTypes, [inferredOutputT]); 
     value_src = None; 
   }
   in  
@@ -114,16 +115,20 @@ let rec annotate_app context expSrc fn args = match fn.value with
   (* function argument which is passed first *)  
   | Prim (Prim.ArrayOp p) when Prim.is_higher_order p -> 
     assert (List.length args > 1); 
-    let fnArg = List.hd args in 
+    
     let dataArgs = List.tl args in 
     let dataArgs', types, argsChanged = annotate_values context dataArgs in
     (* for now just pass through the literal value but should eventually*)
     (* have a context available with an environment of literal value *)
-    (* arguments and check whether the fnArg is in that environment. *)  
+    (* arguments and check whether the fnArg is in that environment. *)
+    let fnVal = (List.hd args).value in 
+    IFDEF DEBUG THEN
+      assert (match fnVal with SSA.GlobalFn _ | SSA.Prim _ -> true | _ -> false) 
+    ENDIF;  
+    let fnSigElt = Signature.Closure (fnVal, []) in 
     let signature = { 
       Signature.inputs = 
-        (Signature.Value fnArg.value) 
-        :: (List.map (fun t -> Signature.Type t) types);
+        fnSigElt :: (List.map (fun t -> Signature.Type t) types);
       outputs = None
     } 
     in 
@@ -167,7 +172,7 @@ let rec annotate_app context expSrc fn args = match fn.value with
     let args', argTypes, _ = annotate_values context args in
     let resultType = DynType.slice_type arrayType argTypes in
     let indexNode = { fn with 
-      value_type = DynType.FnT(arrayType :: argTypes, [resultType]);
+      value_type = DynType.FnT([], arrayType :: argTypes, [resultType]);
       value = Prim (Prim.ArrayOp Prim.Index); 
     } 
     in 
@@ -342,7 +347,7 @@ and scalarize_fundef interpState untypedId untypedFundef vecSig =
     List.fold_left2 extend_env inputTyEnv freshOutputIds outputTypes
   in
   let scalarFnType = scalarFundef.fn_type in  
-  let mapType = FnT(scalarFnType :: inputTypes, outputTypes) in  
+  let mapType = FnT([], scalarFnType :: inputTypes, outputTypes) in  
   let mapNode = SSA.mk_val ~ty:mapType (SSA.Prim (Prim.ArrayOp Prim.Map)) in
   let fnNode = SSA.mk_val ~ty:scalarFnType (GlobalFn scalarFundef.fn_id) in     
   let dataNodes =
@@ -384,9 +389,16 @@ and specialize_function_id interpState untypedId signature =
     | Some typedId -> InterpState.get_typed_function interpState typedId 
           
 and specialize_fundef interpState untypedFundef signature = 
-  let aux (tyEnv, constEnv) id = function
-    | Signature.Type t -> ID.Map.add id t tyEnv, constEnv 
-    | Signature.Value v -> tyEnv, ID.Map.add id v constEnv
+  let rec add_sig_elts tyEnv constEnv ids elts = 
+    match (ids, elts) with 
+    | [],[] -> tyEnv, constEnv
+    | _, [] | [], _ -> failwith "length mismatch while processing sig elts" 
+    | id::ids, (Signature.Type t)::rest ->
+        add_sig_elts (ID.Map.add id t tyEnv) constEnv ids rest   
+    | id::ids, (Signature.Const n)::rest -> 
+        add_sig_elts tyEnv (ID.Map.add id (SSA.Num n) constEnv) ids rest
+    | id::ids, (Signature.Closure (fnVal, []))::rest  -> 
+        add_sig_elts tyEnv (ID.Map.add id fnVal constEnv) ids rest 
   in  
   IFDEF DEBUG THEN
     let nActual = List.length untypedFundef.input_ids in 
@@ -399,11 +411,12 @@ and specialize_fundef interpState untypedFundef signature =
       (Signature.to_str signature)
     ;  
   ENDIF;  
-  let tyEnv, constEnv =
-    List.fold_left2 aux 
-      (ID.Map.empty, ID.Map.empty) 
+  let tyEnv, constEnv = 
+    add_sig_elts 
+      ID.Map.empty 
+      ID.Map.empty 
       untypedFundef.input_ids 
-      signature.Signature.inputs   
+      signature.Signature.inputs      
   in 
   let context = { 
     type_env = tyEnv; 
@@ -467,16 +480,10 @@ and specialize_function_value interpState v signature : SSA.value_node =
                    
       | Prim (Prim.ArrayOp op) when Prim.is_higher_order op ->
         (match signature.Signature.inputs with 
-          | Signature.Value fnVal::restSig ->
+          | Signature.Closure (fnVal, [])::restSig ->
             (* after the function value all the other arguments should *)
             (* be data to which we can assign types *) 
-            let inputTypes = 
-              List.map 
-                (function 
-                  | Signature.Type t -> t 
-                  | _ -> failwith "unexpected value")
-                restSig
-            in  
+            let inputTypes = Signature.sig_elts_to_types restSig in 
             specialize_higher_order_array_prim 
               interpState
               op 
@@ -534,7 +541,7 @@ and specialize_scalar_prim_for_vec_args
     (* produce the output types *) 
     let mapNode = { 
       value = Prim (Prim.ArrayOp Prim.Map);
-      value_type = FnT(nestedFn.value_type::inputTypes, outputTypes); 
+      value_type = FnT([], nestedFn.value_type::inputTypes, outputTypes); 
       value_src = None 
     }   
     in
@@ -575,7 +582,7 @@ and specialize_map
   in 
   let mapNode = { 
     value = Prim (Prim.ArrayOp Prim.Map);
-    value_type = DynType.FnT(nestedFn.value_type::inputTypes, outputTypes); 
+    value_type = DynType.FnT([], nestedFn.value_type::inputTypes, outputTypes); 
     value_src = None
   } 
   in
@@ -645,9 +652,11 @@ and specialize_reduce interpState f ?forceOutputTypes baseType vecTypes
     | _ -> failwith "reduction function with multiple outputs not supported"
   in
   Printf.printf "[specialize_reduce] 3\n"; 
-  let accType = List.hd outputTypes in 
+  let accType = List.hd outputTypes in
+  let inputTypes = [fnNode.value_type; accType]@ vecTypes in 
+  let outputTypes = [accType] in    
   let reduceType = 
-    DynType.FnT([fnNode.value_type; accType]@ vecTypes, [accType])
+    DynType.FnT([], inputTypes, outputTypes)
   in 
   let reduceNode = 
     { value=Prim (Prim.ArrayOp Prim.Reduce); 
@@ -683,8 +692,8 @@ and specialize_all_pairs
     (inputType1 : DynType.t)
     (inputType2 : DynType.t)
     : SSA.fundef  = 
-  let inputTypes = [inputType1; inputType2] in    
-  let eltTypes = List.map DynType.peel_vec inputTypes in   
+  let arrayTypes = [inputType1; inputType2] in    
+  let eltTypes = List.map DynType.peel_vec arrayTypes in   
   let forceOutputEltTypes : DynType.t list option = 
     Option.map (List.map DynType.peel_vec) forceOutputTypes 
   in
@@ -693,17 +702,15 @@ and specialize_all_pairs
        Signature.outputs = forceOutputEltTypes }
   in 
   let nestedFn = specialize_function_value interpState f nestedSig in
-  let outputTypes = 
-    TypeInfer.infer_adverb Prim.AllPairs (nestedFn.value_type :: inputTypes)
-  in  
+  let inputTypes = nestedFn.value_type :: arrayTypes in 
+  let outputTypes = TypeInfer.infer_adverb Prim.AllPairs inputTypes in  
   let allPairsNode = { 
     value = Prim (Prim.ArrayOp Prim.AllPairs);
-    value_type = DynType.FnT(nestedFn.value_type :: inputTypes, outputTypes); 
+    value_type = DynType.FnT([], inputTypes, outputTypes ); 
     value_src = None
   } 
   in
-  
-  SSA_Codegen.mk_lambda inputTypes outputTypes 
+  SSA_Codegen.mk_lambda arrayTypes outputTypes 
     (fun codegen inputs outputs -> 
       let appNode = { 
         exp = App(allPairsNode, nestedFn::inputs); 
@@ -749,7 +756,7 @@ and specialize_first_order_array_prim
   let outputType = TypeInfer.infer_simple_array_op op inputTypes in
   let arrayOpNode = { 
    value = Prim (Prim.ArrayOp op);
-   value_type = DynType.FnT(inputTypes, [outputType]); 
+   value_type = DynType.FnT([], inputTypes, [outputType]); 
    value_src = None
   } 
   in 
@@ -763,18 +770,7 @@ and specialize_first_order_array_prim
       in 
       codegen#emit [mk_set (get_ids outputs) appNode]
     )
- (*match op with 
-    | Prim.Where ->
-        
-        in  
-        
-    | Prim.Index, _ -> failwith "index not yet implemented"
-    | other, types -> 
-        failwith $ Printf.sprintf 
-        "[Specialize] specializtion of %s not implemented for input of type %s"
-        (Prim.array_op_to_str other)
-        (DynType.type_list_to_str types) 
-*)
+    
 and specialize_q_operator 
     ( interpState : InterpState.t )
     ( op : Prim.q_op )

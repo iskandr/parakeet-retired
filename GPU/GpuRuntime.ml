@@ -264,8 +264,16 @@ let run_reduce
           if curNumElts < numInputElts then GpuVal.free args.(0);
           aux outputsList numOutputElts
           )
-        else
-          inputArgs
+        else (
+          let result = GpuVal.get_slice (List.hd inputArgs) 0 in 
+          IFDEF DEBUG THEN 
+            Printf.printf "Final reduction result of shape %s, type %s\n"
+              (Shape.to_str (GpuVal.get_shape result))
+              (DynType.to_str (GpuVal.get_type result))
+            ; 
+          ENDIF;
+          [result]
+        )
       in
       aux [gpuVal] numInputElts
     | _ -> failwith "expect one reduce kernel"
