@@ -167,7 +167,20 @@ class imp_codegen =
       let rhsType = rhs.exp_type in 
       if lhsType <> rhsType  then (
         IFDEF DEBUG THEN
-          assert (DynType.is_scalar lhsType && DynType.is_scalar rhsType);
+          if not $ DynType.is_scalar lhsType then 
+            failwith $
+              Printf.sprintf 
+                "expected x%d to be a scalar, got: %s"
+                id 
+                (DynType.to_str lhsType)
+          ; 
+          if not $ DynType.is_scalar rhsType then 
+            failwith $ 
+              Printf.sprintf 
+                "expected %s to be a scalar, got: %s"
+                (Imp.exp_node_to_str rhs)
+                (DynType.to_str rhsType)
+          ; 
         ENDIF;
         let cacheKey = rhs.exp, lhsType in
         if Hashtbl.mem coercionCache cacheKey then

@@ -1,3 +1,6 @@
+(* pp: -parser o pa_macro.cmo *)
+
+open Base 
 open Base
 open SSA
 
@@ -136,8 +139,10 @@ and infer_reduce fnTable fundef argShapes : Shape.t list * shape_env  =
 and infer_allpairs fnTable fundef argShapes : Shape.t list * shape_env = 
    match argShapes with  
     | [argShape1; argShape2] ->
-      assert (Shape.rank argShape1 > 0);
-      assert (Shape.rank argShape2 > 0); 
+      IFDEF DEBUG THEN 
+        assert (Shape.rank argShape1 > 0);
+        assert (Shape.rank argShape2 > 0);
+      ENDIF;  
       let m = Shape.get argShape1 0 in 
       let n = Shape.get argShape2 0 in    
       let nestedEnv = 

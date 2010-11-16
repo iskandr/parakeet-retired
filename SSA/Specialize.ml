@@ -114,7 +114,9 @@ let rec annotate_app context expSrc fn args = match fn.value with
   (* for now assume that all higher order primitives take a single *)
   (* function argument which is passed first *)  
   | Prim (Prim.ArrayOp p) when Prim.is_higher_order p -> 
-    assert (List.length args > 1); 
+    IFDEF DEBUG THEN 
+      assert (List.length args > 1);
+    ENDIF  
     
     let dataArgs = List.tl args in 
     let dataArgs', types, argsChanged = annotate_values context dataArgs in
