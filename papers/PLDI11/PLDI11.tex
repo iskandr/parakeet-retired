@@ -3,7 +3,10 @@
 
 \documentclass[preprint]{sigplanconf}
 
-\usepackage{graphicx,listings,fixltx2e}
+\usepackage{graphicx,listings,fixltx2e,lambda,array,multirow,color}
+
+
+
 
 \begin{document}
 \conferenceinfo{PLDI 2011}{June 4--8, 2011, San Jose, CA, USA.}
@@ -15,8 +18,42 @@
 \title{Parakeet: General Purpose GPU Programming with High Level Array
 Languages}
 \authorinfo{Anonymous}{Anonymous}{Anonymous}
+\lstset{ 
+basicstyle=\small\footnotesize\ttfamily, % Standardschrift
+numbers=left,                   % where to put the line-numbers
+stepnumber=1,                   % the step between two line-numbers. If it's 1 each line 
+numbersep=12pt,                  % how far the line-numbers are from the code
+showspaces=false,               % show spaces adding particular underscores
+showstringspaces=false,         % underline spaces within strings
+showtabs=false,                 % show tabs within strings adding particular underscores
+tabsize=2,	                % sets default tabsize to 2 spaces
+captionpos=b,                   % sets the caption-position to bottom
+breaklines=true,                % sets automatic line breaking
+breakatwhitespace=false,        % sets if automatic breaks should only happen at whitespace
+keywordstyle=\color{black}\bf,
+%morekeywords={til,sum,sqrt,all, min, each, where, while,+,*,-,avg},            % if you want to add more keywords to the set
+moredelim=[is][\itshape]{/*}{*/},
+linewidth={\textwidth},
+xleftmargin=20pt,
+%framexleftmargin=17pt,
+%framexrightmargin=5pt,
+%framexbottommargin=4pt,
+}
+
+% define some useful commands to use in language specification 
+\newcommand{\WITH}{\impfnt{with}}
+\newcommand{\VALUES}{\impfnt{values}}
+\newcommand{\MAP}{\impfnt{map}}
+\newcommand{\REDUCE}{\impfnt{reduce}}
+\newcommand{\ALLPAIRS}{\impfnt{allpairs}}
+\newcommand{\CAST}{\impfnt{cast}}
+\newcommand{\APPLY}{\impfnt{apply}}
+\newcommand{\INDEX}{\impfnt{index}}
+\newcommand{\SCAN}{\impfnt{scan}}
 
 \maketitle
+
+
 
 \begin{abstract}
 Contemporary GPUs offer staggering performance potential, which has
@@ -140,190 +177,47 @@ improve their performance by taking advantage of runtime information to
 tailor their code and execution to runtime information.
 \end{itemize}
 
+
 \section{Parakeet's Intermediate Language}
-
-There's going to be a lot of text and code examples in this section.  I want to
-push the Q examples down further, so that we see the bullet points from the
-Intro section where they belong.  Hence the following ipso.
-
-There's going to be a lot of text and code examples in this section.  I want to
-push the Q examples down further, so that we see the bullet points from the
-Intro section where they belong.  Hence the following ipso.There's going to be a
-lot of text and code examples in this section.  I want to
-push the Q examples down further, so that we see the bullet points from the
-Intro section where they belong.  Hence the following ipso.There's going to be a
-lot of text and code examples in this section.  I want to
-push the Q examples down further, so that we see the bullet points from the
-Intro section where they belong.  Hence the following ipso.There's going to be a
-lot of text and code examples in this section.  I want to
-push the Q examples down further, so that we see the bullet points from the
-Intro section where they belong.  Hence the following ipso.There's going to be a
-lot of text and code examples in this section.  I want to
-push the Q examples down further, so that we see the bullet points from the
-Intro section where they belong.  Hence the following ipso.There's going to be a
-lot of text and code examples in this section.  I want to
-push the Q examples down further, so that we see the bullet points from the
-Intro section where they belong.  Hence the following ipso.There's going to be a
-lot of text and code examples in this section.  I want to
-push the Q examples down further, so that we see the bullet points from the
-
-Intro section where they belong.  Hence the following ipso.There's going to be a
-lot of text and code examples in this section.  I want to
-push the Q examples down further, so that we see the bullet points from the
-Intro section where they belong.  Hence the following ipso.There's going to be a
-lot of text and code examples in this section.  I want to
-push the Q examples down further, so that we see the bullet points from the
-Intro section where they belong.  Hence the following ipso.There's going to be a
-lot of text and code examples in this section.  I want to
-push the Q examples down further, so that we see the bullet points from the
-Intro section where they belong.  Hence the following ipso.There's going to be a
-lot of text and code examples in this section.  I want to
-push the Q examples down further, so that we see the bullet points from the
-Intro section where they belong.  Hence the following ipso.There's going to be a
-lot of text and code examples in this section.  I want to
-push the Q examples down further, so that we see the bullet points from the
-Intro section where they belong.  Hence the following ipso.There's going to be a
-lot of text and code examples in this section.  I want to
-push the Q examples down further, so that we see the bullet points from the
-Intro section where they belong.  Hence the following ipso.There's going to be a
-lot of text and code examples in this section.  I want to
-push the Q examples down further, so that we see the bullet points from the
-Intro section where they belong.  Hence the following ipso.There's going to be a
-lot of text and code examples in this section.  I want to
-push the Q examples down further, so that we see the bullet points from the
-Intro section where they belong.  Hence the following ipso.There's going to be a
-lot of text and code examples in this section.  I want to
-push the Q examples down further, so that we see the bullet points from the
-Intro section where they belong.  Hence the following ipso.There's going to be a
-lot of text and code examples in this section.  I want to
-push the Q examples down further, so that we see the bullet points from the
-Intro section where they belong.  Hence the following ipso.There's going to be a
-lot of text and code examples in this section.  I want to
-push the Q examples down further, so that we see the bullet points from the
-Intro section where they belong.  Hence the following ipso.There's going to be a
-lot of text and code examples in this section.  I want to
-push the Q examples down further, so that we see the bullet points from the
-Intro section where they belong.  Hence the following ipso.There's going to be a
-lot of text and code examples in this section.  I want to
-push the Q examples down further, so that we see the bullet points from the
-Intro section where they belong.  Hence the following ipso.There's going to be a
-lot of text and code examples in this section.  I want to
-
-
-push the Q examples down further, so that we see the bullet points from the
-Intro section where they belong.  Hence the following ipso.There's going to be a
-lot of text and code examples in this section.  I want to
-push the Q examples down further, so that we see the bullet points from the
-Intro section where they belong.  Hence the following ipso.There's going to be a
-lot of text and code examples in this section.  I want to
-push the Q examples down further, so that we see the bullet points from the
-Intro section where they belong.  Hence the following ipso.There's going to be a
-lot of text and code examples in this section.  I want to
-push the Q examples down further, so that we see the bullet points from the
-Intro section where they belong.  Hence the following ipso.There's going to be a
-lot of text and code examples in this section.  I want to
-push the Q examples down further, so that we see the bullet points from the
-Intro section where they belong.  Hence the following ipso.There's going to be a
-lot of text and code examples in this section.  I want to
-push the Q examples down further, so that we see the bullet points from the
-Intro section where they belong.  Hence the following ipso.There's going to be a
-lot of text and code examples in this section.  I want to
-push the Q examples down further, so that we see the bullet points from the
-Intro section where they belong.  Hence the following ipso.There's going to be a
-lot of text and code examples in this section.  I want to
-
-push the Q examples down further, so that we see the bullet points from the
-Intro section where they belong.  Hence the following ipso.There's going to be a
-lot of text and code examples in this section.  I want to
-push the Q examples down further, so that we see the bullet points from the
-Intro section where they belong.  Hence the following ipso.There's going to be a
-lot of text and code examples in this section.  I want to
-push the Q examples down further, so that we see the bullet points from the
-Intro section where they belong.  Hence the following ipso.There's going to be a
-lot of text and code examples in this section.  I want to
-push the Q examples down further, so that we see the bullet points from the
-Intro section where they belong.  Hence the following ipso.There's going to be a
-lot of text and code examples in this section.  I want to
-push the Q examples down further, so that we see the bullet points from the
-Intro section where they belong.  Hence the following ipso.There's going to be a
-lot of text and code examples in this section.  I want to
-
-push the Q examples down further, so that we see the bullet points from the
-Intro section where they belong.  Hence the following ipso.There's going to be a
-lot of text and code examples in this section.  I want to
-push the Q examples down further, so that we see the bullet points from the
-Intro section where they belong.  Hence the following ipso.There's going to be a
-lot of text and code examples in this section.  I want to
-push the Q examples down further, so that we see the bullet points from the
-Intro section where they belong.  Hence the following ipso.There's going to be a
-lot of text and code examples in this section.  I want to
-push the Q examples down further, so that we see the bullet points from the
-Intro section where they belong.  Hence the following ipso.There's going to be a
-lot of text and code examples in this section.  I want to
-push the Q examples down further, so that we see the bullet points from the
-Intro section where they belong.  Hence the following ipso.There's going to be a
-lot of text and code examples in this section.  I want to
-push the Q examples down further, so that we see the bullet points from the
-Intro section where they belong.  Hence the following ipso.There's going to be a
-lot of text and code examples in this section.  I want to
-push the Q examples down further, so that we see the bullet points from the
-Intro section where they belong.  Hence the following ipso.There's going to be a
-lot of text and code examples in this section.  I want to
-
-push the Q examples down further, so that we see the bullet points from the
-Intro section where they belong.  Hence the following ipso.There's going to be a
-lot of text and code examples in this section.  I want to
-push the Q examples down further, so that we see the bullet points from the
-Intro section where they belong.  Hence the following ipso.There's going to be a
-lot of text and code examples in this section.  I want to
-push the Q examples down further, so that we see the bullet points from the
-Intro section where they belong.  Hence the following ipso.There's going to be a
-lot of text and code examples in this section.  I want to
-push the Q examples down further, so that we see the bullet points from the
-Intro section where they belong.  Hence the following ipso.There's going to be a
-lot of text and code examples in this section.  I want to
-push the Q examples down further, so that we see the bullet points from the
-Intro section where they belong.  Hence the following ipso.There's going to be a
-lot of text and code examples in this section.  I want to
-push the Q examples down further, so that we see the bullet points from the
-Intro section where they belong.  Hence the following ipso.There's going to be a
-lot of text and code examples in this section.  I want to
-push the Q examples down further, so that we see the bullet points from the
-Intro section where they belong.  Hence the following ipso.There's going to be a
-lot of text and code examples in this section.  I want to
-push the Q examples down further, so that we see the bullet points from the
-Intro section where they belong.  Hence the following ipso.There's going to be a
-lot of text and code examples in this section.  I want to
-
-push the Q examples down further, so that we see the bullet points from the
-Intro section where they belong.  Hence the following ipso.There's going to be a
-lot of text and code examples in this section.  I want to
-push the Q examples down further, so that we see the bullet points from the
-Intro section where they belong.  Hence the following ipso.There's going to be a
-lot of text and code examples in this section.  I want to
-push the Q examples down further, so that we see the bullet points from the
-Intro section where they belong.  Hence the following ipso.There's going to be a
-lot of text and code examples in this section.  I want to
-push the Q examples down further, so that we see the bullet points from the
-Intro section where they belong.  Hence the following ipso.There's going to be a
-lot of text and code examples in this section.  I want to
-push the Q examples down further, so that we see the bullet points from the
-Intro section where they belong.  Hence the following ipso.There's going to be a
-lot of text and code examples in this section.  I want to
-push the Q examples down further, so that we see the bullet points from the
-Intro section where they belong.  Hence the following ipso.There's going to be a
-lot of text and code examples in this section.  I want to
-push the Q examples down further, so that we see the bullet points from the
-Intro section where they belong.  Hence the following ipso.There's going to be a
-lot of text and code examples in this section.  I want to
-push the Q examples down further, so that we see the bullet points from the
-Intro section where they belong.  Hence the following ipso.There's going to be a
-lot of text and code examples in this section.  I want to
-push the Q examples down further, so that we see the bullet points from the
-Intro section where they belong.  Hence the following ipso.There's going to be a
-lot of text and code examples in this section.  I want to
-push the Q examples down further, so that we see the bullet points from the
-Intro section where they belong.  Hence the following ipso.
+The portion of a user's program which Parakeet executes is represented internally as flat sequence of non-recursive function definitions. 
+We take inspiration from \cite{Bol09} and allow functions to both accept and return multiple values. This feature both supports optimization (by simplifying the specification of arity-raising and fusion transformations) and naturally models the simultaneous creation of multiple values on the GPU. By convention we will write $\overline{\tau_m}$ to denote a sequence of $m$ types and $\overline{v_n}$ for a sequence  of $n$ values. Sequences of both types and values may be concatenated via juxtaposition, such that $\overline{\tau_m}, \overline{\tau_n} = \overline{\tau_{m+n}}$. 
+\\[5pt]
+\begin{tabular}{m{0.005cm}m{1.8cm}m{0.05cm}m{0.2cm}p{4.8cm}}
+\multicolumn{2}{l}{\textbf{Type System}} & & &  \\
+& first-order     & $\tau$    & $\bnfdef$ & $int \sep float \sep \mathbf{vec} \; \tau   $ \\[4pt]
+& closures        & $\theta$  & $\bnfdef$ & $\overline{\tau_{c}} \Rightarrow \overline{\tau_m} \rightarrow \overline{\tau_n}$\\[2pt]
+&                 &           & $\sep$    & $\tau$ \\[4pt]
+& higher-order    & $\sigma$  & $\bnfdef$ & $\overline{\theta_m} \rightarrow \overline{\theta_n} $ \\[4pt]
+\end{tabular}
+\begin{itemize}
+\item It is worth noting that the programmer is only able to construct values of type $\theta$ and is thus limited to the defining first-order (which can neither accept nor return function values). They may still, however, make use of primitive second-order operators such as $\mathbf{map}$ and $\mathbf{reduce}$. 
+\item The accepted typing of closures involves existential types [find citation for typed closure conversion?], which are commonly implemented via boxed . Since our desire is to compile down to a final program without boxed values we instead annotate closures with the types of their implicitly carried arguments. This information is later used to transform closure invocation into a direct function call. 
+\end{itemize}
+\begin{tabular}{m{0.1cm}m{1.2cm}m{0.1cm}m{0.2cm}p{4.7cm}}
+ \multicolumn{2}{l}{\textbf{Language Syntax}} & & &  \\
+& program & $p$ &  $\bnfdef$   &  $d_1 \cdots d_n $ \\[3.5pt]
+& definition & $d$ & $\bnfdef$ & $f_i(\overline{x_m} : \overline{\tau_m}) \rightarrow (\overline{y_n} : \overline{\tau_n}) =s^{\small{+}}$ \\[3.5pt]
+& statement  & $s$ & $\bnfdef$ & $\overline{x_m} : \overline{\tau_m} = e $\\[2pt]
+&            &     & $\sep$    & $\IF \;v\; \THEN \;s^*\; \ELSE \;s^*$ \\[2pt]
+&            &     & $\sep$    & $\WHILE \;e\; \DO \;s^+\;  $ \\[2pt]
+& expression & $e$ & $\bnfdef$ & $ v_{f}(v_1, \ldots, v_m)$ \\[2pt]
+&            &     & $\sep$    & $\textrm{values} (\overline{v_m})$ \\[2pt]
+&            &     & $\sep$    & $\textrm{cast} \; (v, \tau)$ \\[2pt] 
+&            &     & $\sep$    & $\MAP_m (v_{f},\overline{v_m})$ \\[2pt]
+&            &     & $\sep$    & $\REDUCE_m (v_{f}, v_{init}, \overline{v_m})$ \\[2pt]
+&            &     & $\sep$    & $\SCAN_m (v_{f}, v_{init}, \overline{v_m})$ \\[3.5pt]
+& value      & $v$ & $\bnfdef$ & numeric constant\\[2pt]
+&            &     & $\sep$    &  $x$  \quad \small{(data variable)} \\[2pt]
+&            &     & $\sep$    &  $f$  \quad \small{(function label)} \\[2pt]
+&            &     & $\sep$    &  $p$ \quad \small{(first order operator)} \\[2pt]
+\end{tabular}
+First-order primitives include the usual boolean operations, scalar and floating point arithmetic, as well as simple array operators such as indexing, replication, and inspecting an array's shape. 
+\\TODO: 
+\begin{itemize}
+\item Gated SSA (reference to Program Dependence Web?), explain gates in one sentence. 
+\item Mention that $\MAP$ and friends are actually a family of operators parameterized by arity. 
+\item What to do with reduce? The stream idea is wonky and not included in the type system. 
+\end{itemize} 
 
 \section{Q: A High-Level Array Language}
 \label{Q}
@@ -342,21 +236,18 @@ present the salient features so as to illustrate the level of programming
 and Q's support for array operators, as well as to make our later code examples
 clear.
 
+
 \subsection{Q Examples}
-\begin{figure}
-\begin{verbatim}
-1  f: {[x] 5 + 3 * x}
-2
-3  / Create input array
-4  a: til 10000
-5
-6  / Call f on different inputs
-7  b: f[6]
-8  c: f[a]
-\end{verbatim}
-\caption{Q Map Example}
+
+\begin{lstlisting}[caption=Q Map Example]
+f: { [x] 5 + 3 * x}
+/*/ Create input array*/
+a: til 10000
+/*/ Call f on different inputs*/
+b: f[6]
+c: f[a]
+\end{lstlisting}
 \label{QMap}
-\end{figure}
 
 Figure \ref{QMap} gives an example of a simple Q program.  In line 1, we define
 a function \texttt{f} which takes a single argument \texttt{x} and computes a
@@ -381,16 +272,13 @@ Thus we see that Q programs can express data parallel computations in a compact,
 declarative, high level fashion.  No explicit looping over the elements of
 \texttt{a} is required.
 
-\begin{figure}
-\begin{verbatim}
-1  a: til 10000
-2
-3  b: 0 +/ a
-4  c: 0 +\ a
-\end{verbatim}
-\caption{Q Reductions Example}
+\begin{lstlisting}[caption=Q Reductions Example]
+a: til 10000
+b: 0 +/ a
+c: 0 +\ a
+\end{lstlisting}
 \label{QReduce}
-\end{figure}
+
 
 In Figure \ref{QReduce}, we introduce the concept of an \emph{adverb}.  Q has a
 series of adverbs, which are higher-order function modifiers.  In
@@ -410,20 +298,15 @@ argument.  In Parakeet, this corresponds to the \texttt{Scan} array operator,
 which as emphasized in \cite{Blel90}, is very useful as a building block in many
 parallel algorithms.
 
-\begin{figure}
-\begin{verbatim}
-1  sqr: {[x] x*x}
-2  dist: {[x;y] sqrt sum sqr x - y}
-3
-4  / Generate two 100x100 matrices
-5  a: (100;100) # til 10000
-6  b: (100;100) # til 10000
-7
-8  all_dists: dist/:\:[a;b]
-\end{verbatim}
-\caption{Q All-Pairs Distance Example}
+\begin{lstlisting}[caption=Q All-Pairs Distance Example]
+dist: {[x;y] sqrt sum (x-y) * (x-y)}
+
+/*/ Generate two 100x100 matrices*/
+a: (100;100) # til 10000
+b: (100;100) # til 10000
+all_dists: dist/:\:[a;b]
+\end{lstlisting}
 \label{QAllPairsDist}
-\end{figure}
 
 In Figure \ref{QAllPairsDist}, we see a slightly more complicated example.
 First we define a pair of functions--one that computes the square of an input
@@ -1012,30 +895,26 @@ from the PARSEC \cite{Bien08} benchmark suite for 1 to 12 threads and
 
 \subsection{K-Means Clustering}
 
-\begin{figure}
-\begin{verbatim}
-calc_single_centroid: {[X;a;i] avg X[where a = i]}
-calc_centroids:{[X;a;k]
-  calc_single_centroid[X;a] each til k}
+\begin{lstlisting}[caption=K-Means Clustering implemented in Q]
+calc_centroid:{[X;a;i] avg X[where a = i]}
+calc_centroids:{[X;a;k] 
+  calc_centroid[X;a] each til k}
+  
 dist:{[x;y] sqrt sum (x-y) * (x-y)}
 minidx:{[x] x ? min x}
 
-kmeans:{[X;k;assignment;maxiters]
-  C: calc_centroids[X;assignment;k];
-  i: 0;
+kmeans:{[X;k;a]
+  C: calc_centroids[X;a;k];
   converged: 0b;
-  while[(i<maxiters) & not converged;
-    lastAssignment: assignment;
+  while[not converged;
+    lastAssignment: a;
     D: X dist/:\: C;
-    assignment: minidx each D;
-    C: calc_centroids[X;assignment;k];
-    converged: all lastAssignment = assignment;
-    i+: 1];
-  (C; converged)}
-\end{verbatim}
-\caption{Q K-Means Clustering}
+    a: minidx each D;
+    C: calc_centroids[X;a;k];
+    converged: all lastAssignment = a];
+  C}
+\end{lstlisting}
 \label{QKMeans}
-\end{figure}
 
 \subsection{Dynamic Tuning}
 In order to test the effects of our dynamic tuning optimizations, 
