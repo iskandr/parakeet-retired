@@ -1,12 +1,21 @@
-type type_env =  DynType.t ID.Map.t
+type type_env = DynType.t ID.Map.t
+type const_env = SSA.value ID.Map.t 
+type untyped_closure_env = (SSA.value * Signature.sig_elt list) ID.Map.t 
+type typed_closure_env = (FnId.t * DynType.t list) ID.Map.t
 
-type const_env = SSA.value ID.Map.t
-   
+(* map untyped closure ids to their specializations  *) 
+type typed_closure_mapping = ID.Set.t ID.Map.t   
+
 type context = {
-  type_env : type_env;
-  const_env : const_env;
-  interp_state : InterpState.t; 
+  type_env : type_env; 
+  const_env : const_env; 
+  typed_closures : typed_closure_env; 
+  untyped_closures : untyped_closure_env;
+  (* map untyped closure id to typed variant *) 
+  typed_closure_mapping  : typed_closure_mapping;
+  interp_state : InterpState.t 
 }  
+
 
 type change_indicator = bool 
 
@@ -26,17 +35,17 @@ val specialize_fundef
 val specialize_function_id 
     : InterpState.t -> ID.t -> Signature.t -> SSA.fundef
 
-
 val annotate_block 
     : context -> SSA.block -> 
-        (SSA.block * type_env * change_indicator)
+      (SSA.block * context * change_indicator)
          
 val annotate_stmt 
-    : context -> SSA.stmt_node -> (SSA.stmt_node * type_env * change_indicator)
+    : context -> SSA.stmt_node -> 
+      (SSA.stmt_node * context * change_indicator)
 
                  
 val annotate_exp 
-    : context -> SSA.exp_node -> (SSA.exp_node * change_indicator)
+    : context -> SSA.exp_node -> (SSA.exp_node * context * change_indicator)
     
 val annotate_value 
     : context -> SSA.value_node -> 
