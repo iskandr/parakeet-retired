@@ -295,8 +295,8 @@ let compile_all_pairs globalFunctions payload argTypes retTypes =
       in
 		  let inputSpaces =
         Array.map (fun t -> PtxVal.TEX) (Array.of_list retTypes) in
-		  let ptx, cc = ImpToPtx.translate_kernel
-		                     ?input_spaces:(Some inputSpaces) impfn in
+		  let kernel, cc =
+        ImpToPtx.translate_kernel ?input_spaces:(Some inputSpaces) impfn in
       (*let kernel, cc = ImpToPtx.translate_kernel impfn in*)
       let allPairsPrefix = "all_pairs_kernel" in 
       let name = allPairsPrefix ^ (string_of_int (ID.gen())) in

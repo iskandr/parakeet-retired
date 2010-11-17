@@ -728,7 +728,7 @@ and specialize_map
 and specialize_reduce interpState f ?forceOutputTypes baseType vecTypes 
         : SSA.fundef =
           
-  Printf.printf "[specialize_reduce] 1\n";
+  IFDEF DEBUG THEN Printf.printf "[specialize_reduce] 1\n"; ENDIF;
   let forceOutputEltTypes = 
     Option.map (List.map DynType.peel_vec ) forceOutputTypes 
   in
@@ -740,20 +740,21 @@ and specialize_reduce interpState f ?forceOutputTypes baseType vecTypes
       outputs = forceOutputEltTypes; 
   } 
   in
-  Printf.printf "[specialize_reduce] 2\n";   
+  IFDEF DEBUG THEN Printf.printf "[specialize_reduce] 2\n"; ENDIF;
   let nestedFn = specialize_function_value interpState f nestedSig in
-  Printf.printf "[specialize_reduce] 3\n";
+  IFDEF DEBUG THEN Printf.printf "[specialize_reduce] 3\n"; ENDIF;
   (* have to specialize twice in case output of reduction function doesn't *)
   (* match baseType *)
   let outputTypes =  DynType.fn_output_types nestedFn.value_type in 
   let fnNode = match outputTypes with 
     | [t] ->
-       Printf.printf "[specialize] %s=?%s!\n"
-         (DynType.to_str t)
-         (DynType.to_str baseType)
-         ;
+        IFDEF DEBUG THEN
+          Printf.printf "[specialize] %s=?%s!\n"
+            (DynType.to_str t)
+            (DynType.to_str baseType)
+          ;
+        ENDIF;
       if t = baseType then (
-       
           nestedFn
       ) 
       else    
@@ -767,7 +768,7 @@ and specialize_reduce interpState f ?forceOutputTypes baseType vecTypes
     | [] -> failwith "reduction function with 0 outputs not supported"
     | _ -> failwith "reduction function with multiple outputs not supported"
   in
-  Printf.printf "[specialize_reduce] 3\n"; 
+  IFDEF DEBUG THEN Printf.printf "[specialize_reduce] 3\n"; ENDIF; 
   let accType = List.hd outputTypes in
   let inputTypes = [fnNode.value_type; accType]@ vecTypes in 
   let outputTypes = [accType] in    
