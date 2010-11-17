@@ -351,9 +351,8 @@ gen_idx: gen_idx.cu_o gen_idx_tester.o base.o
 index: index.cu_o index_tester.o base.o
 	gcc-4.3 index.cu_o index_tester.o base.o -o index $(INCLUDES) $(LIB) -L.
 
-reduce2d: reduce2d.cu_o reduce2d_tester.o base.o
-	gcc-4.3 reduce2d.cu_o reduce2d_tester.o base.o -o reduce2d $(INCLUDES) $(LIB) \
-	-L.
+reduce2d: reduce2d_tester.cu_o base.o
+	gcc-4.3 reduce2d_tester.cu_o base.o -o reduce2d $(INCLUDES) $(LIB) -L.
 
 scan: scan.cu_o scan_tester.o
 	gcc-4.3 scan.cu_o scan_tester.o -o scan $(INCLUDES) $(LIB) -L.

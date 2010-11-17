@@ -144,10 +144,7 @@ let gen_exp
         let rank = codegen#get_global_array_rank arrayReg in 
         assert (dim <= rank);
         let shapeReg = codegen#get_shape_reg arrayReg in
-        (* this works if we're looking at 1st dimension, 
-           what about bigger ones?..we need constant offset + dim-1*32 
-        *) 
-        codegen#emit [ld_global U32 destReg shapeReg] 
+        codegen#emit [ld_global ~offset:((dim-1)*4) U32 destReg shapeReg] 
      else failwith "[imp2ptx] attempting to get DimSize of a scalar"
   
   (* when dealing with a constant or simple variable reference, just
