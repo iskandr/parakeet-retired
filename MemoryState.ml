@@ -138,8 +138,10 @@ let get_host state = function
       let gpuVal = Hashtbl.find state.gpu_vals id in
       let hostVal = GpuVal.from_gpu gpuVal in
       Hashtbl.replace state.host_vals id hostVal;
-      Printf.printf "[MemoryState->get_host] Got %s \n" 
-        (HostVal.to_str hostVal);  
+      IFDEF DEBUG THEN
+        Printf.printf "[MemoryState->get_host] Got %s \n" 
+          (HostVal.to_str hostVal);
+      ENDIF;
       hostVal
   | InterpVal.Scalar n -> HostVal.HostScalar n 
   | InterpVal.Array arr -> failwith "Can't move array onto host"

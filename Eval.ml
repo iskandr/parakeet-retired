@@ -187,13 +187,15 @@ and eval_scalar_op memState args = failwith "not implemented"
 and eval_array_op memState fnTable env op argVals outTypes : InterpVal.t list =
   let runOnGpu = GpuRuntime.implements_array_op op && 
     (let gpuCost = GpuCost.array_op memState fnTable op argVals in 
-     let hostCost = HostCost.array_op memState fnTable op argVals in 
-     Printf.printf 
-      "Estimated cost of running array op %s on host: %d, on gpu: %d\n"
-      (Prim.array_op_to_str op)
-      hostCost
-      gpuCost 
-     ;
+     let hostCost = HostCost.array_op memState fnTable op argVals in
+     IFDEF DEBUG THEN 
+       Printf.printf 
+         "Estimated cost of running array op %s on host: %d, on gpu: %d\n"
+         (Prim.array_op_to_str op)
+         hostCost
+         gpuCost 
+       ;
+     ENDIF;
      gpuCost <= hostCost)
   in  
   if runOnGpu then 

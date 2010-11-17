@@ -433,11 +433,13 @@ and specialize_fundef interpState untypedFundef signature =
 and specialize_function_value interpState v signature : SSA.value_node = 
   match InterpState.maybe_get_specialization interpState v signature with 
     | Some fnId -> 
-        Printf.printf "Found %s for %s : %s" 
-          (FnId.to_str fnId)
-          (SSA.value_to_str v)
-          (Signature.to_str signature)
-        ; 
+        IFDEF DEBUG THEN
+          Printf.printf "Found %s for %s : %s" 
+            (FnId.to_str fnId)
+            (SSA.value_to_str v)
+            (Signature.to_str signature)
+          ;
+        ENDIF;
         let fundef =  InterpState.get_typed_function interpState fnId in 
         { value = GlobalFn fnId; 
           value_type = fundef.fn_type; 

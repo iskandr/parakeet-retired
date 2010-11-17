@@ -46,8 +46,7 @@ class ptx_codegen = object (self)
   method private fresh_shared_id  = 
     let num = numShared in
     numShared <- num + 1;
-    self#get_sym_id ("__shared" ^(string_of_int num)) 
-
+    self#get_sym_id ("__shared" ^(string_of_int num))
 
   method is_shared_ptr = function 
     | PtxVal.Sym {id=id} -> Hashtbl.mem sharedDims id
@@ -60,8 +59,14 @@ class ptx_codegen = object (self)
     | other ->
       failwith $
       "can't get shared dimesions for PTX value " ^
-      (PtxVal.to_str symbols other) 
-  
+      (PtxVal.to_str symbols other)
+
+  (* GENERATE FRESH NAMES FOR TEXTURE REFERENCES *)
+  val mutable numTex = 0
+  method private fresh_tex_id =
+    let num = numTex in
+    numTex <- num + 1;
+    self#get_sym_id ("tex" ^(string_of_int num))
 
   (* GENERATE FRESH LABELS *) 
   val mutable labelCounter = 0
@@ -87,15 +92,20 @@ class ptx_codegen = object (self)
     DynArray.add parameters (id, newParam)
   
   (* TEXTURE REFERENCES *)
-  val textures: Ptx.symid DynArray.t = DynArray.create ()
-  method private add_tex_decl id = DynArray.add textures id
+  val textures: (Ptx.symid * PtxType.ty) DynArray.t = DynArray.create ()
+  method private add_tex_decl id newTex = DynArray.add textures (id, newTex)
+  
+  method is_tex = function
+    | PtxVal.Sym {space=TEX} -> true
+    | _ -> false
 
   (* number of registers currently allocated for every type *)
   val maxRegs : (PtxType.ty, int) Hashtbl.t =  Hashtbl.create initialNumRegs
   
-  (* Mapping from Imp identifiers to their corresponding registers *)  
+  (* Mapping from Imp identifiers to their corresponding registers *)
+  (* Note, this also contains mappings to texture references as well *)
   val dataRegs : (ID.t, PtxVal.value) Hashtbl.t = Hashtbl.create initialNumRegs
-  method imp_reg id = match Hashtbl.find_option dataRegs id with 
+  method imp_reg id = match Hashtbl.find_option dataRegs id with
     | Some reg -> reg
     | None -> failwith $ "[PtxCodegen] Unregistered arg " ^ (ID.to_str id)
 
@@ -103,7 +113,6 @@ class ptx_codegen = object (self)
   method imp_dyn_type id = match Hashtbl.find_option dynTypes id with 
     | Some t -> t 
     | None -> failwith $ "[PtxCodegen] No type registered for " ^ (ID.to_str id) 
-  
   
   (* Any register pointing to a global array should also have an accompanying 
      register pointing to a shape vector.  
@@ -146,24 +155,24 @@ class ptx_codegen = object (self)
   *) 
   method private fresh_shape_reg ptrReg rank =
     let shapeReg = self#fresh_reg PtxType.ptrT in
-    let ptrId = PtxVal.get_id ptrReg in 
+    let ptrId = PtxVal.get_id ptrReg in
     Hashtbl.add shapeRegs ptrId shapeReg;
-    Hashtbl.add globalArrayRanks ptrId rank; 
-    shapeReg  
+    Hashtbl.add globalArrayRanks ptrId rank;
+    shapeReg
   
   method fresh_reg gpuT =
-    let reg_name gpuT id = Printf.sprintf "r%s%d" (PtxType.suffix gpuT) id in 
-    let currMax = match Hashtbl.find_option maxRegs gpuT with 
+    let reg_name gpuT id = Printf.sprintf "r%s%d" (PtxType.suffix gpuT) id in
+    let currMax = match Hashtbl.find_option maxRegs gpuT with
       | Some max -> max
-      | None -> 0 
-    in 
+      | None -> 0
+    in
     Hashtbl.replace maxRegs gpuT (currMax + 1);
-    let id = self#get_sym_id (reg_name gpuT currMax) in  
+    let id = self#get_sym_id (reg_name gpuT currMax) in
     self#add_alloc id {
-      t = gpuT; 
-      decl_space = REG; 
-      array_size = None; 
-      init_val= None 
+      t = gpuT;
+      decl_space = REG;
+      array_size = None;
+      init_val= None
     };
     Sym {id=id; ptx_type=gpuT; space=REG}
   
@@ -193,11 +202,11 @@ class ptx_codegen = object (self)
     Hashtbl.add sharedDims (PtxVal.get_id sharedReg) dimsArray;  
     sharedReg  
  
- (* we've already declared the array, have a pointer into it and 
-    have even allocated the slice destination. We just need to track the 
-    dimensions of the slice. We expect the caller to actually compute the 
-    value of sliceReg. 
- *)  
+  (* we've already declared the array, have a pointer into it and 
+     have even allocated the slice destination. We just need to track the 
+     dimensions of the slice. We expect the caller to actually compute the 
+     value of sliceReg. 
+  *)  
   method declare_slice ptrReg sliceReg =
     if self#is_shared_ptr ptrReg then  
       let dims = self#get_shared_dims ptrReg in
@@ -227,7 +236,6 @@ class ptx_codegen = object (self)
   val dataLocations 
     : (ID.t, PtxCallingConventions.data_location) Hashtbl.t = Hashtbl.create 127 
 
-
   (* shared between storage arguments-- used for local vectors, 
      and global input arguments 
   *) 
@@ -237,7 +245,7 @@ class ptx_codegen = object (self)
     let paramId = self#fresh_arg_id in
     let gpuStorageT = PtxType.storage_of_dyn_type dynT in
     self#add_param_decl paramId gpuStorageT;
-    let dataParam =  Sym {id = paramId; ptx_type=gpuStorageT; space=PARAM} in
+    let dataParam = Sym {id=paramId; ptx_type=gpuStorageT; space=PARAM} in
     let storageReg = self#fresh_reg gpuStorageT in
     self#emit [ld_param gpuStorageT storageReg dataParam];
     let gpuT = PtxType.of_dyn_type dynT in
@@ -262,7 +270,7 @@ class ptx_codegen = object (self)
       self#emit [ld_param PtxType.ptrT shapeReg shapeParam];
     );
     dataReg
-     
+
   (*
      if variable is a scalar then allocates one new register and returns
      it. if it's a vector then allocate a register pair (data/shape) and
@@ -285,9 +293,36 @@ class ptx_codegen = object (self)
   method private declare_tex_param impId dynT =
     Hashtbl.add dynTypes impId dynT;
     DynArray.add paramOrder impId;
+    let texId = self#fresh_tex_id in
     let ptxT = PtxType.of_dyn_type dynT in
-    let tmpReg = self#fresh_reg ptxT in
-    tmpReg
+    let texParam = Sym {id=texId; ptx_type=ptxT; space=TEX} in
+    self#add_tex_decl texId ptxT;
+    Hashtbl.add dataRegs impId texParam;
+    let rank = DynType.nest_depth dynT in
+    (* We also do something really dumb here, which is just to pick a shape *)
+    (* that matches the input's rank (1D for 1D, etc.) -- should surely *)
+    (* revisit later *)
+    let name = Hashtbl.find symbols texId in
+    let geom = num_to_geom rank in
+    let cc = PtxCallingConventions.TextureInput(name, geom) in
+    Hashtbl.add dataLocations impId cc;
+    (* still need to pass down shapes of inputs bound to textures *)
+    let shapeReg = self#fresh_shape_reg texParam rank in
+    let shapeParamId = self#get_sym_id ("texShape" ^ (string_of_int texId)) in
+    let shapeParam =
+      Sym {id=shapeParamId; ptx_type=PtxType.ptrT; space=PARAM}
+    in
+    self#add_param_decl shapeParamId PtxType.ptrT;
+    self#emit [ld_param PtxType.ptrT shapeReg shapeParam];
+    shapeReg
+
+  method get_tex_geom id =
+    if not (Hashtbl.mem dataLocations id) then
+      failwith "[ptx_codegen] getting geom from unknown texture";
+    let cc = Hashtbl.find dataLocations id in
+      match cc with
+        | PtxCallingConventions.TextureInput(name, geom) -> geom
+        | _ -> failwith "[ptx_codegen] error - can't find texture in cc"
   
   (*************************************************************
                       CACHE ACCESS TO SPECIAL REGISTERS
@@ -456,8 +491,7 @@ class ptx_codegen = object (self)
         ]
       done 
     end; 
-    address 
-
+    address
 
   (* storage args are those that supply private heap space to each thread *)
   val storageArgs : ID.t DynArray.t = DynArray.create () 
@@ -494,12 +528,27 @@ class ptx_codegen = object (self)
   method declare_input impId dynT = function 
     | PtxVal.PARAM 
     | PtxVal.GLOBAL -> self#declare_param impId dynT
-    (* For now, assume dumbly that we can surely use textures for anything *)
-    (* that was requested to use them *)
-    | PtxVal.TEX -> self#declare_tex_param impId dynT
-    | other -> failwith $ Printf.sprintf 
+    (* For now, assume dumbly that we can surely use textures for all 1D *)
+    (* inputs that were requested to use them, and not use textures for*)
+    (* anything else *)
+    | PtxVal.TEX ->
+        (* TODO: Let 2D inputs be bound to 1D textures *)
+        let rank = DynType.nest_depth dynT in
+        let elType = DynType.elt_type dynT in
+        IFDEF DEBUG THEN
+          Printf.printf "Tex input type: %s\n" (DynType.to_str dynT);
+        ENDIF;
+        if rank = 1 then (
+          match elType with
+            | DynType.UInt32T
+            | DynType.Int32T
+            | DynType.Float32T -> self#declare_tex_param impId dynT
+            | _ -> self#declare_param impId dynT
+        ) else
+          self#declare_param impId dynT
+    | other -> failwith $ Printf.sprintf
         "kernel inputs via %s space not yet implemented"
-        (PtxVal.ptx_space_to_str other) 
+        (PtxVal.ptx_space_to_str other)
   
   method declare_output impId dynT = self#declare_param impId dynT 
   
@@ -586,7 +635,7 @@ class ptx_codegen = object (self)
         ]
       else self#emit [cvt destType srcType destReg srcVal]
       
-  method private  run_rewrite_pass f  = 
+  method private run_rewrite_pass f =
     let n = DynArray.length instructions in
     let newCode = DynArray.make n in
     let insert = (DynArray.add newCode) in
@@ -601,14 +650,14 @@ class ptx_codegen = object (self)
   method finalize_kernel 
          : Ptx.kernel * PtxCallingConventions.calling_conventions =
     (*debug "[ptx_codegen] finalizing ptx kernel";*)
-    self#run_rewrite_pass PtxSimplify.simplify;   
+    self#run_rewrite_pass PtxSimplify.simplify;
     PtxTidy.cleanup_kernel instructions allocations;
     let kernel = { 
       params = DynArray.to_array parameters; 
       code = DynArray.to_array instructions; 
       decls = allocations;
       symbols = symbols; 
-      textures = DynArray.to_array textures; 
+      textures = DynArray.to_array textures;
     } 
     in
     let cc = { 

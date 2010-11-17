@@ -291,12 +291,28 @@ value ocaml_cuda_module_get_tex_ref(value ocaml_module_ptr, value ocaml_name) {
 }
 
 CAMLprim
-value ocaml_cuda_bind_texture_1d(value tex_ref, value dev_ptr, value bytes) {
-  CAMLparam3(tex_ref, dev_ptr, bytes);
+value ocaml_cuda_bind_texture_1d(
+    value tex_ref, value dev_ptr, value bytes, value kind) {
+  CAMLparam4(tex_ref, dev_ptr, bytes, kind);
 
   // For now, we assume that the offset is 0
-  cuTexRefSetAddress(0, (CUtexref)Int32_val(tex_ref),
-                     (CUdeviceptr)Int32_val(dev_ptr), Int_val(bytes));
+  CUtexref tex = (CUtexref)Int32_val(tex_ref);
+  int c_kind = Int_val(kind);
+  switch(c_kind) {
+    case 0:
+      cuTexRefSetFormat(tex, CU_AD_FORMAT_SIGNED_INT32, 1);
+      break;
+    case 1:
+      cuTexRefSetFormat(tex, CU_AD_FORMAT_UNSIGNED_INT32, 1);
+      break;
+    case 2:
+      cuTexRefSetFormat(tex, CU_AD_FORMAT_FLOAT, 1);
+      break;
+    default:
+      printf("Unknown kind for 1D texture binding. Aborting.\n");
+      exit(1);
+  }
+  cuTexRefSetAddress(0, tex, (CUdeviceptr)Int32_val(dev_ptr), Int_val(bytes));
   CAMLreturn(Val_unit);
 }
 
@@ -312,7 +328,7 @@ value ocaml_cuda_bind_texture_2d_std_channel(
   // For now, all supported types are 32 bits.
   unsigned int pitch = c_kind * 4;
   CUDA_ARRAY_DESCRIPTOR desc;
-  switch(kind) {
+  switch(c_kind) {
     case 0:
       desc.Format = CU_AD_FORMAT_SIGNED_INT32;
       break;

@@ -61,32 +61,53 @@ let gen_exp
       let trueExp' = translate_arg trueExp t' in 
       let falseExp' = translate_arg falseExp t' in
       codegen#emit [
-        selp ~dest:destReg ~ifTrue:trueExp' ~ifFalse:falseExp' ~cond:cond' 
+        selp ~dest:destReg ~ifTrue:trueExp' ~ifFalse:falseExp' ~cond:cond'
       ]
-  (* by this point all the index expressions should have been flattened, 
+  (* by this point all the index expressions should have been flattened,
      so only expect a variable on the lhs 
   *)
   | Imp.Idx({exp=Var id; exp_type=arrDynT}, idx) ->
-      (*let isTex = codgen#*)
       let baseReg = codegen#imp_reg id in
-      let idxDynT = idx.exp_type in 
-      let idxPtxT = PtxType.of_dyn_type idxDynT in 
-      if (PtxType.nbytes idxPtxT <> 4) then 
-        failwith $ 
-          sprintf "[imp2ptx] array index expected to be 32-bit, received: %s" 
+	    let idxDynT = idx.exp_type in
+	    let idxPtxT = PtxType.of_dyn_type idxDynT in
+      (* Have to handle textures differently that other indexing *)
+      if codegen#is_tex baseReg then (
+        assert (idxPtxT = PtxType.S32);
+        IFDEF DEBUG THEN
+	        Printf.printf "texture expression: %s\n" (exp_to_str exp);
+	        Printf.printf "texture imp id: %d\n" id;
+        ENDIF;
+        let texRef = baseReg in
+        let idxReg1 = translate_arg idx idxPtxT in
+        let idxRegs = codegen#fresh_regs idxPtxT 3 in
+        for i = 0 to 2 do
+          codegen#emit[mov ~ty:idxPtxT idxRegs.(i) (int 0)]
+        done;
+        let gpuStorageT = PtxType.storage_of_dyn_type dynResultT in
+        let rsltReg1 = codegen#fresh_reg gpuStorageT in
+        let rsltRegs = codegen#fresh_regs gpuStorageT 3 in
+        let geom = codegen#get_tex_geom id in
+        codegen#emit [tex geom gpuStorageT texRef
+                          rsltReg1 rsltRegs.(0) rsltRegs.(1) rsltRegs.(2)
+                          idxReg1 idxRegs.(0) idxRegs.(1) idxRegs.(2)];
+        codegen#convert ~destReg ~srcVal:rsltReg1
+      ) else (
+      if (PtxType.nbytes idxPtxT <> 4) then
+        failwith $
+          sprintf "[imp2ptx] array index expected to be 32-bit, received: %s"
           (PtxType.to_str idxPtxT);
       let idxReg = translate_arg idx idxPtxT in
-      let eltBytes = 
-        PtxType.nbytes 
+      let eltBytes =
+        PtxType.nbytes
           (PtxType.storage_of_dyn_type (DynType.elt_type dynResultT))
       in
       let isShared = codegen#is_shared_ptr baseReg in
-      if not isShared && not (codegen#is_global_array_ptr baseReg) then 
+      if not isShared && not (codegen#is_global_array_ptr baseReg) then
         failwith "[imp2ptx] cannot generate indexing code: \"
                  base address register is neither global nor shared pointer"
-      else 
+      else
       let rank = codegen#get_array_rank baseReg in
-      let address = codegen#compute_address baseReg eltBytes [|idxReg|] in  
+      let address = codegen#compute_address baseReg eltBytes [|idxReg|] in
       (* indexing into a 1D array yields a scalar *)  
       if rank = 1 then (
         let gpuStorageT = PtxType.storage_of_dyn_type dynResultT in
@@ -102,8 +123,7 @@ let gen_exp
       else (
         codegen#convert ~destReg ~srcVal:address;
         codegen#declare_slice baseReg destReg
-     )     
-           
+     ))
   | Imp.Idx(_, _) -> failwith "[imp2ptx] attempted to index into non-array"
   | Imp.Cast(tNew, x) ->
       let tNewPtx = PtxType.of_dyn_type tNew in 
@@ -111,8 +131,6 @@ let gen_exp
       let tOld = x.exp_type in  
       let tOldPtx = PtxType.of_dyn_type tOld in  
       let x' = translate_arg x tOldPtx in
-      let oldName = DynType.to_str tOld in 
-      let newName = DynType.to_str tNew in  
       codegen#convert ~destReg ~srcVal:x' 
   
   | DimSize(dim, {Imp.exp=Var id}) ->
@@ -186,7 +204,7 @@ let rec gen_stmt codegen stmt =
           codegen#emit [st_shared rhsStorageT address rhsRegCvt]
         else
           codegen#emit [st_global rhsStorageT address rhsRegCvt]
-       ) 
+       )
   | Imp.SyncThreads -> codegen#emit [bar]  
   | Imp.Comment str -> codegen#emit [comment ("Imp comment: " ^ str)]
   | Imp.While (cond, block) ->
@@ -207,7 +225,7 @@ let rec gen_stmt codegen stmt =
       codegen#emit [pred predReg (bra trueLabel)];
       gen_block codegen fBlock; 
       codegen#emit [bra endLabel; label trueLabel (comment "true branch")]; 
-      gen_block codegen tBlock; 
+      gen_block codegen tBlock;
       codegen#emit [label endLabel (comment "branches of if-stmt converge")]
   | Imp.SPLICE -> failwith "unexpected SPLICE stmt in Imp code"
  

@@ -10,7 +10,7 @@ type ptx_space =
   | LOCAL 
   | PARAM 
   | SHARED 
-  | SURF 
+  | SURF
   | TEX
  
 let ptx_space_to_str = function 
@@ -27,7 +27,7 @@ let ptx_space_to_str = function
 type symid = int
 and typed_symbol = {id: symid; ptx_type: PtxType.ty; space: ptx_space}
 
-type value =    
+type value =
   | Sym of typed_symbol
   | IntConst of Int64.t
   | FloatConst of float
@@ -51,7 +51,7 @@ and special_register =
 
 let rec to_str symbols = function
   | Sym {id=id; space=REG} -> sprintf "%%%s" (Hashtbl.find symbols id)
-  | Sym {id=id; space=TEX} -> sprintf "%%%s" (Hashtbl.find symbols id)
+  | Sym {id=id; space=TEX} -> sprintf "%s" (Hashtbl.find symbols id)
   | Sym {id=id} -> Hashtbl.find symbols id
   | IntConst i -> Int64.to_string i
   | FloatConst f -> Float.to_string f

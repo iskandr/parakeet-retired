@@ -89,8 +89,16 @@ external cuda_set_gpu_float32_vec_elt : GpuPtr.t -> int -> float -> unit
 external cuda_module_get_tex_ref : CuModulePtr.t -> string -> CuTexRef.t =
   "ocaml_cuda_module_get_tex_ref"
 
-external cuda_bind_texture_1d : CuTexRef.t -> GpuPtr.t -> int -> unit =
+external cuda_bind_texture_1d_impl
+  : CuTexRef.t -> GpuPtr.t -> int -> int -> unit =
   "ocaml_cuda_bind_texture_1d"
+
+let cuda_bind_texture_1d
+    (texRef : CuTexRef.t) (devPtr : GpuPtr.t) (length : int) = function
+  | Signed -> cuda_bind_texture_1d_impl texRef devPtr length 0
+  | Unsigned -> cuda_bind_texture_1d_impl texRef devPtr length 1
+  | Float -> cuda_bind_texture_1d_impl texRef devPtr length 2
+  | _ -> failwith "[cuda] Unsupported 1D texture type"
 
 external cuda_bind_texture_2d_std_channel_impl
   : CuTexRef.t -> GpuPtr.t -> int -> int -> int -> unit =

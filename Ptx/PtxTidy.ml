@@ -1,3 +1,4 @@
+(* pp: -parser o pa_macro.cmo *)
 
 open Ptx
 open PtxVal 
@@ -77,7 +78,9 @@ let find_constants instructions =
 let cleanup_kernel instructions registerAllocs = 
   (* keep pruning instructions until code stabilizes *) 
   let rec loop iter lastLen =
-    Printf.printf "Running iteration %d of PtxTidy\n" iter;
+    IFDEF DEBUG THEN
+      Printf.printf "Running iteration %d of PtxTidy\n" iter;
+    ENDIF;
     (*
     let constants = find_constants instructions in
     rename_redundant_registers constants instructions;
