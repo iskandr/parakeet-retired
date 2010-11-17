@@ -126,10 +126,28 @@ let merge_contexts c1 ids1 c2 ids2 outputCxt outputIds =
 
 type change_indicator = bool    
   
-let min_arity context = function 
+let rec min_arity context = function 
   | Prim op -> Prim.min_prim_arity op
-  | GlobalFn fnId -> InterpState.get_untyped_arity context.interp_state fnId 
-  
+  | GlobalFn fnId -> InterpState.get_untyped_arity context.interp_state fnId
+  | Var closureId ->
+    IFDEF DEBUG THEN 
+        assert (ID.Map.mem closureId context.untyped_closures);
+    ENDIF; 
+    let fnVal, closureSig = 
+      ID.Map.find closureId context.untyped_closures 
+    in
+    let nClosureArgs = List.length closureSig in 
+    let fullArity = min_arity context fnVal in  
+    fullArity - nClosureArgs  
+  | other -> failwith $ 
+     Printf.sprintf 
+       "Can't get arity of %s" 
+       (SSA.value_to_str other)
+      
+let max_arity context = function 
+  | Prim op -> Prim.max_prim_arity op 
+  | other -> min_arity context other 
+    
 let sig_from_type = function 
   | FnT([], inTypes, outTypes) -> Signature.from_types inTypes outTypes
   | FnT(_::_, _, _) -> failwith "closures not yet supported" 
@@ -147,24 +165,36 @@ and all_scalar_stmts = function
   | [] -> true
   | {stmt=stmt}::rest -> is_scalar_stmt stmt &&  all_scalar_stmts rest
 
-let annotate_value context valNode = 
-  let t = match valNode.value with 
-  | Var id -> ID.Map.find id context.type_env  
+let type_of_raw_value = function 
   | Num n -> PQNum.type_of_num n 
   | Str _ -> DynType.StrT 
   | Sym _ -> DynType.SymT  
   | Unit -> DynType.UnitT
+  | _ -> assert false  
+
+let has_array_type context = function 
+  | Var id -> 
+      let tenv = context.type_env in 
+      ID.Map.mem id tenv && 
+      DynType.is_vec (ID.Map.find id tenv)
+  | _ -> false  
+
+let annotate_value context valNode = 
+  let t = match valNode.value with 
+  | Var id -> ID.Map.find id context.type_env  
   | Prim _ -> 
       failwith "[Specialize] cannot annotate primitive without its arguments"
   | GlobalFn _ 
   | Lam _ -> 
-      failwith "[Specialize] cannot annotate a function without its arguments" 
+      failwith "[Specialize] cannot annotate a function without its arguments"
+  | other -> type_of_raw_value other  
  in 
     (* if the new type is different from the old, *)
     (* then indicate that a change has happened *)    
     let changed = valNode.value_type <> t in 
     let valNode' = {valNode with value_type = t} in  
     valNode', t, changed  
+
 
 let rec annotate_values context = function 
   | [] -> [], [], false  
@@ -173,6 +203,24 @@ let rec annotate_values context = function
       let vs', ts, restChanged = annotate_values context vs in 
       v'::vs', t::ts, currChanged || restChanged 
 
+let value_to_sig_elt context v : Signature.sig_elt = 
+  match v with  
+  | Prim p -> Signature.Closure(Prim p, [])
+  | GlobalFn fnId -> Signature.Closure (GlobalFn fnId, [])
+  | Lam _ -> failwith "lambda should have been lifted to top-level"
+  | Var id -> 
+      if ID.Map.mem id context.untyped_closures then
+        let fnVal, closureArgs = ID.Map.find id context.untyped_closures in
+        Signature.Closure(fnVal, closureArgs)
+      else 
+        Signature.Type (ID.Map.find id context.type_env)
+  | other -> Signature.Type (type_of_raw_value other) 
+
+let rec value_nodes_to_sig_elts context = function 
+  | v::rest -> 
+    (value_to_sig_elt context v.value)::(value_nodes_to_sig_elts context rest)
+  | [] -> [] 
+ 
 (**************************************************************************)
 (*       SPECIALIZE A SCALAR OPERATOR FOR ALL SCALAR ARGUMENT TYPES       *)
 (**************************************************************************) 
@@ -278,8 +326,8 @@ let rec annotate_app context expSrc fn args = match fn.value with
       }
       in 
       expNode, context, argsChanged               
-    | Lam _ -> failwith "anonymous functions should have been named by now"
-    | Var arrayId -> 
+  | Lam _ -> failwith "anonymous functions should have been named by now"
+  | Var arrayId -> 
       (* assume we're conflating array indexing and function application. *)
       let arrayType = ID.Map.find arrayId context.type_env in
       let arrNode = { fn with value_type = arrayType } in  
@@ -351,7 +399,17 @@ and annotate_exp context expNode =
             in 
             expNode', context, anyValueChanged || anyUpcast
       end
-  | App (fn, args) -> annotate_app context expNode.exp_src fn args 
+  | App (fn, args) ->
+     (* assume we're never getting too few arguments, 
+        closure creation handle in annotate_stmt
+      *) 
+     IFDEF DEBUG THEN 
+       let nargs = List.length args in 
+       if nargs > max_arity context fn.value then 
+         failwith "too many arguments"
+     ENDIF; 
+     annotate_app context expNode.exp_src fn args
+  
   | ArrayIndex (arr, indices) -> 
         failwith "annotation of array indexing not yet supported"
   in 
@@ -364,7 +422,45 @@ and annotate_stmt context stmtNode =
     then ID.Map.find id context.type_env 
     else DynType.BottomT
   in  
-  match stmtNode.stmt with 
+  match stmtNode.stmt with
+  (* a under-applied function should form a closure 
+     instead of getting specialized on the spot 
+  *)  
+  | Set([id], {exp=App (fn, args)}) 
+    when 
+    (not $ has_array_type context fn.value) && 
+    (List.length args < min_arity context fn.value) ->
+      (* can't annotate anything since the function isn't fully applied, 
+         instead construct a signature string from the arguments 
+      *) 
+      let argSig = value_nodes_to_sig_elts context args in
+      let untypedClosures = context.untyped_closures in 
+      let closure = match fn.value with 
+        | Var closureId -> 
+            IFDEF DEBUG THEN 
+              assert (ID.Map.mem id untypedClosures); 
+            ENDIF; 
+            let (fnId, oldClosureArgs) = 
+              ID.Map.find closureId untypedClosures 
+            in 
+            (fnId, oldClosureArgs @ argSig)
+        | primOrGlobal -> 
+            IFDEF DEBUG THEN
+              let isFn = match primOrGlobal with 
+                | Prim _ | GlobalFn _ -> true 
+                | _ -> false
+              in  
+              assert isFn
+            ENDIF;
+            (primOrGlobal, argSig)
+      in  
+      (* TODO: figure out if we've already added this closure to env *) 
+      let context'  = { context with 
+        untyped_closures = ID.Map.add id closure untypedClosures 
+      }
+      in 
+      stmtNode, context', true        
+      
   | Set(ids, rhs) ->  
       let rhs', rhsContext, rhsChanged = annotate_exp context rhs in 
       let oldTypes = List.map get_type ids in   
@@ -560,11 +656,13 @@ and specialize_fundef interpState untypedFundef signature =
 and specialize_function_value interpState v signature : SSA.value_node = 
   match InterpState.maybe_get_specialization interpState v signature with 
     | Some fnId -> 
-        Printf.printf "Found %s for %s : %s" 
-          (FnId.to_str fnId)
-          (SSA.value_to_str v)
-          (Signature.to_str signature)
-        ; 
+        IFDEF DEBUG THEN 
+          Printf.printf "Found %s for %s : %s" 
+            (FnId.to_str fnId)
+            (SSA.value_to_str v)
+            (Signature.to_str signature)
+          ;
+        ENDIF; 
         let fundef =  InterpState.get_typed_function interpState fnId in 
         { value = GlobalFn fnId; 
           value_type = fundef.fn_type; 
@@ -726,7 +824,6 @@ and specialize_map
 and specialize_reduce interpState f ?forceOutputTypes baseType vecTypes 
         : SSA.fundef =
           
-  Printf.printf "[specialize_reduce] 1\n";
   let forceOutputEltTypes = 
     Option.map (List.map DynType.peel_vec ) forceOutputTypes 
   in
@@ -738,22 +835,21 @@ and specialize_reduce interpState f ?forceOutputTypes baseType vecTypes
       outputs = forceOutputEltTypes; 
   } 
   in
-  Printf.printf "[specialize_reduce] 2\n";   
+     
   let nestedFn = specialize_function_value interpState f nestedSig in
-  Printf.printf "[specialize_reduce] 3\n";
+  
   (* have to specialize twice in case output of reduction function doesn't *)
   (* match baseType *)
   let outputTypes =  DynType.fn_output_types nestedFn.value_type in 
   let fnNode = match outputTypes with 
     | [t] ->
-       Printf.printf "[specialize] %s=?%s!\n"
-         (DynType.to_str t)
-         (DynType.to_str baseType)
-         ;
-      if t = baseType then (
-       
-          nestedFn
-      ) 
+      IFDEF DEBUG THEN 
+        Printf.printf "[specialize] %s=?%s!\n"
+          (DynType.to_str t)
+          (DynType.to_str baseType)
+        ;
+      ENDIF;
+      if t = baseType then nestedFn
       else    
         let nestedSig' = { 
           Signature.inputs = 
