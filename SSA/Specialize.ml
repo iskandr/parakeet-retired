@@ -656,7 +656,7 @@ and specialize_fundef interpState untypedFundef signature =
 and specialize_function_value interpState v signature : SSA.value_node = 
   match InterpState.maybe_get_specialization interpState v signature with 
     | Some fnId -> 
-        IFDEF DEBUG THEN 
+        IFDEF DEBUG THEN
           Printf.printf "Found %s for %s : %s" 
             (FnId.to_str fnId)
             (SSA.value_to_str v)
@@ -823,7 +823,6 @@ and specialize_map
 *)   
 and specialize_reduce interpState f ?forceOutputTypes baseType vecTypes 
         : SSA.fundef =
-          
   let forceOutputEltTypes = 
     Option.map (List.map DynType.peel_vec ) forceOutputTypes 
   in
@@ -861,7 +860,7 @@ and specialize_reduce interpState f ?forceOutputTypes baseType vecTypes
     | [] -> failwith "reduction function with 0 outputs not supported"
     | _ -> failwith "reduction function with multiple outputs not supported"
   in
-  Printf.printf "[specialize_reduce] 3\n"; 
+  IFDEF DEBUG THEN Printf.printf "[specialize_reduce] 3\n"; ENDIF; 
   let accType = List.hd outputTypes in
   let inputTypes = [fnNode.value_type; accType]@ vecTypes in 
   let outputTypes = [accType] in    

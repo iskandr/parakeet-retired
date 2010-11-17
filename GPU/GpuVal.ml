@@ -21,10 +21,7 @@ type gpu_vec = {
   vec_slice_start: Int32.t option; 
 }
 
-type gpu_val = 
-  | GpuScalar of PQNum.num 
-  | GpuArray of gpu_vec 
-
+type gpu_val = GpuScalar of PQNum.num | GpuArray of gpu_vec
 
 let nelts = function
   | GpuScalar _-> 1
@@ -32,18 +29,33 @@ let nelts = function
 
 let get_shape = function
   | GpuArray v -> v.vec_shape
-  | GpuScalar _ -> Shape.scalar_shape 
+  | GpuScalar _ -> Shape.scalar_shape
+
+let get_shape_ptr = function
+  | GpuArray v -> v.vec_shape_ptr
+  | GpuScalar _ -> failwith "Can't get shape pointer for "
+
+let get_shape_nbytes = function
+  | GpuArray v -> v.vec_shape_nbytes
+  | GpuScalar _ -> failwith "Don't know how to get num bytes for scalar shape"
 
 let get_type = function
   | GpuArray v -> v.vec_t
   | GpuScalar n -> (PQNum.type_of_num n)
 
-let get_ptr = function 
-  | GpuArray v -> v.vec_ptr 
+let get_ptr = function
+  | GpuArray v -> v.vec_ptr
   | GpuScalar _ -> failwith "Can't get GPU pointer to a scalar"
 
-let mk_scalar n = GpuScalar n  
+let get_scalar = function
+  | GpuArray _ -> failwith "Can't get scalar for GPU vector"
+  | GpuScalar s -> s
 
+let get_nbytes = function
+  | GpuArray v -> v.vec_nbytes
+  | GpuScalar s -> DynType.sizeof (PQNum.type_of_num s)
+
+let mk_scalar n = GpuScalar n
 
 let free = function
   | GpuScalar _ -> ()

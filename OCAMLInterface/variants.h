@@ -21,7 +21,6 @@ enum run_template_ret_val_data {
   Error
 };
 
-
 enum dyn_type_no_data {
   BottomT = 0,
   AnyT,
@@ -48,8 +47,6 @@ enum dyn_type_with_data {
   TableT,
   FnT
 };
-
-
 
 enum pqnum_tag {
      PQNUM_BOOL = 0,
@@ -79,4 +76,14 @@ enum gpu_array_layout {
     GpuArray_VEC_PTR = 0, GpuArray_VEC_NBYTES, GpuArray_VEC_LEN,
         GpuArray_VEC_SHAPE_PTR, GpuArray_VEC_SHAPE_NBYTES,
         GpuArray_VEC_SHAPE, GpuArray_VEC_T
+};
+
+enum pqnum_gpu_arg_tag {
+  PQNUM_GPU_SCALAR_ARG = 0,
+  PQNUM_GPU_ARRAY_ARG
+};
+
+enum pqnum_gpu_array_arg_layout {
+  PQNUM_GPU_ARRAY_ARG_PTR = 0,
+  PQNUM_GPU_ARRAY_ARG_NBYTES
 };

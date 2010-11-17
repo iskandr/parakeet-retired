@@ -7,19 +7,20 @@
 #include <caml/memory.h>
 #include <caml/mlvalues.h>
 
+#include <cuda.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
 
 #include "../OCAMLInterface/variants.h"
-#include "pqlib.h"
 
 #define ALIGN_UP(offset, alignment) \
   (offset) = ((offset) + (alignment) - 1) & ~((alignment) - 1)
 
 /* unit -> unit */
-CAMLprim value ocaml_pq_init(value unit) {
+CAMLprim
+value ocaml_pq_init(value unit) {
   CAMLparam1 (unit);
   if (cuInit(0) != CUDA_SUCCESS) {
     exit (0);
@@ -172,10 +173,9 @@ CAMLprim value ocaml_pq_launch_ptx (
   for (i = 0; i < num_args; ++i) {
     ocaml_gpu_arg = Field(ocaml_args, i);
 
-    if (Tag_val(ocaml_gpu_arg) == GpuArray) {
-      ocaml_gpu_val = Field(ocaml_gpu_arg, 0);
-      // First, we just add the arg to the list of args
-      ptr_arg = (void*)Int32_val(Field(ocaml_gpu_val, GpuArray_VEC_PTR));
+    if (Tag_val(ocaml_gpu_arg) == PQNUM_GPU_ARRAY_ARG) {
+      // Pull out the pointer and pass it up
+      ptr_arg = (void*)Int32_val(Field(ocaml_gpu_arg, PQNUM_GPU_ARRAY_ARG_PTR));
       ALIGN_UP(offset, sizeof(void*));
       result = cuParamSetv(cuFunc, offset, &ptr_arg, sizeof(void*));
       if (result != 0) {
@@ -185,18 +185,7 @@ CAMLprim value ocaml_pq_launch_ptx (
       }
       offset += sizeof(void*);
 
-            // Now, add the shape vector too
-      ptr_arg = (void*)Int32_val(Field(ocaml_gpu_val, GpuArray_VEC_SHAPE_PTR));
-      ALIGN_UP(offset, sizeof(void*));
-      result = cuParamSetv(cuFunc, offset, &ptr_arg, sizeof(void*));
-      if (result != 0) {
-        printf("Error #%d in cuParamSetv, arg %d of %d (GpuArray shape)",
-            result, i, num_args);
-        exit(1);
-      }
-      offset += sizeof(void*);
-
-    } else if (Tag_val(ocaml_gpu_arg) == GpuScalar) {
+    } else if (Tag_val(ocaml_gpu_arg) == PQNUM_GPU_SCALAR_ARG) {
       ocaml_gpu_val = Field(ocaml_gpu_arg, 0);
       int pqnum_tag = Tag_val(ocaml_gpu_val);
       /* locals used to pull out number values */
@@ -241,7 +230,6 @@ CAMLprim value ocaml_pq_launch_ptx (
         exit(1);
 
       }
-      printf("Transmitting scalar to GPU (address: %p, size: %d)", ptr_arg, arg_size);
       ALIGN_UP(offset, arg_size);
       result = cuParamSetv(cuFunc, offset, ptr_arg, arg_size);
       if (result != 0) {

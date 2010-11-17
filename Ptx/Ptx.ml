@@ -84,15 +84,13 @@ and instruction = {
 	label : label option; 
 	pred : guard
 }
-
-
   
 and kernel = {
   params: (symid * PtxType.ty) array;
   decls: (symid, var_decl) Hashtbl.t; 
   symbols : (symid, string) Hashtbl.t; 
 	code: instruction array; 
-  textures: symid array;  
+  textures: (symid * PtxType.ty) array;  
 }
 
 and ptx_compute_capability = SM_10 | SM_11 | SM_13 | SM_20 | SM_21
@@ -101,14 +99,12 @@ and ptx_module = {
   compute_capability: ptx_compute_capability;
 }
 
-
 let module_from_named_kernels (kernels : (string * kernel) list) =
   (* TODO: rename the textures for global consistency *) 
   { 
     kernels = PMap.of_enum (List.enum kernels);   
     compute_capability = SM_13
   } 
-
 
 let is_float_rounding_mode = function 
   | RoundNearest | RoundZero | RoundNegInf | RoundPosInf -> true 
@@ -119,6 +115,11 @@ let is_int_rounding_mode = function
   | RoundNegInf_Int | RoundPosInf_Int -> true
   | _ -> false
 
+let num_to_geom = function
+  | 1 -> Tex1D
+  | 2 -> Tex2D
+  | 3 -> Tex3D
+  | _ -> failwith "[ptx] unknown texture geometry"
 
 (*********************************************************
                 TO_STRING FUNCTIONS 
@@ -138,7 +139,8 @@ let rec ptx_module_to_str ptxModule =
      (compute_capability_to_str ptxModule.compute_capability);  
   PMap.iter (add_kernel_to_buffer b) ptxModule.kernels;
   Buffer.contents b
-and add_kernel_to_buffer b name k = 
+and add_kernel_to_buffer b name k =
+  add_kernel_textures_to_buffer b k.symbols k.textures;
   bprintf b ".entry %s \n" name;
   add_kernel_params_to_buffer b k.symbols k.params;
   Buffer.add_string b "{\n";
@@ -150,15 +152,24 @@ and add_kernel_to_buffer b name k =
 and kernel_to_str k name = 
   let b = Buffer.create 100 in 
   add_kernel_to_buffer b name k;
-  Buffer.contents b  
-and add_kernel_params_to_buffer b  symbols params = 
+  Buffer.contents b
+and add_kernel_textures_to_buffer b symbols textures =
+  let n = Array.length textures in
+  let texStrings =
+    Array.map (fun (id,ty) -> tex_to_str symbols id ty) textures in
+  for i = 0 to n - 1 do
+    bprintf b "%s;\n" texStrings.(i)
+  done
+and tex_to_str symbols id ty =
+  sprintf ".tex .%s %s" (PtxType.to_str ty) (Hashtbl.find symbols id)
+and add_kernel_params_to_buffer b symbols params = 
   let n = Array.length params in 
   if n > 0 then begin 
     let paramStrings = 
       Array.map (fun (id,ty) -> param_to_str symbols id ty) params in 
     Buffer.add_string b "(";
-    for i = 0 to n - 2  do 
-        bprintf b "%s, " paramStrings.(i)
+    for i = 0 to n - 2 do 
+      bprintf b "%s,\n " paramStrings.(i)
     done;
     Buffer.add_string b paramStrings.(n-1);
     Buffer.add_string b ")\n";
@@ -236,13 +247,19 @@ and ptx_op_name = function
 (* print everything after the op name and rounding/ftz/sat modifiers *) 
 and ptx_op_args_to_buffer b symbols op args = match op with
   | Tex(geom, ty) ->
-      bprintf b ".%s.v4.%s.%s\t %s, [%s, %s];"
-        (ptx_geom_to_str geom)
-        (PtxType.to_str ty)
-        (PtxType.to_str ty)
-        (PtxVal.to_str symbols args.(0))
-        (PtxVal.to_str symbols args.(1))
-        (PtxVal.to_str symbols args.(2))
+	    (* For now, only support s32 indexing *)
+	    bprintf b ".%s.v4.%s.s32\t {%s,%s,%s,%s}, [%s, {%s,%s,%s,%s}];"
+	      (ptx_geom_to_str geom)
+	      (PtxType.to_str ty)
+	      (PtxVal.to_str symbols args.(0))
+	      (PtxVal.to_str symbols args.(1))
+	      (PtxVal.to_str symbols args.(2))
+	      (PtxVal.to_str symbols args.(3))
+	      (PtxVal.to_str symbols args.(4))
+	      (PtxVal.to_str symbols args.(5))
+	      (PtxVal.to_str symbols args.(6))
+	      (PtxVal.to_str symbols args.(7))
+	      (PtxVal.to_str symbols args.(8))
   | Bra label -> bprintf b " %s;" (Hashtbl.find symbols label) 
   | Exit -> Buffer.add_string b ";"
   | Comment str -> bprintf b "\t /* %s */" str
@@ -596,7 +613,10 @@ let st ?offset ~space ~ty ~dest ~src =
 
 let st_global ?offset = st ?offset ~space:GLOBAL 
 let st_shared ?offset = st ?offset ~space:SHARED
-let st_local ?offset = st ?offset ~space:LOCAL 
+let st_local ?offset = st ?offset ~space:LOCAL
+
+let tex geom ty texref d1 d2 d3 d4 s1 s2 s3 s4 =
+  mkop (Tex(geom, ty)) [d1;d2;d3;d4;texref;s1;s2;s3;s4]
 
 let bar = mkop (Bar 0) []
 

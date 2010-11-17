@@ -97,7 +97,7 @@ let run_template
   HardwareInfo.hw_init ();
   LibPQ.init ();
   (* TODO: Make the timings more controllable (mem transfer e.g.) *)
-  let startTime =   Unix.gettimeofday () in
+  let startTime = Unix.gettimeofday () in
   let args = globals @ locals in
   let argTypes = List.map HostVal.get_type args in
   let untypedFn = InterpState.get_untyped_function interpState untypedId in 
@@ -132,5 +132,5 @@ let run_template
   let resultVals = Eval.eval fnTable typedFundef args in  
   let result = Success (List.hd resultVals)  in     
   printf "Total Time: %f\n" (Unix.gettimeofday () -. startTime);
-  IFDEF DEBUG THEN flush stdout; ENDIF; 
+  flush stdout; 
   result
