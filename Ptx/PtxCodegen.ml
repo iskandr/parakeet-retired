@@ -524,7 +524,6 @@ class ptx_codegen = object (self)
     self#emit [mov myStorageSlice address];  
     myStorageSlice
 
-
   method declare_input impId dynT = function 
     | PtxVal.PARAM 
     | PtxVal.GLOBAL -> self#declare_param impId dynT
@@ -533,6 +532,8 @@ class ptx_codegen = object (self)
     (* anything else *)
     | PtxVal.TEX ->
         (* TODO: Let 2D inputs be bound to 1D textures *)
+        (*       In order to support this, have to make indexing into them *)
+        (*       return their element type, not a pointer to a slice *)
         let rank = DynType.nest_depth dynT in
         let elType = DynType.elt_type dynT in
         IFDEF DEBUG THEN

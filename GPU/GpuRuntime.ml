@@ -202,6 +202,7 @@ let compile_reduce globalFunctions payload retTypes =
 	  Printf.sprintf "[compile_reduce] %s\n" (Imp.fn_to_str impfn);
 	  flush stdout;
   ENDIF;
+  
   let inputSpaces = Array.map (fun t -> PtxVal.TEX) (Array.of_list retTypes) in
   let ptx, cc = ImpToPtx.translate_kernel
                      ?input_spaces:(Some inputSpaces) impfn in
@@ -249,21 +250,23 @@ let run_reduce
     | [fnName], _ :: [gpuVal] ->
       let inShape = GpuVal.get_shape gpuVal in
       let numInputElts = Shape.get inShape 0 in
+      let xlen = Shape.get inShape 1 in
+      let x_threads = 1 in
+      let x_grid =
+        if Shape.rank inShape = 1 then 1
+        else xlen / x_threads
+      in
+      Printf.printf "Launching x grid: %d\n" x_grid;
       let rec aux inputArgs curNumElts =
         if curNumElts > 1 then (
           let numOutputElts = safe_div curNumElts (threadsPerBlock * 2) in
           let args, outputsList =
             create_args compiledModule.Cuda.module_ptr impKernel cc inputArgs in
-          let x_threads = 1 in
-          let x_grid =
-            if Shape.rank inShape = 1 then 1
-            else Shape.get inShape 1 / x_threads
-          in
-          let gridParams = {
-            LibPQ.threads_x=x_threads; threads_y=256; threads_z=1;
-            grid_x=x_grid; grid_y=numOutputElts;
-          }
-          in
+		      let gridParams = {
+		        LibPQ.threads_x=x_threads; threads_y=256; threads_z=1;
+		        grid_x=x_grid; grid_y=numOutputElts;
+		      }
+		      in
           LibPQ.launch_ptx
             compiledModule.Cuda.module_ptr fnName args gridParams;
           if curNumElts < numInputElts then GpuVal.free (List.hd inputArgs);
