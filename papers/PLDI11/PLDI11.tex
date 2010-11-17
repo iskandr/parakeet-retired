@@ -184,13 +184,13 @@ We take inspiration from \cite{Bol09} and allow functions to both accept and ret
 \\[5pt]
 \begin{tabular}{m{0.005cm}m{1.8cm}m{0.05cm}m{0.2cm}p{4.8cm}}
 \multicolumn{2}{l}{\textbf{Type System}} & & &  \\
-& first-order     & $\tau$    & $\bnfdef$ & $int \sep float \sep \mathbf{vec} \; \tau   $ \\[4pt]
+& data     & $\tau$    & $\bnfdef$ & $int \sep float \sep \mathbf{vec} \; \tau   $ \\[4pt]
 & closures        & $\theta$  & $\bnfdef$ & $\overline{\tau_{c}} \Rightarrow \overline{\tau_m} \rightarrow \overline{\tau_n}$\\[2pt]
 &                 &           & $\sep$    & $\tau$ \\[4pt]
 & higher-order    & $\sigma$  & $\bnfdef$ & $\overline{\theta_m} \rightarrow \overline{\theta_n} $ \\[4pt]
 \end{tabular}
 \begin{itemize}
-\item It is worth noting that the programmer is only able to construct values of type $\theta$ and is thus limited to the defining first-order (which can neither accept nor return function values). They may still, however, make use of primitive second-order operators such as $\mathbf{map}$ and $\mathbf{reduce}$. 
+\item It is worth noting that the programmer is limited to defining values with first-order types (data or functions which neither accept nor return function values). It is, however, possible to make use of primitive second-order operators such as $\mathbf{map}$ and $\mathbf{reduce}$. 
 \item The accepted typing of closures involves existential types [find citation for typed closure conversion?], which are commonly implemented via boxed . Since our desire is to compile down to a final program without boxed values we instead annotate closures with the types of their implicitly carried arguments. This information is later used to transform closure invocation into a direct function call. 
 \end{itemize}
 \begin{tabular}{m{0.1cm}m{1.2cm}m{0.1cm}m{0.2cm}p{4.7cm}}
