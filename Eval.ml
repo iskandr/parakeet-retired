@@ -207,7 +207,14 @@ and eval_array_op memState fnTable env op argVals outTypes : InterpVal.t list =
   | Prim.DimSize, [array; idx] -> 
       let s = MemoryState.get_shape memState array in
       let i = InterpVal.to_int idx in
-      [InterpVal.of_int (Shape.get s i)] 
+      let result = InterpVal.of_int (Shape.get s i) in 
+      IFDEF DEBUG THEN 
+        Printf.printf "DimSize(%s, %s): %s\n"
+          (InterpVal.to_str array)
+          (InterpVal.to_str idx)
+          (InterpVal.to_str result);
+      ENDIF;  
+      [result] 
       
 and eval_map memState fnTable env fundef argVals : InterpVal.t list =
   Printf.printf "Running MAP on host!\n";

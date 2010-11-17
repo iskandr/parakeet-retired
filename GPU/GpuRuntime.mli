@@ -1,20 +1,5 @@
 
 
-type adverb_impl = 
-  MemoryState.t -> FnTable.t -> SSA.fundef -> 
-    GpuVal.gpu_val list -> DynType.t list -> GpuVal.gpu_val list
-
-type simple_array_op_impl =
-  MemoryState.t -> FnTable.t -> 
-    GpuVal.gpu_val list -> DynType.t list -> GpuVal.gpu_val list
-
-
-
-val run_map : adverb_impl 
-    
-val run_reduce : adverb_impl 
-
-val run_reduce : adverb_impl 
 
 val implements_array_op : Prim.array_op -> bool 
                 

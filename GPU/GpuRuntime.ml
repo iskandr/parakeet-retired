@@ -10,7 +10,8 @@ open ShapeInference
 
 type adverb_impl =
  MemoryState.t ->  FnTable.t -> SSA.fundef ->
-    GpuVal.gpu_val list -> DynType.t list -> GpuVal.gpu_val list
+    GpuVal.gpu_val list -> GpuVal.gpu_val list -> 
+      DynType.t list -> GpuVal.gpu_val list
 
 type simple_array_op_impl =
   MemoryState.t -> FnTable.t ->
@@ -121,7 +122,7 @@ let create_args
 
 (** MAP **)
 let map_id_gen = mk_gen()
-let compile_map globalFunctions payload argTypes retTypes =
+let compile_map globalFunctions payload closureTypes argTypes retTypes =
   let mapThreadsPerBlock = 256 in
   (* converting payload to Imp *) 
   let impPayload = SSA_to_Imp.translate_fundef globalFunctions payload in
@@ -130,6 +131,7 @@ let compile_map globalFunctions payload argTypes retTypes =
     ImpMapTemplate.gen_map
       impPayload
       mapThreadsPerBlock
+      (Array.of_list closureTypes)
       (Array.of_list argTypes)
       (Array.of_list retTypes)
   in
@@ -145,22 +147,28 @@ let compile_map globalFunctions payload argTypes retTypes =
 
 let mapCache : code_cache = Hashtbl.create 127
  
-let run_map memState globalFunctions payload gpuVals outputTypes =
-  let inputTypes = List.map GpuVal.get_type gpuVals in  
-  let cacheKey = (payload.SSA.fn_id, inputTypes) in  
+let run_map memState globalFunctions payload closureVals gpuVals outputTypes =
+  let closureTypes = List.map GpuVal.get_type closureVals in 
+  let inputTypes = List.map GpuVal.get_type gpuVals in
+  let cacheKey = (payload.SSA.fn_id, closureTypes @ inputTypes) in  
   let {imp_source=impKernel; cc=cc; cuda_module=cudaModule} = 
     if Hashtbl.mem mapCache cacheKey then 
       Hashtbl.find mapCache cacheKey
     else (
       let entry = 
-        compile_map globalFunctions payload inputTypes outputTypes 
+        compile_map 
+          globalFunctions 
+          payload 
+          closureTypes 
+          inputTypes 
+          outputTypes 
       in
       Hashtbl.add mapCache cacheKey entry; 
       entry
     )  
-  in      
+  in
   let paramsArray, outputVals =
-    create_args cudaModule.Cuda.module_ptr impKernel cc gpuVals
+    create_args cudaModule.Cuda.module_ptr impKernel cc (closureVals @ gpuVals)
   in  
   (* create one CUDA thread per every input element *) 
   assert (List.length cudaModule.Cuda.kernel_names = 1); 
@@ -261,8 +269,16 @@ let run_reduce
           if curNumElts < numInputElts then GpuVal.free (List.hd inputArgs);
           aux outputsList numOutputElts
           )
-        else
-          inputArgs
+        else (
+          let result = GpuVal.get_slice (List.hd inputArgs) 0 in 
+          IFDEF DEBUG THEN 
+            Printf.printf "Final reduction result of shape %s, type %s\n"
+              (Shape.to_str (GpuVal.get_shape result))
+              (DynType.to_str (GpuVal.get_type result))
+            ; 
+          ENDIF;
+          [result]
+        )
       in
       aux [gpuVal] numInputElts
     | _ -> failwith "expect one reduce kernel"
@@ -422,19 +438,11 @@ let eval_array_op
      Printf.printf "In eval array op\n";
   ENDIF; 
   let gpuVals = match op, args  with  
-  | Prim.Map, (InterpVal.Closure(fnId, []))::dataArgs ->
+  | Prim.Map, (InterpVal.Closure(fnId, closureArgs))::dataArgs ->
       let fundef = FnTable.find fnId fnTable in
-      (*
-		  let inputShapes = List.map (MemoryState.get_shape memState) dataArgs in
-		  let outputShapes, _ =
-        ShapeInference.infer_map functions fundef inputShapes in
-      let argsOnHost =
-        List.filter (fun arg -> not (MemoryState.is_on_gpu memState arg))
-                    dataArgs
-      in
-      *)
-      let gpuVals = List.map (MemoryState.get_gpu memState) dataArgs in
-      run_map memState fnTable fundef gpuVals outputTypes 
+      let closureVals = List.map (MemoryState.get_gpu memState) closureArgs in 
+      let dataVals = List.map (MemoryState.get_gpu memState) dataArgs in
+      run_map memState fnTable fundef closureVals dataVals outputTypes 
       
   | Prim.Map, _ -> 
       failwith "[GpuRuntime->eval_array_op] closures not yet supported for Map"

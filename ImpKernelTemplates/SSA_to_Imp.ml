@@ -1,3 +1,5 @@
+(* pp: -parser o pa_macro.cmo *)
+
 open DynType
 open Base
 open Imp
@@ -12,25 +14,28 @@ let rec translate_value idEnv vNode =
 
 and translate_exp codegen globalFunctions idEnv expectedType expNode = 
   let impExpNode = match expNode.SSA.exp with  
-  | SSA.App({SSA.value=SSA.Prim (Prim.ScalarOp Prim.Select); 
-             value_type =FnT(_::expectedType::_, _)},
-            [cond; tVal; fVal]) -> 
+  | SSA.App({SSA.value=SSA.Prim (Prim.ScalarOp Prim.Select)} as fnNode,
+            [cond; tVal; fVal]) ->
       let cond' = translate_value idEnv cond in 
       let tVal' = translate_value idEnv tVal in 
       let fVal' = translate_value idEnv fVal in 
       select cond' tVal' fVal' 
-  | SSA.App({SSA.value=SSA.Prim (Prim.ScalarOp op); 
-             value_type =FnT(argT::_, _)},
-            vs) ->
+  | SSA.App({SSA.value=SSA.Prim (Prim.ScalarOp op) } as fnNode,  vs) ->
       let vs' = List.map (translate_value idEnv) vs in 
-      if Prim.is_comparison op then 
-        cmp_op op ~t:argT vs' 
-      else
-        typed_op op vs' 
+      let argT = (List.hd vs').exp_type in  
+      if Prim.is_comparison op then cmp_op op ~t:argT vs' 
+      else typed_op op vs' 
   (* assume you only have one array over which you're mapping for now *)
-  | SSA.App({SSA.value=SSA.Prim (Prim.ArrayOp Prim.Map);
-            value_type = FnT(payloadT :: arrayTypes, [outputType])},
+  | SSA.App({SSA.value=SSA.Prim (Prim.ArrayOp Prim.Map)} as fnNode,
             payload :: arrays) ->
+    IFDEF DEBUG THEN 
+      assert (DynType.is_function fnNode.SSA.value_type); 
+      assert (DynType.is_function payload.SSA.value_type); 
+      assert (DynType.fn_output_arity fnNode.SSA.value_type > 0); 
+    ENDIF; 
+    let outputTypes = DynType.fn_output_types fnNode.SSA.value_type in 
+    (* TODO: make this work for multiple outputs *)  
+    let outputType = List.hd outputTypes in
     (match payload.SSA.value with
       | SSA.GlobalFn fnId ->
         let fundef_ssa = FnTable.find fnId globalFunctions in
@@ -58,11 +63,13 @@ and translate_exp codegen globalFunctions idEnv expectedType expNode =
 
   (* assume you only have one initial value, and only one scalar output *)    
   | SSA.App({SSA.value=
-               SSA.Prim (Prim.ArrayOp Prim.Reduce); 
-             value_type =
-               FnT(payloadT::initialT::arrayTypes, [outputT])
-            },
-            payload::initial::arrays) ->
+               SSA.Prim (Prim.ArrayOp Prim.Reduce)} as fnNode,  
+             payload::initial::arrays) ->
+    let initialT = initial.SSA.value_type in 
+    let arrayTypes = List.map (fun v -> v.SSA.value_type) arrays in 
+    let outputTypes = DynType.fn_output_types fnNode.SSA.value_type in
+    (* TODO: make this work for multiple outputs *)  
+    let outputType = List.hd outputTypes in   
     (match payload.SSA.value with 
 	    | SSA.GlobalFn fnId -> 
 	      let fundef = FnTable.find fnId globalFunctions in 
@@ -102,9 +109,11 @@ and translate_exp codegen globalFunctions idEnv expectedType expNode =
         acc
       | _ -> failwith "[ssa->imp] Expected function identifier"
     )
-  | SSA.App({SSA.value=SSA.Prim (Prim.ArrayOp Prim.Find);
-            value_type = FnT([arrT; valT], _)},
+  | SSA.App({SSA.value=
+               SSA.Prim (Prim.ArrayOp Prim.Find)}, 
             [inArray; elToFind]) ->
+    let arrT = inArray.SSA.value_type in 
+    let valT = elToFind.SSA.value_type in 
     let inArray' = translate_value idEnv inArray in
     let elToFind' = translate_value idEnv elToFind in
     let i = codegen#fresh_var Int32T in

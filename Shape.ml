@@ -31,8 +31,9 @@ let to_str s =
     if i < r - 1 then 
       Printf.bprintf b "%d, " (get s i) 
     else 
-      Printf.bprintf b "%d]" (get s i)
+      Printf.bprintf b "%d" (get s i)
   done; 
+  Printf.bprintf b "]";
   Buffer.contents b
 
 
@@ -141,7 +142,7 @@ let slice_shape inputShape dimsList =
     for i = 0 to n - 1 do
       (* if this dim hasn't been removed, add it to the result *)  
       if not (List.mem i dimsList) then begin  
-        set resultShape !idx i;
+        set resultShape !idx (get inputShape i);
         idx := !idx + 1
       end
     done; 

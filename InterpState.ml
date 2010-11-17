@@ -169,3 +169,6 @@ let get_typed_fundef_from_value interpState = function
 let have_untyped_function interpState name = 
   Hashtbl.mem interpState.name_to_untyped_id name     
 
+let get_untyped_arity interpState fnId = 
+  let fundef = get_untyped_function interpState fnId in 
+  List.length fundef.input_ids 
