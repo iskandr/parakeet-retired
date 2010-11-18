@@ -6,8 +6,6 @@
 \usepackage{graphicx,listings,fixltx2e,lambda,array,multirow,color}
 
 
-
-
 \begin{document}
 \conferenceinfo{PLDI 2011}{June 4--8, 2011, San Jose, CA, USA.}
 \copyrightyear{2010}
@@ -15,8 +13,10 @@
 \preprintfooter{PLDI 2011}
 \titlebanner{DRAFT---Do not distribute}
 
-\title{Parakeet: General Purpose GPU Programming with High Level Array
-Languages}
+\title{Parakeet: General Purpose GPU Programming with Array Languages} 
+% EDIT: old title was a bit wordy, looked gross, and "high level" is redundant if someone even glances at our abstract. 
+%  --- General Purpose GPU Programming with High Level ArrayLanguages}
+
 \authorinfo{Anonymous}{Anonymous}{Anonymous}
 \lstset{ 
 basicstyle=\small\footnotesize\ttfamily, % Standardschrift
@@ -181,21 +181,23 @@ improve their performance by taking advantage of runtime information to
 tailor their code and execution to runtime information.
 \end{itemize}
 
+\section{Overview}
+Some associated text. 
+\begin{figure*}[tbh]
+\begin{center}
+\leavevmode
+\includegraphics[scale=0.6, trim=10pt 180pt 10pt 120pt]{Pipeline.pdf}
+\end{center}
+\caption{Overview of Parakeet}
+\label{fig:awesome_image}
+\end{figure*}
 
-\section{Parakeet's Intermediate Language}
+\section{Typed Intermediate Language}
 In order to achieve good performance on a GPU it is necessary to ultimately eliminate indirection in the generated code. Simultaneously, there can be tremendous performance benefits to performing high level optimizations using the algebraic properties of array operators. Thus, our intermediate language must serve as a compromise between competing tensions: it must be sufficiently concrete to simplify later translation into function-free code but also abstract enough to facilitate fusion optimizations.  \\
-
 
 The portion of a user's program which Parakeet executes is represented internally as flat sequence of non-recursive function definitions. 
 We take inspiration from \cite{Bol09} and allow functions to both accept and return multiple values. This feature both supports optimization (by simplifying the specification of arity-raising and fusion transformations) and naturally models the simultaneous creation of multiple values on the GPU. By convention we will write $\overline{\tau_m}$ to denote a sequence of $m$ simple types, $\overline{v_n}$ for a sequence  of $n$ values, etc.. A single element is equivalent to a sequence of length 1 and sequences may be concatenated via juxtaposition, such that $\tau, \overline{\tau_n} = \overline{\tau_{m+1}}$. 
-\\[5pt]
-\begin{tabular}{m{0.005cm}m{1.8cm}m{0.05cm}m{0.2cm}p{4.8cm}}
-\multicolumn{5}{l}{\textbf{Type System}} \\[4pt]
-& data     & $\tau$    & $\bnfdef$ & $int \sep float \sep \mathbf{vec} \; \tau   $ \\[4pt]
-& closures        & $\rho$  & $\bnfdef$ & $\overline{\tau_{c}} \Rightarrow \overline{\tau_m} \rightarrow \overline{\tau_n}$\\[2pt]
-&                 &           & $\sep$    & $\tau$ \\[4pt]
-& higher-order    & $\theta$  & $\bnfdef$ & $\overline{\rho_m} \rightarrow \overline{\rho_n} $ \\[4pt]
-\end{tabular}
+
 We draw attention to the types of closures, which are explicitly annotated with the types of their closed-over arguments. If one wished to arrive at this 
 \begin{itemize}
 \item It is worth noting that the programmer is limited to defining values with first-order types (data or functions which neither accept nor return function values). It is, however, possible to make use of primitive second-order operators such as $\mathbf{map}$ and $\mathbf{reduce}$. 
@@ -219,6 +221,13 @@ We draw attention to the types of closures, which are explicitly annotated with 
 &            &     & $\sep$    &  $f$  \quad \small{(function label)} \\[2pt]
 &            &     & $\sep$    &  $\oplus$ \quad \small{(scalar operator)} \\[2pt]
 &            &     & $\sep$    &  $a$ \quad \small{(simple array operator)} \\[4pt]
+\end{tabular}
+\begin{tabular}{m{0.005cm}m{1.8cm}m{0.05cm}m{0.2cm}p{4.8cm}}
+\multicolumn{5}{l}{\textbf{Type System}} \\[4pt]
+& data     & $\tau$    & $\bnfdef$ & $int \sep float \sep \mathbf{vec} \; \tau   $ \\[4pt]
+& closures        & $\rho$  & $\bnfdef$ & $\overline{\tau_{c}} \Rightarrow \overline{\tau_m} \rightarrow \overline{\tau_n}$\\[2pt]
+&                 &           & $\sep$    & $\tau$ \\[4pt]
+& higher-order    & $\theta$  & $\bnfdef$ & $\overline{\rho_m} \rightarrow \overline{\rho_n} $ \\[4pt]
 \end{tabular}
 Scalar operators include the usual boolean operations, scalar and floating point arithmetic, whereas examples of simple array operators include indexing, replication, and inspecting an array's shape. 
 \\TODO: 
@@ -369,16 +378,26 @@ rows from \texttt{b}.  The resulting \texttt{all\_dists} variable will contain a
 matrix of all the Euclidean distances between rows of \texttt{a} and \texttt{b}.
 
 We now turn to how Parakeet executes Q programs, including synthesizing GPU
-kernels to accelerate them.
+kernels to accelerate them.\\
 
-\section{Translating Q to our Intermediate Language}
+\section{Translation, Specialization, and Optimization}
 \label{Compilation}
-\begin{itemize}
+\subsection{Lambda Lifting and SSA Conversion } 
+The first step in the Parakeet pipeline is a syntax-directed translation from a language-specific AST into Parakeet's IL.\\
+ Since type information is not yet available to specialize user functions, they must be translated into an untyped form (by setting all type assignments to ). 
+ The translation into Parakeet's IL maintains a closure environment and a name environment so that simultaneous lambda lifting and SSA conversion can be performed. Since we would like to interpret our intermediate language later in the pipeline we use a gated SSA form based on the GSA sub-language of the Program Dependence Web \cite{Ott90}. Classical SSA cannot be directly executed since the $\phi$-nodes lack a deterministic semantics. Gated SSA overcomes this limitation by using "gates" which not only merge data flow but also associate predicates with each data flow branch. Aside from simplifying certain optimizations, these gates also enable us to deterministically execute our code without converting out of SSA. 
+ 
+\subsection{Untyped Optimizations}
+Parakeet performs optimizations at two distinct stages of translation pipeline-- before and after type specialization. We subject the untyped representation to inlining, common subexpression elimination and simplification (which consists of simultaneous constant propagation and dead code elimination). It is preferable to eliminate as much code as possible at this early stage since an untyped function body serves as a template for a potentially large number of future specializations. The only optimizations we do not perform on the untyped representation are array fusion rewrites, since these rely on type annotations to ensure correctness. 
 
-\item Lambda Lifting and Creation of SSA Gates 
-\item Specialization (specialize on types of data or closure signature) 
-\item Compiler Optimizations
-\end{itemize} 
+\subsection{Specialization}
+The purpose of specialization is to eliminate polymorphism, to make manifest all implicit behavior (such as coercion and scalar promotion), and to assign simple unboxed types to all data used within a function body. These goals are all essential for the efficient execution of user code on the GPU. 
+\begin{enumerate}
+\item polyvariance -- specialize a function for each distinct call string
+\item signature elt is Type of DynType (for data) or Closure of (FnId.t, sig elt list) (for functions). Specialization isn't just on types! It's also on function tags and the types of their associated closure arguments. This is equivalent to performing defunctionalization (Reynolds) and then specializing exhaustively on the constant values of closure records. One caveat: non-constant closure values are disallowed to avoid explosive interpreter bloat on the GPU. Full higher-order programming on the GPU is theoretically possible, but unlikely. 
+\item We only allow data to cross the boundary between our system and the source language. 
+\end{enumerate}
+
 \subsection{Array Operator Fusion}
 In addition to standard compiler optimizations (such as constant folding, function inlining, and common sub-expression elimination), 
 we employ fusion rules\cite{Jones01} to combine array operators. Fusion enables us to minimize kernel launches, boost the computational density of generated kernels, and
@@ -388,10 +407,10 @@ We present the fusion rules used by Parakeet in a simplified form, such that arr
 \begin{tabular}{|m{0.001cm} m{0.05cm} p{6.75cm} p{0.05cm} |}
   \hline 
   & &  & \\
-  & \multicolumn{2}{l}{\large{Map Fusion} }  &  \\
+  & \multicolumn{2}{l}{\large{Map Fusion} }  &  \\[2.5pt]
   & & $\MAP(g, \MAP(f, x)) \leadsto \MAP(g \circ f, x)$ & \\
   & & & \\
-  & \multicolumn{2}{l}{\large{Reduce-Map Fusion} }  & \\
+  & \multicolumn{2}{l}{\large{Reduce-Map Fusion} }  & \\[2.5pt]
   & & $\REDUCE(g_r, g_{i}, \MAP(f, x)) \leadsto \REDUCE(g_r \circ f, g_{i} \circ f, x)$ & \\
   & & & \\
   \hline
@@ -437,8 +456,6 @@ The last two conditions are severe since they restricit our optimizer from rewri
 \end{tabular}
 \caption{Typed Distance Function After Fusion Optimization}
 \end{figure}
-
-
 
 \section{GPU Code Generation}
 \subsection{CUDA Back End}
