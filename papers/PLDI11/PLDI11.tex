@@ -54,7 +54,7 @@ xleftmargin=20pt,
 \newcommand{\BLOCKIDX}{\impfnt{blockIdx}}
 \newcommand{\BLOCKDIM}{\impfnt{blockDim}}
 \newcommand{\GRIDDIM}{\impfnt{gridDim}}
-
+\newcommand{\VEC}{\impfnt{vec}}
 \newcommand{\concat}{\ensuremath{+\!\!\!\!+\,}}
 
 \maketitle
@@ -374,13 +374,71 @@ kernels to accelerate them.
 \section{Translating Q to our Intermediate Language}
 \label{Compilation}
 \begin{itemize}
+
 \item Lambda Lifting and Creation of SSA Gates 
 \item Specialization (specialize on types of data or closure signature) 
 \item Compiler Optimizations
 \end{itemize} 
+\subsection{Array Operator Fusion}
+In addition to standard compiler optimizations (such as constant folding, function inlining, and common sub-expression elimination), 
+we employ fusion rules\cite{Jones01} to combine array operators. Fusion enables us to minimize kernel launches, boost the computational density of generated kernels, and
+avoid the materialization of unnecessary array temporaries. 
+We present the fusion rules used by Parakeet in a simplified form, such that array operators only consume and produce a single value. Our rewrite engine actually generalizes these rules to use functions of arbitrary input and output arities, but we elide the full specification for the sake of clarity. 
+\\[5pt]
+\begin{tabular}{|m{0.001cm} m{0.05cm} p{6.75cm} p{0.05cm} |}
+  \hline 
+  & &  & \\
+  & \multicolumn{2}{l}{\large{Map Fusion} }  &  \\
+  & & $\MAP(g, \MAP(f, x)) \leadsto \MAP(g \circ f, x)$ & \\
+  & & & \\
+  & \multicolumn{2}{l}{\large{Reduce-Map Fusion} }  & \\
+  & & $\REDUCE(g_r, g_{i}, \MAP(f, x)) \leadsto \REDUCE(g_r \circ f, g_{i} \circ f, x)$ & \\
+  & & & \\
+  \hline
+\end{tabular}\\[4pt]
+These transformations are safe if the following conditions hold: 
+\begin{enumerate}
+\item all the functions involved are referentially transparent
+\item every output of the predecessor function ($f$) is used by the successor ($g$)
+\item the outputs of the predecessor are used \textit{only} by the successor 
+\end{enumerate}
+The last two conditions are severe since they restricit our optimizer from rewriting anything but linear chains of produced/consumed temporaries. A large body of previous work\cite{Ald01} has demonstrated  both the existence of richer fusion rules and cost-directed strategies for applying those rules in more general scenarios. Still, despite the simplicity of our approach, we have observed that many potentially wasteful temporaries appearing in idiomatic array code will be removed using the above rules. 
+\\[5pt]
+\begin{figure}[h!]
+\begin{tabular}{| m{0.0001cm} m{0.1cm} m{6.7cm} m{0.001cm} | }
+ \hline
+  & & & \\ 
+  & \multicolumn{2}{l}{dist $($ x $ : vec \; float $, y : $ vec \; float $) $ \rightarrow  ($ z $ :  vec \; float ) =$} & \\
+  & & t$_1   = \MAP ( -_{\mathrm{float}}, \mathrm{x}, \mathrm{y})$        & \\
+  & & t$_2   = \MAP (*_{\mathrm{float}}, \mathrm{x}, \mathrm{y})$             & \\
+  & & f$_0  = +_{\mathrm{float}}(0.0)$   & \\
+  & & t$_3 = \REDUCE (+_{\mathrm{float}}, \mathrm{f_0}, \mathrm{t}_2)$   & \\\
+  & & z $  = \; \mathrm{sqrt}(\mathrm{t}_3)$                                                         & \\\
+  & & & \\ 
+ \hline
+\end{tabular}
+\caption{Typed Distance Function Before Fusion Optimization}
+\end{figure}
 
-\subsection{Fusion Optimization}
-In addition to standard compiler optimizations (such as constant folding, function inlining, and common sub-expression elimination), we also perform 
+\begin{figure}[h!]
+\begin{tabular}{| m{0.0001cm} m{0.1cm} m{6.7cm} m{0.001cm} | }
+ \hline
+  & & & \\
+  & \multicolumn{2}{l}{$\mathrm{f}_1 ($ acc : $ float $,  x $ : float $, y : $ float $) $ \rightarrow  ($ z $ :  float ) =$} & \\
+  & & t$_1 = x - y $        & \\
+  & & t$_2  = t_1 * t_1 $      & \\
+  & & z $ = $ acc $+$ t$_2$    & \\
+  & & & \\ 
+  & \multicolumn{2}{l}{$\mathrm{dist} ($ x $ : vec \; float $, y : $ vec \; float $) $ \rightarrow  ($ z $ :  vec \; float ) =$} & \\
+  & & f$_0 = +_{\mathrm{float}}(0.0)$   & \\
+  & & t$_3 = \REDUCE (\mathrm{f}_1, \mathrm{f_0}, \mathrm{x}, \mathrm{y})$   & \\\
+  & & z $ = \mathrm{sqrt}(\mathrm{t}_3)$    \\
+ \hline
+\end{tabular}
+\caption{Typed Distance Function After Fusion Optimization}
+\end{figure}
+
+
 
 \section{GPU Code Generation}
 \subsection{CUDA Back End}
