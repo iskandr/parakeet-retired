@@ -8,6 +8,7 @@
 #include <caml/mlvalues.h>
 
 #include <cuda.h>
+#include <cuda_runtime_api.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
@@ -198,7 +199,6 @@ CAMLprim value ocaml_pq_launch_ptx (
 
       case PQNUM_INT32:
         int32_val = get_pqnum_int32(ocaml_gpu_val);
-        // printf("Sending %d : int32 to GPU\n", int32_val);
         ptr_arg = (void*) &int32_val;
         arg_size = sizeof(int32_t);
         break;
@@ -212,7 +212,6 @@ CAMLprim value ocaml_pq_launch_ptx (
       case PQNUM_FLOAT32:
         /* get the bits of a float32 */
         f = (float)Double_val(Field(ocaml_gpu_val, 0));
-        // printf("Sending %f : float32 to GPU\n", f);
         ptr_arg = (void*) &f;
         arg_size = sizeof(float);
         break;
@@ -258,12 +257,23 @@ CAMLprim value ocaml_pq_launch_ptx (
   fflush(stdout);
 #endif
 
+  cudaEvent_t start, end;
+  cudaEventCreate(&start);
+  cudaEventCreate(&end);
+  cudaEventRecord(start, 0);
   result = cuLaunchGrid(cuFunc, width, height);
   if (result != 0) {
     printf("Error launching grid: %d\n", result);
     exit(1);
   }
   result = cuCtxSynchronize();
+  cudaEventRecord(end, 0);
+  cudaEventSynchronize(end);
+  float td;
+  cudaEventElapsedTime(&td, start, end);
+  printf("GPU time for kernel: %f\n", td / 1000.0f);
+  cudaEventDestroy(start);
+  cudaEventDestroy(end);
 
   if (result != 0) {
     printf("Error during kernel: %d\n", result);

@@ -53,11 +53,19 @@ external cuda_ctx_destroy : CuCtxPtr.t -> unit = "ocaml_cuda_ctx_destroy"
 
 external cuda_init_runtime : unit -> unit = "ocaml_cuda_init_runtime"
 
-external cuda_memcpy_to_device  : HostPtr.t -> GpuPtr.t -> int -> unit
+external cuda_memcpy_to_device_impl  : HostPtr.t -> GpuPtr.t -> int -> unit
   = "ocaml_cuda_memcpy_to_device"
+let cuda_memcpy_to_device hostPtr gpuPtr bytes =
+  let mem_xfer_start = Timing.get_time () in
+  cuda_memcpy_to_device_impl hostPtr gpuPtr bytes;
+  Timing.inc_mem_xfer_time mem_xfer_start
 
-external cuda_memcpy_to_host : HostPtr.t -> GpuPtr.t -> int -> unit
+external cuda_memcpy_to_host_impl : HostPtr.t -> GpuPtr.t -> int -> unit
   = "ocaml_cuda_memcpy_to_host"
+let cuda_memcpy_to_host hostPtr gpuPtr bytes =
+  let mem_xfer_start = Timing.get_time () in
+  cuda_memcpy_to_host_impl hostPtr gpuPtr bytes;
+  Timing.inc_mem_xfer_time mem_xfer_start
   
 external cuda_memcpy_device_to_device : GpuPtr.t -> GpuPtr.t -> int -> unit 
   = "ocaml_cuda_memcpy_device_to_device"

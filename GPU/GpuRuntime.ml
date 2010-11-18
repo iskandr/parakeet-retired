@@ -20,13 +20,13 @@ type simple_array_op_impl =
 exception InvalidGpuArgs
 
 let sizeof ty shape =
-  DynType.sizeof (DynType.elt_type ty) * Shape.nelts shape  
+  DynType.sizeof (DynType.elt_type ty) * Shape.nelts shape
 
-type code_cache_entry = { 
-  imp_source : Imp.fn; 
+type code_cache_entry = {
+  imp_source : Imp.fn;
   cc : PtxCallingConventions.calling_conventions;
   cuda_module : Cuda.cuda_module
-} 
+}
    
 type code_cache = (ID.t * DynType.t list, code_cache_entry) Hashtbl.t 
 

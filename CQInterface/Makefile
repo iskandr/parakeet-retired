@@ -72,6 +72,8 @@ SSA_Codegen.cmx \
 InsertCoercions.cmx \
 Specialize.cmx \
 PtxType.cmx PtxVal.cmx Ptx.cmx Shape.cmx \
+Timing.cmx \
+Cuda.cmx \
 HostVal.cmx GpuVal.cmx InterpVal.cmx \
 MemoryState.cmx \
 LibPQ.cmx \
@@ -88,7 +90,6 @@ SSA_to_Imp.cmx \
 ImpShapeInference.cmx \
 QType.cmx HardwareInfo.cmx \
 ShapeInference.cmx \
-Cuda.cmx \
 GpuRuntime.cmx \
 QStdLib.cmx \
 Eval.cmx \
