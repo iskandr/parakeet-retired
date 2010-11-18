@@ -16,8 +16,13 @@ type gpu_arg = GpuScalarArg of PQNum.num | GpuArrayArg of Int32.t * int
 external cuda_init : unit -> unit = "ocaml_pq_init"
 
 (* arguments: a ptx string and a desired number of threads per block *) 
-external compile_module
+external compile_module_impl
     : string -> int -> CuModulePtr.t = "ocaml_pq_compile_module"
+let compile_module ptx threadsPerBlock =
+  let kernel_compile_time = Timing.get_time () in
+  let modulePtr = compile_module_impl ptx threadsPerBlock in
+  Timing.inc_kernel_compile_time kernel_compile_time;
+  modulePtr
 
 external destroy_module
     : CuModulePtr.t -> unit = "ocaml_pq_destroy_module"
@@ -42,12 +47,14 @@ let launch_ptx (cudaModule : CuModulePtr.t) (fnName : string)
       (args : gpu_arg array)
       (gridParams : grid_params) =
     IFDEF DEBUG THEN printf "In launch\n%!"; END;
+    let gpu_start = Timing.get_time () in
     launch_ptx_impl cudaModule fnName args 
     gridParams.threads_x 
     gridParams.threads_y
         gridParams.threads_z
         gridParams.grid_x
-        gridParams.grid_y
+        gridParams.grid_y;
+    Timing.inc_gpu_run_time gpu_start
 
 let cuda_module_from_kernel_list  
       (kernelList : (string * Ptx.kernel) list)

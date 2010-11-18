@@ -97,16 +97,16 @@ let run_template
   HardwareInfo.hw_init ();
   LibPQ.init ();
   (* TODO: Make the timings more controllable (mem transfer e.g.) *)
-  let startTime = Unix.gettimeofday () in
+  let total_start = Timing.get_time () in
   let args = globals @ locals in
   let argTypes = List.map HostVal.get_type args in
-  let untypedFn = InterpState.get_untyped_function interpState untypedId in 
-  IFDEF DEBUG THEN 
-     printf "[run_template] untyped function body: %s\n" 
+  let untypedFn = InterpState.get_untyped_function interpState untypedId in
+  IFDEF DEBUG THEN
+     printf "[run_template] untyped function body: %s\n"
       (SSA.fundef_to_str untypedFn);
-  ENDIF;  
+  ENDIF;
   let nargs = List.length args in
-  let arity = List.length (untypedFn.input_ids) in 
+  let arity = List.length (untypedFn.input_ids) in
   if nargs <> arity then failwith
     (sprintf "[run_template] arity mismatch-- expected %d, got %d" arity nargs)
   else
@@ -117,20 +117,20 @@ let run_template
       (DynType.type_list_to_str argTypes);
   ENDIF;
   (* ignore the returned fundef because it's unoptimized *)  
-  let unoptimized = 
-    Specialize.specialize_function_id interpState untypedId signature 
+  let unoptimized =
+    Specialize.specialize_function_id interpState untypedId signature
   in
-  InterpState.optimize_typed_functions interpState; 
-  let typedFundef = 
-    InterpState.get_typed_function interpState unoptimized.fn_id 
-  in 
-  IFDEF DEBUG THEN 
+  InterpState.optimize_typed_functions interpState;
+  let typedFundef =
+    InterpState.get_typed_function interpState unoptimized.fn_id
+  in
+  IFDEF DEBUG THEN
     printf "[run_template] calling evaluator on specialized code: \n";
     printf "%s\n" (SSA.fundef_to_str typedFundef);
-  ENDIF;  
-  let fnTable = InterpState.get_typed_function_table interpState in 
-  let resultVals = Eval.eval fnTable typedFundef args in  
-  let result = Success (List.hd resultVals)  in     
-  printf "Total Time: %f\n" (Unix.gettimeofday () -. startTime);
-  flush stdout; 
+  ENDIF;
+  let fnTable = InterpState.get_typed_function_table interpState in
+  let resultVals = Eval.eval fnTable typedFundef args in
+  let result = Success (List.hd resultVals) in
+  Timing.inc_total_run_time total_start;
+  Timing.print_timers();
   result

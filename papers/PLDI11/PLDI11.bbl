@@ -29,6 +29,11 @@
 \newblock Tech. Rep. CMU-CS-90-190, School of Computer Science, Carnegie Mellon
   University, Nov 1990.
 
+\bibitem{Bol09}
+{\sc Bolingbroke, M.~C., and Jones, S. L.~P.}
+\newblock Types are calling conventions.
+\newblock In {\em Proceedings of the 2009 Haskell Workshop\/} (2009).
+
 \bibitem{Borr08}
 {\sc Borror, J.~A.}
 \newblock {\em Q For Mortals: A Tutorial In Q Programming}.

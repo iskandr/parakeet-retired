@@ -73,7 +73,7 @@ let rec eval_value
   | Prim _
   | Lam _ -> failwith "[eval_value] values of this type not yet implemented" 
  
-let rec eval globalFns fundef hostVals  =
+let rec eval globalFns fundef hostVals =
   let memState = MemoryState.create 127 (* arbitrary *) in
   (* create unique identifiers for data items *) 
   let vals = List.map (fun h -> MemoryState.add_host memState h) hostVals in
@@ -85,12 +85,11 @@ let rec eval globalFns fundef hostVals  =
     ID.Map.empty
     fundef.input_ids 
     vals
-  in  
+  in
   let env' = eval_block memState globalFns env fundef.body in 
   let outputVals = List.map (fun id -> ID.Map.find id env') fundef.output_ids
-  in   
-  let hostVals = List.map  (MemoryState.get_host memState) outputVals 
   in
+  let hostVals = List.map (MemoryState.get_host memState) outputVals in
   MemoryState.free_all_gpu memState;
   hostVals
   
@@ -171,7 +170,6 @@ and eval_exp
  
 
 and eval_app memState fnTable env fundef args = 
- 
   (* create an augmented memory state where input ids are bound to the *)
   (* argument values on the gpu *) 
   let env2 = 
@@ -198,8 +196,8 @@ and eval_array_op memState fnTable env op argVals outTypes : InterpVal.t list =
      ENDIF;
      gpuCost <= hostCost)
   in  
-  if runOnGpu then 
-    GpuRuntime.eval_array_op memState fnTable  op argVals outTypes 
+  if runOnGpu then
+    GpuRuntime.eval_array_op memState fnTable  op argVals outTypes
   else match op, argVals with
   | Prim.Map, (InterpVal.Closure(fnId, [])::dataArgs) ->
       let fundef = FnTable.find fnId fnTable in
@@ -214,7 +212,7 @@ and eval_array_op memState fnTable env op argVals outTypes : InterpVal.t list =
           (InterpVal.to_str idx)
           (InterpVal.to_str result);
       ENDIF;  
-      [result] 
+      [result]   
       
 and eval_map memState fnTable env fundef argVals : InterpVal.t list =
   Printf.printf "Running MAP on host!\n";
@@ -248,10 +246,9 @@ and eval_map memState fnTable env fundef argVals : InterpVal.t list =
   for i = 0 to nOutputs - 1 do               
     let dynArr = allResults.(i) in
       DynArray.add dynArr currResults.(i)
-    done             
+    done    
   done;
-  Array.to_list $ 
-    Array.map 
+  Array.to_list $
+    Array.map
       (fun dynArray -> InterpVal.Array (DynArray.to_array dynArray))
     allResults  
-     

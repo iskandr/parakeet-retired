@@ -1,3 +1,5 @@
+(* pp: -parser o pa_macro.cmo *)
+
 open Base
 open Cuda
 open LibPQ
