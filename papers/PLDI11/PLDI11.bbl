@@ -32,7 +32,7 @@
 \bibitem{Bol09}
 {\sc Bolingbroke, M.~C., and Jones, S. L.~P.}
 \newblock Types are calling conventions.
-\newblock In {\em Proceedings of the 2009 Haskell Workshop\/} (2009).
+\newblock In {\em Proceedings of the 2009 Haskell Workshop\/} (September 2009).
 
 \bibitem{Borr08}
 {\sc Borror, J.~A.}
@@ -78,6 +78,12 @@
 \newblock Programming graphics processors functionally.
 \newblock In {\em Proceedings of the 2004 Haskell Workshop\/} (2004), ACM
   Press.
+
+\bibitem{Jones01}
+{\sc Jones, S.~P., Tolmach, A., and Hoare, T.}
+\newblock Playing by the rules: rewriting as a practical optimisation technique
+  in ghc.
+\newblock In {\em Proceedings of the 2004 Haskell Workshop\/} (2001).
 
 \bibitem{Latt02}
 {\sc Lattner, C.}

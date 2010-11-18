@@ -25,6 +25,7 @@ ASPLOS
 @STRING{ASPLOS06 = "ASPLOS '06: Proceedings of the 12th " # ASPLOS}
 
 Haskell
+@STRING{Haskell01 = "Proceedings of the 2004 " # Haskell}
 @STRING{Haskell04 = "Proceedings of the 2004 " # Haskell}
 @STRING{Haskell09 = "Proceedings of the 2009 " # Haskell}
 @STRING{Haskell10 = "Proceedings of the 2010 " # Haskell}
@@ -117,6 +118,21 @@ AAAA
   Note        = {{\tt http://www.accelereyes.com}}
 }
 
+@article{Ald01,
+  author    = {Aldinucci, Marco and
+               Gorlatch, Sergei and
+               Lengauer, Christian and
+               Pelagatti, Susanna},
+  title     = {Towards parallel programming by transformation: the FAN
+               skeleton framework},
+  journal   = {Parallel Algorithms Appl.},
+  volume    = {16},
+  number    = {2-3},
+  year      = {2001},
+  pages     = {87-121},
+  bibsource = {DBLP, http://dblp.uni-trier.de}
+}
+
 @MISC{Alle08,
   Author      = {Allen, Eric and Chase, David and Hallet, Joe and
                  Luchangco, Victor and Maessen, Jan-Willem and
@@ -190,10 +206,11 @@ BBBB
 }
 
 @INPROCEEDINGS{Bol09,
-    Author = {Bolingbroke, Maximilian C. and Jones, Simon L. Peyton},
     Title = {Types are Calling Conventions},
+    Author = {Bolingbroke, Maximilian C. and Jones, Simon L. Peyton},
     Booktitle  = Haskell09,
-    Year = {2009}
+    Year = {2009}, 
+    Month = {September},
 }
 
 
@@ -294,6 +311,16 @@ HHHH
   Note        = {Version 1.3.0}
 }
 
+
+JJJJ
+----
+@INPROCEEDINGS{Jones01,
+    author = {Jones, Simon Peyton and Tolmach, Andrew  and Hoare, Tony},
+    title = {Playing by the rules: rewriting as a practical optimisation technique in GHC },
+    year = {2001}, 
+    Booktitle = Haskell01,
+}
+
 LLLL
 ----
 @MASTERSTHESIS{Latt02,
@@ -351,8 +378,38 @@ NNNN
   Note        = {{\tt http://www.nvidia.com/cuda}}
 }
 
+PPPP
+----
+@ARTICLE{pottier06,
+  author = {Pottier, François and Gauthier, Nadji },
+  title = {Polymorphic Typed Defunctionalization and
+                 Concretization},
+  journal = {Higher-Order and Symbolic Computation},
+  month = MAR,
+  year = {2006},
+  volume = {19},
+  pages = {125--162},
+  url = {http://gallium.inria.fr/~fpottier/publis/fpottier-gauthier-hosc.ps.gz},
+  pdf = {http://gallium.inria.fr/~fpottier/publis/fpottier-gauthier-hosc.pdf},
+  off = {http://dx.doi.org/10.1007/s10990-006-8611-7},
+  abstract = {\emph{Defunctionalization} is a program transformation
+                 that eliminates functions as first-class values. We
+                 show that defunctionalization can be viewed as a
+                 \emph{type-preserving} transformation of an extension
+                 of \f with \emph{guarded algebraic data types} into
+                 itself. We also suggest that defunctionalization is an
+                 instance of \emph{concretization}, a more general
+                 technique that allows eliminating constructs other than
+                 functions. We illustrate this point by presenting two
+                 new type-preserving transformations that can be viewed
+                 as instances of concretization. One eliminates
+                 Rémy-style polymorphic records; the other eliminates
+                 the dictionary records introduced by the standard
+                 compilation scheme for Haskell's type classes.}
+}
+
 SSSS
-____
+----
 @INPROCEEDINGS{Sven08,
   Title       = {Obsidian: A Domain Specific Embedded Language For Parallel
                  Programming of Graphics Processors},
