@@ -5,6 +5,7 @@
 
 \usepackage{graphicx,listings,fixltx2e,lambda,array,multirow,color}
 
+\usepackage{graphviz}
 
 
 
@@ -49,11 +50,15 @@ xleftmargin=20pt,
 \newcommand{\CAST}{\impfnt{cast}}
 \newcommand{\APPLY}{\impfnt{apply}}
 \newcommand{\INDEX}{\impfnt{index}}
-\newcommand{\SCAN}{\impfnt{scan}}
+\newcommand{\SCAN}{\impfnt{sca}}
+\newcommand{\THREADIDX}{\impfnt{threadIdx}}
+\newcommand{\BLOCKIDX}{\impfnt{blockIdx}}
+\newcommand{\BLOCKDIM}{\impfnt{blockDim}}
+\newcommand{\GRIDDIM}{\impfnt{gridDim}}
+
+\newcommand{\concat}{\ensuremath{+\!\!\!\!+\,}}
 
 \maketitle
-
-
 
 \begin{abstract}
 Contemporary GPUs offer staggering performance potential, which has
@@ -179,46 +184,78 @@ tailor their code and execution to runtime information.
 
 
 \section{Parakeet's Intermediate Language}
+In order to achieve good performance on a GPU it is necessary to ultimately eliminate indirection in the generated code. Simultaneously, there can be tremendous performance benefits to performing high level optimizations using the algebraic properties of array operators. Thus, our intermediate language must serve as a compromise between competing tensions: it must be sufficiently concrete to simplify later translation into function-free code but also abstract enough to facilitate fusion optimizations.  \\
+
+
 The portion of a user's program which Parakeet executes is represented internally as flat sequence of non-recursive function definitions. 
-We take inspiration from \cite{Bol09} and allow functions to both accept and return multiple values. This feature both supports optimization (by simplifying the specification of arity-raising and fusion transformations) and naturally models the simultaneous creation of multiple values on the GPU. By convention we will write $\overline{\tau_m}$ to denote a sequence of $m$ types and $\overline{v_n}$ for a sequence  of $n$ values. Sequences of both types and values may be concatenated via juxtaposition, such that $\overline{\tau_m}, \overline{\tau_n} = \overline{\tau_{m+n}}$. 
+We take inspiration from \cite{Bol09} and allow functions to both accept and return multiple values. This feature both supports optimization (by simplifying the specification of arity-raising and fusion transformations) and naturally models the simultaneous creation of multiple values on the GPU. By convention we will write $\overline{\tau_m}$ to denote a sequence of $m$ simple types, $\overline{v_n}$ for a sequence  of $n$ values, etc.. A single element is equivalent to a sequence of length 1 and sequences may be concatenated via juxtaposition, such that $\tau, \overline{\tau_n} = \overline{\tau_{m+1}}$. 
 \\[5pt]
 \begin{tabular}{m{0.005cm}m{1.8cm}m{0.05cm}m{0.2cm}p{4.8cm}}
-\multicolumn{2}{l}{\textbf{Type System}} & & &  \\
+\multicolumn{5}{l}{\textbf{Type System}} \\[4pt]
 & data     & $\tau$    & $\bnfdef$ & $int \sep float \sep \mathbf{vec} \; \tau   $ \\[4pt]
-& closures        & $\theta$  & $\bnfdef$ & $\overline{\tau_{c}} \Rightarrow \overline{\tau_m} \rightarrow \overline{\tau_n}$\\[2pt]
+& closures        & $\rho$  & $\bnfdef$ & $\overline{\tau_{c}} \Rightarrow \overline{\tau_m} \rightarrow \overline{\tau_n}$\\[2pt]
 &                 &           & $\sep$    & $\tau$ \\[4pt]
-& higher-order    & $\sigma$  & $\bnfdef$ & $\overline{\theta_m} \rightarrow \overline{\theta_n} $ \\[4pt]
+& higher-order    & $\theta$  & $\bnfdef$ & $\overline{\rho_m} \rightarrow \overline{\rho_n} $ \\[4pt]
 \end{tabular}
+We draw attention to the types of closures, which are explicitly annotated with the types of their closed-over arguments. If one wished to arrive at this 
 \begin{itemize}
 \item It is worth noting that the programmer is limited to defining values with first-order types (data or functions which neither accept nor return function values). It is, however, possible to make use of primitive second-order operators such as $\mathbf{map}$ and $\mathbf{reduce}$. 
 \item The accepted typing of closures involves existential types [find citation for typed closure conversion?], which are commonly implemented via boxed . Since our desire is to compile down to a final program without boxed values we instead annotate closures with the types of their implicitly carried arguments. This information is later used to transform closure invocation into a direct function call. 
 \end{itemize}
-\begin{tabular}{m{0.1cm}m{1.2cm}m{0.1cm}m{0.2cm}p{4.7cm}}
- \multicolumn{2}{l}{\textbf{Language Syntax}} & & &  \\
-& program & $p$ &  $\bnfdef$   &  $d_1 \cdots d_n $ \\[3.5pt]
-& definition & $d$ & $\bnfdef$ & $f_i(\overline{x_m} : \overline{\tau_m}) \rightarrow (\overline{y_n} : \overline{\tau_n}) =s^{\small{+}}$ \\[3.5pt]
-& statement  & $s$ & $\bnfdef$ & $\overline{x_m} : \overline{\tau_m} = e $\\[2pt]
+\begin{tabular}{m{0.1cm}m{1.5cm}m{0.1cm}m{0.2cm}p{4.8cm}}
+ \multicolumn{5}{l}{\textbf{Intermediate Language Syntax}}  \\[4pt]
+& program & $p$ &  $\bnfdef$   &  $d_1 \cdots d_n $ \\[4pt]
+& definition & $d$ & $\bnfdef$ & $f_i(\overline{x_m} : \overline{\tau_m}) \rightarrow (\overline{y_n} : \overline{\tau_n}) =s^{\small{+}}$ \\[4pt]
+& statement  & $s$ & $\bnfdef$ & $\overline{x_m} : \overline{\rho_m} = e $\\[2pt]
 &            &     & $\sep$    & $\IF \;v\; \THEN \;s^*\; \ELSE \;s^*$ \\[2pt]
-&            &     & $\sep$    & $\WHILE \;e\; \DO \;s^+\;  $ \\[2pt]
+&            &     & $\sep$    & $\WHILE \;e\; \DO \;s^+\;  $ \\[4pt]
 & expression & $e$ & $\bnfdef$ & $ v_{f}(v_1, \ldots, v_m)$ \\[2pt]
 &            &     & $\sep$    & $\textrm{values} (\overline{v_m})$ \\[2pt]
 &            &     & $\sep$    & $\textrm{cast} \; (v, \tau)$ \\[2pt] 
 &            &     & $\sep$    & $\MAP_m (v_{f},\overline{v_m})$ \\[2pt]
 &            &     & $\sep$    & $\REDUCE_m (v_{f}, v_{init}, \overline{v_m})$ \\[2pt]
-&            &     & $\sep$    & $\SCAN_m (v_{f}, v_{init}, \overline{v_m})$ \\[3.5pt]
+&            &     & $\sep$    & $\SCAN_m (v_{f}, v_{init}, \overline{v_m})$ \\[4pt]
 & value      & $v$ & $\bnfdef$ & numeric constant\\[2pt]
 &            &     & $\sep$    &  $x$  \quad \small{(data variable)} \\[2pt]
 &            &     & $\sep$    &  $f$  \quad \small{(function label)} \\[2pt]
-&            &     & $\sep$    &  $p$ \quad \small{(first order operator)} \\[2pt]
+&            &     & $\sep$    &  $\oplus$ \quad \small{(scalar operator)} \\[2pt]
+&            &     & $\sep$    &  $a$ \quad \small{(simple array operator)} \\[4pt]
 \end{tabular}
-First-order primitives include the usual boolean operations, scalar and floating point arithmetic, as well as simple array operators such as indexing, replication, and inspecting an array's shape. 
+Scalar operators include the usual boolean operations, scalar and floating point arithmetic, whereas examples of simple array operators include indexing, replication, and inspecting an array's shape. 
 \\TODO: 
 \begin{itemize}
 \item Gated SSA (reference to Program Dependence Web?), explain gates in one sentence. 
 \item Mention that $\MAP$ and friends are actually a family of operators parameterized by arity. 
 \item What to do with reduce? The stream idea is wonky and not included in the type system. 
 \end{itemize} 
-
+\begin{tabular}{m{0.1cm}m{1.2cm}m{0.1cm}m{0.2cm}p{2cm}p{2.7cm}}
+ \multicolumn{6}{l}{\textbf{Imp Language Syntax}} \\[4pt]
+& definition        & $d$      & $\bnfdef$ & 
+      \multicolumn{2}{l}{$f(\overline{x_m} : \overline{\tau_m}) \rightarrow (\overline{y_n} : \overline{\tau_n}, \overline{\sigma_n}) = s^{\small{+}}$} \\[4pt]
+& shape             & $\sigma$ & $\bnfdef$ & $ [] $                                            &  \quad \small{(shape of scalar)}      \\[2pt]
+&                   &          & $\sep$    & $ \sigma \concat \sigma $                         &  \quad \small{(concatenate)}      \\[2pt]
+&                   &          & $\sep$    & $ [z] $                                           &  \quad \small{(singleton)}   \\[2pt]
+&                   &          & $\sep$    & $ \sigma[\mathrm{const} \ldots  \mathrm{const}] $ &  \quad \small{(slice)}       \\[4pt]
+& size              & $z$      & $\bnfdef$ & $ \mathrm{dimsize}(x_i, \mathrm{const}) $                  &  \quad \small{(input dimension)}   \\[2pt]
+&                   &          & $\sep$    & $ \mathrm{rank}(x_i) $                                     &  \quad \small{(input rank)}  \\[2pt]
+&                   &          & $\sep$    & $ \oplus(\overline{z_m})$                         &  \quad \small{(scalar primitive)}    \\[2pt]
+\end{tabular}
+\begin{tabular}{m{0.1cm}m{1.2cm}m{0.1cm}m{0.2cm}p{4.7cm}}
+& statement         & $s$      & $\bnfdef$ & $x : \tau, \sigma = e $         \\[2pt]
+&                   &          & $\sep$    & $\IF \;v\; \THEN \;s^*\; \ELSE \;s^*$ \\[2pt]
+&                   &          & $\sep$    & $\WHILE \;e\; \DO \;s^+\;  $ \\[4pt]
+& expression        & $e$      & $\bnfdef$ & $\oplus(\overline{v_m})$ \\[2pt]
+&                   &          & $\sep$    & $v_{array}[\overline{v_m}]$ \\[2pt]
+&                   &          & $\sep$    & $\textrm{cast} \; (v, \tau)$ \\[2pt] 
+&                   &          & $\sep$    & $\textrm{dimsize}(v_{array}, v_{int}) $ \\[2pt]
+&                   &          & $\sep$    & $v$ \\[4pt]
+& value      & $v$ & $\bnfdef$ &  $x$ \\[2pt]
+&            &     & $\sep$    &   numeric constant \\[2pt]
+&            &     & $\sep$    &  $\mathrm{threadIdx.\{x|y|z\}} $\\[2pt]
+&            &     & $\sep$    &  $\mathrm{blockIdx.\{x|y|z\}} $\\[2pt]
+&            &     & $\sep$    &  $\mathrm{blockDim.\{x|y|z\}} $\\[2pt]
+&            &     & $\sep$    &  $\mathrm{gridDim.\{x|y\}}    $\\[2pt]
+\end{tabular}
 \section{Q: A High-Level Array Language}
 \label{Q}
 
@@ -335,424 +372,18 @@ matrix of all the Euclidean distances between rows of \texttt{a} and \texttt{b}.
 We now turn to how Parakeet executes Q programs, including synthesizing GPU
 kernels to accelerate them.
 
-\section{Compilation Pipeline}
+\section{Translating Q to our Intermediate Language}
 \label{Compilation}
+\begin{itemize}
+\item Lambda Lifting and Creation of SSA Gates 
+\item Specialization (specialize on types of data or closure signature) 
+\item Compiler Optimizations
+\end{itemize} 
 
-Do All-Pairs distances here.
+\subsection{Fusion Optimization}
+In addition to standard compiler optimizations (such as constant folding, function inlining, and common sub-expression elimination), we also perform 
 
-Here's some placeholder text for the compilation pipeline section.  This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.
-Here's some placeholder text for the compilation pipeline section.  This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.Here's some placeholder text for the compilation pipeline section.
- This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.
-
-Here's some placeholder text for the compilation pipeline section.  This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.
-Here's some placeholder text for the compilation pipeline section.  This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.Here's some placeholder text for the compilation pipeline section.
- This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.
-Here's some placeholder text for the compilation pipeline section.  This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.
-Here's some placeholder text for the compilation pipeline section.  This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.Here's some placeholder text for the compilation pipeline section.
- This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.
-
-Here's some placeholder text for the compilation pipeline section.  This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.
-Here's some placeholder text for the compilation pipeline section.  This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.Here's some placeholder text for the compilation pipeline section.
- This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.
-Here's some placeholder text for the compilation pipeline section.  This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.
-Here's some placeholder text for the compilation pipeline section.  This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.Here's some placeholder text for the compilation pipeline section.
- This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.
-
-Here's some placeholder text for the compilation pipeline section.  This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.
-Here's some placeholder text for the compilation pipeline section.  This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.Here's some placeholder text for the compilation pipeline section.
- This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.
-Here's some placeholder text for the compilation pipeline section.  This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.
-Here's some placeholder text for the compilation pipeline section.  This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.Here's some placeholder text for the compilation pipeline section.
- This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.
-Here's some placeholder text for the compilation pipeline section.  This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.
-Here's some placeholder text for the compilation pipeline section.  This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.Here's some placeholder text for the compilation pipeline section.
- This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.
-Here's some placeholder text for the compilation pipeline section.  This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.
-Here's some placeholder text for the compilation pipeline section.  This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.Here's some placeholder text for the compilation pipeline section.
- This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.
-
-Here's some placeholder text for the compilation pipeline section.  This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.
-Here's some placeholder text for the compilation pipeline section.  This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.Here's some placeholder text for the compilation pipeline section.
- This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.
-Here's some placeholder text for the compilation pipeline section.  This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.
-Here's some placeholder text for the compilation pipeline section.  This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.Here's some placeholder text for the compilation pipeline section.
- This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.
-
-Here's some placeholder text for the compilation pipeline section.  This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.
-Here's some placeholder text for the compilation pipeline section.  This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.Here's some placeholder text for the compilation pipeline section.
- This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.
-Here's some placeholder text for the compilation pipeline section.  This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.
-Here's some placeholder text for the compilation pipeline section.  This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.Here's some placeholder text for the compilation pipeline section.
- This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.
-
-Here's some placeholder text for the compilation pipeline section.  This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.
-Here's some placeholder text for the compilation pipeline section.  This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.Here's some placeholder text for the compilation pipeline section.
- This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagineHere's some placeholder text for the compilation pipeline section.
-This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.
-Here's some placeholder text for the compilation pipeline section.  This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.Here's some placeholder text for the compilation pipeline section.
- This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.
-Here's some placeholder text for the compilation pipeline section.  This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.
-Here's some placeholder text for the compilation pipeline section.  This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.Here's some placeholder text for the compilation pipeline section.
- This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.
-
-Here's some placeholder text for the compilation pipeline section.  This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.
-Here's some placeholder text for the compilation pipeline section.  This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.Here's some placeholder text for the compilation pipeline section.
- This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.
-Here's some placeholder text for the compilation pipeline section.  This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.
-Here's some placeholder text for the compilation pipeline section.  This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.Here's some placeholder text for the compilation pipeline section.
- This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.
-Here's some placeholder text for the compilation pipeline section.  This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.
-Here's some placeholder text for the compilation pipeline section.  This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.Here's some placeholder text for the compilation pipeline section.
- This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.
-Here's some placeholder text for the compilation pipeline section.  This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.
-Here's some placeholder text for the compilation pipeline section.  This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.Here's some placeholder text for the compilation pipeline section.
- This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.
-
-Here's some placeholder text for the compilation pipeline section.  This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.
-Here's some placeholder text for the compilation pipeline section.  This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.Here's some placeholder text for the compilation pipeline section.
- This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine
-Here's some placeholder text for the compilation pipeline section.  This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.
-Here's some placeholder text for the compilation pipeline section.  This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.Here's some placeholder text for the compilation pipeline section.
- This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.
-Here's some placeholder text for the compilation pipeline section.  This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.
-Here's some placeholder text for the compilation pipeline section.  This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.Here's some placeholder text for the compilation pipeline section.
- This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.
-
-Here's some placeholder text for the compilation pipeline section.  This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.
-Here's some placeholder text for the compilation pipeline section.  This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.Here's some placeholder text for the compilation pipeline section.
- This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.
-Here's some placeholder text for the compilation pipeline section.  This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.
-Here's some placeholder text for the compilation pipeline section.  This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.Here's some placeholder text for the compilation pipeline section.
- This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.Here's some placeholder text for the compilation pipeline section.
- This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.
-Here's some placeholder text for the compilation pipeline section.  This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.Here's some placeholder text for the compilation pipeline section.
- This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.
-Here's some placeholder text for the compilation pipeline section.  This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.
-Here's some placeholder text for the compilation pipeline section.  This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.Here's some placeholder text for the compilation pipeline section.
- This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.
-
-Here's some placeholder text for the compilation pipeline section.  This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.
-Here's some placeholder text for the compilation pipeline section.  This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.Here's some placeholder text for the compilation pipeline section.
- This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine
-Here's some placeholder text for the compilation pipeline section.  This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.
-Here's some placeholder text for the compilation pipeline section.  This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.Here's some placeholder text for the compilation pipeline section.
- This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.
-Here's some placeholder text for the compilation pipeline section.  This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.
-Here's some placeholder text for the compilation pipeline section.  This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.Here's some placeholder text for the compilation pipeline section.
- This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.
-
-Here's some placeholder text for the compilation pipeline section.  This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.
-Here's some placeholder text for the compilation pipeline section.  This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.Here's some placeholder text for the compilation pipeline section.
- This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.
-Here's some placeholder text for the compilation pipeline section.  This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.
-Here's some placeholder text for the compilation pipeline section.  This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.Here's some placeholder text for the compilation pipeline section.
- This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.
-Here's some placeholder text for the compilation pipeline section.  This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.
-Here's some placeholder text for the compilation pipeline section.  This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.Here's some placeholder text for the compilation pipeline section.
- This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.
-Here's some placeholder text for the compilation pipeline section.  This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.
-Here's some placeholder text for the compilation pipeline section.  This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.Here's some placeholder text for the compilation pipeline section.
- This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.
-
-Here's some placeholder text for the compilation pipeline section.  This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.
-Here's some placeholder text for the compilation pipeline section.  This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.Here's some placeholder text for the compilation pipeline section.
- This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine
-Here's some placeholder text for the compilation pipeline section.  This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.
-Here's some placeholder text for the compilation pipeline section.  This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.Here's some placeholder text for the compilation pipeline section.
- This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.
-Here's some placeholder text for the compilation pipeline section.  This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.
-Here's some placeholder text for the compilation pipeline section.  This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.Here's some placeholder text for the compilation pipeline section.
- This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.
-
-Here's some placeholder text for the compilation pipeline section.  This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.
-Here's some placeholder text for the compilation pipeline section.  This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.Here's some placeholder text for the compilation pipeline section.
- This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.
-Here's some placeholder text for the compilation pipeline section.  This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.
-Here's some placeholder text for the compilation pipeline section.  This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.Here's some placeholder text for the compilation pipeline section.
- This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.
-
-Here's some placeholder text for the compilation pipeline section.  This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.
-Here's some placeholder text for the compilation pipeline section.  This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.Here's some placeholder text for the compilation pipeline section.
- This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.
-Here's some placeholder text for the compilation pipeline section.  This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.
-Here's some placeholder text for the compilation pipeline section.  This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.Here's some placeholder text for the compilation pipeline section.
- This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.
-
-Here's some placeholder text for the compilation pipeline section.  This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.
-Here's some placeholder text for the compilation pipeline section.  This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.Here's some placeholder text for the compilation pipeline section.
- This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.
-Here's some placeholder text for the compilation pipeline section.  This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.
-Here's some placeholder text for the compilation pipeline section.  This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.Here's some placeholder text for the compilation pipeline section.
- This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.
-
-Here's some placeholder text for the compilation pipeline section.  This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.
-Here's some placeholder text for the compilation pipeline section.  This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.Here's some placeholder text for the compilation pipeline section.
- This
-section should easily take up the most of any section, around 2.5-3 pages I
-would imagine.
-
+\section{GPU Code Generation}
 \subsection{CUDA Back End}
 
 In this section we give an overview of modern GPU architecture and the CUDA
@@ -922,7 +553,7 @@ In order to test the effects of our dynamic tuning optimizations,
 \section{Related Work}
 \label{RelatedWork}
 
-There's Copperhead \cite{Cata10}.  They're almost as good as we are.
+Our work is mostly closely related to Copperhead \cite{Cata10}, which also uses data parallel operators to dynamically compile a high level language into GPU programs. Where we explicitly specialize functions to uncover unboxed representations, Copperhead reuses the machinery of C++ templates for specialization. Furthermore, where we have created our own GPU kernel templates within the Imp DSL, Copperhead calls into the data parallel operators of the Thrust library for C++. Extensive reliance on a C++ backend is a double-edged sword, invocation of C++ template compilations can result in unfavorably long delays at runtime. Unlike Copperhead, Parakeet does not require the programmer to specify their computation in a purely functional manner. Our system allows for both looping and variable reassignment. The only restriction is that a function must be both referentially transparent and shapely in order to run on the GPU when passed to an array operator (otherwise in runs on the CPU). Furthermore, we do not expect the programmer to code directly in our intermediate language, but rather perform an initial specialization phase which desugars a more expressive untyped language (for example, turning array arithmetic into explicit maps). 
 
 There has been much recent work dedicated to making parallel programming easier.
 The various approaches to addressing this problem include libraries and APIs

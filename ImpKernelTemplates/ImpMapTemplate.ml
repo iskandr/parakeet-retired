@@ -64,3 +64,4 @@ let gen_map payload threadsPerBlock closureTypes inTypes outTypes =
   codegen#splice_emit payload payloadInputVars outVars
     [ifTrue (mapIdx <$ num) (DynArray.to_list buffer)];
   codegen#finalize
+  
