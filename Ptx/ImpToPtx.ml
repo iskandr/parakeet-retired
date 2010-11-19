@@ -101,11 +101,19 @@ let gen_exp
 	        let gpuStorageT = PtxType.storage_of_dyn_type dynResultT in
 	        let rsltRegs = codegen#fresh_regs gpuStorageT 3 in
           let texRef = codegen#get_tex_ref baseReg in
-          let geom = codegen#get_tex_geom texRef in
-          let offset = codegen#convert_fresh idxPtxT address in
-	        codegen#emit [tex geom gpuStorageT texRef
+          match codegen#get_tex_geom texRef with 
+            | Ptx.Tex1D -> 
+              let offset = codegen#convert_fresh idxPtxT address in
+	            codegen#emit [tex Ptx.Tex1D gpuStorageT texRef
 	                          storageReg rsltRegs.(0) rsltRegs.(1) rsltRegs.(2)
 	                          offset idxRegs.(0) idxRegs.(1) idxRegs.(2)]
+            | Ptx.Tex2D -> 
+               (* NOTE: address is not used here *) 
+               let xCoord = codegen#convert_fresh idxPtxT idxReg in 
+               let yCoord = codegen#convert_fresh idxPtxT baseReg in 
+               codegen#emit [tex Ptx.Tex2D gpuStorageT texRef
+                              storageReg rsltRegs.(0) rsltRegs.(1) rsltRegs.(2)
+                              xCoord yCoord idxRegs.(1) idxRegs.(2)]
         end
         else
           codegen#emit [ld_global gpuStorageT storageReg address]
