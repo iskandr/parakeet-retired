@@ -53,6 +53,12 @@
 \newblock In {\em Proceedings of the 2004 Haskell Workshop\/} (2004), ACM
   Press.
 
+\bibitem{feng10}
+{\sc Feng, W.-c., and Xiao, S.}
+\newblock {To GPU Synchronize or Not GPU Synchronize?}
+\newblock In {\em IEEE International Symposium on Circuits and Systems
+  (ISCAS)\/} (Paris, France, May 2010).
+
 \bibitem{Iverson62}
 {\sc Iverson, K.~E.}
 \newblock A programming language.
