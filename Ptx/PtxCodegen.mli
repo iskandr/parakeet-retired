@@ -20,8 +20,9 @@ class ptx_codegen : object
   method get_shared_dims : PtxVal.value -> int array
   method get_shape_reg : PtxVal.value -> PtxVal.value
   
+  method get_tex_ref : PtxVal.value -> PtxVal.value
   method is_tex : PtxVal.value -> bool
-  method get_tex_geom : ID.t -> Ptx.geom
+  method get_tex_geom : PtxVal.value -> Ptx.geom
   
   method is_global_array_ptr : PtxVal.value -> bool  
   method get_global_array_rank : PtxVal.value -> int

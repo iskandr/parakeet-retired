@@ -33,7 +33,7 @@ let print_timers () =
   Printf.printf "GPU run time: %f\n"           !gpu_run_time;
   Printf.printf "Total run time: %f\n"         !total_run_time;
   Printf.printf "Parakeet compiler overhead\n";
-  Printf.printf "  (Excluding mem xfers, PTX JIT, GPU runttime): %f\n"
+  Printf.printf "  (Excluding mem xfers, PTX JIT, GPU runtime): %f\n"
     parakeet_time;
   reset_timers();
   flush stdout

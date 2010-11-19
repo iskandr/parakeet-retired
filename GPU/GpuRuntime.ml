@@ -52,7 +52,7 @@ let create_input_args modulePtr inputVal = function
     in
     begin match geom with
     | Ptx.Tex1D ->
-      assert (Shape.rank inputShape = 1);
+      assert (Shape.rank inputShape < 3);
       Cuda.cuda_bind_texture_1d
         texRef inputPtr (GpuVal.get_nbytes inputVal) channelFormat
     | Ptx.Tex2D ->
@@ -250,13 +250,12 @@ let run_reduce
     | [fnName], _ :: [gpuVal] ->
       let inShape = GpuVal.get_shape gpuVal in
       let numInputElts = Shape.get inShape 0 in
-      let xlen = Shape.get inShape 1 in
       let x_threads = 1 in
       let x_grid =
         if Shape.rank inShape = 1 then 1
-        else xlen / x_threads
+        else (Shape.get inShape 1) / x_threads
       in
-      Printf.printf "Launching x grid: %d\n" x_grid;
+      IFDEF DEBUG THEN Printf.printf "Launching x grid: %d\n" x_grid; ENDIF;
       let rec aux inputArgs curNumElts =
         if curNumElts > 1 then (
           let numOutputElts = safe_div curNumElts (threadsPerBlock * 2) in
@@ -289,24 +288,23 @@ let run_reduce
 (** ALLPAIRS **)
 let compile_all_pairs globalFunctions payload argTypes retTypes =
   match argTypes with 
-    | [t1; t2] ->  
-      
-      let threadsPerBlock = 128 in
+    | [t1; t2] ->
+      let threadsPerBlock = 256 in
       let impPayload = SSA_to_Imp.translate_fundef globalFunctions payload in
       let impfn =
         ImpAllPairsTemplate.gen_all_pairs_2d_naive impPayload t1 t2 retTypes
       in
 		  let inputSpaces =
-        Array.map (fun t -> PtxVal.TEX) (Array.of_list retTypes) in
+        Array.map (fun t -> PtxVal.TEX) (Array.of_list argTypes) in
 		  let kernel, cc =
-        ImpToPtx.translate_kernel ?input_spaces:(Some inputSpaces) impfn in
+        ImpToPtx.translate_kernel ~input_spaces:inputSpaces impfn in
       (*let kernel, cc = ImpToPtx.translate_kernel impfn in*)
-      let allPairsPrefix = "all_pairs_kernel" in 
+      let allPairsPrefix = "all_pairs_kernel" in
       let name = allPairsPrefix ^ (string_of_int (ID.gen())) in
-      let compiledModule = 
-        LibPQ.cuda_module_from_kernel_list [name, kernel] threadsPerBlock 
-      in   
-      {imp_source=impfn; cc=cc; cuda_module=compiledModule} 
+      let compiledModule =
+        LibPQ.cuda_module_from_kernel_list [name, kernel] threadsPerBlock
+      in
+      {imp_source=impfn; cc=cc; cuda_module=compiledModule}
     | _ -> failwith "[compile_all_pairs] invalid argument types "
 
 let allPairsCache  = Hashtbl.create 127 
@@ -492,4 +490,4 @@ let eval_array_op
     "Array operator '%s' not yet implemented on GPU"
     (Prim.array_op_to_str op)
   in 
-  List.map (MemoryState.add_gpu memState) gpuVals 
+  List.map (MemoryState.add_gpu memState) gpuVals

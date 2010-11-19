@@ -135,7 +135,7 @@ class imp_codegen =
         | Imp.InputArray rank ->
             (*Hashtbl.add localSizes sliceId (Imp.InputArray (rank -1))*)
           
-            Printf.printf "RANK: %d\n" rank; 
+            IFDEF DEBUG THEN Printf.printf "RANK: %d\n" rank; ENDIF; 
             let arrT = self#get_type arrId in  
             let varNode = {Imp.exp=Imp.Var arrId; exp_type=arrT} in 
             let dims = 

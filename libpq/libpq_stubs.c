@@ -57,9 +57,9 @@ value ocaml_pq_compile_module(value ptx_string, value threads_per_block)
 
   void *jitOptVals[] = {
       (void*)jitLogBufferSize,
-      ebuf,
-      (void*)jitLogBufferSize,
       ibuf,
+      (void*)jitLogBufferSize,
+      ebuf,
       (void*) nthreads,
       (void*) 0, /* since wall time is an output only variable,
                     don't need anything here */
@@ -255,18 +255,21 @@ CAMLprim value ocaml_pq_launch_ptx (
 #ifdef DEBUG
   printf("Grid width, height: %d, %d\n", width, height);
   fflush(stdout);
-#endif
 
   cudaEvent_t start, end;
   cudaEventCreate(&start);
   cudaEventCreate(&end);
   cudaEventRecord(start, 0);
+#endif
+
   result = cuLaunchGrid(cuFunc, width, height);
   if (result != 0) {
     printf("Error launching grid: %d\n", result);
     exit(1);
   }
   result = cuCtxSynchronize();
+
+#ifdef DEBUG
   cudaEventRecord(end, 0);
   cudaEventSynchronize(end);
   float td;
@@ -274,6 +277,7 @@ CAMLprim value ocaml_pq_launch_ptx (
   printf("GPU time for kernel: %f\n", td / 1000.0f);
   cudaEventDestroy(start);
   cudaEventDestroy(end);
+#endif
 
   if (result != 0) {
     printf("Error during kernel: %d\n", result);

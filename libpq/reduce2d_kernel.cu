@@ -18,12 +18,12 @@
 extern "C" {
 #endif
 
-texture<float, 1, cudaReadModeElementType> reduceVecsTex;
+texture<int, 1, cudaReadModeElementType> reduceVecsTex;
 __global__
-void reduce2d_kernel(int num_vecs, int vec_len, float *output) {
+void reduce2d_kernel(int num_vecs, int vec_len, int *output) {
   // We support _max_ 256 threads here.  May be wasteful, but I'm lazy about
   // learning to parameterize the kernel's shared memory usage for now...
-  __shared__ float cache[256];
+  __shared__ int cache[256];
 
   // The algorithm:
   //
@@ -71,6 +71,7 @@ void reduce2d_kernel(int num_vecs, int vec_len, float *output) {
   }
 }
 
+/*
 __global__
 void reduce2d_kernel_no_tex(float *vecs, int num_vecs,
                             int vec_len, float *output) {
@@ -139,7 +140,7 @@ void launch_reduce2d(float *vecs, int num_vecs, int vec_len, float *output) {
   int bheight;
   int mod, i;
 
-  /*
+  
   for (i = 0; i < 8; ++i) {
     mod = vec_len % pows_of_2[i];
     if (mod == 0 || pows_of_2[i] - mod < 3) {
@@ -148,7 +149,7 @@ void launch_reduce2d(float *vecs, int num_vecs, int vec_len, float *output) {
       break;
     }
   }
-  */
+  
   bwidth = 16;
   bheight = 16;
 
@@ -194,6 +195,7 @@ void launch_reduce2d(float *vecs, int num_vecs, int vec_len, float *output) {
   cudaUnbindTexture(reduceVecsTex);
   if (notfirst) cudaFree(curInput);
 }
+*/
 
 #ifdef __cplusplus
 }

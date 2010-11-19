@@ -117,6 +117,12 @@
 \newblock {NVIDIA} {CUDA} {SDK} 3.2.
 \newblock {\tt http://www.nvidia.com/cuda}.
 
+\bibitem{Ott90}
+{\sc Ottenstein, K.~J., Ballance, R.~A., and MacCabe, A.~B.}
+\newblock The program dependence web: a representation supporting control-,
+  data-, and demand-driven interpretation of imperative languages.
+\newblock {\em SIGPLAN Not. 25\/} (June 1990), 257--271.
+
 \bibitem{Sven08}
 {\sc Svensson, J., Sheeran, M., and Claessen, K.}
 \newblock Obsidian: A domain specific embedded language for parallel
