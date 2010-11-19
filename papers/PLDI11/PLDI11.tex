@@ -49,13 +49,16 @@ xleftmargin=20pt,
 \newcommand{\CAST}{\impfnt{cast}}
 \newcommand{\APPLY}{\impfnt{apply}}
 \newcommand{\INDEX}{\impfnt{index}}
-\newcommand{\SCAN}{\impfnt{sca}}
+\newcommand{\SCAN}{\impfnt{scan}}
 \newcommand{\THREADIDX}{\impfnt{threadIdx}}
 \newcommand{\BLOCKIDX}{\impfnt{blockIdx}}
 \newcommand{\BLOCKDIM}{\impfnt{blockDim}}
 \newcommand{\GRIDDIM}{\impfnt{gridDim}}
 \newcommand{\VEC}{\impfnt{vec}}
 \newcommand{\concat}{\ensuremath{+\!\!\!\!+\,}}
+
+\setlength\fboxsep{8pt}
+\setlength\fboxrule{0.5pt}
 
 \maketitle
 
@@ -81,9 +84,8 @@ interpreter, which upon reaching an array operator synthesizes and
 executes a GPU program to implement that operator. Parakeet takes
 advantage of runtime information both to choose between different
 possible implementations of a GPU program and to set execution
-parameters which greatly impact performance. Parakeet transparently
-moves data to and from the GPU and performs garbage collection of GPU
-memory.
+parameters which greatly impact performance. Data is moved transparently
+to and from the GPU, and garbage collected when no longer needed. 
 
 We evaluate our system on two standard benchmarks: Black-Scholes
 option pricing, and K-Means clustering.  We compare high level
@@ -104,61 +106,33 @@ recent work on enabling the execution of general-purpose programs on GPUs
 used GPGPU frameworks--NVIDIA's CUDA \cite{NvidCU} and OpenCL
 \cite{Muns10}--require the programmer to use extensive knowledge of low level
 architectural details in order to fully harness the performance potential.
-While this might be acceptable for well-trained systems hackers, professionals
-in other domains such as the natural sciences who could potentially
-benefit from the performance boost from using GPUs are unable to do so.
 
 % Enable programmers to write GPGPU programs in productivity language
-Our goal is to lower the barrier on GPGPU programming by
-enabling programmers to use productivity languages for writing
-efficient GPGPU programs. Productivity languages, such as Python or Matlab,
-trade off program speed in order to allow programmers to write code more quickly
-and with less effort than efficiency languages such as C.  We aim to deliver
-both performance and ease of use by focusing on a specific class of parallel
-computation: data parallelism.  Data parallelism is present in many important
-algorithms and problem domains, e.g.\ machine learning and linear algebra, and
-has been well studied in the literature (e.g.\ in \cite{Blel90}).  Data
-parallelism is also a natural
-model for GPU programming, as much of the performance advantage GPUs offer over
-CPUs comes from their having been heavily optimized for data parallel workloads.
- We thus target languages with support for \emph{array-oriented programming}.
-Array-oriented programming encourages the use of data parallel array operators
-(such as map, reduce, and scan) for operating on first-class array types, and
-de-emphasizes the importance of explicit loops.
+Our goal is to lower the GPGPU programming  barrier by allowing programmers to 
+write in high level array languages are transparently compiled into efficient GPU programs. 
+By "array language" we mean any language equipped with: 
+\begin{enumerate}
+\item first-class array values 
+\item succinct syntax for array creation/transformation
+\item idiomatic preference for bulk array operations instead of explicit loops ("collection-oriented"\cite{Sip91} programming)
+\end{enumerate}
+
+% Existing Array languages 
+The prototypical array language is APL\cite{Iverson62}, which allows for extremely terse loop-free specification of algorithms. More commonly used array 
+languages include Matlab\cite{Moler80} (the lingua franca of signal processing and machine learning research) as well as Python's NumPy\cite{Oliphant07} extensions. 
+
 
 % Heart of Parakeet - an interpreter for our high level IL w/ array ops
 In this paper, we present Parakeet, an intelligent runtime for executing high
-level array-oriented programs on GPUs.  The core of Parakeet is an interpreter
-for its high level, typed intermediate language that includes native support for
-array operators.  When the Parakeet interpreter reaches an array operator such
-as {\tt Map}, it uses dynamic runtime information to decide whether to
-synthesize a GPU program to implement that operator, taking advantage of the
-GPU transparently to the programmer.
+level array programs on GPUs. Parakeet dynamically specializes user functions 
+into a typed intermediate language and transparently executes array operations on the 
+GPU by synthesizing launching GPU kernels. 
 
-% Agnosticism
-Parakeet is agnostic as to the source language used by the programmer, provided
-that the language has support for the required array operators.  We have
-implemented the first front end for the Parakeet system for Q, a high level,
-dynamically typed array language derived from APL and widely used in financial
-computing \cite{Borr08}. Parakeet's first back end is for PTX, the
-pseudoassembly language used by NVIDIA GPUs \cite{NvidCU}.  We are currently
-working on front ends for data parallel subsets of Matlab and Python, and plan
-on supporting multicore CPUs in the future as well.
 
-% Pipeline of execution
-The pipeline of the execution of a program begins by the Parakeet system
-intercepting function calls from the source language's interpreter and type
-specializing them according to their argument types.  Parakeet then performs
-various standard compiler optimizations on this IL form of the functions, as
-well as fusion of array operators which is very beneficial for performance.
-Parakeet then interprets the typed function, selectively executing array
-operators either on the GPU or CPU. Parakeet synthesizes GPU
-programs from a library of efficient array operator implementation skeletons,
-with splice points where user-defined functions get inlined. Parakeet supports
-the nesting of array operators, using heuristics to decide which level of
-nesting should be compiled to GPU kernels, with the outer levels of nesting are
-translated into iterative kernel invocations by our CPU runtime.  Data movement
-and GPU garbage collection are handled transparently by Parakeet.
+% Q front-end, agnosticism
+We have implemented our first Parakeet frontend for Q \cite{Borr08}, a descendant of APL that is widely used in financial computing. 
+Q is a nearly "pure" array language-- its idiomatic style makes sparser use of loops than even Matlab or NumPy. 
+We are also currently working on frontends for both Matlab and Python. 
 
 % Performance
 We evaluate Parakeet on two standard benchmark programs: Black-Scholes option
@@ -174,96 +148,41 @@ The main contributions of this paper are the following:
 \begin{itemize}
 \item A working system in which programmers can write complex, high level code
 that is automatically parallelized into efficient GPU programs.
-\item A series of high-level fusion optimization rules for higher-order data
-parallel operators.
+\item A dynamic specialization algorithm that translates a significant subset of higher-order programs into efficient (unboxed, function-free) GPU code. 
+\item A low-level intermediate language called \textit{Imp} which captures the notion of shapely computation \cite{Jay97} necessary in the absence of dynamic memory allocation.  
 \item Evidence that dynamic compilation of GPU programs can significantly
 improve their performance by taking advantage of runtime information to
 tailor their code and execution to runtime information.
 \end{itemize}
 
-\section{Overview}
-Some associated text. 
-\begin{figure*}[tbh]
+\begin{figure*}[t!bh]
 \begin{center}
 \leavevmode
 \includegraphics[scale=0.6, trim=10pt 180pt 10pt 120pt]{Pipeline.pdf}
 \end{center}
 \caption{Overview of Parakeet}
-\label{fig:awesome_image}
+\label{fig:overview}
 \end{figure*}
+\section{Overview}
 
-\section{Typed Intermediate Language}
-In order to achieve good performance on a GPU it is necessary to ultimately eliminate indirection in the generated code. Simultaneously, there can be tremendous performance benefits to performing high level optimizations using the algebraic properties of array operators. Thus, our intermediate language must serve as a compromise between competing tensions: it must be sufficiently concrete to simplify later translation into function-free code but also abstract enough to facilitate fusion optimizations.  \\
 
-The portion of a user's program which Parakeet executes is represented internally as flat sequence of non-recursive function definitions. 
-We take inspiration from \cite{Bol09} and allow functions to both accept and return multiple values. This feature both supports optimization (by simplifying the specification of arity-raising and fusion transformations) and naturally models the simultaneous creation of multiple values on the GPU. By convention we will write $\overline{\tau_m}$ to denote a sequence of $m$ simple types, $\overline{v_n}$ for a sequence  of $n$ values, etc.. A single element is equivalent to a sequence of length 1 and sequences may be concatenated via juxtaposition, such that $\tau, \overline{\tau_n} = \overline{\tau_{m+1}}$. 
+%Overview 
+The pipeline of the execution of a program begins by the Parakeet system
+intercepting function calls from the source language's interpreter and type
+specializing them according to their argument types.  Parakeet then performs
+various standard compiler optimizations on this IL form of the functions, as
+well as fusion of array operators which is very beneficial for performance.
+Parakeet then interprets the typed function, selectively executing array
+operators either on the GPU or CPU. Parakeet synthesizes GPU
+programs from a library of efficient array operator implementation skeletons,
+with splice points where user-defined functions get inlined. Parakeet supports
+the nesting of array operators, using heuristics to decide which level of
+nesting should be compiled to GPU kernels, with the outer levels of nesting are
+translated into iterative kernel invocations by our CPU runtime.  Data movement
+and GPU garbage collection are handled transparently by Parakeet.
 
-We draw attention to the types of closures, which are explicitly annotated with the types of their closed-over arguments. If one wished to arrive at this 
-\begin{itemize}
-\item It is worth noting that the programmer is limited to defining values with first-order types (data or functions which neither accept nor return function values). It is, however, possible to make use of primitive second-order operators such as $\mathbf{map}$ and $\mathbf{reduce}$. 
-\item The accepted typing of closures involves existential types [find citation for typed closure conversion?], which are commonly implemented via boxed . Since our desire is to compile down to a final program without boxed values we instead annotate closures with the types of their implicitly carried arguments. This information is later used to transform closure invocation into a direct function call. 
-\end{itemize}
-\begin{tabular}{m{0.1cm}m{1.5cm}m{0.1cm}m{0.2cm}p{4.8cm}}
- \multicolumn{5}{l}{\textbf{Intermediate Language Syntax}}  \\[4pt]
-& program & $p$ &  $\bnfdef$   &  $d_1 \cdots d_n $ \\[4pt]
-& definition & $d$ & $\bnfdef$ & $f_i(\overline{x_m} : \overline{\tau_m}) \rightarrow (\overline{y_n} : \overline{\tau_n}) =s^{\small{+}}$ \\[4pt]
-& statement  & $s$ & $\bnfdef$ & $\overline{x_m} : \overline{\rho_m} = e $\\[2pt]
-&            &     & $\sep$    & $\IF \;v\; \THEN \;s^*\; \ELSE \;s^*$ \\[2pt]
-&            &     & $\sep$    & $\WHILE \;e\; \DO \;s^+\;  $ \\[4pt]
-& expression & $e$ & $\bnfdef$ & $ v_{f}(v_1, \ldots, v_m)$ \\[2pt]
-&            &     & $\sep$    & $\textrm{values} (\overline{v_m})$ \\[2pt]
-&            &     & $\sep$    & $\textrm{cast} \; (v, \tau)$ \\[2pt] 
-&            &     & $\sep$    & $\MAP_m (v_{f},\overline{v_m})$ \\[2pt]
-&            &     & $\sep$    & $\REDUCE_m (v_{f}, v_{init}, \overline{v_m})$ \\[2pt]
-&            &     & $\sep$    & $\SCAN_m (v_{f}, v_{init}, \overline{v_m})$ \\[4pt]
-& value      & $v$ & $\bnfdef$ & numeric constant\\[2pt]
-&            &     & $\sep$    &  $x$  \quad \small{(data variable)} \\[2pt]
-&            &     & $\sep$    &  $f$  \quad \small{(function label)} \\[2pt]
-&            &     & $\sep$    &  $\oplus$ \quad \small{(scalar operator)} \\[2pt]
-&            &     & $\sep$    &  $a$ \quad \small{(simple array operator)} \\[4pt]
-\end{tabular}
-\begin{tabular}{m{0.005cm}m{1.8cm}m{0.05cm}m{0.2cm}p{4.8cm}}
-\multicolumn{5}{l}{\textbf{Type System}} \\[4pt]
-& data     & $\tau$    & $\bnfdef$ & $int \sep float \sep \mathbf{vec} \; \tau   $ \\[4pt]
-& closures        & $\rho$  & $\bnfdef$ & $\overline{\tau_{c}} \Rightarrow \overline{\tau_m} \rightarrow \overline{\tau_n}$\\[2pt]
-&                 &           & $\sep$    & $\tau$ \\[4pt]
-& higher-order    & $\theta$  & $\bnfdef$ & $\overline{\rho_m} \rightarrow \overline{\rho_n} $ \\[4pt]
-\end{tabular}
-Scalar operators include the usual boolean operations, scalar and floating point arithmetic, whereas examples of simple array operators include indexing, replication, and inspecting an array's shape. 
-\\TODO: 
-\begin{itemize}
-\item Gated SSA (reference to Program Dependence Web?), explain gates in one sentence. 
-\item Mention that $\MAP$ and friends are actually a family of operators parameterized by arity. 
-\item What to do with reduce? The stream idea is wonky and not included in the type system. 
-\end{itemize} 
-\begin{tabular}{m{0.1cm}m{1.2cm}m{0.1cm}m{0.2cm}p{2cm}p{2.7cm}}
- \multicolumn{6}{l}{\textbf{Imp Language Syntax}} \\[4pt]
-& definition        & $d$      & $\bnfdef$ & 
-      \multicolumn{2}{l}{$f(\overline{x_m} : \overline{\tau_m}) \rightarrow (\overline{y_n} : \overline{\tau_n}, \overline{\sigma_n}) = s^{\small{+}}$} \\[4pt]
-& shape             & $\sigma$ & $\bnfdef$ & $ [] $                                            &  \quad \small{(shape of scalar)}      \\[2pt]
-&                   &          & $\sep$    & $ \sigma \concat \sigma $                         &  \quad \small{(concatenate)}      \\[2pt]
-&                   &          & $\sep$    & $ [z] $                                           &  \quad \small{(singleton)}   \\[2pt]
-&                   &          & $\sep$    & $ \sigma[\mathrm{const} \ldots  \mathrm{const}] $ &  \quad \small{(slice)}       \\[4pt]
-& size              & $z$      & $\bnfdef$ & $ \mathrm{dimsize}(x_i, \mathrm{const}) $                  &  \quad \small{(input dimension)}   \\[2pt]
-&                   &          & $\sep$    & $ \mathrm{rank}(x_i) $                                     &  \quad \small{(input rank)}  \\[2pt]
-&                   &          & $\sep$    & $ \oplus(\overline{z_m})$                         &  \quad \small{(scalar primitive)}    \\[2pt]
-\end{tabular}
-\begin{tabular}{m{0.1cm}m{1.2cm}m{0.1cm}m{0.2cm}p{4.7cm}}
-& statement         & $s$      & $\bnfdef$ & $x : \tau, \sigma = e $         \\[2pt]
-&                   &          & $\sep$    & $\IF \;v\; \THEN \;s^*\; \ELSE \;s^*$ \\[2pt]
-&                   &          & $\sep$    & $\WHILE \;e\; \DO \;s^+\;  $ \\[4pt]
-& expression        & $e$      & $\bnfdef$ & $\oplus(\overline{v_m})$ \\[2pt]
-&                   &          & $\sep$    & $v_{array}[\overline{v_m}]$ \\[2pt]
-&                   &          & $\sep$    & $\textrm{cast} \; (v, \tau)$ \\[2pt] 
-&                   &          & $\sep$    & $\textrm{dimsize}(v_{array}, v_{int}) $ \\[2pt]
-&                   &          & $\sep$    & $v$ \\[4pt]
-& value      & $v$ & $\bnfdef$ &  $x$ \\[2pt]
-&            &     & $\sep$    &   numeric constant \\[2pt]
-&            &     & $\sep$    &  $\mathrm{threadIdx.\{x|y|z\}} $\\[2pt]
-&            &     & $\sep$    &  $\mathrm{blockIdx.\{x|y|z\}} $\\[2pt]
-&            &     & $\sep$    &  $\mathrm{blockDim.\{x|y|z\}} $\\[2pt]
-&            &     & $\sep$    &  $\mathrm{gridDim.\{x|y\}}    $\\[2pt]
-\end{tabular}
+
+
 \section{Q: A High-Level Array Language}
 \label{Q}
 
@@ -281,18 +200,46 @@ present the salient features so as to illustrate the level of programming
 and Q's support for array operators, as well as to make our later code examples
 clear.
 
+\subsection{K-means}
+\begin{figure}[h!]
+\begin{lstlisting}[numbers=none]
+calc_centroid:{[X;a;i] avg X[where a = i]}
+calc_centroids:{[X;a;k] 
+  calc_centroid[X;a] each til k}
+  
+dist:{[x;y] sqrt sum (x-y) * (x-y)}
+minidx:{[x] x ? min x}
+
+kmeans:{[X;k;a]
+  C: calc_centroids[X;a;k];
+  converged: 0b;
+  while[not converged;
+    lastAssignment: a;
+    D: X dist/:\: C;
+    a: minidx each D;
+    C: calc_centroids[X;a;k];
+    converged: all lastAssignment = a];
+  C}
+\end{lstlisting}
+\caption{K-Means Clustering implemented in Q}
+\label{QKMeans}
+\end{figure}
 
 \subsection{Q Examples}
 
-\begin{lstlisting}[caption=Q Map Example]
-f: { [x] 5 + 3 * x}
-/*/ Create input array*/
-a: til 10000
-/*/ Call f on different inputs*/
-b: f[6]
-c: f[a]
-\end{lstlisting}
+\begin{figure}[h!]
+  \begin{lstlisting}
+  f: { [x] 5 + 3 * x}
+  /*/ Create input array*/
+  a: til 10000
+  /*/ Call f on different inputs*/
+  b: f[6]
+  c: f[a]
+  \end{lstlisting}
+
+\caption{Q Map Example}
 \label{QMap}
+\end{figure}
 
 Figure \ref{QMap} gives an example of a simple Q program.  In line 1, we define
 a function \texttt{f} which takes a single argument \texttt{x} and computes a
@@ -317,13 +264,15 @@ Thus we see that Q programs can express data parallel computations in a compact,
 declarative, high level fashion.  No explicit looping over the elements of
 \texttt{a} is required.
 
-\begin{lstlisting}[caption=Q Reductions Example]
+\begin{figure}[h!]
+\begin{lstlisting}
 a: til 10000
 b: 0 +/ a
 c: 0 +\ a
 \end{lstlisting}
 \label{QReduce}
-
+\caption{Q Reduction and Scan}
+\end{figure}
 
 In Figure \ref{QReduce}, we introduce the concept of an \emph{adverb}.  Q has a
 series of adverbs, which are higher-order function modifiers.  In
@@ -343,15 +292,19 @@ argument.  In Parakeet, this corresponds to the \texttt{Scan} array operator,
 which as emphasized in \cite{Blel90}, is very useful as a building block in many
 parallel algorithms.
 
-\begin{lstlisting}[caption=Q All-Pairs Distance Example]
-dist: {[x;y] sqrt sum (x-y) * (x-y)}
+\begin{figure}[h!]
 
-/*/ Generate two 100 by 100 matrices*/
-a: (100;100) # til 10000
-b: (100;100) # til 10000
-all_dists: dist/:\:[a;b]
-\end{lstlisting}
-\label{QAllPairsDist}
+  \begin{lstlisting}
+  dist: {[x;y] sqrt sum (x-y) * (x-y)}
+
+  /*/ Generate two 100x100 matrices*/
+  a: (100;100) # til 10000
+  b: (100;100) # til 10000
+  all_dists: dist/:\:[a;b]
+  \end{lstlisting}
+  \caption{All-Pairs distances in Q}
+  \label{QAllPairsDist}
+\end{figure}
 
 In Figure \ref{QAllPairsDist}, we see a slightly more complicated example.
 First we define a pair of functions--one that computes the square of an input
@@ -380,12 +333,92 @@ matrix of all the Euclidean distances between rows of \texttt{a} and \texttt{b}.
 We now turn to how Parakeet executes Q programs, including synthesizing GPU
 kernels to accelerate them.\\
 
+\section{GPU Hardware Restrictions}
+\begin{enumerate}
+\item All values must be boxed (citation?)
+\item No function pointers (is that true?)
+\end{enumerate}
+
+\section{Typed Intermediate Language}
+In order to achieve good performance on a GPU it is necessary to ultimately eliminate indirection in the generated code. Simultaneously, there can be tremendous performance benefits to performing high level optimizations using the algebraic properties of array operators. Thus, our intermediate language must serve as a compromise between competing tensions: it must be sufficiently concrete to simplify later translation into function-free code but also abstract enough to facilitate fusion optimizations.  \\
+
+The portion of a user's program which Parakeet executes is represented internally as flat sequence of non-recursive function definitions. 
+We take inspiration from \cite{Bol09} and allow functions to both accept and return multiple values. This feature both supports optimization (by simplifying the specification of arity-raising and fusion transformations) and naturally models the simultaneous creation of multiple values on the GPU. By convention we will write $\overline{\tau_m}$ to denote a sequence of $m$ simple types, $\overline{v_n}$ for a sequence  of $n$ values, etc.. A single element is equivalent to a sequence of length 1 and sequences may be concatenated via juxtaposition, such that $\tau, \overline{\tau_n} = \overline{\tau_{m+1}}$. 
+
+We draw attention to the types of closures, which are explicitly annotated with the types of their closed-over arguments. If one wished to arrive at this 
+\begin{itemize}
+\item It is worth noting that the programmer is limited to defining values with first-order types (data or functions which neither accept nor return function values). It is, however, possible to make use of primitive second-order operators such as $\mathbf{map}$ and $\mathbf{reduce}$. 
+\item The accepted typing of closures involves existential types [find citation for typed closure conversion?], which are commonly implemented via boxed . Since our desire is to compile down to a final program without boxed values we instead annotate closures with the types of their implicitly carried arguments. This information is later used to transform closure invocation into a direct function call. 
+\end{itemize}
+\begin{tabular}{m{0.1cm}m{1.5cm}m{0.1cm}m{0.2cm}p{4.8cm}}
+ \multicolumn{5}{l}{\textbf{Intermediate Language Syntax}}  \\[4pt]
+& program & $p$ &  $\bnfdef$   &  $d_1 \cdots d_n $ \\[4pt]
+& definition & $d$ & $\bnfdef$ & $f_i(\overline{x_m} : \overline{\tau_m}) \rightarrow (\overline{y_n} : \overline{\tau_n}) =s^{\small{+}}$ \\[4pt]
+& statement  & $s$ & $\bnfdef$ & $\overline{x_m} : \overline{\rho_m} = e $\\[2pt]
+&            &     & $\sep$    & $\IF \;v\; \THEN \;s^*\; \ELSE \;s^*$ \\[2pt]
+&            &     & $\sep$    & $\WHILE \;e\; \DO \;s^+\;  $ \\[4pt]
+& expression & $e$ & $\bnfdef$ & $ v_{f}(v_1, \ldots, v_m)$ \\[2pt]
+&            &     & $\sep$    & $\textrm{values} (\overline{v_m})$ \\[2pt]
+&            &     & $\sep$    & $\textrm{cast} \; (v, \tau)$ \\[2pt] 
+&            &     & $\sep$    & $\MAP_m (v_{f},\overline{v_m})$ \\[2pt]
+&            &     & $\sep$    & $\REDUCE_m (v_{f}, v_{g}, v_{init}, \overline{v_m})$ \\[2pt]
+&            &     & $\sep$    & $\SCAN_m (v_{f}, v_{g}, v_{init}, \overline{v_m})$ \\[4pt]
+& value      & $v$ & $\bnfdef$ & numeric constant\\[2pt]
+&            &     & $\sep$    &  $x$  \quad \small{(data variable)} \\[2pt]
+&            &     & $\sep$    &  $f$  \quad \small{(function label)} \\[2pt]
+&            &     & $\sep$    &  $\oplus$ \quad \small{(scalar operator)} \\[2pt]
+&            &     & $\sep$    &  $a$ \quad \small{(simple array operator)} \\[4pt]
+\end{tabular}
+\begin{tabular}{m{0.005cm}m{1.8cm}m{0.05cm}m{0.2cm}p{4.8cm}}
+\multicolumn{5}{l}{\textbf{Type System}} \\[4pt]
+& data     & $\tau$    & $\bnfdef$ & $int \sep float \sep \mathbf{vec} \; \tau   $ \\[4pt]
+& closures        & $\rho$  & $\bnfdef$ & $\overline{\tau_{c}} \Rightarrow \overline{\tau_m} \rightarrow \overline{\tau_n}$\\[2pt]
+&                 &           & $\sep$    & $\tau$ \\[4pt]
+& higher-order    & $\theta$  & $\bnfdef$ & $\overline{\rho_m} \rightarrow \overline{\rho_n} $ \\[4pt]
+\end{tabular}
+Scalar operators include the usual boolean operations, scalar and floating point arithmetic, whereas examples of simple array operators include indexing, replication, and inspecting an array's shape. 
+\\TODO: 
+\begin{itemize}
+\item Gated SSA (reference to Program Dependence Web?), explain gates in one sentence. 
+\item Mention that $\MAP$ and friends are actually a family of operators parameterized by arity. 
+\item What to do with reduce? The stream idea is wonky and not included in the type system. 
+\end{itemize} 
+
+
 \section{Translation, Specialization, and Optimization}
 \label{Compilation}
+To help elucidate the various transformation performed by Parakeet, we will define a distance function in Q and use it as a running example. 
+\begin{figure}[h!]
+
+    \begin{lstlisting}[numbers=none]
+    dist: {[x;y] sqrt sum (x-y) * (x-y)}
+    \end{lstlisting}
+    \caption{Distance Function in Q}
+\end{figure}[h!]
+
 \subsection{Lambda Lifting and SSA Conversion } 
 The first step in the Parakeet pipeline is a syntax-directed translation from a language-specific AST into Parakeet's IL.\\
- Since type information is not yet available to specialize user functions, they must be translated into an untyped form (by setting all type assignments to ). 
- The translation into Parakeet's IL maintains a closure environment and a name environment so that simultaneous lambda lifting and SSA conversion can be performed. Since we would like to interpret our intermediate language later in the pipeline we use a gated SSA form based on the GSA sub-language of the Program Dependence Web \cite{Ott90}. Classical SSA cannot be directly executed since the $\phi$-nodes lack a deterministic semantics. Gated SSA overcomes this limitation by using "gates" which not only merge data flow but also associate predicates with each data flow branch. Aside from simplifying certain optimizations, these gates also enable us to deterministically execute our code without converting out of SSA. 
+Since type information is not yet available to specialize user functions, they must be translated into an untyped form (by setting all type assignments to ). 
+The translation into Parakeet's IL maintains a closure environment and a name environment so that simultaneous lambda lifting and SSA conversion can be performed. 
+Since we would like to interpret our intermediate language we use a gated SSA form based on the GSA sub-language of the Program Dependence Web \cite{Ott90}. Classical SSA cannot be directly executed since the $\phi$-nodes lack a deterministic semantics. Gated SSA overcomes this limitation by using "gates" which not only merge data flow but also associate predicates with each data flow branch. Aside from simplifying certain optimizations, these gates also enable us to execute our code without converting out of SSA. 
+
+
+\begin{figure}[h!]
+\fbox{
+\begin{tabular}{ m{0.1cm} m{6.7cm} }
+  \multicolumn{2}{l}{dist $($ x, y $) \rightarrow  ($ z $) =$} \\
+  & t$_1 = \mathrm{x} - \mathrm{y} $        \\
+  & t$_2 = \mathrm{x} - \mathrm{y} $        \\
+  & t$_3  = \mathrm{t}_1 * \mathrm{t}_2 $   \\
+  & t$_4  = $sum$(\mathrm{t}_2) $           \\
+  & z $  = \; \mathrm{sqrt}(\mathrm{t}_4)$   \\
+\end{tabular}
+}
+\caption{Untyped Distance Function in SSA form}
+\end{figure}
+
+
+
  
 \subsection{Untyped Optimizations}
 Parakeet performs optimizations at two distinct stages of translation pipeline-- before and after type specialization. We subject the untyped representation to inlining, common subexpression elimination and simplification (which consists of simultaneous constant propagation and dead code elimination). It is preferable to eliminate as much code as possible at this early stage since an untyped function body serves as a template for a potentially large number of future specializations. The only optimizations we do not perform on the untyped representation are array fusion rewrites, since these rely on type annotations to ensure correctness. 
@@ -397,6 +430,21 @@ The purpose of specialization is to eliminate polymorphism, to make manifest all
 \item signature elt is Type of DynType (for data) or Closure of (FnId.t, sig elt list) (for functions). Specialization isn't just on types! It's also on function tags and the types of their associated closure arguments. This is equivalent to performing defunctionalization (Reynolds) and then specializing exhaustively on the constant values of closure records. One caveat: non-constant closure values are disallowed to avoid explosive interpreter bloat on the GPU. Full higher-order programming on the GPU is theoretically possible, but unlikely. 
 \item We only allow data to cross the boundary between our system and the source language. 
 \end{enumerate}
+Let's assume the \textit{dist} function is called with arguments of type $vec float$. The specializer will then generate the following code: 
+\begin{figure}[h!]
+\fbox{
+  \begin{tabular}{m{0.1cm} m{6.7cm}}
+    \multicolumn{2}{l}{dist $($ x $ : vec \; float $, y : $ vec \; float $) $ \rightarrow  ($ z $ :  vec \; float ) =$}  \\
+    & t$_1   = \MAP ( -_{\mathrm{float}}, \mathrm{x}, \mathrm{y})$   \\
+    & t$_2   = \MAP (*_{\mathrm{float}}, \mathrm{x}, \mathrm{y})$    \\
+    & t$_3 = \REDUCE (+_{\mathrm{float}}, 0, \mathrm{t}_2)$          \\
+    & z $  = \; \mathrm{sqrt}(\mathrm{t}_3)$                         \\
+  \end{tabular}
+}
+\caption{Distance Function After Specialization}
+\end{figure}
+The actual intermediate language associates type annotations with every binding which we elide here for clarity. Note that the polymorphism inherent in math operations between dynamically typed values has been removed through the use of statically typed math operators. 
+
 
 \subsection{Array Operator Fusion}
 In addition to standard compiler optimizations (such as constant folding, function inlining, and common sub-expression elimination), 
@@ -424,41 +472,26 @@ These transformations are safe if the following conditions hold:
 The last two conditions are severe since they restricit our optimizer from rewriting anything but linear chains of produced/consumed temporaries. A large body of previous work\cite{Ald01} has demonstrated  both the existence of richer fusion rules and cost-directed strategies for applying those rules in more general scenarios. Still, despite the simplicity of our approach, we have observed that many potentially wasteful temporaries appearing in idiomatic array code will be removed using the above rules. 
 \\[5pt]
 \begin{figure}[h!]
-\begin{tabular}{| m{0.0001cm} m{0.1cm} m{6.7cm} m{0.001cm} | }
- \hline
-  & & & \\ 
-  & \multicolumn{2}{l}{dist $($ x $ : vec \; float $, y : $ vec \; float $) $ \rightarrow  ($ z $ :  vec \; float ) =$} & \\
-  & & t$_1   = \MAP ( -_{\mathrm{float}}, \mathrm{x}, \mathrm{y})$        & \\
-  & & t$_2   = \MAP (*_{\mathrm{float}}, \mathrm{x}, \mathrm{y})$             & \\
-  & & f$_0  = +_{\mathrm{float}}(0.0)$   & \\
-  & & t$_3 = \REDUCE (+_{\mathrm{float}}, \mathrm{f_0}, \mathrm{t}_2)$   & \\\
-  & & z $  = \; \mathrm{sqrt}(\mathrm{t}_3)$                                                         & \\\
-  & & & \\ 
- \hline
-\end{tabular}
-\caption{Typed Distance Function Before Fusion Optimization}
+
+\fbox{
+  \begin{tabular}{m{0.1cm} m{6.7cm} }
+    \multicolumn{2}{l}{$\mathrm{f}_1 ($ acc : $ float $,  x $ : float $, y : $ float $) $ \rightarrow  ($ z $ :  float ) =$} \\
+    & t$_1 = x - y $            \\
+    & t$_2  = t_1 * t_1 $       \\
+    & z $ = $ acc $+$ t$_2$     \\
+    &  \\ 
+  \multicolumn{2}{l}{$\mathrm{dist} ($ x $ : vec \; float $, y : $ vec \; float $) $ \rightarrow  ($ z $ :  vec \; float ) =$} \\
+  & t$_3 = \REDUCE (\mathrm{f}_1, 0.0, \mathrm{x}, \mathrm{y})$   \\
+  & z $ = \mathrm{sqrt}(\mathrm{t}_3)$  \\
+  \end{tabular}
+}
+\caption{Distance Function After Fusion Optimization}
 \end{figure}
 
-\begin{figure}[h!]
-\begin{tabular}{| m{0.0001cm} m{0.1cm} m{6.7cm} m{0.001cm} | }
- \hline
-  & & & \\
-  & \multicolumn{2}{l}{$\mathrm{f}_1 ($ acc : $ float $,  x $ : float $, y : $ float $) $ \rightarrow  ($ z $ :  float ) =$} & \\
-  & & t$_1 = x - y $        & \\
-  & & t$_2  = t_1 * t_1 $      & \\
-  & & z $ = $ acc $+$ t$_2$    & \\
-  & & & \\ 
-  & \multicolumn{2}{l}{$\mathrm{dist} ($ x $ : vec \; float $, y : $ vec \; float $) $ \rightarrow  ($ z $ :  vec \; float ) =$} & \\
-  & & f$_0 = +_{\mathrm{float}}(0.0)$   & \\
-  & & t$_3 = \REDUCE (\mathrm{f}_1, \mathrm{f_0}, \mathrm{x}, \mathrm{y})$   & \\\
-  & & z $ = \mathrm{sqrt}(\mathrm{t}_3)$    \\
- \hline
-\end{tabular}
-\caption{Typed Distance Function After Fusion Optimization}
-\end{figure}
+
 
 \section{GPU Code Generation}
-\subsection{CUDA Back End}
+\subsection{CUDA Programming Model}
 
 In this section we give an overview of modern GPU architecture and the CUDA
 programming model.  Modern graphics processors are made up of hierarchical
@@ -561,6 +594,44 @@ programmer.
 %copying down one section at a time to the GPU, and then transfering the
 %partial result back to the CPU to build the complete result.
 
+
+\subsection{Imp}
+Important characteristics (ways Imp is more expressive than CUDA):
+\begin{enumerate}
+\item  Arrays are not associated with a particular GPU memory space (global, texture, constant, etc..), allowing us to compile variants of an Imp kernel where inputs reside in different memory spaces. 
+\item Local temporaries can be arrays in addition to scalars. This generalizes CUDA's use of "local" memory for spilled scalar variables. 
+\item Space requirements of a function call (all outputs and local arrays it must allocate) can be determined as a function of input sizes. This is necessary for GPU computations only have access to memory which is allocated before their launch and cannot "dynamically" allocate more memory. 
+\end{enumerate}
+\begin{tabular}{m{0.1cm}m{1.2cm}m{0.1cm}m{0.2cm}p{2cm}p{2.7cm}}
+ \multicolumn{6}{l}{\textbf{Imp Language Syntax}} \\[4pt]
+& definition        & $d$      & $\bnfdef$ & 
+      \multicolumn{2}{l}{$f(\overline{x_m} : \overline{\tau_m}) \rightarrow (\overline{y_n} : \overline{\tau_n}, \overline{\sigma_n}) = s^{\small{+}}$} \\[4pt]
+& shape             & $\sigma$ & $\bnfdef$ & $ [] $                                            &  \quad \small{(shape of scalar)}      \\[2pt]
+&                   &          & $\sep$    & $ \sigma \concat \sigma $                         &  \quad \small{(concatenate)}      \\[2pt]
+&                   &          & $\sep$    & $ [z] $                                           &  \quad \small{(singleton)}   \\[2pt]
+&                   &          & $\sep$    & $ \sigma[\mathrm{const} \ldots  \mathrm{const}] $ &  \quad \small{(slice)}       \\[4pt]
+& size              & $z$      & $\bnfdef$ & $ \mathrm{dimsize}(x_i, \mathrm{const}) $         &  \quad \small{(input dimension)}   \\[2pt]
+&                   &          & $\sep$    & $ \mathrm{rank}(x_i) $                            &  \quad \small{(input rank)}  \\[2pt]
+&                   &          & $\sep$    & $ \oplus(\overline{z_m})$                         &  \quad \small{(scalar primitive)}    \\[2pt]
+\end{tabular}
+\begin{tabular}{m{0.1cm}m{1.2cm}m{0.1cm}m{0.2cm}p{4.7cm}}
+& statement         & $s$      & $\bnfdef$ & $x : \tau, \sigma = e $         \\[2pt]
+&                   &          & $\sep$    & $\IF \;v\; \THEN \;s^*\; \ELSE \;s^*$ \\[2pt]
+&                   &          & $\sep$    & $\WHILE \;e\; \DO \;s^+\;  $ \\[4pt]
+& expression        & $e$      & $\bnfdef$ & $\oplus(\overline{v_m})$ \\[2pt]
+&                   &          & $\sep$    & $v_{array}[\overline{v_m}]$ \\[2pt]
+&                   &          & $\sep$    & $\textrm{cast} \; (v, \tau)$ \\[2pt] 
+&                   &          & $\sep$    & $\textrm{dimsize}(v_{array}, v_{int}) $ \\[2pt]
+&                   &          & $\sep$    & $v$ \\[4pt]
+& value      & $v$ & $\bnfdef$ &  $x$ \\[2pt]
+&            &     & $\sep$    &   numeric constant \\[2pt]
+&            &     & $\sep$    &  $\mathrm{threadIdx.\{x|y|z\}} $\\[2pt]
+&            &     & $\sep$    &  $\mathrm{blockIdx.\{x|y|z\}} $\\[2pt]
+&            &     & $\sep$    &  $\mathrm{blockDim.\{x|y|z\}} $\\[2pt]
+&            &     & $\sep$    &  $\mathrm{gridDim.\{x|y\}}    $\\[2pt]
+\end{tabular}
+Here is a simple example of an Imp kernel template: 
+
 \section{Evaluation}
 \label{Evaluation}
 
@@ -598,35 +669,14 @@ computing the prices of thousands of options.
 We compare our system against the multithreaded OpenMP CPU implementation
 from the PARSEC \cite{Bien08} benchmark suite for 1 to 12 threads and 
 
-\subsection{K-Means Clustering}
-
-\begin{lstlisting}[caption=K-Means Clustering implemented in Q]
-calc_centroid:{[X;a;i] avg X[where a = i]}
-calc_centroids:{[X;a;k] 
-  calc_centroid[X;a] each til k}
-  
-dist:{[x;y] sqrt sum (x-y) * (x-y)}
-minidx:{[x] x ? min x}
-
-kmeans:{[X;k;a]
-  C: calc_centroids[X;a;k];
-  converged: 0b;
-  while[not converged;
-    lastAssignment: a;
-    D: X dist/:\: C;
-    a: minidx each D;
-    C: calc_centroids[X;a;k];
-    converged: all lastAssignment = a];
-  C}
-\end{lstlisting}
-\label{QKMeans}
 
 \subsection{Dynamic Tuning}
 In order to test the effects of our dynamic tuning optimizations, 
 
 \section{Related Work}
 \label{RelatedWork}
-
+\textit{I like the idea of a chronological presentation: Vertigo, Accelerator, Accelerator, Nikola, Copperhead}. 
+\\
 Our work is mostly closely related to Copperhead \cite{Cata10}, which also uses data parallel operators to dynamically compile a high level language into GPU programs. Where we explicitly specialize functions to uncover unboxed representations, Copperhead reuses the machinery of C++ templates for specialization. Furthermore, where we have created our own GPU kernel templates within the Imp DSL, Copperhead calls into the data parallel operators of the Thrust library for C++. Extensive reliance on a C++ backend is a double-edged sword, invocation of C++ template compilations can result in unfavorably long delays at runtime. Unlike Copperhead, Parakeet does not require the programmer to specify their computation in a purely functional manner. Our system allows for both looping and variable reassignment. The only restriction is that a function must be both referentially transparent and shapely in order to run on the GPU when passed to an array operator (otherwise in runs on the CPU). Furthermore, we do not expect the programmer to code directly in our intermediate language, but rather perform an initial specialization phase which desugars a more expressive untyped language (for example, turning array arithmetic into explicit maps). 
 
 There has been much recent work dedicated to making parallel programming easier.

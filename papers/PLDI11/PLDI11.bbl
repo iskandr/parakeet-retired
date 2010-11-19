@@ -85,6 +85,19 @@
 \newblock In {\em Proceedings of the 2004 Haskell Workshop\/} (2004), ACM
   Press.
 
+\bibitem{Iverson62}
+{\sc Iverson, K.~E.}
+\newblock A programming language.
+\newblock In {\em Proceedings of the May 1-3, 1962, spring joint computer
+  conference\/} (New York, NY, USA, 1962), AIEE-IRE '62 (Spring), ACM,
+  pp.~345--351.
+
+\bibitem{Jay97}
+{\sc Jay, C.~B., and Sekanina, M.}
+\newblock Shape checking of array programs.
+\newblock Tech. rep., In Computing: the Australasian Theory Seminar,
+  Proceedings, 1997.
+
 \bibitem{Jones01}
 {\sc Jones, S.~P., Tolmach, A., and Hoare, T.}
 \newblock Playing by the rules: rewriting as a practical optimisation technique
@@ -103,6 +116,12 @@
 \newblock Nikola: Embedding compiled {GPU} functions in haskell.
 \newblock In {\em Proceedings of the 2010 Haskell Workshop\/} (September 2010).
 
+\bibitem{Moler80}
+{\sc Moler, C.~B.}
+\newblock {MATLAB} --- an interactive matrix laboratory.
+\newblock Technical Report 369, University of New Mexico. Dept. of Computer
+  Science, 1980.
+
 \bibitem{Muns10}
 {\sc Munshi, A.}
 \newblock The {O}pen{CL} specification version 1.1, September 2010.
@@ -116,6 +135,22 @@
 {\sc {NVIDIA}}.
 \newblock {NVIDIA} {CUDA} {SDK} 3.2.
 \newblock {\tt http://www.nvidia.com/cuda}.
+
+\bibitem{Oliphant07}
+{\sc Oliphant, O.}
+\newblock Python for scientific computing.
+\newblock {\em Computing in Science and Engineering 9\/} (2007), 10--20.
+
+\bibitem{Ott90}
+{\sc Ottenstein, K.~J., Ballance, R.~A., and MacCabe, A.~B.}
+\newblock The program dependence web: a representation supporting control-,
+  data-, and demand-driven interpretation of imperative languages.
+\newblock {\em SIGPLAN Not. 25\/} (June 1990), 257--271.
+
+\bibitem{Sip91}
+{\sc Sipelstein, J., and Blelloch, G.~E.}
+\newblock {C}ollection-{O}riented languages.
+\newblock In {\em Proceedings of the IEEE\/} (1991), pp.~504--523.
 
 \bibitem{Sven08}
 {\sc Svensson, J., Sheeran, M., and Claessen, K.}
