@@ -5,7 +5,7 @@
 #include <string.h>
 
 #include "all_pairs_dists_1dtex_kernel.cu"
-#include "all_pairs_dists_kernel.cu"
+#include "all_pairs_dists_notex_kernel.cu"
 #include "base.h"
 
 const int chunklen = 32768;

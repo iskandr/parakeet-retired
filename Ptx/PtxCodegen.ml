@@ -282,6 +282,7 @@ class ptx_codegen = object (self)
     else (
       Hashtbl.add dataLocations id PtxCallingConventions.GlobalInput;
       let rank = DynType.nest_depth dynT in
+      (*
       let shapeReg = self#fresh_shape_reg dataReg rank in
       let shapeParamId = self#get_sym_id ("shape" ^ (string_of_int paramId)) in
       let shapeParam =
@@ -289,6 +290,8 @@ class ptx_codegen = object (self)
       in
       self#add_param_decl shapeParamId PtxType.ptrT;
       self#emit [ld_param PtxType.ptrT shapeReg shapeParam];
+      *)
+      
     );
     dataReg
 

@@ -125,13 +125,14 @@ languages include Matlab\cite{Moler80} (the lingua franca of signal processing a
 % Heart of Parakeet - an interpreter for our high level IL w/ array ops
 In this paper, we present Parakeet, an intelligent runtime for executing high
 level array programs on GPUs. Parakeet dynamically specializes user functions 
-into a typed intermediate language and transparently executes array operations on the 
-GPU by synthesizing launching GPU kernels. 
+into a typed intermediate language and transparently executes array operations
+on the GPU by synthesizing launching GPU kernels.
 
 
 % Q front-end, agnosticism
 We have implemented our first Parakeet frontend for Q \cite{Borr08}, a descendant of APL that is widely used in financial computing. 
-Q is a nearly "pure" array language-- its idiomatic style makes sparser use of loops than even Matlab or NumPy. 
+Q is a nearly "pure" array language--its idiomatic style makes sparser use of
+loops than even Matlab or NumPy.
 We are also currently working on frontends for both Matlab and Python. 
 
 % Performance
