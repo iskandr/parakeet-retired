@@ -108,7 +108,7 @@ used GPGPU frameworks--NVIDIA's CUDA \cite{NvidCU} and OpenCL
 architectural details in order to fully harness the performance potential.
 
 % Enable programmers to write GPGPU programs in productivity language
-Our goal is to lower the GPGPU programming  barrier by allowing programmers to 
+Our goal is to lower the barrier to GPGPU programming by allowing programmers to 
 write in high level array languages are transparently compiled into efficient GPU programs. 
 By "array language" we mean any language equipped with: 
 \begin{enumerate}
@@ -150,9 +150,9 @@ The main contributions of this paper are the following:
 that is automatically parallelized into efficient GPU programs.
 \item A dynamic specialization algorithm that translates a significant subset of higher-order programs into efficient (unboxed, function-free) GPU code. 
 \item A low-level intermediate language called \textit{Imp} which captures the notion of shapely computation \cite{Jay97} necessary in the absence of dynamic memory allocation.  
-\item Evidence that dynamic compilation of GPU programs can significantly
-improve their performance by taking advantage of runtime information to
-tailor their code and execution to runtime information.
+\item Evidence that dynamically compiling GPU programs can significantly
+improve performance by taking advantage of runtime information to
+tailor code and execution to runtime information.
 \end{itemize}
 
 \begin{figure*}[t!bh]
@@ -175,7 +175,7 @@ well as fusion of array operators which is very beneficial for performance.
 Parakeet then interprets the typed function, selectively executing array
 operators either on the GPU or CPU. Parakeet synthesizes GPU
 programs from a library of efficient array operator implementation skeletons,
-with splice points where user-defined functions get inlined. Parakeet supports
+with splice points where user-defined functions are inlined. Parakeet supports
 the nesting of array operators, using heuristics to decide which level of
 nesting should be compiled to GPU kernels, with the outer levels of nesting are
 translated into iterative kernel invocations by our CPU runtime.  Data movement
@@ -348,7 +348,7 @@ We take inspiration from \cite{Bol09} and allow functions to both accept and ret
 We draw attention to the types of closures, which are explicitly annotated with the types of their closed-over arguments. If one wished to arrive at this 
 \begin{itemize}
 \item It is worth noting that the programmer is limited to defining values with first-order types (data or functions which neither accept nor return function values). It is, however, possible to make use of primitive second-order operators such as $\mathbf{map}$ and $\mathbf{reduce}$. 
-\item The accepted typing of closures involves existential types [find citation for typed closure conversion?], which are commonly implemented via boxed . Since our desire is to compile down to a final program without boxed values we instead annotate closures with the types of their implicitly carried arguments. This information is later used to transform closure invocation into a direct function call. 
+\item The accepted typing of closures involves existential types [find citation for typed closure conversion?], which are commonly implemented via boxing. Since our desire is to compile down to a final program without boxed values we instead annotate closures with the types of their implicitly carried arguments. This information is later used to transform closure invocation into a direct function call. 
 \end{itemize}
 \begin{tabular}{m{0.1cm}m{1.5cm}m{0.1cm}m{0.2cm}p{4.8cm}}
  \multicolumn{5}{l}{\textbf{Intermediate Language Syntax}}  \\[4pt]
@@ -398,9 +398,9 @@ To help elucidate the various transformation performed by Parakeet, we will defi
 
 \subsection{Lambda Lifting and SSA Conversion } 
 The first step in the Parakeet pipeline is a syntax-directed translation from a language-specific AST into Parakeet's IL.\\
-Since type information is not yet available to specialize user functions, they must be translated into an untyped form (by setting all type assignments to ). 
+Since type information is not yet available to specialize user functions, they must be translated into an untyped form (by setting all type assignments to $\bot$). 
 The translation into Parakeet's IL maintains a closure environment and a name environment so that simultaneous lambda lifting and SSA conversion can be performed. 
-Since we would like to interpret our intermediate language we use a gated SSA form based on the GSA sub-language of the Program Dependence Web \cite{Ott90}. Classical SSA cannot be directly executed since the $\phi$-nodes lack a deterministic semantics. Gated SSA overcomes this limitation by using "gates" which not only merge data flow but also associate predicates with each data flow branch. Aside from simplifying certain optimizations, these gates also enable us to execute our code without converting out of SSA. 
+Since we would like to interpret our intermediate language we use a gated SSA form based on the GSA sub-language of the Program Dependence Web \cite{Ott90}. Classical SSA cannot be directly executed since the $\phi$-nodes lack deterministic semantics. Gated SSA overcomes this limitation by using "gates" which not only merge data flow but also associate predicates with each data flow branch. Aside from simplifying certain optimizations, these gates also enable us to execute our code without converting out of SSA. 
 
 
 \begin{figure}[h!]
@@ -469,7 +469,7 @@ These transformations are safe if the following conditions hold:
 \item every output of the predecessor function ($f$) is used by the successor ($g$)
 \item the outputs of the predecessor are used \textit{only} by the successor 
 \end{enumerate}
-The last two conditions are severe since they restricit our optimizer from rewriting anything but linear chains of produced/consumed temporaries. A large body of previous work\cite{Ald01} has demonstrated  both the existence of richer fusion rules and cost-directed strategies for applying those rules in more general scenarios. Still, despite the simplicity of our approach, we have observed that many potentially wasteful temporaries appearing in idiomatic array code will be removed using the above rules. 
+The last two conditions are severe since they restricit our optimizer from rewriting anything but linear chains of produced/consumed temporaries. A large body of previous work\cite{Ald01} has demonstrated  both the existence of richer fusion rules and cost-directed strategies for applying those rules in more general scenarios. Still, despite the simplicity of our approach, we have observed that many wasteful temporaries in idiomatic array code are removed using the above rules. 
 \\[5pt]
 \begin{figure}[h!]
 
@@ -675,27 +675,14 @@ In order to test the effects of our dynamic tuning optimizations,
 
 \section{Related Work}
 \label{RelatedWork}
-\textit{I like the idea of a chronological presentation: Vertigo, Accelerator, Accelerator, Nikola, Copperhead}. 
-\\
-Our work is mostly closely related to Copperhead \cite{Cata10}, which also uses data parallel operators to dynamically compile a high level language into GPU programs. Where we explicitly specialize functions to uncover unboxed representations, Copperhead reuses the machinery of C++ templates for specialization. Furthermore, where we have created our own GPU kernel templates within the Imp DSL, Copperhead calls into the data parallel operators of the Thrust library for C++. Extensive reliance on a C++ backend is a double-edged sword, invocation of C++ template compilations can result in unfavorably long delays at runtime. Unlike Copperhead, Parakeet does not require the programmer to specify their computation in a purely functional manner. Our system allows for both looping and variable reassignment. The only restriction is that a function must be both referentially transparent and shapely in order to run on the GPU when passed to an array operator (otherwise in runs on the CPU). Furthermore, we do not expect the programmer to code directly in our intermediate language, but rather perform an initial specialization phase which desugars a more expressive untyped language (for example, turning array arithmetic into explicit maps). 
 
-There has been much recent work dedicated to making parallel programming easier.
-The various approaches to addressing this problem include libraries and APIs
-which provide parallel functionality as well as new programming languages meant
-for parallel programming.
+% ALEX: put the skeletons and vaguely related stuff first and then focus on Nikola, Accelerate and Copperhead? 
+Our approach is very similar in spirit to that of the skeletal programming
+community \cite{Cole04}.  We both seek to use generic parallel programming
+constructs which capture most of the common parallel patterns in a concise and
+easy-to-use language.  
 
-Skeletons are cool \cite{Cole04}.
-
-Recent work on parallel programming languages includes Fortress \cite{Alle08},
-Unified Parallel C \cite{Char05}, and X10 \cite{Chen05}.  Our approach differs
-from all of these in two important ways.  First, we are focusing on compiler
-techniques for sequential array programming languages which do not require the
-programmer to explicitly manage parallelism.  These techniques are meant to be
-generally applicable to any suitable array language, not just Q.  Second, our
-approach doesn't introduce a new programming language specifically for writing
-GPGPU or parallel programs.  Q is already in wide use in the financial computing
-community.
-
+%ALEX: I like the idea of a chronological presentation: Vertigo, Accelerator, Accelerator, Nikola, Copperhead
 There has also been other work directed specifically at raising the level of
 abstraction above that of CUDA and OpenCL for doing GPGPU programming.  Conal
 Elliot's Vertigo \cite{Elli04} was a declarative parallel language embedded in
@@ -705,23 +692,21 @@ parallel reductions or all-pairs type computations).  Microsoft's Accelerator
 \cite{Tard06} is a declarative GPU language embedded in C\# which creates a
 directed acyclic graph of LINQ operations--a collection of common data querying
 operations such as filtering, grouping, and joining--and compiles them to
-(pre-CUDA) shader programs.  Joel Svensson's Obsidian \cite{Sven08} is another
-declarative language embedded in Haskell which compiles at runtime to the GPU.
-The language semantics are inspired by hardware description languages and while
-it is a higher level of abstraction than directly coding CUDA, it is still much
-lower level than an array language such as Q.  Finally, Jacket by Accelereyes
-\cite{AcceJa} provides a similar setup for Matlab as we do for Q.  However,
-Jacket requires programmers to explicitly declare data and computation to reside
-on the GPU, whereas our framework takes advantage of the GPU completely
-transparently to the programmer.
+(pre-CUDA) shader programs.  
 
-Our approach is very similar in spirit to that of the skeletal programming
-community \cite{Cole04}.  We both seek to use generic parallel programming
-constructs which capture most of the common parallel patterns in a concise and
-easy-to-use language.  In our specific case, these constructs are embodied by
-Q's adverbs, which are second-order function modifiers.  We describe these
-adverbs in more detail in the next section.
-
+Our work is most closely related to Copperhead \cite{Cata10}, which also uses data parallel
+operators to dynamically compile a high level language into GPU programs. Where we explicitly
+specialize functions to uncover unboxed representations, Copperhead reuses the machinery 
+of C++ templates for specialization. Furthermore, where we have created our own GPU kernel 
+templates within the Imp DSL, Copperhead calls into the data parallel operators of the Thrust
+library for C++. Extensive reliance on a C++ backend is a double-edged sword, invocation of
+C++ template compilations can result in unfavorably long delays at runtime. Unlike Copperhead,
+Parakeet does not require the programmer to specify their computation in a purely functional manner.
+Our system allows for both looping and variable reassignment. The only restriction is that a function
+must be both referentially transparent and shapely in order to run on the GPU when passed to an array
+operator (otherwise in runs on the CPU). Furthermore, we do not expect the programmer to code directly
+in our intermediate language, but rather perform an initial specialization phase which desugars
+a more expressive untyped language (for example, turning array arithmetic into explicit maps). 
 \section{Conclusion}
 \label{Conclusion}
 
