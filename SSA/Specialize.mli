@@ -1,18 +1,21 @@
 type type_env = DynType.t ID.Map.t
 type const_env = SSA.value ID.Map.t 
-type untyped_closure_env = (SSA.value * Signature.sig_elt list) ID.Map.t 
-type typed_closure_env = (FnId.t * DynType.t list) ID.Map.t
+type untyped_closure_env = (SSA.value * Signature.sig_elt list) ID.Map.t
 
-(* map untyped closure ids to their specializations  *) 
-type typed_closure_mapping = ID.Set.t ID.Map.t   
+type typed_closure_env = 
+       (SSA.value_node * DynType.t list * DynType.t list) ID.Map.t
+
+
 
 type context = {
   type_env : type_env; 
   const_env : const_env; 
   typed_closures : typed_closure_env; 
   untyped_closures : untyped_closure_env;
-  (* map untyped closure id to typed variant *) 
-  typed_closure_mapping  : typed_closure_mapping;
+   (* map every untyped closure to its partial list of typed params *) 
+  closure_params : SSA.value_node list ID.Map.t;  
+  (* map untyped closure id to typed variant *)
+  typed_closure_mapping  :  ID.Set.t ID.Map.t;
   interp_state : InterpState.t 
 }  
 

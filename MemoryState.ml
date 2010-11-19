@@ -148,7 +148,21 @@ let get_host state = function
   | InterpVal.Closure _ -> 
       failwith "[MemoryState->get_host] can't send function to host memory"
 
-  
+let get_scalar state = function 
+  | InterpVal.Data id -> 
+      if Hashtbl.mem state.host_vals id then 
+      match Hashtbl.find state.host_vals id with 
+        | HostVal.HostScalar n -> n
+        | _ -> assert false 
+      else ( match Hashtbl.find state.gpu_vals id with 
+        | GpuVal.GpuScalar n -> n 
+        | _ -> assert false
+      )
+ | InterpVal.Scalar n -> n 
+ | InterpVal.Closure _ -> failwith "How did a closure get here?"
+ | InterpVal.Array _ -> failwith "An array? How did that happen?"
+
+
   (* slice on the GPU or CPU? *) 
 let slice memState arr idx = match arr with 
   | InterpVal.Scalar _ -> failwith "[MemoryState] Can't slice a scalar"

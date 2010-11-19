@@ -123,6 +123,13 @@ let create_args
 (** MAP **)
 let map_id_gen = mk_gen()
 let compile_map globalFunctions payload closureTypes argTypes retTypes =
+  IFDEF DEBUG THEN 
+    Printf.printf "Compiling Map with %s => %s -> %s\n"
+      (DynType.type_list_to_str closureTypes)
+      (DynType.type_list_to_str argTypes)
+      (DynType.type_list_to_str retTypes)
+    ;
+  ENDIF; 
   let mapThreadsPerBlock = 256 in
   (* converting payload to Imp *) 
   let impPayload = SSA_to_Imp.translate_fundef globalFunctions payload in
@@ -135,7 +142,8 @@ let compile_map globalFunctions payload closureTypes argTypes retTypes =
       (Array.of_list argTypes)
       (Array.of_list retTypes)
   in
-  let inputSpaces = Array.map (fun t -> PtxVal.TEX) (Array.of_list argTypes) in
+  let allInputTypes = Array.of_list (closureTypes @ argTypes) in 
+  let inputSpaces = Array.map (fun t -> PtxVal.TEX) allInputTypes in
   let kernel, cc = ImpToPtx.translate_kernel
                      ?input_spaces:(Some inputSpaces) impfn in
   (*let kernel, cc = ImpToPtx.translate_kernel impfn in*)

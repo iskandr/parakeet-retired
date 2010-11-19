@@ -70,6 +70,7 @@ Signature.cmx \
 InterpState.cmx \
 SSA_Codegen.cmx \
 InsertCoercions.cmx \
+InsertTypedClosures.cmx \
 Specialize.cmx \
 PtxType.cmx PtxVal.cmx Ptx.cmx Shape.cmx \
 Timing.cmx \

@@ -173,7 +173,8 @@ let min_prim_arity = function
   | ArrayOp Zip
   | ArrayOp Rand 
   | ArrayOp DimSize 
-  | ArrayOp Index -> 2 
+  | ArrayOp Index
+  | ArrayOp Map  -> 2 
   | ArrayOp _ -> 3
   | ImpureOp Print  -> 1
   | ImpureOp _ -> 0

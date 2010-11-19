@@ -57,7 +57,9 @@ let coerce_int i = function
         if i < 0 || i > 255 
         then failwith "int outside valid range for conversion to char"
         else Char (Char.chr i)
-  | _ -> failwith "coercion for this type not implemented"
+  | t -> failwith $ Printf.sprintf 
+         "coercion from int to %s not implemented"
+         (DynType.to_str t)
 
 let coerce_int32 i = function
   | UInt32T 
@@ -74,7 +76,9 @@ let coerce_int32 i = function
         if i < Int32.zero || i > Int32.zero 
         then failwith "int32 outside valid range for conversion to char"
         else Char (Char.chr (Int32.to_int i))
-  | _ -> failwith "coercion for this type not implemented"
+  | t -> failwith $ Printf.sprintf  
+           "coercion from int32 to %s not implemented"
+           (DynType.to_str t)
 
 (* this is really an argument for a common NUMBER module interface *)
 (* which is implemented by all of the ocaml number types *) 
@@ -93,7 +97,9 @@ let coerce_int64 i = function
         if i < Int64.zero || i > Int64.zero 
         then failwith "int64 outside valid range for conversion to char"
         else Char (Char.chr (Int64.to_int i))
-  | _ -> failwith "coercion for this type not implemented"
+  | t -> failwith $ Printf.sprintf 
+           "coercion from int64 to %s not implemented"
+           (DynType.to_str t)
 
 let coerce_float f = function
   | UInt32T -> UInt32 (Uint32.of_float f)
@@ -110,7 +116,9 @@ let coerce_float f = function
         if f < 0. || f > 255.  
         then failwith "float outside valid range for conversion to char"
         else Char (Char.chr (int_of_float f))
-  | _ -> failwith "coercion for this type not implemented"
+  | t -> failwith $ Printf.sprintf  
+           "[PQNum] coercion from float to %s not implemented" 
+           (DynType.to_str t)
 
          
 let coerce_num n t =

@@ -9,18 +9,19 @@ open Printf
 type type_env = DynType.t ID.Map.t
 type const_env = SSA.value ID.Map.t 
 type untyped_closure_env = (SSA.value * Signature.sig_elt list) ID.Map.t 
-type typed_closure_env = (FnId.t * DynType.t list) ID.Map.t
+type typed_closure_env = 
+       (SSA.value_node * DynType.t list * DynType.t list) ID.Map.t
 
-(* map untyped closure ids to their specializations  *) 
-type typed_closure_mapping = ID.Set.t ID.Map.t   
 
 type context = {
   type_env : type_env; 
   const_env : const_env; 
   typed_closures : typed_closure_env; 
   untyped_closures : untyped_closure_env;
+  (* map every untyped closure to its partial list of typed params *) 
+  closure_params : SSA.value_node list ID.Map.t;  
   (* map untyped closure id to typed variant *) 
-  typed_closure_mapping  : typed_closure_mapping;
+  typed_closure_mapping  : ID.Set.t ID.Map.t;
   interp_state : InterpState.t 
 }  
 
@@ -109,6 +110,9 @@ let merge_contexts c1 ids1 c2 ids2 outputCxt outputIds =
   let untypedClosures =  
     combine_all_entries fail_on_merge c1.untyped_closures c2.untyped_closures 
   in 
+  let closureParams = 
+    combine_all_entries fail_on_merge c1.closure_params c2.closure_params
+  in 
   let closureMapping =
     combine_all_entries 
       ID.Set.union
@@ -119,7 +123,8 @@ let merge_contexts c1 ids1 c2 ids2 outputCxt outputIds =
       type_env = tenv;
       typed_closures = typedClosures; 
       untyped_closures = untypedClosures; 
-      typed_closure_mapping = closureMapping
+      typed_closure_mapping = closureMapping;
+      closure_params = closureParams; 
   }     
      
     
@@ -130,15 +135,14 @@ let rec min_arity context = function
   | Prim op -> Prim.min_prim_arity op
   | GlobalFn fnId -> InterpState.get_untyped_arity context.interp_state fnId
   | Var closureId ->
-    IFDEF DEBUG THEN 
-        assert (ID.Map.mem closureId context.untyped_closures);
-    ENDIF; 
-    let fnVal, closureSig = 
-      ID.Map.find closureId context.untyped_closures 
-    in
-    let nClosureArgs = List.length closureSig in 
-    let fullArity = min_arity context fnVal in  
-    fullArity - nClosureArgs  
+      if ID.Map.mem closureId context.untyped_closures then 
+        let fnVal, closureSig = 
+          ID.Map.find closureId context.untyped_closures 
+        in
+        let nClosureArgs = List.length closureSig in 
+        let fullArity = min_arity context fnVal in  
+        fullArity - nClosureArgs
+      else 7770   
   | other -> failwith $ 
      Printf.sprintf 
        "Can't get arity of %s" 
@@ -178,6 +182,30 @@ let has_array_type context = function
       ID.Map.mem id tenv && 
       DynType.is_vec (ID.Map.find id tenv)
   | _ -> false  
+
+
+(*
+(* instead of returning the type of a value, return its sig_elt *) 
+let annotate_value_sig context valNode = 
+  match valNode.value with 
+  | Var id -> 
+    let t  
+    ID.Map.find id context.type_env  
+  | Prim _ -> 
+      failwith "[Specialize] cannot annotate primitive without its arguments"
+  | GlobalFn _ 
+  | Lam _ -> 
+      failwith "[Specialize] cannot annotate a function without its arguments"
+  | other -> type_of_raw_value other  
+ in 
+    (* if the new type is different from the old, *)
+    (* then indicate that a change has happened *)    
+    let changed = valNode.value_type <> t in 
+    let valNode' = {valNode with value_type = t} in  
+    valNode', t, changed  
+*)
+  
+
 
 let annotate_value context valNode = 
   let t = match valNode.value with 
@@ -259,7 +287,7 @@ let specialize_scalar_prim_for_scalar_args
         in 
         codegen#emit [mk_set (get_ids outputs) appNode]
     ) 
-
+     
 
 (*
    THIS IS THE HEART OF THE TYPE INFERENCE / SPECIALIZATION ALGORITHM:
@@ -270,7 +298,8 @@ let specialize_scalar_prim_for_scalar_args
    of higher order functions the function values are included in the 
    signature. 
 *) 
-     
+   
+
 let rec annotate_app context expSrc fn args = match fn.value with
   (* for now assume that all higher order primitives take a single *)
   (* function argument which is passed first *)  
@@ -285,13 +314,22 @@ let rec annotate_app context expSrc fn args = match fn.value with
       (* arguments and check whether the fnArg is in that environment. *)
       let fnVal = (List.hd args).value in 
       IFDEF DEBUG THEN
-        let ok = match fnVal with 
-          | SSA.GlobalFn _ | SSA.Prim _ -> true 
+        let ok = match fnVal with
+          | SSA.GlobalFn _ | SSA.Prim _ -> true
+          | SSA.Var id -> ID.Map.mem id context.untyped_closures  
           | _ -> false
         in 
         assert ok  
       ENDIF;  
-      let fnSigElt = Signature.Closure (fnVal, []) in 
+      let fnSigElt = match fnVal with 
+        | GlobalFn _ 
+        | Prim _ ->  Signature.Closure(fnVal, [])
+        | Var id -> 
+            let (fnVal', types) = ID.Map.find id context.untyped_closures in 
+            Signature.Closure (fnVal', types)
+      
+        | _ -> failwith "expected function!" 
+      in   
       let signature = { 
         Signature.inputs = 
           fnSigElt :: (List.map (fun t -> Signature.Type t) types);
@@ -301,10 +339,17 @@ let rec annotate_app context expSrc fn args = match fn.value with
       let specializedFn = 
         specialize_function_value context.interp_state fn.value signature 
       in
+      let closureParams = match fnVal with 
+        | Var id -> 
+            if ID.Map.mem id context.closure_params then 
+              ID.Map.find id context.closure_params
+            else []
+        | _ -> [] 
+      in 
       let expNode = { 
         exp_src = expSrc;  
         exp_types = DynType.fn_output_types specializedFn.value_type; 
-        exp = App(specializedFn, dataArgs') 
+        exp = App(specializedFn, closureParams @ dataArgs') 
       }
       in 
       expNode, context, argsChanged
@@ -327,13 +372,69 @@ let rec annotate_app context expSrc fn args = match fn.value with
       in 
       expNode, context, argsChanged               
   | Lam _ -> failwith "anonymous functions should have been named by now"
-  | Var arrayId -> 
-      (* assume we're conflating array indexing and function application. *)
-      let arrayType = ID.Map.find arrayId context.type_env in
-      let arrNode = { fn with value_type = arrayType } in  
-      if DynType.is_scalar arrayType then 
+  | Var id ->
+    
+      (* ignore changes to args since we know we're definitely changing 
+         this node to either a function call or array indexing 
+      *)  
+      let args', argTypes, _ = annotate_values context args in
+      (* if the ID is an untyped closure, then 
+         we need to make a specialized instance of it 
+      *) 
+      if ID.Map.mem id context.untyped_closures then (
+        (* THIS IS ALL ONE TERRIBLE HACK *) 
+        let (untypedFnVal, oldArgSigs) = 
+          ID.Map.find  id context.untyped_closures 
+        in
+        let signature = { 
+          Signature.inputs = oldArgSigs @ 
+            (List.map (fun t -> Signature.Type t) argTypes);
+          Signature.outputs = None; 
+        } 
+        in  
+        let specializedFn = 
+          specialize_function_value context.interp_state untypedFnVal signature 
+        in
+        let typedClosureId = ID.gen() in
+        let closureMapping = context.typed_closure_mapping in 
+        let closureSet = 
+          if ID.Map.mem id closureMapping then  
+            ID.Map.find id closureMapping
+          else 
+            ID.Set.empty 
+        in  
+        let closureSet' = ID.Set.add typedClosureId closureSet in 
+        let closureMapping' = ID.Map.add id closureSet' closureMapping in   
+        let oldTypes = Signature.sig_elts_to_types oldArgSigs in
+        let outputTypes = DynType.fn_output_types specializedFn.value_type in 
+        let typedClosureArg = 
+          SSA.mk_var ~ty:(FnT(oldTypes, argTypes, outputTypes)) typedClosureId 
+        in   
+        let callNode = {
+          exp=App(typedClosureArg, args'); 
+          exp_types = outputTypes; 
+          exp_src = None;  
+        } 
+        in
+        let typedClosures = 
+          ID.Map.add 
+            typedClosureId 
+            (specializedFn, argTypes, outputTypes) 
+            context.typed_closures
+        in   
+        let context' = { context with 
+          typed_closure_mapping = closureMapping';
+          typed_closures = typedClosures; 
+        }
+        in 
+        callNode, context', true       
+        )
+      else 
+        let arrayType = ID.Map.find id context.type_env in
+        let arrNode = { fn with value_type = arrayType } in  
+        if DynType.is_scalar arrayType then 
           failwith "indexing requires lhs to be an array"
-      ;  
+        ;  
       (* ignore changes to the args since we know we're definitely 
          changing this node from application of a Var to Prim.Index
       *)
@@ -402,8 +503,13 @@ and annotate_exp context expNode =
   | App (fn, args) ->
      (* assume we're never getting too few arguments, 
         closure creation handle in annotate_stmt
-      *) 
-     IFDEF DEBUG THEN 
+      *)
+       
+     IFDEF DEBUG THEN
+       Printf.printf "[annotate_exp] %s(%s)\n"
+         (SSA.value_node_to_str fn)
+         (SSA.value_node_list_to_str args)
+       ;  
        let nargs = List.length args in 
        if nargs > max_arity context fn.value then 
          failwith "too many arguments"
@@ -422,17 +528,30 @@ and annotate_stmt context stmtNode =
     then ID.Map.find id context.type_env 
     else DynType.BottomT
   in  
+  IFDEF DEBUG THEN 
+    Printf.printf "[annotate_stmt] %s\n"
+      (SSA.stmt_node_to_str stmtNode)
+    ; 
+  ENDIF;   
   match stmtNode.stmt with
   (* a under-applied function should form a closure 
      instead of getting specialized on the spot 
   *)  
-  | Set([id], {exp=App (fn, args)}) 
+  | Set([id], ({exp=App (fn, args)} as app)) 
     when 
     (not $ has_array_type context fn.value) && 
     (List.length args < min_arity context fn.value) ->
       (* can't annotate anything since the function isn't fully applied, 
          instead construct a signature string from the arguments 
       *) 
+      IFDEF DEBUG THEN 
+        Printf.printf "Partially applying %s = %s(%s)\n"
+          (ID.to_str id)
+          (SSA.value_to_str fn.value)
+          (SSA.value_node_list_to_str args)
+        ; 
+      ENDIF; 
+      let args, argTypes, _ = annotate_values context args in
       let argSig = value_nodes_to_sig_elts context args in
       let untypedClosures = context.untyped_closures in 
       let closure = match fn.value with 
@@ -456,10 +575,15 @@ and annotate_stmt context stmtNode =
       in  
       (* TODO: figure out if we've already added this closure to env *) 
       let context'  = { context with 
-        untyped_closures = ID.Map.add id closure untypedClosures 
+        untyped_closures = ID.Map.add id closure untypedClosures; 
+        closure_params = ID.Map.add id args context.closure_params; 
       }
       in 
-      stmtNode, context', true        
+      let stmtNode' = { stmtNode with 
+        stmt = Set([id], {app with exp=App (fn, args)}); 
+      } 
+      in  
+      stmtNode', context', true        
       
   | Set(ids, rhs) ->  
       let rhs', rhsContext, rhsChanged = annotate_exp context rhs in 
@@ -566,10 +690,21 @@ and scalarize_fundef interpState untypedId untypedFundef vecSig =
 
 and specialize_function_id interpState untypedId signature =
   match 
-    InterpState.maybe_get_specialization interpState (GlobalFn untypedId) signature 
+    InterpState.maybe_get_specialization 
+      interpState 
+      (GlobalFn untypedId) 
+      signature 
   with 
     | None ->
-       let untypedFundef = InterpState.get_untyped_function interpState untypedId in 
+       IFDEF DEBUG THEN 
+         Printf.printf "[specialize_function_id] Specializing fn%d for %s\n"
+           untypedId
+           (Signature.to_str signature)
+         ;
+       ENDIF; 
+       let untypedFundef = 
+         InterpState.get_untyped_function interpState untypedId 
+       in 
      (* SPECIAL CASE OPTIMIZATION: if we see a function of all scalar operators
         applied to all 1D vectors, then we can directly generate a single 
         Map adverb over all the argument vectors 
@@ -630,19 +765,28 @@ and specialize_fundef interpState untypedFundef signature =
     const_env = constEnv;
     untyped_closures = untypedClosureEnv;
     typed_closures = ID.Map.empty;
-    typed_closure_mapping = ID.Map.empty;      
+    typed_closure_mapping = ID.Map.empty;
+    closure_params = ID.Map.empty;       
     interp_state = interpState
   }
   in
-  let annotatedBody, context', _ = annotate_block context untypedFundef.body in
+  let annotatedBody, context, _ = annotate_block context untypedFundef.body in
   (* annotation returned a mapping of all identifiers to their types, *)
   (* now use this type info (along with annotatins on values) to insert all *)
   (* necessary coercions and convert untyped to typed representation. *) 
 
+  let typedClosureBody = 
+    InsertTypedClosures.process_block 
+      context.typed_closure_mapping
+      context.typed_closures
+      annotatedBody
+  in  
   (* returns both a typed body and an environment which includes bindings *)
   (* for any temporaries introduced from coercions *)  
+   
   let typedBody, finalTyEnv = 
-    InsertCoercions.rewrite_block context'.type_env annotatedBody in
+    InsertCoercions.rewrite_block context.type_env typedClosureBody 
+  in
   SSA.mk_fundef 
     ~body:typedBody 
     ~tenv:finalTyEnv
@@ -672,7 +816,13 @@ and specialize_function_value interpState v signature : SSA.value_node =
     | None -> 
       let typedFundef = match v with
         (* specialize the untyped function -- assuming it is one *) 
-      | GlobalFn untypedId  -> 
+      | GlobalFn untypedId  ->
+         IFDEF DEBUG THEN 
+           Printf.printf 
+             "[specialize_function_value] GlobalFn %s w/ sig %s\n"
+             (SSA.value_to_str v)
+             (Signature.to_str signature);
+         ENDIF;  
          specialize_function_id interpState untypedId signature
          
       (* first handle the simple case when it's a scalar op with scalar args *)
@@ -692,14 +842,22 @@ and specialize_function_value interpState v signature : SSA.value_node =
                    
       | Prim (Prim.ArrayOp op) when Prim.is_higher_order op ->
         (match signature.Signature.inputs with 
-          | Signature.Closure (fnVal, [])::restSig ->
+          | Signature.Closure (fnVal, closureArgSig)::restSig ->
             (* after the function value all the other arguments should *)
             (* be data to which we can assign types *) 
+            IFDEF DEBUG THEN 
+              Printf.printf "[specialize_function_value] %s : {%s} => %s  \n"
+                (Prim.array_op_to_str op)
+                (Signature.sig_elts_to_str closureArgSig)
+                (SSA.value_to_str fnVal)
+              ; 
+            ENDIF; 
+                
             let inputTypes = Signature.sig_elts_to_types restSig in 
             specialize_higher_order_array_prim 
               interpState
               op 
-              [fnVal]
+              [fnVal, closureArgSig]
               ?forceOutputTypes:signature.Signature.outputs
               inputTypes
 
@@ -722,7 +880,10 @@ and specialize_function_value interpState v signature : SSA.value_node =
             qOp
             ?forceOutputTypes:signature.Signature.outputs
             (Signature.input_types signature)
-      | _ -> failwith "invalid value type for specialize_function_value"  
+      | other -> 
+          failwith $ Printf.sprintf 
+            "invalid value type for specialize_function_value: %s"
+            (SSA.value_to_str other)
      in 
      InterpState.add_specialization interpState v signature  typedFundef; 
      { value = GlobalFn typedFundef.fn_id; 
@@ -770,11 +931,18 @@ and specialize_scalar_prim_for_vec_args
 (* function f over arguments of type 'inputTypes' and returns a value of*)
 (* either the inferred types or of 'forceOutputTypes' if provided. *) 
 and specialize_map 
-    interpState 
+    interpState
     (f : value) 
     ?(forceOutputTypes : DynType.t list option) 
+    (closureTypes : DynType.t list)
     (inputTypes :DynType.t list)
-    : SSA.fundef  = 
+    : SSA.fundef  =
+  IFDEF DEBUG THEN 
+    Printf.printf "[specialize_map] %s : %s with inputs %s\n"
+      (SSA.value_to_str  f)
+      (DynType.type_list_to_str inputTypes)
+    ;
+  ENDIF; 
   let eltTypes =  List.map DynType.peel_vec inputTypes in 
   (* if the outputs need to be coerced, pass on that information to the *)
   (* nested function so that coercions get inserted at the scalar level.*)
@@ -785,23 +953,53 @@ and specialize_map
     Option.map (List.map DynType.peel_vec) forceOutputTypes 
   in
   let nestedSig = 
-    { (Signature.from_input_types eltTypes) with 
+    { (Signature.from_input_types (closureTypes @ eltTypes)) with 
        Signature.outputs = forceOutputEltTypes }
   in 
   let nestedFn = specialize_function_value interpState f nestedSig in
+  let nestedOutputTypes = DynType.fn_output_types nestedFn.value_type in 
   let outputTypes = 
     TypeInfer.infer_adverb Prim.Map (nestedFn.value_type::inputTypes) 
   in 
+  let fnArgType = DynType.FnT(closureTypes, eltTypes, nestedOutputTypes) in 
   let mapNode = { 
     value = Prim (Prim.ArrayOp Prim.Map);
-    value_type = DynType.FnT([], nestedFn.value_type::inputTypes, outputTypes); 
+    value_type = DynType.FnT([], fnArgType::inputTypes, outputTypes); 
     value_src = None
   } 
   in
-  SSA_Codegen.mk_lambda inputTypes outputTypes 
-    (fun codegen inputs outputs -> 
+  let nClosureArgs = List.length closureTypes in 
+
+  SSA_Codegen.mk_lambda (closureTypes @ inputTypes) outputTypes 
+    (fun codegen inputs outputs ->
+      IFDEF DEBUG THEN 
+        Printf.printf 
+          "Generating MAP body with %d closure args and %d total inputs\n"
+           (List.length closureTypes) (List.length inputs)
+        ; 
+      ENDIF; 
+      let closureVar = 
+        if nClosureArgs > 0 then (
+          let closureT = 
+            DynType.FnT(closureTypes, eltTypes, nestedOutputTypes)
+          in   
+          let mkClosureNode = {
+            exp = App(nestedFn, List.take nClosureArgs inputs); 
+            exp_types = [closureT];
+            exp_src = None; 
+          } 
+          in 
+          let closId = codegen#fresh_var closureT in
+          let closVar = 
+            {value=Var closId; value_type=closureT; value_src=None}
+          in  
+          codegen#emit[mk_set [closId] mkClosureNode]; 
+          closVar 
+        )
+        else nestedFn 
+      in  
       let appNode = { 
-        exp = App(mapNode, nestedFn::inputs); 
+        exp = App(mapNode, closureVar::(List.drop nClosureArgs inputs)); 
         exp_types = outputTypes; 
         exp_src = None; 
       } 
@@ -933,18 +1131,22 @@ and specialize_all_pairs
 and specialize_higher_order_array_prim 
     ( interpState : InterpState.t ) 
     ( op  : Prim.array_op ) 
-    ( fnVals : value list )  
+    ( fnVals : (value * Signature.sig_elt list) list )  
     ?( forceOutputTypes : DynType.t list option ) 
     ( inputTypes : DynType.t list)
    : SSA.fundef  =  
+  
   match op, fnVals, inputTypes with 
-  | Prim.Map, [f], _ -> 
-    specialize_map interpState f ?forceOutputTypes inputTypes
+  | Prim.Map, [f,c], _ ->
+    let closureArgTypes = Signature.sig_elts_to_types c in  
+    specialize_map interpState f ?forceOutputTypes closureArgTypes inputTypes
   (* for reduction, split the type of the initial value from the vectors *)
   (* being reduced *)  
-  | Prim.Reduce,  [f], (initType::vecTypes) -> 
+  | Prim.Reduce,  [f,c], (initType::vecTypes) ->
+    let closureArgTypes = Signature.sig_elts_to_types c in   
     specialize_reduce interpState f ?forceOutputTypes initType vecTypes
-  | Prim.AllPairs, [f], [t1; t2] -> 
+  | Prim.AllPairs, [f,c], [t1; t2] -> 
+    let closureArgTypes = Signature.sig_elts_to_types c in  
     specialize_all_pairs interpState f ?forceOutputTypes t1 t2 
   | op, _, types -> failwith $ Printf.sprintf 
       "[specialize] array operator %s not yet implemented for input of type %s"

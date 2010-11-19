@@ -9,3 +9,4 @@ val have_unoptimized : t -> bool
 val get_unoptimized : t -> SSA.fundef 
 val update : SSA.fundef -> t -> unit 
 val get_fundef : t -> SSA.value_node -> SSA.fundef
+val get_arity :  FnId.t -> t -> int 

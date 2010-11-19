@@ -213,7 +213,7 @@ let fold_type_list = function
   | t::ts -> List.fold_left common_type_folder t ts
 
 let fn_closure_types = function 
-  | FnT(closureTypes, _, _) -> closureTypes 
+  | FnT(closureTypes, _, _) -> closureTypes  
   | _ -> failwith "[DynType] fn_closure_types: expected function"
  
 let fn_input_types = function 

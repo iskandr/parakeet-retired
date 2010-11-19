@@ -13,7 +13,7 @@ type adverb_descriptor = {
   (* assumes that all function args are unambiguous references to 
      known typed functions 
   *)    
-  function_arg_ids : ID.t list;  
+  function_arg_ids : FnId.t list;  
   function_arg_types : DynType.t list; 
   data_args : SSA.value_node list;
    
@@ -414,8 +414,10 @@ let process_stmt
      = 
   match stmtNode.stmt with
   | Set (ids, rhs) when exp_is_adverb rhs.exp ->
-      let descriptor = describe stmtNode.stmt in 
-      begin 
+      (
+      try 
+        let descriptor = describe stmtNode.stmt in 
+        begin 
         match 
           find_fusable_pred use_counts descriptor adverb_map producer_map 
         with 
@@ -460,8 +462,11 @@ let process_stmt
                 combinedDescriptor.produces_list
             in  
             adverbMap', producerMap', graveyard', replaced' 
-      end
-          
+        end
+        (* HACK HACK HACK: If we throw an exception, just keep rolling *) 
+        with 
+          | _ -> adverb_map, producer_map, graveyard, replaced
+        )
   | _ -> adverb_map, producer_map, graveyard, replaced 
 
 let rec process_block 

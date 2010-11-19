@@ -73,20 +73,25 @@ and check_exp errorLog tenv (defined : ID.Set.t) (expNode : exp_node) : unit =
       let argTypes = List.map (fun v -> v.value_type) args in
       let fnType = fn.value_type in  
       if DynType.is_function fnType then (
-        let expectedTypes =  DynType.fn_input_types fnType in 
-        if expectedTypes <> argTypes then 
-           err $ sprintf  
-            "type mismatch in function application\n\
-            \t  - expected: %s\n\t  - received: %s"
-            (DynType.type_list_to_str expectedTypes)
-            (DynType.type_list_to_str argTypes)
-        ;
-        let retTypes = DynType.fn_output_types fnType in 
-        if retTypes <> expNode.exp_types then 
-          err $ sprintf 
-            "function returns %s but context expects to receive %s"
-            (DynType.type_list_to_str retTypes)
-            (DynType.type_list_to_str expNode.exp_types)
+        let expectedTypes =  DynType.fn_input_types fnType in
+        (* HACK: ignore the case where there are too few args so our primitive
+           closure implementation doesn't break 
+        *) 
+        if List.length expectedTypes <= List.length argTypes then (
+          if expectedTypes <> argTypes then 
+            err $ sprintf  
+              "type mismatch in function application\n\
+              \t  - expected: %s\n\t  - received: %s"
+              (DynType.type_list_to_str expectedTypes)
+              (DynType.type_list_to_str argTypes)
+            ;
+          let retTypes = DynType.fn_output_types fnType in 
+          if retTypes <> expNode.exp_types then 
+            err $ sprintf 
+              "function returns %s but context expects to receive %s"
+              (DynType.type_list_to_str retTypes)
+              (DynType.type_list_to_str expNode.exp_types)
+        )
       )
       else err $  
              sprintf "expected a function type, received: %s"

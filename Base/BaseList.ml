@@ -41,3 +41,10 @@ include ExtList.List
       | _ -> failwith "map3 - mismatched list lengths" 
 
   let sum xs = fold_left (+) 0 xs 
+  
+  let rec drop n lst = 
+    if n = 0 then lst else drop (n-1) (tl lst)
+    
+  let rec take ?(acc=[]) n lst = 
+    if n = 0 then rev acc
+    else take ~acc:((hd lst)::acc) (n-1) (tl lst)

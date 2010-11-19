@@ -4,11 +4,14 @@ open Base
 type t = {
   fundefs: (FnId.t, SSA.fundef) Hashtbl.t;
   unoptimized_queue : FnId.t Queue.t;
+  arities : (FnId.t, int) Hashtbl.t; 
 }
 
 let add ?(opt_queue=true) fundef cache =
   let id = fundef.SSA.fn_id in 
   Hashtbl.add cache.fundefs id fundef;
+  let arity = List.length fundef.SSA.input_ids in
+  Hashtbl.add cache.arities id arity;  
   if opt_queue then Queue.add id cache.unoptimized_queue 
   
 let find id cache = Hashtbl.find cache.fundefs id  
@@ -22,7 +25,8 @@ let mem id cache = Hashtbl.mem cache.fundefs id
 
 let create (n : int) : t = { 
   fundefs = Hashtbl.create n; 
-  unoptimized_queue = Queue.create ()
+  unoptimized_queue = Queue.create ();
+  arities = Hashtbl.create n; 
 } 
 
 let from_list (fns :  SSA.fundef list) : t = 
@@ -36,7 +40,9 @@ let get_unoptimized cache =
   IFDEF DEBUG THEN assert (have_unoptimized cache); ENDIF;  
   let id = Queue.pop cache.unoptimized_queue in 
   find id cache  
-    
+
+let get_arity fnId cache  = Hashtbl.find cache.arities fnId 
+  
 let update fundef cache = 
   let id = fundef.SSA.fn_id in 
   IFDEF DEBUG THEN
