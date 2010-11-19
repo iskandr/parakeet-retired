@@ -308,59 +308,54 @@ The use of boxed or indirectly accessed data leads to unstructured memory access
 \end{itemize}
 
 \section{Typed Intermediate Language}
-In order to satisfy the above limitation it is necessary to eliminate as much indirection and abstraction as possible. Simultaneously, however, there can be tremendous performance benefits to performing high level optimizations using the algebraic properties of array operators. If we can combine array operations (or eliminate them altogether), that will prevent us from launching costly GPU computations or materializing large array-valued temporaries. Thus, our intermediate language must serve as a compromise between competing tensions: it must be sufficiently concrete to simplify later translation into very low-level code but also abstract enough to facilitate fusion optimizations.  \\
+There is a significant mismatch between the highly dynamic expressiveness of an array language like Q and the limitations imposed by GPU hardware. In order to translate array programs into efficient GPU code it is necessary to eliminate as much abstraction as possible. Conversely, we must be careful to not make our program representation overly concrete with regard to evaluation order (and thus erase opportunities for parallelism). Thus, our intermediate language must serve as a compromise between competing tensions: it must be sufficiently concrete to allow simple translation in an abstraction-poor GPU programs but abstract enough to facilitate parallelization. 
 
-The portion of a user's program which Parakeet executes is represented internally as flat sequence of non-recursive function definitions. 
-We take inspiration from \cite{Bol09} and allow functions to both accept and return multiple values. This feature both supports optimization (by simplifying the specification of flattening and fusion transformations) and naturally models the simultaneous creation of multiple values on the GPU. By convention we will write $\overline{\tau_m}$ to denote a sequence of $m$ simple types, $\overline{v_n}$ for a sequence  of $n$ values, etc.. A single element is equivalent to a sequence of length 1 and sequences may be concatenated via juxtaposition, such that $\tau, \overline{\tau_n} = \overline{\tau_{m+1}}$. 
+In service of compatibility with GPU hardware restrictions we disallow polymorphism of all kinds, recursion, user-specified higher-order functions and any compound data types except for arrays. These restrictions are not necessarily as severe as they initially seem, since the programmer's code is transparently specialized and rewritten into this restricted form without their awareness. We explain in greater detail the specialization algorithm later in this paper.
 
-Salient features of our intermediate language. 
+The abstraction we prefer to maintain is the use of the higher order array operators $\MAP$, $\REDUCE$, and $SCAN$. These operators are important since they are 
+the only constructs in our language which we attempt to parallelize. They also form a higher-order island in a first-order language and thus we elevate them into primitive syntax. 
+
+We take inspiration from \cite{Bol09} and allow functions to both accept and return multiple values. This feature simplifies the specification of certain optimization and naturally models the simultaneous creation of multiple values on the GPU. By convention we will write $\overline{\tau_m}$ to denote a sequence of $m$ simple types, $\overline{v_n}$ for a sequence  of $n$ values, etc.. A single element is equivalent to a sequence of length 1 and sequences may be concatenated via juxtaposition, such that $\tau, \overline{\tau_n} = \overline{\tau_{m+1}}$. 
+
+
+  \begin{tabular}{m{0.1cm}m{1.5cm}m{0.1cm}m{0.2cm}p{4.8cm}}
+   \multicolumn{5}{l}{\textbf{Intermediate Language Syntax}}  \\[4pt]
+  & program & $p$ &  $\bnfdef$   &  $d_1 \cdots d_n $ \\[4pt]
+  & definition & $d$ & $\bnfdef$ & $f_i(\overline{x_m} : \overline{\tau_m}) \rightarrow (\overline{y_n} : \overline{\tau_n}) =s^{\small{+}}$ \\[4pt]
+  & statement  & $s$ & $\bnfdef$ & $\overline{x_m} : \overline{\rho_m} = e $\\[2pt]
+  &            &     & $\sep$    & $\IF \;v\; \THEN \;s^*\; \ELSE \;s^*$ \\[2pt]
+  &            &     & $\sep$    & $\WHILE \;e\; \DO \;s^+\;  $ \\[4pt]
+  & expression & $e$ & $\bnfdef$ & $ v_{f}(v_1, \ldots, v_m)$ \\[2pt]
+  &            &     & $\sep$    & $\textrm{values} (\overline{v_m})$ \\[2pt]
+  &            &     & $\sep$    & $\textrm{cast} \; (v, \tau)$ \\[2pt] 
+  &            &     & $\sep$    & $\MAP_m (v_{f},\overline{v_m})$ \\[2pt]
+  &            &     & $\sep$    & $\REDUCE_m (v_{f}, v_{g}, v_{init}, \overline{v_m})$ \\[2pt]
+  &            &     & $\sep$    & $\SCAN_m (v_{f}, v_{g}, v_{init}, \overline{v_m})$ \\[4pt]
+  & value      & $v$ & $\bnfdef$ & numeric constant\\[2pt]
+  &            &     & $\sep$    &  $x$  \quad \small{(data variable)} \\[2pt]
+  &            &     & $\sep$    &  $f$  \quad \small{(function label)} \\[2pt]
+  &            &     & $\sep$    &  $\oplus$ \quad \small{(scalar operator)} \\[2pt]
+  &            &     & $\sep$    &  $a$ \quad \small{(simple array operator)} \\[4pt]
+  \end{tabular}\\
+  \begin{tabular}{m{0.005cm}m{1.8cm}m{0.05cm}m{0.2cm}p{4.8cm}}
+  \multicolumn{5}{l}{\textbf{Type System}} \\[4pt]
+  & data     & $\tau$    & $\bnfdef$ & $int \sep float \sep \mathbf{vec} \; \tau   $ \\[4pt]
+  & closures        & $\rho$  & $\bnfdef$ & $\{f_i, \overline{\tau_{c}} \} \Rightarrow \overline{\tau_m} \rightarrow \overline{\tau_n}$\\[2pt]
+  &                 &           & $\sep$    & $\tau$ \\[4pt]
+  & higher-order    & $\theta$  & $\bnfdef$ & $\overline{\rho_m} \rightarrow \overline{\rho_n} $ \\[4pt]
+  \end{tabular}
+
+Scalar operators include the usual boolean operations, scalar and floating point arithmetic, whereas examples of simple array operators include indexing, replication, and inspecting an array's shape. 
+
+Salient features of our intermediate language: 
 \begin{itemize}
 \item If one wishes to translate higher order functions into Parakeet, then it must be possible to specialize away all higher order arguments. 
 There are situations where exhaustive specialization is not possible (e.g. combinator libraries) which we do not attempt to execute. Since Parakeet augments (but does not replace) the interpreter of its source language we are free to disallow certain language constructs. 
 
-\item It is important to note that we can still represent function values within our intermediate language (which are created by partial application of top-level functions). Since user functions cannot, however, be higher-order then function values are used exclusively to parameterize higher-order primitive array operators. 
+\item It is important to note that we can still represent function values within our intermediate language (which are created by partial application of top-level functions). Since user functions cannot themselves accept other functions as arguments the only purpose for function values is to parameterize the $\MAP$, $\SCAN$, and $\REDUCE$ primitives. 
 
-\item It is also worth highlighting the curious nature of the type we assign to function values: $\overline{\tau_c} \Rightarrow \overline{\tau_m} \rightarrow \overline{\tau_n}$. The types occurring before the double arrow ($\overline{\tau_c}$) represent the types of partially applied function arguments. By using a flattened explicit closure type (in place of the more common opaque or existential type) we facilitate efficient passing of closure arguments to the GPU. Our treatment of functions can be seen as equivalent to defunctionalization~\cite{Reynolds} followed by exhaustive specialization of closure records (as well as arity raising to turn closure tuples into distinct arguments). We avoid the need for actually performing this sequence of global optimizations by simply disallowing any code which necessitates an abstract closure representation. The details and implications of this restriction are enumerated below. 
-\end{itemize} 
-
-We draw attention to the types of closures, which are explicitly annotated with the types of their closed-over arguments. If one wished to arrive at this 
-\begin{itemize}
-\item It is worth noting that the programmer is limited to defining values with first-order types (data or functions which neither accept nor return function values). It is, however, possible to make use of primitive second-order operators such as $\mathbf{map}$ and $\mathbf{reduce}$. 
-\item The accepted typing of closures involves existential types [find citation for typed closure conversion?], which are commonly implemented via boxing. Since our desire is to compile down to a final program without boxed values we instead annotate closures with the types of their implicitly carried arguments. This information is later used to transform closure invocation into a direct function call. 
-
-\end{itemize}
-\begin{tabular}{m{0.1cm}m{1.5cm}m{0.1cm}m{0.2cm}p{4.8cm}}
- \multicolumn{5}{l}{\textbf{Intermediate Language Syntax}}  \\[4pt]
-& program & $p$ &  $\bnfdef$   &  $d_1 \cdots d_n $ \\[4pt]
-& definition & $d$ & $\bnfdef$ & $f_i(\overline{x_m} : \overline{\tau_m}) \rightarrow (\overline{y_n} : \overline{\tau_n}) =s^{\small{+}}$ \\[4pt]
-& statement  & $s$ & $\bnfdef$ & $\overline{x_m} : \overline{\rho_m} = e $\\[2pt]
-&            &     & $\sep$    & $\IF \;v\; \THEN \;s^*\; \ELSE \;s^*$ \\[2pt]
-&            &     & $\sep$    & $\WHILE \;e\; \DO \;s^+\;  $ \\[4pt]
-& expression & $e$ & $\bnfdef$ & $ v_{f}(v_1, \ldots, v_m)$ \\[2pt]
-&            &     & $\sep$    & $\textrm{values} (\overline{v_m})$ \\[2pt]
-&            &     & $\sep$    & $\textrm{cast} \; (v, \tau)$ \\[2pt] 
-&            &     & $\sep$    & $\MAP_m (v_{f},\overline{v_m})$ \\[2pt]
-&            &     & $\sep$    & $\REDUCE_m (v_{f}, v_{g}, v_{init}, \overline{v_m})$ \\[2pt]
-&            &     & $\sep$    & $\SCAN_m (v_{f}, v_{g}, v_{init}, \overline{v_m})$ \\[4pt]
-& value      & $v$ & $\bnfdef$ & numeric constant\\[2pt]
-&            &     & $\sep$    &  $x$  \quad \small{(data variable)} \\[2pt]
-&            &     & $\sep$    &  $f$  \quad \small{(function label)} \\[2pt]
-&            &     & $\sep$    &  $\oplus$ \quad \small{(scalar operator)} \\[2pt]
-&            &     & $\sep$    &  $a$ \quad \small{(simple array operator)} \\[4pt]
-\end{tabular}
-\begin{tabular}{m{0.005cm}m{1.8cm}m{0.05cm}m{0.2cm}p{4.8cm}}
-\multicolumn{5}{l}{\textbf{Type System}} \\[4pt]
-& data     & $\tau$    & $\bnfdef$ & $int \sep float \sep \mathbf{vec} \; \tau   $ \\[4pt]
-& closures        & $\rho$  & $\bnfdef$ & $\overline{\tau_{c}} \Rightarrow \overline{\tau_m} \rightarrow \overline{\tau_n}$\\[2pt]
-&                 &           & $\sep$    & $\tau$ \\[4pt]
-& higher-order    & $\theta$  & $\bnfdef$ & $\overline{\rho_m} \rightarrow \overline{\rho_n} $ \\[4pt]
-\end{tabular}
-Scalar operators include the usual boolean operations, scalar and floating point arithmetic, whereas examples of simple array operators include indexing, replication, and inspecting an array's shape. 
-\\TODO: 
-\begin{itemize}
-\item Gated SSA (reference to Program Dependence Web?), explain gates in one sentence. 
-\item Mention that $\MAP$ and friends are actually a family of operators parameterized by arity. 
-\item What to do with reduce? The stream idea is wonky and not included in the type system. 
+\item It is also worth highlighting the curious nature of the type we assign to function values: 
+$ \{ f_i, \overline{\tau_{c}} \} \Rightarrow \overline{\tau_m} \rightarrow \overline{\tau_n}$.  The terms occurring before the double arrow ($\{f_i, \overline{\tau_{c}} \}$) represent both the function label of a closure and the types of partially applied function arguments. We attach this information to a closure's type to facilitate efficient passing of closure arguments to the GPU and avoid any actual indirection which might otherwise be associated with function invocation. The need to statically determine a function label for any closure places a serious restriction on which programs Parakeet can compile. We must reject any code wherein one of multiple functions may be executed at a program point, depending on some dynamic conditions. 
 \end{itemize} 
 
 
@@ -684,42 +679,24 @@ In order to test the effects of our dynamic tuning optimizations,
 
 \section{Related Work}
 \label{RelatedWork}
+The use of graphics hardware for non-graphical computation has a long history~\cite{Lengyel90}, though convenient frameworks for general purpose GPU programming have only recently emerged.
+The first prominent GPU backend for a general purpose language was ``Brook for GPUs'' \cite{Buck04}. The Brook language extended C with "kernels" and "streams", exposing a programming model similar to what is now found in CUDA and OpenCL. 
 
-% ALEX: put the skeletons and vaguely related stuff first and then focus on Nikola, Accelerate and Copperhead? 
-Our approach is very similar in spirit to that of the skeletal programming
-community \cite{Cole04}.  We both seek to use generic parallel programming
-constructs which capture most of the common parallel patterns in a concise and
-easy-to-use language.  
+Microsoft's Accelerator\cite{Tard06} was the first project to use high level (collection-oriented) language constructs as a basis for GPU execution. 
+Accelerator is a declarative GPU language embedded in C\# which creates a directed acyclic graph of LINQ operations--such as filtering, grouping, and joining--and compiles them to
+(pre-CUDA) shader programs. Accelerator's programming model does not support function abstractions (only expression trees) and its only underlying parallelism construct is limited to the production of $\MAP$-like kernels. 
 
-%ALEX: I like the idea of a chronological presentation: Vertigo, Accelerator, Accelerator, Nikola, Copperhead
-There has also been other work directed specifically at raising the level of
-abstraction above that of CUDA and OpenCL for doing GPGPU programming.  Conal
-Elliot's Vertigo \cite{Elli04} was a declarative parallel language embedded in
-Haskell which was used for GPGPU programming.  It was designed for older GPUs
-(pre-CUDA), and only parallelized map computations (not handling, for example,
-parallel reductions or all-pairs type computations).  Microsoft's Accelerator
-\cite{Tard06} is a declarative GPU language embedded in C\# which creates a
-directed acyclic graph of LINQ operations--a collection of common data querying
-operations such as filtering, grouping, and joining--and compiles them to
-(pre-CUDA) shader programs.  
+Three more recent projects all translate domain specific embedded array languages to CUDA backends: 
+\begin{itemize}
+\item \textbf{Nikola}~\cite{Main10} is a first-order array-oriented language embedded within Haskell. Nikola provides a convenient syntax for expressing single-kernel computations, but requires the programmer to manually coordinate computations which require multiple kernel launches. Nikola also does not support partially applied functions and its parallelization scheme, which first serializes array operators into loops and then parallelizes loop iterations, seems ill-suited for complex array operations. 
 
-Our work is most closely related to Copperhead \cite{Cata10}, which also
-uses data parallel operators to dynamically compile a high level language into
-GPU programs. Where we explicitly specialize functions to uncover unboxed
-representations, Copperhead reuses the machinery of C++ templates for
-specialization. Furthermore, where we have created our own GPU kernel 
-templates within the Imp DSL, Copperhead calls into the data parallel operators
-of the Thrust library for C++. Extensive reliance on a C++ backend is a
-double-edged sword, invocation of C++ template compilations can result in
-unfavorably long delays at runtime. Unlike Copperhead, Parakeet does not require
-the programmer to specify their computation in a purely functional manner.
-Our system allows for both looping and variable reassignment. The
-only restriction is that a function must be both referentially transparent and
-shapely in order to run on the GPU when passed to an array operator (otherwise
-in runs on the CPU). Furthermore, we do not expect the programmer to code
-directly in our intermediate language, but rather perform an initial
-specialization phase which desugars a more expressive untyped language (for
-example, turning array arithmetic into explicit maps). 
+\item \textbf{Accelerate}~\cite{ChakAcc} is also an embedded array language within Haskell. Unlike Nikola, Accelerate does allow the expression of computations which span multiple kernel launches. Accelerate also has a much richer set of array operators (including the higher order trio $\MAP$, $\REDUCE$, $\SCAN$). Accelerate, however, does not seem to support closures or the nesting of array operators. Accelerate's backend is similar to ours in that they use a simple interpreter whose job is to initiate skeleton-based kernel compilation, transfer data to and from the GPU, and to perform simple CPU-side computations. 
+
+\item \textbf{Copperhead}~\cite{Cata10} parallelizes a statically typed purely functional array subset of Python through the dynamic compilation/execution of CUDA kernels. Copperhead supports nested array computations, and even has a sophisticated notion of where these computations can be scheduled. In addition to sequentializing nested array operators within CUDA kernels (as done in Parakeet), Copperhead can also share the work of a nested computation between all the threads in CUDA block. Unfortunately, Copperhead does not utilize any dynamic information (such as size) when making these scheduling decisions and thus must rely on user annotations. Copperhead's compiler generates kernels through parameterization of operator-specific C++ template classes. By using C++ as their backend target, Copperhead has been able to easily integrate the Thrust ~\cite{Hobe10} GPGPU library and to offload the bulk of their 
+code optimizations onto a C++ compiler. Runtime generation of templated C++ can, however, be a double-edged sword. Copperhead experiences the longest compile times of any project mentioned here (orders of magnitude longer than the compiler overhead of Parakeet). 
+\end{itemize} 
+Unlike the three approaches mentioned above, Parakeet does not require its source language to be purely functional nor statically typed. Being able to program in a dynamically typed language seems particularly important for array computations, since static type systems are generally unable to support the syntactic conveniences which make array programming appealing in the first place. 
+
 \section{Conclusion}
 \label{Conclusion}
 

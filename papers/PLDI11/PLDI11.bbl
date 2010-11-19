@@ -28,11 +28,22 @@
 \newblock {\em Q For Mortals: A Tutorial In Q Programming}.
 \newblock CreateSpace, 2008.
 
+\bibitem{Buck04}
+{\sc Buck, I., Foley, T., Horn, D., Sugerman, J., Fatahalian, K., Houston, M.,
+  and Hanrahan, P.}
+\newblock Brook for {GPU}s: stream computing on graphics hardware.
+\newblock In {\em ACM SIGGRAPH 2004 Papers\/} (New York, NY, USA, 2004),
+  SIGGRAPH '04, ACM, pp.~777--786.
+
 \bibitem{Cata10}
 {\sc Catanzaro, B., Garland, M., and Keutzer, K.}
 \newblock Copperhead: Compiling an embedded data parallel language.
 \newblock Tech. Rep. UCB/EECS-2010-124, EECS Department, University of
   California, Berkeley, Sep 2010.
+
+\bibitem{ChakAcc}
+{\sc Chakravarty, M.~M., Keller, G., Lee, S., McDonnel, T.~L., and Grover, V.}
+\newblock Accelerating haskell array codes with multicore gpus.
 
 \bibitem{Che09}
 {\sc Che, S., Boyer, M., Meng, J., Tarjan, D., Sheaffer, J., Lee, S.-h., and
@@ -41,17 +52,16 @@
 \newblock In {\em Proceedings of the IEEE International Symposium on Workload
   Characterization (IISWC)\/} (October 2009), pp.~44--54.
 
-\bibitem{Cole04}
-{\sc Cole, M.}
-\newblock Bringing skeletons out of the closet: A pragmatic manifesto for
-  skeletal parallel programming.
-\newblock {\em Parallel Computing 30}, 3 (2004), 389--406.
+\bibitem{feng10}
+{\sc Feng, W.-c., and Xiao, S.}
+\newblock {To GPU Synchronize or Not GPU Synchronize?}
+\newblock In {\em IEEE International Symposium on Circuits and Systems
+  (ISCAS)\/} (Paris, France, May 2010).
 
-\bibitem{Elli04}
-{\sc Elliot, C.}
-\newblock Programming graphics processors functionally.
-\newblock In {\em Proceedings of the 2004 Haskell Workshop\/} (2004), ACM
-  Press.
+\bibitem{Hobe10}
+{\sc Hoberock, J., and Bell, N.}
+\newblock Thrust: A parallel template library, 2010.
+\newblock Version 1.3.0.
 
 \bibitem{feng10}
 {\sc Feng, W.-c., and Xiao, S.}
@@ -84,6 +94,12 @@
 \newblock Master's thesis, Computer Science Dept., University of Illinois at
   Urbana-Champaign, Urbana, IL, Dec 2002.
 \newblock {\em See {\tt http://llvm.cs.uiuc.edu}.}
+
+\bibitem{Lengyel90}
+{\sc Lengyel, J., Reicher, M., Donald, B.~R., and Greenberg, D.~P.}
+\newblock Real-time robot motion planning using rasterizing computer graphics
+  hardware.
+\newblock In {\em In Proc. SIGGRAPH\/} (1990), pp.~327--335.
 
 \bibitem{Main10}
 {\sc Mainland, G., and Morrisett, G.}
