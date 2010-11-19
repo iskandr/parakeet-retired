@@ -604,16 +604,20 @@ of code.  Both the CPU and GPU benchmark version come from the Rodinia
 benchmark suite \cite{Che09}.
 
 Our experimental setup is as follows.  We ran the CPU benchmarks on a machine
-with 3 Intel Nehalem 2.67GHz X5650 4-core CPUs (for a total of 12 cores) with
-24GB of RAM.  The peak throughput of this machine is thus 32GLOP/s, and it has
-a peak memory bandwidth of 32GB/s.
+with an Intel Nehalem 2.67GHz X5550 4-core CPU with 24GB of RAM.  The
+theoretical peak throughput of this machine is 85.12 GFLOP/s, and it has a
+theoretical peak memory bandwidth of 32GB/s.  A key metric for comparing CPUs
+to GPUs is also performance per dollar.  At a current market rate of roughly
+\$983, the Nehalem has a peak of 0.087 GFLOP/s per dollar.
 
 For all GPU benchmarks, we ran the programs on both an NVIDIA GTX2XX and an
 NVIDIA GTX460.  The GTX2XX has 240 processor cores with clock speeds of
 Y.YY GHz and YMB of memory, with peak execution throughput of Y.YY GFLOP/s and
 peak memory bandwidth of Y.YY GB/s.  The GTX460 has 336 processor cores with
 clock speeds of 1.35GHz and 1GB of memory, and has a peak execution throughput
-of 907 GFLOP/s and a peak memory bandwidth of 115.2 GB/s.
+of 907 GFLOP/s and a peak memory bandwidth of 115.2 GB/s.  At a current market
+price of roughly \$160, the GTX460 has a peak of 5.67 GFLOP/s per dollar--65
+times that of the Nehalem.
 
 For our Parakeet benchmarks, the desktop system we used had a BLAH processor
 with BLAH specs.
@@ -626,7 +630,9 @@ consists of simply running thousands of independent threads in parallel for
 computing the prices of thousands of options.
 
 We compare our system against the multithreaded OpenMP CPU implementation
-from the PARSEC \cite{Bien08} benchmark suite for 1 to 12 threads and 
+from the PARSEC \cite{Bien08} benchmark suite for both 1 and 4 threads.
+
+\subsection{K-Means Clustering}
 
 
 \subsection{Dynamic Tuning}
@@ -653,19 +659,23 @@ directed acyclic graph of LINQ operations--a collection of common data querying
 operations such as filtering, grouping, and joining--and compiles them to
 (pre-CUDA) shader programs.  
 
-Our work is most closely related to Copperhead \cite{Cata10}, which also uses data parallel
-operators to dynamically compile a high level language into GPU programs. Where we explicitly
-specialize functions to uncover unboxed representations, Copperhead reuses the machinery 
-of C++ templates for specialization. Furthermore, where we have created our own GPU kernel 
-templates within the Imp DSL, Copperhead calls into the data parallel operators of the Thrust
-library for C++. Extensive reliance on a C++ backend is a double-edged sword, invocation of
-C++ template compilations can result in unfavorably long delays at runtime. Unlike Copperhead,
-Parakeet does not require the programmer to specify their computation in a purely functional manner.
-Our system allows for both looping and variable reassignment. The only restriction is that a function
-must be both referentially transparent and shapely in order to run on the GPU when passed to an array
-operator (otherwise in runs on the CPU). Furthermore, we do not expect the programmer to code directly
-in our intermediate language, but rather perform an initial specialization phase which desugars
-a more expressive untyped language (for example, turning array arithmetic into explicit maps). 
+Our work is most closely related to Copperhead \cite{Cata10}, which also
+uses data parallel operators to dynamically compile a high level language into
+GPU programs. Where we explicitly specialize functions to uncover unboxed
+representations, Copperhead reuses the machinery of C++ templates for
+specialization. Furthermore, where we have created our own GPU kernel 
+templates within the Imp DSL, Copperhead calls into the data parallel operators
+of the Thrust library for C++. Extensive reliance on a C++ backend is a
+double-edged sword, invocation of C++ template compilations can result in
+unfavorably long delays at runtime. Unlike Copperhead, Parakeet does not require
+the programmer to specify their computation in a purely functional manner.
+Our system allows for both looping and variable reassignment. The
+only restriction is that a function must be both referentially transparent and
+shapely in order to run on the GPU when passed to an array operator (otherwise
+in runs on the CPU). Furthermore, we do not expect the programmer to code
+directly in our intermediate language, but rather perform an initial
+specialization phase which desugars a more expressive untyped language (for
+example, turning array arithmetic into explicit maps). 
 \section{Conclusion}
 \label{Conclusion}
 
