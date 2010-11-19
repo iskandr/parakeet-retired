@@ -11,7 +11,7 @@ type grid_params = {
   grid_y    : int;
 }
 
-type gpu_arg = GpuScalarArg of PQNum.num | GpuArrayArg of Int32.t * int
+type gpu_arg = GpuScalarArg of PQNum.num | GpuArrayArg of Int64.t * int
 
 external cuda_init : unit -> unit = "ocaml_pq_init"
 

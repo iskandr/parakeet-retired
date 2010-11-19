@@ -4,11 +4,11 @@ open HostVal
 open Cuda 
 
 type gpu_vec = {
-  vec_ptr: Int32.t;
+  vec_ptr: Int64.t;
   vec_nbytes : int;
   vec_len : int;
 
-  vec_shape_ptr: Int32.t;
+  vec_shape_ptr: Int64.t;
   vec_shape_nbytes: int;
 
   vec_shape : Shape.t;
@@ -18,7 +18,7 @@ type gpu_vec = {
      then note the start pointer to avoid calling
      free twice and assist garbage collection 
   *)  
-  vec_slice_start: Int32.t option; 
+  vec_slice_start: Int64.t option; 
 }
 
 type gpu_val = GpuScalar of PQNum.num | GpuArray of gpu_vec
@@ -86,6 +86,7 @@ let mk_gpu_vec ?nbytes ?len ty shape =
        len * eltSize 
     | Some n -> n 
   in
+  IFDEF DEBUG THEN Printf.printf "Making GPU vec of %d bytes\n" nbytes; ENDIF;
   let outputPtr = cuda_malloc nbytes in
 
   let shapePtr, shapeSize = shape_to_gpu shape in
@@ -109,9 +110,14 @@ let sizeof = function
 let to_gpu ?prealloc = function 
   | HostScalar n -> GpuScalar n
   | HostArray { ptr=ptr; host_t=host_t; shape=shape; nbytes=nbytes } ->
-    let gpuPtr = match prealloc with 
-      | None -> cuda_malloc nbytes 
-      | Some ptr -> ptr 
+    let gpuPtr = match prealloc with
+      | None -> (
+        IFDEF DEBUG THEN
+          Printf.printf "to_gpu for %d bytes\n" nbytes;
+          flush stdout;
+        ENDIF;
+        cuda_malloc nbytes)
+      | Some ptr -> ptr
     in 
     cuda_memcpy_to_device ptr gpuPtr nbytes;
     let shapeDevPtr, shapeBytes = shape_to_gpu shape in
@@ -170,10 +176,10 @@ let get_slice gpuVal idx = match gpuVal with
       let nelts =  Shape.nelts sliceShape in 
       let sliceBytes = bytesPerElt * nelts in
       let sliceInfo = { 
-          vec_ptr = Int32.add arr.vec_ptr (Int32.of_int (sliceBytes * idx));  
+          vec_ptr = Int64.add arr.vec_ptr (Int64.of_int (sliceBytes * idx));  
           vec_nbytes = sliceBytes; 
           vec_len = nelts; 
-          vec_shape_ptr = Int32.add arr.vec_shape_ptr (Int32.of_int 4); 
+          vec_shape_ptr = Int64.add arr.vec_shape_ptr (Int64.of_int 4); 
           vec_shape_nbytes = arr.vec_shape_nbytes - 4; 
           vec_shape = sliceShape; 
           vec_t = sliceType;
@@ -181,4 +187,3 @@ let get_slice gpuVal idx = match gpuVal with
       }
       in 
       GpuArray sliceInfo  
-

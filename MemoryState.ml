@@ -110,7 +110,7 @@ let get_gpu memState = function
       let destVal = GpuVal.mk_gpu_vec (DynType.VecT eltType) finalShape in
       let destPtr = GpuVal.get_ptr destVal in 
       for i = 0 to nrows - 1 do 
-        let currPtr = Int32.add destPtr (Int32.of_int $ i * eltSize) in 
+        let currPtr = Int64.add destPtr (Int64.of_int $ i * eltSize) in 
         match arr.(i) with 
           | InterpVal.Scalar (PQNum.Int32 i32) -> 
               Cuda.cuda_set_gpu_int32_vec_elt currPtr 0 i32 

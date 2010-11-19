@@ -2,11 +2,11 @@ open Base
 open HostVal
 
 module HostPtr = Int64 
-module GpuPtr = Int32
+module GpuPtr = Int64
 module CuCtxPtr = Int64
 module CuChanFormatDesc = Int64
 module CuModulePtr = Int64
-module CuTexRef = Int32
+module CuTexRef = Int64
 
 type device_info = {
   max_threads_per_block : int;

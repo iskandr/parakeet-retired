@@ -176,7 +176,7 @@ CAMLprim value ocaml_pq_launch_ptx (
 
     if (Tag_val(ocaml_gpu_arg) == PQNUM_GPU_ARRAY_ARG) {
       // Pull out the pointer and pass it up
-      ptr_arg = (void*)Int32_val(Field(ocaml_gpu_arg, PQNUM_GPU_ARRAY_ARG_PTR));
+      ptr_arg = (void*)Int64_val(Field(ocaml_gpu_arg, PQNUM_GPU_ARRAY_ARG_PTR));
       ALIGN_UP(offset, sizeof(void*));
       result = cuParamSetv(cuFunc, offset, &ptr_arg, sizeof(void*));
       if (result != 0) {

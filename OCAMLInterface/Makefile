@@ -71,7 +71,7 @@ INCLUDES  += -I. -I$(CUDA_INSTALL_PATH)/include -I$(COMMONDIR)/inc
 INCLUDES  += -I/usr/lib/ocaml -I../CQInterface
 
 # architecture flag for cubin build
-CUBIN_ARCH_FLAG := -m32
+CUBIN_ARCH_FLAG := -m64
 
 # Warning flags
 CXXWARN_FLAGS := \

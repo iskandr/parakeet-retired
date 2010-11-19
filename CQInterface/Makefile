@@ -1,5 +1,5 @@
 BUILDPATH = ../_build
-CFLAGS = -Wall -m32 -O3
+CFLAGS = -Wall -O3
 LDFLAGS = -lpthread -lm -lrt
 CC = gcc
 DEBUG =
