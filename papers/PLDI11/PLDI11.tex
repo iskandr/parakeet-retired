@@ -189,7 +189,7 @@ and GPU garbage collection are handled transparently by Parakeet.
 
 
 
-\section{Q: A High-Level Array Language}
+\section{Q: A High Level Array Language}
 \label{Q}
 
 While we emphasize that the Parakeet framework is built to be agnostic to source
@@ -274,9 +274,20 @@ arity.  Further array built-ins used in K-Means include \texttt{sum},
 In this algorithm we also see a number of higher-order data-parallel function
 modifier keywords, which Q calls \emph{adverbs}.  For example, the \texttt{each}
 keyword modifies a function by applying it elementwise to its argument.  In the
-\texttt{calc\_centroids} function, we calculate the using \texttt{each} to apply
-the \texttt{calc\_centroid} function to a list of integers from \texttt{0} to
-\texttt{k-1}.
+\texttt{calc\_centroids} function, we calculate each cluster's new centroid
+by using \texttt{each} to apply the \texttt{calc\_centroid} function to a
+list of integers from \texttt{0} to \texttt{k-1}.  The other adverb used in
+K-Means is what we call \emph{all-pairs}, written `\texttt{/:\char`\\:}'.
+(Technically all-pairs is a combination of two adverbs in Q--each-left and
+each-right.) All-pairs modifies a binary function and applies it to each
+pairs of elements from two input arrays.  We use all-pairs to apply the
+\texttt{dist} function to each pair of data point and centroid to calculate all
+the needed distances for reassigning the centroids.
+
+As one can see, one is able to write compact and high level programs in Q
+that manipulate arrays.  The CUDA implementation of K-Means in the Rodinia
+benchmark suite is hundreds of lines of code long--our Q version is only 17,
+and it could have been written even more compactly.
 
 It is maybe worth pointing out that Q's representation of arrays is as vectors
 of vectors, not as native multi-dimensional arrays?
