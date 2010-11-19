@@ -50,7 +50,7 @@ class ptx_codegen = object (self)
 
   method is_shared_ptr = function 
     | PtxVal.Sym {id=id} -> Hashtbl.mem sharedDims id
-    | _ -> false   
+    | _ -> false
   
   method get_shared_dims = function
     | PtxVal.Sym{id=id} ->
@@ -94,10 +94,6 @@ class ptx_codegen = object (self)
   (* TEXTURE REFERENCES *)
   val textures: (Ptx.symid * PtxType.ty) DynArray.t = DynArray.create ()
   method private add_tex_decl id newTex = DynArray.add textures (id, newTex)
-  
-  method is_tex = function
-    | PtxVal.Sym {space=TEX} -> true
-    | _ -> false
 
   (* number of registers currently allocated for every type *)
   val maxRegs : (PtxType.ty, int) Hashtbl.t =  Hashtbl.create initialNumRegs
@@ -138,17 +134,39 @@ class ptx_codegen = object (self)
       | Some r -> r
       | None -> failwith $ 
           "[PtxCodegen] Unable to find rank: PTX value " ^ 
-          (PtxVal.to_str symbols arrayPtr) ^ " not registered as a global array" 
+          (PtxVal.to_str symbols arrayPtr) ^ " not registered as a global array"
   
   method is_global_array_ptr = function 
-    | PtxVal.Sym {id=id} -> Hashtbl.mem globalArrayRanks id 
-    | _ -> false 
+    | PtxVal.Sym {id=id} -> Hashtbl.mem globalArrayRanks id
+    | _ -> false
+  
+  val texRefs : (PtxVal.symid, PtxVal.value) Hashtbl.t =
+    Hashtbl.create initialNumRegs
+  
+  method get_tex_ref (texPtr : PtxVal.value) =
+    match Hashtbl.find_option texRefs (PtxVal.get_id texPtr) with
+      | Some texRef -> texRef
+      | None -> failwith $ 
+          "[PtxCodegen] Unable to find rank: PTX value " ^ 
+          (PtxVal.to_str symbols texPtr) ^ " not registered as a texture ptr"
+  
+  method is_tex = function
+    | PtxVal.Sym {id=id} -> Hashtbl.mem texRefs id
+    | _ -> false
+  
+  val texGeoms : (PtxVal.value, Ptx.geom) Hashtbl.t =
+    Hashtbl.create initialNumRegs
+
+  method get_tex_geom texRef =
+    if not (Hashtbl.mem texGeoms texRef) then
+      failwith "[ptx_codegen] getting geom from unknown texture";
+    Hashtbl.find texGeoms texRef
   
   (* works for both shared and global vectors *) 
   method get_array_rank (ptr: PtxVal.value) = 
     if self#is_shared_ptr ptr then Array.length (self#get_shared_dims ptr)
     else if self#is_global_array_ptr ptr then self#get_global_array_rank ptr 
-    else failwith "[ptx_codegen] can't get array rank of non-array register" 
+    else failwith "[ptx_codegen] can't get array rank of non-array register"
   
   (* get a register which points to the shape vector attached to the 
      argument "ptrReg" which contains the address of some array's data. 
@@ -180,22 +198,22 @@ class ptx_codegen = object (self)
   method fresh_regs gpuT count =
     Array.init count (fun _ -> self#fresh_reg gpuT)
 
-  method declare_shared_vec (id : ID.t) dynEltT (dims : int list)  = 
+  method declare_shared_vec (id : ID.t) dynEltT (dims : int list) =
     Hashtbl.add dynTypes id dynEltT;
     let ptxEltType = PtxType.of_dyn_type dynEltT in
-    let dimsArray = Array.of_list dims in 
+    let dimsArray = Array.of_list dims in
     let sharedId = self#fresh_shared_id in
     let nelts = Array.fold_left ( * ) 1 dimsArray in 
     let decl = {
-      t = ptxEltType; 
+      t = ptxEltType;
       decl_space = SHARED;
       array_size = Some nelts;
       init_val=None;
     } in
-    self#add_alloc sharedId decl; 
-    let sharedVal = Sym { id=sharedId; ptx_type=PtxType.ptrT; space=SHARED } in 
-    (* access the shared memory via the register that holds its address *) 
-    let sharedReg = self#fresh_reg PtxType.ptrT in 
+    self#add_alloc sharedId decl;
+    let sharedVal = Sym { id=sharedId; ptx_type=PtxType.ptrT; space=SHARED } in
+    (* access the shared memory via the register that holds its address *)
+    let sharedReg = self#fresh_reg PtxType.ptrT in
     self#emit [mov sharedReg sharedVal];
     Hashtbl.add dataRegs id sharedReg;
     (* associate the register storing the shared address with the dims *) 
@@ -211,23 +229,26 @@ class ptx_codegen = object (self)
     if self#is_shared_ptr ptrReg then  
       let dims = self#get_shared_dims ptrReg in
       let rank = Array.length dims in 
-      if rank  < 2 then 
+      if rank < 2 then 
         failwith "[ptx_codegen->declared_shared_slice] insufficient rank"
       else begin   
         let sliceDims = Array.init (rank - 1) (fun idx -> dims.(idx+1)) in
         (* the value of sliceReg needs to get computed by the caller *)  
         Hashtbl.add sharedDims (PtxVal.get_id sliceReg) sliceDims
-      end 
-   else if self#is_global_array_ptr ptrReg then
-     let rank = self#get_array_rank ptrReg in 
-     if rank < 2 then 
-       failwith "[ptx_codegen->declare_global_slice] insufficient rank" 
-     else begin   
-       let shapeReg = self#get_shape_reg ptrReg in 
-       let sliceShapeReg = self#fresh_shape_reg sliceReg (rank - 1) in
-       (* increment pointer to shape by 4 bytes to start at next dim *) 
-       self#emit [add PtxType.ptrT sliceShapeReg shapeReg (int 4)]  
-     end
+      end
+    else
+      let rank = self#get_array_rank ptrReg in
+      if rank < 2 then 
+        failwith "[ptx_codegen->declare_global_slice] insufficient rank" 
+      else begin
+        let shapeReg = self#get_shape_reg ptrReg in
+        let sliceShapeReg = self#fresh_shape_reg sliceReg (rank - 1) in
+        (* increment pointer to shape by 4 bytes to start at next dim *)
+        self#emit [add PtxType.ptrT sliceShapeReg shapeReg (int 4)];
+        if self#is_tex ptrReg then
+          let texRef = Hashtbl.find texRefs (PtxVal.get_id ptrReg) in
+          Hashtbl.add texRefs (PtxVal.get_id sliceReg) texRef 
+      end
 
   (***************************************************
                CALLING CONVENTIONS 
@@ -297,17 +318,24 @@ class ptx_codegen = object (self)
     let ptxT = PtxType.of_dyn_type dynT in
     let texParam = Sym {id=texId; ptx_type=ptxT; space=TEX} in
     self#add_tex_decl texId ptxT;
-    Hashtbl.add dataRegs impId texParam;
+    let basePtr = self#fresh_reg PtxType.S32 in
+    let baseId = PtxVal.get_id basePtr in
+    self#emit [mov basePtr (int 0)];
+    Hashtbl.add dataRegs impId basePtr;
+    Hashtbl.add texRefs baseId texParam;
     let rank = DynType.nest_depth dynT in
     (* We also do something really dumb here, which is just to pick a shape *)
     (* that matches the input's rank (1D for 1D, etc.) -- should surely *)
     (* revisit later *)
     let name = Hashtbl.find symbols texId in
-    let geom = num_to_geom rank in
+    (* let geom = num_to_geom rank in *)
+    (* TODO: actually do the right geom thing *)
+    let geom = Ptx.Tex1D in
     let cc = PtxCallingConventions.TextureInput(name, geom) in
     Hashtbl.add dataLocations impId cc;
+    Hashtbl.add texGeoms texParam geom;
     (* still need to pass down shapes of inputs bound to textures *)
-    let shapeReg = self#fresh_shape_reg texParam rank in
+    let shapeReg = self#fresh_shape_reg basePtr rank in
     let shapeParamId = self#get_sym_id ("texShape" ^ (string_of_int texId)) in
     let shapeParam =
       Sym {id=shapeParamId; ptx_type=PtxType.ptrT; space=PARAM}
@@ -315,14 +343,6 @@ class ptx_codegen = object (self)
     self#add_param_decl shapeParamId PtxType.ptrT;
     self#emit [ld_param PtxType.ptrT shapeReg shapeParam];
     shapeReg
-
-  method get_tex_geom id =
-    if not (Hashtbl.mem dataLocations id) then
-      failwith "[ptx_codegen] getting geom from unknown texture";
-    let cc = Hashtbl.find dataLocations id in
-      match cc with
-        | PtxCallingConventions.TextureInput(name, geom) -> geom
-        | _ -> failwith "[ptx_codegen] error - can't find texture in cc"
   
   (*************************************************************
                       CACHE ACCESS TO SPECIAL REGISTERS
@@ -453,12 +473,12 @@ class ptx_codegen = object (self)
     in
     let address = self#fresh_reg U64 in
     self#emit [mov address baseReg64]; 
-    begin 
-    if self#is_shared_ptr baseReg then 
+    begin
+    if self#is_shared_ptr baseReg then
       let widths = calc_index_widths (self#get_shared_dims baseReg) eltSize in
       for i = 0 to numIndices - 1 do
         let multReg = self#fresh_reg U64 in
-        let width = int widths.(i) in   
+        let width = int widths.(i) in
         self#emit [
           mul_lo U64 multReg idxRegs64.(i) width;
           add U64 address address multReg
@@ -467,30 +487,33 @@ class ptx_codegen = object (self)
     else
       let shapeReg = self#get_shape_reg baseReg in
       for i = 0 to numIndices - 1 do
-      (* size of slice through array each index accounts for *) 
+      (* size of slice through array each index accounts for *)
         let sliceReg = self#fresh_reg U64 in
         (* at the very least each increase in this index has to go up by the
            bytesize of the element
-        *) 
-        self#emit [mov sliceReg (int eltSize)];
-        (* indexing the first dimension effectively slices through all 
-           other dimensions. If this is, however, a 1D vector then this 
+        *)
+        if self#is_tex baseReg then
+          self#emit [mov sliceReg (int 1)]
+        else
+          self#emit [mov sliceReg (int eltSize)];
+        (* indexing the first dimension effectively slices through all
+           other dimensions. If this is, however, a 1D vector then this
            loop never runs
-        *) 
-        for j = (i+1) to rank - 1 do 
+        *)
+        for j = (i+1) to rank - 1 do
           let shapeEltReg = self#fresh_reg U32 in
           let shapeEltReg64 = self#fresh_reg U64 in
           self#emit [ld_global U32 shapeEltReg shapeReg ~offset:(4*j)];
-          self#convert ~destReg:shapeEltReg64 ~srcVal:shapeEltReg; 
-          self#emit [mul_lo U64 sliceReg sliceReg shapeEltReg64]  
-        done;  
-        let offset = self#fresh_reg U64 in 
+          self#convert ~destReg:shapeEltReg64 ~srcVal:shapeEltReg;
+          self#emit [mul_lo U64 sliceReg sliceReg shapeEltReg64]
+        done;
+        let offset = self#fresh_reg U64 in
         self#emit [
           mul U64 offset idxRegs64.(i) sliceReg;
           add U64 address address offset  
         ]
-      done 
-    end; 
+      done
+    end;
     address
 
   (* storage args are those that supply private heap space to each thread *)
@@ -539,7 +562,7 @@ class ptx_codegen = object (self)
         IFDEF DEBUG THEN
           Printf.printf "Tex input type: %s\n" (DynType.to_str dynT);
         ENDIF;
-        if rank = 1 then (
+        if rank = 1 || rank = 2 then (
           match elType with
             | DynType.UInt32T
             | DynType.Int32T

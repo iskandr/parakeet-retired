@@ -68,30 +68,9 @@ let gen_exp
   *)
   | Imp.Idx({exp=Var id; exp_type=arrDynT}, idx) ->
       let baseReg = codegen#imp_reg id in
+      Printf.printf "Is texure of baseReg: %B\n" (codegen#is_tex baseReg);
 	    let idxDynT = idx.exp_type in
 	    let idxPtxT = PtxType.of_dyn_type idxDynT in
-      (* Have to handle textures differently that other indexing *)
-      if codegen#is_tex baseReg then (
-        assert (idxPtxT = PtxType.S32);
-        IFDEF DEBUG THEN
-	        Printf.printf "texture expression: %s\n" (exp_to_str exp);
-	        Printf.printf "texture imp id: %d\n" id;
-        ENDIF;
-        let texRef = baseReg in
-        let idxReg1 = translate_arg idx idxPtxT in
-        let idxRegs = codegen#fresh_regs idxPtxT 3 in
-        for i = 0 to 2 do
-          codegen#emit[mov ~ty:idxPtxT idxRegs.(i) (int 0)]
-        done;
-        let gpuStorageT = PtxType.storage_of_dyn_type dynResultT in
-        let rsltReg1 = codegen#fresh_reg gpuStorageT in
-        let rsltRegs = codegen#fresh_regs gpuStorageT 3 in
-        let geom = codegen#get_tex_geom id in
-        codegen#emit [tex geom gpuStorageT texRef
-                          rsltReg1 rsltRegs.(0) rsltRegs.(1) rsltRegs.(2)
-                          idxReg1 idxRegs.(0) idxRegs.(1) idxRegs.(2)];
-        codegen#convert ~destReg ~srcVal:rsltReg1
-      ) else (
       if (PtxType.nbytes idxPtxT <> 4) then
         failwith $
           sprintf "[imp2ptx] array index expected to be 32-bit, received: %s"
@@ -102,9 +81,10 @@ let gen_exp
           (PtxType.storage_of_dyn_type (DynType.elt_type dynResultT))
       in
       let isShared = codegen#is_shared_ptr baseReg in
-      if not isShared && not (codegen#is_global_array_ptr baseReg) then
+      if not isShared && not (codegen#is_global_array_ptr baseReg) &&
+         not (codegen#is_tex baseReg) then
         failwith "[imp2ptx] cannot generate indexing code: \"
-                 base address register is neither global nor shared pointer"
+                 base address register is not global, texture, or shared ptr"
       else
       let rank = codegen#get_array_rank baseReg in
       let address = codegen#compute_address baseReg eltBytes [|idxReg|] in
@@ -114,6 +94,20 @@ let gen_exp
         let storageReg = codegen#fresh_reg gpuStorageT in
         if isShared then
           codegen#emit [ld_shared gpuStorageT storageReg address]
+        else if codegen#is_tex baseReg then begin
+	        let idxRegs = codegen#fresh_regs idxPtxT 3 in
+	        for i = 0 to 2 do
+	          codegen#emit[mov ~ty:idxPtxT idxRegs.(i) (int 0)]
+	        done;
+	        let gpuStorageT = PtxType.storage_of_dyn_type dynResultT in
+	        let rsltRegs = codegen#fresh_regs gpuStorageT 3 in
+          let texRef = codegen#get_tex_ref baseReg in
+          let geom = codegen#get_tex_geom texRef in
+          let offset = codegen#convert_fresh idxPtxT address in
+	        codegen#emit [tex geom gpuStorageT texRef
+	                          storageReg rsltRegs.(0) rsltRegs.(1) rsltRegs.(2)
+	                          offset idxRegs.(0) idxRegs.(1) idxRegs.(2)]
+        end
         else
           codegen#emit [ld_global gpuStorageT storageReg address]
         ;
@@ -123,7 +117,7 @@ let gen_exp
       else (
         codegen#convert ~destReg ~srcVal:address;
         codegen#declare_slice baseReg destReg
-     ))
+     )
   | Imp.Idx(_, _) -> failwith "[imp2ptx] attempted to index into non-array"
   | Imp.Cast(tNew, x) ->
       let tNewPtx = PtxType.of_dyn_type tNew in 
@@ -271,7 +265,7 @@ let translate_kernel ?input_spaces (impfn : Imp.fn) =
       )
   in 
   Array.iter2 register_local impfn.local_ids impfn.local_types;
-  Array.iter3 
+  Array.iter3
     codegen#declare_input impfn.input_ids impfn.input_types inputSpaces;
   Array.iter2 codegen#declare_output impfn.output_ids impfn.output_types; 
   gen_block codegen impfn.body; 

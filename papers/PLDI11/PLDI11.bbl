@@ -161,7 +161,7 @@
 
 \bibitem{Tard06}
 {\sc Tarditi, D., Puri, S., and Oglesby, J.}
-\newblock Accelerator: Using data parallelism to program gpus for
+\newblock Accelerator: Using data parallelism to program {GPU}s for
   general-purpose uses.
 \newblock In {\em ASPLOS '06: Proceedings of the 12th International Conference
   on Architectural Support for Programming Languages and Operating Systems\/}
