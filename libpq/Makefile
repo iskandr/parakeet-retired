@@ -366,6 +366,9 @@ naivecpud: naivecpuapdiff.o base.o
 ap1d2d: all_pairs_dists_tester.cu_o base.o
 	gcc-4.3 all_pairs_dists_tester.cu_o base.o -o ap1d2d $(INCLUDES) $(LIB) -L.
 
+apnotex: all_pairs_no_tex_tester.cu_o base.o
+	gcc-4.3 all_pairs_no_tex_tester.cu_o base.o -o apnotex $(INCLUDES) $(LIB) -L.
+
 all_pairs: all_pairs_abs_diff.cu_o all_pairs_abs_diff_tester.o
 	gcc-4.3 all_pairs_abs_diff.cu_o all_pairs_abs_diff_tester.o -I. $(INCLUDES) \
 	-o all_pairs $(LIB) -L.

@@ -288,7 +288,9 @@ class ptx_codegen = object (self)
         Sym {id=shapeParamId; ptx_type=PtxType.ptrT; space=PARAM}
       in
       self#add_param_decl shapeParamId PtxType.ptrT;
-      self#emit [ld_param PtxType.ptrT shapeReg shapeParam];
+      self#emit [ld_param PtxType.ptrT shapeReg shapeParam]
+      
+      
     );
     dataReg
 

@@ -68,7 +68,6 @@ let gen_exp
   *)
   | Imp.Idx({exp=Var id; exp_type=arrDynT}, idx) ->
       let baseReg = codegen#imp_reg id in
-      Printf.printf "Is texure of baseReg: %B\n" (codegen#is_tex baseReg);
 	    let idxDynT = idx.exp_type in
 	    let idxPtxT = PtxType.of_dyn_type idxDynT in
       if (PtxType.nbytes idxPtxT <> 4) then
