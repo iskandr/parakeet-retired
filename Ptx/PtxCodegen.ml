@@ -328,7 +328,7 @@ class ptx_codegen = object (self)
     (* that matches the input's rank (1D for 1D, etc.) -- should surely *)
     (* revisit later *)
     let name = Hashtbl.find symbols texId in
-    (* let geom = num_to_geom rank in *)
+    (*let geom = num_to_geom rank in*) 
     (* TODO: actually do the right geom thing *)
     let geom = Ptx.Tex1D in
     let cc = PtxCallingConventions.TextureInput(name, geom) in

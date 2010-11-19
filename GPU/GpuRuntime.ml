@@ -61,8 +61,8 @@ let create_input_args modulePtr inputVal = function
       Cuda.cuda_bind_texture_2d_std_channel
         texRef
         inputPtr
-        (Shape.get inputShape 0)
         (Shape.get inputShape 1)
+        (Shape.get inputShape 0)
         channelFormat  
     | _ -> failwith "3D textures not yet implemented"
     end;

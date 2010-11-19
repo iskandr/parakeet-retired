@@ -316,6 +316,10 @@ value ocaml_cuda_bind_texture_1d(
   CAMLreturn(Val_unit);
 }
 
+#define SIGNED_CHANNEL_FORMAT 0
+#define UNSIGNED_CHANNEL_FORMAT 1
+#define FLOAT_CHANNEL_FORMAT 2 
+
 CAMLprim
 value ocaml_cuda_bind_texture_2d_std_channel(
     value tex_ref, value dev_ptr, value width, value height, value kind) {
@@ -326,16 +330,16 @@ value ocaml_cuda_bind_texture_2d_std_channel(
   int c_kind = Int_val(kind);
 
   // For now, all supported types are 32 bits.
-  unsigned int pitch = c_kind * 4;
+  unsigned int pitch = c_width * 4;
   CUDA_ARRAY_DESCRIPTOR desc;
   switch(c_kind) {
-    case 0:
+    case SIGNED_CHANNEL_FORMAT:
       desc.Format = CU_AD_FORMAT_SIGNED_INT32;
       break;
-    case 1:
+    case UNSIGNED_CHANNEL_FORMAT:
       desc.Format = CU_AD_FORMAT_UNSIGNED_INT32;
       break;
-    case 2:
+    case FLOAT_CHANNEL_FORMAT:
       desc.Format = CU_AD_FORMAT_FLOAT;
       break;
     default:
