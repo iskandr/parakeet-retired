@@ -110,16 +110,20 @@ architectural details in order to fully harness the performance potential.
 % Enable programmers to write GPGPU programs in productivity language
 Our goal is to lower the barrier to GPGPU programming by allowing programmers to 
 write in high level array languages are transparently compiled into efficient GPU programs. 
-By "array language" we mean any language equipped with: 
+By ``array language'' we mean any language equipped with:
 \begin{enumerate}
-\item first-class array values 
-\item succinct syntax for array creation/transformation
-\item idiomatic preference for bulk array operations instead of explicit loops ("collection-oriented"\cite{Sip91} programming)
+\item First-class array values
+\item Succinct syntax for array creation/transformation
+\item Idiomatic preference for bulk array operations instead of explicit loops
+(``collection-oriented''~\cite{Sip91} programming)
 \end{enumerate}
 
 % Existing Array languages 
-The prototypical array language is APL\cite{Iverson62}, which allows for extremely terse loop-free specification of algorithms. More commonly used array 
-languages include Matlab\cite{Moler80} (the lingua franca of signal processing and machine learning research) as well as Python's NumPy\cite{Oliphant07} extensions. 
+The prototypical array language is APL~\cite{Iverson62}, which allows for
+extremely terse loop-free specification of algorithms. More commonly used array 
+languages include Matlab~\cite{Moler80} (the lingua franca of signal processing
+and machine learning research) as well as Python's NumPy~\cite{Oliphant07}
+extensions. 
 
 
 % Heart of Parakeet - an interpreter for our high level IL w/ array ops
@@ -130,10 +134,11 @@ on the GPU by synthesizing launching GPU kernels.
 
 
 % Q front-end, agnosticism
-We have implemented our first Parakeet frontend for Q \cite{Borr08}, a descendant of APL that is widely used in financial computing. 
-Q is a nearly "pure" array language--its idiomatic style makes sparser use of
-loops than even Matlab or NumPy.
-We are also currently working on frontends for both Matlab and Python. 
+We have implemented our first Parakeet front end for Q \cite{Borr08}, a
+descendant of APL that is widely used in financial computing. 
+Q is a nearly ``pure'' array language--its idiomatic style makes sparser use of
+loops than even Matlab or NumPy--and is thus a natural first choice.
+We are also currently working on front ends for both Matlab and Python.
 
 % Performance
 We evaluate Parakeet on two standard benchmark programs: Black-Scholes option
@@ -187,8 +192,8 @@ and GPU garbage collection are handled transparently by Parakeet.
 \section{Q: A High-Level Array Language}
 \label{Q}
 
-While we emphasize that the Parakeet framework is largely source language
-agnostic, we chose to implement its first front end for Q, a high-level,
+While we emphasize that the Parakeet framework is built to be agnostic to source
+array language, we chose to implement its first front end for Q, a high-level,
 sequential array programming language from the APL family \cite{Borr08}.
 Q is dynamically typed, and the standard proprietary implementation is
 interpreted. Q is a natural choice for Parakeet, since idiomatic Q code uses
@@ -198,12 +203,11 @@ operators. Q is also a fully-featured language, with a large library of built-in
 functions, and has a large user base in financial computing. Since our
 focus is the Parakeet runtime, we omit many details of the Q language and only
 present the salient features so as to illustrate the level of programming
-and Q's support for array operators, as well as to make our later code examples
-clear.
+and Q's support for array operators.
 
-\subsection{K-means}
+\subsection{K-Means Clustering Example}
 \begin{figure}[h!]
-\begin{lstlisting}[numbers=none]
+\begin{lstlisting}
 calc_centroid:{[X;a;i] avg X[where a = i]}
 calc_centroids:{[X;a;k] 
   calc_centroid[X;a] each til k}
@@ -226,113 +230,56 @@ kmeans:{[X;k;a]
 \label{QKMeans}
 \end{figure}
 
-\subsection{Q Examples}
+Let us illustrate Q with a full example: an implementation of K-Means
+clustering.  K-Means is an algorithm for grouping data into some number of
+clusters of nearby points in the multi-dimensional space formed by the
+data's features.  These clusters are meant to help the user group the data
+in a useful or meaningful way.  The
+algorithm typically begins with a random initial assignment of the data points
+to $k$ clusters. Then the algorithm proceeds iteratively, in each step first
+calculating the center point (centroid) of each of the current clusters of data
+points.  It then calculates the distances of all data points to each of these
+new centroids and reassigns each point to its nearest cluster.  The algorithm
+terminates either when the iteration doesn't change the assignments beyond some
+given threshold, or when some fixed number of iterations has been reached.
 
-\begin{figure}[h!]
-  \begin{lstlisting}
-  f: { [x] 5 + 3 * x}
-  /*/ Create input array*/
-  a: til 10000
-  /*/ Call f on different inputs*/
-  b: f[6]
-  c: f[a]
-  \end{lstlisting}
+In Figure \ref{QKMeans}, we see an implementation of K-Means in Q.  Five
+functions are defined using Q's bracket notation for surrounding function
+bodies and colon operator for assignment.  For example, the
+\texttt{calc\_centroid} function on line 1 takes three parameters
+\texttt{X}, \texttt{a}, and \texttt{i} (used as the input data matrix, the
+current assignment vector, and the scalar index of the centroid to calculate,
+respectively), and calculates that cluster's centroid.
 
-\caption{Q Map Example}
-\label{QMap}
-\end{figure}
+In this function, we illustrate various aspects of the array-oriented nature of
+Q. First, Q allows implicit mappings of functions elementwise across
+vectors--for example, to test elementwise equality between the assignment
+vector and the index \texttt{i}, we simply write \texttt{a = i}.  In addition,
+this showcases Q's support for \emph{scalar promotion}.  In the statement
+\texttt{a = i}, \texttt{a} is a vector of integers while \texttt{i} is a scalar
+integer.  Semantically, Q implicitly promotes \texttt{i} to be a vector of the
+value of \texttt{i} repeated a number of times equal to the length of \texttt{a}
+and performs the elementwise equality between these two vectors.
 
-Figure \ref{QMap} gives an example of a simple Q program.  In line 1, we define
-a function \texttt{f} which takes a single argument \texttt{x} and computes a
-simple linear function of it.  In Q syntax, the colon operator is used for
-assignment, and curly braces surround function definitions.  Brackets are used
-to declare function arguments, with semicolons serving as list delimiters
-between the various arguments.  Q functions return the result of their final
-statement.  On line 3 we see a comment, denoted by a single \texttt{/}, and on
-line 4 we use the built-in function \texttt{til} to generate a
-100000-element array of integers ranging from \texttt{0} to \texttt{999999}.
+We then generate the list of indices we want by applying the built-in
+\texttt{where} operator to the result of this test, and index into the data
+matrix \texttt{X} to get the list of data points in the centroid. The result of
+this indexing is itself a 2-D matrix which contains the list of data points
+belonging to the \texttt{i}-th cluster. Finally, the built-in \texttt{avg}
+function--a reduction operator--gets applied to this 2-D list. Thus we see that
+reductions and other built-in array operators can be applied to arrays of any
+arity.  Further array built-ins used in K-Means include \texttt{sum},
+\texttt{min}, and the find operator (denoted by `\texttt{?}').
 
-In line 7, we finally perform our first computation, evaluating \texttt{f} on
-the input \texttt{6} with the bracket function call syntax, storing the
-value \texttt{23} in variable \texttt{b}.  Line 8 evaluates \texttt{f}
-element-wise on the entire array \texttt{a}, storing the result in \texttt{c}.
+In this algorithm we also see a number of higher-order data-parallel function
+modifier keywords, which Q calls \emph{adverbs}.  For example, the \texttt{each}
+keyword modifies a function by applying it elementwise to its argument.  In the
+\texttt{calc\_centroids} function, we calculate the using \texttt{each} to apply
+the \texttt{calc\_centroid} function to a list of integers from \texttt{0} to
+\texttt{k-1}.
 
-This code snippet illustrates a key feature of Q for our purposes.  Functions
-are agnostic to the shape of their input arguments--as we saw, \texttt{f} was
-legally applied both to a scalar input as well as to an array.  In effect, the
-function \texttt{f} was {\it mapped} element-wise over the array \texttt{a}.
-Thus we see that Q programs can express data parallel computations in a compact,
-declarative, high level fashion.  No explicit looping over the elements of
-\texttt{a} is required.
-
-\begin{figure}[h!]
-\begin{lstlisting}
-a: til 10000
-b: 0 +/ a
-c: 0 +\ a
-\end{lstlisting}
-\label{QReduce}
-\caption{Q Reduction and Scan}
-\end{figure}
-
-In Figure \ref{QReduce}, we introduce the concept of an \emph{adverb}.  Q has a
-series of adverbs, which are higher-order function modifiers.  In
-line 3, we see an example of the reduction adverb, denoted with the syntax
-`\texttt{/}', which modifies a binary function. When the modified function is
-then applied to an array input, the result is as though the function was
-inserted infix between all elements of the array.  Thus this adverb corresponds
-to the \texttt{Reduce} array operator of the Parakeet language.  The reduce
-adverb also takes an initial value argument, which is treated as though it were
-prepended to the input of the reduce.  Thus, after executing line 3 \texttt{b}
-will contain the sum of the array \texttt{a}.
-
-In line 4, we see the \emph{scan} adverb, with syntax `\texttt{\char`\\}'.
-Scan computes the running value of the function it modifies when applied
-element-per-element to an input array. Scan also takes an initial value
-argument.  In Parakeet, this corresponds to the \texttt{Scan} array operator,
-which as emphasized in \cite{Blel90}, is very useful as a building block in many
-parallel algorithms.
-
-\begin{figure}[h!]
-
-  \begin{lstlisting}
-  dist: {[x;y] sqrt sum (x-y) * (x-y)}
-
-  /*/ Generate two 100x100 matrices*/
-  a: (100;100) # til 10000
-  b: (100;100) # til 10000
-  all_dists: dist/:\:[a;b]
-  \end{lstlisting}
-  \caption{All-Pairs distances in Q}
-  \label{QAllPairsDist}
-\end{figure}
-
-In Figure \ref{QAllPairsDist}, we see a slightly more complicated example.
-First we define a pair of functions--one that computes the square of an input
-variable, and another that computes the Euclidean distance of two input
-vectors.  The \texttt{sum} function used in the \texttt{dist} function body is a
-built-in reduction function, which computes the sum of all elements of its input
-argument.  The \texttt{dist} function also illustrates that Q code is evaluated
-\emph{left of right}--the input vectors \texttt{x} and \texttt{y} are
-subtracted, then their square is computed, this is summed, and finally the
-square root of this sum is returned.
-
-In lines 5 and 6, we generate two 100x100 matrices.  The \texttt{\#} operator is
-used to modify the shape of a variable: its left argument is a list of lengths
-for the dimensions, and the right argument is a variable whose shape is to be
-modified.  Lists in Q are enclosed in parentheses.
-
-In line 8, we evaluate the \texttt{dist} function on the matrices \texttt{a} and
-\texttt{b} using the {\it all pairs} adverb (corresponding to the
-\texttt{AllPairs} Parakeet array operator).  This adverb--which is technically
-a combination of the adverbs \emph{left-each} (\texttt{/:}) and
-\emph{right-each} (\texttt{\char`\\:})--applies its function argument to all
-pairs of each of its inputs--in this case, all pairs of rows from \texttt{a} and
-rows from \texttt{b}.  The resulting \texttt{all\_dists} variable will contain a
-matrix of all the Euclidean distances between rows of \texttt{a} and \texttt{b}.
-
-We now turn to how Parakeet executes Q programs, including synthesizing GPU
-kernels to accelerate them.\\
+It is maybe worth pointing out that Q's representation of arrays is as vectors
+of vectors, not as native multi-dimensional arrays?
 
 \section{GPU Hardware Restrictions}
 \begin{enumerate}
