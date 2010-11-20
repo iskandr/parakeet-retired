@@ -407,7 +407,7 @@ the needed distances for reassigning the centroids.
 We see that array programming languages are both expressive and compact.  While
 the CUDA implementation of K-Means in the Rodinia benchmark suite is hundreds of
 lines of code long, our Q version is only 17 and could be even more compact.
-Now we turn to how we compile them to efficient GPU programs.
+Now we turn to how we compile array languages to efficient GPU programs.
 
 \section{Typed Intermediate Language}
 On first glance, there is a significant mismatch between the highly dynamic
@@ -855,11 +855,15 @@ memory, greatly reducing performance.
 As mentioned above, we implement our higher-order array operators as skeletons
 of code with splice points where the functions they modify get inlined.  Rather
 than implement these skeletons directly in PTX/CUDA, Parakeet
-provides a second intermediate language that we call Imp (for imperative).  Imp
-is in large part a thin wrapper of syntactic sugar around PTX/CUDA--including,
-e.g.,~aspects of CUDA such as the special index registers--that
-simplifies our job of implementing efficient GPU versions of these operator
-skeletons. However, Imp does differ from CUDA in some important respects:
+provides a second intermediate language that we call Imp (for imperative).  In
+order to inline a function into a higher-order skeleton, we first translate the
+function body from the higher level IL into Imp before splicing.
+
+Imp some ways just a wrapper of syntactic sugar around
+PTX/CUDA--including, e.g.,~aspects of CUDA such as the special index
+registers--that simplifies our job of implementing efficient GPU versions of
+these operator skeletons. However, Imp does differ from CUDA in some important
+respects:
 
 \begin{enumerate}
 \item  Arrays are not associated with a particular GPU memory space (global,
@@ -936,7 +940,6 @@ An example of a simplified Imp skeleton for \textbf{map} is shown in Figure
 \begin{figure}[h!]
   \begin{lstlisting}[numbers=none]
     
-    
   \end{lstlisting}
   \caption{Imp Map Skeleton}
   \label{ImpMap}
@@ -986,21 +989,33 @@ from the PARSEC \cite{Bien08} benchmark suite for both 1 and 4 threads.
 \subsection{K-Means Clustering}
 
 
-\subsection{Dynamic Tuning}
-In order to test the effects of our dynamic tuning optimizations, 
-
 \section{Related Work}
 \label{RelatedWork}
 The use of graphics hardware for non-graphical computation has a long history~\cite{Lengyel90}, though convenient frameworks for general purpose GPU programming have only recently emerged.
-The first prominent GPU backend for a general purpose language was ``Brook for GPUs'' \cite{Buck04}. The Brook language extended C with "kernels" and "streams", exposing a programming model similar to what is now found in CUDA and OpenCL. 
+The first prominent GPU backend for a general purpose language was ``Brook for
+GPUs'' \cite{Buck04}. The Brook language extended C with "kernels" and
+"streams", exposing a programming model similar to what is now found in CUDA and
+OpenCL. 
 
-Microsoft's Accelerator\cite{Tard06} was the first project to use high level (collection-oriented) language constructs as a basis for GPU execution. 
-Accelerator is a declarative GPU language embedded in C\# which creates a directed acyclic graph of LINQ operations--such as filtering, grouping, and joining--and compiles them to
-(pre-CUDA) shader programs. Accelerator's programming model does not support function abstractions (only expression trees) and its only underlying parallelism construct is limited to the production of $\MAP$-like kernels. 
+Microsoft's Accelerator\cite{Tard06} was the first project to use high level
+(collection-oriented) language constructs as a basis for GPU execution.
+Accelerator is a declarative GPU language embedded in C\# which creates a
+directed acyclic graph of LINQ operations--such as filtering, grouping, and
+joining--and compiles them to
+(pre-CUDA) shader programs. Accelerator's programming model does not support
+function abstractions (only expression trees) and its only underlying
+parallelism construct is limited to the production of $\MAP$-like kernels. 
 
-Three more recent projects all translate domain specific embedded array languages to CUDA backends: 
+Three more recent projects all translate domain specific embedded array
+languages to CUDA backends:
 \begin{itemize}
-\item \textbf{Nikola}~\cite{Main10} is a first-order array-oriented language embedded within Haskell. Nikola provides a convenient syntax for expressing single-kernel computations, but requires the programmer to manually coordinate computations which require multiple kernel launches. Nikola also does not support partially applied functions and its parallelization scheme, which first serializes array operators into loops and then parallelizes loop iterations, seems ill-suited for complex array operations. 
+\item \textbf{Nikola}~\cite{Main10} is a first-order array-oriented language
+embedded within Haskell. Nikola provides a convenient syntax for expressing
+single-kernel computations, but requires the programmer to manually coordinate
+computations which require multiple kernel launches. Nikola also does not
+support partially applied functions and its parallelization scheme, which first
+serializes array operators into loops and then parallelizes loop iterations,
+seems ill-suited for complex array operations. 
 
 \item \textbf{Accelerate}~\cite{ChakAcc} is also an embedded array language
 within Haskell. Unlike Nikola, Accelerate does allow the expression of
@@ -1012,8 +1027,22 @@ they use a simple interpreter whose job is to initiate skeleton-based kernel
 compilation, transfer data to and from the GPU, and to perform simple CPU-side
 computations.
 
-\item \textbf{Copperhead}~\cite{Cata10} parallelizes a statically typed purely functional array subset of Python through the dynamic compilation/execution of CUDA kernels. Copperhead supports nested array computations, and even has a sophisticated notion of where these computations can be scheduled. In addition to sequentializing nested array operators within CUDA kernels (as done in Parakeet), Copperhead can also share the work of a nested computation between all the threads in CUDA block. Unfortunately, Copperhead does not utilize any dynamic information (such as size) when making these scheduling decisions and thus must rely on user annotations. Copperhead's compiler generates kernels through parameterization of operator-specific C++ template classes. By using C++ as their backend target, Copperhead has been able to easily integrate the Thrust ~\cite{Hobe10} GPGPU library and to offload the bulk of their 
-code optimizations onto a C++ compiler. Runtime generation of templated C++ can, however, be a double-edged sword. Copperhead experiences the longest compile times of any project mentioned here (orders of magnitude longer than the compiler overhead of Parakeet). 
+\item \textbf{Copperhead}~\cite{Cata10} parallelizes a statically typed purely
+functional array subset of Python through the dynamic compilation/execution of
+CUDA kernels. Copperhead supports nested array computations, and even has a
+sophisticated notion of where these computations can be scheduled. In addition
+to sequentializing nested array operators within CUDA kernels (as done in
+Parakeet), Copperhead can also share the work of a nested computation between
+all the threads in CUDA block. Unfortunately, Copperhead does not utilize any
+dynamic information (such as size) when making these scheduling decisions and
+thus must rely on user annotations. Copperhead's compiler generates kernels
+through parameterization of operator-specific C++ template classes. By using C++
+as their backend target, Copperhead has been able to easily integrate the Thrust
+~\cite{Hobe10} GPGPU library and to offload the bulk of their
+code optimizations onto a C++ compiler. Runtime generation of templated C++ can,
+however, be a double-edged sword. Copperhead experiences the longest compile
+times of any project mentioned here (orders of magnitude longer than the
+compiler overhead of Parakeet).
 \end{itemize} 
 Unlike the three approaches mentioned above, Parakeet does not require its
 source language to be purely functional nor statically typed. Being able to
@@ -1042,7 +1071,12 @@ implementations.
 In future work, we hope to support more front ends and back ends.  At the
 moment, we are building front ends for both Matlab and Python.  We envision
 building a back end for multicore CPUs as well, likely targeting LLVM
-\cite{Latt02}.
+\cite{Latt02}.  In addition, we have many ideas on how to take advantage of
+dynamicism to produce more efficient code and executions.  These include things
+such as iteratively tuning components of hierarchical algorithms, splitting
+data inputs to take advantage of more of the texturing hardware, and overlapping
+computation with data transfer.  With all of the basic machinery of Parakeet now
+in place, we can explore this research space.
 
 \bibliographystyle{acm}
 \bibliography{../Parallelism}{}
