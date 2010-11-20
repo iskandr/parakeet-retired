@@ -345,6 +345,9 @@ boolscan: boolscantester.cu_o
 kmeans: kmeans.cu_o scan.cu_o base.o
 	gcc-4.3 kmeans.cu_o scan.cu_o base.o -o kmeans -I. $(INCLUDES) $(LIB) -L.
 
+cc: cc.cu_o scan.cu_o base.o
+	gcc-4.3 cc.cu_o scan.cu_o base.o -o cc -I. $(INCLUDES) $(LIB) -L.
+
 gen_idx: gen_idx.cu_o gen_idx_tester.o base.o
 	gcc-4.3 gen_idx.cu_o gen_idx_tester.o base.o -o gen_idx $(INCLUDES) $(LIB) -L.
 

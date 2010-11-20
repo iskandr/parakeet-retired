@@ -255,12 +255,12 @@ CAMLprim value ocaml_pq_launch_ptx (
 #ifdef DEBUG
   printf("Grid width, height: %d, %d\n", width, height);
   fflush(stdout);
+#endif
 
   cudaEvent_t start, end;
   cudaEventCreate(&start);
   cudaEventCreate(&end);
   cudaEventRecord(start, 0);
-#endif
 
   result = cuLaunchGrid(cuFunc, width, height);
   if (result != 0) {
@@ -269,7 +269,6 @@ CAMLprim value ocaml_pq_launch_ptx (
   }
   result = cuCtxSynchronize();
 
-#ifdef DEBUG
   cudaEventRecord(end, 0);
   cudaEventSynchronize(end);
   float td;
@@ -277,7 +276,6 @@ CAMLprim value ocaml_pq_launch_ptx (
   printf("GPU time for kernel: %f\n", td / 1000.0f);
   cudaEventDestroy(start);
   cudaEventDestroy(end);
-#endif
 
   if (result != 0) {
     printf("Error during kernel: %d\n", result);
