@@ -88,6 +88,13 @@
   in {GHC}.
 \newblock In {\em Proceedings of the 2004 Haskell Workshop\/} (2001).
 
+\bibitem{Ju94}
+{\sc Ju, D. C.~R., Wu, C.~L., and Carini, P.}
+\newblock The classification, fusion, and parallelization of array language
+  primitives.
+\newblock {\em IEEE Trans. Parallel Distrib. Syst. 5\/} (October 1994),
+  1113--1120.
+
 \bibitem{Latt02}
 {\sc Lattner, C.}
 \newblock {LLVM}: An infrastructure for multi-stage optimization.

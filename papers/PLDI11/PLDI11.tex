@@ -121,13 +121,13 @@ with:
 
 % Existing Array languages 
 Array operations are higher level than explicit loops and thus tend
-to be easier for the programmer. At the same time, array operations encode rich
-information about their access patterns that we can exploit to translate them
-into efficient parallel programs. The prototypical array language is
-APL~\cite{Iverson62}, which allows for extremely terse loop-free specification
-of algorithms. More commonly used array languages include Matlab~\cite{Moler80}
-(the lingua franca of signal processing and machine learning research) as well
-as Python's NumPy~\cite{Oliphant07} extensions.
+to be easier for programmers to use. At the same time, array operations encode
+rich information about their access patterns that we can exploit to translate
+them into efficient parallel programs \cite{Ju94}. The prototypical array
+language is APL~\cite{Iverson62}, which allows for extremely terse loop-free
+specification of algorithms. More commonly used array languages include
+Matlab~\cite{Moler80} (the lingua franca of signal processing and machine
+learning research) as well as Python's NumPy~\cite{Oliphant07} extensions.
 
 % Heart of Parakeet - an interpreter for our high level IL w/ array ops
 In this paper, we present Parakeet, an intelligent runtime for executing high
@@ -1007,6 +1007,17 @@ from the PARSEC \cite{Bien08} benchmark suite for both 1 and 4 threads.
 \subsection{K-Means Clustering}
 
 
+K-Means illustrates a key aspect of our approach: the ability to exploit
+dynamic information to tailor code generation and execution.  In the
+\texttt{calc\_centroids} function, we have a $\MAP$ operator applied to a
+nested function that in turns contains array operators.  Our interpreter is
+able to make the most efficient choice regarding where to execute things: the
+outer $\MAP$, since it's applied to a small array of integers and involves
+little computation of its own, gets executed on the CPU as a loop.  The inner
+function, which since it has dense computation applied to large inputs, gets
+synthesized into a kernel that is repeatedly launched.  This type of dynamic
+decision based on data size would not be possible in a static environment.
+
 \section{Related Work}
 \label{RelatedWork}
 The use of graphics hardware for non-graphical computation has a  long
@@ -1095,8 +1106,8 @@ building a back end for multicore CPUs as well, likely targeting LLVM
 dynamicism to produce more efficient code and executions.  These include things
 such as iteratively tuning components of hierarchical algorithms, splitting
 data inputs to take advantage of more of the texturing hardware, and overlapping
-computation with data transfer.  With all of the basic machinery of Parakeet now
-in place, we can explore this research space.
+computation with data transfer.  We can explore this research space now that
+we have built the Parakeet system.
 
 \bibliographystyle{acm}
 \bibliography{../Parallelism}{}
