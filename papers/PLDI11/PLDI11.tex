@@ -67,7 +67,7 @@ Contemporary GPUs offer staggering performance potential, which has
 led to an explosion in recent work on enabling the execution of
 general-purpose programs on GPUs. Despite various advances in making
 general-purpose GPU programming easier, the two commonly used
-frameworks (NVIDIA's CUDA and OpenCL) are cumbersome and require
+frameworks (OpenCL and NVIDIA's CUDA) are cumbersome and require
 detailed architectural knowledge on the part of the programmer to
 fully harness this performance potential.
 
@@ -120,18 +120,21 @@ with:
 \end{enumerate}
 
 % Existing Array languages 
-The prototypical array language is APL~\cite{Iverson62}, which allows for
-extremely terse loop-free specification of algorithms. More commonly used array 
-languages include Matlab~\cite{Moler80} (the lingua franca of signal processing
-and machine learning research) as well as Python's NumPy~\cite{Oliphant07}
-extensions. 
-
+Array operations are higher level than explicit loops and thus tend
+to be easier for the programmer. At the same time, array operations encode rich
+information about their access patterns that we can exploit to translate them
+into efficient parallel programs. The prototypical array language is
+APL~\cite{Iverson62}, which allows for extremely terse loop-free specification
+of algorithms. More commonly used array languages include Matlab~\cite{Moler80}
+(the lingua franca of signal processing and machine learning research) as well
+as Python's NumPy~\cite{Oliphant07} extensions.
 
 % Heart of Parakeet - an interpreter for our high level IL w/ array ops
 In this paper, we present Parakeet, an intelligent runtime for executing high
-level array programs on GPUs. Parakeet dynamically specializes user functions 
-into a typed intermediate language and transparently executes array operations
-on the GPU by synthesizing and launching GPU kernels.
+level array programs on GPUs. Parakeet dynamically compiles and specializes user
+functions via a typed intermediate language.  The Parakeet interpreter then
+transparently executes array operations on the GPU by synthesizing and launching
+GPU kernels as needed.
 
 
 % Q front-end, agnosticism
@@ -160,9 +163,6 @@ higher-order programs into efficient (unboxed, function-free) GPU code.
 \item A low-level intermediate language called \textit{Imp} that captures the
 notion of shapely computation \cite{Jay97} necessary in the absence of dynamic
 memory allocation.
-\item Evidence that dynamically compiling GPU programs can significantly
-improve performance by taking advantage of runtime information to
-tailor code and execution.
 \end{itemize}
 
 \begin{figure*}[t!bh]
@@ -198,11 +198,11 @@ The function body is then type specialized according to its argument
 types.  Further standard optimizations are performed at this stage, as well as
 an optimization we call \emph{array operator fusion}.  Here, nested array
 operators are fused according to various rewriting rules into fewer operators.
-This fusion step, as we will see, is extremely beneficial to the final GPU
+This fusion step can be extremely beneficial to the final GPU
 program's performance, as it eliminates temporaries and allows for more
 efficient use of GPU memory bandwidth.
 
-The Parakeet interpreter then interprets the typed IL function.  When
+Next, the Parakeet interpreter interprets the typed IL function.  When
 Parakeet reaches an array operator node in the code tree, it employs a simple
 cost-based heuristic (which includes things such as data size and memory
 transfer costs) to decide whether to execute that array operator on the GPU or
@@ -211,7 +211,10 @@ CPU.  Some code simply cannot be efficiently translated into GPU programs
 kept on the CPU. In the case where Parakeet executes the operator on the CPU,
 the operator is either translated into an IL implementation and then further
 interpreted by Parakeet, or executed by the source language's interpreter
-itself.
+itself. The Parakeet interpreter itself hasn't been heavily optimized--our
+effort has been focused on enabling it to generate efficient GPU kernels.  This
+is reasonable for now, as its IL is very dense due to array operators
+expressing large computations very concisely.
 
 If an array operator's computation is deemed a good candidate for GPU
 execution, Parakeet flattens all computation nested within that operator
@@ -226,6 +229,10 @@ To execute the GPU program, Parakeet first copies any of its inputs
 that aren't already present on the graphics card to the GPU's memory.  The GPU
 program is then executed, with its output lazily brought back to the CPU either
 when it is needed or when Parakeet's GPU garbage collector reclaims its space.
+If the a kernel's data doesn't fit on the GPU, for now we default to CPU
+execution.  We are currently implementing an addition that will divide
+an array operator's execution into pieces so as to allow for execution of
+kernels on arbitrarily sized inputs.
 
 \section{GPU Hardware}
 To set the stage and motivate the design choices of Parakeet, we first discuss
@@ -418,7 +425,7 @@ First, in order to translate array programs into efficient GPU code it is
 necessary for the compiler to eliminate as much abstraction as possible. On the
 other hand, we must be careful not to make our program representation overly
 concrete with regard to evaluation order (which would eliminate opportunities
-for parallelism).
+for parallelism provided by the array operators).
 
 In deference to the above-mentioned GPU hardware restrictions we disallow from
 our intermediate language:
@@ -637,7 +644,7 @@ $\REDUCE$ of addition.
   \multicolumn{2}{l}{dist $($ x, y $) \rightarrow  ($ z $) =$} \\
   & t$_1 = \mathrm{x} - \mathrm{y} $        \\
   & t$_2  = \mathrm{t}_1 * \mathrm{t}_1 $   \\
-  & t$_3  = \REDUCE(+, 0, \mathrm{t}_2) $           \\
+  & t$_3  = \REDUCE(+, 0, \mathrm{t}_2) $    \\
   & z $  = \; \mathrm{sqrt}(\mathrm{t}_3)$   \\
 \end{tabular}
 }
@@ -655,7 +662,7 @@ The most obvious reason for performing specialization is the need to eliminate
 polyvariance.  The specializer generates a different specialized version
 of a function for each distinct call string, with all of the function's
 variables receiving the appropriate types.  The signature of data is one of our
-built-in dynamic value types such as $float$ or $vec~int$.  The signature of
+built-in dynamic value types such as $float$ or $vec~vec~int$.  The signature of
 functions is a closure that includes a function tag and a list of data
 signatures.  It is important to note that specialization is thus not just on
 types, but also on function tags and the types of their associated closure
@@ -763,7 +770,8 @@ programming model in some detail.  Our GPU back end targets NVIDIA GPUs by
 emitting PTX--NVIDIA's GPU pseudoassembly language.  NVIDIA GPUs are typically
 programmed using CUDA, a higher level C-like wrapper around PTX.  As we will
 see in section \ref{Imp}, we have one additional level of intermediate language
-in Parakeet before we emit PTX code.
+in Parakeet before we emit PTX code.  This PTX is then finally JIT compiled by
+the NVIDIA driver before being launched.
 
 \subsection{CUDA Programming Model}
 
@@ -806,12 +814,12 @@ usually necessary to obtain performance near the GPU's peak potential.
 \subsubsection{CUDA Memory Management}
 
 The graphics card has its own memory and GPU kernels cannot access data stored
-in the CPU's RAM.  Data must be manually copied back and forth between the CPU
-and GPU memory spaces by the CUDA programmer.  This data transfer is roughly
-two orders of magnitude slower than memory accesses performed by kernels to the
-GPU's memory, and so it is critical for performance that these data transfers
-are minimized.  It is also possible and beneficial to overlap memory transfers
-with computation.
+in the CPU's RAM.  In typical use, data must be manually copied back and forth
+between the CPU and GPU memory spaces by the CUDA programmer.  This data
+transfer is roughly two orders of magnitude slower than memory accesses
+performed by kernels to the GPU's memory, and so it is critical for performance
+that these data transfers are minimized.  It is also possible and beneficial to
+overlap memory transfers with computation.
 
 The main memory space on GPUs is called \emph{global memory} in CUDA.  GPUs have
 very high peak memory bandwidth between their processors and global
@@ -887,7 +895,10 @@ to Imp then we can always determine its memory requirements.
 
 We perform staged synthesis of Imp kernels by parameterizing them with payload
 functions. An Imp kernel can be seen as a ``skeleton'' \cite{Cole04} for a
-particular implementation strategy of some array operator.
+particular implementation strategy of some array operator.  An example of a
+simplified Imp skeleton for \textbf{map} is shown in Figure \ref{ImpMap}.  The
+lines with the \texttt{SPLICE} keyword are the points at which the payload
+function gets added to the skeleton to form a complete kernel.
 
 \begin{figure}
 \begin{tabular}{| m{0.1cm}m{1.2cm}m{0.1cm}m{0.2cm}p{2cm}p{2.4cm} |}
@@ -934,9 +945,6 @@ particular implementation strategy of some array operator.
 \label{ImpSyntax}
 \end{figure}
 
-An example of a simplified Imp skeleton for \textbf{map} is shown in Figure
-\ref{ImpMap}.
-
 \begin{figure}[h!]
   \begin{lstlisting}[numbers=none]
     
@@ -944,6 +952,16 @@ An example of a simplified Imp skeleton for \textbf{map} is shown in Figure
   \caption{Imp Map Skeleton}
   \label{ImpMap}
 \end{figure}
+
+\subsection{Parallel Library}
+
+In addition to these skeletons, we provide a library of precompiled parallel
+implementations of our simple (first-order) array operators, which are listed
+in Figure \ref{ArrayOps}.  Since these operators don't require synthesis with
+embedded payload functions, we needn't dynamically generate them.  We use the
+Thrust library \cite{Hobe10} for some of these operators such as \textbf{sort},
+while providing our own hand-tuned implementations of others such as
+\textbf{where}.
 
 \section{Evaluation}
 \label{Evaluation}
@@ -973,8 +991,8 @@ of 907 GFLOP/s and a peak memory bandwidth of 115.2 GB/s.  At a current market
 price of roughly \$160, the GTX460 has a peak of 5.67 GFLOP/s per dollar--65
 times that of the Nehalem.
 
-For our Parakeet benchmarks, the desktop system we used had a BLAH processor
-with BLAH specs.
+For our Parakeet benchmarks, the desktop system we used had an Intel Core 2 6600
+2.4GHz processor with 2 cores and 4GB of RAM.
 
 \subsection{Black-Scholes}
 Black-Scholes option pricing \cite{Blac73} is a standard benchmark for data
@@ -991,13 +1009,15 @@ from the PARSEC \cite{Bien08} benchmark suite for both 1 and 4 threads.
 
 \section{Related Work}
 \label{RelatedWork}
-The use of graphics hardware for non-graphical computation has a long history~\cite{Lengyel90}, though convenient frameworks for general purpose GPU programming have only recently emerged.
-The first prominent GPU backend for a general purpose language was ``Brook for
-GPUs'' \cite{Buck04}. The Brook language extended C with "kernels" and
-"streams", exposing a programming model similar to what is now found in CUDA and
-OpenCL. 
+The use of graphics hardware for non-graphical computation has a  long
+history~\cite{Lengyel90}, though convenient frameworks for general purpose GPU
+programming have only recently emerged. The first prominent GPU backend for a
+general purpose language was ``Brook for GPUs'' \cite{Buck04}. The Brook
+language extended C with ``kernels'' and
+``streams'', exposing a programming model similar to what is now found in CUDA
+and OpenCL.
 
-Microsoft's Accelerator\cite{Tard06} was the first project to use high level
+Microsoft's Accelerator~\cite{Tard06} was the first project to use high level
 (collection-oriented) language constructs as a basis for GPU execution.
 Accelerator is a declarative GPU language embedded in C\# which creates a
 directed acyclic graph of LINQ operations--such as filtering, grouping, and
@@ -1043,7 +1063,7 @@ code optimizations onto a C++ compiler. Runtime generation of templated C++ can,
 however, be a double-edged sword. Copperhead experiences the longest compile
 times of any project mentioned here (orders of magnitude longer than the
 compiler overhead of Parakeet).
-\end{itemize} 
+\end{itemize}
 Unlike the three approaches mentioned above, Parakeet does not require its
 source language to be purely functional nor statically typed. Being able to
 program in a dynamically typed language seems particularly important for array

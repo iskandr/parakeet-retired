@@ -143,10 +143,10 @@ let compile_map globalFunctions payload closureTypes argTypes retTypes =
       (Array.of_list retTypes)
   in
   let allInputTypes = Array.of_list (closureTypes @ argTypes) in 
-  let inputSpaces = Array.map (fun t -> PtxVal.TEX) allInputTypes in
+  (*let inputSpaces = Array.map (fun t -> PtxVal.TEX) allInputTypes in
   let kernel, cc = ImpToPtx.translate_kernel
-                     ?input_spaces:(Some inputSpaces) impfn in
-  (*let kernel, cc = ImpToPtx.translate_kernel impfn in*)
+                     ?input_spaces:(Some inputSpaces) impfn in*)
+  let kernel, cc = ImpToPtx.translate_kernel impfn in
   let kernelName = "map_kernel" ^ (string_of_int (map_id_gen())) in
   let cudaModule =
     LibPQ.cuda_module_from_kernel_list [kernelName, kernel] mapThreadsPerBlock
