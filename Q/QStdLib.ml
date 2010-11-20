@@ -3,8 +3,8 @@ open SSA
  
 let reduce = mk_op  (Prim.ArrayOp Prim.Reduce) 
 let map = mk_op (Prim.ArrayOp Prim.Map)
-let inf = mk_num (PQNum.Inf DynType.AnyT)
-let neginf = mk_num (PQNum.NegInf DynType.AnyT)
+let inf = mk_num (PQNum.Inf DynType.Float32T)
+let neginf = mk_num (PQNum.NegInf DynType.Float32T)
 
 let (:=) xs y = mk_set (List.map SSA.get_id xs) y 
 let (@@) fn args = mk_app fn args  

@@ -139,8 +139,10 @@ let rec min_arity context = function
         let fnVal, closureSig = 
           ID.Map.find closureId context.untyped_closures 
         in
-        let nClosureArgs = List.length closureSig in 
+        let nClosureArgs = List.length closureSig in
+        IFDEF DEBUG THEN Printf.printf "NUM CLOSURE ARGS: %d\n" nClosureArgs; ENDIF; 
         let fullArity = min_arity context fnVal in  
+        
         fullArity - nClosureArgs
       else 7770   
   | other -> failwith $ 
@@ -208,6 +210,7 @@ let annotate_value_sig context valNode =
 
 
 let annotate_value context valNode = 
+  IFDEF DEBUG THEN Printf.printf "ANNOTATE VALUE !%!\n"; ENDIF;
   let t = match valNode.value with 
   | Var id -> ID.Map.find id context.type_env  
   | Prim _ -> 
@@ -232,6 +235,7 @@ let rec annotate_values context = function
       v'::vs', t::ts, currChanged || restChanged 
 
 let value_to_sig_elt context v : Signature.sig_elt = 
+  IFDEF DEBUG THEN Printf.printf "VALUE_TO_SIG !%!\n"; ENDIF;
   match v with  
   | Prim p -> Signature.Closure(Prim p, [])
   | GlobalFn fnId -> Signature.Closure (GlobalFn fnId, [])
@@ -261,7 +265,7 @@ let specialize_scalar_prim_for_scalar_args
     ?forceOutputType 
     inputTypes
   : SSA.fundef  = 
-   
+   IFDEF DEBUG THEN Printf.printf "SPECIALIZE_SCALAR_PRIM !%!\n"; ENDIF;
   let expectedTypes = TypeInfer.required_scalar_op_types op inputTypes in 
   let inferredOutputT = TypeInfer.infer_scalar_op op inputTypes in
   let typedPrim = { 
@@ -300,15 +304,19 @@ let specialize_scalar_prim_for_scalar_args
 *) 
    
 
-let rec annotate_app context expSrc fn args = match fn.value with
+let rec annotate_app context expSrc fn args =
+  IFDEF DEBUG THEN Printf.printf "ANNOTATE APP!%!\n"; ENDIF;
+   match fn.value with
   (* for now assume that all higher order primitives take a single *)
   (* function argument which is passed first *)  
   | Prim (Prim.ArrayOp p) when Prim.is_higher_order p -> 
+      IFDEF DEBUG THEN Printf.printf "HIGHER ORDER!%!\n"; ENDIF;
       IFDEF DEBUG THEN 
         assert (List.length args > 1);
       ENDIF;
       let dataArgs = List.tl args in 
       let dataArgs', types, argsChanged = annotate_values context dataArgs in
+      IFDEF DEBUG THEN Printf.printf "HIGHER ORDER 2!%!\n"; ENDIF;
       (* for now just pass through the literal value but should eventually*)
       (* have a context available with an environment of literal value *)
       (* arguments and check whether the fnArg is in that environment. *)
@@ -330,15 +338,18 @@ let rec annotate_app context expSrc fn args = match fn.value with
       
         | _ -> failwith "expected function!" 
       in   
+       IFDEF DEBUG THEN Printf.printf "HIGHER ORDER 3!%!\n"; ENDIF;
       let signature = { 
         Signature.inputs = 
           fnSigElt :: (List.map (fun t -> Signature.Type t) types);
         outputs = None
       } 
       in 
+      IFDEF DEBUG THEN Printf.printf "HIGHER ORDER 4!%!\n"; ENDIF;
       let specializedFn = 
         specialize_function_value context.interp_state fn.value signature 
       in
+      IFDEF DEBUG THEN Printf.printf "HIGHER ORDER 5!%!\n"; ENDIF;
       let closureParams = match fnVal with 
         | Var id -> 
             if ID.Map.mem id context.closure_params then 
@@ -346,6 +357,7 @@ let rec annotate_app context expSrc fn args = match fn.value with
             else []
         | _ -> [] 
       in 
+      IFDEF DEBUG THEN Printf.printf "HIGHER ORDER 6!%!\n"; ENDIF;
       let expNode = { 
         exp_src = expSrc;  
         exp_types = DynType.fn_output_types specializedFn.value_type; 
@@ -373,7 +385,7 @@ let rec annotate_app context expSrc fn args = match fn.value with
       expNode, context, argsChanged               
   | Lam _ -> failwith "anonymous functions should have been named by now"
   | Var id ->
-    
+    IFDEF DEBUG THEN Printf.printf "ANNOTATE APP 2!%!\n"; ENDIF;
       (* ignore changes to args since we know we're definitely changing 
          this node to either a function call or array indexing 
       *)  
@@ -392,6 +404,7 @@ let rec annotate_app context expSrc fn args = match fn.value with
           Signature.outputs = None; 
         } 
         in  
+        IFDEF DEBUG THEN Printf.printf "ANNOTATE APP 3!%!\n"; ENDIF;
         let specializedFn = 
           specialize_function_value context.interp_state untypedFnVal signature 
         in
@@ -458,10 +471,12 @@ let rec annotate_app context expSrc fn args = match fn.value with
       (SSA.value_to_str other) 
            
 and annotate_exp context expNode =
+  IFDEF DEBUG THEN Printf.printf "ANNOTATE EXP 1!%!\n"; ENDIF;
   (* if the overall types returned by the expression change then *)
   (* this taken into account at the bottom of the function *)  
   let expNode', context', changed = match expNode.exp with 
   | Values vNodes ->
+      IFDEF DEBUG THEN Printf.printf "ANNOTATE EXP->VALUES!%!\n"; ENDIF;
       let vNodes', vTypes, anyChanged = annotate_values context vNodes in
       let expNode' = { expNode with 
         exp= Values vNodes'; 
@@ -470,6 +485,7 @@ and annotate_exp context expNode =
       in 
       expNode', context, anyChanged  
   | Cast(castType, vNode) -> 
+      IFDEF DEBUG THEN Printf.printf "ANNOTATE EXP->CAST!%!\n"; ENDIF;
       let vNode',  vType, changed = annotate_value context vNode in 
       let exp' = 
         if vType = castType then Values [vNode'] 
@@ -482,7 +498,8 @@ and annotate_exp context expNode =
       in 
       expNode', context, changed
       
-  | Arr vs -> 
+  | Arr vs ->
+      IFDEF DEBUG THEN Printf.printf "ANNOTATE EXP->ARRAY!%!\n"; ENDIF; 
       let vs', types, anyValueChanged = annotate_values context vs in 
       begin match DynType.fold_type_list types with 
       | AnyT -> failwith "failed to find common type for elements of array"
@@ -701,6 +718,7 @@ and specialize_function_id interpState untypedId signature =
            untypedId
            (Signature.to_str signature)
          ;
+          
        ENDIF; 
        let untypedFundef = 
          InterpState.get_untyped_function interpState untypedId 
@@ -798,6 +816,7 @@ and specialize_fundef interpState untypedFundef signature =
 (*              SPECIALIZE FUNCTION VALUE                                   *)
 (****************************************************************************)
 and specialize_function_value interpState v signature : SSA.value_node = 
+  IFDEF DEBUG THEN Printf.printf "SPECIALIZE FUNCTION VALUE!%!\n"; ENDIF;
   match InterpState.maybe_get_specialization interpState v signature with 
     | Some fnId -> 
         IFDEF DEBUG THEN
@@ -814,6 +833,7 @@ and specialize_function_value interpState v signature : SSA.value_node =
         }
            
     | None -> 
+      IFDEF DEBUG THEN Printf.printf "SPECIALIZE FUNCTION VALUE 2!%!\n"; ENDIF;
       let typedFundef = match v with
         (* specialize the untyped function -- assuming it is one *) 
       | GlobalFn untypedId  ->
@@ -827,13 +847,17 @@ and specialize_function_value interpState v signature : SSA.value_node =
          
       (* first handle the simple case when it's a scalar op with scalar args *)
       | Prim (Prim.ScalarOp op) when 
-          List.for_all DynType.is_scalar (Signature.input_types signature)  ->
+          List.for_all DynType.is_scalar (Signature.input_types signature) ->
         specialize_scalar_prim_for_scalar_args
           interpState 
           op 
           ?forceOutputType:(Option.map List.hd signature.Signature.outputs) 
           (Signature.input_types signature)
-      | Prim (Prim.ScalarOp op) (* not scalar args *) -> 
+      | Prim (Prim.ScalarOp op) when 
+         (* not scalar args *)
+         List.for_all 
+           (fun t -> DynType.is_scalar t || DynType.is_vec t)
+           (Signature.input_types signature)  -> 
         specialize_scalar_prim_for_vec_args
           interpState 
           op
@@ -897,7 +921,12 @@ and specialize_scalar_prim_for_vec_args
       interpState 
       op 
       ?forceOutputType 
-      inputTypes : SSA.fundef =  
+      inputTypes : SSA.fundef =
+    IFDEF DEBUG THEN 
+      Printf.printf "SPECIALIZE SCALAR PRIM FOR VEC ARGS: %s !%!\n"
+        (DynType.type_list_to_str inputTypes)
+      ;
+    ENDIF;  
     let eltTypes = List.map DynType.elt_type inputTypes in
     let nestedSig = {
       Signature.inputs = List.map (fun t -> Signature.Type t) eltTypes; 
@@ -1099,33 +1128,42 @@ and specialize_all_pairs
     (inputType1 : DynType.t)
     (inputType2 : DynType.t)
     : SSA.fundef  = 
+  IFDEF DEBUG THEN Printf.printf "ALLPAIRS 1!%!\n"; ENDIF; 
   let arrayTypes = [inputType1; inputType2] in    
   let eltTypes = List.map DynType.peel_vec arrayTypes in   
+  IFDEF DEBUG THEN Printf.printf "ALLPAIRS 2!%!\n"; ENDIF;
   let forceOutputEltTypes : DynType.t list option = 
     Option.map (List.map DynType.peel_vec) forceOutputTypes 
   in
+  IFDEF DEBUG THEN Printf.printf "ALLPAIRS 3!%!\n"; ENDIF;
   let nestedSig = 
     { (Signature.from_input_types eltTypes ) with 
        Signature.outputs = forceOutputEltTypes }
   in 
+  IFDEF DEBUG THEN Printf.printf "ALLPAIRS 4!%!\n"; ENDIF;
   let nestedFn = specialize_function_value interpState f nestedSig in
+  IFDEF DEBUG THEN Printf.printf "ALLPAIRS 5!%!\n"; ENDIF;
   let inputTypes = nestedFn.value_type :: arrayTypes in 
-  let outputTypes = TypeInfer.infer_adverb Prim.AllPairs inputTypes in  
+  let outputTypes = TypeInfer.infer_adverb Prim.AllPairs inputTypes in
+  IFDEF DEBUG THEN Printf.printf "ALLPAIRS 6!%!\n"; ENDIF;  
   let allPairsNode = { 
     value = Prim (Prim.ArrayOp Prim.AllPairs);
     value_type = DynType.FnT([], inputTypes, outputTypes ); 
     value_src = None
   } 
   in
+  IFDEF DEBUG THEN Printf.printf "ALLPAIRS 7!%!\n"; ENDIF;
   SSA_Codegen.mk_lambda arrayTypes outputTypes 
     (fun codegen inputs outputs -> 
+      IFDEF DEBUG THEN Printf.printf "ALLPAIRS 8!%!\n"; ENDIF;
       let appNode = { 
         exp = App(allPairsNode, nestedFn::inputs); 
         exp_types = outputTypes; 
         exp_src = None; 
       } 
       in 
-      codegen#emit [mk_set (get_ids outputs) appNode]
+      codegen#emit [mk_set (get_ids outputs) appNode];
+      IFDEF DEBUG THEN Printf.printf "ALLPAIRS 9!%!\n"; ENDIF;
     ) 
             
 and specialize_higher_order_array_prim 
@@ -1192,5 +1230,8 @@ and specialize_q_operator
      "[Specialize->specialize_q_op] prespecified output types not implemented"
  else
   match op, inputTypes with 
+    | Prim.Q_Question, [left; right] 
+      when DynType.is_vec left && DynType.is_scalar right -> 
+         specialize_first_order_array_prim  interpState Prim.Find inputTypes  
     | _ ->  failwith "Q's not welcome here"
             

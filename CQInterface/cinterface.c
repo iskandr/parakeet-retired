@@ -724,10 +724,11 @@ K hostval_to_qval(value hostVal) {
   CAMLlocal5(nestedVal, hostPtr, hostType, hostShape, hostBytes);
   nestedVal = Field(hostVal, 0);
   K ret;
+
   if (Tag_val(hostVal) == HostScalar) {
     /* HostScalars have a single field, which is a PQNum */
     ret = build_q_scalar(nestedVal);
-  } else {
+  } else if (Tag_val(hostVal) == HostArray) {
      hostPtr = Field(nestedVal, HostArray_PTR);
      char* data = (char*) Int64_val(hostPtr);
      hostType = Field(nestedVal, HostArray_HOST_T);
@@ -758,7 +759,15 @@ K hostval_to_qval(value hostVal) {
      }
      ret = build_q_array(data, nbytes, k_elt_type, shape, ndims, 0, idxes);
      free(idxes);
+  } else {
+     int n = Wosize_val(Field(hostVal, 0));
+     ret = ktn(0, n);
+     int i;
+     for (i = 0; i < n; ++i) {
+       kK(ret)[i] = hostval_to_qval(Field(Field(hostVal,0), i));
+     }
   }
+
   CAMLreturnT(K, ret);
 }
 

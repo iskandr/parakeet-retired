@@ -75,6 +75,13 @@ let rec extend_interp_state interpState = function
    which also preserves the original string names of its functions
 *)   
 let gen_module_template entries =
+  (* since std lib is initialized here, might as well also fiddle with 
+     gc settings 
+  *) 
+  (*
+  let gcParams = Gc.get() in
+  Gc.set { gcParams with Gc.minor_heap_size = 128000; space_overhead = 90 };
+  *)
 (* should 'state' be a returned value? it's actually just an 
    imperative modification of QStdLib.initState 
 *)
@@ -121,6 +128,7 @@ let run_template
     Specialize.specialize_function_id interpState untypedId signature
   in
   InterpState.optimize_typed_functions interpState;
+   
   let typedFundef =
     InterpState.get_typed_function interpState unoptimized.fn_id
   in

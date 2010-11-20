@@ -89,11 +89,23 @@ let rec eval globalFns fundef hostVals =
     fundef.input_ids 
     vals
   in
-  let env' = eval_block memState globalFns env fundef.body in 
+  let env' = eval_block memState globalFns env fundef.body in
+  IFDEF DEBUG THEN 
+    Printf.printf "done evaluating body\n%!"; 
+  ENDIF;  
   let outputVals = List.map (fun id -> ID.Map.find id env') fundef.output_ids
   in
+  IFDEF DEBUG THEN 
+    Printf.printf "getting variables on host\n%!"; 
+  ENDIF; 
   let hostVals = List.map (MemoryState.get_host memState) outputVals in
+  IFDEF DEBUG THEN 
+     Printf.printf "free_all\n%!";
+  ENDIF; 
   MemoryState.free_all_gpu memState;
+  IFDEF DEBUG THEN 
+     Printf.printf "returning\n%!";
+  ENDIF; 
   hostVals
   
 and eval_block 
@@ -117,11 +129,12 @@ and eval_stmt
       (memState : MemoryState.t) 
       (fnTable : FnTable.t) 
       (env : env ) 
-      (stmtNode : SSA.stmt_node) : env = match stmtNode.stmt with 
-  | Set (ids, expNode) ->
-      IFDEF DEBUG THEN
+      (stmtNode : SSA.stmt_node) : env = 
+   IFDEF DEBUG THEN
         Printf.printf "[eval_stmt] %s\n" (SSA.stmt_node_to_str stmtNode);
-      ENDIF; 
+  ENDIF;       
+  match stmtNode.stmt with 
+  | Set (ids, expNode) ->
       let results =  eval_exp memState fnTable env expNode in
       IFDEF DEBUG THEN
         debug "[eval_stmt] after eval_exp\n";
@@ -262,27 +275,26 @@ and eval_map memState fnTable env fundef closureArgs argVals =
   let n = Shape.get maxShape 0 in
   let outputIds = Array.of_list (fundef.output_ids) in
   let nOutputs = Array.length outputIds in  
-  let allResults = Array.init nOutputs  (fun _ -> DynArray.create ()) in 
-  for i = 0 to n - 1 do
-  let slices = 
-    List.map 
-      (fun v ->
-         let t = MemoryState.get_type memState v in 
-         if DynType.is_vec t then MemoryState.slice memState v i
-         else v   
-      ) 
-      argVals
-  in      
-  let inputs = (closureArgs @slices) in 
-  let currResults = 
-    Array.of_list (eval_app memState fnTable env fundef inputs)
-  in
-  for i = 0 to nOutputs - 1 do               
-    let dynArr = allResults.(i) in
-      DynArray.add dynArr currResults.(i)
-    done    
-  done;
+  let allResults = Array.init nOutputs  (fun _ -> DynArray.create ()) in
+  let get_slice idx v =
+    Printf.printf "Getting slice %d\n%!" idx;  
+    let t = MemoryState.get_type memState v in 
+    if DynType.is_vec t then MemoryState.slice memState v idx
+    else v    
+  in 
+  for elt = 0 to n - 1 do
+    Printf.printf "Iteration %d\n" elt; 
+    let slices = List.map (get_slice elt) argVals in
+    Printf.printf "GOt slice!\n%!";  
+    let inputs = (closureArgs @ slices) in
+    let currResults = 
+      Array.of_list (eval_app memState fnTable env fundef inputs)
+    in 
+    for i = 0 to nOutputs - 1 do 
+      DynArray.add allResults.(i) currResults.(i)
+    done;    
+  done;   
   Array.to_list $
     Array.map
-      (fun dynArray -> InterpVal.Array (DynArray.to_array dynArray))
+      (fun dynArray -> Printf.printf "Creating DynArray\n%!"; InterpVal.Array (DynArray.to_array dynArray))
     allResults  

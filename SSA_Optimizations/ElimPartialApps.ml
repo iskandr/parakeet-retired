@@ -69,4 +69,3 @@ let elim_partial_apps fnTable fundef =
     eval_block defEnv constEnv block
   in 
   {  fundef with body = body'}, changed 
-  

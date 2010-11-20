@@ -12,6 +12,7 @@ type host_array =
 type host_val = 
   | HostScalar of PQNum.num 
   | HostArray of host_array 
+  | HostBoxedArray of host_val array 
 
 external c_get_int32 : Int64.t -> int -> Int32.t = "ocaml_get_int32"
 external c_set_int32 : Int64.t -> int -> Int32.t -> unit = "ocaml_set_int32"
@@ -45,6 +46,8 @@ let to_str = function
 
 external c_malloc : int -> Int64.t = "ocaml_malloc"
 external c_free : Int64.t -> unit = "ocaml_free"
+external c_memcpy : Int64.t -> Int64.t -> int -> unit = "ocaml_memcpy"
+
 
 let free h = if DynType.is_vec h.host_t then c_free h.ptr
        
@@ -135,14 +138,25 @@ let set_slice array idx elt = match array, elt with
   | HostArray arr, HostScalar n -> set_vec_elt arr idx elt
   | HostArray arr1, HostArray arr2 -> 
       let sliceShape = Shape.slice_shape arr1.shape [0] in
-      IFDEF DEBUG THEN assert (Shape.eq sliceShape arr2.shape); ENDIF;  
       let nelts = Shape.nelts sliceShape in 
       let bytesPerElt = DynType.sizeof (DynType.elt_type arr1.host_t) in 
       let sliceSize = nelts * bytesPerElt in
+      IFDEF DEBUG THEN
+        Printf.printf 
+          "[HostVal->set_slice] slice-shape:%s\n" 
+          (Shape.to_str sliceShape); 
+        Printf.printf "[HostVal->set_slice] nelts:%d\n" nelts;
+        Printf.printf "[HostVal->set_slice] bytesPerElt:%d\n" bytesPerElt;
+        Printf.printf "[HostVal->set_slice] sliceSize:%d\n" sliceSize; 
+        assert (Shape.eq sliceShape arr2.shape); 
+      ENDIF;  
+      let srcAddress = arr2.ptr in  
+      let destAddress = Int64.add arr1.ptr (Int64.of_int (nelts*idx)) in
       for i = 0 to nelts - 1 do 
-        set_vec_elt arr1 (idx+i) (get_vec_elt arr2 idx)
-      done 
-      
+        (* TODO: fix this, it currently will destroy your memory *)
+        set_vec_elt arr1 (i) (get_vec_elt arr2 i)
+      done
+        
       
 let sizeof = function 
   | HostArray arr -> arr.nbytes 

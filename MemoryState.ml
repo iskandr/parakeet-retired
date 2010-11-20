@@ -67,20 +67,19 @@ let is_on_host memState = function
   | InterpVal.Array _ 
   | InterpVal.Closure _ -> false  
 
-let rec sizeof state = function 
-  | InterpVal.Data id -> 
-      if Hashtbl.mem state.gpu_vals id then 
-        let gpuVal = Hashtbl.find state.gpu_vals id in 
-        GpuVal.sizeof gpuVal 
-      else 
-        let hostVal = Hashtbl.find state.host_vals id in 
-        HostVal.sizeof hostVal  
-  | InterpVal.Scalar n -> DynType.sizeof (PQNum.type_of_num n)
-  | InterpVal.Closure _ -> failwith "Can't calculate size of closure"
-  | InterpVal.Array a -> 
-      (* for now assume array is uniform *) 
-      Array.length a * (sizeof state a.(0)) 
-      
+
+  
+let rec sizeof memState interpVal = 
+  let t = get_type memState interpVal in 
+  match interpVal with  
+  | InterpVal.Scalar n -> DynType.sizeof t  
+  | InterpVal.Closure _ -> failwith "can't get size of closure" 
+  | InterpVal.Data _ -> 
+      let s = get_shape memState interpVal in 
+      Shape.nelts s * (DynType.sizeof (DynType.elt_type t))
+  | InterpVal.Array arr ->  
+      Array.fold_left (fun sum elt -> sum + sizeof memState elt) 0 arr 
+
 
 
 let get_gpu memState = function 
@@ -130,11 +129,18 @@ let get_gpu memState = function
        destVal 
        
 
-let get_host state = function 
+
+let rec get_host state interpVal = 
+  match interpVal with  
   | InterpVal.Data id -> 
     if Hashtbl.mem state.host_vals id then
       Hashtbl.find state.host_vals id
-    else
+    else (
+      IFDEF DEBUG THEN 
+        Printf.printf 
+          "[MemoryState->get_host] Initiating transfer from GPU to host\n%!"
+        ;
+      ENDIF; 
       let gpuVal = Hashtbl.find state.gpu_vals id in
       let hostVal = GpuVal.from_gpu gpuVal in
       Hashtbl.replace state.host_vals id hostVal;
@@ -143,8 +149,11 @@ let get_host state = function
           (HostVal.to_str hostVal);
       ENDIF;
       hostVal
+    )
   | InterpVal.Scalar n -> HostVal.HostScalar n 
-  | InterpVal.Array arr -> failwith "Can't move array onto host"
+  | InterpVal.Array arr ->
+      HostVal.HostBoxedArray (Array.map (get_host state) arr)
+       
   | InterpVal.Closure _ -> 
       failwith "[MemoryState->get_host] can't send function to host memory"
 
@@ -195,18 +204,8 @@ let free state id = free_gpu state id; free_host state id
 let free_all_gpu state =
   Hashtbl.iter (fun _ gpuVal -> GpuVal.free gpuVal) state.gpu_vals;
   Hashtbl.clear state.gpu_vals
-  
-let rec sizeof memState interpVal = 
-  let t = get_type memState interpVal in 
-  match interpVal with  
-  | InterpVal.Scalar n -> DynType.sizeof t  
-  | InterpVal.Closure _ -> failwith "can't get size of closure" 
-  | InterpVal.Data _ -> 
-      let s = get_shape memState interpVal in 
-      Shape.nelts s * (DynType.sizeof (DynType.elt_type t))
-  | InterpVal.Array arr ->  
-      Array.fold_left (fun sum elt -> sum + sizeof memState elt) 0 arr 
-  
+      
+    
 (* TIME IN MILLISECONDS-- ignore device->device copy costs for now  *) 
 let rec gpu_transfer_time memState interpVal =  
   match interpVal with

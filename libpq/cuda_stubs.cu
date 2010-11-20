@@ -26,7 +26,7 @@ CAMLprim value ocaml_cuda_malloc(value num_bytes)  {
   CUdeviceptr devPtr;
   int n = Int_val(num_bytes);
   CUresult result = cuMemAlloc(&devPtr, n);
-  printf("Mallocing %d bytes to pointer %p\n", n, (void*)devPtr);
+  //printf("Mallocing %d bytes to pointer %p\n", n, (void*)devPtr);
   if (result != 0) {
     printf ("cuMemAlloc failed for %d bytes with error code: %d\n", n, result);
     exit(1);
@@ -139,7 +139,7 @@ value ocaml_cuda_memcpy_to_device (value array,
   CAMLparam3(array, dev_ptr, num_bytes);
   void* source = (void*)Int64_val(array);
   CUdeviceptr dest = Int64_val(dev_ptr);
-  printf("copying %d bytes to pointer %p\n", Int_val(num_bytes), dest);
+  //printf("copying %d bytes to pointer %p\n", Int_val(num_bytes), dest);
   CUresult result = cuMemcpyHtoD(dest, source, Int_val(num_bytes));
   if (result != 0) {
     printf ("Error copying memory from host to GPU: %d \n", result);

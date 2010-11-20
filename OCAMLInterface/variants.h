@@ -63,7 +63,7 @@ enum pqnum_tag {
      PQNUM_NEGINF
 };
 
-enum host_val_tag { HostScalar = 0, HostArray };
+enum host_val_tag { HostScalar = 0, HostArray, HostBoxedArray };
 
 enum host_array_layout {
   HostArray_PTR = 0, HostArray_HOST_T, HostArray_SHAPE, HostArray_NBYTES

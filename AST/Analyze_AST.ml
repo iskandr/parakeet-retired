@@ -249,8 +249,10 @@ let find_safe_functions globalFnMap volatileFnSet =
     *) 
     let simple_filt info = 
       info.io || 
-      not (PSet.is_empty info.writes_global) || 
+      not (PSet.is_empty info.writes_global) 
+      (*|| 
       not (PSet.is_empty info.writes_local)
+      *)
     in
     let simpleUnsafe, simpleSafe = 
       Tuple.map2 (fun set ->PSet.of_enum (PMap.keys set)) 

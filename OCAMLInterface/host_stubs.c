@@ -32,6 +32,17 @@ value ocaml_free(value ptr) {
     CAMLreturn(Val_unit);
 }
 
+value ocaml_memcpy(value camlDestPtr, value camlSrcPtr, value camlNbytes) {
+    CAMLparam3(camlDestPtr, camlSrcPtr, camlNbytes);
+    void* destPtr = (void*) Int64_val(camlDestPtr);
+    void* srcPtr = (void*) Int64_val(camlSrcPtr);
+    int nbytes = Int_val(camlNbytes);
+    printf("dest: %p, src: %p, nbytes: %d\n%!", destPtr, srcPtr, nbytes);
+    fflush(stdout);
+    memcpy(destPtr, srcPtr, nbytes);
+    CAMLreturn(Val_unit);
+}
+
 // int32
 
 value ocaml_cast_int32(value ptr) {
@@ -54,7 +65,10 @@ value ocaml_get_int32(value ptr, value idx) {
 value ocaml_set_int32(value ptr, value idx, value v) {
     CAMLparam3(ptr,idx,v);
     int32_t* p = (int32_t*) Int64_val(ptr);
-    p[Int_val(idx)] = copy_int32(v);
+    int cidx = Int_val(idx);
+    int32_t cval = Int32_val(v);
+    printf("base:%p, idx: %d, value: %d\n%!", p,cidx,cval);
+    p[cidx] = cval;
     CAMLreturn(Val_unit);
 }
 
