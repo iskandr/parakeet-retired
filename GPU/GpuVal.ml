@@ -23,6 +23,10 @@ type gpu_vec = {
 
 type gpu_val = GpuScalar of PQNum.num | GpuArray of gpu_vec
 
+let to_str = function 
+  | GpuScalar n -> Printf.sprintf "GpuScalar(%s)" (PQNum.num_to_str n)
+  | GpuArray {vec_len=vec_len} -> Printf.sprintf "GpuVec[%d]" vec_len
+
 let nelts = function
   | GpuScalar _-> 1
   | GpuArray v -> Shape.nelts v.vec_shape
@@ -164,7 +168,11 @@ let index arr idx =
                "Indexing into GPU vectors not implemented for type %s"
                (DynType.to_str $  DynType.elt_type arr.vec_t)
 
-let get_slice gpuVal idx = match gpuVal with   
+let get_slice gpuVal idx = 
+  IFDEF DEBUG THEN  
+    Printf.printf "[GpuVal->slice] %s @ %d\n%!" (to_str gpuVal) idx
+  ENDIF; 
+  match gpuVal with   
   | GpuScalar _ -> failwith "can't slice a GPU scalar"
   | GpuArray arr ->
     let sliceShape = Shape.slice_shape arr.vec_shape [0] in

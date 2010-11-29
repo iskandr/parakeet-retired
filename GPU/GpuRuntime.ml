@@ -132,7 +132,17 @@ let compile_map globalFunctions payload closureTypes argTypes retTypes =
   ENDIF; 
   let mapThreadsPerBlock = 256 in
   (* converting payload to Imp *) 
+  IFDEF DEBUG THEN 
+     Printf.printf "Translating map payload from SSA: %s\n"
+       (SSA.fundef_to_str payload)
+    ; 
+  ENDIF; 
   let impPayload = SSA_to_Imp.translate_fundef globalFunctions payload in
+  IFDEF DEBUG THEN 
+     Printf.printf "Translated payload: %s\n"
+       (Imp.fn_to_str impPayload)
+    ; 
+  ENDIF; 
   (* generating Imp kernel w/ embedded payload *)
   let impfn =
     ImpMapTemplate.gen_map

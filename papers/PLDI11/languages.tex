@@ -1,0 +1,136 @@
+% !TEX TS-program = pdflatex
+% !TEX encoding = UTF-8 Unicode
+
+\documentclass[preprint]{sigplanconf}
+
+\usepackage{graphicx,listings,fixltx2e,lambda,array,multirow,color}
+
+
+\begin{document}
+\conferenceinfo{PLDI 2011}{June 4--8, 2011, San Jose, CA, USA.}
+\copyrightyear{2010}
+
+\preprintfooter{PLDI 2011}
+\titlebanner{DRAFT---Do not distribute}
+
+\title{Parakeet: Fast GPU Programming with Array Languages} 
+% EDIT: old title was a bit wordy, looked gross, and "high level" is redundant if someone even glances at our abstract. 
+%  --- General Purpose GPU Programming with High Level ArrayLanguages}
+
+\authorinfo{Anonymous}{Anonymous}{Anonymous}
+\lstset{ 
+basicstyle=\small\footnotesize\ttfamily, % Standardschrift
+numbers=left,                   % where to put the line-numbers
+stepnumber=1,                   % the step between two line-numbers. If it's 1 each line 
+numbersep=12pt,                  % how far the line-numbers are from the code
+showspaces=false,               % show spaces adding particular underscores
+showstringspaces=false,         % underline spaces within strings
+showtabs=false,                 % show tabs within strings adding particular underscores
+tabsize=2,	                % sets default tabsize to 2 spaces
+captionpos=b,                   % sets the caption-position to bottom
+breaklines=true,                % sets automatic line breaking
+breakatwhitespace=false,        % sets if automatic breaks should only happen at whitespace
+keywordstyle=\color{black}\bf,
+morekeywords={til,sum,sqrt,all, min, each, where, while,+,*,-,avg},            % if you want to add more keywords to the set
+moredelim=[is][\itshape]{/*}{*/},
+linewidth={\textwidth},
+xleftmargin=20pt,
+%framexleftmargin=17pt,
+%framexrightmargin=5pt,
+%framexbottommargin=4pt,
+}
+
+% define some useful commands to use in language specification 
+\newcommand{\WITH}{\impfnt{with}}
+\newcommand{\VALUES}{\impfnt{values}}
+\newcommand{\MAP}{\impfnt{map}}
+\newcommand{\REDUCE}{\impfnt{reduce}}
+\newcommand{\ALLPAIRS}{\impfnt{allpairs}}
+\newcommand{\CAST}{\impfnt{cast}}
+\newcommand{\APPLY}{\impfnt{apply}}
+\newcommand{\INDEX}{\impfnt{index}}
+\newcommand{\SCAN}{\impfnt{scan}}
+\newcommand{\THREADIDX}{\impfnt{threadIdx}}
+\newcommand{\BLOCKIDX}{\impfnt{blockIdx}}
+\newcommand{\BLOCKDIM}{\impfnt{blockDim}}
+\newcommand{\GRIDDIM}{\impfnt{gridDim}}
+\newcommand{\VEC}{\impfnt{vec}}
+\newcommand{\SET}{\impfnt{set}}
+\newcommand{\CALL}{\impfnt{call}}
+\newcommand{\concat}{\ensuremath{+\!\!\!\!+\,}}
+
+\setlength\fboxsep{8pt}
+\setlength\fboxrule{0.5pt}
+
+\maketitle
+
+\begin{figure}
+  \begin{tabular}{| m{0.01cm}m{1.5cm}m{0.1cm}m{0.2cm}p{4.5cm} |}
+  \hline
+  & & & &\\ 
+   \multicolumn{5}{|l|}{\textbf{Untyped Higher Order IL}}  \\[4pt]
+  & program & $p$ &  $\bnfdef$   &  $d_1 \cdots d_n $ \\[4pt]
+  & definition & $d$ & $\bnfdef$ & $f_i(x^*) \rightarrow (y^*) = s^*$ \\[4pt]
+  & statement  & $s$ & $\bnfdef$ & $\SET ~ x^* = e $\\[2pt]
+  &            &     & $\sep$    & $\IF ~v~ \THEN \;s^*\; \ELSE \;s^*$ \\[2pt]
+  &            &     & $\sep$    & $\WHILE ~s^+, x_{cond} \; \DO \;s^*\; $  \\[5pt]
+  & expression & $e$ & $\bnfdef$ & $\VALUES (v^*)$ \\[2pt]
+  &            &     & $\sep$    & $ v_f (\overline{v}) $ \\[5pt]
+  & value      & $v$ & $\bnfdef$ & numeric constant\\[2pt]
+  &            &     & $\sep$    &  $x$  \quad \small{(data variable)} \\[2pt]
+  &            &     & $\sep$    &  $f$  \quad \small{(function label)} \\[2pt]
+  &            &     & $\sep$    &  $\oplus$ \quad \small{(scalar operator)} \\[2pt]
+  &            &     & $\sep$    &  $a$ \quad \small{(simple array operator)} \\[2pt]
+  &            &     & $\sep$    &  $\textrm{map}$ \\[2pt]
+  &            &     & $\sep$    &  $\textrm{reduce}$ \\[2pt]
+  &            &     & $\sep$    &  $\textrm{scan}$ \\[9pt]
+  \hline
+  \end{tabular}
+\caption{Untyped Higher Order Intermediate Language}
+\end{figure}
+
+
+
+\begin{figure}
+  \begin{tabular}{| m{0.01cm}m{1.3cm}m{0.1cm}m{0.2cm}p{4.5cm} |}
+  \hline
+    & & & &\\
+  \multicolumn{5}{|l|}{\textbf{Type System}} \\[4pt]
+  & data     & $\tau$    & $\bnfdef$ & $bool \sep int \sep float \sep \mathbf{vec} \; \tau   $ \\[2pt]
+  & closures        & $\rho$  & $\bnfdef$ & $\overline{\tau} \rightarrow \overline{\tau} \sep  \tau$ \\[4pt]
+  & & & &\\
+   \multicolumn{5}{|l|}{\textbf{Typed First Order IL}}  \\[4pt]
+  & program & $p$ &  $\bnfdef$   &  $d_1 \cdots d_n $ \\[4pt]
+  & definition & $d$ & $\bnfdef$ & $f_i(x^m : \tau^m) \rightarrow (y^n : \tau^n) =s^{\small{+}}$ \\[4pt]
+  & statement  & $s$ & $\bnfdef$ & $\SET \; x^m : \rho^m = e $\\[2pt]
+  &            &     & $\sep$    & $\IF \;v\; \THEN \;s^*\; \ELSE \;s^*$ \\[2pt]
+  &            &     & $\sep$    & $\textbf{case} ~ f_i, v^* \Rightarrow s^* | \cdots | f_j, v^* \Rightarrow s^*   $ \\[2pt]
+  &            &     & $\sep$    & $\WHILE ~s^+, x_{cond}~ \DO \;s^*\;  $ \\[4pt]
+  & expression & $e$ & $\bnfdef$ & $\VALUES(v^*)$ \\[2pt]
+  &            &     & $\sep$    & $\CAST (v, \tau)$ \\[2pt]
+  &            &     & $\sep$    & $\textbf{closure} _{ \{f_i\}} (v^c) $ \\[2pt]
+  &            &     &           & ~~where arity($f_i$) $ >  c$ \\[2pt]
+  &            &     & $\sep$    & $\CALL _{\{f_i \}} (v^m)$ \\[2pt] 
+  &            &     &           & ~~where arity($f_i$) = $m$ \\[2pt]
+  &            &     & $\sep$    & $\MAP _{\{ f_i, c\}}(v^c, v^{m-c})$ \\[2pt]
+  &            &     &           & ~~where arity($f_i$) = $m$ \\[2pt]
+  &            &     & $\sep$    & $\REDUCE _{\{ f_i, c, f_r, d \}} (v^{c}, v^n, v^{d}, v^{m-d})$ \\[2pt]
+  &            &     &           & ~~where $f_i : \tau^{c+n} \rightarrow \tau^n_{acc}$ \\[2pt]
+  &            &     &           & ~~~~~~~~~~~~ $f_r : \tau^m, \tau^n_{acc} \rightarrow \tau^n_{acc}$ \\[2pt]
+  &            &     & $\sep$    & $\SCAN _{\{ f_i, c, f_r, d \}} (v^{c}, v^n, v^{d}, v^{m-d})$ \\[2pt]
+  &            &     &           & ~~where $f_i : \tau^{c+n} \rightarrow \tau^n_{acc}$ \\[2pt]
+  &            &     &           & ~~~~~~~~~~~~ $f_r : \tau^m, \tau^n_{acc} \rightarrow \tau^n_{acc}$ \\[5pt]
+  & value      & $v$ & $\bnfdef$ & numeric constant\\[2pt]
+  &            &     & $\sep$    &  $x$  \quad \small{(data variable)} \\[2pt]
+  &            &     & $\sep$    &  $f$  \quad \small{(function label)} \\[2pt]
+  &            &     & $\sep$    &  $\oplus$ \quad \small{(scalar operator)} \\[2pt]
+  &            &     & $\sep$    &  $a$ \quad \small{(simple array operator)} \\[5pt]
+
+  & & & &\\
+  \hline
+  \end{tabular}\\[4pt]
+\caption{Typed First-Order Language}
+\end{figure}
+
+
+\end{document}

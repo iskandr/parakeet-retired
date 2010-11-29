@@ -77,6 +77,3 @@ let elim_dead_code
       (fundef : SSA.fundef) : SSA.fundef * bool = 
   let liveSet : ID.Set.t = FindLiveIds.find_live_ids fundef in 
   eval_fundef liveSet fundef 
-
-
-    

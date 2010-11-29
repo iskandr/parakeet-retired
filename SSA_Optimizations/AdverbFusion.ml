@@ -1,3 +1,5 @@
+(* pp: -parser o pa_macro.cmo *)
+
 open Base
 open SSA 
 
@@ -102,6 +104,11 @@ let fuse_map_reduce
       (succFn : SSA.fundef) 
       (nestedSuccToPred : ID.t ID.Map.t)
       (deadNestedPredOutputs : ID.Set.t) =
+    
+   (*Printf.printf "Dead: "; 
+   ID.Set.iter (fun id -> Printf.printf " {%s} " (ID.to_str id)) deadNestedPredOutputs; 
+   Printf.printf "\n";
+  *)     
   (* inputs to the fused reduction will be the accumulators,
      any data not originating from the predecessor and 
      the inputs of the preceding map 
@@ -111,7 +118,18 @@ let fuse_map_reduce
       (fun id -> not $ ID.Map.mem id nestedSuccToPred) 
       succFn.input_ids
   in 
+  
   let inputIds = keptSuccInputIds @ predFn.input_ids in
+  (*
+  IFDEF DEBUG THEN 
+    Printf.printf "--- keptSuccInputIds: %s\n"
+       (String.concat ", " (List.map ID.to_str keptSuccInputIds))
+    ;   
+    Printf.printf "--- inputIds: %s\n"
+       (String.concat ", " (List.map ID.to_str inputIds))
+    ;   
+  ENDIF;
+  *)   
   let inlineArgs =
     List.map 
       (fun succId ->
@@ -233,7 +251,8 @@ let fuse
         let globalCount = ID.Map.find id use_counts in 
         let argCount = ID.Map.find id succOverlapUseCounts in 
         assert (argCount <= globalCount);
-        argCount = globalCount
+        argCount = globalCount 
+        
       )
       overlap
   in
@@ -264,7 +283,16 @@ let fuse
              (Prim.array_op_to_str succ.adverb)
   in 
 
-  List.iter (fun fundef -> FnTable.add fundef fns) fusedFns; 
+  List.iter 
+    (fun fundef -> 
+      (*IFDEF DEBUG THEN 
+        Printf.printf "Adding fn to table: %s\n"
+          (SSA.fundef_to_str fundef); 
+      ENDIF;
+      *) 
+      FnTable.add fundef fns) 
+    fusedFns
+  ; 
   let fusedIds = List.map (fun fundef -> fundef.fn_id) fusedFns in
   let is_data_dependency vNode = match vNode.value with 
      | Var id -> not (ID.Set.mem id overlap) 
@@ -275,7 +303,13 @@ let fuse
   *)  
   let filteredDataArgs =
     List.filter is_data_dependency (succ.data_args @ pred.data_args )
-  in 
+  in
+  (*
+  IFDEF DEBUG THEN 
+        Printf.printf "Filtered data args: %s\n" 
+          (SSA.value_nodes_to_str filteredDataArgs);
+  ENDIF;
+  *)  
   let filteredTypes = 
     List.map (fun vNode -> vNode.value_type) filteredDataArgs 
   in

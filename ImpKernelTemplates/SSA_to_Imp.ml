@@ -123,7 +123,7 @@ and translate_exp codegen globalFunctions idEnv expectedType expNode =
       set i (int 0);
       set n (len inArray');
       set index n;
-      while_ (i <$ n &&$ index =$ n) [
+      while_ ((i <$ n) &&$ (index =$ n)) [
         ifTrue ((idx inArray' i) =$ elToFind') [set index i]
       ]
     ];
@@ -142,13 +142,14 @@ and translate_exp codegen globalFunctions idEnv expectedType expNode =
       "[ssa->imp] typed core exp not yet implemented: %s"
       (SSA.exp_to_str expNode)
   in 
-  if impExpNode.exp_type <> List.hd expNode.SSA.exp_types then 
+  (*if impExpNode.exp_type <> List.hd expNode.SSA.exp_types then 
     failwith $ 
     Printf.sprintf "[ssa->imp] mismatch between %s and %s while translating %s"
     (DynType.to_str impExpNode.exp_type)
     (DynType.to_str $ List.hd expNode.SSA.exp_types)
     (SSA.exp_to_str expNode) 
-  else  
+  else
+    *)  
   impExpNode
 
 and translate_stmt globalFunctions idEnv codegen stmtNode =
@@ -190,18 +191,36 @@ and translate_fundef globalFunctions fn =
   let codegen  = new ImpCodegen.imp_codegen in
   let inputTypes = DynType.fn_input_types fn.SSA.fn_type in
   let outputTypes = DynType.fn_output_types fn.SSA.fn_type in
-  let freshInputIds = 
-    List.map codegen#fresh_input_id inputTypes   
-  in 
-  let freshOutputIds = List.map codegen#fresh_output_id  outputTypes in
   IFDEF DEBUG THEN 
-    assert (List.length fn.SSA.input_ids = List.length freshInputIds);
-    assert (List.length fn.SSA.output_ids = List.length freshOutputIds); 
-  ENDIF; 
-  let idEnv = ID.Map.combine 
-    (ID.Map.of_list (List.combine fn.SSA.input_ids freshInputIds)) 
-    (ID.Map.of_list (List.combine fn.SSA.output_ids freshOutputIds)) 
-  in
+     Printf.printf 
+       "Translating function into Imp of type %s->%s\n"
+       (DynType.type_list_to_str inputTypes)
+       (DynType.type_list_to_str outputTypes)
+     ;
+  ENDIF;
+  (* jesus, unspecified evaluation order and side effects really don't mix--
+     Beware of List.map!  
+  *)
+  let inputIdEnv = 
+    List.fold_left2 
+      (fun accEnv ssaId t -> 
+        let impId = codegen#fresh_input_id t in
+        ID.Map.add ssaId impId accEnv
+      )
+      ID.Map.empty 
+      fn.SSA.input_ids  
+      inputTypes
+  in 
+  let idEnv = 
+    List.fold_left2
+      (fun accEnv ssaId t -> 
+          let impId = codegen#fresh_output_id t in 
+          ID.Map.add ssaId impId accEnv 
+       )
+       inputIdEnv 
+       fn.SSA.output_ids 
+       outputTypes 
+  in  
   let _ = List.fold_left
     (fun idEnv stmt -> translate_stmt globalFunctions idEnv codegen stmt) 
     idEnv

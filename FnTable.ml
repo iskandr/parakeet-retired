@@ -8,6 +8,7 @@ type t = {
 }
 
 let add ?(opt_queue=true) fundef cache =
+  
   let id = fundef.SSA.fn_id in 
   Hashtbl.add cache.fundefs id fundef;
   let arity = List.length fundef.SSA.input_ids in
@@ -24,9 +25,9 @@ let find_option id cache =
 let mem id cache = Hashtbl.mem cache.fundefs id 
 
 let create (n : int) : t = { 
-  fundefs = Hashtbl.create n; 
+  fundefs = Hashtbl.create (2*n+1); 
   unoptimized_queue = Queue.create ();
-  arities = Hashtbl.create n; 
+  arities = Hashtbl.create (2*n+1); 
 } 
 
 let from_list (fns :  SSA.fundef list) : t = 

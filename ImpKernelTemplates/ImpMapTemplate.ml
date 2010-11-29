@@ -46,7 +46,8 @@ let gen_map payload threadsPerBlock closureTypes inTypes outTypes =
     let inputIdx = i - nClosureArgs in 
     if DynType.is_scalar inTypes.(inputIdx) then 
       (* assign elt to be the scalar input *)
-      DynArray.add buffer (set payloadInputVars.(i) inputArgs.(inputIdx))
+      DynArray.add buffer 
+        (set payloadInputVars.(i) inputArgs.(inputIdx))
     else 
       DynArray.add buffer 
         (set payloadInputVars.(i) (idx inputArgs.(inputIdx) mapIdx))

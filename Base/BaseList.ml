@@ -2,6 +2,8 @@ let _ = Printexc.record_backtrace true
 
 include ExtList.List
 
+
+
   let rec fill x = function 
     | _::rest -> x::(fill x rest)
     | [] -> []
@@ -32,14 +34,26 @@ include ExtList.List
   | (x,y,z)::rest -> 
       let xs, ys, zs = split3 rest in 
       x::xs, y::ys, z::zs
-      
+  
+  
   let rec map3 f xs ys zs = 
     match xs,ys,zs with 
       | [], [], [] -> [] 
       | x::xs', y::ys', z::zs' ->
-        (f x y z)::(map3 f xs' ys' zs') 
+        (f x y z)::(map3 f xs' ys' zs')
       | _ -> failwith "map3 - mismatched list lengths" 
-
+  
+  
+  let rec map f = function 
+    | [] -> [] 
+    | [x] -> [f x] 
+    | [x; y] -> [f x; f y]
+    | [x; y; z] -> [f x; f y; f z]
+    | [x; y; z; w] -> [f x; f y; f z; f w]
+    | [x; y; z; w; a] -> [f x; f y; f z; f w; f a]
+    | x::y::z::w::a::b::rest -> 
+        (f x)::(f y)::(f z)::(f w)::(f a)::(f b)::(map f rest)
+  
   let sum xs = fold_left (+) 0 xs 
   
   let rec drop n lst = 

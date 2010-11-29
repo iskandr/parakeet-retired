@@ -245,6 +245,7 @@ let array_op_to_str = function
   | Index -> "@"
   | Where -> "where"
   | DimSize -> "dimsize" 
+  | Find -> "?"
 
 let impure_op_to_str = function
   | ResetTimer -> "reset_timer"

@@ -95,18 +95,8 @@ class imp_codegen =
     
     method private add_slice_annot (sliceId : ID.t) (arrId : ID.t) = 
       IFDEF DEBUG THEN 
-        if not $ MutableSet.mem localIdSet sliceId then 
-          self#fail_with_context $ Printf.sprintf 
-            "[add_slice_annot] expected slice lhs %s to be a local variable"
-            (ID.to_str sliceId)
-        ; 
-        if not $ self#is_array arrId then 
-          self#fail_with_context $ Printf.sprintf 
-            "[add_slice_annot] expected slice rhs %s : %s to be an array" 
-            (ID.to_str arrId)
-            (DynType.to_str $ self#get_type arrId)
-        ; 
-      ENDIF;
+        Printf.printf "add_slice_annot: %s = %s[]\n" (ID.to_str sliceId) (ID.to_str arrId);
+      ENDIF; 
       match self#get_array_annot arrId with
         (* the array to be slice should be of at least rank 1 *) 
         | Imp.InputArray 0 
@@ -158,7 +148,15 @@ class imp_codegen =
     val coercionCache 
         : (Imp.exp * DynType.t, Imp.exp_node) Hashtbl.t = Hashtbl.create 127
     (* create a Set node and insert a cast if necessary *)     
-    method private set_or_coerce id (rhs : exp_node) = 
+    method private set_or_coerce id (rhs : exp_node) =
+      (* 
+      IFDEF DEBUG THEN 
+         Printf.printf "Set or Coerce: %s <- %s"
+          (ID.to_str id)
+          (Imp.exp_node_to_str rhs)
+        ; 
+      ENDIF;
+      *) 
       if not (Hashtbl.mem types id) then
         self#fail_with_context $ 
           sprintf "[imp_codegen->set_or_coerce] no type for: %s" (ID.to_str id)
@@ -211,11 +209,11 @@ class imp_codegen =
        expression yielding the same value as the original compound expression 
     *) 
     method private flatten_exp expNode : Imp.stmt list * Imp.exp_node =
-      (*IFDEF DEBUG THEN 
+      IFDEF DEBUG THEN 
         Printf.printf "[ImpCodegen] Flattening exp: %s\n"
           (Imp.exp_node_to_str expNode); 
       ENDIF;
-      *) 
+      
       let is_simple eNode = 
         match eNode.exp with Var _ | Const _ -> true | _ -> false 
       in   
@@ -290,17 +288,24 @@ class imp_codegen =
           (Hashtbl.length types)  
           (Imp.stmt_to_str stmt)
       ENDIF;
-      *) 
+      *)
+      let flatten_block block = 
+          List.rev $ 
+                List.fold_left 
+                  (fun acc stmt -> (self#flatten_stmt stmt) @ acc) 
+                  [] 
+                  block
+      in 
       match stmt with 
       | If (cond, tBlock, fBlock) -> 
           let condStmts, condExp = self#flatten_exp cond in 
-          let tBlock' = List.concat $ List.map self#flatten_stmt tBlock in 
-          let fBlock' = List.concat $ List.map self#flatten_stmt fBlock in 
+          let tBlock' = flatten_block tBlock in 
+          let fBlock' = flatten_block fBlock in 
           condStmts @ [If(condExp, tBlock', fBlock')]
          
       | While (cond, loopBody) -> 
           let condStmts, condExp = self#flatten_exp cond in 
-          let loopBody' = List.concat $ List.map self#flatten_stmt loopBody in 
+          let loopBody' = flatten_block loopBody in 
           condStmts @ [While(condExp, loopBody')]
       
       | Set (id, rhs) -> 
@@ -358,12 +363,14 @@ class imp_codegen =
       
     method fresh_input_id t =
       let id = self#fresh_id t in
+      (*
       IFDEF DEBUG THEN 
         Printf.printf "[ImpCodegen] Creating input %d : %s\n"
           id
           (DynType.to_str t)
         ;
-      ENDIF; 
+      ENDIF;
+      *) 
       MutableSet.add inputSet id; 
       DynArray.add inputs (id,t);
       id 
@@ -373,12 +380,14 @@ class imp_codegen =
     method fresh_output_id t = 
       (* if an output is an array, you have to declare 
          its size using fresh_array_output 
-      *) 
+      *)
+       
       IFDEF DEBUG THEN 
         if not $ DynType.is_scalar t then failwith $ 
           "[ImpCodegen] output arrays must be allocated with fresh_output_array"
         ;
-      ENDIF; 
+      ENDIF;
+       
       let id = self#fresh_id t in  
       DynArray.add outputs (id,t);
       MutableSet.add outputSet id; 
