@@ -153,3 +153,9 @@ papers
 papers/PLDI11
 .git/objects/2e
 .git/objects/ac
+.git/objects/29
+.git/objects/44
+.git/objects/53
+.git/objects/ae
+_build/ImpKernelTemplates
+_build/libpq

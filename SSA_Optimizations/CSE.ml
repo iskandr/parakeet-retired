@@ -36,7 +36,6 @@ and eval_stmt (env: (exp,value) PMap.t) (stmtNode : stmt_node)  =
       Set ([id], expNode'), env', changed
   (* if not a safe expression  *) 
   | Set (ids,rhs) ->  Set(ids,rhs), env, false
-  | Ignore exp -> Ignore exp, env, false 
     
   | If (cond, tBlock, fBlock, gate) -> 
     (* for now don't try to eliminate expressions common between branches, 

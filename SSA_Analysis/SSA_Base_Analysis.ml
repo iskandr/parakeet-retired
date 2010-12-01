@@ -21,7 +21,6 @@ let rec eval_block logic env code =
       
 and eval_stmt logic env node = 
   let env', changed = match node.stmt with
-  | Ignore rhs
   | Set (_, rhs) -> 
     let rhsEnv, rhsChanged = eval_exp logic env rhs in 
     logic#stmt rhsEnv node, rhsChanged  

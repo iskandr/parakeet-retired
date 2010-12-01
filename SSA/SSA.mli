@@ -18,10 +18,10 @@ type loop_gate = {
 
 type stmt = 
   | Set of ID.t list * exp_node 
-  | Ignore of exp_node
   | SetIdx of ID.t * (value_node list) * value_node
   | If of value_node * block * block * if_gate
   | WhileLoop of block * ID.t * block * loop_gate 
+   
 and stmt_node = { 
     stmt: stmt;
     stmt_src: SourceInfo.source_info option;
@@ -29,12 +29,17 @@ and stmt_node = {
 }
 and block = stmt_node list 
 and  exp = 
-       
   | App of  value_node * value_node list
   | ArrayIndex of value_node * value_node list
   | Arr of value_node list
+  | Values of value_node list
+  (* Cast, Call, Map, Reduce, and Scan only get used for typed SSA *)  
   | Cast of DynType.t * value_node  
-  | Values of value_node list 
+  | Call of FnId.t * value_node list 
+  | Map of closure * value_node list 
+  | Reduce of closure * closure * value_node list  
+  | Scan of closure * closure * value_node list
+and closure = FnId.t * value_node list 
 and exp_node = { 
   exp: exp; 
   exp_src : SourceInfo.source_info option;

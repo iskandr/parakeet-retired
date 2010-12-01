@@ -84,9 +84,6 @@ and inline_stmt constEnv node =
   | Set (ids, rhs) -> 
     let rhs', changed, extraStmts, extraTypes = inline_exp constEnv rhs in 
     extraStmts @ [{node with stmt=Set(ids, rhs')}], extraTypes, changed
-  | Ignore rhs ->
-    let rhs', changed, extraStmts, extraTypes = inline_exp constEnv rhs in 
-    extraStmts @ [{node with stmt = Ignore rhs'}], extraTypes, changed  
   | If (condVal, tBlock, fBlock, ifGate) ->
     let condVal', condChanged = inline_value constEnv condVal in 
     let tBlock', tTypes, tChanged = inline_block constEnv tBlock in 

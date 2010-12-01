@@ -35,12 +35,12 @@ type loop_gate = {
   loop_output_map : (ID.t * ID.t) ID.Map.t;  
 }
 
+
 type stmt = 
   | Set of ID.t list * exp_node 
-  | Ignore of exp_node
   | SetIdx of ID.t * (value_node list) * value_node
   | If of value_node * block * block * if_gate
-  | WhileLoop of block * ID.t * block * loop_gate 
+  | WhileLoop of block * ID.t * block * loop_gate  
 and stmt_node = { 
     stmt: stmt;
     stmt_src: source_info option;
@@ -51,8 +51,13 @@ and  exp =
   | App of  value_node * value_node list
   | ArrayIndex of value_node * value_node list
   | Arr of value_node list
+  | Values of value_node list
   | Cast of DynType.t * value_node  
-  | Values of value_node list 
+  | Call of FnId.t * value_node list 
+  | Map of closure * value_node list 
+  | Reduce of closure * closure * value_node list  
+  | Scan of closure * closure * value_node list 
+and closure = FnId.t * value_node list
 and exp_node = { 
   exp: exp; 
   exp_src : source_info option;
@@ -119,7 +124,6 @@ and stmt_node_to_str ?(space="") ?(tenv=ID.Map.empty) stmtNode =
   let str = match stmtNode.stmt with 
   | Set (ids, rhs) -> 
     sprintf "%s = %s " (typed_id_list_to_str tenv ids) (exp_to_str rhs)
-  | Ignore effect -> sprintf "ignore %s " (exp_to_str effect) 
   | SetIdx _ -> "<set-idx>" 
   | If _ -> "if ???"
   | WhileLoop _ -> "while ???"

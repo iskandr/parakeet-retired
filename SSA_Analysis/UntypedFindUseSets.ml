@@ -19,8 +19,7 @@ and eval_stmt useMap stmtNode =
         ids
       in 
       currUsedSet, useMap'''  
-       
-  | Ignore expNode -> eval_exp useMap expNode 
+    
   | SetIdx (id, indices, rhsVal) -> 
       let oldSet = PMap.find id useMap in 
       let idxSet, map' = eval_value_list useMap indices in

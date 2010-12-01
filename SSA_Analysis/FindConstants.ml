@@ -38,10 +38,6 @@ and eval_stmt env stmtNode =
           ID.Map.add id combinedVal env, combinedChanged
       in   
       List.fold_left2 folder (rhsEnv, rhsChanged) ids rhsLatticeVals 
-      
-  | Ignore rhs -> 
-      let _, rhsEnv, rhsChanged = eval_exp env rhs in
-      rhsEnv, rhsChanged 
   | SetIdx (id,_,_) -> 
       if not $ ID.Map.mem id env then 
         failwith "setting range of undefined array"
