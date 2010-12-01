@@ -57,74 +57,75 @@ xleftmargin=20pt,
 \newcommand{\VEC}{\impfnt{vec}}
 \newcommand{\SET}{\impfnt{set}}
 \newcommand{\CALL}{\impfnt{call}}
+\newcommand{\CLOSURE}{\impfnt{closure}}
+\newcommand{\PRIM}{\impfnt{prim}}
 \newcommand{\concat}{\ensuremath{+\!\!\!\!+\,}}
 
 \setlength\fboxsep{8pt}
 \setlength\fboxrule{0.5pt}
 
 \maketitle
-
-\begin{figure}
+\section{Untyped Higher-Order IL}
+\begin{figure}[h!]
   \begin{tabular}{| m{0.01cm}m{1.5cm}m{0.1cm}m{0.2cm}p{4.5cm} |}
   \hline
   & & & &\\ 
-   \multicolumn{5}{|l|}{\textbf{Untyped Higher Order IL}}  \\[4pt]
+   \multicolumn{5}{|l|}{\textbf{Untyped Higher-Order IL}}  \\[4pt]
   & program & $p$ &  $\bnfdef$   &  $d_1 \cdots d_n $ \\[4pt]
-  & definition & $d$ & $\bnfdef$ & $f_i(x^*) \rightarrow (y^*) = s^*$ \\[4pt]
-  & statement  & $s$ & $\bnfdef$ & $\SET ~ x^* = e $\\[2pt]
-  &            &     & $\sep$    & $\IF ~v~ \THEN \;s^*\; \ELSE \;s^*$ \\[2pt]
-  &            &     & $\sep$    & $\WHILE ~s^+, x_{cond} \; \DO \;s^*\; $  \\[5pt]
-  & expression & $e$ & $\bnfdef$ & $\VALUES (v^*)$ \\[2pt]
+  & definition & $d$ & $\bnfdef$ & $f_i(\overline{x}) \rightarrow (\overline{y}) = \overline{s}$ \\[4pt]
+  & statement  & $s$ & $\bnfdef$ & $\overline{x} = e $\\[2pt]
+  &            &     & $\sep$    & $\IF ~v~ \THEN ~ \overline{s} ~ \ELSE ~ \overline{s} $ \\[2pt]
+  &            &     & $\sep$    & $\WHILE ~\overline{s}, x_{cond} ~ \DO ~\overline{s}~ $  \\[5pt]
+  & expression & $e$ & $\bnfdef$ & $\VALUES (\overline{v})$ \\[2pt]
   &            &     & $\sep$    & $ v_f (\overline{v}) $ \\[5pt]
+  &            &     & $\sep$    & $\MAP(v_f, \overline{v})$ \\[2pt]
+  &            &     & $\sep$    & $\REDUCE(v_f, \overline{v}_{acc}, \overline{v})$ \\[2pt]
+  &            &     & $\sep$    & $\SCAN(v_f, \overline{v}_{acc}, \overline{v})$ \\[9pt]
+
   & value      & $v$ & $\bnfdef$ & numeric constant\\[2pt]
   &            &     & $\sep$    &  $x$  \quad \small{(data variable)} \\[2pt]
   &            &     & $\sep$    &  $f$  \quad \small{(function label)} \\[2pt]
-  &            &     & $\sep$    &  $\oplus$ \quad \small{(scalar operator)} \\[2pt]
-  &            &     & $\sep$    &  $a$ \quad \small{(simple array operator)} \\[2pt]
-  &            &     & $\sep$    &  $\textrm{map}$ \\[2pt]
-  &            &     & $\sep$    &  $\textrm{reduce}$ \\[2pt]
-  &            &     & $\sep$    &  $\textrm{scan}$ \\[9pt]
+  &            &     & $\sep$    &  $\oplus$ \quad \small{(primitive operator)} \\[5pt]
   \hline
   \end{tabular}
-\caption{Untyped Higher Order Intermediate Language}
+\caption{Untyped Higher-Order Intermediate Language}
 \end{figure}
 
 
-
-\begin{figure}
-  \begin{tabular}{| m{0.01cm}m{1.3cm}m{0.1cm}m{0.2cm}p{4.5cm} |}
+\section{Typed First-Order IL}
+\begin{figure}[h!]
+  \begin{tabular}{| m{0.01cm}m{1.3cm}m{0.1cm}m{0.2cm}p{5.0cm} |}
   \hline
     & & & &\\
+   \multicolumn{5}{|l|}{\textbf{Typed First-Order IL}}  \\[4pt]
+  & program & $p$ &  $\bnfdef$   &  $d_1 \cdots d_n $ \\[4pt]
+  & definition & $d$ & $\bnfdef$ & $f_i(x^m : \tau^m) \rightarrow (y^n : \tau^n) = \overline{s} $ \\[4pt]
+  & statement  & $s$ & $\bnfdef$ & $x^m : \rho^m = e $\\[2pt]
+  &            &     & $\sep$    & $\IF ~v~ \THEN ~\overline{s}~ \ELSE ~ \overline{s}$ \\[2pt]
+  &            &     & $\sep$    & $\textbf{fncase} ~ f_i, \overline{x} ~\small{\Rightarrow}~ \overline{s} ~ | ~\small{\cdots}~ | ~ f_j, \overline{x} ~\small{\Rightarrow}~ \overline{s}   $ \\[2pt]
+  &            &     & $\sep$    & $\WHILE ~ \overline{s}, x_{cond} ~ \DO ~ \overline{s} ~  $ \\[4pt]
+  & expression & $e$ & $\bnfdef$ & $\VALUES(\overline{v})$ \\[2pt]
+  &            &     & $\sep$    & $\CLOSURE _{\left\langle f_i \right\rangle} (v^c) $ \\[1.5pt]
+  &            &     &           & ~~\small{where arity($f_i$) $ \small{>}  c$} \\[2pt]
+  &            &     & $\sep$    & $\PRIM_{\left\langle \oplus \right\rangle }(v^m)$ \\[1.5pt]
+  &            &     &           & ~~\small{where arity($\oplus$) = $m$} \\[2pt]
+  &            &     & $\sep$    & $\CALL _{\left\langle f_i  \right\rangle } (v^m)$ \\[1.5pt] 
+  &            &     &           & ~~\small{where arity($f_i$) = $m$} \\[2pt]
+  &            &     & $\sep$    & $\MAP _{\left\langle f_i, c \right\rangle}(v^c, v^m)$ \\[1.5pt]
+  &            &     &           & ~~\small{where arity($f_i$) = $c+m$} \\[2pt]
+  &            &     & $\sep$    & $\REDUCE _{ \left\langle f_i, c_i, f_r, c_r \right\rangle } (v^{c_i}, v^n, v^{c_r}, v^{m})$ \\[1.5pt]
+  &            &     &           & ~~\small{where $f_i : \tau^{c_i + n} \rightarrow \tau^n$} \\[1.5pt]
+  &            &     &           & ~~~~~~~~~~~ \small{$f_r : \tau^{c_r + m + n} \rightarrow \tau^n$} \\[2pt]
+  &            &     & $\sep$    & $\SCAN _{ \left\langle f_i, c_i, f_r, c_r \right\rangle} (v^{c_i}, v^n, v^{c_r}, v^{m})$ \\[1.5pt]
+  &            &     &           & ~~\small{where $f_i : \tau^{c_i+n} \rightarrow \tau^n$} \\[1.5pt]
+  &            &     &           & ~~~~~~~~~~~\small{$f_r : \tau^{c_r + m + n} \rightarrow \tau^n$} \\[2pt]
+  &            &     & $\sep$    & $\CAST (v, \tau_{src}, \tau_{dest})$ \\[5pt]
+  & value      & $v$ & $\bnfdef$ & numeric constant\\[2pt]
+  &            &     & $\sep$    &  $x$  \quad \small{(data variable)} \\[5pt]
+  & & & &\\
   \multicolumn{5}{|l|}{\textbf{Type System}} \\[4pt]
   & data     & $\tau$    & $\bnfdef$ & $bool \sep int \sep float \sep \mathbf{vec} \; \tau   $ \\[2pt]
   & closures        & $\rho$  & $\bnfdef$ & $\overline{\tau} \rightarrow \overline{\tau} \sep  \tau$ \\[4pt]
-  & & & &\\
-   \multicolumn{5}{|l|}{\textbf{Typed First Order IL}}  \\[4pt]
-  & program & $p$ &  $\bnfdef$   &  $d_1 \cdots d_n $ \\[4pt]
-  & definition & $d$ & $\bnfdef$ & $f_i(x^m : \tau^m) \rightarrow (y^n : \tau^n) =s^{\small{+}}$ \\[4pt]
-  & statement  & $s$ & $\bnfdef$ & $\SET \; x^m : \rho^m = e $\\[2pt]
-  &            &     & $\sep$    & $\IF \;v\; \THEN \;s^*\; \ELSE \;s^*$ \\[2pt]
-  &            &     & $\sep$    & $\textbf{case} ~ f_i, v^* \Rightarrow s^* | \cdots | f_j, v^* \Rightarrow s^*   $ \\[2pt]
-  &            &     & $\sep$    & $\WHILE ~s^+, x_{cond}~ \DO \;s^*\;  $ \\[4pt]
-  & expression & $e$ & $\bnfdef$ & $\VALUES(v^*)$ \\[2pt]
-  &            &     & $\sep$    & $\CAST (v, \tau)$ \\[2pt]
-  &            &     & $\sep$    & $\textbf{closure} _{ \{f_i\}} (v^c) $ \\[2pt]
-  &            &     &           & ~~where arity($f_i$) $ >  c$ \\[2pt]
-  &            &     & $\sep$    & $\CALL _{\{f_i \}} (v^m)$ \\[2pt] 
-  &            &     &           & ~~where arity($f_i$) = $m$ \\[2pt]
-  &            &     & $\sep$    & $\MAP _{\{ f_i, c\}}(v^c, v^{m-c})$ \\[2pt]
-  &            &     &           & ~~where arity($f_i$) = $m$ \\[2pt]
-  &            &     & $\sep$    & $\REDUCE _{\{ f_i, c, f_r, d \}} (v^{c}, v^n, v^{d}, v^{m-d})$ \\[2pt]
-  &            &     &           & ~~where $f_i : \tau^{c+n} \rightarrow \tau^n_{acc}$ \\[2pt]
-  &            &     &           & ~~~~~~~~~~~~ $f_r : \tau^m, \tau^n_{acc} \rightarrow \tau^n_{acc}$ \\[2pt]
-  &            &     & $\sep$    & $\SCAN _{\{ f_i, c, f_r, d \}} (v^{c}, v^n, v^{d}, v^{m-d})$ \\[2pt]
-  &            &     &           & ~~where $f_i : \tau^{c+n} \rightarrow \tau^n_{acc}$ \\[2pt]
-  &            &     &           & ~~~~~~~~~~~~ $f_r : \tau^m, \tau^n_{acc} \rightarrow \tau^n_{acc}$ \\[5pt]
-  & value      & $v$ & $\bnfdef$ & numeric constant\\[2pt]
-  &            &     & $\sep$    &  $x$  \quad \small{(data variable)} \\[2pt]
-  &            &     & $\sep$    &  $f$  \quad \small{(function label)} \\[2pt]
-  &            &     & $\sep$    &  $\oplus$ \quad \small{(scalar operator)} \\[2pt]
-  &            &     & $\sep$    &  $a$ \quad \small{(simple array operator)} \\[5pt]
 
   & & & &\\
   \hline
@@ -132,5 +133,13 @@ xleftmargin=20pt,
 \caption{Typed First-Order Language}
 \end{figure}
 
+The only way to construct values of type $\tau^* \rightarrow \tau^*$ is through use of the $\CLOSURE$ syntax. Closures cannot, however, be called directly but rather must be deconstructed using $\textbf{fncase}$. The branches of a case statement are used to discriminate between multiple function labels and extract the components of a closure's environment. In a language with more general support for algebraic datatypes, there would be no need for both $\textbf{fncase}$ and $\textbf{if}$.  
+
+\section{Specialization Algorithm}
+\begin{lstlisting}
+X
+Y
+Z
+\end{lstlisting}
 
 \end{document}

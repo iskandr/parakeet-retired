@@ -17,9 +17,6 @@ and eval_stmt defEnv constEnv stmtNode =
   | Set (ids, rhs) ->  
     let rhs', changed = eval_exp defEnv constEnv rhs in
     {stmtNode with stmt = Set (ids, rhs') }, changed
-  | Ignore rhs -> 
-    let rhs', changed = eval_exp defEnv constEnv rhs in 
-    {stmtNode with stmt = Ignore rhs' }, changed
   | If (cond, trueBlock, falseBlock, ifGate) ->
     let trueBlock', trueChanged = eval_block defEnv constEnv trueBlock in 
     let falseBlock', falseChanged = eval_block defEnv constEnv falseBlock in

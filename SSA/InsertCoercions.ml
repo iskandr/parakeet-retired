@@ -32,8 +32,7 @@ and rewrite_stmt tenv stmtNode = match stmtNode.stmt with
             tenv' ids rhs'.exp_types
         in  
         allStmts, tenv'' 
-                         
-  | Ignore effect -> failwith "[specialize_block] ignore not yet implemented"  
+  
   | SetIdx _ -> failwith "[specialize_block] setidx not yet implemented"  
   | If _ ->  failwith "[specialize_block] if not yet implemented"
 

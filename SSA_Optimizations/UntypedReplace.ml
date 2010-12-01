@@ -50,7 +50,6 @@ and replace_stmt idMap stmtNode =
           ids
       in 
       { stmtNode with stmt = Set(ids', exp')}
-  | Ignore exp -> {stmtNode with stmt = Ignore (replace_exp idMap exp) } 
   | SetIdx (id, indices, rhs) -> 
       let indices' = List.map (replace_value idMap) indices in 
       let rhs' = replace_value idMap rhs in

@@ -68,11 +68,6 @@ and rewrite_stmt constEnv useCounts defEnv tenv node =
   | Set (ids, rhs) when List.for_all (is_useless useCounts) ids -> [], true 
   | Set (ids, rhs) ->
       let rhs', changed = s_exp rhs in return (Set(ids, rhs')) changed
-  | Ignore expNode ->
-      let expNode', changed = s_exp expNode in
-      if is_simple_exp expNode'.exp then drop
-      else return  (Ignore expNode') changed 
-      
   | SetIdx (id,indices,rhs) -> 
       let indices', indicesChanged = s_vals indices in 
       let rhs', rhsChanged = s_val rhs in 

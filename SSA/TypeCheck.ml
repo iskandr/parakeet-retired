@@ -43,7 +43,6 @@ let rec check_stmt
          )
       );
       ID.Set.add_list ids defined 
-  | Ignore expNode -> check_exp errorLog tenv defined expNode; defined  
   | SetIdx (arrId, indices, rhs) -> 
       if not $ ID.Set.mem arrId defined then 
         err $ sprintf 

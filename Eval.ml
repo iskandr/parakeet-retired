@@ -145,8 +145,6 @@ and eval_stmt
         env 
         ids 
         results 
-  | Ignore expNode -> 
-      ignore (eval_exp memState fnTable env expNode); env   
   | SetIdx (id, indices, rhs) -> failwith "not yet implemented"   
   | If (boolVal, tBlock, fBlock, ifGate) -> failwith "not yet implemented"
 

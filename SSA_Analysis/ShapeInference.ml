@@ -86,7 +86,6 @@ and infer_stmt (fnTable : FnTable.t) (env : Shape.t ID.Map.t) stmtNode =
           (SSA.stmt_node_to_str stmtNode) nIds nShapes 
       else  
       ID.Map.extend env ids rhsShapes    
-  | Ignore exp -> env (* assume this can't change any shapes *)  
   | SetIdx(id, indices, rhs) -> env 
       (* assume we can't change the shape of an array with 
          index assignment. 

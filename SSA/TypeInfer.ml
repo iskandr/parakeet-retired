@@ -1,7 +1,6 @@
 (* pp: -parser o pa_macro.cmo *)
 
 open Base
-open Prim
 open DynType 
 open SSA
 open Printf
@@ -40,9 +39,9 @@ let infer_scalar_op op argTypes = match op, argTypes with
   | op, [t1] when Prim.is_unop op ->
       let resultScalarT = DynType.common_type (DynType.elt_type t1) Float32T in  
       if Prim.is_float_unop op then fill_elt_type resultScalarT t1 
-      else if op = Not then fill_elt_type BoolT t1
+      else if op = Prim.Not then fill_elt_type BoolT t1
       else t1 
-  | Select, [predT; t1; t2] -> 
+  | Prim.Select, [predT; t1; t2] -> 
       if common_type predT BoolT = AnyT then 
         failwith "predicate for Select operator must be a subtype of Bool"  
       else 
@@ -62,31 +61,31 @@ let infer_unop op t = infer_scalar_op op [t]
 let infer_binop op t1 t2 = infer_scalar_op op [t1; t2]
         
 let infer_simple_array_op op argTypes = match op, argTypes with  
-  | Til, [t] when DynType.is_scalar t  -> 
+  | Prim.Til, [t] when DynType.is_scalar t  -> 
       if DynType.common_type t Int32T <> AnyT then VecT Int32T 
       else failwith "operator 'til' requires an integer argument"
-  | Til, [_] -> failwith "scalar argument expected for operator 'til'"
-  | Til, _ -> raise WrongArity    
-  | Rand, [countT; valT] 
+  | Prim.Til, [_] -> failwith "scalar argument expected for operator 'til'"
+  | Prim.Til, _ -> raise WrongArity    
+  | Prim.Rand, [countT; valT] 
     when DynType.is_number valT 
          && DynType.common_type countT Int32T <> AnyT -> VecT valT
-  | Rand, [_;_] -> 
+  | Prim.Rand, [_;_] -> 
       failwith 
       "Can't assign static type to rand[t1;t2] where t1 isn't <: Int32"
-  | Rand, _ -> raise WrongArity
-  | Where, [VecT BoolT] -> VecT Int32T 
-  | Where, _ -> failwith "operator 'where' expects a vector of booleans"
-  | Index, [VecT a; indexType] ->
+  | Prim.Rand, _ -> raise WrongArity
+  | Prim.Where, [VecT BoolT] -> VecT Int32T 
+  | Prim.Where, _ -> failwith "operator 'where' expects a vector of booleans"
+  | Prim.Index, [VecT a; indexType] ->
     (* can index by any subtype of Int32 or a vector of ints *) 
     (match DynType.common_type indexType Int32T with 
       | Int32T -> a 
       | VecT Int32T -> VecT a 
       | _ -> failwith "wrong index type passed to operator 'index'"
     )  
-  | Index, [t; _] when DynType.is_scalar t -> 
+  | Prim.Index, [t; _] when DynType.is_scalar t -> 
     failwith "can't index into a scalar"
-  | DimSize, _ -> Int32T
-  | Find,  [VecT t1; t2] -> assert (t1 = t2); t1  
+  | Prim.DimSize, _ -> Int32T
+  | Prim.Find,  [VecT t1; t2] -> assert (t1 = t2); t1  
   | _ -> 
      failwith $ sprintf 
         "[core_type_infer] Could not infer type for %s\n" 
@@ -99,7 +98,7 @@ let infer_adverb op inputTypes =
      AllPairs operator takes a function 'a, 'b -> 'c^n and two data 
      arguments of type vec 'a, vec 'b, returning n outputs vec (vec 'c)) 
   *) 
-  | AllPairs, (fnT::rest) ->
+  | Prim.AllPairs, (fnT::rest) ->
     IFDEF DEBUG THEN 
       assert (DynType.is_function fnT); 
       if List.length rest <> 2 then 
@@ -115,7 +114,7 @@ let infer_adverb op inputTypes =
     Map operator takes a function 'a^m -> 'b^m, and input data of type vec 'a
     returning instead vec 'b
   *) 
-  | Map, (fnT::rest) ->
+  | Prim.Map, (fnT::rest) ->
       IFDEF DEBUG THEN 
         assert (List.length rest > 0); 
         assert (DynType.is_function fnT);
@@ -144,7 +143,7 @@ let required_scalar_op_types op argtypes =
       | op, [t1; t2] when Prim.is_binop op ->
           let t3 = DynType.common_type t1 t2 in 
           [t3; t3] 
-      | Select, [predT; t1; t2] -> 
+      | Prim.Select, [predT; t1; t2] -> 
           let t3 = DynType.common_type t1 t2 in
           let predT' = DynType.common_type predT BoolT in  
           [predT'; t3; t3] 

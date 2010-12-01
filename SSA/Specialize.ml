@@ -630,7 +630,6 @@ and annotate_stmt context stmtNode =
       in   
       let stmtNode' = { stmtNode with stmt = Set(ids, rhs') } in 
       stmtNode', context', changed 
-  | Ignore exp -> failwith "Ignore stmt not yet implemented"
   | SetIdx (id, indices, rhs) -> failwith "SetIdx stmt not yet implemented"
   | If (cond, tBlock, fBlock, gate) -> 
       let cond', _, condChanged = annotate_value context cond in

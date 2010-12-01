@@ -134,7 +134,7 @@ let rec translate_stmt env ?value_id node =
       (* simple values shouldn't contain any statements *) 
       let assign = match value_id with 
         | Some valId -> [mk_stmt $ Set([valId], exp)]
-        | None -> [mk_stmt $ Ignore exp]
+        | None -> [mk_stmt $ Set([], exp)]
       in stmts @ assign, env'
 
 and translate_exp env node =
