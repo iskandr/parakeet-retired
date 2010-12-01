@@ -54,6 +54,7 @@ and  exp =
   | Values of value_node list
   | Cast of DynType.t * value_node  
   | Call of FnId.t * value_node list 
+  | PrimApp of Prim.prim * value_node list  
   | Map of closure * value_node list 
   | Reduce of closure * closure * value_node list  
   | Scan of closure * closure * value_node list 
