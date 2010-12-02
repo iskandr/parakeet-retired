@@ -18,28 +18,27 @@ type loop_gate = {
 
 type stmt = 
   | Set of ID.t list * exp_node 
-  | SetIdx of ID.t * (value_node list) * value_node
+  | SetIdx of ID.t * value_nodes * value_node
   | If of value_node * block * block * if_gate
-  | WhileLoop of block * ID.t * block * loop_gate 
-   
+  | WhileLoop of block * ID.t * block * loop_gate  
 and stmt_node = { 
     stmt: stmt;
-    stmt_src: SourceInfo.source_info option;
+    stmt_src: source_info option;
     stmt_id : StmtId.t;  
 }
 and block = stmt_node list 
 and  exp = 
-  | App of  value_node * value_node list
-  | ArrayIndex of value_node * value_node list
-  | Arr of value_node list
-  | Values of value_node list
+  | App of  value_node * value_nodes
+  | ArrayIndex of value_node * value_nodes
+  | Arr of value_nodes
+  | Values of value_nodes
   (* nodes below are only used after type specialization *) 
   | Cast of DynType.t * value_node  
-  | Call of typed_fn * value_node list 
-  | PrimApp of typed_prim * value_node list  
-  | Map of closure * value_node list 
-  | Reduce of closure * closure * value_node list  
-  | Scan of closure * closure * value_node list 
+  | Call of typed_fn * value_nodes 
+  | PrimApp of typed_prim * value_nodes  
+  | Map of closure * value_nodes
+  | Reduce of closure * closure * value_nodes   
+  | Scan of closure * closure * value_nodes 
 and typed_fn = { 
   fn_id : FnId.t; 
   fn_input_types : DynType.t list; 
@@ -52,22 +51,24 @@ and typed_prim = {
 } 
 and closure = {   
   closure_fn: FnId.t; 
-  closure_args: value_node list; 
+  closure_args: value_nodes;
   closure_arg_types: DynType.t list; 
   closure_input_types:DynType.t list; 
   closure_output_types: DynType.t list 
 } 
-
 and exp_node = { 
   exp: exp; 
-  exp_src : SourceInfo.source_info option;
+  exp_src : source_info option;
+  (* because a function applicatin might return multiple values,*)
+  (* expressions have multiple types *)  
   exp_types : DynType.t list; 
 } 
 and value_node = { 
   value_type : DynType.t;
-  value_src : SourceInfo.source_info option; 
+  value_src : source_info option; 
   value : value 
-}  
+}
+and value_nodes = value_node list   
 and value = 
   | Var of ID.t
   | GlobalFn of FnId.t  
@@ -77,16 +78,19 @@ and value =
   | Unit
   | Prim of Prim.prim
   | Lam of fundef
+  (* place holder for initial values of reductions, 
+     which for now are not supported but still need to 
+     be given sensible types
+  *) 
   | Stream of value_node * DynType.t  
 and fundef = {
   body: block;
   tenv : tenv;
-  input_ids: ID.t list;
+  input_ids:ID.t list;
   output_ids: ID.t list; 
   fn_type : DynType.t; 
   fn_id : FnId.t; 
 }
-
 
 val is_simple_exp : exp -> bool 
 
