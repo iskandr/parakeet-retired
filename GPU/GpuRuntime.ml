@@ -457,6 +457,7 @@ let eval_array_op
      Printf.printf "In eval array op\n";
   ENDIF; 
   let gpuVals = match op, args  with  
+  (*
   | Prim.Map, (InterpVal.Closure(fnId, closureArgs))::dataArgs ->
       let fundef = FnTable.find fnId fnTable in
       let closureVals = List.map (MemoryState.get_gpu memState) closureArgs in 
@@ -478,7 +479,7 @@ let eval_array_op
       in  
       let gpuVals = List.map (MemoryState.get_gpu memState) dataArgs in
       run_reduce memState fnTable fundef2 gpuVals outputTypes
-  
+  *)
   | Prim.Reduce, _ -> 
       failwith 
         "[GpuRuntime->eval_array_op] closures not yet supported for Reduce"
@@ -486,7 +487,7 @@ let eval_array_op
   | Prim.AllPairs, (InterpVal.Closure(fnId, []))::dataArgs ->
       let fundef = FnTable.find fnId fnTable in
       let gpuVals = List.map (MemoryState.get_gpu memState) dataArgs in
-      run_all_pairs  memState fnTable fundef gpuVals outputTypes  
+      run_all_pairs memState fnTable fundef gpuVals outputTypes  
   | Prim.AllPairs, _ ->
       failwith 
         "[GpuRuntime->eval_array_op] closures not yet supported for AllPairs"

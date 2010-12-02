@@ -33,14 +33,31 @@ and  exp =
   | ArrayIndex of value_node * value_node list
   | Arr of value_node list
   | Values of value_node list
-  (* Cast, Call, Map, Reduce, and Scan only get used for typed SSA *)  
+  (* nodes below are only used after type specialization *) 
   | Cast of DynType.t * value_node  
-  | Call of FnId.t * value_node list 
-  | PrimApp of Prim.prim * value_node list 
+  | Call of typed_fn * value_node list 
+  | PrimApp of typed_prim * value_node list  
   | Map of closure * value_node list 
   | Reduce of closure * closure * value_node list  
-  | Scan of closure * closure * value_node list
-and closure = FnId.t * value_node list 
+  | Scan of closure * closure * value_node list 
+and typed_fn = { 
+  fn_id : FnId.t; 
+  fn_input_types : DynType.t list; 
+  fn_output_types : DynType.t list;   
+} 
+and typed_prim = { 
+  prim_input_types : DynType.t list; 
+  prim_output_types : DynType.t list; 
+  prim: Prim.prim; 
+} 
+and closure = {   
+  closure_fn: FnId.t; 
+  closure_args: value_node list; 
+  closure_arg_types: DynType.t list; 
+  closure_input_types:DynType.t list; 
+  closure_output_types: DynType.t list 
+} 
+
 and exp_node = { 
   exp: exp; 
   exp_src : SourceInfo.source_info option;

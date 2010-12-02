@@ -99,7 +99,7 @@ xleftmargin=20pt,
    \multicolumn{5}{|l|}{\textbf{Typed First-Order IL}}  \\[4pt]
   & program & $p$ &  $\bnfdef$   &  $d_1 \cdots d_n $ \\[4pt]
   & definition & $d$ & $\bnfdef$ & $f_i(x^m : \tau^m) \rightarrow (y^n : \tau^n) = \overline{s} $ \\[4pt]
-  & statement  & $s$ & $\bnfdef$ & $x^m : \rho^m = e $\\[2pt]
+  & statement  & $s$ & $\bnfdef$ & $x^m : \tau^m = e $\\[2pt]
   &            &     & $\sep$    & $\IF ~v~ \THEN ~\overline{s}~ \ELSE ~ \overline{s}$ \\[2pt]
   &            &     & $\sep$    & $\WHILE ~ \overline{s}, x_{cond} ~ \DO ~ \overline{s} ~  $ \\[4pt]
   & expression & $e$ & $\bnfdef$ & $\VALUES(\overline{v})$ \\[2pt]
@@ -120,9 +120,7 @@ xleftmargin=20pt,
   &            &     & $\sep$    &  $x$  \quad \small{(data variable)} \\[5pt]
   & & & &\\
   \multicolumn{5}{|l|}{\textbf{Type System}} \\[4pt]
-  & data     & $\tau$    & $\bnfdef$ & $bool \sep int \sep float \sep \mathbf{vec} \; \tau   $ \\[2pt]
-  & closures        & $\rho$  & $\bnfdef$ & $\overline{\tau} \rightarrow \overline{\tau} \sep  \tau$ \\[4pt]
-
+  & data & $\tau$    & $\bnfdef$ & $bool \sep int \sep float \sep \mathbf{vec} \; \tau   $ \\[4pt]
   & & & &\\
   \hline
   \end{tabular}\\[4pt]

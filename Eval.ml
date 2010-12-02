@@ -173,34 +173,55 @@ and eval_exp
         (SSA.exp_to_str expNode)
         
   (* first order array operators only *)          
-  | PrimApp (Prim.ArrayOp op, args) -> 
-     let fnType = List.hd expNode.exp_types in 
-     let outTypes = DynType.fn_output_types fnType in
+  | PrimApp ({prim=Prim.ArrayOp op; prim_output_types=outTypes}, args) -> 
      let argVals = List.map (eval_value memState env) args in
-     eval_array_op memState fnTable env op argVals outTypes    
-  | PrimApp (Prim.ScalarOp op, args) -> 
+     eval_array_op memState fnTable env op argVals outTypes
+        
+  | PrimApp ({prim=Prim.ScalarOp op}, args) -> 
       let argVals = List.map (eval_value memState env) args in 
       eval_scalar_op memState op argVals
+      
   | Call (fnId, args) -> 
       let argVals = List.map (eval_value memState env) args in
       let fundef = FnTable.find fnId fnTable in 
       eval_app memState fnTable env fundef argVals
   
-  | Map ((fnId, closureArgs), args) ->
+  | Map ({closure_fn=fnId; closure_args=closureArgs}, args) ->
       let fundef = FnTable.find fnId fnTable in
       let closureArgVals = List.map (eval_value memState env) closureArgs in 
       let argVals = List.map (eval_value memState env) args in 
       let gpuCost = GpuCost.map memState closureArgVals argVals fundef in  
       let cpuCost = CpuCost.map memState closureArgVlas argVals fundef in 
       if gpuCost < cpuCost then 
+        let closureGpuVals = 
+          List.map (MemoryState.get_gpu memState) closureArgs 
+        in 
+        let dataGpuVals = 
+          List.map (MemoryState.get_gpu memState) dataArgs 
+        in
+        GpuRuntime.run_map memState fnTable fundef closureGpuVals dataGpuVals outputTypes 
         
       else 
         ()     
      
-  | Reduce ((initFnId, initClosureArgs), (fnId, closureArgs), args) ->
-  
+  | Reduce (
+     {closure_fn=initFnId; closure_args=initClosureArgs},
+     {closure_fn=reduceFnId; closure_args=reduceClosureArgs},
+     dataArgs
+    ) -> 
+      let fundef = FnTable.find reduceFnId fnTable in
+      (* the current reduce kernel works either for 1d data or 
+         for maps over 2d data 
+      *) 
+      let fundef2 = match SSA.extract_nested_map_fn_id fundef with 
+        | Some nestedFnId -> FnTable.find nestedFnId fnTable
+        | None -> fundef 
+      in  
+      let gpuVals = List.map (MemoryState.get_gpu memState) dataArgs in
+      run_reduce memState fnTable fundef2 gpuVals outputTypes
+      
   | Scan ((initFnId, initClosureArgs), (fnId, closureArgs), args) ->    
-
+     failwith "scan not implemented"
 and eval_app memState fnTable env fundef args = 
   (* create an augmented memory state where input ids are bound to the *)
   (* argument values on the gpu *) 
