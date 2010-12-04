@@ -113,9 +113,15 @@ and fundef = {
 }
 
 
-let is_simple_exp = function 
+let is_simple_exp = function
+  | Call _ 
+  | PrimApp _ 
+  | Map _ 
+  | Reduce _ 
+  | Scan _  
   | App _ -> false
   | _ -> true 
+
 
 
 open Printf 
@@ -363,3 +369,7 @@ let mk_exp ?src ?types exp =
   in 
   { exp= exp; exp_types = types'; exp_src = src} 
 
+let empty_stmt = mk_set [] (mk_vals_exp [])
+
+let is_empty_stmt stmtNode = 
+  stmtNode.stmt = Set([], {exp=Values[]})

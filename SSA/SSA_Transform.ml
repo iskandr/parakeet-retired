@@ -82,6 +82,12 @@ class default_transformation : transformation = object
   method lam  _  = NoChange 
 end
 
+let bindings_to_stmts src = function 
+  | [] -> []
+  | (ids, expNode)::bs ->
+      let stmtNode = SSA.mk_set ~src ids expNode in 
+      stmtNode :: (bindings_to_stmts src bs) 
+
 let prepend_bindings update bindings = match update with 
   | NoChange -> failwith "expected update"
   | Update data -> 
@@ -109,16 +115,44 @@ let unpacked_zip4 (d1, bs1, c1) (d2, bs2, c2) (d3, bs3, c3) (d4, bs4, c4) =
     (d1, d2, d3, d4), bs1 @ bs2 @ bs3 @ bs4, c1 || c2 || c3 || c4         
   
 
-let rec transform_block f ?(stmts=DynArray.create()) = function 
-  | [] -> DynArray.to_list stmts 
+let rec transform_block f ?(stmts=DynArray.create()) ?(changed=false) = function 
+  | [] -> DynArray.to_list stmts, changed 
   | s::rest -> 
     let currStmts, currChanged = transform_stmt f s in
     List.iter (DynArray.add stmts) currStmts; 
-    transform_block f ~stmts rest 
+    transform_block f ~stmts ~changed:(changed || currChanged) rest 
+    
 and transform_stmt f stmtNode = match stmtNode.stmt with 
-  | Set (ids, rhsExp) ->
-       transform_exp rhsExp    
-  | SetIdx (id, indices, rhsVal) -> 
+  | Set (ids, rhsExpNode) ->
+       let rhsExpNode', rhsBindings, rhsChanged =
+          unpack_update rhsExpNode (transform_exp f rhsExpNode) 
+       in 
+       let rhsStmts =
+         if rhsChanged then bindings_to_stmts stmtNode.src rhsBindings 
+         else [] 
+       in  
+       let moreStmts = match f#set ids rhsExpNode' with  
+       | NoChange -> 
+          let stmtNode' = 
+            if rhsChanged then {stmtNode with stmt=Set(ids, rhsExpNode')}
+            else stmtNode
+          in [stmtNode'] 
+       | Update stmt' -> [{stmtNode with stmt=stmt'}]
+       | UpdateWithBindings (stmt', bindings) ->  
+          let stmtNode' = {stmtNode with stmt=stmt'} in 
+          (bindings_to_stmts stmtNode.src bindings) @ [stmtNode']
+       in rhsStmts @ moreStmts 
+                     
+              
+               
+  | SetIdx (id, indices, rhsVal) ->
+      let indices', indexBindings, indicesChanged = 
+        transform_values f indices 
+      in
+      let rhsVal', rhsStmts, rhsChanged = transform_value f rhsVal in 
+       
+      (match f#setidx id indices' rhsVal' with 
+        |   
   | If (v, tBlock, fBlock, ifGate) -> 
   | WhileLoop (condBlock, condId, bodyBlock, loopGate) ->
 and transform_exp f expNode = match expNode.exp with 
