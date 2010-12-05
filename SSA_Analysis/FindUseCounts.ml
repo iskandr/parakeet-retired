@@ -1,25 +1,21 @@
 open Base
 open SSA
 
-let use_counts = object 
-    inherit [int ID.Map.t] SSA_Base_Analysis.base_analysis
-    method value counts vNode = match vNode.value with
-    | Stream ({value=Var id}, _)  
-    | Var id -> 
-      let oldCount = ID.Map.find_default id counts 0 in 
-      ID.Map.add id (oldCount+1) counts  
-    | _ -> counts 
+
+class use_count_collector initCounts : SSA_Transform.transformation = object 
+    inherit SSA_Transform.default_transformation
+    val counts : (ID.t, int) Hashtbl.t = initCounts  
+    method var id = 
+      let oldCount = Hashtbl.find_default counts id 0 in 
+      Hashtbl.add counts id (oldCount+1);
+      SSA_Transform.NoChange 
+    method result = counts 
 end
 
-
-let find_block_use_counts ?(init_counts=ID.Map.empty) block = 
-  SSA_Base_Analysis.eval_block use_counts init_counts block
- 
-let find_fundef_use_counts fundef =
-  let initCounts = 
-    List.fold_left 
-      (fun counts outputId -> ID.Map.add outputId 1 counts) 
-      ID.Map.empty
-      fundef.output_ids
-  in 
-  find_block_use_counts ~init_counts:initCounts fundef.body  
+let find_fundef_use_counts fundef = 
+  let initCounts = Hashtbl.create 127 in 
+  List.iter (fun id -> Hashtbl.add initCounts id 1) fundef.output_ids; 
+  let c = new use_count_collector initCounts in 
+  let _ = SSA_Transform.transform_fundef c fundef in 
+  c#result  
+  

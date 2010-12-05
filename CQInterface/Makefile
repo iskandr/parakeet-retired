@@ -48,6 +48,7 @@ QParser.cmx \
 QLexer.cmx  \
 FnId.cmx StmtId.cmx \
 SSA.cmx AST_to_SSA.cmx \
+SSA_Transform.cmx \
 FnTable.cmx \
 ConstantLattice.cmx \
 SSA_Base_Analysis.cmx \

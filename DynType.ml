@@ -45,12 +45,10 @@ let rec to_str = function
   | TupleT ts -> 
     "(" ^ (String.concat " * " (Array.to_list (Array.map to_str ts))) ^ ")"
   | TableT _ -> "table"
-  | FnT (c, x,y) -> 
-      let sc = type_list_to_str c in
+  | FnT (x,y) -> 
       let sx = type_list_to_str x in
       let sy = type_list_to_str y in
-      sprintf "%s%s -> %s"
-        (if List.length c > 0 then sc ^ " => " else "")
+      sprintf "%s -> %s"
         (if List.length x > 0 then "{" ^ sx ^ "}" else sx)
         (if List.length y > 0 then "{" ^ sy ^ "}" else sy)   
   | AnyFnT -> "? -> ?"

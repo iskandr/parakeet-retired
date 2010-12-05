@@ -23,7 +23,7 @@ type stmt =
   | WhileLoop of block * ID.t * block * loop_gate  
 and stmt_node = { 
     stmt: stmt;
-    stmt_src: source_info option;
+    stmt_src: SourceInfo.source_info option;
     stmt_id : StmtId.t;  
 }
 and block = stmt_node list 
@@ -58,14 +58,14 @@ and closure = {
 } 
 and exp_node = { 
   exp: exp; 
-  exp_src : source_info option;
+  exp_src : SourceInfo.source_info option;
   (* because a function applicatin might return multiple values,*)
   (* expressions have multiple types *)  
   exp_types : DynType.t list; 
 } 
 and value_node = { 
   value_type : DynType.t;
-  value_src : source_info option; 
+  value_src : SourceInfo.source_info option; 
   value : value 
 }
 and value_nodes = value_node list   

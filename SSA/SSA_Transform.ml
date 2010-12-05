@@ -8,41 +8,47 @@ type 'a update =
   | Update of 'a 
   | UpdateWithBindings of 'a * bindings
 
+type sUpate = stmt update 
+type eUpdate = (exp * DynType.t list) update
+type vUpdate = (value * DynType.t) update   
+
 class type transformation = object 
+   
   (* STATEMENTS *) 
-  method set : ID.t list -> exp_node -> stmt update
-  method setidx : ID.t -> value_nodes -> value_node -> stmt update
-  method _if : value_node -> block -> block -> if_gate -> stmt update 
-  method _while : block -> ID.t -> block -> loop_gate -> stmt update   
+  method set : ID.t list -> exp_node -> sUpdate
+  method setidx : ID.t -> value_nodes -> value_node -> sUpdate
+  method _if : value_node -> block -> block -> if_gate -> sUpdate 
+  method _while : block -> ID.t -> block -> loop_gate -> sUpdate   
+  
 
   (* EXPRESSIONS *) 
-  method array_index : value_node -> value_nodes -> exp_node update 
-  method array : value_nodes -> exp_node update
-  method values : value_nodes -> exp_node update  
+  method array_index : value_node -> value_nodes -> eUpdate 
+  method array : value_nodes -> eUpdate
+  method values : value_nodes -> eUpdate  
 
   (* EXPRESSIONS -- untyped IL only *) 
-  method app : value_node -> value_nodes -> exp_node update 
+  method app : value_node -> value_nodes -> eUpdate 
     
   (* EXPRESSIONS -- typed IL only *) 
-  method cast : DynType.t -> value_node -> exp_node update
-  method call : typed_fn -> value_nodes -> exp_node update 
-  method primapp : typed_prim -> value_nodes -> exp_node update 
-  method map : closure -> value_nodes -> exp_node update 
-  method reduce : closure -> closure -> value_nodes -> exp_node update 
-  method scan : closure -> closure -> value_nodes -> exp_node update 
+  method cast : DynType.t -> value_node -> eUpdate
+  method call : typed_fn -> value_nodes -> eUpdate 
+  method primapp : typed_prim -> value_nodes -> eUpdate 
+  method map : closure -> value_nodes -> eUpdate 
+  method reduce : closure -> closure -> value_nodes -> eUpdate 
+  method scan : closure -> closure -> value_nodes -> eUpdate 
 
   (* VALUES *)   
-  method var : ID.t -> value_node update 
-  method num : PQNum.num -> value_node update 
-  method str : string -> value_node update 
-  method sym : string -> value_node update 
-  method unit : value_node update
+  method var : ID.t -> vUpdate 
+  method num : PQNum.num -> vUpdate 
+  method str : string -> vUpdate 
+  method sym : string -> vUpdate 
+  method unit : vUpdate
    
   (* VALUES -- untyped IL only *)
-  method globalfn : FnId.t -> value_node update
-  method prim : Prim.prim -> value_node update
+  method globalfn : FnId.t -> vUpdate
+  method prim : Prim.prim -> vUpdate
   (* why is this still in the IL? *)  
-  method lam : fundef -> value_node update  
+  method lam : fundef -> vUpdate  
 end 
 
 class default_transformation : transformation = object 
@@ -105,6 +111,33 @@ let unpack_update default = function
   | Update other -> other, [], true
   | UpdateWithBindings (other,bs) -> other, bs, true 
 
+let unpack_stmt_update stmtNode update : block * bool =  
+  let stmt', bindings, changed = unpack_update stmtNode.stmt update in 
+  if changed then
+    let stmtNode' = {stmtNode with stmt = stmt'} in  
+    let stmts = (bindings_to_stmts stmtNode.stmt_src bindings) @ [stmtNode'] in
+    stmts, true 
+  else 
+    [stmtNode], false 
+
+let unpack_exp_update expNode update : exp_node * block * bool = 
+  let (exp', types'), bindings, changed = unpack_update expNode.exp update in 
+  if changed then
+    let expNode' = {expNode with exp = exp'; exp_types=types'} in
+    let stmts = bindings_to_stmts expNode.exp_src bindings in   
+    expNode', stmts, true 
+  else
+    expNode, [], false
+
+let unpack_value_update valNode update : value_node * block * bool = 
+  let (val', t'), bindings, changed = unpack_update valNode.value update in 
+  if changed then 
+    let stmts = bindings_to_stmts valNode.value_src bindings in 
+    let valNode' = {valNode with value = val'; value_type = t'} in 
+    valNode', stmts, true 
+  else 
+    valNode, [], false 
+
 let unpacked_zip (d1, bs1, c1) (d2, bs2, c2) = 
     (d1,d2), bs1 @ bs2, c1 || c2
     
@@ -122,39 +155,37 @@ let rec transform_block f ?(stmts=DynArray.create()) ?(changed=false) = function
     List.iter (DynArray.add stmts) currStmts; 
     transform_block f ~stmts ~changed:(changed || currChanged) rest 
     
-and transform_stmt f stmtNode = match stmtNode.stmt with 
+and transform_stmt f stmtNode = 
+  match stmtNode.stmt with 
   | Set (ids, rhsExpNode) ->
-       let rhsExpNode', rhsBindings, rhsChanged =
-          unpack_update rhsExpNode (transform_exp f rhsExpNode) 
-       in 
-       let rhsStmts =
-         if rhsChanged then bindings_to_stmts stmtNode.src rhsBindings 
-         else [] 
-       in  
-       let moreStmts = match f#set ids rhsExpNode' with  
-       | NoChange -> 
-          let stmtNode' = 
-            if rhsChanged then {stmtNode with stmt=Set(ids, rhsExpNode')}
-            else stmtNode
-          in [stmtNode'] 
-       | Update stmt' -> [{stmtNode with stmt=stmt'}]
-       | UpdateWithBindings (stmt', bindings) ->  
-          let stmtNode' = {stmtNode with stmt=stmt'} in 
-          (bindings_to_stmts stmtNode.src bindings) @ [stmtNode']
-       in rhsStmts @ moreStmts 
-                     
-              
-               
+    let rhsExpNode', rhsStmts, rhsChanged =
+      unpack_exp_update rhsExpNode (transform_exp f rhsExpNode) 
+    in 
+    let stmtNode' = 
+      if rhsChanged then 
+        {stmtNode with stmt=Set(ids, rhsExpNode') }
+      else stmtNode 
+    in 
+    let mainStmts = unpack_stmt_update stmtNode' (f#set ids rhsExpNode') in 
+    rhsStmts @ mainStmts
+     
   | SetIdx (id, indices, rhsVal) ->
-      let indices', indexBindings, indicesChanged = 
-        transform_values f indices 
-      in
-      let rhsVal', rhsStmts, rhsChanged = transform_value f rhsVal in 
-       
-      (match f#setidx id indices' rhsVal' with 
-        |   
+    let indices', indexStmts, indicesChanged = transform_values f indices in
+    let rhsVal', rhsStmts, rhsChanged =  transform_value f rhsVal in
+    let stmtNode' = 
+      if rhsChanged || indicesChanged then 
+        {stmtNode with stmt=SetIdx(id, indices', rhsVal')} 
+      else stmtNode 
+    in     
+    let mainStmts = 
+      unpack_stmt_update stmtNode' (f#setidx id indices' rhsVal')
+    in 
+    rhsStmts @ indexStmts @ mainStmts
+               
   | If (v, tBlock, fBlock, ifGate) -> 
-  | WhileLoop (condBlock, condId, bodyBlock, loopGate) ->
+      failwith "if not implemented" 
+  | WhileLoop (condBlock, condId, bodyBlock, loopGate) -> 
+      failwith "loop not implemented"
 and transform_exp f expNode = match expNode.exp with 
   | Values vs -> 
       let vs', bindings, childrenChanged = transform_values f vs in 
@@ -182,32 +213,41 @@ and transform_exp f expNode = match expNode.exp with
               
       
       
-and transform_values f ?(revAcc=[]) ?(revBindings=[]) ?(changed=false) = 
+and transform_values f ?(revAcc=[]) ?(revStmts=[]) ?(changed=false) = 
   function 
-  | [] -> List.rev revAcc, List.rev revBindings, changed
-  | v::vs -> 
-      begin match transform_value f v with 
-        | NoChange ->
-            transform_values 
-              f 
-              ~revAcc:(v::revAcc)
-              ~revBindings 
-              ~changed 
-              vs
-        | Update v' -> 
-            transform_values 
-              f 
-              ~revAcc:(v'::revAcc)
-              ~revBindings
-              ~changed:true 
-              vs
-        | UpdateWithBindings (v', bs) ->
-            transform_values 
-              f 
-              ~revAcc:(v'::revAcc)
-              ~revBindings:(List.rev_append bs revBindings) 
-              ~changed:true 
-              vs
-      end 
-         
- 
+  | [] -> List.rev revAcc, List.rev revStmts, changed
+  | v::vs ->
+      let v', stmts, currChanged = transform_value f v in 
+      if currChanged then
+        transform_values 
+          f 
+          ~revAcc:(v' :: revAcc)
+          ~revStmts:( List.rev_append stmts revStmts)
+          ~changed:true 
+          vs
+      else 
+        transform_values 
+          f 
+          ~revAcc:(v::revAcc)
+          ~revStmts
+          ~changed 
+          vs
+          
+ and transform_value f vNode = 
+  let update = match vNode.value with 
+    | Num n -> f#num n 
+    | Var id -> f#var id 
+    | GlobalFn fnId -> f#globalfn fnId   
+    | Str s -> f#str s 
+    | Sym s -> f#sym s
+    | Unit -> f#unit
+    | Prim p -> f#prim p
+    | Lam fundef -> f#lam fundef 
+  in 
+  unpack_value_update vNode update
+  
+
+let transform_fundef f fundef = 
+  let body', changed = transform_block f fundef.body in
+  if changed then {fundef with body = body'}, true
+  else fundef, false 
