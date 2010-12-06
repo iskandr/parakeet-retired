@@ -9,7 +9,7 @@ type t = {
 
 let add ?(opt_queue=true) fundef cache =
   
-  let id = fundef.SSA.fn_id in 
+  let id = fundef.SSA.fundef_id in 
   Hashtbl.add cache.fundefs id fundef;
   let arity = List.length fundef.SSA.input_ids in
   Hashtbl.add cache.arities id arity;  
@@ -45,7 +45,7 @@ let get_unoptimized cache =
 let get_arity fnId cache  = Hashtbl.find cache.arities fnId 
   
 let update fundef cache = 
-  let id = fundef.SSA.fn_id in 
+  let id = fundef.SSA.fundef_id in 
   IFDEF DEBUG THEN
     assert (Hashtbl.mem cache.fundefs id); 
   ENDIF; 

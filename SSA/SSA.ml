@@ -108,8 +108,8 @@ and fundef = {
   tenv : tenv;
   input_ids:ID.t list;
   output_ids: ID.t list; 
-  fn_type : DynType.t; 
-  fn_id : FnId.t; 
+  fundef_type : DynType.t; 
+  fundef_id : FnId.t; 
 }
 
 
@@ -196,9 +196,9 @@ and value_node_list_to_str ?(sep=",") vs =
 and value_list_to_str ?(sep=",") vs = 
   String.concat (sep^" ") (List.map value_to_str vs)
 
-let fundef_to_str fundef = 
+let fundef_to_str (fundef:fundef) = 
   sprintf "%s (%s)=>(%s) { \n %s \n }"
-    (FnId.to_str fundef.fn_id) 
+    (FnId.to_str fundef.fundef_id) 
     (typed_id_list_to_str fundef.tenv fundef.input_ids)
     (typed_id_list_to_str fundef.tenv fundef.output_ids)
     (block_to_str ~space:"\t" ~tenv:fundef.tenv fundef.body)
@@ -209,11 +209,13 @@ let fundef_to_str fundef =
 *) 
 let extract_nested_map_fn_id (fundef : fundef) = 
   match fundef.body with 
+    (* LEGACY-- should delete *) 
     | [{stmt=
           Set(_,{exp=App(map, {value=GlobalFn fnId}::dataArgs)})
        }
       ] when map.value = Prim (Prim.ArrayOp Prim.Map) ->
         Some fnId 
+    | [{stmt=Set(_, {exp=Map({closure_fn=fnId}, _)})}] -> Some fnId 
     | _ -> None   
 (*  
 let rec collect_assigned_ids = function  
@@ -241,8 +243,8 @@ let mk_fundef  ?(tenv=ID.Map.empty) ~input_ids ~output_ids ~body =
     tenv = tenv; 
     input_ids = input_ids; 
     output_ids = output_ids; 
-    fn_type = DynType.FnT([], inTypes, outTypes); 
-    fn_id = FnId.gen()  
+    fundef_type = DynType.FnT(inTypes, outTypes); 
+    fundef_id = FnId.gen()  
   }  
   
 
@@ -327,7 +329,7 @@ let map_default_types optTypes values =
 let mk_app ?src ?types fn args =
   let retTypes = match types, fn.value_type with 
     | Some types, _ -> types 
-    | None, DynType.FnT(_, _, types) -> types 
+    | None, DynType.FnT(_, types) -> types 
     | _ -> [DynType.BottomT]
   in 
   { exp=App(fn,args); exp_src = src; exp_types = retTypes }  
@@ -371,5 +373,8 @@ let mk_exp ?src ?types exp =
 
 let empty_stmt = mk_set [] (mk_vals_exp [])
 
-let is_empty_stmt stmtNode = 
-  stmtNode.stmt = Set([], {exp=Values[]})
+let is_empty_stmt stmtNode =
+  match stmtNode.stmt with 
+    | Set ([], {exp=Values[]})->true
+    | _ -> false 
+   

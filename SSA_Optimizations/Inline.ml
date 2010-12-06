@@ -28,17 +28,17 @@ let do_inline fundef argVals =
   let newOutputIds = 
     List.map (fun id -> PMap.find id replaceMap) fundef.output_ids in
   let inTypes = 
-    if fundef.fn_type = DynType.BottomT then 
+    if fundef.fundef_type = DynType.BottomT then 
       List.map (fun _ -> DynType.BottomT) newInputIds
-    else  DynType.fn_input_types fundef.fn_type 
+    else  DynType.fn_input_types fundef.fundef_type 
   in
   let argAssignments = 
     mk_set newInputIds (SSA.mk_exp ~types:inTypes (Values argVals)) 
   in
   let outTypes =
-    if fundef.fn_type = DynType.BottomT then 
+    if fundef.fundef_type = DynType.BottomT then 
       List.map (fun _ -> DynType.BottomT) newOutputIds 
-    else DynType.fn_output_types fundef.fn_type 
+    else DynType.fn_output_types fundef.fundef_type 
   in 
   let outputValNodes = 
     List.map2 (fun id t -> SSA.mk_var ~ty:t id) newOutputIds outTypes 

@@ -1,6 +1,7 @@
 open Base 
 open SSA 
 
+
 type binding = ID.t list * SSA.exp_node
 type bindings = binding list 
 type 'a update =
@@ -11,6 +12,7 @@ type 'a update =
 type sUpdate = stmt update 
 type eUpdate = (exp * DynType.t list) update
 type vUpdate = (value * DynType.t) update   
+
 
 class type transformation = object 
    
@@ -53,7 +55,8 @@ end
 
 class default_transformation : transformation 
 
-val bindings_to_stmts : SourceInfo.source_info -> bindings -> stmt_node list 
+val bindings_to_stmts 
+    : SourceInfo.source_info option -> bindings -> stmt_node list 
 val prepend_bindings : 'a update -> bindings -> 'a update 
 val mk_update : 'a -> bindings -> 'a update 
 val unpack_update : 'a -> 'a update -> 'a * bindings * bool 
@@ -62,24 +65,38 @@ val unpack_exp_update : exp_node -> eUpdate -> exp_node * block * bool
 val unpack_value_update : value_node -> vUpdate -> value_node * block * bool 
 
 
-val transform_stmt : transformation -> stmt -> block * bool  
-val transform_exp : transformation -> exp_node -> exp_node * block * bool  
-val transform_value : transformation -> value_node -> value_node * block * bool
+type block_state = { 
+  stmts : stmt_node DynArray.t; 
+  mutable changes : int; 
+}     
+val fresh_block_state : unit -> block_state 
+val add_stmt : block_state -> stmt_node -> unit
+
+(* add statements to block state, return any exp/value and a change flag *)  
+val process_value_update 
+    : block_state -> value_node -> vUpdate -> value_node  
+val process_exp_update 
+    : block_state -> exp_node -> eUpdate -> exp_node   
+val process_stmt_update : block_state -> stmt_node -> sUpdate -> unit 
+
+val transform_stmt : block_state -> transformation -> stmt_node -> unit  
+val transform_exp 
+    : block_state -> transformation -> exp_node -> exp_node      
+val transform_value 
+    : block_state -> transformation -> value_node -> value_node  
   
 val transform_values : 
-      transformation -> 
-        ?revAcc:value_node list -> 
-        ?revBindings:binding list ->  
-        ?changed:bool ->  
-        value_node list ->  
-        value_node list * block * bool 
+      block_state -> 
+        transformation -> 
+        ?revAcc:(value_node list) ->  
+        value_node list -> 
+        value_node list 
         
-val transform_block 
-    : transformation -> 
-        ?stmts:stmt_node DynArray.t -> 
-        ?changed:bool -> 
+val transform_block : 
+      ?blockState:(block_state) -> 
+        transformation -> 
         block -> 
-        block * bool
-        
+        block * bool  
+
 val transform_fundef : transformation -> fundef -> fundef * bool 
         

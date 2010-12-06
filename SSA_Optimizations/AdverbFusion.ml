@@ -50,7 +50,7 @@ let compat_adverbs (pred:adverb_descriptor) (succ:adverb_descriptor) useCounts =
   (ID.Set.for_all 
     (fun id -> 
       let nUsesInSucc = count_matches ((=) id) succ.consumes_list in 
-      ID.Map.find id useCounts = nUsesInSucc) 
+      Hashtbl.find useCounts id = nUsesInSucc) 
     pred.produces_set
   )
   
@@ -160,7 +160,7 @@ let fuse_map_reduce
          
 let fuse 
       (fns : FnTable.t)  
-      (use_counts : int ID.Map.t)
+      (use_counts : (ID.t, int) Hashtbl.t)
       (pred : adverb_descriptor) 
       (succ : adverb_descriptor) =
   
@@ -248,7 +248,7 @@ let fuse
   let deadTemps : ID.Set.t  = 
     ID.Set.filter 
       (fun id -> 
-        let globalCount = ID.Map.find id use_counts in 
+        let globalCount = Hashtbl.find use_counts id in 
         let argCount = ID.Map.find id succOverlapUseCounts in 
         assert (argCount <= globalCount);
         argCount = globalCount 
@@ -293,7 +293,7 @@ let fuse
       FnTable.add fundef fns) 
     fusedFns
   ; 
-  let fusedIds = List.map (fun fundef -> fundef.fn_id) fusedFns in
+  let fusedIds = List.map (fun fundef -> fundef.fundef_id) fusedFns in
   let is_data_dependency vNode = match vNode.value with 
      | Var id -> not (ID.Set.mem id overlap) 
      | _ -> true
@@ -342,11 +342,11 @@ let fuse
      (ID.Set.union pred.consumes_set succ.consumes_set)
      overlap
   in     
-  let fusedFnTypes = List.map (fun fused -> fused.SSA.fn_type) fusedFns in 
+  let fusedFnTypes = List.map (fun fused -> fused.SSA.fundef_type) fusedFns in 
   {
     adverb = finalAdverb; 
     adverb_type = 
-      DynType.FnT([], fusedFnTypes @ filteredTypes, combinedProducesTypes); 
+      DynType.FnT(fusedFnTypes @ filteredTypes, combinedProducesTypes); 
     function_arg_ids = fusedIds;
     function_arg_types = fusedFnTypes; 
     data_args = filteredDataArgs;  
@@ -358,7 +358,7 @@ let fuse
   
   
 let find_fusable_pred 
-    ( use_counts : int ID.Map.t )
+    ( use_counts : (ID.t, int) Hashtbl.t  )
     ( descriptor : adverb_descriptor)
     ( stmtMap : adverb_descriptor StmtMap.t)
     ( producerMap : StmtId.t ID.Map.t) =
@@ -438,7 +438,7 @@ let undescribe desc =
 
 let process_stmt 
     (fns : FnTable.t)
-    ~(use_counts : int ID.Map.t)
+    ~(use_counts : (ID.t, int) Hashtbl.t )
     ~(adverb_map : adverb_descriptor StmtMap.t) 
     ~(producer_map : StmtId.t ID.Map.t)
     ~(graveyard : StmtSet.t)
@@ -505,7 +505,7 @@ let process_stmt
 
 let rec process_block 
     (fns : FnTable.t)
-    ~(use_counts : int ID.Map.t)
+    ~(use_counts : (ID.t, int) Hashtbl.t)
     ~(adverb_map : adverb_descriptor StmtMap.t)
     ~(producer_map : StmtId.t ID.Map.t) 
     ~(graveyard : StmtSet.t )
@@ -592,21 +592,12 @@ let optimize_block (fns : FnTable.t) useCounts block =
   rewrite_block adverbMap graveyard replaced block 
 
 let optimize_fundef (fns:FnTable.t) fundef =
-  let useCounts, _ = FindUseCounts.find_fundef_use_counts fundef in  
+  let useCounts = FindUseCounts.find_fundef_use_counts fundef in  
   let body', changed = optimize_block fns useCounts fundef.body in  
   {fundef with body = body' }, changed  
                                  
-(* sample program: 
-      b, c = map(f, a) 
-      d = map(g, b)
-      e = map(h, c) 
-   (==>)  
-      b,c,d = map(f.g, a) 
-      e = map(h, c) 
-   (==>)
-      b,c,d,e = map( (f.g).e, a) 
-
-   - Do we have a good definition for multi-argument function composition? 
+(* 
+  - Do we have a good definition for multi-argument function composition? 
    - algorithm? 
         Let s1, s2 be two assignments with MAP adverbs on the rhs. 
         Draw s1, s2 nondeterministically from set of all adverb statements. 

@@ -20,7 +20,7 @@ and eval_stmt liveSet stmtNode =
         | [], [], [] -> [], [], [], false
         | id::ids, v::vs, t::ts -> 
           let restIds, restVals, restTypes, restChanged = filter ids vs ts in 
-          if ID.Set.mem id liveSet then 
+          if MutableSet.mem liveSet id then 
              id::restIds, v::restVals, t::restTypes, restChanged
           else restIds, restVals, restTypes, true
         | _ -> failwith "[elim_dead_code] mismatching lengths"
@@ -37,7 +37,7 @@ and eval_stmt liveSet stmtNode =
         [stmtNode'], changedVals || changedIds
         
   | Set (ids, exp) -> 
-      if List.exists (fun id -> ID.Set.mem id liveSet) ids then 
+      if List.exists (fun id -> MutableSet.mem liveSet id) ids then 
         let exp', changed = eval_exp liveSet exp in
         let stmtNode' = {stmtNode with stmt= Set(ids, exp')} in  
         [stmtNode'], changed
@@ -65,15 +65,14 @@ and eval_value_list liveSet = function
       let v', currChanged  = eval_value liveSet v in
       let vs', restChanged = eval_value_list liveSet vs in 
       v'::vs', currChanged || restChanged  
-and eval_fundef (liveSet : ID.Set.t) fundef = 
-  let liveSetFn = ID.Set.of_list (fundef.input_ids @ fundef.output_ids) in
-  let body', changed = 
-    eval_block (ID.Set.union liveSet liveSetFn) fundef.body 
-  in 
-  {fundef with body = body'}, changed   
+and eval_fundef (liveSet : ID.t MutableSet.t) fundef = 
+  List.iter (MutableSet.add liveSet) fundef.input_ids;
+  List.iter (MutableSet.add liveSet) fundef.output_ids;
+  let body', changed = eval_block liveSet fundef.body 
+  in {fundef with body = body'}, changed   
 
 let elim_dead_code 
       (fnTable : FnTable.t) 
       (fundef : SSA.fundef) : SSA.fundef * bool = 
-  let liveSet : ID.Set.t = FindLiveIds.find_live_ids fundef in 
+  let liveSet : ID.t MutableSet.t = FindLiveIds.find_live_ids fundef in 
   eval_fundef liveSet fundef 

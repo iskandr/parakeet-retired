@@ -88,8 +88,8 @@ and fundef = {
   tenv : tenv;
   input_ids:ID.t list;
   output_ids: ID.t list; 
-  fn_type : DynType.t; 
-  fn_id : FnId.t; 
+  fundef_type : DynType.t; 
+  fundef_id : FnId.t; 
 }
 
 val is_simple_exp : exp -> bool 

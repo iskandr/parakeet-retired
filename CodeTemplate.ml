@@ -130,7 +130,7 @@ let run_template
   InterpState.optimize_typed_functions interpState;
    
   let typedFundef =
-    InterpState.get_typed_function interpState unoptimized.fn_id
+    InterpState.get_typed_function interpState unoptimized.fundef_id
   in
   IFDEF DEBUG THEN
     printf "[run_template] calling evaluator on specialized code: \n";

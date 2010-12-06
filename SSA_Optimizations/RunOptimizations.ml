@@ -12,22 +12,12 @@ let rec fold_optimizations ?(type_check=false) fnTable fundef lastChanged =
       
       
       IFDEF DEBUG THEN
-      (*  if name ="adverb fusion" then  (
-        Printf.printf "before %s: %s\n" 
-          name
-          (SSA.fundef_to_str fundef)
-        ;
-        Printf.printf "after %s: %s\n" 
-          name
-          (SSA.fundef_to_str optimized)
-        );
-        *)
         if type_check then  
         let errorLog = TypeCheck.check_fundef optimized in 
         if not $ Queue.is_empty errorLog then ( 
         Printf.printf 
             "--- Errors found in %s after %s ---\n"
-            (FnId.to_str fundef.SSA.fn_id)
+            (FnId.to_str fundef.SSA.fundef_id)
             name
           ;
           TypeCheck.print_all_errors errorLog; exit 1 
@@ -72,7 +62,7 @@ let optimize_all_fundefs
         if not $ Queue.is_empty errorLog then (
           Printf.printf 
             "--- found errors in %s before optimization ---\n%s\n" 
-            (FnId.to_str fundef.SSA.fn_id)
+            (FnId.to_str fundef.SSA.fundef_id)
             (SSA.fundef_to_str fundef)
           ;
           TypeCheck.print_all_errors errorLog;
@@ -84,10 +74,10 @@ let optimize_all_fundefs
       optimize_fundef ~type_check ~maxiters fnTable fundef optimizations 
     in
     IFDEF DEBUG THEN 
-      assert (fundef.fn_id = optimized.fn_id);
+      assert (fundef.fundef_id = optimized.fundef_id);
       if iters > 1 then  
         Printf.printf "--- %s modified after %d optimization iters:\n%s\n\n"
-            (FnId.to_str fundef.fn_id) 
+            (FnId.to_str fundef.fundef_id) 
             iters 
             (SSA.fundef_to_str optimized)
       ;

@@ -1,14 +1,15 @@
 open Base 
 open SSA 
 
-type binding = ID.t list * SSA.exp_node
+
+type binding = ID.t list * exp_node
 type bindings = binding list 
 type 'a update =
   | NoChange 
   | Update of 'a 
   | UpdateWithBindings of 'a * bindings
 
-type sUpate = stmt update 
+type sUpdate = stmt update 
 type eUpdate = (exp * DynType.t list) update
 type vUpdate = (value * DynType.t) update   
 
@@ -59,7 +60,7 @@ class default_transformation : transformation = object
   method _while _ _ _ _= NoChange    
 
   (* EXPRESSIONS *) 
-  method array_index _ _ _ = NoChange 
+  method array_index _ _  = NoChange 
   method array _ = NoChange
   method values _ = NoChange  
 
@@ -88,10 +89,10 @@ class default_transformation : transformation = object
   method lam  _  = NoChange 
 end
 
-let bindings_to_stmts src = function 
+let rec bindings_to_stmts src = function 
   | [] -> []
   | (ids, expNode)::bs ->
-      let stmtNode = SSA.mk_set ~src ids expNode in 
+      let stmtNode = SSA.mk_set ?src ids expNode in 
       stmtNode :: (bindings_to_stmts src bs) 
 
 let prepend_bindings update bindings = match update with 
@@ -121,7 +122,9 @@ let unpack_stmt_update stmtNode update : block * bool =
     [stmtNode], false 
 
 let unpack_exp_update expNode update : exp_node * block * bool = 
-  let (exp', types'), bindings, changed = unpack_update expNode.exp update in 
+  let (exp', types'), bindings, changed = 
+    unpack_update (expNode.exp, expNode.exp_types) update 
+  in 
   if changed then
     let expNode' = {expNode with exp = exp'; exp_types=types'} in
     let stmts = bindings_to_stmts expNode.exp_src bindings in   
@@ -130,7 +133,9 @@ let unpack_exp_update expNode update : exp_node * block * bool =
     expNode, [], false
 
 let unpack_value_update valNode update : value_node * block * bool = 
-  let (val', t'), bindings, changed = unpack_update valNode.value update in 
+  let (val', t'), bindings, changed = 
+    unpack_update (valNode.value, valNode.value_type) update 
+  in 
   if changed then 
     let stmts = bindings_to_stmts valNode.value_src bindings in 
     let valNode' = {valNode with value = val'; value_type = t'} in 
@@ -148,92 +153,125 @@ let unpacked_zip4 (d1, bs1, c1) (d2, bs2, c2) (d3, bs3, c3) (d4, bs4, c4) =
     (d1, d2, d3, d4), bs1 @ bs2 @ bs3 @ bs4, c1 || c2 || c3 || c4         
   
 
-let rec transform_block f ?(stmts=DynArray.create()) ?(changed=false) = function 
-  | [] -> DynArray.to_list stmts, changed 
-  | s::rest -> 
-    let currStmts, currChanged = transform_stmt f s in
-    List.iter (DynArray.add stmts) currStmts; 
-    transform_block f ~stmts ~changed:(changed || currChanged) rest 
+(* use a record instead of an object to track block state*)
+(* for improved performance *) 
+type block_state = { 
+  stmts : stmt_node DynArray.t; 
+  mutable changes : int;  
+}     
+
+(* initializer *) 
+let fresh_block_state () = { stmts = DynArray.create (); changes = 0 }
+
+let finalize_block_state blockState = 
+  DynArray.to_list blockState.stmts, blockState.changes > 0
+
+(* blockState methods *) 
+let add_stmt blockState stmtNode = DynArray.add blockState.stmts stmtNode
+let add_stmts blockState stmts = List.iter (add_stmt blockState) stmts 
+
+let incr_changes blockState = 
+  blockState.changes <- blockState.changes + 1 
+  
+  (*
+let update_flag blockState changed = 
+  blockState.changed <- blockState.changed || changed
+    *)
     
-and transform_stmt f stmtNode = 
+let process_value_update blockState defaultValueNode vUpdate = 
+  let v', (stmts:block), changed = 
+    unpack_value_update defaultValueNode vUpdate 
+  in
+  add_stmts blockState stmts;
+  if changed then incr_changes blockState;  
+  v'
+   
+            
+let process_exp_update blockState expNode update = 
+  let expNode', stmts, changed = unpack_exp_update expNode update in 
+  add_stmts blockState stmts;
+  if changed then incr_changes blockState;   
+  expNode'    
+ 
+let process_stmt_update blockState stmtNode update = 
+  let stmts, changed = unpack_stmt_update stmtNode update in 
+  add_stmts blockState stmts;
+  if changed then incr_changes blockState
+
+let rec transform_block ?(blockState = fresh_block_state ()) f = function 
+  | [] -> finalize_block_state blockState  
+  | s::rest -> 
+    (* transform_stmt returns unit since its potential outputs *)
+    (* are captured by blockState *)  
+    transform_stmt blockState f s; 
+    transform_block ~blockState f rest  
+    
+and transform_stmt blockState f stmtNode = 
+  let oldNumChanges = blockState.changes in 
   match stmtNode.stmt with 
   | Set (ids, rhsExpNode) ->
-    let rhsExpNode', rhsStmts, rhsChanged =
-      unpack_exp_update rhsExpNode (transform_exp f rhsExpNode) 
-    in 
+    let rhsExpNode' = transform_exp blockState f rhsExpNode in  
     let stmtNode' = 
-      if rhsChanged then 
+      if oldNumChanges <> blockState.changes then 
         {stmtNode with stmt=Set(ids, rhsExpNode') }
       else stmtNode 
     in 
-    let mainStmts = unpack_stmt_update stmtNode' (f#set ids rhsExpNode') in 
-    rhsStmts @ mainStmts
+    process_stmt_update blockState stmtNode' (f#set ids rhsExpNode')
      
   | SetIdx (id, indices, rhsVal) ->
-    let indices', indexStmts, indicesChanged = transform_values f indices in
-    let rhsVal', rhsStmts, rhsChanged =  transform_value f rhsVal in
+    let indices' = transform_values blockState f indices in
+    let rhsVal' =  transform_value blockState f rhsVal in
     let stmtNode' = 
-      if rhsChanged || indicesChanged then 
+      if oldNumChanges <> blockState.changes  then 
         {stmtNode with stmt=SetIdx(id, indices', rhsVal')} 
       else stmtNode 
     in     
-    let mainStmts = 
-      unpack_stmt_update stmtNode' (f#setidx id indices' rhsVal')
-    in 
-    rhsStmts @ indexStmts @ mainStmts
-               
+    process_stmt_update blockState stmtNode' (f#setidx id indices' rhsVal')
   | If (v, tBlock, fBlock, ifGate) -> 
       failwith "if not implemented" 
   | WhileLoop (condBlock, condId, bodyBlock, loopGate) -> 
-      failwith "loop not implemented"
-and transform_exp f expNode = match expNode.exp with 
-  | Values vs -> 
-      let vs', bindings, childrenChanged = transform_values f vs in 
-      (match f#values vs' with 
-        | NoChange -> 
-            if childrenChanged then 
-              let expNode' = { expNode with exp = Values vs' }
-              mk_update expNode' bindings 
-            else NoChange  
-        | update -> prepend_bindings update bindings 
-       )    
+      failwith "loop not implemented" 
+      
+and transform_exp blockState f expNode = 
+  let oldNumChanges = blockState.changes in 
+  match expNode.exp with 
+  | Values vs ->
+      let vs' = transform_values blockState f vs in
+      let expNode' = 
+        if blockState.changes <> oldNumChanges then 
+          {expNode with exp = Values vs'}
+        else expNode 
+      in 
+      process_exp_update blockState expNode' (f#values vs')
+      
   | App(fn,args) ->
-      let args', argBindings, argsChanged = transform_values f args in 
-      let fn', fnBindings, fnChanged = unpack fn (transform_value f fn) in
-      let bindings = fnBindings @ argBindings in
-      let childrenChanged = argsChanged || fnChanged in
-      (match f#app fn' args' with 
-        | NoChange -> 
-            if childrenChanged then 
-              let expNode' = { expNode with exp = App(fn', args') } in 
-              mk_update expNode' bindings   
-            else NoChange  
-       | update -> prepend_bindings update bindings
-      ) 
-              
+      let fn'= transform_value blockState f fn in 
+      let args' = transform_values blockState f args in
+      let expNode' = 
+        if blockState.changes <> oldNumChanges then 
+          {expNode with exp = App(fn', args') } 
+        else expNode
+      in
+      process_exp_update blockState expNode' (f#app fn' args')  
       
-      
-and transform_values f ?(revAcc=[]) ?(revStmts=[]) ?(changed=false) = 
-  function 
-  | [] -> List.rev revAcc, List.rev revStmts, changed
+and transform_values blockState f ?(revAcc=[])  = function  
+  | [] -> List.rev revAcc 
   | v::vs ->
-      let v', stmts, currChanged = transform_value f v in 
-      if currChanged then
-        transform_values 
-          f 
-          ~revAcc:(v' :: revAcc)
-          ~revStmts:( List.rev_append stmts revStmts)
-          ~changed:true 
-          vs
-      else 
-        transform_values 
-          f 
-          ~revAcc:(v::revAcc)
-          ~revStmts
-          ~changed 
-          vs
+      let oldNumChanges = blockState.changes in 
+      let v' = transform_value blockState f v in 
+      let revAcc' = 
+        if oldNumChanges <> blockState.changes then 
+          v' :: revAcc 
+        else 
+          v :: revAcc 
+      in 
+      transform_values
+        blockState  
+        f 
+        ~revAcc:revAcc' 
+        vs
           
- and transform_value f vNode = 
+ and transform_value blockState f vNode = 
   let update = match vNode.value with 
     | Num n -> f#num n 
     | Var id -> f#var id 
@@ -244,10 +282,8 @@ and transform_values f ?(revAcc=[]) ?(revStmts=[]) ?(changed=false) =
     | Prim p -> f#prim p
     | Lam fundef -> f#lam fundef 
   in 
-  unpack_value_update vNode update
-  
+  process_value_update blockState vNode update
 
 let transform_fundef f fundef = 
   let body', changed = transform_block f fundef.body in
-  if changed then {fundef with body = body'}, true
-  else fundef, false 
+  {fundef with body = body'}, changed

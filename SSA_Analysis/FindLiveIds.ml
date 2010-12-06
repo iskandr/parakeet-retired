@@ -12,9 +12,11 @@ class collector initSet =
 end  
 
 let find_live_ids fundef =
-  let liveSet = MutableSet.create () in 
+  let liveSet = MutableSet.create 127  in 
   List.iter (MutableSet.add liveSet) fundef.input_ids;   
   List.iter (MutableSet.add liveSet) fundef.output_ids;   
   let c = new collector liveSet in 
-  let _ = SSA_Transform.transform_fundef c fundef in 
+  let _ = 
+    SSA_Transform.transform_fundef (c :> SSA_Transform.transformation) fundef 
+  in 
   c#result 

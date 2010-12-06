@@ -43,8 +43,8 @@ let is_useless useCounts id =
   (* by convention, having 0 use counts excludes a varialbe from the 
      useCount map, but check just in case 
   *) 
-  if ID.Map.mem id useCounts 
-  then ID.Map.find id useCounts = 0 
+  if Hashtbl.mem useCounts id  
+  then Hashtbl.find useCounts id = 0 
   else true  
 
 let rec rewrite_block constEnv useCounts defEnv tenv block = 
@@ -189,17 +189,17 @@ let simplify_typed_block
 *)  
 
 let copy_redundant_stmt stmtNode defEnv useCounts = 
-  let nochange = stmtNode, false, useCounts, defEnv in 
+  let nochange = stmtNode, false, defEnv in 
   match stmtNode.stmt with 
   | Set([id], expNode) ->
-   
      (match expNode.exp with 
-      | Values [{value=Var rhsId}] when ID.Map.find rhsId useCounts = 1 ->
+      | Values [{value=Var rhsId}] 
+         when Hashtbl.mem useCounts rhsId && Hashtbl.find useCounts rhsId = 1 ->
           (match ID.Map.find rhsId defEnv with
           | SingleDef (exp, 1, 1) as def->
+             Hashtbl.replace useCounts rhsId 0; 
              {stmtNode with stmt = Set([id], { expNode with exp = exp})}, 
-             true, 
-             ID.Map.add rhsId 0 useCounts, 
+             true,  
              ID.Map.remove rhsId (ID.Map.add id def defEnv)
           | _ -> nochange
           ) 
@@ -211,28 +211,27 @@ let rec copy_redundant_block
         ?(changed=false) 
         ?(accBody=[]) 
         defEnv 
-        useCounts = 
+        (useCounts : (ID.t, int) Hashtbl.t) = 
   function
-  | [] -> List.rev accBody, changed, useCounts, defEnv 
+  | [] -> List.rev accBody, changed,  defEnv 
   | stmt::rest -> 
-      let stmt', changed', useCounts', defEnv'  = 
-        copy_redundant_stmt stmt defEnv useCounts 
+      let stmt', changed', defEnv'  = copy_redundant_stmt stmt defEnv useCounts 
       in   
       copy_redundant_block 
         ~changed:(changed||changed') 
         ~accBody:(stmt'::accBody)
-        defEnv' 
-        useCounts'          
+        defEnv'
+        useCounts 
         rest
   
     
 let simplify_fundef (functions:FnTable.t) fundef =
   let defEnv =  FindDefs.find_function_defs fundef in
-  let useCounts, _ = FindUseCounts.find_fundef_use_counts fundef in
+  let useCounts = FindUseCounts.find_fundef_use_counts fundef in
   (* forward propagate expressions through linear use chains...
      will create redundant work unless followed by a simplification 
   *)
-  let body1, changed1, useCounts1, defEnv1 = 
+  let body1, changed1, defEnv1 = 
     copy_redundant_block defEnv useCounts fundef.body
   in
   (* perform simple constant propagation and useless assignment elim *)
@@ -240,7 +239,7 @@ let simplify_fundef (functions:FnTable.t) fundef =
     simplify_typed_block functions 
       ~tenv:fundef.tenv 
       ~def_env:defEnv1
-      ~use_counts:useCounts1    
+      ~use_counts:useCounts   
       ~free_vars:fundef.input_ids  
       body1
   in 

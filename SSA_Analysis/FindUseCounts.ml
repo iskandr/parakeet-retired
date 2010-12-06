@@ -2,7 +2,7 @@ open Base
 open SSA
 
 
-class use_count_collector initCounts : SSA_Transform.transformation = object 
+class use_count_collector initCounts  = object 
     inherit SSA_Transform.default_transformation
     val counts : (ID.t, int) Hashtbl.t = initCounts  
     method var id = 
@@ -16,6 +16,8 @@ let find_fundef_use_counts fundef =
   let initCounts = Hashtbl.create 127 in 
   List.iter (fun id -> Hashtbl.add initCounts id 1) fundef.output_ids; 
   let c = new use_count_collector initCounts in 
-  let _ = SSA_Transform.transform_fundef c fundef in 
+  let _ = 
+    SSA_Transform.transform_fundef (c :> SSA_Transform.transformation ) fundef 
+  in 
   c#result  
   

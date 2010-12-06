@@ -1,3 +1,5 @@
+(* pp: -parser o pa_macro.cmo *)
+
 open Base 
 open Printf 
 open SSA
@@ -39,7 +41,7 @@ let create () =
 
 
 let add_untyped interpState ?(opt_queue=true) name fundef = 
-  let id = fundef.SSA.fn_id in 
+  let id = fundef.SSA.fundef_id in 
   Hashtbl.add interpState.name_to_untyped_id name id; 
   Hashtbl.add interpState.untyped_id_to_name id name;
   FnTable.add ~opt_queue fundef interpState.untyped_functions
@@ -109,7 +111,7 @@ let add_specialization
     (untypedVal : SSA.value) 
     (signature : Signature.t) 
     (typedFundef : SSA.fundef) =
-  let fnId = typedFundef.SSA.fn_id in 
+  let fnId = typedFundef.SSA.fundef_id in 
   if FnTable.mem fnId program.typed_functions then (
     (* if function is already in the fntable, don't add it again
        but make sure it really is the same function 
@@ -121,7 +123,8 @@ let add_specialization
   )
   else FnTable.add typedFundef program.typed_functions
   ; 
-  Hashtbl.add program.specializations (untypedVal, signature) typedFundef.fn_id;
+  let key = (untypedVal, signature) in 
+  Hashtbl.add program.specializations key typedFundef.fundef_id; 
   IFDEF DEBUG THEN
     let untypedValStr = 
       match untypedVal with 

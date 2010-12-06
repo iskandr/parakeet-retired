@@ -168,7 +168,7 @@ let mapCache : code_cache = Hashtbl.create 127
 let run_map memState globalFunctions payload closureVals gpuVals outputTypes =
   let closureTypes = List.map GpuVal.get_type closureVals in 
   let inputTypes = List.map GpuVal.get_type gpuVals in
-  let cacheKey = (payload.SSA.fn_id, closureTypes @ inputTypes) in  
+  let cacheKey = (payload.SSA.fundef_id, closureTypes @ inputTypes) in  
   let {imp_source=impKernel; cc=cc; cuda_module=cudaModule} = 
     if Hashtbl.mem mapCache cacheKey then 
       Hashtbl.find mapCache cacheKey
@@ -244,7 +244,7 @@ let run_reduce
   IFDEF DEBUG THEN 
     Printf.printf "Launching Reduce kernel\n";
   ENDIF;
-  let cacheKey = payload.SSA.fn_id, inputTypes in 
+  let cacheKey = payload.SSA.fundef_id, inputTypes in 
   let {imp_source=impKernel; cc=cc; cuda_module=compiledModule} =  
     if Hashtbl.mem reduceCache cacheKey then 
       Hashtbl.find reduceCache cacheKey
@@ -334,7 +334,7 @@ let run_all_pairs
       (gpuVals : GpuVal.gpu_val list)
       (outputTypes : DynType.t list) =
   let inputTypes = List.map GpuVal.get_type gpuVals in 
-  let cacheKey = payload.SSA.fn_id, inputTypes in 
+  let cacheKey = payload.SSA.fundef_id, inputTypes in 
   let {imp_source=impKernel; cc=cc; cuda_module=compiledModule} = 
     if Hashtbl.mem allPairsCache cacheKey then 
       Hashtbl.find allPairsCache cacheKey
