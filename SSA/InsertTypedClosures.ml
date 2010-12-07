@@ -3,7 +3,8 @@
 open Base
 open SSA
 
-let rec process_block mapping typedClosureEnv  = function 
+let rec process_block mapping typedClosureEnv  =  stmts 
+(*function 
   | [] -> []
   | stmt::rest -> 
       let stmts = (process_stmt mapping typedClosureEnv stmt) in 
@@ -51,4 +52,4 @@ and process_stmt
     []
   
   | _ ->  [stmtNode] 
-  
+*)  

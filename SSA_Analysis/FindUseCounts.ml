@@ -5,10 +5,13 @@ open SSA
 class use_count_collector initCounts  = object 
     inherit SSA_Transform.default_transformation
     val counts : (ID.t, int) Hashtbl.t = initCounts  
-    method var id = 
-      let oldCount = Hashtbl.find_default counts id 0 in 
-      Hashtbl.add counts id (oldCount+1);
-      SSA_Transform.NoChange 
+    method value vNode =
+      match vNode.value with 
+        | Var id ->  
+          let oldCount = Hashtbl.find_default counts id 0 in 
+          Hashtbl.add counts id (oldCount+1);
+        | _ -> ()
+      ; SSA_Transform.NoChange 
     method result = counts 
 end
 

@@ -1,6 +1,14 @@
 open Base
 open SSA
 
+(* sketch of future SSA_Query or SSA_Analysis base class: *)
+  type direction = Forward | Backward
+  type gate = (ID.t * ID.t * ID.t) list 
+  type 'a merge_function = 'a -> 'a -> gate -> 'a  
+  type 'a flow_sensitivity = 
+    | FlowInsensitive 
+    | FlowSensitive of 'a merge_function 
+
 (* generic structure of a recursive analysis, fill in the details by 
    inheriting from base_analysis
 *)

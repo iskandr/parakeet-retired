@@ -4,79 +4,13 @@ open DynType
 
 type tenv = DynType.t ID.Map.t
 
-(* Given a type environment and a list of annotated but untyped stmtNodes *)
-(* return a list of typed statement nodes and the modified type environment*)
-(* which might contain the types produced by any inserted coercions. *)
-(* However, don't try to "coerce" functions since function values *)
-(* are assumed to have been correctly specialized by the annotator.  *)
-
-let rec rewrite_block tenv = function 
-  | [] -> [], tenv     
-  | stmtNode::rest -> 
-        let stmts, tenv' = rewrite_stmt tenv stmtNode in 
-        let restStmts, tenv'' = rewrite_block tenv' rest in 
-        stmts@ restStmts, tenv''   
-        
-and rewrite_stmt tenv stmtNode = match stmtNode.stmt with 
-  | Set (ids, rhs) ->
-        (* along with the typed/coerced rhs' we also get a list of statements*)
-        (* used for coercions and a modified type environment containing the *)
-        (* types of any intermediaries which were produced *)
-        let rhs', coerceStmts, tenv' = rewrite_exp tenv rhs in 
-        let allStmts =  
-            coerceStmts @ [{stmtNode with stmt = Set(ids, rhs')}] 
-        in 
-        (* further modify the type environment to include all assigned ids *)
-        let tenv'' = List.fold_left2 
-            (fun accEnv id t -> ID.Map.add id t accEnv)
-            tenv' ids rhs'.exp_types
-        in  
-        allStmts, tenv'' 
-  
-  | SetIdx _ -> failwith "[specialize_block] setidx not yet implemented"  
-  | If _ ->  failwith "[specialize_block] if not yet implemented"
-
-
-and rewrite_exp tenv expNode = match expNode.exp with 
-  | Values valNodes -> 
-     (* get back any necessary coercions *) 
-      let valNodes', stmts, tenv' = rewrite_values tenv valNodes in
-      {expNode with exp = Values valNodes'}, stmts, tenv'  
-  | Cast (t, valNode) -> 
-      let valNode', stmts, tenv' = rewrite_value tenv valNode in
-      {expNode with exp = Cast(t, valNode')}, stmts, tenv'
-
-  | App (fn, args) -> 
-    (* Don't try to rewrite the function value, since this is assumed to *)
-    (* already have been changed to a typed specialized function by the *)
-    (* annotator.*)  
-      let args', argsStmts, tenv' = rewrite_values tenv args in 
-      { expNode with exp = App (fn, args') }, argsStmts, tenv' 
-  
-  | ArrayIndex (array, indices) -> 
-      let array', arrayStmts, tenv' = rewrite_value tenv array in 
-      let indices', indicesStmts, tenv'' = rewrite_values tenv' indices in 
-      let expNode' = { expNode with exp = ArrayIndex (array', indices') } in 
-      expNode', arrayStmts @ indicesStmts, tenv'' 
+class rewriter initTypeEnv = object
+    val mutable tenv : ID.Map.t = initTypeEnv
+    method set ids rhs = (* do something with tenv *) NoChange
+    method if_ cond tBlock fBlock gate =  (* do something with tenv *) NoChange
     
-  | Arr valNodes -> 
-      let valNodes', stmts, tenv' = rewrite_values tenv valNodes in 
-      { expNode with exp = Arr valNodes' }, stmts, tenv' 
-  
-
-(* pass the newer contexts forward through recursion and concatenate the*)
-(* block of statements as your return from each nesting level *)    
-and rewrite_values tenv = function 
-  | [] -> [], [], tenv 
-  | v::vs -> 
-      let v', stmts, tenv' = rewrite_value tenv v in 
-      let vs', stmtsRest, tenvRest = rewrite_values tenv' vs in 
-      v'::vs', stmts @ stmtsRest, tenvRest 
-         
-and rewrite_value tenv valNode =
-  (* if no coercions necessary, return this value *) 
-  let nochange = valNode, [], tenv in
-  let expect_type t = 
+    
+    (*let expect_type t = 
     if valNode.value_type <> t then 
         failwith
             (sprintf "no coercions available from %s to %s"
@@ -85,38 +19,46 @@ and rewrite_value tenv valNode =
             
     else nochange
   in   
-  match valNode.value with 
-  | Var id ->  
-      let actualType = ID.Map.find id tenv in 
-      let annotatedType = valNode.value_type in 
-      if actualType <> annotatedType then
-        let coerceExp =
-          SSA.mk_cast ?src:valNode.value_src annotatedType valNode 
-        in    
-        let id' =  ID.gen() in 
-        let stmts = [mk_set ?src:valNode.value_src [id'] coerceExp] in 
-        (  
-          if List.length coerceExp.exp_types <> 1 then 
-            failwith "coercion can't change arity of expression"
-          else
-            let coerceType = List.hd coerceExp.exp_types in 
-            let valNode' = 
-              SSA.mk_var ?src:valNode.value_src ~ty:coerceType id'
-            in 
-            valNode', stmts, ID.Map.add id' coerceType tenv  
-        )   
-        else nochange 
-  | Num n ->
-      let n' = PQNum.coerce_num n valNode.value_type in 
-      let valNode' =  {valNode with value = Num n' } in 
-      valNode', [], tenv  
-  | Str _ -> expect_type StrT  
-  | Sym _ ->  expect_type SymT 
-  | Unit -> expect_type UnitT 
+  *)
+    method value valNode = 
+      let ty = valNode.value_type in 
+      match valNode.value with 
+      | Var id -> 
+        let actualType = ID.Map.find id tenv in 
+        if actualType <> ty then
+          let coerceExp = SSA.mk_cast ty valNode in    
+          let id' =  ID.gen() in 
+          let bindings = [[id'], coerceExp] in 
+          let valNode' = SSA.mk_var ~ty:coerceType id' in
+          (tenv <- ID.Map.add id' coerceType tenv; 
+           SSA_Transform.UpdateWithBindings(valNode', bindings)
+          )
+        else SSA_Transform.NoChange
+      | Num n -> 
+          let n' = PQNum.coerce_num n ty in
+          if n <> n' then SSA_Transform.Update (SSA.mk_num ~ty n')
+          else NoChange 
+    
+
+
+    method str valNode _ -> expect_type valNode StrT  
+    method valNode _ ->  expect_type valNode SymT 
+  | Unit -> expect_type valNode UnitT 
   | Prim _ -> 
      failwith "[InsertCoercions->rewrite_value] unexpected primitive"
   | GlobalFn _ -> 
      failwith "[InsertCoercions->rewrite_value] unexpected global function" 
   | Lam _ -> 
      failwith "[InsertCoercions->rewrite_value] unexpected anonymous function" 
+
+      
+        
+            
+
+(* Given a type environment and a list of annotated but untyped stmtNodes *)
+(* return a list of typed statement nodes and the modified type environment*)
+(* which might contain the types produced by any inserted coercions. *)
+(* However, don't try to "coerce" functions since function values *)
+(* are assumed to have been correctly specialized by the annotator.  *)
+
      

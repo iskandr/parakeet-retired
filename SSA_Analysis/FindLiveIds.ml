@@ -7,7 +7,14 @@ class collector initSet =
   object
     inherit SSA_Transform.default_transformation
     val liveSet : ID.t MutableSet.t = initSet 
-    method var id = MutableSet.add liveSet id; SSA_Transform.NoChange 
+    
+    method value vNode = 
+      match vNode.value with 
+        | Var id -> MutableSet.add liveSet id
+        | _ -> ()
+      ; 
+      SSA_Transform.NoChange
+        
     method result = liveSet  
 end  
 

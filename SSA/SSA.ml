@@ -378,3 +378,4 @@ let is_empty_stmt stmtNode =
     | Set ([], {exp=Values[]})->true
     | _ -> false 
    
+let empty_block : block = [] 
