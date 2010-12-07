@@ -16,15 +16,15 @@ class type transformation = object
   method value : value_node -> value_node update 
 end
 
-class default_transformation = object 
-  method stmt = NoChange 
-  method exp = NoChange
-  method value = NoChange
+class default_transformation : transformation = object 
+  method stmt _ = NoChange 
+  method exp _ = NoChange
+  method value _ = NoChange
 end 
 
 let mk_update data = function 
   | [] -> Update data
-  | block -> UpdateWithBindings(data, bindings) 
+  | block -> UpdateWithBlock(data, block) 
 
 let unpack_update default = function 
   | NoChange -> default, SSA.empty_block, false

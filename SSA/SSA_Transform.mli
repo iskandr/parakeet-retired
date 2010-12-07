@@ -2,12 +2,10 @@ open Base
 open SSA 
 
 
-type binding = ID.t list * SSA.exp_node
-type bindings = binding list 
 type 'a update =
   | NoChange 
   | Update of 'a 
-  | UpdateWithBindings of 'a * bindings
+  | UpdateWithBlock of 'a * block
 
 class type transformation = object 
   method stmt : stmt_node -> stmt_node update 
@@ -17,11 +15,9 @@ end
 
 class default_transformation : transformation 
 
-val bindings_to_stmts 
-    : SourceInfo.source_info option -> bindings -> stmt_node list 
-val mk_update : 'a -> bindings -> 'a update 
+val mk_update : 'a -> block -> 'a update 
 
-val unpack_update : 'a -> 'a update -> 'a * bindings * bool 
+val unpack_update : 'a -> 'a update -> 'a * block * bool 
 
 type block_state = { 
   stmts : stmt_node DynArray.t; 

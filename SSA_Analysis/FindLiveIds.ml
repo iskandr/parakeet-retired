@@ -9,10 +9,10 @@ class collector initSet =
     val liveSet : ID.t MutableSet.t = initSet 
     
     method value vNode = 
-      match vNode.value with 
+      (match vNode.value with 
         | Var id -> MutableSet.add liveSet id
         | _ -> ()
-      ; 
+      ); 
       SSA_Transform.NoChange
         
     method result = liveSet  
