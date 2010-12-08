@@ -3,7 +3,7 @@
 open Base
 open SSA
 
-let rec process_block mapping typedClosureEnv  =  stmts 
+let rec process_block mapping typedClosureEnv  stmts =  stmts 
 (*function 
   | [] -> []
   | stmt::rest -> 

@@ -1,23 +1,32 @@
 open Base
 open SSA
+open SSA_Transform 
 
-let alloc_logic = object 
-    inherit [ID.Set.t] SSA_Base_Analysis.base_analysis 
+let alloc_analysis initSet = object 
+    inherit default_transformation 
+    
+    val set : ID.t MutableSet.t = MutableSet.create 127
+    
+    method add_to_set ids types = 
+      List.iter2 
+        (fun id t -> if not $ DynType.is_scalar t then MutableSet.add  set id)
+        ids
+        types  
+       
+    method before_fundef fundef =
+      add_to_set fundef.input_ids (DynType.fn_input_types fundef.fn_type)
+      add_to_set fundef.output_ids ( DynType.fn_output_types fundef.fn_type);
+      NoChange   
+       
     method stmt env stmtNode = match stmtNode.stmt with
-      | Set (_, {exp=ArrayIndex _}) -> env  
+      | Set (_, {exp=ArrayIndex _}) -> NoChange   
       | Set(ids, rhs) ->
           (* if rhs wasn't an array slicing expression, 
              add every array created to the set of objects
              which must be allocated
           *) 
-          List.fold_left2 
-            (fun accSet id t ->
-                if not $ DynType.is_scalar t then ID.Set.add id accSet
-                else accSet)
-            env
-            ids 
-            rhs.exp_types
-      | _ -> env
+          add_to_set ids rhs.exp_types; NoChange 
+      | _ -> NoChange 
 end
 
 (* for now this just returns the set of vectors which weren't 
@@ -28,15 +37,6 @@ end
 
 let rec infer_fundef fundef =
   (* any input/output arrays must be allocated *)
-  let inputTypes = DynType.fn_input_types fundef.fn_type in 
-  let outputTypes = DynType.fn_output_types fundef.fn_type in 
-  let initSet = 
-    List.fold_left2 
-      (fun accSet id t -> 
-          if not $ DynType.is_scalar t then ID.Set.add id accSet else accSet)
-      ID.Set.empty 
-      (fundef.input_ids @ fundef.output_ids) 
-      (inputTypes @ outputTypes)
   in 
   let finalSet, _ = 
     SSA_Base_Analysis.eval_block alloc_logic initSet fundef.body

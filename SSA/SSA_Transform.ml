@@ -1,22 +1,25 @@
 open Base 
 open SSA 
 
+type direction = Forward | Backward
 
-type binding = ID.t list * exp_node
-type bindings = binding list 
 type 'a update =
   | NoChange 
   | Update of 'a 
   | UpdateWithBlock of 'a * block
 
 
-class type transformation = object 
+class type transformation = object
+  method dir : direction
+  
   method stmt : stmt_node -> stmt_node update 
   method exp : exp_node -> exp_node update 
   method value : value_node -> value_node update 
 end
 
 class default_transformation : transformation = object 
+  method dir = Forward 
+  
   method stmt _ = NoChange 
   method exp _ = NoChange
   method value _ = NoChange
@@ -43,7 +46,7 @@ type block_state = {
 let fresh_block_state () = { stmts = DynArray.create (); changes = 0 }
 
 let finalize_block_state blockState = 
-  DynArray.to_list blockState.stmts, blockState.changes > 0
+  DynArray.to_array blockState.stmts, blockState.changes > 0
 
 (* blockState methods *) 
 let add_stmt blockState stmtNode = DynArray.add blockState.stmts stmtNode
@@ -69,7 +72,15 @@ let process_stmt_update blockState stmtNode update =
   ); 
   add_stmt blockState stmtNode' 
 
-let rec transform_block ?(blockState = fresh_block_state ()) f = function 
+let rec transform_block f block = 
+  let blockState = fresh_block_state () in 
+  let n = SSA.block_length block in
+  match f#dir with 
+    | Forward -> 
+        for i = 0 to n - 1 do 
+          blockState 
+    | Backward ->  
+  
   | [] -> finalize_block_state blockState  
   | s::rest -> 
     (* transform_stmt returns unit since its potential outputs *)

@@ -14,8 +14,6 @@ type loop_gate = {
   loop_output_map : (ID.t * ID.t) ID.Map.t;  
 }
 
-
-
 type stmt = 
   | Set of ID.t list * exp_node 
   | SetIdx of ID.t * value_nodes * value_node
@@ -26,7 +24,7 @@ and stmt_node = {
     stmt_src: SourceInfo.source_info option;
     stmt_id : StmtId.t;  
 }
-and block = stmt_node list 
+and block 
 and  exp = 
   | App of  value_node * value_nodes
   | ArrayIndex of value_node * value_nodes
@@ -194,3 +192,8 @@ val mk_exp :
 val empty_stmt : stmt_node 
 val is_empty_stmt : stmt_node -> bool 
 val empty_block : block 
+val append_block : block -> block -> block  
+val block_of_list : stmt_node list -> block  
+val block_iter : (stmt_node -> unit) -> block -> unit 
+val block_length : block -> int 
+val block_idx : block -> int -> stmt_node 

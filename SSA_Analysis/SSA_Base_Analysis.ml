@@ -9,16 +9,24 @@ open SSA
     | FlowInsensitive 
     | FlowSensitive of 'a merge_function 
 
+
 (* generic structure of a recursive analysis, fill in the details by 
    inheriting from base_analysis
 *)
 
-class ['a] base_analysis = object
-    method stmt (env : 'a) (stmt : SSA.stmt_node) = env    
-    method exp (env : 'a) (exp : SSA.exp_node)  = env
-    method value (env : 'a) (v : SSA.value_node) = env
+class type ['a] analysis = object
+  method before_fundef : 'a -> SSA.fundef -> 'a
+  method stmt : 'a -> SSA.stmt_node -> 'a 
+  method exp : 'a -> SSA.exp_node -> 'a 
+  method value : 'a -> SSA.value_node -> 'a  
 end
 
+class ['a] default_analysis = object 
+  method before_fundef env _ = env 
+  method stmt env _ = env 
+  method exp env _ = env 
+  method value env _ = env 
+end
 
 let rec eval_block logic env code = 
   let stmt_folder (env,changed) stmt = 

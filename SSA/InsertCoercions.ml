@@ -1,10 +1,8 @@
 open SSA 
+open SSA_Transform
 open Printf 
 open DynType 
 
-type tenv =  DynType.t ID.Map.t 
-
-      
 (* Given a type environment and a list of annotated but untyped stmtNodes *)
 (* return a list of typed statement nodes and the modified type environment*)
 (* which might contain the types produced by any inserted coercions. *)
@@ -16,22 +14,22 @@ class rewriter initTypeEnv = object
     inherit SSA_Transform.default_transformation 
     val mutable tenv : DynType.t ID.Map.t = initTypeEnv
     method value valNode =
+      let localType = valNode.value_type in 
       match valNode.value with 
       | Var id -> 
         let globalType = ID.Map.find id tenv in
-        let localType = valNode.value_type in  
         if globalType <>  localType then 
           let coerceExp = SSA.mk_cast localType valNode in    
           let id' =  ID.gen() in 
-          let bindings = [[id'], coerceExp] in 
+          let bindings = [SSA.mk_set [id'] coerceExp] in 
           let valNode' = SSA.mk_var ~ty:localType id' in
           (tenv <- ID.Map.add id' localType tenv; 
-           SSA_Transform.UpdateWithBindings(valNode', bindings)
+           SSA_Transform.UpdateWithBlock(valNode', bindings)
           )
         else SSA_Transform.NoChange
       | Num n -> 
-          let n' = PQNum.coerce_num n ty in
-          if n <> n' then SSA_Transform.Update (SSA.mk_num ~ty n')
+          let n' = PQNum.coerce_num n localType in
+          if n <> n' then SSA_Transform.Update (SSA.mk_num ~ty:localType n')
           else NoChange 
       | _ -> NoChange 
      
@@ -43,6 +41,4 @@ let rewrite_block tenv block =
   let block', _ = 
     SSA_Transform.transform_block (r :> SSA_Transform.transformation) block 
   in
-  let tenv' = r#get_tenv in 
-  block', tenv'  
-   
+  block', r#get_tenv  

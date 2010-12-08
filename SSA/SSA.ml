@@ -46,7 +46,7 @@ and stmt_node = {
     stmt_src: source_info option;
     stmt_id : StmtId.t;  
 }
-and block = stmt_node list 
+and block = stmt_node array
 and  exp = 
   | App of  value_node * value_nodes
   | ArrayIndex of value_node * value_nodes
@@ -144,7 +144,9 @@ let rec typed_id_list_to_str tenv = function
   
         
 let rec block_to_str ?(space="") ?(tenv=ID.Map.empty) block = 
-    String.concat "\n" (List.map (stmt_node_to_str ~space ~tenv) block)
+    String.concat "\n" 
+    (Array.to_list 
+      (Array.map (stmt_node_to_str ~space ~tenv) block))
 and stmt_node_to_str ?(space="") ?(tenv=ID.Map.empty) stmtNode = 
   let str = match stmtNode.stmt with 
   | Set (ids, rhs) -> 
@@ -378,4 +380,10 @@ let is_empty_stmt stmtNode =
     | Set ([], {exp=Values[]})->true
     | _ -> false 
    
-let empty_block : block = [] 
+let empty_block : block = [||]
+let append_block = Array.append 
+let block_of_list = Array.of_list 
+let block_iter f = Array.iter f 
+let block_length = Array.length
+let block_idx = Array.get 
+ 
