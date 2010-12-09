@@ -36,7 +36,7 @@ type loop_gate = {
 }
 
 
-type stmt = 
+type ('a, 'b) stmt = 
   | Set of ID.t list * exp_node 
   | SetIdx of ID.t * value_nodes * value_node
   | If of value_node * block * block * if_gate
