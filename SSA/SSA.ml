@@ -382,9 +382,40 @@ let is_empty_stmt stmtNode =
     | _ -> false 
    
 let empty_block : block = [||]
-let append_block = Array.append 
+let block_of_stmt stmtNode = [|stmtNode|] 
+let block_block = Array.append
+let block_concat = Array.concat 
+let insert_stmt_after_block block stmtNode = 
+  block_concat [block; block_of_stmt stmtNode]  
+let insert_stmt_before_block stmtNode block = 
+  block_concat [block_of_stmt stmtNode; block]   
 let block_of_list = Array.of_list 
-let block_iter f = Array.iter f 
 let block_length = Array.length
-let block_idx = Array.get 
+let block_idx = Array.get
+let block_iter_forward f block =
+  let n = block_length block in 
+  for i = 0 to n - 1 do 
+    f (block_idx block i)
+  done
+let block_iter_backward f block = 
+  let n = block_length block in 
+  for i = n-1 downto 0 do 
+    f (block_idx block i)
+  done
+let block_fold_forward f init block = 
+  let acc = ref init in 
+  let n = block_length block in 
+  for i = 0 to n-1 do 
+    acc := f !acc (block_idx block i) 
+  done; 
+  !acc
+   
+let block_fold_backward f init block = 
+  let acc = ref init in 
+  let n = block_length block in 
+  for i = n-1 downto 0 do 
+    acc := f !acc (block_idx block i)
+  done; 
+  !acc
+ 
  

@@ -19,7 +19,7 @@ let fn nInputs nOutputs nLocals bodyConstructor =
   let outputVars = Array.map SSA.mk_var outputs in
   let locals = ID.gen_fresh_array nLocals in 
   let localVars = Array.map SSA.mk_var locals in   
-  let body = 
+  let body = SSA.block_of_list $
     bodyConstructor inputVars outputVars localVars 
   in 
   mk_fundef 

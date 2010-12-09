@@ -192,8 +192,15 @@ val mk_exp :
 val empty_stmt : stmt_node 
 val is_empty_stmt : stmt_node -> bool 
 val empty_block : block 
-val append_block : block -> block -> block  
+val block_of_stmt : stmt_node -> block 
+val block_append : block -> block -> block  
+val block_concat : block list -> block 
+val insert_stmt_after_block : block -> stmt_node -> block 
+val insert_stmt_before_block : stmt_node -> block -> block  
 val block_of_list : stmt_node list -> block  
-val block_iter : (stmt_node -> unit) -> block -> unit 
 val block_length : block -> int 
-val block_idx : block -> int -> stmt_node 
+val block_idx : block -> int -> stmt_node
+val block_iter_forward : (stmt_node -> unit) -> block -> unit
+val block_iter_backward : (stmt_node -> unit) -> block -> unit
+val block_fold_forward : ('a -> stmt_node -> 'a) -> 'a -> block -> 'a
+val block_fold_backward : ('a -> stmt_node -> 'a) -> 'a -> block -> 'a 

@@ -80,9 +80,10 @@ let fuse_map_map
          )
         succFn.input_ids
   in
-  let succBody, returnValsExp, typesList = Inline.do_inline succFn inlineArgs in  
+  let succBody, returnValsExp, typesList = Inline.do_inline succFn inlineArgs in
+  let setStmt = SSA.mk_set succFn.output_ids returnValsExp in   
   let body = 
-    predFn.body @ succBody @ [SSA.mk_set succFn.output_ids returnValsExp] 
+    SSA.block_append predFn.body (SSA.insert_stmt_after_block succBody setStmt) 
   in
   let tenv =
     List.fold_left (fun accEnv (id,t) -> ID.Map.add id t accEnv)
@@ -142,8 +143,9 @@ let fuse_map_reduce
       
   in      
   let succBody, returnValsExp, typesList = Inline.do_inline succFn inlineArgs in
+  let setStmt = SSA.mk_set succFn.output_ids returnValsExp in 
   let body = 
-    predFn.body @ succBody @ [SSA.mk_set succFn.output_ids returnValsExp] 
+    SSA.block_concat [predFn.body; succBody; SSA.block_of_stmt setStmt]
   in 
   let tenv =
     List.fold_left (fun accEnv (id,t) -> ID.Map.add id t accEnv) 
