@@ -1,11 +1,14 @@
 open Base 
 open SSA 
 
-let find_gens = object 
-    inherit [ID.Set.t] SSA_Base_Analysis.base_analysis 
-    method stmt env stmtNode = match stmtNode.stmt with 
-      | Set(ids, _) -> ID.Set.add_list ids env | _ -> env
+module Env : SSA_Analysis.SIMPLE_ANALYSIS = struct
+  type env = ID.Set.t 
+  let init fundef = ID.Set.empty 
 end
+module GenSetAnalysis : SSA_Analysis.ANALYSIS = struct
+  include SSA_Analysis.MakeSimpleAnalysis(Env) 
+  let set env ids _ _ = Update (ID.Set.add_list ids env) 
+end
+module GenSetEval = SSA_Analysis.MakeEvaluator(GenSetAnalysis)
 
-let block_gens block = 
-  SSA_Base_Analysis.eval_block find_gens ID.Set.empty block
+let block_gens block = GenSetEval.eval_block ID.Set.empty block    
