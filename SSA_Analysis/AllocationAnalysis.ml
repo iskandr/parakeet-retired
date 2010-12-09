@@ -1,32 +1,30 @@
 open Base
 open SSA
-open SSA_Transform 
 
-let alloc_analysis initSet = object 
-    inherit default_transformation 
-    
-    val set : ID.t MutableSet.t = MutableSet.create 127
-    
-    method add_to_set ids types = 
-      List.iter2 
-        (fun id t -> if not $ DynType.is_scalar t then MutableSet.add  set id)
-        ids
-        types  
-       
-    method before_fundef fundef =
-      add_to_set fundef.input_ids (DynType.fn_input_types fundef.fn_type)
-      add_to_set fundef.output_ids ( DynType.fn_output_types fundef.fn_type);
-      NoChange   
-       
-    method stmt env stmtNode = match stmtNode.stmt with
-      | Set (_, {exp=ArrayIndex _}) -> NoChange   
-      | Set(ids, rhs) ->
-          (* if rhs wasn't an array slicing expression, 
-             add every array created to the set of objects
-             which must be allocated
-          *) 
-          add_to_set ids rhs.exp_types; NoChange 
-      | _ -> NoChange 
+let add_to_set s ids types = 
+  List.iter2 
+    (fun id t -> if not $ DynType.is_scalar t then MutableSet.add s id)
+    ids
+    types  
+
+module Env = struct
+  type env = ID.t MutableSet.t
+  let init fundef =
+    let set = MutableSet.create 127 in 
+    add_to_set set fundef.input_ids (DynType.fn_input_types fundef.fn_type);
+    add_to_set set fundef.output_ids ( DynType.fn_output_types fundef.fn_type);
+    set
+end 
+
+module AllocAnalysis = struct 
+  include SSA_Analysis.MakeSimpleAnalysis(Env) 
+
+  let set env ids rhs _ = match rhs.exp with 
+    | ArrayIndex _ -> 
+        SSA_Analysis.NoChange (* I don't even remember why this works *)  
+    | _ -> 
+      add_to_set env ids rhs.exp_types;
+      SSA_Analysis.NoChange    
 end
 
 (* for now this just returns the set of vectors which weren't 
@@ -35,12 +33,4 @@ end
    for now we assume all arrays are read-only. 
 *) 
 
-let rec infer_fundef fundef =
-  (* any input/output arrays must be allocated *)
-  in 
-  let finalSet, _ = 
-    SSA_Base_Analysis.eval_block alloc_logic initSet fundef.body
-  in 
-  finalSet 
-      
-      
+let infer_fundef = SSA_Analysis.MakeAnalyzer(AllocAnalysis).analyze_fundef
