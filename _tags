@@ -8,7 +8,7 @@
 "libpq" : include
 "Q" : include
 "SSA" : include
-"SSA_Analysis" : include
+"SSA_Analyses" : include
 "SSA_Optimizations" : include
 "SSA_Specialization" : include
 "CQInterface" : include
