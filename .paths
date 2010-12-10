@@ -35,10 +35,8 @@ qcode
 unit
 unit/tmp
 SSA_Optimizations
-SSA_Analysis
 .git/logs/refs/remotes/origin
 .git/refs/remotes/origin
-SSA_Analysis
 SSA_Optimizations
 qcode
 unit
@@ -211,3 +209,4 @@ _build/libpq
 .git/objects/f5
 .git/objects/f7
 SSA_Specialization
+SSA_Analyses

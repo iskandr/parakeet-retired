@@ -26,6 +26,4 @@ module DCE_Rules = struct
   let value _ _ = NoChange   
 end 
 
-module DCE_Transform = SSA_Transform.MkTransformation(DCE_Rules)
-
-let elim_dead_code fnTable fundef = DCE_Transform.transform_fundef fundef  
+let elim_dead_code _ = MkTransformation(DCE_Rules).transform_fundef   

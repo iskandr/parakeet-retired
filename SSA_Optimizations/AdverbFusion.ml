@@ -598,20 +598,3 @@ let optimize_fundef (fns:FnTable.t) fundef =
   let body', changed = optimize_block fns useCounts fundef.body in  
   {fundef with body = body' }, changed  
                                  
-(* 
-  - Do we have a good definition for multi-argument function composition? 
-   - algorithm? 
-        Let s1, s2 be two assignments with MAP adverbs on the rhs. 
-        Draw s1, s2 nondeterministically from set of all adverb statements. 
-        If consumes(s2) /\ produces(s1) =/= {} then 
-           let f' = fn(s1) . fn(s2) 
-        erase s2 and replace s1 in the original program with s' 
-        
-   "Replace in the program"... means what? 
-   - replace 1st variable in your adverb map
-   - mark the 2nd variable as deleted (maybe just remove it from the map? 
-     or add it to a graveyard?) 
-   -    
-                        
- *) 
- 
