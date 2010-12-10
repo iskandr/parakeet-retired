@@ -14,7 +14,7 @@ end
 
 module LiveIdAnalysis = struct 
   include SSA_Analysis.MakeSimpleAnalysis(Env)
-  let var liveSet id = MutableSet.add liveSet id; SSA_Analysis.NoChange   
+  let var liveSet id = MutableSet.add liveSet id; None
 end
   
-let find_live_ids = SSA_Analysis.MakeEvaluator(LiveIdAnalysis).analyze_fundef
+let find_live_ids = SSA_Analysis.MakeEvaluator(LiveIdAnalysis).eval_fundef
