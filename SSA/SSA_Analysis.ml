@@ -107,14 +107,9 @@ module type ANALYSIS =  sig
     val loop : env -> (value_info, env) loop_descr -> env option  
 end
 
-module type HAS_DEFAULT = sig
+module type ENV = sig
   type t 
-  val mk_default : unit -> t  
-end 
-
-module MutableIdSet : HAS_DEFAULT = struct 
-  type t = ID.t MutableSet.t 
-  let mk_default () = MutableSet.create 127 
+  val init : fundef -> t  
 end 
  
 module type LATTICE = sig 
@@ -154,7 +149,7 @@ module TypeListLattice = MkListLattice(TypeLattice)
    which performs a no-op on every syntax node 
 *)  
 
-module MkDefaultAnalysis (S:HAS_DEFAULT)(E:LATTICE)(V:LATTICE) : ANALYSIS = 
+module MkAnalysis (S:ENV)(E:LATTICE)(V:LATTICE) : ANALYSIS = 
 struct
   type env = S.t 
   type exp_info  = E.t 
@@ -197,6 +192,7 @@ struct
  
 end 
 
+module MkSimpleAnalysis(S:ENV) = MkAnalysis(S)(UnitLattice)(UnitLattice)
 
 module type EVALUATOR = functor (A : ANALYSIS) -> sig 
   val eval_block : A.env -> block -> A.env 

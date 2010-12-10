@@ -87,12 +87,11 @@ module type ANALYSIS =  sig
 end
 
 
-module type HAS_DEFAULT = sig 
+module type ENV = sig
   type t 
-  val default : t 
+  val init : fundef -> t  
 end 
-module MutableIdSet : HAS_DEFAULT 
-
+ 
 module type LATTICE = sig 
   type t 
   val bottom : t  
@@ -106,11 +105,14 @@ module TypeLattice : LATTICE
 module MkListLattice(L: LATTICE) : LATTICE 
 module TypeListLattice : LATTICE  
 
-module MkDefaultAnalysis : 
-  functor (S : HAS_DEFAULT) -> 
+module MkAnalysis : 
+  functor (S:ENV) -> 
   functor (E:LATTICE) ->
   functor (V:LATTICE) -> ANALYSIS  
-     
+
+module MkSimpleAnalysis : functor (S:ENV) -> ANALYSIS 
+
+         
 module type EVALUATOR = functor (A : ANALYSIS) -> sig 
   val eval_block : A.env -> block -> A.env 
   val eval_stmt  : A.env -> stmt_node -> A.env 
