@@ -1,19 +1,21 @@
 open Base
 open SSA
+open SSA_Analysis 
 
-module Env : SSA_Analysis.SIMPLE_ANALYSIS = struct 
-  type env = (ID.t, int) Hashtbl.t
-  let init fundef = 
-    let env = Hashtbl.create 127 in 
-    List.iter (fun id -> Hashtbl.add initCounts id 1) fundef.output_ids;
-    env  
+module Env : HAS_DEFAULT = struct 
+  type t = (ID.t, int) Hashtbl.t
+  let mk_default () = Hashtbl.create 127 
 end
-module UseCountAnalysis : SSA_Analysis.ANALYSIS = struct
-  include SSA_Analysis.MakeSimpleAnalysis(Env)
+
+module UseCountAnalysis : ANALYSIS = struct
+  include MkDefaultAnalysis(Env)(UnitLattice)(UnitLattice)
+  
   let var counts id =
     let oldCount = Hashtbl.find_default counts id 0 in 
-    Hashtbl.add counts id (oldCount+1); SSA_Analysis.Update counts 
+    Hashtbl.add counts id (oldCount+1); 
+    None 
 end 
-module EvalUseCounts = SSA_Analysis.MakeEvaluator(UseCountAnalysis)
+
+module EvalUseCounts = SSA_Analysis.MkEvaluator(UseCountAnalysis)
 
 let find_fundef_use_counts = EvalUseCounts.eval_fundef

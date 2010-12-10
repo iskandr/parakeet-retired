@@ -10,7 +10,7 @@ type 'a flow_functions = {
 } 
 
 (* 'a = value_info, 'b = exp_info *) 
-type 'a scan_info = { 
+type 'a scan_descr = { 
   scan_init_closure : closure; 
   scan_init_info : 'a list; 
   scan_combine_closure : closure; 
@@ -19,24 +19,108 @@ type 'a scan_info = {
   scan_arg_info : 'a list; 
 }
 
-type 'a reduce_info = { 
+type 'a reduce_descr = { 
   reduce_closure : closure; 
   reduce_closure_info : 'a list; 
   reduce_args : value_nodes; 
   reduce_arg_info : 'a list;  
 }
 
-type 'a map_info = { 
+type 'a map_descr = { 
   map_closure : closure; 
   map_closure_info : 'a list; 
   map_args : value_nodes; 
   map_arg_info : 'a list; 
 } 
 
+(* 'a = value info, 'b = statement info *) 
+type ('a, 'b) if_descr = {
+  if_cond_val : value_node; 
+  if_cond_info : 'a;
+  true_branch_info: 'b; 
+  true_branch_changed: bool;
+  false_branch_info: 'b; 
+  false_branch_changed: bool;
+  if_gate: if_gate
+} 
+
+(* 'a = value info, 'b = statement info *) 
+type ('a, 'b) loop_descr = { 
+  loop_cond_block_info: 'b; 
+  loop_cond_block_changed : bool; 
+  loop_cond_val : 'a; 
+  loop_body_info: 'b; 
+  loop_gate : loop_gate;  
+                 
+} 
+ 
+module type ANALYSIS =  sig
+    type env
+    type exp_info
+    type value_info
+    
+    val dir : direction
+  
+    (* if env_helpers is None then perform flow insensitive analysis *)
+    val flow_functions : (env flow_functions) option  
+    
+    (* should analysis be repeated until environment stops changing? *) 
+    val iterative : bool
+  
+    val init : fundef -> env 
+  
+  (* VALUES *) 
+    val var : env -> ID.t -> value_info 
+    val num : env -> PQNum.num -> value_info 
+    val globalfn : env -> FnId.t -> value_info
+    val prim : env -> Prim.prim -> value_info  
+    val str : env -> string -> value_info 
+    val sym : env -> string -> value_info 
+    val unit : env -> value_info 
+    val lam : env -> fundef -> value_info   
+  
+    (* EXPRESSIONS *) 
+    val values : env -> value_nodes -> value_info list -> exp_info  
+
+    val array : env -> value_nodes -> value_info list -> exp_info 
+    val app : env -> value_node -> value_info -> 
+              value_nodes -> value_info list -> exp_info 
+              
+    val array_index : env -> value_node -> value_info -> 
+                      value_nodes -> value_info list -> exp_info  
+                       
+    val cast : env -> DynType.t -> value_node -> value_info -> exp_info 
+   
+    val call : env -> typed_fn -> value_nodes -> value_info list -> exp_info 
+              
+    val primapp 
+        : env -> typed_prim -> value_nodes -> value_info list -> exp_info
+        
+    val map : env -> value_info map_descr -> exp_info      
+    val reduce : env -> value_info reduce_descr -> exp_info  
+    val scan : env -> value_info scan_descr -> exp_info   
+    
+              
+  (* STATEMENTS *) 
+    val set : env -> ID.t list -> exp_node -> exp_info -> env option 
+    val if_ : env -> (value_info, env) if_descr -> env option               
+    val loop : env -> (value_info, env) loop_descr -> env option  
+end
+
+module type HAS_DEFAULT = sig
+  type t 
+  val mk_default : unit -> t  
+end 
+
+module MutableIdSet : HAS_DEFAULT = struct 
+  type t = ID.t MutableSet.t 
+  let mk_default () = MutableSet.create 127 
+end 
+ 
 module type LATTICE = sig 
   type t 
-  val bottom : t 
-  val combine : t -> t -> t 
+  val bottom : t  
+  val combine : t -> t -> t
   val eq : t -> t -> bool 
 end
 
@@ -44,7 +128,7 @@ module UnitLattice : LATTICE = struct
   type t = unit 
   let bottom = ()
   let combine _ _ = ()
-  let eq _ _ = true 
+  let eq _ _ = true
 end
 
 module TypeLattice : LATTICE = struct
@@ -56,7 +140,7 @@ end
 
 module MkListLattice(L: LATTICE) : LATTICE = struct 
   type t = L.t list  
-  let bottom = [] 
+  type bottom = [] 
   let combine = List.map2 L.combine 
   let rec eq list1 list2 = match list1, list2 with 
     | [], [] -> true
@@ -64,93 +148,53 @@ module MkListLattice(L: LATTICE) : LATTICE = struct
     | x::xs, y::ys -> L.eq x y || eq xs ys
 end 
 
-module TypeListLattice = MkListLattice(TypeLattice) 
- 
-module type SEMANTICS = 
-  functor (S : LATTICE) -> 
-  functor (E : LATTICE) ->
-  functor (V : LATTICE) -> sig  
-    val dir : direction
-  
-    (* if env_helpers is None then perform flow insensitive analysis *)
-    val flow_functions : (S.t flow_functions) option  
-    
-    (* should analysis be repeated until environment stops changing? *) 
-    val iterative : bool
-  
-    val init : fundef -> S.t 
-  
-  (* VALUES *) 
-    val var : S.t -> ID.t -> V.t  
-    val num : S.t -> PQNum.num -> V.t 
-  
-    (* EXPRESSIONS *) 
-    val values : S.t -> value_nodes -> V.t list -> E.t  
-
-    val array : S.t -> value_nodes -> V.t list -> E.t 
-    val app : S.t -> value_node -> V.t -> value_nodes -> V.t list -> E.t 
-              
-    val array_index : S.t -> value_node -> V.t -> value_nodes -> V.t list -> E.t  
-                       
-    val cast : S.t -> DynType.t -> value_node -> V.t -> E.t 
-   
-    val call : S.t -> typed_fn -> value_nodes -> V.t list -> E.t 
-              
-    val primapp : S.t -> typed_prim -> value_nodes -> V.t list -> E.t
-    val map : S.t -> V.t map_info -> E.t      
-    val reduce : S.t -> V.t reduce_info -> E.t  
-    val scan : S.t -> V.t scan_info -> E.t   
-    
-              
-  (* STATEMENTS *) 
-  val set : env -> ID.t list -> exp_node -> exp_info -> env option
-  
-  val if_ : env -> condVal:value_node -> condInfo:value_info -> 
-              trueEnv:env -> trueChanged:bool -> 
-              falseEnv:env -> falseChanged:bool -> if_gate -> env option
-              
-  val while_ : env -> ?condBlockEnv:env -> ?condBlockChanged:bool -> 
-                 condVal:value_node -> bodyEnv:env -> bodyChanged:bool -> 
-                 loop_gate -> env option  
-end
+module TypeListLattice = MkListLattice(TypeLattice)
 
 (* only information needed to specify a minimal imperative analysis
    which performs a no-op on every syntax node 
 *)  
-module type ENV = sig 
-  type env 
-  val init : fundef -> env
-end 
 
-module MakeSimpleAnalysis(E : ENV) : ANALYSIS = struct
-  type env = A.env  
-  type exp_info = unit 
-  type value_info = unit
+module MkDefaultAnalysis (S:HAS_DEFAULT)(E:LATTICE)(V:LATTICE) : ANALYSIS = 
+struct
+  type env = S.t 
+  type exp_info  = E.t 
+  type value_info = V.t 
   
   let dir = Forward
   let flow_functions = None  
-   
   let iterative = false
   
-  let  init = A.init 
+  (* ignore the function definition and just create a fresh lattice value *)
+  let init _ = S.mk_default () 
   
   (* VALUES *) 
-  let var env id = () 
-  let num env n = () 
+  let var _ _ = V.bottom   
+  let num _ _ = V.bottom  
+  let globalfn _ _ = V.bottom 
+  let prim _ _ = V.bottom   
+  let str _ _ = V.bottom  
+  let sym _ _ = V.bottom  
+  let unit _ = V.bottom  
+  let lam _ _ = V.bottom    
+  
   
   (* EXPRESSIONS *) 
-  let app env fNode fInfo argNode argInfos = ()
-  let array env  vNodes vInfos = ()
-  let values env vNode vInfos = () 
+  let array _ _ _ = E.bottom 
+  let values _ _ _  = E.bottom  
+  let app _ _ _ _ _  = E.bottom 
+  let array_index  _ _ _ _ _  = E.bottom
+  let cast _ _ _ _ = E.bottom        
+  let call _ _ _ _ = E.bottom 
+  let primapp _ _ _ _ = E.bottom 
+  let map _ _ = E.bottom 
+  let reduce _ _ = E.bottom 
+  let scan _ _ = E.bottom 
   
   (* STATEMENTS *) 
-  let set env ids rhsNode rhsInfo = None
-  let if_ env 
-          ~condVal ~condInfo 
-          ~trueEnv ~trueChanged ~falseEnv ~falseChanged ifGate = None 
-              
-  let while_ env ~condBlockEnv ~condBlockChanged ~condVal
-                 ~bodyEnv ~bodyChanged loopGate = None 
+  let set _ _ _ _ = None
+  let if_  _ _ = None   
+  let loop _ _ = None
+ 
 end 
 
 
@@ -162,7 +206,7 @@ module type EVALUATOR = functor (A : ANALYSIS) -> sig
   val eval_values : A.env -> value_nodes -> A.value_info list 
 end
 
-module MakeEvaluator(A : ANALYSIS) : EVALUATOR = struct
+module MkEvaluator(A : ANALYSIS) : EVALUATOR = struct
   let rec eval_block initEnv block =
     let n = block_length block in  
     let env = ref initEnv in 

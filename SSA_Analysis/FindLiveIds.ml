@@ -2,19 +2,23 @@
 
 open Base
 open SSA
+open SSA_Analysis 
 
-module Env = struct 
-  type env = ID.t MutableSet.t
+module Env : HAS_DEFAULT = struct
+  type t = ID.t MutableSet.t
+  let mk_default () = MutableSet.create 127 
+end 
+ 
+module LiveIdAnalysis = struct 
+  include MkDefaultAnalysis(Env)(UnitLattice)(UnitLattice)
+  
   let init fundef = 
     let liveSet = MutableSet.create 127  in 
     List.iter (MutableSet.add liveSet) fundef.input_ids;   
     List.iter (MutableSet.add liveSet) fundef.output_ids;
-    liveSet
-end 
+    liveSet 
 
-module LiveIdAnalysis = struct 
-  include SSA_Analysis.MakeSimpleAnalysis(Env)
   let var liveSet id = MutableSet.add liveSet id; None
 end
   
-let find_live_ids = SSA_Analysis.MakeEvaluator(LiveIdAnalysis).eval_fundef
+let find_live_ids = MkEvaluator(LiveIdAnalysis).eval_fundef
