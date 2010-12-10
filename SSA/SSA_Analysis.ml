@@ -9,32 +9,99 @@ type 'a flow_functions = {
   split: 'a -> 'a * 'a; 
 } 
 
-module type ANALYSIS = sig 
-  type env 
-  type exp_info 
-  type value_info 
+(* 'a = value_info, 'b = exp_info *) 
+type 'a scan_info = { 
+  scan_init_closure : closure; 
+  scan_init_info : 'a list; 
+  scan_combine_closure : closure; 
+  scan_combine_info : 'a list; 
+  scan_args : value_nodes; 
+  scan_arg_info : 'a list; 
+}
+
+type 'a reduce_info = { 
+  reduce_closure : closure; 
+  reduce_closure_info : 'a list; 
+  reduce_args : value_nodes; 
+  reduce_arg_info : 'a list;  
+}
+
+type 'a map_info = { 
+  map_closure : closure; 
+  map_closure_info : 'a list; 
+  map_args : value_nodes; 
+  map_arg_info : 'a list; 
+} 
+
+module type LATTICE = sig 
+  type t 
+  val bottom : t 
+  val combine : t -> t -> t 
+  val eq : t -> t -> bool 
+end
+
+module UnitLattice : LATTICE = struct
+  type t = unit 
+  let bottom = ()
+  let combine _ _ = ()
+  let eq _ _ = true 
+end
+
+module TypeLattice : LATTICE = struct
+  type t = DynType.t
+  let bottom = DynType.BottomT
+  let combine = DynType.common_type 
+  let eq = (=) 
+end 
+
+module MkListLattice(L: LATTICE) : LATTICE = struct 
+  type t = L.t list  
+  let bottom = [] 
+  let combine = List.map2 L.combine 
+  let rec eq list1 list2 = match list1, list2 with 
+    | [], [] -> true
+    | [], _ | _, [] -> false
+    | x::xs, y::ys -> L.eq x y || eq xs ys
+end 
+
+module TypeListLattice = MkListLattice(TypeLattice) 
+ 
+module type SEMANTICS = 
+  functor (S : LATTICE) -> 
+  functor (E : LATTICE) ->
+  functor (V : LATTICE) -> sig  
+    val dir : direction
   
-  val dir : direction
-  
-  (* if env_helpers is None then perform flow insensitive analysis *)
-  val flow_functions : (env flow_functions) option  
+    (* if env_helpers is None then perform flow insensitive analysis *)
+    val flow_functions : (S.t flow_functions) option  
     
-  (* should analysis be repeated until environment stops changing? *) 
-  val iterative : bool
+    (* should analysis be repeated until environment stops changing? *) 
+    val iterative : bool
   
-  val init : fundef -> env 
+    val init : fundef -> S.t 
   
   (* VALUES *) 
-  val var : env -> ID.t -> vInfo 
-  val num : env -> PQNum.num -> vInfo 
+    val var : S.t -> ID.t -> V.t  
+    val num : S.t -> PQNum.num -> V.t 
   
-  (* EXPRESSIONS *) 
-  val app : env -> value_node -> value_info -> 
-              value_nodes -> value_info list -> exp_info
-          
-  val array : env -> value_nodes -> value_info list -> exp_info
-  val values : env -> value_node list -> value_info list -> exp_info 
-  
+    (* EXPRESSIONS *) 
+    val values : S.t -> value_nodes -> V.t list -> E.t  
+
+    val array : S.t -> value_nodes -> V.t list -> E.t 
+    val app : S.t -> value_node -> V.t -> value_nodes -> V.t list -> E.t 
+              
+    val array_index : S.t -> value_node -> V.t -> value_nodes -> V.t list -> E.t  
+                       
+    val cast : S.t -> DynType.t -> value_node -> V.t -> E.t 
+   
+    val call : S.t -> typed_fn -> value_nodes -> V.t list -> E.t 
+              
+    val primapp : S.t -> typed_prim -> value_nodes -> V.t list -> E.t
+    val map : S.t -> V.t map_info -> E.t      
+    val reduce : S.t -> V.t reduce_info -> E.t  
+    val scan : S.t -> V.t scan_info -> E.t   
+    
+              
   (* STATEMENTS *) 
   val set : env -> ID.t list -> exp_node -> exp_info -> env option
   

@@ -8,7 +8,41 @@ type 'a flow_functions = {
   merge : 'a -> 'a -> gate -> 'a; 
   split: 'a -> 'a * 'a; 
 }
+ 
+type 'a scan_info = { 
+  scan_init_closure : closure; 
+  scan_init_info : 'a list; 
+  scan_combine_closure : closure; 
+  scan_combine_info : 'a list; 
+  scan_args : value_nodes; 
+  scan_arg_info : 'a list; 
+}
 
+type 'a reduce_info = { 
+  reduce_closure : closure; 
+  reduce_closure_info : 'a list; 
+  reduce_args : value_nodes; 
+  reduce_arg_info : 'a list;  
+}
+
+type 'a map_info = { 
+  map_closure : closure; 
+  map_closure_info : 'a list; 
+  map_args : value_nodes; 
+  map_arg_info : 'a list; 
+} 
+
+module type LATTICE = sig 
+  type t 
+  val bottom : t 
+  val combine : t -> t -> t 
+  val eq : t -> t -> bool 
+end
+
+module UnitLattice : LATTICE 
+module TypeLattice : LATTICE 
+module MkListLattice(L: LATTICE) : LATTICE 
+module TypeListLattice : LATTICE  
 
 module type ANALYSIS = sig 
   type env 
@@ -30,11 +64,32 @@ module type ANALYSIS = sig
   val num : env -> PQNum.num -> vInfo 
   
   (* EXPRESSIONS *) 
-  val app : env -> value_node -> value_info -> 
-              value_nodes -> value_info list -> exp_info
-          
-  val array : env -> value_nodes -> value_info list -> exp_info
-  val values : env -> value_node list -> value_info list -> exp_info 
+  val values : env -> (value_node list * value_info list) -> exp_info 
+
+  val array : env -> (value_nodes * value_info list) -> exp_info
+  val app : env -> 
+              (value_node * value_info) -> 
+              (value_nodes * value_info list) -> exp_info
+              
+  val array_index : env -> 
+                      (value_node * value_info) -> 
+                      (value_nodes * value_info list) -> exp_info 
+                       
+  val cast : env -> DynType.t -> value_node -> value_info -> exp_info
+   
+  val call : env -> typed_fn -> value_nodes -> value_info list -> exp_info
+              
+  val primapp : env -> typed_prim -> value_nodes -> value_info list -> exp_info
+  
+  val map : env -> closure:closure -> closure_info:value_info list -> 
+              args:value_nodes -> arg_info:value_info list -> exp_info     
+    
+  val reduce : env -> closure:closure -> closure_info:value_info list -> 
+              args:value_nodes -> arg_info:value_info list -> exp_info 
+              
+  val scan : env -> init_closure:closure -> init_info:value_info list ->
+               combine_closure:closure -> combine_info -> value_info list -> 
+               args:value_nodes -> arg_info: value_info list -> exp_info  
   
   (* STATEMENTS *) 
   val set : env -> ID.t list -> exp_node -> exp_info -> env update
