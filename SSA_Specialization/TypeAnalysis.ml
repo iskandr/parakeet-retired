@@ -32,10 +32,13 @@ module MkAnalysis (T : TYPE_ANALYSIS_PARAMS) = struct
   }
   
   (**** VALUES ****) 
-  let var context id = get_type context id  
-  let num _ n = PQNum.type_of_num n 
-  let prim _ _ = DynType.AnyT 
-  let globalfn _ _ = DynType.AnyT
+  let value context = function 
+    | Var id -> get_type context id
+    | Num _ -> PQNum.type_of_num n
+    | Str _ -> DynType.StrT
+    | Sym _ -> DynType.SymT
+    | Unit -> DynType.UnitT
+    | _ -> DynType.AnyT   
   
   (**** EXPRESSIONS ****)
   let values _ _ valTypes = valTypes 
@@ -109,7 +112,9 @@ module MkAnalysis (T : TYPE_ANALYSIS_PARAMS) = struct
       List.fold_left2 process_types (context.type_env, false) ids rhsTypes
     in  
     if changed then Some { context with type_env = tenv' } else None 
-         
+   
+    let if_ env ifDescr = failwith "if statement not supported"               
+    let loop env loopDescr = failwith "loops not supported"            
 end
 
 

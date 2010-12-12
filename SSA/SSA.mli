@@ -75,11 +75,6 @@ and value =
   | Unit
   | Prim of Prim.prim
   | Lam of fundef
-  (* place holder for initial values of reductions, 
-     which for now are not supported but still need to 
-     be given sensible types
-  *) 
-  | Stream of value_node * DynType.t  
 and fundef = {
   body: block;
   tenv : tenv;
@@ -157,8 +152,6 @@ val mk_int32
 val mk_float32
     : ?src:SourceInfo.source_info -> float -> value_node
 
-val mk_stream 
-    : ?src:SourceInfo.source_info -> value_node -> DynType.t -> value_node    
 (*** 
     helpers for expressions 
  ***) 

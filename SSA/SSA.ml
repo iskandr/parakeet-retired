@@ -37,7 +37,7 @@ type loop_gate = {
 }
 
 
-type ('a, 'b) stmt = 
+type stmt = 
   | Set of ID.t list * exp_node 
   | SetIdx of ID.t * value_nodes * value_node
   | If of value_node * block * block * if_gate
@@ -139,7 +139,6 @@ let rec typed_id_list_to_str tenv = function
   | id::rest -> 
     sprintf "%s, %s" (typed_id_to_str tenv id) (typed_id_list_to_str tenv rest)
   
-        
 let rec block_to_str ?(space="") ?(tenv=ID.Map.empty) block = 
     String.concat "\n" 
     (Array.to_list 
@@ -179,7 +178,6 @@ and value_to_str = function
   | Sym s -> "`" ^ s
   | Unit -> "()"
   | Prim p -> "PRIM(" ^ (Prim.prim_to_str p) ^ ")"
-  | Stream (v,t) -> "STREAM<" ^ (value_node_to_str v) ^">"   
   | Lam fundef -> 
     Format.sprintf "fun input:[%s] output:[%s] { \n @[<hov 2> %s @] \n}" 
       (String.concat ", " (List.map ID.to_str fundef.input_ids))
@@ -205,27 +203,14 @@ let fundef_to_str (fundef:fundef) =
 *) 
 let extract_nested_map_fn_id (fundef : fundef) = 
   match fundef.body with 
-    (* LEGACY-- should delete *) 
-    | [{stmt=
+    (* LEGACY-- should deleted *) 
+    | [|{stmt=
           Set(_,{exp=App(map, {value=GlobalFn fnId}::dataArgs)})
        }
-      ] when map.value = Prim (Prim.ArrayOp Prim.Map) ->
+      |] when map.value = Prim (Prim.ArrayOp Prim.Map) ->
         Some fnId 
-    | [{stmt=Set(_, {exp=Map({closure_fn=fnId}, _)})}] -> Some fnId 
+    | [|{stmt=Set(_, {exp=Map({closure_fn=fnId}, _)})}|] -> Some fnId 
     | _ -> None   
-(*  
-let rec collect_assigned_ids = function  
-  | (Set (ids, _))::rest ->  ids @ (collect_assigned_ids rest)
-  | (If (_, tBlock, fBlock, ifGate))::rest -> 
-      let tList = collect_assigned_ids tBlock in 
-      let fList = collect_assigned_ids fBlock in 
-      let gateList = ifGate.if_output_ids in 
-      tList @ fList @ gateList @ (collect_assigned_ids rest)
-  | (WhileLoop (_, body,loopGate))::rest ->
-      let bodyList = collect_assigned_ids body in 
-      loopGate.loop_outputs @ bodyList @ (collect_assigned_ids rest) 
-  | _::rest -> collect_assigned_ids rest 
-*)
 
 let mk_fundef  ?(tenv=ID.Map.empty) ~input_ids ~output_ids ~body =
   let inTypes = 
@@ -310,8 +295,7 @@ let mk_num ?src ?ty n =
 
 let mk_bool ?src b = mk_num ?src ~ty:DynType.BoolT (PQNum.Bool b)
 let mk_int32 ?src i = mk_num ?src ~ty:DynType.Int32T (PQNum.Int32 (Int32.of_int i))
-let mk_float32 ?src f = mk_num ?src ~ty:DynType.Float32T (PQNum.Float32 f)
-let mk_stream ?src v t = mk_val ~ty:t (Stream(v,t))  
+let mk_float32 ?src f = mk_num ?src ~ty:DynType.Float32T (PQNum.Float32 f)  
   
 (*** 
     helpers for expressions 
@@ -377,7 +361,7 @@ let is_empty_stmt stmtNode =
    
 let empty_block : block = [||]
 let block_of_stmt stmtNode = [|stmtNode|] 
-let block_block = Array.append
+let block_append = Array.append
 let block_concat = Array.concat 
 let insert_stmt_after_block block stmtNode = 
   block_concat [block; block_of_stmt stmtNode]  

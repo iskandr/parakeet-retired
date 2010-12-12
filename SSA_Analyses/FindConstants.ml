@@ -2,26 +2,54 @@ open Base
 open SSA
 open Printf 
 
-module M = ID.Map 
+module ConstantAnalysis = struct
+  type value_info = value ConstantLattice.t
+  type exp_info = value_info list  
+  type env = value_info ID.Map.t 
+  
+  let init fundef : env =
+    List.fold_left 
+      (fun accEnv id  -> ID.Map.add id ConstantLattice.ManyValues accEnv)
+        ID.Map.empty 
+        fundef.input_ids 
+  
+  let value env value = match value with  
+    | Str _ 
+    | Sym _
+    | Unit
+    | Num _ -> ConstantLattice.Const value 
+    | Var id ->
+        if ID.Map.mem id env then ID.Map.find id env  
+        else failwith  
+          (Printf.sprintf "unbound identifier %s in constant analysis"
+           (ID.to_str id))
+    | _ ->  ConstantLattice.ManyValues 
 
-let rec is_function_constant constEnv id =
-  if ID.Map.mem id constEnv then  
-    match ID.Map.find id constEnv with 
-      | ConstantLattice.Const (Lam _) -> true
-      | ConstantLattice.Const (Var id') -> is_function_constant constEnv id' 
-      | _ -> false 
-  else false   
- 
+  let mk_top_list = List.map (fun _ -> ConstantLattice.top) 
+  (* EXPRESSIONS *) 
+  let values env expNode valConsts = valConsts 
+  let array env expNode valConsts = mk_top_list expNode.exp_types   
+  let app env expNode _ _ = mk_top_list expNode.exp_types  
+  let cast env expNode _ = mk_top_list expNode.exp_types  
+  let call _ _ _ _ = mk_top_list expNode.exp_types  
+  let primapp _ _ _ _ = mk_top_list expNode.exp_types  
+  let map _ _ = mk_top_list expNode.exp_types  
+  let reduce _ _ = mk_top_list expNode.exp_types  
+  let scan _ _ = mk_top_list expNode.exp_types  
+    
+              
+  (* STATEMENTS *)
+   
+    val set : env -> ID.t list -> exp_node -> exp_info -> env option 
+    val if_ : env -> (value_info, env) if_descr -> env option               
+    val loop : env -> (value_info, env) loop_descr -> env option  
 
-let rec eval_block env block = 
-  let stmt_folder (env,changed) stmt = 
-    let env', changed' = eval_stmt env stmt in 
-    env', changed || changed' 
-  in 
-  List.fold_left stmt_folder (env, false) block    
-and eval_stmt env stmtNode = 
-  match stmtNode.stmt with
-    | Set (ids, rhs) -> 
+  let values 
+    | Values vs -> eval_value_list env vs
+  | _ -> 
+    let vals = List.map (fun _ -> ConstantLattice.top) expNode.exp_types in 
+    vals, env, false 
+  
       let rhsLatticeVals, rhsEnv, rhsChanged = eval_exp env rhs in
       if List.length ids <> List.length rhsLatticeVals then 
         failwith $ sprintf "%s (%d) %s (%d)"
@@ -65,67 +93,8 @@ and eval_stmt env stmtNode =
       let (env3, changed3) = 
         List.fold_left2 combineBranches (env, false) outIds branchPairs in 
       env3, trueChanged || falseChanged || changed3   
-and eval_exp env expNode = match expNode.exp with  
-  | Values vs -> eval_value_list env vs
-  | _ -> 
-    let vals = List.map (fun _ -> ConstantLattice.top) expNode.exp_types in 
-    vals, env, false 
   (* for now tuple projection, function application, and array indexing
      are treated as unknown operations *)
-and eval_value env valNode = match valNode.value with  
-  | Var id -> 
-     let const = 
-       if ID.Map.mem id env then match ID.Map.find id env with 
-        | ConstantLattice.Const (Lam _) -> ConstantLattice.Const (Var id) 
-        | k -> k 
-       else failwith  
-        (Printf.sprintf "unbound identifier %s in constant analysis"
-           (ID.to_str id))
-     in const, env, false
-   | Lam fundef ->
-    (* extend environment to make function input non-constant *)  
-      let add_to_env accEnv id =  
-        ID.Map.add id ConstantLattice.ManyValues accEnv 
-      in 
-      let env' = List.fold_left add_to_env env fundef.input_ids in  
-      let env'', changed  =  eval_block env' fundef.body in 
-      ConstantLattice.Const (Lam fundef), env'', changed  
- 
-  | v -> ConstantLattice.Const v, env, false   
-
-and eval_value_list env = function 
-  | [] -> [], env, false 
-  | v::vs -> 
-      let v', env', currChanged = eval_value env v in 
-      let vs', env'', restChanged = eval_value_list env' vs in 
-      v'::vs', env'', currChanged || restChanged 
-
                 
-let rec find_constants ?(free_vars = []) code =
-    let initEnv = 
-      List.fold_left 
-        (fun accEnv id  -> ID.Map.add id ConstantLattice.ManyValues accEnv)
-        ID.Map.empty 
-        free_vars 
-    in  
-    let env, _ = eval_block initEnv code in
-    let pair_to_str (id,c) = 
-      (ID.to_str id) ^ " : " ^ (ConstantLattice.const_to_str c)
-    in
-    let env_to_str env =
-      "{ " ^ (String.concat "; " (List.map pair_to_str (ID.Map.to_list env))) ^"}"
-    in 
-    env
-    
-(* useful for extracting the equivalence classes of IDs all referencing
-   the same function. maps every function arglist/body to the list 
-   of identifiers which reference this function. 
-*) 
-let build_function_map constEnv = 
-  let add_fn_to_env id lattice accEnv = 
-    match lattice with   
-    | ConstantLattice.Const (Lam fundef) -> ID.Map.add id fundef accEnv  
-    | _ ->  accEnv
-  in 
-  ID.Map.fold add_fn_to_env constEnv ID.Map.empty 
-  
+let find_constants fundef =
+ 

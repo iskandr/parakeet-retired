@@ -539,7 +539,7 @@ let rec process_block
 let rec rewrite_block 
     (adverbMap : adverb_descriptor StmtMap.t) 
     (graveyard : StmtSet.t) 
-    (replaced : StmtSet.t) = function
+    (replaced : StmtSet.t) block = block(*function
   | [] -> [], false
   (* if a statement should be killed just don't cons it onto the accumulator *)
   | stmtNode::rest when StmtSet.mem stmtNode.stmt_id graveyard ->
@@ -579,7 +579,7 @@ let rec rewrite_block
         in
         stmtNode'::rest', trueChanged || falseChanged || restChanged    
   | _ -> failwith "not yet supported"             
-
+*)
 let optimize_block (fns : FnTable.t) useCounts block =
   let (adverbMap : adverb_descriptor StmtMap.t), _, graveyard, replaced = 
     process_block 
@@ -595,6 +595,8 @@ let optimize_block (fns : FnTable.t) useCounts block =
 
 let optimize_fundef (fns:FnTable.t) fundef =
   let useCounts = FindUseCounts.find_fundef_use_counts fundef in  
-  let body', changed = optimize_block fns useCounts fundef.body in  
+  (*let body', changed = optimize_block fns useCounts fundef.body in  
   {fundef with body = body' }, changed  
+  *)
+  fundef, false
                                  

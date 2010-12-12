@@ -11,37 +11,28 @@ type 'a flow_functions = {
 
 (* 'a = value_info, 'b = exp_info *) 
 type 'a scan_descr = { 
-  scan_init_closure : closure; 
   scan_init_info : 'a list; 
-  scan_combine_closure : closure; 
   scan_combine_info : 'a list; 
-  scan_args : value_nodes; 
   scan_arg_info : 'a list; 
 }
 
 type 'a reduce_descr = { 
-  reduce_closure : closure; 
   reduce_closure_info : 'a list; 
-  reduce_args : value_nodes; 
   reduce_arg_info : 'a list;  
 }
 
 type 'a map_descr = { 
-  map_closure : closure; 
   map_closure_info : 'a list; 
-  map_args : value_nodes; 
   map_arg_info : 'a list; 
 } 
 
 (* 'a = value info, 'b = statement info *) 
 type ('a, 'b) if_descr = {
-  if_cond_val : value_node; 
   if_cond_info : 'a;
   true_branch_info: 'b; 
   true_branch_changed: bool;
   false_branch_info: 'b; 
   false_branch_changed: bool;
-  if_gate: if_gate
 } 
 
 (* 'a = value info, 'b = statement info *) 
@@ -49,9 +40,7 @@ type ('a, 'b) loop_descr = {
   loop_cond_block_info: 'b; 
   loop_cond_block_changed : bool; 
   loop_cond_val : 'a; 
-  loop_body_info: 'b; 
-  loop_gate : loop_gate;  
-                 
+  loop_body_info: 'b;
 } 
  
 module type ANALYSIS =  sig
@@ -69,33 +58,28 @@ module type ANALYSIS =  sig
   
     val init : fundef -> env 
   
-  (* VALUES *) 
-    val var : env -> ID.t -> value_info 
-    val num : env -> PQNum.num -> value_info 
-    val globalfn : env -> FnId.t -> value_info
-    val prim : env -> Prim.prim -> value_info  
-    val str : env -> string -> value_info 
-    val sym : env -> string -> value_info 
-    val unit : env -> value_info 
-    val lam : env -> fundef -> value_info   
-  
+    (* VALUES *)
+    val value : env -> value -> value_info 
+    
     (* EXPRESSIONS *) 
-    val values : env -> value_nodes -> value_info list -> exp_info  
+    val values : env -> exp_node -> value_info list -> exp_info  
 
-    val array : env -> value_nodes -> value_info list -> exp_info 
-    val app : env -> value_node -> value_info -> 
-              value_nodes -> value_info list -> exp_info 
+    val array : env -> exp_node -> value_info list -> exp_info 
+    val app : env -> exp_node -> value_info -> value_info list -> exp_info 
                        
-    val cast : env -> DynType.t -> value_node -> value_info -> exp_info 
+    val cast : env -> exp_node -> value_info -> exp_info 
    
-    val call : env -> typed_fn -> value_nodes -> value_info list -> exp_info 
+    val call : env -> exp_node -> value_info list -> exp_info 
               
-    val primapp 
-        : env -> typed_prim -> value_nodes -> value_info list -> exp_info
+    val primapp : env  -> exp_node -> value_info list -> exp_info 
         
-    val map : env -> value_info map_descr -> exp_info      
-    val reduce : env -> value_info reduce_descr -> exp_info  
-    val scan : env -> value_info scan_descr -> exp_info   
+        
+    val map : env -> exp_node -> value_info list -> value_info list ->  exp_info      
+    val reduce 
+        : env -> exp_node -> value_info list -> value_info list -> exp_info   
+    val scan 
+        : env -> exp_node -> value_info list -> 
+            value_info list -> value_info list -> exp_info    
     
               
   (* STATEMENTS *) 
@@ -116,23 +100,23 @@ module type LATTICE = sig
   val eq : t -> t -> bool 
 end
 
-module UnitLattice : LATTICE = struct
+module UnitLattice  = struct
   type t = unit 
   let bottom = ()
   let combine _ _ = ()
   let eq _ _ = true
 end
 
-module TypeLattice : LATTICE = struct
+module TypeLattice  = struct
   type t = DynType.t
   let bottom = DynType.BottomT
   let combine = DynType.common_type 
   let eq = (=) 
 end 
 
-module MkListLattice(L: LATTICE) : LATTICE = struct 
+module MkListLattice(L: LATTICE)  = struct 
   type t = L.t list  
-  type bottom = [] 
+  let bottom = [] 
   let combine = List.map2 L.combine 
   let rec eq list1 list2 = match list1, list2 with 
     | [], [] -> true
@@ -146,7 +130,7 @@ module TypeListLattice = MkListLattice(TypeLattice)
    which performs a no-op on every syntax node 
 *)  
 
-module MkAnalysis (S:ENV)(E:LATTICE)(V:LATTICE) : ANALYSIS = 
+module MkAnalysis (S:ENV)(E:LATTICE)(V:LATTICE)  = 
 struct
   type env = S.t 
   type exp_info  = E.t 
@@ -157,18 +141,10 @@ struct
   let iterative = false
   
   (* ignore the function definition and just create a fresh lattice value *)
-  let init _ = S.mk_default () 
+  let init fundef = S.init fundef
   
-  (* VALUES *) 
-  let var _ _ = V.bottom   
-  let num _ _ = V.bottom  
-  let globalfn _ _ = V.bottom 
-  let prim _ _ = V.bottom   
-  let str _ _ = V.bottom  
-  let sym _ _ = V.bottom  
-  let unit _ = V.bottom  
-  let lam _ _ = V.bottom    
-  
+  (* VALUES *)
+  let value _ _ = V.bottom 
   
   (* EXPRESSIONS *) 
   let array _ _ _ = E.bottom 
@@ -191,6 +167,7 @@ end
 
 module MkSimpleAnalysis(S:ENV) = MkAnalysis(S)(UnitLattice)(UnitLattice)
 
+(*
 module type EVALUATOR = functor (A : ANALYSIS) -> sig 
   val eval_block : A.env -> block -> A.env 
   val eval_stmt  : A.env -> stmt_node -> A.env 
@@ -198,8 +175,9 @@ module type EVALUATOR = functor (A : ANALYSIS) -> sig
   val eval_value : A.env -> value_node -> A.value_info 
   val eval_values : A.env -> value_nodes -> A.value_info list 
 end
+*)
 
-module MkEvaluator(A : ANALYSIS) : EVALUATOR = struct
+module MkEvaluator(A : ANALYSIS) = struct 
   let rec eval_block initEnv block =
     let n = block_length block in  
     let env = ref initEnv in 
@@ -229,12 +207,9 @@ module MkEvaluator(A : ANALYSIS) : EVALUATOR = struct
   | App(fn, args) -> 
       let fnInfo = eval_value env fn in
       let argInfos = eval_values env args in 
-      A.app env fn fnInfo args argInfos 
+      A.app env expNode fnInfo argInfos 
   | _ -> failwith "not implemented"  
-  and eval_value env valNode = match valNode.value with 
-  | Var id -> A.var env id 
-  | Num n -> A.num env n 
-  | _ -> failwith "not implemented"
+  and eval_value env valNode = A.value env valNode.value 
   and eval_values env values = List.map (eval_value env) values 
 
   let eval_fundef fundef = 
