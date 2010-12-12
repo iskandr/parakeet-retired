@@ -27,7 +27,6 @@ and stmt_node = {
 and block 
 and  exp = 
   | App of  value_node * value_nodes
-  | ArrayIndex of value_node * value_nodes
   | Arr of value_nodes
   | Values of value_nodes
   (* nodes below are only used after type specialization *) 
@@ -181,10 +180,10 @@ val mk_val_exp : ?src:SourceInfo.source_info -> ?ty:DynType.t ->
 val mk_vals_exp :
       ?src:SourceInfo.source_info -> ?types : DynType.t list -> 
         value list -> exp_node
-val mk_arr_idx : 
+(*val mk_arr_idx : 
       ?src:SourceInfo.source_info -> ?types:DynType.t list -> 
         value_node -> value_node list -> exp_node 
-        
+*)        
 val mk_cast : ?src:SourceInfo.source_info -> DynType.t -> value_node -> exp_node
 val mk_exp : 
       ?src:SourceInfo.source_info -> ?types:DynType.t list -> exp -> exp_node

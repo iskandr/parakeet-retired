@@ -7,16 +7,16 @@ module Update = struct
   type 'a update =
   | NoChange 
   | Update of 'a 
-  | UpdateWithBlock of 'a * block
+  | UpdateWithStmts of 'a * (stmt_node list)
 
   let mk_update data = function 
   | [] -> Update data
-  | block -> UpdateWithBlock(data, block) 
+  | stmts -> UpdateWithStmts(data, stmts) 
 
   let unpack_update default = function 
-  | NoChange -> default, SSA.empty_block, false
-  | Update other -> other, SSA.empty_block, true
-  | UpdateWithBlock (other,block) -> other, block, true 
+  | NoChange -> default, [], false
+  | Update other -> other, [], true
+  | UpdateWithStmts (other,stmts) -> other, stmts, true 
 end
 include Update 
 
@@ -33,7 +33,7 @@ module DefaultRules (E : SSA_Analysis.ENV) = struct
   type env = E.t
   let init = E.init 
   let dir = Forward
-  let stmt _ _ = NoChange
+  let stmt _ _ = None 
   let exp _ _ = NoChange
   let value _ _ = NoChange 
 end
@@ -68,13 +68,12 @@ module BlockState = struct
     ); 
     xUpdated 
     
-  let process_stmt_update blockState stmtNode update = 
-    let stmtNode', stmts, changed = unpack_update stmtNode update in 
-    if changed then (
-      add_stmts blockState stmts;
-      incr_changes blockState; 
-    ); 
-    add_stmt blockState stmtNode' 
+  let process_stmt_update blockState stmtNode update =
+    match update with 
+      | None -> add_stmt blockState stmtNode 
+      | Some stmts -> 
+          add_stmts blockStmt stmts;
+          incr_changes blockState  
 end 
 open BlockState 
 
@@ -82,6 +81,7 @@ module type TRANSFORMATION = sig
   val transform_fundef : fundef -> fundef * bool     
 end
 module MkTransformation(R : TRANSFORM_RULES) = struct 
+  type env = R.env 
   let rec transform_block env block = 
     let blockState = BlockState.create() in  
     let n = SSA.block_length block in
@@ -150,10 +150,19 @@ module MkTransformation(R : TRANSFORM_RULES) = struct
   and transform_value blockState env vNode = 
     BlockState.process_update blockState vNode (R.value env vNode)
 
+  (* these exist so we can access the transform env from outside functions, *)
+  (* in case it contains useful information *) 
+  let globalEnv = ref None 
+  let set_env e = globalEnv := Some e
+  let get_env () = match globalEnv with 
+    | None -> assert false 
+    | Some e -> e 
+   
   let transform_fundef fundef =
-    let env = R.init fundef in    
+    let env = R.init fundef in
+    set_env env;     
     let body', changed = transform_block env fundef.body in
-    {fundef with body = body'}, changed
+    {fundef with body = body'}, changed 
 end 
 
 module DefaultTransformation (E: SSA_Analysis.ENV) = 

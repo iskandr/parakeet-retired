@@ -4,41 +4,87 @@ open SSA
 
 module type TYPE_ANALYSIS_PARAMS = sig 
   val interpState : InterpState.t
-  val specialize : fundef -> Signature.t -> fundef    
+  val closures : (ID.t, value) Hashtbl.t
+  val closureArgs : (ID.t, ID.t list) Hashtbl.t
+  val closureArity : (ID.t, int) Hashtbl.t
+  val specialize : value -> Signature.t -> fundef   
 end
 
 type context = {
-  type_env : DynType.t ID.Map.t; 
-  untyped_closures : (ID.t, SSA.value) Hashtbl.t; 
-  untyped_closure_args : (ID.t, ID.t list) Hashtbl.t; 
-  typed_closure_mapping : (ID.t, FnId.t) Hashtbl.t; 
+  type_env : DynType.t ID.Map.t;  
+  typed_closures : (ID.t, FnId.t) Hashtbl.t; 
 }  
 
-module Make (T : TYPE_ANALYSIS_PARAMS) = struct
+let get_type context id = 
+  if ID.Map.mem id context.type_env 
+  then ID.Map.find id context.type_env 
+  else DynType.BottomT
+  
+
+module MkAnalysis (T : TYPE_ANALYSIS_PARAMS) = struct
   type env = context 
   type exp_info = DynType.t list
   type value_info = DynType.t 
   
   let init _ = { 
     type_env = ID.Map.empty;
-    untyped_closures = Hashtbl.create 127;
-    untyped_closure_args = Hashtbl.create 127;
     typed_closure_mapping = Hashtbl.create 127;
   }
   
   (**** VALUES ****) 
-  let var env id = ID.Map.find id env 
-  let num env n = PQNum.type_of_num n 
+  let var context id = get_type context id  
+  let num _ n = PQNum.type_of_num n 
   let prim _ _ = DynType.AnyT 
   let globalfn _ _ = DynType.AnyT
   
   (**** EXPRESSIONS ****)
-  let values _ valTypes = valTypes 
-  let array _ eltTypes = eltTypes 
-  let app _ fnType _ argTypes = 
-    (* TODO: Make this specialize types!*) 
-    fnType :: argTypes 
-          
+  let values _ _ valTypes = valTypes 
+  let array _ _ eltTypes = 
+    let commonT = DynType.fold_type_list eltTypes in 
+    assert (commonT <> DynType.AnyT); 
+    DynType.VecT commonT 
+     
+  let app context fn fnType args argTypes = 
+    match fn.value with 
+      | Var id ->
+          (* if the identifier would evaluate to a function value...*) 
+          if Hashtbl.mem T.closures id then
+            let fnVal = Hashtbl.find T.closures id in 
+            let closureArgIds = Hashtbl.find T.closure_args in 
+            let closureArgTypes = List.map (get_type context) closArgIds in 
+            let signature = 
+              Signature.from_input_types (closureArgTypes@argTypes) 
+            in 
+            let typedFn = T.specialize fnVal signature in 
+            if Hashtbl.mem context.typed_closures id then
+              let oldFnId = Hashtbl.find context.typed_closures id in  
+              assert (typedFn.fundef_id = oldFnId)
+            else 
+              Hashtbl.add context.typed_closures id typedFn.fundef_id
+            ; 
+            typedFn.output_types 
+          else if DynType.is_vec fnType then   
+            (* if ID doesn't evaluate to a function, assume it evaluates to 
+               an array 
+            *) 
+            [TypeInfer.infer_simple_array_op Prim.Index (fnType::argTypes)]   
+          else assert false 
+      | Prim.ArrayOp Prim.Map -> failwith "map not implemented"
+      | Prim.ArrayOp Prim.Reduce -> failwith "reduce not implemented"
+      | Prim.ArrayOp Prim.Scan -> failwith "scan not implemented" 
+      | fnVal -> 
+          let signature = Signature.from_input_types argTypes in
+          let typedFn = T.specialize fnVal signature in
+          typedFn.output_types     
+  
+  let cast  _  _  _ _ _ = failwith "Cast node unexpectd in untyped code"
+  let call _ _ _ _ = failwith "Call node unexpected in untyped code" 
+  let primapp _ _ _ _ = faiwith "PrimApp node unexpected in untyped code"
+  let map _ _ = failwith "Map node unexpected in untyped code"      
+  let reduce _ _ = failwith "Reduce node unexpected in untyped code"  
+  let scan _ _ = failwith "Scan node unexpected in untyped code"   
+              
+  (* STATEMENTS *)            
   let set context ids rhsNode rhsTypes =
     IFDEF DEBUG THEN
       if List.length ids <> List.length rhsTypes then 
@@ -47,7 +93,7 @@ module Make (T : TYPE_ANALYSIS_PARAMS) = struct
           (List.length ids)
           (List.length rhsTypes)
     ENDIF; 
-    let rec type_folder (tenv, changed) id rhsT =  
+    let rec process_types (tenv, changed) id rhsT =  
       IFDEF DEBUG THEN 
         if rhsT = DynType.AnyT then failwith "error during type inference"
       ENDIF; 
@@ -60,39 +106,12 @@ module Make (T : TYPE_ANALYSIS_PARAMS) = struct
       tenv', (changed || changedT)
     in 
     let tenv', changed = 
-      List.fold_left2 type_folder (context.type_env, false) ids rhsTypes
+      List.fold_left2 process_types (context.type_env, false) ids rhsTypes
     in  
     if changed then Some { context with type_env = tenv' } else None 
          
 end
 
-let rec min_arity context = function 
-  | Prim op -> Prim.min_prim_arity op
-  | GlobalFn fnId -> InterpState.get_untyped_arity context.interp_state fnId
-  | Var closureId ->
-      if ID.Map.mem closureId context.untyped_closures then 
-        let fnVal, closureSig = 
-          ID.Map.find closureId context.untyped_closures 
-        in
-        let nClosureArgs = List.length closureSig in
-        IFDEF DEBUG THEN Printf.printf "NUM CLOSURE ARGS: %d\n" nClosureArgs; ENDIF; 
-        let fullArity = min_arity context fnVal in  
-        
-        fullArity - nClosureArgs
-      else 7770   
-  | other -> failwith $ 
-     Printf.sprintf 
-       "Can't get arity of %s" 
-       (SSA.value_to_str other)
-      
-let max_arity context = function 
-  | Prim op -> Prim.max_prim_arity op 
-  | other -> min_arity context other 
-    
-let sig_from_type = function 
-  | FnT(inTypes, outTypes) -> Signature.from_types inTypes outTypes
-  | FnT( _, _) -> failwith "closures not yet supported" 
-  | _ -> failwith "expected function type"
 
 (* TODO: make this complete for all SSA statements *) 
 let rec is_scalar_stmt = function
@@ -103,19 +122,10 @@ let rec is_scalar_stmt = function
   | _ -> false   
 and all_scalar_stmts = List.for_all is_scalar_stmt  
   
-let type_of_raw_value = function 
-  | Num n -> PQNum.type_of_num n 
-  | Str _ -> DynType.StrT 
-  | Sym _ -> DynType.SymT  
-  | Unit -> DynType.UnitT
-  | _ -> assert false  
 
-let has_array_type context = function 
-  | Var id -> 
-      let tenv = context.type_env in 
-      ID.Map.mem id tenv && 
-      DynType.is_vec (ID.Map.find id tenv)
-  | _ -> false  
+
+
+module Make(T : TYPE_ANALYSIS_PARAMS) = SSA_Analysis.MkEvaluator(MkAnalysis(T))
 
 
 let annotate_value context valNode = 
@@ -134,14 +144,6 @@ let annotate_value context valNode =
     let changed = valNode.value_type <> t in 
     let valNode' = {valNode with value_type = t} in  
     valNode', t, changed  
-
-
-let rec annotate_values context = function 
-  | [] -> [], [], false  
-  | v::vs ->
-      let v', t, currChanged = annotate_value context v in 
-      let vs', ts, restChanged = annotate_values context vs in 
-      v'::vs', t::ts, currChanged || restChanged 
 
 let value_to_sig_elt context v : Signature.sig_elt = 
   match v with  

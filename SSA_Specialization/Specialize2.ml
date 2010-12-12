@@ -7,35 +7,44 @@ open DynType
 open Printf 
 
 
-let rec specialize interpState fundef signature =
+let rec specialize_value interpState fnVal signature =
   match 
-    InterpState.maybe_get_specialization 
-      interpState 
-      (GlobalFn fundef.fundef_id) 
-      signature 
+    InterpState.maybe_get_specialization interpState fnVal signature 
   with
+  | Some fnId -> InterpState.get_typed_function interpState fnId
   | None ->  
-    let module R = struct
-      (* to avoid having to make TypeAnalysis and Specialize recursive 
-         modules I've untied the recursion by making the specialize function 
+    let fundef', closureEnv =
+      CollectPartialApps.collect_partial_apps interpState fundef 
+    in
+    (* to avoid having to make TypeAnalysis and Specialize recursive 
+         modules I've untied the recursion by making specialize_value 
          a parameter of TypeAnalysis. 
-      *) 
-      let specialize = (specialize interpState)
+    *)  
+    let module Params : TypeAnalysis.TYPE_ANALYSIS_PARAMS = struct 
       let interpState = interpState
-    end 
+      let closures = closureEnv.CollectPartialApps.closures
+      let closureArgs = closureEnv.CollectPartialApps.closure_args 
+      let closureArity = closureEnv.CollectPartialApps.closure_arity 
+      let specialize = (specialize_value interpState)
+    end    
     in 
-    let module TypeEval = SSA_Analysis.MakeEvaluator(TypeAnalysis.Make(R)) in
-    let context = TypeEval.eval_fundef fundef in 
-    let body', tenv' = 
-      InsertCoercions.rewrite_block context.TypeAnalysis.type_env fundef.body 
-    in 
-    { fundef with body = body'; tenv = tenv' }            
-  | Some fnId -> InterpState.get_typed_function interpState fnId  
+    let module TypeEval = TypeAnalysis.Make(Params) in 
+    let {TypeAnalysis.type_env = tenv} = TypeEval.eval_fundef fundef' in 
+    let body', tenv' = InsertCoercions.rewrite_block tenv fundef'.body in
+    let typedFundef = 
+      mk_fundef 
+        ~tenv:tenv' 
+        ~body:body'
+        ~input_ids:fundef.input_ids 
+        ~output_ids:fundef.output_ids
+    in      
+    InterpState.add_specialization fnVal signature typedFn;  
+    typedFn             
 
   (* make a scalar version of a function whose body contains only 
-   potentially scalar operators, and wrap this function in a map over
-   1D vector data 
-*)
+     potentially scalar operators, and wrap this function in a map over
+     1D vector data 
+  *)
 and scalarize_fundef interpState untypedId untypedFundef vecSig = 
   let scalarSig = Signature.peel_vec_types vecSig in 
   let scalarFundef = specialize_fundef interpState untypedFundef scalarSig in

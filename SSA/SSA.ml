@@ -51,7 +51,6 @@ and block = stmt_node array
 
 and  exp = 
   | App of  value_node * value_nodes
-  | ArrayIndex of value_node * value_nodes
   | Arr of value_nodes
   | Values of value_nodes
   (* nodes below are only used after type specialization *) 
@@ -160,9 +159,6 @@ and exp_to_str expNode =
     sprintf "%s(%s)" (Prim.prim_to_str op) (value_node_list_to_str args)
   | App (fn, args) -> 
     sprintf "%s(%s)" (value_node_to_str fn)  (value_node_list_to_str args)
-  | ArrayIndex (array, indices) ->  
-      sprintf "%s[%s]" (value_node_to_str array) 
-       (value_node_list_to_str ~sep:";" indices)
   | Arr elts -> "[" ^ (value_node_list_to_str ~sep:";" elts) ^ "]" 
   | Cast(t, v) -> 
       sprintf "cast<%s>(%s)" (DynType.to_str t) (value_node_to_str v) 
@@ -354,9 +350,10 @@ let mk_vals_exp ?src ?types ( vs : value list) =
   let types' = map_default_types types valNodes in 
   { exp = Values valNodes; exp_src = src; exp_types=types' } 
 
+(*
 let mk_arr_idx ?src ?(types=[DynType.BottomT]) lhs indices =
   { exp = ArrayIndex(lhs, indices); exp_src=src; exp_types=types} 
-        
+*)        
 let mk_cast ?src t v = 
   { exp = Cast(t, v); exp_types = [t]; exp_src = src }      
 

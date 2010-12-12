@@ -12,18 +12,19 @@ module DCE_Rules = struct
       let livePairs, deadPairs = 
         List.partition (fun (id,_) -> MutableSet.mem liveSet id) pairs 
       in
-      if deadPairs = [] then NoChange 
+      if deadPairs = [] then None
+      else if livePairs = [] then Some [] 
       else 
         let liveIds, liveValues = List.split livePairs in
         let rhs = {expNode with exp=Values liveValues} in  
-        Update {stmtNode with stmt = Set(liveIds, rhs)}      
+        Some {stmtNode with stmt = Set(liveIds, rhs)}      
   | Set (ids, exp) -> 
-      if List.exists (MutableSet.mem liveSet) ids then NoChange 
-      else Update SSA.empty_stmy 
-  | _ -> NoChange 
+      if List.exists (MutableSet.mem liveSet) ids then None  
+      else Some [] 
+  | _ -> None 
  
-  let exp _ _ = NoChange 
-  let value _ _ = NoChange   
+  let exp _ _ = None  
+  let value _ _ = None    
 end 
 
-let elim_dead_code _ = MkTransformation(DCE_Rules).transform_fundef   
+let elim_dead_code =   MkTransformation(DCE_Rules).transform_fundef
