@@ -6,6 +6,7 @@ open SSA_Analysis
 module ConstantAnalysis = struct
   let dir = Forward
   let iterative = true 
+  let flow_functions = None 
    
   type value_info = value ConstantLattice.t
   type exp_info = value_info list  

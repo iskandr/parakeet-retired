@@ -2,6 +2,47 @@ open Base
 open SSA 
 open DynType 
 
+
+module Inline_Rules = struct 
+  type env = (DynType.t list) option   
+  let init _ = ref []  
+  let dir = Forward 
+  
+  let stmt env stmtNode = None       
+  let exp env expNode = match expNode with 
+    | App ({value=GlobalFn fnId} as fn, args) -> 
+      (match lookup fnId with 
+        | None -> NoChange  
+        | Some fundef -> 
+          (* make sure arity lines up *)
+          if List.length fundef.input_ids <> List.length args then NoChange
+          else 
+          let inlineCode, outputExp, typesList = do_inline fundef args in
+          IFDEF DEBUG THEN 
+            assert (outputExp.exp_types = node.exp_types);
+          ENDIF;  
+          let expNode' = {outputExp with exp_src=node.exp_src } in
+           something with typesList??    
+          UpdateWithStmts(expNode', inlineCode)
+       )
+    | _ -> NoChange 
+  
+  let value env valNode = NoChange       
+end 
+
+let run_fundef_inliner (functions : FnTable.t) fundef = 
+  let lookup = fun id -> FnTable.find_option id functions in 
+  let body', typesList, changed = 
+    run_block_inliner ~fn_lookup:lookup fundef.body   
+  in 
+  let tenv' = 
+    List.fold_left 
+      (fun accEnv (id,t) -> ID.Map.add id t accEnv) 
+      fundef.tenv 
+      typesList  
+  in 
+  {fundef with body = body'; tenv = tenv' }, changed    
+
 let get_constant_function lookup = function 
   | Lam fundef -> Some fundef 
   | GlobalFn id -> lookup id
@@ -21,12 +62,12 @@ let do_inline fundef argVals =
   let allIds = fundef.input_ids @ (ID.Set.to_list bodyIds) in 
   let nvars = List.length allIds in  
   let freshIds = ID.gen_fresh_list nvars in
-  let replaceMap = PMap.of_list (List.combine allIds freshIds) in 
-  let body' = UntypedReplace.replace_block replaceMap fundef.body in
+  let replaceMap = ID.Map.of_list (List.combine allIds freshIds) in 
+  let body' = Replace.replace_block replaceMap fundef.body in
   let newInputIds = 
-    List.map (fun id -> PMap.find id replaceMap) fundef.input_ids in
+    List.map (fun id -> ID.Map.find id replaceMap) fundef.input_ids in
   let newOutputIds = 
-    List.map (fun id -> PMap.find id replaceMap) fundef.output_ids in
+    List.map (fun id -> ID.Map.find id replaceMap) fundef.output_ids in
   let inTypes = 
     if fundef.fundef_type = DynType.BottomT then 
       List.map (fun _ -> DynType.BottomT) newInputIds
@@ -163,24 +204,6 @@ and inline_value_list lookup  = function
       let v', currChanged = inline_value lookup v in 
       let vs', restChanged = inline_value_list lookup vs in 
       v'::vs', currChanged || restChanged     
-  
-
-(* all this funny business about fn_lookup arises since the mapping of symbol*)
-(* names to known functions might be stored in either a PMap or a Hashtbl. *)
-(* To abstract over this difference the inliner takes a function which *)
-(* accepts a symbol name and returns a fundef option *) 
-let run_block_inliner ?(fn_lookup : (ID.t -> SSA.fundef option) option) code =
-  let lookup = match fn_lookup with 
-    | None -> 
-        let lookup = FindConstants.find_constants code in 
-        (fun id -> 
-          if ID.Map.mem id lookup then 
-            match ID.Map.find id lookup with 
-              | ConstantLattice.Const (Lam fundef) -> Some fundef 
-              | _ -> None 
-          else None)   
-    | Some fn -> fn 
-  in inline_block lookup code  
 
 let run_fundef_inliner (functions : FnTable.t) fundef = 
   let lookup = fun id -> FnTable.find_option id functions in 

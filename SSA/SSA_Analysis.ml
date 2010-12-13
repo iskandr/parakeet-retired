@@ -2,10 +2,8 @@ open SSA
 
 type direction = Forward | Backward
 
-type gate = (ID.t * ID.t * ID.t) list
-
 type 'a flow_functions = { 
-  merge : 'a -> 'a -> gate -> 'a; 
+  merge : 'a -> ID.t -> ID.t -> ID.t -> 'a; 
   split: 'a -> 'a * 'a; 
 } 
 
@@ -52,7 +50,7 @@ end
 
 module type ENV = sig
   type t 
-  val init : fundef -> t  
+  val init : fundef -> t
 end 
  
 module type LATTICE = sig 

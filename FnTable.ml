@@ -52,6 +52,6 @@ let update fundef cache =
   Hashtbl.replace cache.fundefs id fundef    
 
 let get_fundef fnTable valNode = match valNode.SSA.value with 
-  | SSA.Lam fundef -> fundef 
+  (*| SSA.Lam fundef -> fundef*) 
   | SSA.GlobalFn fnId -> find fnId fnTable
-  | _ -> failwith "Expected either local lambda or global function id"
+  | _ -> failwith "Expected  global function id"

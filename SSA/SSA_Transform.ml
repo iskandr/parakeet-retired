@@ -24,7 +24,7 @@ module type TRANSFORM_RULES = sig
   type env 
   val init : fundef -> env 
   val dir : direction 
-  val stmt : env -> stmt_node -> stmt_node update 
+  val stmt : env -> stmt_node -> (stmt_node list) option  
   val exp : env -> exp_node -> exp_node update 
   val value : env -> value_node -> value_node update 
 end
@@ -72,7 +72,7 @@ module BlockState = struct
     match update with 
       | None -> add_stmt blockState stmtNode 
       | Some stmts -> 
-          add_stmts blockStmt stmts;
+          add_stmts blockState stmts;
           incr_changes blockState  
 end 
 open BlockState 
@@ -85,7 +85,7 @@ module MkTransformation(R : TRANSFORM_RULES) = struct
   let rec transform_block env block = 
     let blockState = BlockState.create() in  
     let n = SSA.block_length block in
-    match R.dir with 
+    (match R.dir with 
     | Forward -> 
         for i = 0 to n - 1 do 
           transform_stmt blockState env (block_idx block i)
@@ -94,7 +94,7 @@ module MkTransformation(R : TRANSFORM_RULES) = struct
         for i = n-1 downto 0 do 
           transform_stmt blockState env (block_idx block i)
         done  
-    ;
+    );
     BlockState.finalize blockState 
      
   and transform_stmt blockState env stmtNode = 
@@ -107,8 +107,8 @@ module MkTransformation(R : TRANSFORM_RULES) = struct
       else stmtNode 
      
     | SetIdx (id, indices, rhsVal) ->
-        let indices' = transform_values blockState f indices in
-        let rhsVal' =  transform_value blockState f rhsVal in
+        let indices' = transform_values blockState env indices in
+        let rhsVal' =  transform_value blockState env rhsVal in
         if oldNumChanges <> blockState.changes  then 
           {stmtNode with stmt=SetIdx(id, indices', rhsVal')} 
         else stmtNode 
@@ -154,7 +154,7 @@ module MkTransformation(R : TRANSFORM_RULES) = struct
   (* in case it contains useful information *) 
   let globalEnv = ref None 
   let set_env e = globalEnv := Some e
-  let get_env () = match globalEnv with 
+  let get_env () = match !globalEnv with 
     | None -> assert false 
     | Some e -> e 
    
