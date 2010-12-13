@@ -1,4 +1,5 @@
-open Base
+(* TODO: remake this module using SSA_Transform *)
+(* open Base
 open DynType 
 open SSA
 open FindDefs
@@ -7,7 +8,6 @@ open FindDefs
 (* chain together function which return a changed boolean *) 
 let (>>) (value,changed) f = 
   if changed then (value,changed) else (Lazy.force_val f)
-  
 
 let replace_with_def defEnv id = 
   if ID.Map.mem id defEnv then match ID.Map.find id defEnv with 
@@ -244,4 +244,5 @@ let simplify_fundef (functions:FnTable.t) fundef =
       body1
   in 
   {fundef with body = body2}, changed1 || changed2
-                                                                         
+*)
+let simplify_fundef fnTable fundef = fundef, false                                                                 

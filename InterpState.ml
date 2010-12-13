@@ -61,7 +61,6 @@ let default_untyped_optimizations =
   [
     "simplify", Simplify.simplify_fundef;  
     "elim dead code", ElimDeadCode.elim_dead_code; 
-    "elim partial applications", ElimPartialApps.elim_partial_apps;
     "elim common subexpression", CSE.cse;
     "inlining", Inline.run_fundef_inliner;  
   ] 
@@ -166,7 +165,6 @@ let get_typed_function interpState typedId =
 
 let get_typed_fundef_from_value interpState = function 
   | GlobalFn fnId -> FnTable.find fnId interpState.typed_functions  
-  | Lam fundef -> fundef  
   | _ -> failwith "expected a function" 
 
 let have_untyped_function interpState name = 
