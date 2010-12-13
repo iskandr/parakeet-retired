@@ -44,7 +44,7 @@ module type ANALYSIS =  sig
   
     val init : fundef -> env 
   
-    val value : env -> value -> value_info 
+    val value : env -> value_node -> value_info 
     val exp : env -> exp_node -> value_info open_exp -> exp_info  
     val stmt 
       : env -> stmt_node -> (value_info, exp_info, env) open_stmt -> env option  
@@ -118,7 +118,8 @@ module type EVALUATOR = functor (A : ANALYSIS) -> sig
   val eval_stmt  : A.env -> stmt_node -> A.env 
   val eval_exp : A.env -> exp_node -> A.exp_info 
   val eval_value : A.env -> value_node -> A.value_info 
-  val eval_values : A.env -> value_nodes -> A.value_info list 
+  val eval_values : A.env -> value_nodes -> A.value_info list
+  val eval_fundef : fundef -> A.env  
 end
 *)
 
@@ -157,7 +158,7 @@ module MkEvaluator(A : ANALYSIS) = struct
       | _ -> failwith "not implemented"     
     in A.exp env expNode info  
    
-  and eval_value env valNode = A.value env valNode.value 
+  and eval_value = A.value  
   and eval_values env values = List.map (eval_value env) values 
 
   let eval_fundef fundef = 

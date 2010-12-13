@@ -1,8 +1,12 @@
 open Base
 open SSA
 open Printf 
+open SSA_Analysis
 
 module ConstantAnalysis = struct
+  let dir = Forward
+  let iterative = true 
+   
   type value_info = value ConstantLattice.t
   type exp_info = value_info list  
   type env = value_info ID.Map.t 
@@ -14,25 +18,31 @@ module ConstantAnalysis = struct
         fundef.input_ids 
   
   
-  let value env value = match value with  
+  let value env valNode = match valNode.value with  
     | Str _ 
     | Sym _
     | Unit
-    | Num _ -> ConstantLattice.Const value 
+    | Num _ -> ConstantLattice.Const valNode.value  
     | Var id ->
         if ID.Map.mem id env then ID.Map.find id env  
         else failwith  
           (Printf.sprintf "unbound identifier %s in constant analysis"
            (ID.to_str id))
     | _ ->  ConstantLattice.ManyValues 
-
-  let mk_top_list = List.map (fun _ -> ConstantLattice.top) 
   
   let exp env expNode = function  
     | ValuesInfo consts -> consts  
-    | _ -> mk_top_list expNode.exp_types
-    
-              
+    | _ -> List.map (fun _ -> ConstantLattice.top) expNode.exp_types
+  
+  let stmt env stmtNode stmtInfo = None  
+end
+
+module ConstEval = SSA_Analysis.MkEvaluator(ConstantAnalysis)
+          
+let find_constants fundef = ConstEval.eval_fundef fundef  
+ 
+                
+  (*            
   (* STATEMENTS *)
   let update_env env id v = 
     if ID.Map.mem id env then 
@@ -99,6 +109,4 @@ module ConstantAnalysis = struct
       env3, trueChanged || falseChanged || changed3   
   (* for now tuple projection, function application, and array indexing
      are treated as unknown operations *)
-                
-let find_constants fundef =
- 
+    *)

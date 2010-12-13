@@ -102,7 +102,7 @@ type fundef = {
   fundef_type : DynType.t; 
   fundef_id : FnId.t; 
 }
-type tenv = DynType.t ID.Map.t 
+and tenv = DynType.t ID.Map.t 
 
 
 let is_simple_exp = function
@@ -173,12 +173,12 @@ and value_to_str = function
   | Sym s -> "`" ^ s
   | Unit -> "()"
   | Prim p -> "PRIM(" ^ (Prim.prim_to_str p) ^ ")"
-  | Lam fundef -> 
+  (*| Lam fundef -> 
     Format.sprintf "fun input:[%s] output:[%s] { \n @[<hov 2> %s @] \n}" 
       (String.concat ", " (List.map ID.to_str fundef.input_ids))
       (String.concat ", " (List.map ID.to_str fundef.output_ids))
       (block_to_str fundef.body)
-  
+  *) 
 and value_node_list_to_str ?(sep=",") vs = 
   String.concat (sep^" ") (List.map value_node_to_str vs)
   
