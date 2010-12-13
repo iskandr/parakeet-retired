@@ -99,7 +99,8 @@ type fundef = {
   tenv : tenv;
   input_ids:ID.t list;
   output_ids: ID.t list; 
-  fundef_type : DynType.t; 
+  fundef_input_types : DynType.t list;
+  fundef_output_types : DynType.t list
   fundef_id : FnId.t; 
 }
 and tenv = DynType.t ID.Map.t 
@@ -219,7 +220,8 @@ let mk_fundef  ?(tenv=ID.Map.empty) ~input_ids ~output_ids ~body =
     tenv = tenv; 
     input_ids = input_ids; 
     output_ids = output_ids; 
-    fundef_type = DynType.FnT(inTypes, outTypes); 
+    fundef_input_types = inTypes;
+    fundef_output_types = outTypes; 
     fundef_id = FnId.gen()  
   }  
   

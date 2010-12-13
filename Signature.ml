@@ -8,7 +8,9 @@ let from_input_types types =
 
 let from_types inTypes outTypes = 
   { inputs = inTypes; outputs = Some outTypes } 
-        
+
+let has_output_types s = s.outputs <> None 
+                
 let output_types s = match s.outputs with 
   | Some ts -> ts
   | None -> failwith "no output types in this signature" 

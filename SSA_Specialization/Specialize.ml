@@ -20,7 +20,7 @@ let rec specialize_value interpState fnVal signature =
     let tenv = 
       TypeAnalysis.type_analysis 
         interpState 
-        specialize_value 
+        (get_output_types interpState)
         closureEnv 
         fundef'
         signature 
@@ -35,7 +35,10 @@ let rec specialize_value interpState fnVal signature =
     in      
     InterpState.add_specialization fnVal signature typedFn;  
     typedFn             
-
+and get_output_types interpState fnVal signature = 
+  let fundef = specialize_val fnVal signature in 
+  fundef.fundef_output_types 
+  
 
 (*
 type type_env = DynType.t ID.Map.t

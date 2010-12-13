@@ -94,7 +94,8 @@ type fundef = {
   tenv : tenv;
   input_ids:ID.t list;
   output_ids: ID.t list; 
-  fundef_type : DynType.t; 
+  fundef_input_types : DynType.t list;
+  fundef_output_types : DynType.t list;  
   fundef_id : FnId.t; 
 }
 and tenv = DynType.t ID.Map.t 

@@ -7,7 +7,7 @@ module type TYPE_ANALYSIS_PARAMS = sig
   val closures : (ID.t, value) Hashtbl.t
   val closureArgs : (ID.t, ID.t list) Hashtbl.t
   val closureArity : (ID.t, int) Hashtbl.t
-  val specialize : value -> Signature.t -> fundef   
+  val infer_output_types : value -> Signature.t -> DynType.t list   
   val signature : Signature.t 
 end
   
@@ -25,14 +25,20 @@ let rec is_scalar_stmt = function
   | _ -> false   
 and all_scalar_stmts = List.for_all is_scalar_stmt    
 
-module MkAnalysis (T : TYPE_ANALYSIS_PARAMS) = struct
+module MkAnalysis (P : TYPE_ANALYSIS_PARAMS) = struct
   type env = DynType.t ID.Map.t 
   type exp_info = DynType.t list
   type value_info = DynType.t 
   
-  let init _ =  ID.Map.empty 
-  (**** VALUES ****) 
-  let value context = function 
+  let init fundef =
+    let inTypes = Signature.input_types P.signature in  
+    let tenv = ID.Map.extend ID.Map.empty fundef.input_ids inTypes in   
+    if Signature.has_output_types P.signature then 
+      let outTypes = Signature.output_types signature in 
+      ID.Map.extend tenv fundef.output_ids outTypes 
+    else tenv
+   
+  let value tenv = function 
     | Var id -> get_type context id
     | Num _ -> PQNum.type_of_num n
     | Str _ -> DynType.StrT
@@ -40,27 +46,20 @@ module MkAnalysis (T : TYPE_ANALYSIS_PARAMS) = struct
     | Unit -> DynType.UnitT
     | _ -> DynType.AnyT   
   
-  (**** EXPRESSIONS ****)
-  let exp expNode info = match expNode, info with 
+  let exp tenv expNode info = match expNode, info with 
     | App(fn, args), AppInfo(fnT, argTypes)->
       (match fn.value  with 
       | Var id ->
           (* if the identifier would evaluate to a function value...*) 
-          if Hashtbl.mem T.closures id then
-            let fnVal = Hashtbl.find T.closures id in 
-            let closureArgIds = Hashtbl.find T.closure_args in 
-            let closureArgTypes = List.map (get_type context) closArgIds in 
+          if Hashtbl.mem P.closures id then
+            let fnVal = Hashtbl.find P.closures id in 
+            let closureArgIds = Hashtbl.find P.closure_args in 
+            let closureArgTypes = List.map (get_type tenv) closureArgIds in 
             let signature = 
-              Signature.from_input_types (closureArgTypes@appDescr.app_arg_info) 
+              Signature.from_input_types (closureArgTypes@argTypes) 
             in 
-            let typedFn = T.specialize fnVal signature in 
-            if Hashtbl.mem context.typed_closures id then
-              let oldFnId = Hashtbl.find context.typed_closures id in  
-              assert (typedFn.fundef_id = oldFnId)
-            else 
-              Hashtbl.add context.typed_closures id typedFn.fundef_id
-            ; 
-            typedFn.output_types 
+            P.infer_output_types fnVal signature  
+             
           else if DynType.is_vec fnType then   
             (* if ID doesn't evaluate to a function, assume it evaluates to 
                an array 
@@ -110,15 +109,15 @@ module MkAnalysis (T : TYPE_ANALYSIS_PARAMS) = struct
     | _ -> failwith "not implemented"
 end
 
-type specializer = InterpState.t -> SSA.value -> Signature.t -> SSA.fundef
+type specializer = SSA.value -> Signature.t -> SSA.fundef
    
-let type_analysis interpState specialize closureEnv fundef signature = 
+let type_analysis interpState infer_output_types closureEnv fundef signature = 
   let module Params : TypeAnalysis.TYPE_ANALYSIS_PARAMS = struct 
     let interpState = interpState
     let closures = closureEnv.CollectPartialApps.closures
     let closureArgs = closureEnv.CollectPartialApps.closure_args 
     let closureArity = closureEnv.CollectPartialApps.closure_arity 
-    let specialize = (specialize interpState)
+    let infer_output_types = infer_output_types
     let signature = signature  
   end    
   in

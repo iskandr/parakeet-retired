@@ -1,6 +1,6 @@
 
 
-type specializer = InterpState.t -> SSA.value -> Signature.t -> SSA.fundef
+type specializer = SSA.value -> Signature.t -> SSA.fundef
 
 val type_eval 
   : InterpState.t -> specializer -> CollectPartialApps.closure_env -> 
