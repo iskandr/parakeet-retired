@@ -4,14 +4,14 @@ open DynType
 open Base
 open Imp
 
-let rec translate_value idEnv vNode =
-  let vExp =  match vNode.SSA.value with
-  | SSA.Var id -> Var (ID.Map.find id idEnv)
-  | SSA.Num n -> Const n
-  | _ -> failwith "[ssa->imp] value not implemented "
+let rec translate_value idEnv valNode = 
+  let vExp = match valNode.SSA.value with
+    | SSA.Var id -> Imp.Var (ID.Map.find id idEnv)
+    | SSA.Num n -> Imp.Const n
+    | _ -> failwith "[ssa->imp] value not implemented "
   in
-  { Imp.exp = vExp; Imp.exp_type = vNode.SSA.value_type }
-
+  { Imp.exp = vExp; Imp.exp_type = valNode.SSA.value_type }
+  
 and translate_exp codegen globalFunctions idEnv expectedType expNode = 
   let impExpNode = match expNode.SSA.exp with  
   | SSA.App({SSA.value=SSA.Prim (Prim.ScalarOp Prim.Select)} as fnNode,
@@ -142,14 +142,6 @@ and translate_exp codegen globalFunctions idEnv expectedType expNode =
       "[ssa->imp] typed core exp not yet implemented: %s"
       (SSA.exp_to_str expNode)
   in 
-  (*if impExpNode.exp_type <> List.hd expNode.SSA.exp_types then 
-    failwith $ 
-    Printf.sprintf "[ssa->imp] mismatch between %s and %s while translating %s"
-    (DynType.to_str impExpNode.exp_type)
-    (DynType.to_str $ List.hd expNode.SSA.exp_types)
-    (SSA.exp_to_str expNode) 
-  else
-    *)  
   impExpNode
 
 and translate_stmt globalFunctions idEnv codegen stmtNode =
@@ -221,7 +213,7 @@ and translate_fundef globalFunctions fn =
        fn.SSA.output_ids 
        outputTypes 
   in  
-  let _ = List.fold_left
+  let _ = SSA.block_fold_forward 
     (fun idEnv stmt -> translate_stmt globalFunctions idEnv codegen stmt) 
     idEnv
     fn.SSA.body 

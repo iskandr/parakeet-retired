@@ -22,9 +22,7 @@ and infer_value (env : Shape.t ID.Map.t) (vNode : SSA.value_node) : Shape.t =
   | Str _  
   | Sym _ 
   | Unit -> Shape.scalar_shape
-  | Stream (v, _) -> infer_value env v 
   | Prim _
-  | Lam _
   | GlobalFn _ -> failwith "[ShapeInference] functions have no shape"
   
   
@@ -33,21 +31,10 @@ and infer_exp
       (env : Shape.t ID.Map.t) 
       (expNode : SSA.exp_node) : Shape.t list =
   match expNode.exp with  
-  | App ({value=Lam fundef}, args) -> 
-      infer_call_outputs fnTable env fundef args 
   | App ({value=GlobalFn fnId}, args) -> 
       let fundef = FnTable.find fnId fnTable in
       infer_call_outputs fnTable env fundef args   
-  | App ({value=Prim (Prim.ArrayOp op)}, fnVal::args) when Prim.is_adverb op ->
-      let fundef = FnTable.get_fundef fnTable fnVal in
-      let argShapes = List.map (infer_value env) args in   
-      let outputs, _ = infer_adverb fnTable op fundef argShapes in 
-      outputs
-  | App (_, args) when 
-      List.for_all (fun arg -> DynType.is_scalar arg.value_type) args ->
-      [Shape.scalar_shape]
-  | App _ -> failwith "unsupported function type"
-  | ArrayIndex (array, indices) -> 
+  | App ({value=Prim (Prim.ArrayOp Prim.Index)}, (array::indices)) -> 
       let arrayShape = infer_value env array in
       let nIndices = List.length indices in
       (* for now assume slicing can only happen along the 
@@ -58,6 +45,15 @@ and infer_exp
         resultShape := Shape.peel_shape !resultShape
       done; 
       [!resultShape] 
+  | App ({value=Prim (Prim.ArrayOp op)}, fnVal::args) when Prim.is_adverb op ->
+      let fundef = FnTable.get_fundef fnTable fnVal in
+      let argShapes = List.map (infer_value env) args in   
+      let outputs, _ = infer_adverb fnTable op fundef argShapes in 
+      outputs
+  | App (_, args) when 
+      List.for_all (fun arg -> DynType.is_scalar arg.value_type) args ->
+      [Shape.scalar_shape]
+  | App _ -> failwith "unsupported function type"
                 
   | Arr elts ->
       let eltShapes = List.map (infer_value env) elts in
@@ -93,12 +89,8 @@ and infer_stmt (fnTable : FnTable.t) (env : Shape.t ID.Map.t) stmtNode =
   | If (condVal, tBlock, fBlock, ifGate) -> env  
       
   (*| WhileLoop (condExp, body, loopGate) ->*)   
-and infer_body (fnTable : FnTable.t) (env : Shape.t ID.Map.t) = function 
-  | [] -> env 
-  | stmtNode::rest -> 
-      let env' = infer_stmt fnTable env stmtNode in 
-      infer_body fnTable env' rest  
-
+and infer_body (fnTable : FnTable.t) (env : Shape.t ID.Map.t) block = 
+  SSA.block_fold_forward (infer_stmt fnTable) env block 
 and infer_fundef fnTable fundef inputShapes : shape_env = 
   let env =
     ID.Map.extend ID.Map.empty fundef.input_ids inputShapes  
