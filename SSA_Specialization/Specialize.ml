@@ -6,6 +6,38 @@ open SSA_Codegen
 open DynType
 open Printf 
 
+let rec specialize_value interpState fnVal signature =
+  match InterpState.maybe_get_specialization interpState fnVal signature with
+  | Some fnId -> InterpState.get_typed_function interpState fnId
+  | None ->  
+    let fundef', closureEnv =
+      CollectPartialApps.collect_partial_apps interpState fundef 
+    in
+    (* to avoid having to make TypeAnalysis and Specialize recursive 
+         modules I've untied the recursion by making specialize_value 
+         a parameter of TypeAnalysis. 
+    *)
+    let tenv = 
+      TypeAnalysis.type_analysis 
+        interpState 
+        specialize_value 
+        closureEnv 
+        fundef'
+        signature 
+    in 
+    let body', tenv' = InsertCoercions.rewrite_block tenv fundef'.body in
+    let typedFundef = 
+      mk_fundef 
+        ~tenv:tenv' 
+        ~body:body'
+        ~input_ids:fundef.input_ids 
+        ~output_ids:fundef.output_ids
+    in      
+    InterpState.add_specialization fnVal signature typedFn;  
+    typedFn             
+
+
+(*
 type type_env = DynType.t ID.Map.t
 type const_env = SSA.value ID.Map.t 
 type untyped_closure_env = (SSA.value * Signature.sig_elt list) ID.Map.t 
@@ -1233,4 +1265,5 @@ and specialize_q_operator
       when DynType.is_vec left && DynType.is_scalar right -> 
          specialize_first_order_array_prim  interpState Prim.Find inputTypes  
     | _ ->  failwith "Q's not welcome here"
-            
+
+*)

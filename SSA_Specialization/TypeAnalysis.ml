@@ -8,29 +8,29 @@ module type TYPE_ANALYSIS_PARAMS = sig
   val closureArgs : (ID.t, ID.t list) Hashtbl.t
   val closureArity : (ID.t, int) Hashtbl.t
   val specialize : value -> Signature.t -> fundef   
+  val signature : Signature.t 
 end
-
-type context = {
-  type_env : DynType.t ID.Map.t;  
-  typed_closures : (ID.t, FnId.t) Hashtbl.t; 
-}  
-
-let get_type context id = 
-  if ID.Map.mem id context.type_env 
-  then ID.Map.find id context.type_env 
-  else DynType.BottomT
   
+let get_type tenv id = 
+  if ID.Map.mem id tenv 
+  then ID.Map.find id tenv 
+  else DynType.BottomT
+
+(* TODO: make this complete for all SSA statements *) 
+let rec is_scalar_stmt = function
+  | SSA.Set(_, {exp=SSA.App({value=SSA.Prim (Prim.ScalarOp _)}, _)})
+  | SSA.Set(_, {exp=Values _}) -> true 
+  | SSA.If(_, tCode, fCode, _) -> 
+      all_scalar_stmts tCode && all_scalar_stmts fCode
+  | _ -> false   
+and all_scalar_stmts = List.for_all is_scalar_stmt    
 
 module MkAnalysis (T : TYPE_ANALYSIS_PARAMS) = struct
-  type env = context 
+  type env = DynType.t ID.Map.t 
   type exp_info = DynType.t list
   type value_info = DynType.t 
   
-  let init _ = { 
-    type_env = ID.Map.empty;
-    typed_closure_mapping = Hashtbl.create 127;
-  }
-  
+  let init _ =  ID.Map.empty 
   (**** VALUES ****) 
   let value context = function 
     | Var id -> get_type context id
@@ -41,16 +41,9 @@ module MkAnalysis (T : TYPE_ANALYSIS_PARAMS) = struct
     | _ -> DynType.AnyT   
   
   (**** EXPRESSIONS ****)
-  let values _ _ _ valTypes = valTypes
-  let array _ _ _ eltTypes = 
-    let commonT = DynType.fold_type_list eltTypes in 
-    assert (commonT <> DynType.AnyT); 
-    DynType.VecT commonT 
-  
   let exp expNode info = match expNode, info with 
-    | App(fn, args), AppInfo(fnT, argTypes)-> ->      
-  let app context appDescr =
-    match appDescr.app_fn_node.value  with 
+    | App(fn, args), AppInfo(fnT, argTypes)->
+      (match fn.value  with 
       | Var id ->
           (* if the identifier would evaluate to a function value...*) 
           if Hashtbl.mem T.closures id then
@@ -81,59 +74,57 @@ module MkAnalysis (T : TYPE_ANALYSIS_PARAMS) = struct
           let signature = Signature.from_input_types argTypes in
           let typedFn = T.specialize fnVal signature in
           typedFn.output_types     
+     )
+    | _, ArrayInfo eltTypes ->
+      let commonT = DynType.fold_type_list eltTypes in 
+      assert (commonT <> DynType.AnyT); 
+      DynType.VecT commonT
+    | _, ValuesInfo types -> types  
+    | _ -> failwith "not implemented"
   
-  let cast  _  _  _ _ _ = failwith "Cast node unexpectd in untyped code"
-  let call _ _ _ _ = failwith "Call node unexpected in untyped code" 
-  let primapp _ _ _ _ = faiwith "PrimApp node unexpected in untyped code"
-  let map _ _ = failwith "Map node unexpected in untyped code"      
-  let reduce _ _ = failwith "Reduce node unexpected in untyped code"  
-  let scan _ _ = failwith "Scan node unexpected in untyped code"   
-              
-  (* STATEMENTS *)            
-  let set context ids rhsNode rhsTypes =
-    IFDEF DEBUG THEN
-      if List.length ids <> List.length rhsTypes then 
-        failwith $ sprintf 
-          "[annotate_stmt] malformed SET statement: %d ids for %d rhs values \n"
-          (List.length ids)
-          (List.length rhsTypes)
-    ENDIF; 
-    let rec process_types (tenv, changed) id rhsT =  
-      IFDEF DEBUG THEN 
-        if rhsT = DynType.AnyT then failwith "error during type inference"
-      ENDIF; 
-      let oldT = get_type tenv id in 
-      let newT = DynType.common_type oldT rhsT in 
-      let changedT = oldT <> newT in
-      let tenv' = 
-        if changedT then ID.Map.add id newT tenv else tenv 
+  let stmt context stmtNode stmtInfo = match stmtNode, stmtInfo with 
+    | Set(ids, _), SetInfo rhsTypes ->               
+        IFDEF DEBUG THEN
+          if List.length ids <> List.length rhsTypes then 
+          failwith $ sprintf 
+            "malformed SET statement: %d ids for %d rhs values \n"
+            (List.length ids)
+            (List.length rhsTypes)
+        ENDIF; 
+      let rec process_types (tenv, changed) id rhsT =  
+        IFDEF DEBUG THEN 
+          if rhsT = DynType.AnyT then failwith "error during type inference"
+        ENDIF; 
+        let oldT = get_type tenv id in 
+        let newT = DynType.common_type oldT rhsT in 
+        let changedT = oldT <> newT in
+        let tenv' = 
+          if changedT then ID.Map.add id newT tenv else tenv 
+        in 
+        tenv', (changed || changedT)
       in 
-      tenv', (changed || changedT)
-    in 
-    let tenv', changed = 
-      List.fold_left2 process_types (context.type_env, false) ids rhsTypes
-    in  
-    if changed then Some { context with type_env = tenv' } else None 
-   
-    let if_ env ifDescr = failwith "if statement not supported"               
-    let loop env loopDescr = failwith "loops not supported"            
+      let tenv', changed = 
+        List.fold_left2 process_types (context.type_env, false) ids rhsTypes
+      in  
+      if changed then Some { context with type_env = tenv' } else None 
+    | _ -> failwith "not implemented"
 end
 
-
-(* TODO: make this complete for all SSA statements *) 
-let rec is_scalar_stmt = function
-  | SSA.Set(_, {exp=SSA.App({value=SSA.Prim (Prim.ScalarOp _)}, _)})
-  | SSA.Set(_, {exp=Values _}) -> true 
-  | SSA.If(_, tCode, fCode, _) -> 
-      all_scalar_stmts tCode && all_scalar_stmts fCode
-  | _ -> false   
-and all_scalar_stmts = List.for_all is_scalar_stmt  
-  
-
-
-
-module Make(T : TYPE_ANALYSIS_PARAMS) = SSA_Analysis.MkEvaluator(MkAnalysis(T))
-
+type specializer = InterpState.t -> SSA.value -> Signature.t -> SSA.fundef
+   
+let type_analysis interpState specialize closureEnv fundef signature = 
+  let module Params : TypeAnalysis.TYPE_ANALYSIS_PARAMS = struct 
+    let interpState = interpState
+    let closures = closureEnv.CollectPartialApps.closures
+    let closureArgs = closureEnv.CollectPartialApps.closure_args 
+    let closureArity = closureEnv.CollectPartialApps.closure_arity 
+    let specialize = (specialize interpState)
+    let signature = signature  
+  end    
+  in
+  let module TypeEval = MkEvaluator(MkAnalysis(Params)) in 
+  TypeEval.eval_fundef fundef 
+    
 
 let annotate_value context valNode = 
   
