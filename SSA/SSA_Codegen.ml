@@ -1,7 +1,7 @@
 open Base
 open SSA
 
-class typed_ssa_codegen =
+class ssa_codegen =
   object (self : 'a)
      
     val types = (ref ID.Map.empty :  DynType.t ID.Map.t ref)  
@@ -24,13 +24,7 @@ class typed_ssa_codegen =
       if from_type = to_type then valNode 
       else ( 
         if DynType.nest_depth from_type > DynType.nest_depth  to_type then 
-          failwith "Cannot convert from vector to scalar" 
-        else if DynType.nest_depth to_type > DynType.nest_depth from_type then (
-          (* THIS IS A HACK!!! BEWARE. *)
-          IFDEF DEBUG THEN
-            print_string"HACKHACKHACK!";
-          ENDIF;
-          mk_stream valNode to_type)
+          failwith "Cannot convert from vector to scalar"
         else ( 
           let castNode = 
           { 
@@ -44,7 +38,7 @@ class typed_ssa_codegen =
           DynArray.add code stmtNode; 
           {value = Var freshId; value_type = to_type; value_src = None } 
        )
-    )
+     )
     
     method cvt_list ~to_type ~from_types args = 
         List.map2 
@@ -55,7 +49,7 @@ class typed_ssa_codegen =
     method emit stmtList = 
       List.iter (fun stmt -> DynArray.add code stmt) stmtList
     
-    method finalize = DynArray.to_list code 
+    method finalize = DynArray.to_array code 
 end
 
 (* creates a codegen with identifiers initialized for input and output types,*)
@@ -64,7 +58,7 @@ end
 (* Once the body is finished, wrap up the code and type environment *)
 (* as a fundef *)   
 let mk_lambda inputTypes outputTypes fn  = 
-  let codegen = new typed_ssa_codegen in 
+  let codegen = new ssa_codegen in 
   let inputIds = List.map codegen#fresh_var inputTypes in 
   let outputIds = List.map codegen#fresh_var outputTypes in 
   let inputVars = 
