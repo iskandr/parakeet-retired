@@ -1,13 +1,15 @@
 open Base 
 open SSA 
 
-module Env : SSA_Analysis.SIMPLE_ANALYSIS = struct
-  type env = ID.Set.t 
+module Env  = struct
+  type t = ID.Set.t 
   let init fundef = ID.Set.empty 
 end
 module GenSetAnalysis : SSA_Analysis.ANALYSIS = struct
   include SSA_Analysis.MakeSimpleAnalysis(Env) 
-  let set env ids _ _ = Update (ID.Set.add_list ids env) 
+  let stmt env stmtNode info = match stmtNode.stmt with 
+    | Set (ids, _) -> Update (ID.Set.add_list ids env)
+    | _ -> failwith "not implemented"  
 end
 module GenSetEval = SSA_Analysis.MakeEvaluator(GenSetAnalysis)
 

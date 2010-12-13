@@ -1,31 +1,22 @@
+(********** VALUES **********)
+type value = 
+  | Var of ID.t
+  | GlobalFn of FnId.t  
+  | Num of PQNum.num 
+  | Str of string
+  | Sym of string
+  | Unit
+  | Prim of Prim.prim
 
-type tenv = DynType.t ID.Map.t 
-
-type if_gate = { 
-  if_output_ids : ID.t list;
-  true_ids : ID.t list; 
-  false_ids : ID.t list 
+and value_node = { 
+  value_type : DynType.t;
+  value_src : SourceInfo.source_info option; 
+  value : value 
 }
-
-type loop_gate = { 
-  loop_outputs : ID.t list; 
-  loop_local_defs : ID.t list;
-  loop_header_map : (ID.t * ID.t) ID.Map.t;
-  loop_output_map : (ID.t * ID.t) ID.Map.t;  
-}
-
-type stmt = 
-  | Set of ID.t list * exp_node 
-  | SetIdx of ID.t * value_nodes * value_node
-  | If of value_node * block * block * if_gate
-  | WhileLoop of block * ID.t * block * loop_gate  
-and stmt_node = { 
-    stmt: stmt;
-    stmt_src: SourceInfo.source_info option;
-    stmt_id : StmtId.t;  
-}
-and block 
-and  exp = 
+and value_nodes = value_node list   
+    
+(********** EXPRESSIONS **********)
+type exp = 
   | App of  value_node * value_nodes
   | Arr of value_nodes
   | Values of value_nodes
@@ -35,7 +26,14 @@ and  exp =
   | PrimApp of typed_prim * value_nodes  
   | Map of closure * value_nodes
   | Reduce of closure * closure * value_nodes   
-  | Scan of closure * closure * value_nodes 
+  | Scan of closure * closure * value_nodes
+and exp_node = { 
+  exp: exp; 
+  exp_src : SourceInfo.source_info option;
+  (* because a function applicatin might return multiple values,*)
+  (* expressions have multiple types *)  
+  exp_types : DynType.t list; 
+} 
 and typed_fn = { 
   fn_id : FnId.t; 
   fn_input_types : DynType.t list; 
@@ -48,34 +46,50 @@ and typed_prim = {
 } 
 and closure = {   
   closure_fn: FnId.t; 
-  closure_args: value_nodes;
+  closure_args: value_node list; 
   closure_arg_types: DynType.t list; 
   closure_input_types:DynType.t list; 
   closure_output_types: DynType.t list 
 } 
-and exp_node = { 
-  exp: exp; 
-  exp_src : SourceInfo.source_info option;
-  (* because a function applicatin might return multiple values,*)
-  (* expressions have multiple types *)  
-  exp_types : DynType.t list; 
-} 
-and value_node = { 
-  value_type : DynType.t;
-  value_src : SourceInfo.source_info option; 
-  value : value 
+
+(********** STATEMENTS **********) 
+type stmt = 
+  | Set of ID.t list * exp_node 
+  | SetIdx of ID.t * value_nodes * value_node
+  | If of value_node * block * block * if_gate
+  | WhileLoop of block * ID.t * block * loop_gate  
+and stmt_node = { 
+    stmt: stmt;
+    stmt_src: SourceInfo.source_info option;
+    stmt_id : StmtId.t;  
 }
-and value_nodes = value_node list   
-and value = 
-  | Var of ID.t
-  | GlobalFn of FnId.t  
-  | Num of PQNum.num 
-  | Str of string
-  | Sym of string
-  | Unit
-  | Prim of Prim.prim
-  | Lam of fundef
-and fundef = {
+and block = stmt_node array
+and if_gate = { 
+  if_output_ids : ID.t list;
+  true_ids : ID.t list; 
+  false_ids : ID.t list 
+}
+and loop_gate = { 
+  (* what variables visible after this loop are generated, and
+     from which internal var do they get their value?  
+  *)
+  loop_outputs : ID.t list; 
+  
+  (* what variables are assigned in the body of this loop? *) 
+  loop_local_defs : ID.t list;
+  
+  (* every loop local variable gets its value either from above the 
+     loop on the first iteration, or from a further loop variable on 
+     a repeat iteration  
+  *) 
+  loop_header_map : (ID.t * ID.t) ID.Map.t;
+  (* every loop output can either come a loop variable or from some
+     variable preceding the loop (including, presumably, undefined)
+  *)
+  loop_output_map : (ID.t * ID.t) ID.Map.t;  
+}
+
+type fundef = {
   body: block;
   tenv : tenv;
   input_ids:ID.t list;
@@ -83,6 +97,7 @@ and fundef = {
   fundef_type : DynType.t; 
   fundef_id : FnId.t; 
 }
+and tenv = DynType.t ID.Map.t 
 
 val is_simple_exp : exp -> bool 
 

@@ -10,9 +10,11 @@ end
 module UseCountAnalysis = struct
   include MkSimpleAnalysis(Env) 
   
-  let var (counts : env) (id : ID.t) : value_info = 
-    let oldCount = Hashtbl.find_default counts id 0 in 
-    Hashtbl.add counts id (oldCount+1)
+  let value counts valNode = match valNode.value with  
+    | Var id -> 
+        let oldCount = Hashtbl.find_default counts id 0 in 
+        Hashtbl.add counts id (oldCount+1)
+    | _ -> () 
 end 
 
 module UseCountEval = MkEvaluator(UseCountAnalysis)

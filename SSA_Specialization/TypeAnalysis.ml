@@ -41,14 +41,16 @@ module MkAnalysis (T : TYPE_ANALYSIS_PARAMS) = struct
     | _ -> DynType.AnyT   
   
   (**** EXPRESSIONS ****)
-  let values _ _ valTypes = valTypes 
-  let array _ _ eltTypes = 
+  let values _ _ _ valTypes = valTypes
+  let array _ _ _ eltTypes = 
     let commonT = DynType.fold_type_list eltTypes in 
     assert (commonT <> DynType.AnyT); 
     DynType.VecT commonT 
-     
-  let app context fn fnType args argTypes = 
-    match fn.value with 
+  
+  let exp expNode info = match expNode, info with 
+    | App(fn, args), AppInfo(fnT, argTypes)-> ->      
+  let app context appDescr =
+    match appDescr.app_fn_node.value  with 
       | Var id ->
           (* if the identifier would evaluate to a function value...*) 
           if Hashtbl.mem T.closures id then
@@ -56,7 +58,7 @@ module MkAnalysis (T : TYPE_ANALYSIS_PARAMS) = struct
             let closureArgIds = Hashtbl.find T.closure_args in 
             let closureArgTypes = List.map (get_type context) closArgIds in 
             let signature = 
-              Signature.from_input_types (closureArgTypes@argTypes) 
+              Signature.from_input_types (closureArgTypes@appDescr.app_arg_info) 
             in 
             let typedFn = T.specialize fnVal signature in 
             if Hashtbl.mem context.typed_closures id then

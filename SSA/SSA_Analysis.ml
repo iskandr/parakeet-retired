@@ -9,40 +9,26 @@ type 'a flow_functions = {
   split: 'a -> 'a * 'a; 
 } 
 
-(* 'a = value_info, 'b = exp_info *) 
-type 'a scan_descr = { 
-  scan_init_info : 'a list; 
-  scan_combine_info : 'a list; 
-  scan_arg_info : 'a list; 
-}
+(* like the exp type in SSA, but replacing value_node with generic 'a *)
+(* type parameter used to fill in different value_info types *)  
+type 'a open_exp = 
+  | AppInfo of 'a * 'a list 
+  | CallInfo of 'a list 
+  | MapInfo of 'a list * 'a list  
+  | ScanInfo of 'a list * 'a list * 'a list
+  | ReduceInfo of 'a list * 'a list * 'a list  
+  | ValuesInfo of 'a list
+  | ArrayInfo of 'a list
 
-type 'a reduce_descr = { 
-  reduce_closure_info : 'a list; 
-  reduce_arg_info : 'a list;  
-}
-
-type 'a map_descr = { 
-  map_closure_info : 'a list; 
-  map_arg_info : 'a list; 
-} 
-
-(* 'a = value info, 'b = statement info *) 
-type ('a, 'b) if_descr = {
-  if_cond_info : 'a;
-  true_branch_info: 'b; 
-  true_branch_changed: bool;
-  false_branch_info: 'b; 
-  false_branch_changed: bool;
-} 
-
-(* 'a = value info, 'b = statement info *) 
-type ('a, 'b) loop_descr = { 
-  loop_cond_block_info: 'b; 
-  loop_cond_block_changed : bool; 
-  loop_cond_val : 'a; 
-  loop_body_info: 'b;
-} 
- 
+(* 'a = value_info, 'b = exp_info, 'c = env *) 
+type ('a,'b,'c) open_stmt = 
+  (* rhs exp_info *)  
+  | SetInfo of 'b  
+  (* if condition, true branch env, false branch env *) 
+  | IfInfo of 'a * 'c * 'c
+  (* cond body, cond value, loop body *) 
+  | LoopInfo of 'c * 'a * 'c  
+    
 module type ANALYSIS =  sig
     type env
     type exp_info
@@ -58,34 +44,10 @@ module type ANALYSIS =  sig
   
     val init : fundef -> env 
   
-    (* VALUES *)
     val value : env -> value -> value_info 
-    
-    (* EXPRESSIONS *) 
-    val values : env -> exp_node -> value_info list -> exp_info  
-
-    val array : env -> exp_node -> value_info list -> exp_info 
-    val app : env -> exp_node -> value_info -> value_info list -> exp_info 
-                       
-    val cast : env -> exp_node -> value_info -> exp_info 
-   
-    val call : env -> exp_node -> value_info list -> exp_info 
-              
-    val primapp : env  -> exp_node -> value_info list -> exp_info 
-        
-        
-    val map : env -> exp_node -> value_info list -> value_info list ->  exp_info      
-    val reduce 
-        : env -> exp_node -> value_info list -> value_info list -> exp_info   
-    val scan 
-        : env -> exp_node -> value_info list -> 
-            value_info list -> value_info list -> exp_info    
-    
-              
-  (* STATEMENTS *) 
-    val set : env -> ID.t list -> exp_node -> exp_info -> env option 
-    val if_ : env -> (value_info, env) if_descr -> env option               
-    val loop : env -> (value_info, env) loop_descr -> env option  
+    val exp : env -> exp_node -> value_info open_exp -> exp_info  
+    val stmt 
+      : env -> stmt_node -> (value_info, exp_info, env) open_stmt -> env option  
 end
 
 module type ENV = sig
@@ -143,26 +105,9 @@ struct
   (* ignore the function definition and just create a fresh lattice value *)
   let init fundef = S.init fundef
   
-  (* VALUES *)
   let value _ _ = V.bottom 
-  
-  (* EXPRESSIONS *) 
-  let array _ _ _ = E.bottom 
-  let values _ _ _  = E.bottom  
-  let app _ _ _ _ _  = E.bottom 
-  let array_index  _ _ _ _ _  = E.bottom
-  let cast _ _ _ _ = E.bottom        
-  let call _ _ _ _ = E.bottom 
-  let primapp _ _ _ _ = E.bottom 
-  let map _ _ = E.bottom 
-  let reduce _ _ = E.bottom 
-  let scan _ _ = E.bottom 
-  
-  (* STATEMENTS *) 
-  let set _ _ _ _ = None
-  let if_  _ _ = None   
-  let loop _ _ = None
- 
+  let exp _ _ _ = E.bottom 
+  let stmt _ _ _= None
 end 
 
 module MkSimpleAnalysis(S:ENV) = MkAnalysis(S)(UnitLattice)(UnitLattice)
@@ -198,17 +143,20 @@ module MkEvaluator(A : ANALYSIS) = struct
         done; 
         !env, !changed
 
-  and eval_stmt env stmtNode = match stmtNode.stmt with 
-  | Set (ids, rhs) -> 
-      let rhsInfo = eval_exp env rhs in 
-      A.set  env ids rhs rhsInfo
-  | _ -> failwith "not yet implemented"
-  and eval_exp env expNode = match expNode.exp with 
-  | App(fn, args) -> 
-      let fnInfo = eval_value env fn in
-      let argInfos = eval_values env args in 
-      A.app env expNode fnInfo argInfos 
-  | _ -> failwith "not implemented"  
+  and eval_stmt env stmtNode = 
+    let info = match stmtNode.stmt with 
+    | Set (ids, rhs) -> SetInfo (eval_exp env rhs) 
+    | _ -> failwith "not yet implemented"
+    in A.stmt env stmtNode info 
+  and eval_exp env expNode = 
+    let info = match expNode.exp with 
+      | App(fn, args) -> 
+        let fnInfo = eval_value env fn in
+        let argInfos = eval_values env args in
+        AppInfo (fnInfo, argInfos)
+      | _ -> failwith "not implemented"     
+    in A.exp env expNode info  
+   
   and eval_value env valNode = A.value env valNode.value 
   and eval_values env values = List.map (eval_value env) values 
 

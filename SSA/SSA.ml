@@ -3,20 +3,78 @@
 open Base
 open SourceInfo 
 
-type tenv = DynType.t ID.Map.t 
+type value = 
+  | Var of ID.t
+  | GlobalFn of FnId.t  
+  | Num of PQNum.num 
+  | Str of string
+  | Sym of string
+  | Unit
+  | Prim of Prim.prim
 
- (* this IF generates the following set of identifiers, 
-     whose values might be taken from either branch 
-  *)  
- 
+and value_node = { 
+  value_type : DynType.t;
+  value_src : source_info option; 
+  value : value 
+}
+and value_nodes = value_node list   
+    
 
-type if_gate = { 
+type exp = 
+  | App of  value_node * value_nodes
+  | Arr of value_nodes
+  | Values of value_nodes
+  (* nodes below are only used after type specialization *) 
+  | Cast of DynType.t * value_node  
+  | Call of typed_fn * value_nodes 
+  | PrimApp of typed_prim * value_nodes  
+  | Map of closure * value_nodes
+  | Reduce of closure * closure * value_nodes   
+  | Scan of closure * closure * value_nodes
+and exp_node = { 
+  exp: exp; 
+  exp_src : source_info option;
+  (* because a function applicatin might return multiple values,*)
+  (* expressions have multiple types *)  
+  exp_types : DynType.t list; 
+} 
+and typed_fn = { 
+  fn_id : FnId.t; 
+  fn_input_types : DynType.t list; 
+  fn_output_types : DynType.t list;   
+} 
+and typed_prim = { 
+  prim_input_types : DynType.t list; 
+  prim_output_types : DynType.t list; 
+  prim: Prim.prim; 
+} 
+and closure = {   
+  closure_fn: FnId.t; 
+  closure_args: value_node list; 
+  closure_arg_types: DynType.t list; 
+  closure_input_types:DynType.t list; 
+  closure_output_types: DynType.t list 
+} 
+
+
+
+type stmt = 
+  | Set of ID.t list * exp_node 
+  | SetIdx of ID.t * value_nodes * value_node
+  | If of value_node * block * block * if_gate
+  | WhileLoop of block * ID.t * block * loop_gate  
+and stmt_node = { 
+    stmt: stmt;
+    stmt_src: source_info option;
+    stmt_id : StmtId.t;  
+}
+and block = stmt_node array
+and if_gate = { 
   if_output_ids : ID.t list;
   true_ids : ID.t list; 
   false_ids : ID.t list 
 }
-
-type loop_gate = { 
+and loop_gate = { 
   (* what variables visible after this loop are generated, and
      from which internal var do they get their value?  
   *)
@@ -36,71 +94,7 @@ type loop_gate = {
   loop_output_map : (ID.t * ID.t) ID.Map.t;  
 }
 
-
-type stmt = 
-  | Set of ID.t list * exp_node 
-  | SetIdx of ID.t * value_nodes * value_node
-  | If of value_node * block * block * if_gate
-  | WhileLoop of block * ID.t * block * loop_gate  
-and stmt_node = { 
-    stmt: stmt;
-    stmt_src: source_info option;
-    stmt_id : StmtId.t;  
-}
-and block = stmt_node array
-
-and  exp = 
-  | App of  value_node * value_nodes
-  | Arr of value_nodes
-  | Values of value_nodes
-  (* nodes below are only used after type specialization *) 
-  | Cast of DynType.t * value_node  
-  | Call of typed_fn * value_nodes 
-  | PrimApp of typed_prim * value_nodes  
-  | Map of closure * value_nodes
-  | Reduce of closure * closure * value_nodes   
-  | Scan of closure * closure * value_nodes 
-and typed_fn = { 
-  fn_id : FnId.t; 
-  fn_input_types : DynType.t list; 
-  fn_output_types : DynType.t list;   
-} 
-and typed_prim = { 
-  prim_input_types : DynType.t list; 
-  prim_output_types : DynType.t list; 
-  prim: Prim.prim; 
-} 
-and closure = {   
-  closure_fn: FnId.t; 
-  closure_args: value_node list; 
-  closure_arg_types: DynType.t list; 
-  closure_input_types:DynType.t list; 
-  closure_output_types: DynType.t list 
-} 
-and exp_node = { 
-  exp: exp; 
-  exp_src : source_info option;
-  (* because a function applicatin might return multiple values,*)
-  (* expressions have multiple types *)  
-  exp_types : DynType.t list; 
-} 
-and value_node = { 
-  value_type : DynType.t;
-  value_src : source_info option; 
-  value : value 
-}
-and value_nodes = value_node list   
-and value = 
-  | Var of ID.t
-  | GlobalFn of FnId.t  
-  | Num of PQNum.num 
-  | Str of string
-  | Sym of string
-  | Unit
-  | Prim of Prim.prim
-  | Lam of fundef
-    
-and fundef = {
+type fundef = {
   body: block;
   tenv : tenv;
   input_ids:ID.t list;
@@ -108,6 +102,7 @@ and fundef = {
   fundef_type : DynType.t; 
   fundef_id : FnId.t; 
 }
+type tenv = DynType.t ID.Map.t 
 
 
 let is_simple_exp = function

@@ -13,6 +13,7 @@ module ConstantAnalysis = struct
         ID.Map.empty 
         fundef.input_ids 
   
+  
   let value env value = match value with  
     | Str _ 
     | Sym _
@@ -26,20 +27,23 @@ module ConstantAnalysis = struct
     | _ ->  ConstantLattice.ManyValues 
 
   let mk_top_list = List.map (fun _ -> ConstantLattice.top) 
-  (* EXPRESSIONS *) 
-  let values env expNode valConsts = valConsts 
-  let array env expNode valConsts = mk_top_list expNode.exp_types   
-  let app env expNode _ _ = mk_top_list expNode.exp_types  
-  let cast env expNode _ = mk_top_list expNode.exp_types  
-  let call _ _ _ _ = mk_top_list expNode.exp_types  
-  let primapp _ _ _ _ = mk_top_list expNode.exp_types  
-  let map _ _ = mk_top_list expNode.exp_types  
-  let reduce _ _ = mk_top_list expNode.exp_types  
-  let scan _ _ = mk_top_list expNode.exp_types  
+  
+  let exp env expNode = function  
+    | ValuesInfo consts -> consts  
+    | _ -> mk_top_list expNode.exp_types
     
               
   (* STATEMENTS *)
-   
+  let update_env env id v = 
+    if ID.Map.mem id env then 
+      let oldV = ID.Map.find id env in 
+      let newV = ConstantLattice.join oldV v in 
+      ID.Map.add id newV env 
+    else ID.Map.add id v env 
+    
+  let set env ids rhs consts = 
+    List.fold_left2 update_env rhs consts   
+    
     val set : env -> ID.t list -> exp_node -> exp_info -> env option 
     val if_ : env -> (value_info, env) if_descr -> env option               
     val loop : env -> (value_info, env) loop_descr -> env option  
