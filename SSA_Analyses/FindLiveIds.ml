@@ -18,5 +18,6 @@ module LiveIdAnalysis = struct
     | Var id -> MutableSet.add liveSet id
     | _ -> () 
 end
-  
-let find_live_ids = MkEvaluator(LiveIdAnalysis).eval_fundef
+module LiveIdEval = MkEvaluator(LiveIdAnalysis) 
+let find_live_ids = LiveIdEval.eval_fundef 
+ 

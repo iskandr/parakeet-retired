@@ -325,7 +325,10 @@ let mk_val_exp ?src ?ty (v: value) =
   { exp=Values [mk_val ?src v]; exp_src=src; exp_types = [ty'] } 
 
 let mk_vals_exp ?src ?types ( vs : value list) =
-  let valNodes = List.map (mk_val ?src) vs in 
+  let valNodes = match types with 
+    | Some types -> List.map2 (fun v ty -> mk_val ?src ~ty v) vs types   
+    | None -> List.map (mk_val ?src) vs
+  in   
   let types' = map_default_types types valNodes in 
   { exp = Values valNodes; exp_src = src; exp_types=types' } 
 

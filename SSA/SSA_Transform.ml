@@ -3,22 +3,11 @@ open SSA
 
 type direction = Forward | Backward
 
-module Update = struct  
-  type 'a update =
+type 'a update =
   | NoChange 
   | Update of 'a 
   | UpdateWithStmts of 'a * (stmt_node list)
-
-  let mk_update data = function 
-  | [] -> Update data
-  | stmts -> UpdateWithStmts(data, stmts) 
-
-  let unpack_update default = function 
-  | NoChange -> default, [], false
-  | Update other -> other, [], true
-  | UpdateWithStmts (other,stmts) -> other, stmts, true 
-end
-include Update 
+  | UpdateWithBlock of 'a * block
 
 module type TRANSFORM_RULES = sig
   type env 
@@ -54,25 +43,33 @@ module BlockState = struct
 
   (* blockState methods *) 
   let add_stmt blockState stmtNode = DynArray.add blockState.stmts stmtNode
-  let add_stmts blockState stmts = List.iter (add_stmt blockState) stmts 
-
+  let add_stmt_list blockState stmts = 
+    List.iter (add_stmt blockState) stmts 
+  
+  let add_block blockState block = 
+    block_iter_forward (add_stmt blockState) block 
+  
   let incr_changes blockState = 
     blockState.changes <- blockState.changes + 1 
 
   (* works for both value_node and exp_node *) 
-  let process_update blockState xDefault update = 
-    let xUpdated, stmts, changed = unpack_update xDefault update in 
-    if changed then ( 
-      add_stmts blockState stmts; 
-      incr_changes blockState;
-    ); 
-    xUpdated 
-    
+  let process_update blockState xDefault = function 
+    | NoChange -> xDefault
+    | Update xNew -> incr_changes blockState; xNew 
+    | UpdateWithStmts (xNew, stmts) -> 
+        incr_changes blockState; 
+        add_stmt_list blockState stmts; 
+        xNew  
+    | UpdateWithBlock (xNew, block) -> 
+        incr_changes blockState; 
+        add_block blockState block; 
+        xNew 
+   
   let process_stmt_update blockState stmtNode update =
     match update with 
       | None -> add_stmt blockState stmtNode 
       | Some stmts -> 
-          add_stmts blockState stmts;
+          add_stmt_list blockState stmts;
           incr_changes blockState  
 end 
 open BlockState 

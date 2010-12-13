@@ -1,12 +1,8 @@
 open SSA
+open Base
 
 type direction = Forward | Backward
-
-type 'a flow_functions = { 
-  merge : 'a -> ID.t -> ID.t -> ID.t -> 'a; 
-  split: 'a -> 'a * 'a; 
-} 
-
+      
 (* like the exp type in SSA, but replacing value_node with generic 'a *)
 (* type parameter used to fill in different value_info types *)  
 type 'a open_exp = 
@@ -26,7 +22,30 @@ type ('a,'b,'c) open_stmt =
   | IfInfo of 'a * 'c * 'c
   (* cond body, cond value, loop body *) 
   | LoopInfo of 'c * 'a * 'c  
+
+
+(* can be reused for most value lattices when environment is a hash *) 
+let mk_hash_merge combine outEnv outId xEnv xId yEnv yId =  
+  let x = Hashtbl.find xEnv xId in
+  let y = Hashtbl.find yEnv yId in  
+  let newVal = combine x y in 
+    if Hashtbl.mem outEnv outId then 
+      let oldVal = Hashtbl.find outEnv outId in  
+      if oldVal = newVal then None 
+      else (Hashtbl.add outEnv outId (combine oldVal newVal);  Some outEnv)
+    else (Hashtbl.add outEnv outId newVal; Some outEnv)
     
+(* can be reused for most value lattices when environment is a tree map *) 
+let mk_map_merge combine outEnv outId xEnv xId yEnv yId = 
+  let x = ID.Map.find xId xEnv in 
+  let y = ID.Map.find yId yEnv in
+  let newVal = combine x y in 
+  if ID.Map.mem outId outEnv then 
+    let oldVal = ID.Map.find outId outEnv in 
+    if oldVal = newVal then None 
+    else Some (ID.Map.add outId (combine oldVal newVal) outEnv)
+  else Some (ID.Map.add outId newVal outEnv)   
+        
 module type ANALYSIS =  sig
     type env
     type exp_info
@@ -34,8 +53,8 @@ module type ANALYSIS =  sig
     
     val dir : direction
   
-    (* if env_helpers is None then perform flow insensitive analysis *)
-    val flow_functions : (env flow_functions) option  
+    val flow_split : env -> env * env  
+    val flow_merge : env -> ID.t -> env -> ID.t -> env -> ID.t -> env option   
     
     (* should analysis be repeated until environment stops changing? *) 
     val iterative : bool
@@ -45,7 +64,8 @@ module type ANALYSIS =  sig
     val value : env -> value_node -> value_info 
     val exp : env -> exp_node -> value_info open_exp -> exp_info  
     val stmt 
-      : env -> stmt_node -> (value_info, exp_info, env) open_stmt -> env option  
+      : env -> stmt_node -> (value_info, exp_info, env) open_stmt -> env option
+      
 end
 
 module type ENV = sig
@@ -97,7 +117,9 @@ struct
   type value_info = V.t 
   
   let dir = Forward
-  let flow_functions = None  
+  let flow_split env = env, env  
+  let flow_merge _ _ _ _ _ _ = None   
+  
   let iterative = false
   
   (* ignore the function definition and just create a fresh lattice value *)
@@ -106,6 +128,7 @@ struct
   let value _ _ = V.bottom 
   let exp _ _ _ = E.bottom 
   let stmt _ _ _= None
+   
 end 
 
 module MkSimpleAnalysis(S:ENV) = MkAnalysis(S)(UnitLattice)(UnitLattice)
@@ -142,11 +165,39 @@ module MkEvaluator(A : ANALYSIS) = struct
         done; 
         !env, !changed
 
-  and eval_stmt env stmtNode = 
-    let info = match stmtNode.stmt with 
-    | Set (ids, rhs) -> SetInfo (eval_exp env rhs) 
+  and eval_stmt env stmtNode = match stmtNode.stmt with 
+    | Set (ids, rhs) -> A.stmt env stmtNode (SetInfo (eval_exp env rhs)) 
+    | If(cond, tBlock, fBlock, gate) -> 
+        let condInfo = eval_value env cond in
+        let trueEnv, falseEnv = A.flow_split env in 
+        let trueEnv', trueChanged = eval_block trueEnv tBlock in 
+        let falseEnv', falseChanged = eval_block falseEnv fBlock in
+        let mergeChanged = ref false in 
+        let folder env outId trueId falseId =
+          match A.flow_merge env outId trueEnv' trueId falseEnv' falseId with
+            | Some env' -> mergeChanged := true; env'  
+            | None -> env
+        in       
+        let combinedEnv = 
+          List.fold_left3 
+            folder 
+            env 
+            gate.if_output_ids 
+            gate.true_ids 
+            gate.false_ids
+        in 
+        let info = IfInfo (condInfo, trueEnv', falseEnv') in 
+        (match A.stmt combinedEnv stmtNode info with 
+          | None ->
+            (* since None indicates no change was made we can only*)
+            (* propagate it if none of the operations on child nodes*)
+            (* also didn't involve changes *)
+            if trueChanged || falseChanged || !mergeChanged 
+            then Some combinedEnv else None     
+         | modifiedEnv -> modifiedEnv
+         )   
     | _ -> failwith "not yet implemented"
-    in A.stmt env stmtNode info 
+     
   and eval_exp env expNode = 
     let info = match expNode.exp with 
       | App(fn, args) -> 

@@ -95,7 +95,7 @@ and check_exp errorLog tenv (defined : ID.Set.t) (expNode : exp_node) : unit =
       else err $  
              sprintf "expected a function type, received: %s"
                (DynType.to_str fnType)
-  | ArrayIndex (arr, args) -> check_value_list errorLog tenv defined (arr::args) 
+   
   | Values vs 
   | Arr vs -> check_value_list errorLog tenv defined vs
   | Cast (t, v) -> 
@@ -126,15 +126,14 @@ and check_value (errorLog:errors)(tenv:tenv) (defined : ID.Set.t) vNode : unit =
       if not $ DynType.is_number vNode.value_type then
         err "number annotated with non-numeric type" 
   | Prim _
-  | Lam _
   | GlobalFn _ -> 
       if not $ DynType.is_function vNode.value_type then 
         err "expected function annotation"  
-  | Sym _ | Str _ | Unit | Stream _ -> ()
+  | Sym _ | Str _ | Unit  -> ()
 and check_value_list errorLog tenv defined values = 
   List.iter (check_value errorLog tenv defined) values
 and check_block (errorLog : errors) (tenv : DynType.t ID.Map.t) defined block = 
-  List.fold_left 
+   SSA.block_fold_forward 
     (fun accDefined stmtNode -> check_stmt errorLog tenv accDefined stmtNode) 
     defined
     block 

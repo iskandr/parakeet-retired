@@ -4,14 +4,16 @@ open Printf
 open SSA_Analysis
 
 module ConstantAnalysis = struct
-  let dir = Forward
-  let iterative = true 
-  let flow_functions = None 
-   
+  
   type value_info = value ConstantLattice.t
   type exp_info = value_info list  
   type env = value_info ID.Map.t 
   
+  let dir = Forward
+  let iterative = true 
+  let flow_split env = env, env 
+  let flow_merge = SSA_Analysis.mk_map_merge ConstantLattice.join 
+        
   let init fundef : env =
     List.fold_left 
       (fun accEnv id  -> ID.Map.add id ConstantLattice.ManyValues accEnv)

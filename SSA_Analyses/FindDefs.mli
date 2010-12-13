@@ -1,7 +1,16 @@
 
-type def = SingleDef of SSA.exp * int * int | CombineDef of ID.Set.t | FunArg
+module DefLattice : sig
+  type t = 
+    | Val of SSA.value  
+    | Def of SSA.exp * int * int 
+    | Combine of t list 
+    | Top 
+    | Bottom
 
-val find_block_defs : SSA.block -> def ID.Map.t 
+  val bottom : t
+  val combine : t -> t -> t 
+  val eq : t -> t -> bool   
+end
 
-val find_function_defs : SSA.fundef -> def ID.Map.t
+val find_defs : SSA.fundef -> (ID.t, DefLattice.t) Hashtbl.t 
  
