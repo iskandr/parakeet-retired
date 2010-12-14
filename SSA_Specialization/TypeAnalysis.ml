@@ -11,10 +11,12 @@ module type TYPE_ANALYSIS_PARAMS = sig
   val signature : Signature.t 
 end
   
-let get_type tenv id = 
-  if ID.Map.mem id tenv 
+let get_type tenv id = Hashtbl.find_default tenv id DynType.BottomT  
+let add_type tenv id t = Hashtbl.add tenv id t; tenv 
+  (*if ID.Map.mem id tenv 
   then ID.Map.find id tenv 
   else DynType.BottomT
+  *)
 
 (* TODO: make this complete for all SSA statements *) 
 let rec is_scalar_stmt = function
@@ -26,20 +28,22 @@ let rec is_scalar_stmt = function
 and all_scalar_stmts = List.for_all is_scalar_stmt    
 
 module MkAnalysis (P : TYPE_ANALYSIS_PARAMS) = struct
-  type env = DynType.t ID.Map.t 
+  type env = (ID.t, DynType.t) Hashtbl.t  
   type exp_info = DynType.t list
   type value_info = DynType.t 
   
   let init fundef =
-    let inTypes = Signature.input_types P.signature in  
-    let tenv = ID.Map.extend ID.Map.empty fundef.input_ids inTypes in   
-    if Signature.has_output_types P.signature then 
-      let outTypes = Signature.output_types signature in 
-      ID.Map.extend tenv fundef.output_ids outTypes 
-    else tenv
+    let inTypes = Signature.input_types P.signature in 
+    let tenv = Hashtbl.create 127 in
+    List.iter2 (fun id t -> Hashtbl.add tenv id t) fundef.input_ids inTypes;    
+    (if Signature.has_output_types P.signature then 
+      let outTypes = Signature.output_types signature in
+      List.iter2 (fun id t -> Hashtbl.add tenv id t) fundef.output_ids outTypes   
+    );  
+    tenv 
    
   let value tenv = function 
-    | Var id -> get_type context id
+    | Var id -> get_type tenv id
     | Num _ -> PQNum.type_of_num n
     | Str _ -> DynType.StrT
     | Sym _ -> DynType.SymT
@@ -99,7 +103,7 @@ module MkAnalysis (P : TYPE_ANALYSIS_PARAMS) = struct
         let newT = DynType.common_type oldT rhsT in 
         let changedT = oldT <> newT in
         let tenv' = 
-          if changedT then ID.Map.add id newT tenv else tenv 
+          if changedT then add_type tenv id newT else tenv 
         in 
         tenv', (changed || changedT)
       in 
