@@ -38,8 +38,7 @@ module ConstantAnalysis = struct
     | _ -> List.map (fun _ -> ConstantLattice.top) expNode.exp_types
   
   let stmt env stmtNode stmtInfo = match stmtNode.stmt, stmtInfo with
-    (* TODO: reusing the flow_merge function is hackish and probably*)
-    (* inefficient *)  
+    (* TODO: Fix!*) 
     | Set(ids, _), SetInfo vs -> flow_merge env ids env ids env ids  
     | _ -> None    
 end

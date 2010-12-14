@@ -46,34 +46,35 @@ module MkAnalysis (P : TYPE_ANALYSIS_PARAMS) = struct
     | Unit -> DynType.UnitT
     | _ -> DynType.AnyT   
   
-  let exp tenv expNode info = match expNode, info with 
-    | App(fn, args), AppInfo(fnT, argTypes)->
-      (match fn.value  with 
-      | Var id ->
-          (* if the identifier would evaluate to a function value...*) 
-          if Hashtbl.mem P.closures id then
-            let fnVal = Hashtbl.find P.closures id in 
-            let closureArgIds = Hashtbl.find P.closure_args in 
-            let closureArgTypes = List.map (get_type tenv) closureArgIds in 
-            let signature = 
-              Signature.from_input_types (closureArgTypes@argTypes) 
-            in 
-            P.infer_output_types fnVal signature  
+  let rec infer_app fnVal fnT argTypes = match fnVal with
+    | Var id ->
+        (* if the identifier would evaluate to a function value...*) 
+        if Hashtbl.mem P.closures id then
+          let fnVal' = Hashtbl.find P.closures id in 
+          let closureArgIds = Hashtbl.find P.closure_args in 
+          let closureArgTypes = List.map (get_type tenv) closureArgIds in
+          (* the type of the function doesn't matter, since that's what*)
+          (* we're inferring right now *)
+          infer_app fnVal' DynType.AnyT (closureArgTypes@argTypes)  
              
-          else if DynType.is_vec fnType then   
-            (* if ID doesn't evaluate to a function, assume it evaluates to 
-               an array 
-            *) 
-            [TypeInfer.infer_simple_array_op Prim.Index (fnType::argTypes)]   
-          else assert false 
-      | Prim.ArrayOp Prim.Map -> failwith "map not implemented"
-      | Prim.ArrayOp Prim.Reduce -> failwith "reduce not implemented"
-      | Prim.ArrayOp Prim.Scan -> failwith "scan not implemented" 
-      | fnVal -> 
-          let signature = Signature.from_input_types argTypes in
-          let typedFn = T.specialize fnVal signature in
-          typedFn.output_types     
-     )
+        else if DynType.is_vec fnType then   
+          [TypeInfer.infer_simple_array_op Prim.Index (fnType::argTypes)]   
+        else assert false 
+    | Prim.ArrayOp Prim.Map -> failwith "map not implemented"
+    | Prim.ArrayOp Prim.Reduce -> failwith "reduce not implemented"
+    | Prim.ArrayOp Prim.Scan -> failwith "scan not implemented" 
+    | Prim.ArrayOp arrayOp ->
+        [TypeInfer.infer_simple_array_op arrayOp argTypes]
+    | Prim.ScalarOp scalarOp -> 
+        [TypeInfer.infer_scalar_op scalarOp argTypes] 
+    | GlobalFn _ -> 
+        let signature = Signature.from_input_types argTypes in
+        let typedFn = T.specialize fnVal signature in
+        typedFn.output_types     
+    | _ -> assert false       
+  let exp tenv expNode info = match expNode, info with 
+    | App(fn, _), AppInfo(fnT, argTypes)-> infer_app fn.value fnT argTypes  
+      
     | _, ArrayInfo eltTypes ->
       let commonT = DynType.fold_type_list eltTypes in 
       assert (commonT <> DynType.AnyT); 
