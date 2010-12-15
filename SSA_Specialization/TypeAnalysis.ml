@@ -50,23 +50,15 @@ module MkAnalysis (P : TYPE_ANALYSIS_PARAMS) = struct
     | Unit -> DynType.UnitT
     | _ -> DynType.AnyT   
   
-  let rec infer_app fnVal fnT argTypes = match fnVal with
+  let rec infer_app fnVal argTypes = match fnVal with
     | Var id ->
         (* if the identifier would evaluate to a function value...*) 
         if Hashtbl.mem P.closures id then
           let fnVal' = Hashtbl.find P.closures id in 
           let closureArgIds = Hashtbl.find P.closure_args in 
           let closureArgTypes = List.map (get_type tenv) closureArgIds in
-          (* the type of the function doesn't matter, since that's what*)
-          (* we're inferring right now *)
-          infer_app fnVal' DynType.AnyT (closureArgTypes@argTypes)  
-             
-        else if DynType.is_vec fnType then   
-          [TypeInfer.infer_simple_array_op Prim.Index (fnType::argTypes)]   
+          infer_app fnVal' (closureArgTypes@argTypes)  
         else assert false 
-    | Prim.ArrayOp Prim.Map -> failwith "map not implemented"
-    | Prim.ArrayOp Prim.Reduce -> failwith "reduce not implemented"
-    | Prim.ArrayOp Prim.Scan -> failwith "scan not implemented" 
     | Prim.ArrayOp arrayOp ->
         [TypeInfer.infer_simple_array_op arrayOp argTypes]
     | Prim.ScalarOp scalarOp -> 
@@ -75,10 +67,28 @@ module MkAnalysis (P : TYPE_ANALYSIS_PARAMS) = struct
         let signature = Signature.from_input_types argTypes in
         let typedFn = T.specialize fnVal signature in
         typedFn.output_types     
-    | _ -> assert false       
-  let exp tenv expNode info = match expNode, info with 
-    | App(fn, _), AppInfo(fnT, argTypes)-> infer_app fn.value fnT argTypes  
-      
+    | _ -> assert false
+
+  let infer_higher_order arrayOp args argTypes =
+    match arrayOp, args, argTypes with 
+    | Prim.Map, {value=fnVal}::_, _::dataTypes ->
+        if List.for_all DynType.is_scalar dataTypes then 
+          failwith "expected at least one argument to map to be a vector"
+        ; 
+        (* we're assuming Map works only along the outermost axis of an array *) 
+        let eltTypes = List.map DynType.peel_vec dataTypes in 
+        let eltResultTypes = infer_app fnVal dataTypes in 
+        List.map (fun t -> DynType.VecT t) eltResultTypes     
+    | _ -> failwith "not implemented"     
+
+
+  let exp tenv expNode info = match expNode, info with
+    | App({value=Prim.ArrayOp arrayOp}, args), AppInfo(_, argTypes)
+        when Prim.is_higher_order arrayOp -> 
+          infer_higher_order arrayOp args argTypes
+    | App (fn, _), AppInfo(fnT, argTypes) when DynType.is_vec fnT -> 
+        [TypeInfer.infer_simple_array_op Prim.Index (fnT::argTypes)]   
+    | App(fn, _), AppInfo(fnT, argTypes)-> infer_app fn.value argTypes  
     | _, ArrayInfo eltTypes ->
       let commonT = DynType.fold_type_list eltTypes in 
       assert (commonT <> DynType.AnyT); 
