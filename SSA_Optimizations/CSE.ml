@@ -13,7 +13,7 @@ let is_safe_exp expNode = match expNode.exp with
 (* fills an environment, followed by a rewrite *) 
 
 module CSE_Rules = struct
-  type env = (exp, value) Hashtbl.t   
+  type context = (exp, value) Hashtbl.t   
   let init _ = Hashtbl.create 127 
   let dir = Forward
   

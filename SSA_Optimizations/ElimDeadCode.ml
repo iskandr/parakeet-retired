@@ -3,7 +3,7 @@ open SSA
 open SSA_Transform
 
 module DCE_Rules = struct 
-  type env = ID.t MutableSet.t 
+  type context = ID.t MutableSet.t 
   let init fundef = FindLiveIds.find_live_ids fundef
   let dir = Forward 
   let stmt liveSet stmtNode = match stmtNode.stmt with
@@ -22,6 +22,7 @@ module DCE_Rules = struct
       if List.exists (MutableSet.mem liveSet) ids then None  
       else Some [] 
   | _ -> None 
+  
  
   let exp _ _ = NoChange  
   let value _ _ = NoChange   

@@ -9,7 +9,7 @@ module type REPLACE_PARAMS = sig
 end 
 module Replace_Rules(P: REPLACE_PARAMS) = struct
   include P 
-  type env = unit 
+  type context = unit 
   let init _ = () 
   let dir = Forward 
   

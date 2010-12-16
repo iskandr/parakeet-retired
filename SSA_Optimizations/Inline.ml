@@ -57,7 +57,7 @@ end
 module Inline_Rules (P:INLINE_PARAMS) = struct
   include P 
    
-  type env = (DynType.t ID.Map.t) ref
+  type context = (DynType.t ID.Map.t) ref
   let init fundef = ref fundef.tenv   
   let dir = Forward 
   
