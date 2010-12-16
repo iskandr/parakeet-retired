@@ -3,7 +3,6 @@ open Base
 open SSA 
 
 module type TYPE_ANALYSIS_PARAMS = sig 
-  val interpState : InterpState.t
   val closures : (ID.t, value) Hashtbl.t
   val closureArgs : (ID.t, ID.t list) Hashtbl.t
   val closureArity : (ID.t, int) Hashtbl.t
@@ -33,7 +32,7 @@ module MkAnalysis (P : TYPE_ANALYSIS_PARAMS) = struct
   type value_info = DynType.t 
   
   let init fundef =
-    let inTypes = Signature.input_types P.signature in 
+    let inTypes = Signature.input_types P.signature in
     let tenv = Hashtbl.create 127 in
     List.iter2 (fun id t -> Hashtbl.add tenv id t) fundef.input_ids inTypes;    
     (if Signature.has_output_types P.signature then 
@@ -126,9 +125,8 @@ end
 
 type specializer = SSA.value -> Signature.t -> SSA.fundef
    
-let type_analysis interpState infer_output_types closureEnv fundef signature = 
+let type_analysis infer_output_types closureEnv fundef signature = 
   let module Params : TypeAnalysis.TYPE_ANALYSIS_PARAMS = struct 
-    let interpState = interpState
     let closures = closureEnv.CollectPartialApps.closures
     let closureArgs = closureEnv.CollectPartialApps.closure_args 
     let closureArity = closureEnv.CollectPartialApps.closure_arity 

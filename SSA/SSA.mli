@@ -1,12 +1,12 @@
 (********** VALUES **********)
 type value = 
   | Var of ID.t
-  | GlobalFn of FnId.t  
   | Num of PQNum.num 
   | Str of string
   | Sym of string
   | Unit
   | Prim of Prim.prim
+  | GlobalFn of FnId.t  
 
 and value_node = { 
   value_type : DynType.t;

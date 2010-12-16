@@ -12,7 +12,8 @@ type 'a update =
 module type TRANSFORM_RULES = sig
   type env 
   val init : fundef -> env 
-  val dir : direction 
+  val dir : direction
+  val fundef : env -> fundef -> fundef update  
   val stmt : env -> stmt_node -> (stmt_node list) option  
   val exp : env -> exp_node -> exp_node update 
   val value : env -> value_node -> value_node update 
@@ -22,9 +23,11 @@ module DefaultRules (E : SSA_Analysis.ENV) = struct
   type env = E.t
   let init = E.init 
   let dir = Forward
+  let fundef _ _ = NoChange
   let stmt _ _ = None 
   let exp _ _ = NoChange
   let value _ _ = NoChange 
+  
 end
 
 module BlockState = struct 
@@ -155,11 +158,23 @@ module MkTransformation(R : TRANSFORM_RULES) = struct
     | None -> assert false 
     | Some e -> e 
    
+  (* 1) initialize the generic environment type 
+     2) run transformations over all statements in the body 
+     3) run a final transformation on the full function definition 
+  *) 
   let transform_fundef fundef =
     let env = R.init fundef in
     set_env env;     
     let body', changed = transform_block env fundef.body in
-    {fundef with body = body'}, changed 
+    let fundef' = {fundef with body = body'} in  
+    match R.fundef env fundef' with 
+      | NoChange -> fundef', changed
+      | Update fundef'' -> fundef'', true 
+      | UpdateWithStmts (fundef'', stmts) -> 
+        { fundef'' with body = block_append (block_of_list stmts) body'}, true   
+          
+      | UpdateWithBlock (fundef'', block) ->
+        { fundef'' with body = block_append block body' }, true     
 end 
 
 module DefaultTransformation (E: SSA_Analysis.ENV) = 
