@@ -74,7 +74,7 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
     | Var id -> () 
 
           
-  let rewrite_exp 
+  let rewrite_exp helpers 
         (processVal : (value_node->value_node update)->value_node->value_node)
         expNode 
         types =
@@ -94,7 +94,7 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
     in 
     Update {expNode with exp=exp'; exp_types = types}         
   
-  let rewrite_stmt context processExp processVal stmtNode =
+  let rewrite_stmt context helpers stmtNode =
     match stmtNode.stmt with
     | Set(ids, rhs) -> 
         let rhsTypes = List.map (Hashtbl.find P.tenv) ids in 

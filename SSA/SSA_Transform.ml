@@ -9,15 +9,7 @@ type 'a update =
   | UpdateWithStmts of 'a * (stmt_node list)
   | UpdateWithBlock of 'a * block
 
-
-(* used for top-down transformations *) 
-type val_helper = (value_node -> value_node update) -> value_node -> value_node
-type exp_helper = (exp_node -> exp_node update) -> exp_node -> exp_node   
-
-type 'a custom_traversal = 
-  'a -> exp_helper -> val_helper -> stmt_node -> (stmt_node list) option
-
-module type TRANSFORM_RULES = sig
+module type SIMPLE_TRANSFORM_RULES = sig
   val dir : direction
   type context
   val init : fundef -> context  
@@ -26,19 +18,23 @@ module type TRANSFORM_RULES = sig
   val stmt : env -> stmt_node -> (stmt_node list) option  
   val exp : env -> exp_node -> exp_node update 
   val value : env -> value_node -> value_node update 
-  
-  val custom_traversal : (context custom_traversal) option 
 end
 
-module DefaultRules (E : SSA_Analysis.ENV) = struct
-  type env = E.t
-  let init = E.init 
-  let dir = Forward
-  let fundef _ _ = NoChange
-  let stmt _ _ = None 
-  let exp _ _ = NoChange
-  let value _ _ = NoChange 
-  let custom_traversal = None 
+(* used for custom top-down transformations *) 
+type rewrite_helpers = { 
+  get_version : unit -> int; 
+  changed : int -> bool; 
+  val_helper:  (value_node -> value_node update) -> value_node -> value_node; 
+  exp_helper: (exp_node -> exp_node update) -> exp_node -> exp_node;
+}  
+
+module type CUSTOM_TRANSFORM_RULES = sig
+  val dir : direction 
+  type context 
+  val init : fundef -> context 
+  val finalize : context -> fundef -> fundef update
+  
+  val stmt : context -> rewrite_helpers -> stmt_node -> (stmt_node list) option  
 end
 
 module BlockState = struct 
@@ -88,12 +84,7 @@ module BlockState = struct
 end 
 open BlockState 
 
-module type TRANSFORMATION = sig 
-  val transform_fundef : fundef -> fundef * bool     
-end
-module MkTransformation(R : TRANSFORM_RULES) = struct 
-  type context = R.context 
-   
+module MkCustomTransform(R : CUSTOM_TRANSFORM_RULES) = struct 
   let rec transform_block cxt block = 
     let blockState = BlockState.create() in  
     let n = SSA.block_length block in
@@ -109,60 +100,19 @@ module MkTransformation(R : TRANSFORM_RULES) = struct
     );
     BlockState.finalize blockState 
      
-  and transform_stmt blockState cxt stmtNode = 
-    let oldNumChanges = blockState.changes in
+  and transform_stmt blockState cxt stmtNode =
+    let helpers = { 
+      get_version = (fun() -> blockState.changes); 
+      changed = (fun n -> BlockState.changes <> n); 
+      val_helper = 
+        (fun f node -> BlockState.process_update blockState node (f node));
+      exp_helper = 
+        (fun f node -> BlockState.process_update blockState node (f node));
+    }
+    in 
+    let stmtUpdate = R.stmt cxt helpers stmtNode in 
+    BlockState.process_stmt_update blockState stmtNode stmtUpdate 
     
-    let stmtNode' = match stmtNode.stmt with 
-    | Set (ids, rhsExpNode) ->
-      let rhsExpNode' = transform_exp blockState cxt rhsExpNode in  
-      if oldNumChanges <> blockState.changes then 
-        {stmtNode with stmt=Set(ids, rhsExpNode') }
-      else stmtNode 
-     
-    | SetIdx (id, indices, rhsVal) ->
-        let indices' = transform_values blockState cxt indices in
-        let rhsVal' =  transform_value blockState cxt rhsVal in
-        if oldNumChanges <> blockState.changes  then 
-          {stmtNode with stmt=SetIdx(id, indices', rhsVal')} 
-        else stmtNode 
-    | If (v, tBlock, fBlock, ifGate) -> 
-        failwith "if not implemented" 
-    | WhileLoop (condBlock, condId, bodyBlock, loopGate) -> 
-        failwith "loop not implemented" 
-  in
-  BlockState.process_stmt_update blockState stmtNode' (R.stmt env stmtNode')
-     
-  and transform_exp blockState cxt expNode = 
-    let oldNumChanges = blockState.changes in 
-    let expNode' = match expNode.exp with 
-    | Values vs ->
-      let vs' = transform_values blockState cxt vs in
-      if blockState.changes <> oldNumChanges then 
-        {expNode with exp = Values vs'}
-      else expNode 
-    | App(fn,args) ->
-      let fn'= transform_value blockState env fn in 
-      let args' = transform_values blockState cxt args in
-      if blockState.changes <> oldNumChanges then 
-        {expNode with exp = App(fn', args') } 
-      else expNode
-  in 
-  BlockState.process_update blockState expNode' (R.exp env expNode')    
-
-  and transform_values blockState cxt ?(revAcc=[])  = function  
-  | [] -> List.rev revAcc 
-  | v::vs ->
-      let oldNumChanges = blockState.changes in 
-      let v' = transform_value blockState cxt v in 
-      transform_values
-        blockState  
-        cxt 
-        ~revAcc:(v' :: revAcc) 
-        vs
-          
-  and transform_value blockState cxt vNode = 
-    BlockState.process_update blockState vNode (R.value cxt vNode)
-
   (* these exist so we can access the transform env from outside functions, *)
   (* in case it contains useful information *) 
   let globalContext = ref None 
@@ -185,10 +135,60 @@ module MkTransformation(R : TRANSFORM_RULES) = struct
       | Update fundef'' -> fundef'', true 
       | UpdateWithStmts (fundef'', stmts) -> 
         { fundef'' with body = block_append (block_of_list stmts) body'}, true   
-          
       | UpdateWithBlock (fundef'', block) ->
         { fundef'' with body = block_append block body' }, true     
 end 
 
-module DefaultTransformation (E: SSA_Analysis.ENV) = 
-  MkTransformation(DefaultRules(E))
+module CustomFromSimple(R: SIMPLE_TRANSFORM_RULES) = struct
+  let dir = R.dir 
+  
+  type context = R.context
+  let init = R.init
+  let finalize = R.finalize 
+  
+  let transform_value helpers cxt vNode = 
+    helpers.value_helper (R.value cxt) vNode
+     
+  let transform_values vNodes = List.map transform_value vNodes   
+  
+  let transform_exp helpers cxt expNode =
+    let oldV = helpers.version () in
+    let changed () = helpers.version () <> oldV in  
+    let expNode' = match expNode.exp with 
+    | Values vs -> 
+      let vs' = transform_values helpers cxt vs in
+      if changed() then {expNode with exp = Values vs'} else expNode  
+    | App(fn,args) -> 
+      let fn' = transform_value helpers cxt fn in 
+      let args' = transform_values helpers cxt args in 
+      if changed () then {expNode with exp = App(fn', args')} 
+      else expNode 
+    | _ -> failwith "not implemented"  
+    in 
+    helpers.exp_helper (R.exp cxt) expNode'  
+           
+  let stmt cxt helpers stmtNode =
+    let oldV = helpers.version () in
+    let changed () = helpers.version () <> oldV in  
+    let stmtNode' = match stmtNode.stmt with 
+    | Set (ids, rhsExpNode) ->
+      let rhsExpNode' = transform_exp helpers cxt rhsExpNode in  
+      if changed() then {stmtNode with stmt=Set(ids, rhsExpNode') }
+      else stmtNode 
+     
+    | SetIdx (id, indices, rhsVal) ->
+        let indices' = transform_values helpers cxt indices in
+        let rhsVal' =  transform_value helpers cxt rhsVal in
+        if changed()  then 
+          {stmtNode with stmt=SetIdx(id, indices', rhsVal')} 
+        else stmtNode 
+    | If (v, tBlock, fBlock, ifGate) -> 
+        failwith "if not implemented" 
+    | WhileLoop (condBlock, condId, bodyBlock, loopGate) -> 
+        failwith "loop not implemented"
+    in 
+    BlockState.process_stmt_update (R.stmt cxt stmtNode')
+end 
+
+module MkSimpleTransform(R : SIMPLE_TRANSFORM_RULES) = 
+  MkCustomTransform(CustomFromSimple(R)) 
