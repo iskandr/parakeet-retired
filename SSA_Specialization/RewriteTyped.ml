@@ -26,9 +26,22 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
   let finalize _ f = 
     Update {f with tenv = Hashtbl.fold ID.Map.add P.tenv ID.Map.empty } 
 
+  let get_type id = Hashtbl.find P.tenv id 
+  let set_type id t = Hashtbl.replace P.tenv id t 
+  
+  let is_closure id = Hashtbl.mem P.closureEnv.CollectPartialApps.closures id
+  
+  let get_closure_val id = 
+    Hashtbl.find P.closureEnv.CollectPartialApps.closures id
+  let get_closure_args id = 
+    Hashtbl.find P.closureEnv.CollectPartialApps.closure_args id
+  
+  let get_closure_arity id = 
+    Hashtbl.find P.closureEnv.CollectPartialApps.closure_arity id   
+   
   let infer_value valNode = 
     let t = match valNode.value with 
-    | Var id -> Hashtbl.find P.tenv id 
+    | Var id -> get_type id 
     | Num n -> PQNum.type_of_num n 
     | Str _ -> DynType.StrT
     | Sym _ -> DynType.SymT
@@ -70,15 +83,31 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
           (SSA.value_node_to_str valNode) (DynType.to_str t)
   
   
-  let rewrite_app tenv fnVal argNodes = match fnVal with 
-    | Var id -> () 
-
-          
-  let rewrite_exp helpers 
-        (processVal : (value_node->value_node update)->value_node->value_node)
-        expNode 
-        types =
-    let process_values = List.map (processVal infer_value) in 
+  let rewrite_app fnVal argNodes = match fnVal with
+    | Prim p -> (* specialize? *) 
+    | GlobalFn fnId -> (* specialize? *)  
+    | Var id -> 
+      if is_closure id then
+        let closureval = get_closure_val id in 
+        let closureArgIds = get_closure_args id in 
+        let closureArgTypes = List.map get_type closureArgIds in 
+        let directArgTypes = 
+          List.map (fun vNode -> vNode.value_type) argNodes 
+        in 
+        let types = closureArgTypes @ directArgTypes in 
+        (* specialize closureVal to types *) 
+        
+        (* ... *) 
+        let closureArgVals = 
+          List.map2 
+            (fun id t -> SSA.mk_var ~ty:t id) 
+            closureArgIds 
+            closureArgTypes 
+        in 
+        ()
+      else (* array indexing? *)   
+  let rewrite_exp processVal types expNode =
+    let infer_values = List.map (processVal infer_value) in 
     let exp' = match expNode.exp, types with 
       | Arr elts, [DynType.VecT eltT] ->
         let elts' =
@@ -89,22 +118,33 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
         let vs' = List.map2 (fun v t -> processVal (coerce_value t) vs types in 
         Values vs'
       | App (fn, args) ->
-        let args' = process_values args in 
+        let args' = infer_values args in 
         rewrite_app fn.value args'       
     in 
     Update {expNode with exp=exp'; exp_types = types}         
   
-  let rewrite_stmt context helpers stmtNode =
+  let stmt context helpers stmtNode =
     match stmtNode.stmt with
     | Set(ids, rhs) -> 
-        let rhsTypes = List.map (Hashtbl.find P.tenv) ids in 
-        let rhs', stmts, changed = coerce_exp rhs rhsTypes in 
-        if changed then 
-          let stmtNode' = {stmtNode with stmt = Set(ids, rhs') } in 
-          Some (stmts @ [stmtNode'])
-        else None 
-    | _ -> None 
-
+        let rhsTypes = List.map (Hashtbl.find P.tenv) ids in
+        let rhs' = 
+          helpers.process_exp (rewrite_exp helpers.process_value rhsTypes) rhs 
+        in 
+        Update {stmtNode with stmt = Set(ids, rhs')}
+    | SetIdx (arrayId, indices, rhs) -> failwith "setidx not implemented"
+    | If(cond, tBlock, fBlock, gate) -> 
+        let cond' = helpers.process_value (coerce_value DynType.BoolT) cond in
+        let tBlock' = helpers.process_block (stmt context) tBlock in 
+        let fBlock' = helpers.process_block (stmt context) fBlock in 
+        Some [{stmtNode with stmt = If(cond', tBlock', fBlock',gate)}]
+    | WhileLoop(condBlock, condVal, body, gate) -> 
+        let condBlock' = helpers.process_block (stmt context) condBlock in
+        let condVal' = 
+          helpers.process_value (coerce_value DynType.BoolT) condVal 
+        in  
+        let body' = helpers.process_block (stmt context) body in
+        Update {stmtNode with stmt=WhileLoop(condBlock', condVal', body', gate)} 
+    
 end 
 
 let rewrite_typed tenv closureEnv specializer fundef =
@@ -114,6 +154,6 @@ let rewrite_typed tenv closureEnv specializer fundef =
     let specializer = specializer 
   end
   in    
-  let module Transform = SSA_Transform.MkTransformation(Rewrite_Rules(Params))
+  let module Transform = SSA_Transform.MkCustomTransform(Rewrite_Rules(Params))
   in
   Transform.rewrite_fundef fundef  

@@ -12,16 +12,16 @@ module DCE_Rules = struct
       let livePairs, deadPairs = 
         List.partition (fun (id,_) -> MutableSet.mem liveSet id) pairs 
       in
-      if deadPairs = [] then None
-      else if livePairs = [] then Some [] 
+      if deadPairs = [] then NoChange
+      else if livePairs = [] then Some SSA.empty_stmt 
       else 
         let liveIds, liveValues = List.split livePairs in
         let rhs = {expNode with exp=Values liveValues} in  
-        Some [SSA.mk_set ?src:stmtNode.stmt_src liveIds rhs]      
+        Update (SSA.mk_set ?src:stmtNode.stmt_src liveIds rhs)      
   | Set (ids, exp) -> 
-      if List.exists (MutableSet.mem liveSet) ids then None  
-      else Some [] 
-  | _ -> None 
+      if List.exists (MutableSet.mem liveSet) ids then NoChange  
+      else Update SSA.empty_stmt
+  | _ -> NoChange
   
  
   let exp _ _ = NoChange  
