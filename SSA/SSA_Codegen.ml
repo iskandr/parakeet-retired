@@ -58,8 +58,8 @@ end
 (* Once the body is finished, wrap up the code and type environment *)
 (* as a fundef *)   
 let mk_codegen_fn 
-      inputTypes 
-      outputTypes 
+      (inputTypes : DynType.t list) 
+      (outputTypes  : DynType.t list) 
       (constr : ssa_codegen -> value_node array -> value_node array -> unit)  = 
   let codegen = new ssa_codegen in 
   let inputIds = List.map codegen#fresh_var inputTypes in 
