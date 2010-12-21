@@ -4,33 +4,53 @@ open Base
 open SSA 
 open SSA_Transform 
 
-module type REPLACE_PARAMS = sig
-  val idMap : ID.t ID.Map.t  
-end 
-module Replace_Rules(P: REPLACE_PARAMS) = struct
-  include P 
-  type context = unit 
-  let init _ = () 
-  let finalize _ _ = NoChange 
-  let dir = Forward 
-  
-  let rec replace_id_list = function 
+let rec replace_id_list = function 
   | [] -> [], false
   | id::ids -> 
-      let ids', changed = replace_id_list ids in 
-      if ID.Map.mem id idMap then (ID.Map.find id idMap)::ids', true
-      else id::ids', changed 
-      
-  let value _ valNode = match valNode.value with  
-    | Var id -> 
-      if ID.Map.mem id idMap then 
-        Update { valNode with value= Var (ID.Map.find id idMap) }
-      else NoChange 
-    | _ -> NoChange
- 
-  let exp _ _ = NoChange
-   
-  let stmt _ stmtNode = match stmtNode.stmt with 
+    let ids', changed = replace_id_list ids in 
+    if ID.Map.mem id idMap then (ID.Map.find id idMap)::ids', true
+    else id::ids', changed 
+  
+let replace_value idMap valNode = match valNode.value with  
+  | Var id -> 
+    if ID.Map.mem id idMap then 
+      { valNode with value= Var (ID.Map.find id idMap) }
+    else valNode  
+  | _ -> valNode 
+
+let replace_values idMap valNodes = match valNodes with  
+  | [] -> []
+  | v::vs -> 
+    let v' = replace_value idMap v in 
+    let vs' = replace_values idMap vs in 
+    if v ==  v' && vs == vs' then valNodes 
+    else v'::vs'  
+
+let replace_exp idMap expNode = match expNode.exp with 
+  | App (fn,args) ->
+    let fn' = replace_value idMap fn in 
+    let args' = replace_values idMap args in 
+    if fn != fn' || args != args' then {expNode with exp = App(fn', args')}
+    else expNode 
+  | Arr of value_nodes
+  | Values of value_nodes
+  (* nodes below are only used after type specialization *) 
+  | Cast of DynType.t * value_node  
+  | Call of typed_fn * value_nodes 
+  | PrimApp of typed_prim * value_nodes  
+  | Map of closure * value_nodes
+  | Reduce of closure * closure * value_nodes   
+  | Scan of closure * closure * value_nodes 
+  | Arr elts ->
+  | Values vals ->
+  | Cast (t, v) -> of DynType.t * value_node  
+  | Call (typedFn, args) ->  
+  | PrimApp (typedPrim, args) ->   
+  | Map (closure, args) -> 
+  | Reduce (initClosure, reduceClosure, args) ->    
+  | Scan (initClosure, reduceClosure, args) -> 
+     
+let stmt cxt helpers stmtNode = match stmtNode.stmt with 
     | Set (ids, rhs) ->
         let ids', changed = replace_id_list ids in 
         if changed then 
@@ -51,6 +71,9 @@ module Replace_Rules(P: REPLACE_PARAMS) = struct
         } in Update (SSA.mk_if ?src:stmtNode.stmt_src c t f gate') 
       else NoChange   
     | _ -> NoChange 
+      
+
+   
 end
 
       

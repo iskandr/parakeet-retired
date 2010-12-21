@@ -88,6 +88,8 @@ end
 open BlockState 
 
 module MkCustomTransform(R : CUSTOM_TRANSFORM_RULES) = struct 
+  
+  
   let rec transform_block 
           (rewriteStmt : rewrite_helpers -> stmt_node -> stmt_node update) 
           (block:block) = 
@@ -159,8 +161,17 @@ module CustomFromSimple(R: SIMPLE_TRANSFORM_RULES) = struct
   let transform_value helpers cxt vNode = 
     helpers.process_value (R.value cxt) vNode
      
-  let transform_values helpers cxt vNodes = 
-    List.map (transform_value helpers cxt) vNodes   
+  let rec transform_values helpers cxt vNodes = match vNodes with 
+    | [] -> []
+    | v::vs -> 
+      let v' = transform_value helpers cxt v in 
+      let vs' = transform_values helpers cxt vs in
+      (* check for memory equality of returned results to avoid
+         creating redundant cons cells 
+      *)
+      if v == v' || vs == vs' then vNodes
+      else v'::vs' 
+     
   
   let transform_exp helpers cxt expNode =
     let oldV = helpers.version () in
@@ -213,3 +224,4 @@ end
 
 module MkSimpleTransform(R : SIMPLE_TRANSFORM_RULES) = 
   MkCustomTransform(CustomFromSimple(R)) 
+   
