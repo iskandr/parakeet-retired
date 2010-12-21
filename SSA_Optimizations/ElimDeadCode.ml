@@ -5,6 +5,7 @@ open SSA_Transform
 module DCE_Rules = struct 
   type context = ID.t MutableSet.t 
   let init fundef = FindLiveIds.find_live_ids fundef
+  let finalize _ _ = NoChange 
   let dir = Forward 
   let stmt liveSet stmtNode = match stmtNode.stmt with
   | Set (ids, ({exp=Values vs} as expNode)) -> 
@@ -13,7 +14,7 @@ module DCE_Rules = struct
         List.partition (fun (id,_) -> MutableSet.mem liveSet id) pairs 
       in
       if deadPairs = [] then NoChange
-      else if livePairs = [] then Some SSA.empty_stmt 
+      else if livePairs = [] then Update SSA.empty_stmt 
       else 
         let liveIds, liveValues = List.split livePairs in
         let rhs = {expNode with exp=Values liveValues} in  

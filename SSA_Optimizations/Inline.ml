@@ -13,28 +13,21 @@ let do_inline fundef argVals =
       idSet 
       ID.Map.empty
   in   
-  let body', _ = Replace.replace_block replaceMap fundef.body in
-  let newInputIds = 
-    List.map (fun id -> ID.Map.find id replaceMap) fundef.input_ids in
-  let newOutputIds = 
-    List.map (fun id -> ID.Map.find id replaceMap) fundef.output_ids in
-  let inTypes = 
-    if fundef.fundef_type = DynType.BottomT then 
-      List.map (fun _ -> DynType.BottomT) newInputIds
-    else  DynType.fn_input_types fundef.fundef_type 
-  in
+  let freshFundef, _ = Replace.replace_fundef replaceMap fundef in 
   let argAssignments = 
-    mk_set newInputIds (SSA.mk_exp ~types:inTypes (Values argVals)) 
+    mk_set 
+      freshFundef.input_ids 
+      (SSA.mk_exp ~types:freshFundef.fundef_input_types (Values argVals)) 
   in
-  let outTypes =
-    if fundef.fundef_type = DynType.BottomT then 
-      List.map (fun _ -> DynType.BottomT) newOutputIds 
-    else DynType.fn_output_types fundef.fundef_type 
-  in 
   let outputValNodes = 
-    List.map2 (fun id t -> SSA.mk_var ~ty:t id) newOutputIds outTypes 
+    List.map2 
+      (fun id t -> SSA.mk_var ~ty:t id) 
+      freshFundef.output_ids 
+      freshFundef.fundef_output_types 
   in 
-  let outputExp = mk_exp ~types:outTypes (Values outputValNodes) in
+  let outputExp = 
+    mk_exp ~types:freshFundef.fundef_output_types (Values outputValNodes) 
+  in
   (* list of new ids and their types-- ignore types missing from tenv *) 
   let typesList : (ID.t * DynType.t) list = 
     ID.Set.fold  
@@ -47,8 +40,8 @@ let do_inline fundef argVals =
       idSet
       [] 
   in 
-  let body'' = block_append (block_of_stmt argAssignments) body' in  
-  body'', outputExp, typesList 
+  let body' = block_append (block_of_stmt argAssignments) freshFundef.body in  
+  body', outputExp, typesList 
   
 module type INLINE_PARAMS = sig 
   val lookup : FnId.t -> fundef option 
@@ -59,6 +52,7 @@ module Inline_Rules (P:INLINE_PARAMS) = struct
    
   type context = (DynType.t ID.Map.t) ref
   let init fundef = ref fundef.tenv   
+  let finalize _ _ = NoChange 
   let dir = Forward 
   
   let rec add_types_list envRef = function 
@@ -68,7 +62,7 @@ module Inline_Rules (P:INLINE_PARAMS) = struct
         add_types_list envRef rest 
         
          
-  let stmt envRef stmtNode = None       
+  let stmt envRef stmtNode = NoChange     
   let exp envRef expNode = match expNode.exp with 
     | App ({value=GlobalFn fnId} as fn, args) -> 
       (match P.lookup fnId with 
@@ -97,5 +91,5 @@ let run_fundef_inliner (functions : FnTable.t) fundef =
   in  
   let module Inliner = SSA_Transform.MkSimpleTransform(Inline_Rules(Params)) in
   let fundef', changed = Inliner.transform_fundef fundef in 
-  let tenv' = !(Inliner.get_env ()) in
+  let tenv' = !(Inliner.get_context ()) in
   {fundef' with tenv = tenv' }, changed    

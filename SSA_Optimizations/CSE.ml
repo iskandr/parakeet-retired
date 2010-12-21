@@ -15,6 +15,7 @@ let is_safe_exp expNode = match expNode.exp with
 module CSE_Rules = struct
   type context = (exp, value) Hashtbl.t   
   let init _ = Hashtbl.create 127 
+  let finalize _ _ = NoChange 
   let dir = Forward
   
   let stmt env stmtNode =  match stmtNode.stmt with 
