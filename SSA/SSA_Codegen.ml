@@ -57,7 +57,10 @@ end
 (* which emits SSA into the codegen. *)
 (* Once the body is finished, wrap up the code and type environment *)
 (* as a fundef *)   
-let mk_lambda inputTypes outputTypes fn  = 
+let mk_codegen_fn 
+      inputTypes 
+      outputTypes 
+      (constr : ssa_codegen -> value_node array -> value_node array -> unit)  = 
   let codegen = new ssa_codegen in 
   let inputIds = List.map codegen#fresh_var inputTypes in 
   let outputIds = List.map codegen#fresh_var outputTypes in 
@@ -74,9 +77,49 @@ let mk_lambda inputTypes outputTypes fn  =
         outputTypes
   in  
   (* allow user provided function to populate the codegen body *) 
-  let _ = fn codegen inputVars outputVars in
+  let _ = constr codegen inputVars outputVars in
   SSA.mk_fundef 
     ~body:codegen#finalize 
     ~tenv:codegen#get_type_env
     ~input_ids:inputIds
     ~output_ids:outputIds 
+    
+    
+let reduce = mk_op  (Prim.ArrayOp Prim.Reduce) 
+let map = mk_op (Prim.ArrayOp Prim.Map)
+let inf = mk_num (PQNum.Inf DynType.Float32T)
+let neginf = mk_num (PQNum.NegInf DynType.Float32T)
+
+let (:=) xs y = mk_set (List.map SSA.get_id xs) y 
+let (@@) fn args = mk_app fn args  
+let scalar_op op = mk_op (Prim.ScalarOp op)
+let array_op op = mk_op (Prim.ArrayOp op)
+
+type vars = value_node array 
+(* helper function for creating functions *) 
+let mk_fn 
+      (nInputs : int) 
+      (nOutputs : int) 
+      (nLocals : int) 
+      (bodyConstructor : vars -> var -> vars -> stmt_node list) =  
+  let inputs = ID.gen_fresh_array nInputs in
+  let inputVars = Array.map SSA.mk_var inputs in 
+  let outputs = ID.gen_fresh_array nOutputs in
+  let outputVars = Array.map SSA.mk_var outputs in
+  let locals = ID.gen_fresh_array nLocals in 
+  let localVars = Array.map SSA.mk_var locals in   
+  let body = SSA.block_of_list $
+    bodyConstructor inputVars outputVars localVars 
+  in 
+  mk_fundef 
+    ~input_ids:(Array.to_list inputs)
+    ~output_ids:(Array.to_list outputs)
+    ~tenv:ID.Map.empty 
+    ~body  
+
+(* special case for creating function with 1 input, 1 output *) 
+let fn1 constructor =
+  let constructorWrapper = 
+    fun inputs outputs _ -> constructor inputs.(0) outputs.(0)
+  in 
+  mk_fn 1 1 0 constructorWrapper   

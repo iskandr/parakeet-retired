@@ -4,7 +4,7 @@ let input_types s = s.inputs
 
 (* create a signature where we know only the input types *)  
 let from_input_types types = 
-  { inputs = types types; outputs = None } 
+  { inputs = types; outputs = None } 
 
 let from_types inTypes outTypes = 
   { inputs = inTypes; outputs = Some outTypes } 

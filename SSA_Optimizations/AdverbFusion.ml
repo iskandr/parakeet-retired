@@ -593,7 +593,7 @@ let optimize_block (fns : FnTable.t) useCounts block =
   in 
   rewrite_block adverbMap graveyard replaced block 
 *)
-let optimize_fundef (fns:FnTable.t) fundef = fundef 
+let optimize_fundef (fns:FnTable.t) fundef = fundef, false
   (*
   let useCounts = FindUseCounts.find_fundef_use_counts fundef in  
   (*let body', changed = optimize_block fns useCounts fundef.body in  

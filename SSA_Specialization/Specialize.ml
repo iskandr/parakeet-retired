@@ -6,10 +6,35 @@ open SSA_Codegen
 open DynType
 open Printf 
 
+(* make a fresh function definition whose body is only an untyped prim *) 
+let primFnCache : (Prim.prim * int, fundef) Hashtbl.t = Hashtbl.create 127  
+let mk_untyped_prim_fundef prim arity : fundef =
+  let key = (prim,arity) in 
+  if Hashtbl.mem primFnCache key  then 
+    Hashtbl.find primFnCache key
+  else 
+  let inputs = ID.gen_fresh_list arity in 
+  let output = ID.gen() in 
+  let bottoms = List.map (fun _ -> DynType.BottomT) inputs in 
+  let inputVars = List.map (fun id -> SSA.mk_var id) inputs in 
+  let rhs = SSA.mk_app ~types:bottoms (SSA.mk_val (Prim prim)) inputVars in    
+  let body = SSA.block_of_stmt (SSA.mk_set [output] rhs) in 
+  let fundef = SSA.mk_fundef inputs [output] body in 
+  (Hashtbl.add primFnCache key fundef; fundef) 
+  
 let rec specialize_value interpState fnVal signature =
   match InterpState.maybe_get_specialization interpState fnVal signature with
   | Some fnId -> InterpState.get_typed_function interpState fnId
   | None ->  
+    let fundef = match fnVal with 
+      | SSA.GlobalFn fnId -> InterpState.get_untyped_function interpState fnId 
+      | SSA.Prim p -> 
+          (* shouldn't we cache these too? *) 
+          let arity = List.length signature.inputs in
+          assert (arity >= Prim.min_prim_arity p && 
+                  arity <= Prim.max_prim_arity p); 
+          mk_untyped_prim_fundef p arity
+    in 
     let fundef', closureEnv =
       CollectPartialApps.collect_partial_apps interpState fundef 
     in

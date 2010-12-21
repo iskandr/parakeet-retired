@@ -1,3 +1,4 @@
+open SSA 
 
 type closure_env = { 
   closures : (ID.t, value) Hashtbl.t; 
