@@ -1,6 +1,6 @@
-type t = { sig_input: DynType.t list; sig_outputs: DynType.t list option } 
+type t = { inputs: DynType.t list; outputs: DynType.t list option } 
 
-let input_types s = List.map sig_elt_to_type s.inputs
+let input_types s = s.inputs
 
 (* create a signature where we know only the input types *)  
 let from_input_types types = 

@@ -5,12 +5,13 @@ open SourceInfo
 
 type value = 
   | Var of ID.t
-  | GlobalFn of FnId.t  
   | Num of PQNum.num 
   | Str of string
   | Sym of string
   | Unit
   | Prim of Prim.prim
+  | GlobalFn of FnId.t  
+
 
 and value_node = { 
   value_type : DynType.t;
@@ -100,7 +101,7 @@ type fundef = {
   input_ids:ID.t list;
   output_ids: ID.t list; 
   fundef_input_types : DynType.t list;
-  fundef_output_types : DynType.t list
+  fundef_output_types : DynType.t list;
   fundef_id : FnId.t; 
 }
 and tenv = DynType.t ID.Map.t 

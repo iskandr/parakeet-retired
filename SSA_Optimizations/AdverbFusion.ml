@@ -7,7 +7,7 @@ module StmtId = Int
 
 module StmtSet = StmtId.Set
 module StmtMap = StmtId.Map 
-
+(*
 (* map every value produced by an adverb to the array operation, *) 
 type adverb_descriptor = {
   adverb : Prim.array_op; 
@@ -592,11 +592,12 @@ let optimize_block (fns : FnTable.t) useCounts block =
       block
   in 
   rewrite_block adverbMap graveyard replaced block 
-
-let optimize_fundef (fns:FnTable.t) fundef =
+*)
+let optimize_fundef (fns:FnTable.t) fundef = fundef 
+  (*
   let useCounts = FindUseCounts.find_fundef_use_counts fundef in  
   (*let body', changed = optimize_block fns useCounts fundef.body in  
   {fundef with body = body' }, changed  
   *)
   fundef, false
-                                 
+*)                                 

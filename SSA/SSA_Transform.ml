@@ -21,11 +21,12 @@ end
 
 (* used for custom top-down transformations *) 
 type rewrite_helpers = { 
-  get_version : unit -> int; 
+  version : unit -> int; 
   changed : int -> bool; 
-  process_val:  (value_node -> value_node update) -> value_node -> value_node; 
+  process_value:  (value_node -> value_node update) -> value_node -> value_node; 
   process_exp: (exp_node -> exp_node update) -> exp_node -> exp_node;
-  process_block: (stmt_node -> stmt_node update) -> block -> block;
+  process_block: 
+    (rewrite_helpers -> stmt_node -> stmt_node update) -> block -> block;
 }  
 
 module type CUSTOM_TRANSFORM_RULES = sig
@@ -82,24 +83,27 @@ module BlockState = struct
    
   let process_stmt_update blockState stmtNode update =
     let stmtNode' = process_update blockState stmtNode update in 
-    add_block blockState stmtNode'   
+    add_stmt blockState stmtNode'   
 end 
 open BlockState 
 
 module MkCustomTransform(R : CUSTOM_TRANSFORM_RULES) = struct 
   let rec transform_block 
-          (f : rewrite_helpers -> stmt_node -> stmt_node list option) 
+          (rewriteStmt : rewrite_helpers -> stmt_node -> stmt_node update) 
           (block:block) = 
     let blockState = BlockState.create () in
-    let helpers = { 
-      get_version = (fun() -> blockState.changes); 
-      changed = (fun n -> BlockState.changes <> n); 
+    let rec helpers = { 
+      version = (fun() -> blockState.changes); 
+      changed = (fun n -> blockState.changes <> n); 
       process_value = 
         (fun f vNode -> BlockState.process_update blockState vNode (f vNode));
       process_exp = 
         (fun f eNode -> BlockState.process_update blockState eNode (f eNode));
       (* recursion in action! *)
-      process_block =transform_block
+      process_block = 
+        (fun rewriteStmt' block' -> 
+         let newBlock, _ = transform_block rewriteStmt' block' in newBlock)
+      (*    (rewrite_helpers -> stmt_node -> stmt_node update) -> block -> block;*)
     }
     in  
     let n = SSA.block_length block in
@@ -107,13 +111,13 @@ module MkCustomTransform(R : CUSTOM_TRANSFORM_RULES) = struct
     | Forward -> 
         for i = 0 to n - 1 do
           let stmtNode = block_idx block i  in 
-          let stmtUpdate = f helpers stmtNode in
+          let stmtUpdate = rewriteStmt helpers stmtNode in
           BlockState.process_stmt_update blockState stmtNode stmtUpdate
         done 
     | Backward ->  
         for i = n-1 downto 0 do 
           let stmtNode = block_idx block i  in 
-          let stmtUpdate = f helpers stmtNode stmtNode in
+          let stmtUpdate = rewriteStmt helpers stmtNode in
           BlockState.process_stmt_update blockState stmtNode stmtUpdate
         done  
     );
@@ -155,7 +159,8 @@ module CustomFromSimple(R: SIMPLE_TRANSFORM_RULES) = struct
   let transform_value helpers cxt vNode = 
     helpers.process_value (R.value cxt) vNode
      
-  let transform_values vNodes = List.map transform_value vNodes   
+  let transform_values helpers cxt vNodes = 
+    List.map (transform_value helpers cxt) vNodes   
   
   let transform_exp helpers cxt expNode =
     let oldV = helpers.version () in

@@ -95,7 +95,7 @@ let run_fundef_inliner (functions : FnTable.t) fundef =
   let module Params = 
     struct let lookup id  = FnTable.find_option id functions end
   in  
-  let module Inliner = SSA_Transform.MkTransformation(Inline_Rules(Params)) in
+  let module Inliner = SSA_Transform.MkSimpleTransform(Inline_Rules(Params)) in
   let fundef', changed = Inliner.transform_fundef fundef in 
   let tenv' = !(Inliner.get_env ()) in
   {fundef' with tenv = tenv' }, changed    

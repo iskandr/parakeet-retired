@@ -11,6 +11,7 @@ module Replace_Rules(P: REPLACE_PARAMS) = struct
   include P 
   type context = unit 
   let init _ = () 
+  let finalize _ _ = NoChange 
   let dir = Forward 
   
   let rec replace_id_list = function 
@@ -33,13 +34,13 @@ module Replace_Rules(P: REPLACE_PARAMS) = struct
     | Set (ids, rhs) ->
         let ids', changed = replace_id_list ids in 
         if changed then 
-          Some [SSA.mk_set ?src:stmtNode.stmt_src ids' rhs]
-        else None 
-    | SetIdx (id, indices, rhs) ->
+          Update (SSA.mk_set ?src:stmtNode.stmt_src ids' rhs)
+        else NoChange 
+    | SetIdx (id, idxs, rhs) ->
         if ID.Map. mem id idMap then 
           let id' = ID.Map.find id idMap in 
-          Some [SSA.mk_stmt ?src:stmtNode.stmt_src $ SetIdx(id', indices, rhs)]
-        else None  
+          Update (SSA.mk_stmt ?src:stmtNode.stmt_src $ SetIdx(id', idxs, rhs))
+        else NoChange  
     | If (c, t, f, gate) ->
       let outIds, outChanged  = replace_id_list gate.if_output_ids in
       let trueIds, trueChanged = replace_id_list gate.true_ids in
@@ -47,15 +48,15 @@ module Replace_Rules(P: REPLACE_PARAMS) = struct
       if outChanged || trueChanged || falseChanged then 
         let gate' = { 
           if_output_ids = outIds; true_ids = trueIds; false_ids = falseIds
-        } in Some [SSA.mk_if ?src:stmtNode.stmt_src c t f gate'] 
-      else None   
-    | _ -> None 
+        } in Update (SSA.mk_if ?src:stmtNode.stmt_src c t f gate') 
+      else NoChange   
+    | _ -> NoChange 
 end
 
       
 let replace_block idMap block =  
   let module Params = struct let idMap = idMap end in 
-  let module Replacer = MkTransformation(Replace_Rules(Params)) in  
+  let module Replacer = MkSimpleTransform(Replace_Rules(Params)) in  
   Replacer.transform_block () block  
      
 let replace_fundef idMap fundef = 

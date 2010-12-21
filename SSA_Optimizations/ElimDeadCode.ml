@@ -27,5 +27,5 @@ module DCE_Rules = struct
   let exp _ _ = NoChange  
   let value _ _ = NoChange   
 end 
-module DCE_Rewrite = MkTransformation(DCE_Rules)
+module DCE_Rewrite = MkSimpleTransform(DCE_Rules)
 let elim_dead_code _ = DCE_Rewrite.transform_fundef

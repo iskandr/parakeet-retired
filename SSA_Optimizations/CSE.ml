@@ -24,14 +24,14 @@ module CSE_Rules = struct
         let expNode' = 
           mk_vals_exp ?src:expNode.exp_src ~types:expNode.exp_types [rhsVal] 
         in 
-        Some [SSA.mk_set [id] expNode']
+        Update (SSA.mk_set [id] expNode')
       ) 
-      else (Hashtbl.add env expNode.exp (Var id); None)
-    | _ -> None    
+      else (Hashtbl.add env expNode.exp (Var id); NoChange)
+    | _ -> NoChange    
   let exp env envNode = NoChange   
   let value env valNode = NoChange   
 end
 
-module CSE_Rewrite = SSA_Transform.MkTransformation(CSE_Rules)
+module CSE_Rewrite = SSA_Transform.MkSimpleTransform(CSE_Rules)
 
 let cse _ = CSE_Rewrite.transform_fundef  
