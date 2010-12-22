@@ -179,6 +179,9 @@ val mk_app :
      ?src:SourceInfo.source_info -> ?types:DynType.t list -> 
       value_node -> value_node list -> exp_node 
 
+val mk_primapp : ?src:SourceInfo.source_info -> Prim.prim ->
+   DynType.t list -> DynType.t list -> value_node list -> exp_node  
+
 val mk_arr :
       ?src:SourceInfo.source_info ->
          ?types:DynType.t list -> value_node list -> exp_node

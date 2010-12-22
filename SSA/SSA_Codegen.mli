@@ -1,3 +1,5 @@
+open SSA 
+
 class ssa_codegen : object 
     val types : DynType.t ID.Map.t ref   
     val code : stmt_node DynArray.t 
@@ -20,10 +22,9 @@ class ssa_codegen : object
     method finalize : SSA.block  
 end
 
-
 val mk_codegen_fn 
       : DynType.t list ->  DynType.t list -> 
-        (ssa_codegen -> value_node array -> value_node array -> unit) -> fundef 
+        (ssa_codegen -> value_node list-> value_node list -> unit) -> fundef 
     
     
 val reduce : value_node  
@@ -31,13 +32,13 @@ val map : value_node
 val inf : value_node 
 val neginf : value_node 
 
-val (:=) : ID.t list -> exp_node -> stmt_node  
+val (:=) : value_node list -> exp_node -> stmt_node  
 val (@@) : value_node -> value_node list -> exp_node   
 val scalar_op : Prim.scalar_op -> value_node
 val array_op : Prim.array_op -> value_node 
 
 type vars = value_node array 
 val  mk_fn : int -> int -> int -> 
-       (bodyConstructor : vars -> var -> vars -> stmt_node list) -> fundef
+       (vars -> vars -> vars -> stmt_node list) -> fundef
 
-val fn1 : DynType.t -> DynType.t -> stmt_node list  
+val fn1 : (value_node -> value_node -> stmt_node list) -> fundef   

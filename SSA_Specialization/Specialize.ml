@@ -29,8 +29,7 @@ let rec specialize_value interpState fnVal signature =
     let fundef = match fnVal with 
       | SSA.GlobalFn fnId -> InterpState.get_untyped_function interpState fnId 
       | SSA.Prim p -> 
-          (* shouldn't we cache these too? *) 
-          let arity = List.length signature.inputs in
+          let arity = List.length (Signature.input_types signature) in
           assert (arity >= Prim.min_prim_arity p && 
                   arity <= Prim.max_prim_arity p); 
           mk_untyped_prim_fundef p arity
@@ -63,7 +62,38 @@ let rec specialize_value interpState fnVal signature =
 and get_output_types interpState fnVal signature = 
   let fundef = specialize_val fnVal signature in 
   fundef.fundef_output_types 
+
+(* OPTIONAL: make a shortcut specialization for typed scalar operators 
+let mk_typed_scalar_op (op : Prim.scalar_op) ?optOutType argTypes =   
+  let reqArgTypes = TypeInfer.required_scalar_op_types op argTypes in 
+  let inferredOutType = TypeInfer.infer_scalar_op op reqArgTypes in 
+  let outType = match optOutType with 
+    | Some t -> t 
+    | None -> inferredOutType 
+  in 
+  SSA_Codegen.mk_codegen_fn argTypes [outType] $ fun codegen inputs outputs -> 
+    let args = Array.of_list inputs in 
+    let inTyArr = Array.of_list argTypes in 
+    let reqTyArr = Array.of_list reqArgTypes in 
+    for i = 0 to Array.length args - 1 do 
+      let reqT = reqTyArr.(i) in 
+      if inTyArr.(i) <> reqT then begin 
+        let id = codegen#fresh_var reqT in   
+        codegen#emit [mk_set [id]  (mk_cast reqT args.(i))];
+        args.(i) <- codegen#id_value_node id 
+      end
+    done
+    ;
+    let primAppNode = 
+      mk_primapp (Prim.ScalarOp op) reqArgTypes [outType] (Array.to_list args) 
+    in  
+    let outputVar = List.hd outputs in 
+    codegen#emit [[outputVar] := primAppNode]
+    (* TODO: handle forced return types correctly *)    
+*)          
   
+  
+    
 
 (*
 type type_env = DynType.t ID.Map.t

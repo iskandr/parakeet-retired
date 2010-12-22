@@ -60,7 +60,7 @@ end
 let mk_codegen_fn 
       (inputTypes : DynType.t list) 
       (outputTypes  : DynType.t list) 
-      (constr : ssa_codegen -> value_node array -> value_node array -> unit)  = 
+      (constr : ssa_codegen -> value_node list -> value_node list -> unit)  = 
   let codegen = new ssa_codegen in 
   let inputIds = List.map codegen#fresh_var inputTypes in 
   let outputIds = List.map codegen#fresh_var outputTypes in 
@@ -101,7 +101,7 @@ let mk_fn
       (nInputs : int) 
       (nOutputs : int) 
       (nLocals : int) 
-      (bodyConstructor : vars -> var -> vars -> stmt_node list) =  
+      (bodyConstructor : vars -> vars -> vars -> stmt_node list) =  
   let inputs = ID.gen_fresh_array nInputs in
   let inputVars = Array.map SSA.mk_var inputs in 
   let outputs = ID.gen_fresh_array nOutputs in

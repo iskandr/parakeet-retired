@@ -312,6 +312,15 @@ let mk_app ?src ?types fn args =
   in 
   { exp=App(fn,args); exp_src = src; exp_types = retTypes }  
 
+let mk_primapp ?src prim inTypes outTypes args =
+  let tprim = { 
+    prim_input_types = inTypes;
+    prim_output_types = outTypes; 
+    prim = prim
+  } 
+  in   
+  { exp = PrimApp (tprim, args); exp_src = src; exp_types = outTypes}  
+
 let mk_arr ?src ?types elts =
   let argTypes = map_default_types  types elts in
   IFDEF DEBUG THEN 
