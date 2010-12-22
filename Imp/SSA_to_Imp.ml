@@ -181,8 +181,8 @@ and translate_stmt globalFunctions idEnv codegen stmtNode =
 
 and translate_fundef globalFunctions fn =
   let codegen  = new ImpCodegen.imp_codegen in
-  let inputTypes = DynType.fn_input_types fn.SSA.fundef_type in
-  let outputTypes = DynType.fn_output_types fn.SSA.fundef_type in
+  let inputTypes = fn.SSA.fundef_input_types in
+  let outputTypes = fn.SSA.fundef_output_types in
   IFDEF DEBUG THEN 
      Printf.printf 
        "Translating function into Imp of type %s->%s\n"

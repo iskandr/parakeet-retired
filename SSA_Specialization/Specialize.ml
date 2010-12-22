@@ -21,8 +21,24 @@ let mk_untyped_prim_fundef prim arity : fundef =
   let body = SSA.block_of_stmt (SSA.mk_set [output] rhs) in 
   let fundef = SSA.mk_fundef inputs [output] body in 
   (Hashtbl.add primFnCache key fundef; fundef) 
-  
-let rec specialize_value interpState fnVal signature =
+
+let rec specialize_fundef interpState fundef signature = 
+ let fundef', closures = 
+  CollectPartialApps.collect_partial_apps interpState fundef 
+  in
+  (* to avoid having to make TypeAnalysis and Specialize recursive 
+       modules I've untied the recursion by making specialize_value 
+       a parameter of TypeAnalysis. 
+   *)
+  let inferTypes fnVal signature = 
+    let fundef = specialize_value interpState fnVal signature in 
+    fundef.fundef_output_types 
+  in 
+  let tenv = TypeAnalysis.type_analysis inferTypes closures fundef' signature in
+  let specializer = specialize_value interpState in  
+  let typedFn = RewriteTyped.rewrite_typed tenv closures specializer fundef' in
+  typedFn   
+and specialize_value interpState fnVal signature =
   match InterpState.maybe_get_specialization interpState fnVal signature with
   | Some fnId -> InterpState.get_typed_function interpState fnId
   | None ->  
@@ -33,33 +49,14 @@ let rec specialize_value interpState fnVal signature =
           assert (arity >= Prim.min_prim_arity p && 
                   arity <= Prim.max_prim_arity p); 
           mk_untyped_prim_fundef p arity
-    in 
-    let fundef', closureEnv =
-      CollectPartialApps.collect_partial_apps interpState fundef 
+      | _ -> assert false 
     in
-    (* to avoid having to make TypeAnalysis and Specialize recursive 
-         modules I've untied the recursion by making specialize_value 
-         a parameter of TypeAnalysis. 
-    *)
-    let infer_output_types fnVal signature = 
-      let fundef = specialize_value interpState fnVal signature in 
-      fundef.fundef_output_types 
-    in 
-    let tenv = 
-      TypeAnalysis.type_analysis 
-        infer_output_types 
-        closureEnv 
-        fundef'
-        signature 
-    in 
-    let typedFn =
-      RewriteTyped.rewrite_typed tenv 
-        closureEnv 
-        (specialize_value interpState) 
-        fundef
-    in
-    InterpState.add_specialization interpState fnVal signature typedFn;  
-    typedFn             
+    let typedFundef = specialize_fundef interpState fundef signature in 
+    InterpState.add_specialization interpState fnVal signature typedFundef;
+    typedFundef
+and specialize_function_id interpState fnId signature = 
+  specialize_value interpState (GlobalFn fnId) signature
+                 
     
 
 (* OPTIONAL: make a shortcut specialization for typed scalar operators 
