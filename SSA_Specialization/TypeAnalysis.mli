@@ -1,8 +1,9 @@
-
-
-type specializer = SSA.value -> Signature.t -> SSA.fundef
-
-val type_eval 
-  : InterpState.t -> specializer -> CollectPartialApps.closure_env -> 
-      SSA.fundef -> DynType.t ID.Map.t    
-   
+open SSA
+ 
+val type_analysis : 
+      (value -> Signature.t -> DynType.t list) -> 
+      (CollectPartialApps.closure_env) -> 
+      fundef -> 
+      Signature.t -> 
+      DynType.t ID.Map.t      
+  

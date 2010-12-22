@@ -41,27 +41,26 @@ let rec specialize_value interpState fnVal signature =
          modules I've untied the recursion by making specialize_value 
          a parameter of TypeAnalysis. 
     *)
+    let infer_output_types fnVal signature = 
+      let fundef = specialize_value interpState fnVal signature in 
+      fundef.fundef_output_types 
+    in 
     let tenv = 
       TypeAnalysis.type_analysis 
-        interpState 
-        (get_output_types interpState)
+        infer_output_types 
         closureEnv 
         fundef'
         signature 
     in 
-    let body', tenv' = InsertCoercions.rewrite_block tenv fundef'.body in
-    let typedFundef = 
-      mk_fundef 
-        ~tenv:tenv' 
-        ~body:body'
-        ~input_ids:fundef.input_ids 
-        ~output_ids:fundef.output_ids
-    in      
-    InterpState.add_specialization fnVal signature typedFn;  
+    let typedFn =
+      RewriteTyped.rewrite_typed tenv 
+        closureEnv 
+        (specialize_value interpState) 
+        fundef
+    in
+    InterpState.add_specialization interpState fnVal signature typedFn;  
     typedFn             
-and get_output_types interpState fnVal signature = 
-  let fundef = specialize_val fnVal signature in 
-  fundef.fundef_output_types 
+    
 
 (* OPTIONAL: make a shortcut specialization for typed scalar operators 
 let mk_typed_scalar_op (op : Prim.scalar_op) ?optOutType argTypes =   

@@ -1,1 +1,5 @@
-val rewrite_block : tenv -> SSA.block -> SSA.block * tenv 
+open SSA
+
+val rewrite_typed 
+    : DynType.t ID.Map.t -> CollectPartialApps.closure_env ->
+      (value -> Signature.t -> fundef) -> fundef -> fundef 
