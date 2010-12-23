@@ -192,10 +192,8 @@ val mk_val_exp : ?src:SourceInfo.source_info -> ?ty:DynType.t ->
 val mk_vals_exp :
       ?src:SourceInfo.source_info -> ?types : DynType.t list -> 
         value list -> exp_node
-(*val mk_arr_idx : 
-      ?src:SourceInfo.source_info -> ?types:DynType.t list -> 
-        value_node -> value_node list -> exp_node 
-*)        
+
+        
 val mk_cast : ?src:SourceInfo.source_info -> DynType.t -> value_node -> exp_node
 val mk_exp : 
       ?src:SourceInfo.source_info -> ?types:DynType.t list -> exp -> exp_node

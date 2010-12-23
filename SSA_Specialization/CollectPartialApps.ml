@@ -3,7 +3,7 @@ open SSA_Transform
 
 type closure_env = { 
   closures : (ID.t, value) Hashtbl.t; 
-  closure_args : (ID.t, ID.t list) Hashtbl.t;
+  closure_args : (ID.t, value_node list) Hashtbl.t;
   closure_arity : (ID.t, int) Hashtbl.t; 
 }
  
@@ -35,7 +35,7 @@ module CollectRules(F:sig val interpState: InterpState.t end) = struct
   | other -> min_arity context other 
 
   let stmt env stmtNode =  match stmtNode.stmt with 
-    | Set([closureId], {exp=App(f, args)}) -> 
+    | Set([closureId], ({exp=App(f, args)} as expNode)) -> 
         let minArgs = min_arity env f.value in 
         let numArgs = List.length args in 
         if numArgs >= minArgs then None 
@@ -45,8 +45,11 @@ module CollectRules(F:sig val interpState: InterpState.t end) = struct
           (* - record the new IDs in env.closure_args*)
           (* - replace the partial application with the closure arg assignment*)  
           let closureArgIds = ID.gen_fresh_list numArgs in
+          let closureArgNodes = 
+            List.map (fun id -> mk_var ~src:expNode.exp_src id) closureArgIds
+          in  
           Hashtbl.add env.closures closureId f.value;
-          Hashtbl.add env.closure_args closureId closureArgIds; 
+          Hashtbl.add env.closure_args closureId closureArgNodes; 
           Hashtbl.add env.closure_arity closureId (minArgs - numArgs);
           let argsExp = SSA.mk_vals_exp ~src:stmtNode.src args in
           Some (SSA.mk_set ~src:stmtNode.src closureArgIds argsExp) 

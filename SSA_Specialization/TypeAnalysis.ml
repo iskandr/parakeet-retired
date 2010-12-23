@@ -4,18 +4,16 @@ open SSA
 
 module type TYPE_ANALYSIS_PARAMS = sig 
   val closures : (ID.t, value) Hashtbl.t
-  val closureArgs : (ID.t, ID.t list) Hashtbl.t
+  val closureArgs : (ID.t, value_node) Hashtbl.t
   val closureArity : (ID.t, int) Hashtbl.t
   val infer_output_types : value -> Signature.t -> DynType.t list   
   val signature : Signature.t 
 end
   
+ 
 let get_type tenv id = Hashtbl.find_default tenv id DynType.BottomT  
 let add_type tenv id t = Hashtbl.add tenv id t; tenv 
-  (*if ID.Map.mem id tenv 
-  then ID.Map.find id tenv 
-  else DynType.BottomT
-  *)
+
 
 (* TODO: make this complete for all SSA statements *) 
 let rec is_scalar_stmt = function
@@ -54,8 +52,10 @@ module MkAnalysis (P : TYPE_ANALYSIS_PARAMS) = struct
         (* if the identifier would evaluate to a function value...*) 
         if Hashtbl.mem P.closures id then
           let fnVal' = Hashtbl.find P.closures id in 
-          let closureArgIds = Hashtbl.find P.closure_args in 
-          let closureArgTypes = List.map (get_type tenv) closureArgIds in
+          let closureArgNodes = Hashtbl.find P.closure_args id in 
+          let closureArgTypes = 
+            List.map (fun vNode -> value vNode.value) closureArgNodes 
+          in
           infer_app fnVal' (closureArgTypes@argTypes)  
         else assert false 
     | Prim.ArrayOp arrayOp ->

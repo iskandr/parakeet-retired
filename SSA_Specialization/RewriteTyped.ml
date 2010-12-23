@@ -33,22 +33,60 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
   
   let get_closure_val id = 
     Hashtbl.find P.closureEnv.CollectPartialApps.closures id
+    
   let get_closure_args id = 
     Hashtbl.find P.closureEnv.CollectPartialApps.closure_args id
   
+    
   let get_closure_arity id = 
     Hashtbl.find P.closureEnv.CollectPartialApps.closure_arity id   
-   
-  let infer_value valNode = 
-    let t = match valNode.value with 
+  
+  let value_type = function 
     | Var id -> get_type id 
     | Num n -> PQNum.type_of_num n 
     | Str _ -> DynType.StrT
     | Sym _ -> DynType.SymT
     | Unit -> DynType.UnitT
-    | _ -> 
-      failwith $ "unexpected SSA value: %s" ^ (SSA.value_node_to_str valNode)
-    in     
+    | other -> 
+      failwith $ "unexpected SSA value: %s" ^ (SSA.value_to_str other)
+  
+  let value_node_type valNode = value_type valNode.value    
+  
+  (* keeps only the portion of the second list which is longer than the first *) 
+  let rec keep_tail l1 l2 = 
+    if l1 = [] then l2 
+    else if l2 = [] then [] 
+    else keep_tail (List.tl l1) (List.tl l2) 
+     
+  let mk_typed_closure fnVal signature = match fnVal with 
+    | Var id ->
+      let closureArgs = get_closure_args id in  
+      let closureArgTypes = List.map value_node_type closureArgs in 
+      let signature' = Signature.prepend_input_types closureArgTypes signature in
+      let fnVal' = get_closure_val id in
+      let fundef = P.specializer fnVal' signature' in
+      {    
+        closure_fn = fundef.fundef_id;  
+        closure_args = closureArgs;  
+        closure_arg_types = closureArgTypes;  
+        closure_input_types = 
+          keep_tail closureArgTypes fundef.fundef_input_types; 
+        closure_output_types = primFundef.fundef_output_types;
+      }
+    | GlobalFn _
+    | Prim _ -> 
+      let fundef = P.specializer fnVal signature in 
+      { 
+        closure_fn = primFundef.fundef_id;  
+        closure_args = [];  
+        closure_arg_types = [];  
+        closure_input_types = primFundef.fundef_input_types; 
+        closure_output_types = primFundef.fundef_output_types;   
+      }
+    | _ -> assert false  
+                      
+  let infer_value valNode = 
+    let t = value_node_type valNode in  
     if t <> valNode.value_type then Update { valNode with value_type = t} 
     else NoChange  
 

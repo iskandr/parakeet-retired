@@ -20,4 +20,6 @@ let to_str signature =
   match signature.outputs with 
       | None -> inputStr
       | Some outputs -> inputStr ^ " -> " ^ (DynType.type_list_to_str outputs)
-  
+
+let append_input_types s ts = { inputs = s.inputs @ ts; outputs = s.outputs } 
+let prepend_input_types  ts s = { inputs =ts @ s.inputs; outputs = s.outputs } 
