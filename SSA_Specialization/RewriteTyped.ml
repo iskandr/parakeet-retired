@@ -77,14 +77,36 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
     | Prim _ -> 
       let fundef = P.specializer fnVal signature in 
       { 
-        closure_fn = primFundef.fundef_id;  
+        closure_fn = fundef.fundef_id;  
         closure_args = [];  
         closure_arg_types = [];  
-        closure_input_types = primFundef.fundef_input_types; 
-        closure_output_types = primFundef.fundef_output_types;   
+        closure_input_types = fundef.fundef_input_types; 
+        closure_output_types = fundef.fundef_output_types;   
       }
     | _ -> assert false  
-                      
+
+  let mk_typed_fn fnVal signature = match fnVal with 
+    | GlobalFn _
+    | Prim _ -> 
+      let fundef = P.specializer fnVal signature in 
+      { 
+        fn_id = fundef.fundef_id;  
+        fn_input_types = fundef.fundef_input_types; 
+        fn_output_types = fundef.fundef_output_types;   
+      }
+    | _ -> assert false
+  (*
+  let mk_typed_prim prim inputTypes = 
+    let reqInputTypes = T
+    let outputTypes = TypeInfer.infer_prim prim inputTypes in 
+    { prim = prim; 
+      prim_input_types = 
+    | Prim _ ->
+       let fundef = P.specializer fnVal signature in
+        
+    | _ -> assert false 
+  *)            
+                                                  
   let infer_value valNode = 
     let t = value_node_type valNode in  
     if t <> valNode.value_type then Update { valNode with value_type = t} 
@@ -124,11 +146,14 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
   let rewrite_app fnVal argNodes = 
     let argTypes = List.map (fun v -> v.value_type) argNodes in 
     match fnVal with
-    | GlobalFn fnId -> 
-      let typedFundef = P.specializer fnVal argTypes in
+    | Prim _ -> 
+    | GlobalFn _ -> 
+      let typedFundef = 
+        P.specializer fnVal (Signature.from_input_types argTypes) 
+      in
       SSA.mk_call typedFnId argNodes   
       
-    | Prim p ->  
+ 
     | Var id -> 
       if is_closure id then
         let closureval = get_closure_val id in 

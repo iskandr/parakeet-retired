@@ -344,10 +344,6 @@ let mk_vals_exp ?src ?types ( vs : value list) =
   let types' = map_default_types types valNodes in 
   { exp = Values valNodes; exp_src = src; exp_types=types' } 
 
-(*
-let mk_arr_idx ?src ?(types=[DynType.BottomT]) lhs indices =
-  { exp = ArrayIndex(lhs, indices); exp_src=src; exp_types=types} 
-*)        
 let mk_cast ?src t v = 
   { exp = Cast(t, v); exp_types = [t]; exp_src = src }      
 
@@ -361,6 +357,15 @@ let mk_exp ?src ?types exp =
     | _ -> [DynType.BottomT] 
   in 
   { exp= exp; exp_types = types'; exp_src = src} 
+
+let mk_call ?src typedFn args = 
+  { exp = Call(typedFn, args); exp_types = typedFn.fn_output_types; exp_src=src}
+      
+
+
+
+
+
 
 let empty_stmt = mk_set [] (mk_vals_exp [])
 

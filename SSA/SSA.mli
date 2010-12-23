@@ -197,6 +197,10 @@ val mk_vals_exp :
 val mk_cast : ?src:SourceInfo.source_info -> DynType.t -> value_node -> exp_node
 val mk_exp : 
       ?src:SourceInfo.source_info -> ?types:DynType.t list -> exp -> exp_node
+val mk_call : 
+      ?src:SourceInfo.source_info -> typedFn -> value_node list -> exp_node 
+  
+
 
 val empty_stmt : stmt_node 
 val is_empty_stmt : stmt_node -> bool 
