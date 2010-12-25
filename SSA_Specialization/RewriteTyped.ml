@@ -41,7 +41,7 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
   let get_closure_arity id = 
     Hashtbl.find P.closureEnv.CollectPartialApps.closure_arity id   
   
-  let value_type = function 
+  let infer_value_type = function 
     | Var id -> get_type id 
     | Num n -> PQNum.type_of_num n 
     | Str _ -> DynType.StrT
@@ -50,7 +50,7 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
     | other -> 
       failwith $ "unexpected SSA value: %s" ^ (SSA.value_to_str other)
   
-  let value_node_type valNode = value_type valNode.value    
+  let infer_value_node_type valNode = infer_value_type valNode.value    
   
   (* keeps only the portion of the second list which is longer than the first *) 
   let rec keep_tail l1 l2 = 
@@ -95,20 +95,9 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
         fn_output_types = fundef.fundef_output_types;   
       }
     | _ -> assert false
-  (*
-  let mk_typed_prim prim inputTypes = 
-    let reqInputTypes = T
-    let outputTypes = TypeInfer.infer_prim prim inputTypes in 
-    { prim = prim; 
-      prim_input_types = 
-    | Prim _ ->
-       let fundef = P.specializer fnVal signature in
-        
-    | _ -> assert false 
-  *)            
                                                   
-  let infer_value valNode = 
-    let t = value_node_type valNode in  
+  let annotate_value valNode = 
+    let t = infer_value_node_type valNode in  
     if t <> valNode.value_type then Update { valNode with value_type = t} 
     else NoChange  
 
@@ -146,14 +135,12 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
   let rewrite_app fnVal argNodes = 
     let argTypes = List.map (fun v -> v.value_type) argNodes in 
     match fnVal with
-    | Prim _ -> 
+    | Prim _ 
     | GlobalFn _ -> 
       let typedFundef = 
         P.specializer fnVal (Signature.from_input_types argTypes) 
       in
       SSA.mk_call typedFnId argNodes   
-      
- 
     | Var id -> 
       if is_closure id then
         let closureval = get_closure_val id in 
@@ -175,7 +162,7 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
         ()
       else (* array indexing? *)   
   let rewrite_exp processVal types expNode =
-    let infer_values = List.map (processVal infer_value) in 
+    let annotate_values = List.map (processVal annotate_value) in 
     let exp' = match expNode.exp, types with 
       | Arr elts, [DynType.VecT eltT] ->
         let elts' =
@@ -186,7 +173,7 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
         let vs' = List.map2 (fun v t -> processVal (coerce_value t) vs types in 
         Values vs'
       | App (fn, args) ->
-        let args' = infer_values args in 
+        let args' = annotate_values args in 
         rewrite_app fn.value args'       
     in 
     Update {expNode with exp=exp'; exp_types = types}         
