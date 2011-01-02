@@ -11,7 +11,7 @@ open DynType
 (* are assumed to have been correctly specialized by the annotator.  *)
 
 module type REWRITE_PARAMS = sig
-  val specializer : value -> DynType.t list -> fundef   
+  val specializer : value -> Signature.t -> fundef   
   val closureEnv : CollectPartialApps.closure_env
   val tenv : (ID.t, DynType.t) Hashtbl.t 
 end  
@@ -36,7 +36,6 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
     
   let get_closure_args id = 
     Hashtbl.find P.closureEnv.CollectPartialApps.closure_args id
-  
     
   let get_closure_arity id = 
     Hashtbl.find P.closureEnv.CollectPartialApps.closure_arity id   
@@ -50,7 +49,9 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
     | other -> 
       failwith $ "unexpected SSA value: %s" ^ (SSA.value_to_str other)
   
-  let infer_value_node_type valNode = infer_value_type valNode.value    
+  let infer_value_node_type valNode = infer_value_type valNode.value   
+               
+ 
   
   (* keeps only the portion of the second list which is longer than the first *) 
   let rec keep_tail l1 l2 = 
@@ -61,8 +62,10 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
   let mk_typed_closure fnVal signature = match fnVal with 
     | Var id ->
       let closureArgs = get_closure_args id in  
-      let closureArgTypes = List.map value_node_type closureArgs in 
-      let signature' = Signature.prepend_input_types closureArgTypes signature in
+      let closureArgTypes = List.map infer_value_node_type closureArgs in 
+      let signature' = 
+        Signature.prepend_input_types closureArgTypes signature 
+      in
       let fnVal' = get_closure_val id in
       let fundef = P.specializer fnVal' signature' in
       {    
@@ -71,7 +74,7 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
         closure_arg_types = closureArgTypes;  
         closure_input_types = 
           keep_tail closureArgTypes fundef.fundef_input_types; 
-        closure_output_types = primFundef.fundef_output_types;
+        closure_output_types = fundef.fundef_output_types;
       }
     | GlobalFn _
     | Prim _ -> 
@@ -95,7 +98,8 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
         fn_output_types = fundef.fundef_output_types;   
       }
     | _ -> assert false
-                                                  
+
+                                                                                         
   let annotate_value valNode = 
     let t = infer_value_node_type valNode in  
     if t <> valNode.value_type then Update { valNode with value_type = t} 
@@ -106,14 +110,14 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
     else match valNode.value with 
       | Num n ->
         let n' = PQNum.coerce_num n t in 
-        Update (SSA.mk_num ~value_src:valNode.value_src ~ty:t n')
+        Update (SSA.mk_num ?src:valNode.value_src ~ty:t n')
       | Var id ->   
-        let t' = Hashtbl.find tenv id in
+        let t' = get_type id in
         if t = t' then Update {valNode with value_type = t }
         else  
         let coerceExp = SSA.mk_cast t valNode in    
         let id' =  ID.gen() in 
-        add_type id' t;  
+        set_type id' t;  
         UpdateWithStmts(SSA.mk_var ~ty:t id', [SSA.mk_set [id'] coerceExp])
       | Str _ -> 
         if t = DynType.StrT then 
@@ -123,7 +127,7 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
         if t = DynType.SymT then 
           Update {valNode with value_type = DynType.SymT}
         else assert false 
-      | Unit, DynType.UnitT ->
+      | Unit ->
         if t = DynType.UnitT then 
           Update{valNode with value_type = DynType.UnitT}
         else assert false    
@@ -132,7 +136,7 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
           (SSA.value_node_to_str valNode) (DynType.to_str t)
   
   
-  let rewrite_app fnVal argNodes = 
+  let rewrite_app fnVal argNodes : exp_node = 
     let argTypes = List.map (fun v -> v.value_type) argNodes in 
     match fnVal with
     | Prim _ 
@@ -140,45 +144,54 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
       let typedFundef = 
         P.specializer fnVal (Signature.from_input_types argTypes) 
       in
-      SSA.mk_call typedFnId argNodes   
+      let typedFn = { 
+        fn_id = typedFundef.fundef_id; 
+        fn_input_types = typedFundef.fundef_input_types; 
+        fn_output_types = typedFundef.fundef_output_types;
+      }
+      in 
+      SSA.mk_call typedFn argNodes   
     | Var id -> 
       if is_closure id then
-        let closureval = get_closure_val id in 
-        let closureArgIds = get_closure_args id in 
-        let closureArgTypes = List.map get_type closureArgIds in 
+        let fnVal = get_closure_val id in 
+        let closureArgs = get_closure_args id in 
+        let closureArgTypes = List.map infer_value_node_type closureArgs in 
         let directArgTypes = 
           List.map (fun vNode -> vNode.value_type) argNodes 
         in 
-        let types = closureArgTypes @ directArgTypes in 
-        (* specialize closureVal to types *) 
-        
-        (* ... *) 
-        let closureArgVals = 
-          List.map2 
-            (fun id t -> SSA.mk_var ~ty:t id) 
-            closureArgIds 
-            closureArgTypes 
+        let types = closureArgTypes @ directArgTypes in
+        let fundef = P.specializer fnVal (Signature.from_input_types types) in 
+        let typedFn = {
+          fn_id = fundef.fundef_id; 
+          fn_input_types = types; 
+          fn_output_types = fundef.fundef_output_types; 
+        } 
         in 
-        ()
-      else (* array indexing? *)   
-  let rewrite_exp processVal types expNode =
+        SSA.mk_call typedFn (closureArgs @ argNodes)   
+      else failwith "array indexing"
+      
+      
+  let rewrite_exp 
+        (processVal 
+          : (value_node -> value_node update) -> value_node -> value_node) 
+        types 
+        expNode =
     let annotate_values = List.map (processVal annotate_value) in 
-    let exp' = match expNode.exp, types with 
+    match expNode.exp, types with 
       | Arr elts, [DynType.VecT eltT] ->
-        let elts' =
-          List.map (fun elt -> processVal (coerce_value eltT) elt) elts 
-        in 
-        Arr elts'  
+        let elts' = 
+          List.map (fun elt -> processVal (coerce_value eltT) elt) elts
+        in  
+        Update {expNode with exp = Arr elts'; exp_types = types }    
       | Values vs, _ ->
-        let vs' = List.map2 (fun v t -> processVal (coerce_value t) vs types in 
-        Values vs'
-      | App (fn, args) ->
-        let args' = annotate_values args in 
-        rewrite_app fn.value args'       
-    in 
-    Update {expNode with exp=exp'; exp_types = types}         
-  
-  let stmt context helpers stmtNode =
+        let vs' = 
+          List.map2 (fun v t -> processVal (coerce_value t) v) vs types
+        in 
+        Update {expNode with exp = Values vs'; exp_types = types } 
+      | App (fn, args), _ -> 
+        Update (rewrite_app fn.value (annotate_values args))       
+    
+  let rec stmt context helpers stmtNode =
     match stmtNode.stmt with
     | Set(ids, rhs) -> 
         let rhsTypes = List.map (Hashtbl.find P.tenv) ids in
@@ -191,7 +204,7 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
         let cond' = helpers.process_value (coerce_value DynType.BoolT) cond in
         let tBlock' = helpers.process_block (stmt context) tBlock in 
         let fBlock' = helpers.process_block (stmt context) fBlock in 
-        Some [{stmtNode with stmt = If(cond', tBlock', fBlock',gate)}]
+        Update {stmtNode with stmt = If(cond', tBlock', fBlock',gate)}
     | WhileLoop(condBlock, condVal, body, gate) -> 
         let condBlock' = helpers.process_block (stmt context) condBlock in
         let condVal' = 
@@ -210,5 +223,5 @@ let rewrite_typed tenv closureEnv specializer fundef =
   end
   in    
   let module Transform = SSA_Transform.MkCustomTransform(Rewrite_Rules(Params))
-  in
-  Transform.rewrite_fundef fundef  
+  in 
+  let fundef, _ = Transform.transform_fundef fundef in fundef   

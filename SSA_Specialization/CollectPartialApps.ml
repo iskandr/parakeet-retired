@@ -1,3 +1,4 @@
+open Base
 open SSA
 open SSA_Transform
 
@@ -8,7 +9,7 @@ type closure_env = {
 }
  
 module CollectRules(F:sig val interpState: InterpState.t end) = struct 
-  type env = closure_env 
+  type context = closure_env 
 
   let init _ = { 
     closures = Hashtbl.create 127; 
@@ -16,13 +17,15 @@ module CollectRules(F:sig val interpState: InterpState.t end) = struct
     closure_arity = Hashtbl.create 127; 
   }  
   
+  let finalize _ _ = NoChange 
+  
   let dir = Forward 
   
   let rec min_arity env = function 
   | Prim op -> Prim.min_prim_arity op
   | GlobalFn fnId -> InterpState.get_untyped_arity F.interpState fnId
   | Var closureId ->
-      if Hashtbl.find env.closure_arity closureId then 
+      if Hashtbl.mem env.closure_arity closureId then 
         Hashtbl.find env.closure_arity closureId
       else 0 (* if variable isn't already a closure, assume it's an array *) 
   | other -> failwith $ 
@@ -38,7 +41,7 @@ module CollectRules(F:sig val interpState: InterpState.t end) = struct
     | Set([closureId], ({exp=App(f, args)} as expNode)) -> 
         let minArgs = min_arity env f.value in 
         let numArgs = List.length args in 
-        if numArgs >= minArgs then None 
+        if numArgs >= minArgs then NoChange
         else 
           (* - create fresh IDs for all the arguments*)
           (* - assign the arguments to their fresh IDs*)
@@ -46,22 +49,22 @@ module CollectRules(F:sig val interpState: InterpState.t end) = struct
           (* - replace the partial application with the closure arg assignment*)  
           let closureArgIds = ID.gen_fresh_list numArgs in
           let closureArgNodes = 
-            List.map (fun id -> mk_var ~src:expNode.exp_src id) closureArgIds
+            List.map (fun id -> mk_var ?src:expNode.exp_src id) closureArgIds
           in  
           Hashtbl.add env.closures closureId f.value;
           Hashtbl.add env.closure_args closureId closureArgNodes; 
           Hashtbl.add env.closure_arity closureId (minArgs - numArgs);
-          let argsExp = SSA.mk_vals_exp ~src:stmtNode.src args in
-          Some (SSA.mk_set ~src:stmtNode.src closureArgIds argsExp) 
-    | _ -> None 
+          let argsExp = SSA.mk_exp ?src:stmtNode.stmt_src (Values args) in
+          Update (SSA.mk_set ?src:stmtNode.stmt_src closureArgIds argsExp) 
+    | _ -> NoChange
                 
-  let exp _ _ = None   
-  let value _ _  = None   
+  let exp _ _ = NoChange   
+  let value _ _  = NoChange    
 end 
 
 let collect_partial_apps interpState fundef = 
  let module Collector = 
-    MkTransformation(CollectRules(struct let interpState = interpState end))
+    MkSimpleTransform(CollectRules(struct let interpState = interpState end))
  in
  let fundef', _ = Collector.transform_fundef fundef in 
- fundef', Collector.get_env () 
+ fundef', Collector.get_context () 

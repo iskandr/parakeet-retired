@@ -410,5 +410,16 @@ let block_fold_backward f init block =
     acc := f !acc (block_idx block i)
   done; 
   !acc
- 
+
+let block_for_all f block  = 
+  let b = ref true in
+  let i = ref 0 in 
+  let n = block_length block in  
+  while !b && !i < n do
+    let currStmtNode = block_idx block !i  in  
+    b := !b && (f currStmtNode); 
+    i := !i + 1;  
+  done; 
+  !b  
+  
  

@@ -5,5 +5,5 @@ val type_analysis :
       (CollectPartialApps.closure_env) -> 
       fundef -> 
       Signature.t -> 
-      DynType.t ID.Map.t      
+      (ID.t, DynType.t) Hashtbl.t       
   

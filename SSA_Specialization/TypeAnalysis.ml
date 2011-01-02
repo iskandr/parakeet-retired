@@ -4,8 +4,8 @@ open SSA
 
 module type TYPE_ANALYSIS_PARAMS = sig 
   val closures : (ID.t, value) Hashtbl.t
-  val closureArgs : (ID.t, value_node) Hashtbl.t
-  val closureArity : (ID.t, int) Hashtbl.t
+  val closure_args : (ID.t, value_node) Hashtbl.t
+  val closure_arity : (ID.t, int) Hashtbl.t
   val infer_output_types : value -> Signature.t -> DynType.t list   
   val signature : Signature.t 
 end
@@ -22,7 +22,8 @@ let rec is_scalar_stmt = function
   | SSA.If(_, tCode, fCode, _) -> 
       all_scalar_stmts tCode && all_scalar_stmts fCode
   | _ -> false   
-and all_scalar_stmts = List.for_all is_scalar_stmt    
+and is_scalar_stmt_node stmtNode = is_scalar_stmt stmtNode.stmt 
+and all_scalar_stmts = SSA.block_for_all is_scalar_stmt_node    
 
 module MkAnalysis (P : TYPE_ANALYSIS_PARAMS) = struct
   type env = (ID.t, DynType.t) Hashtbl.t  
@@ -34,33 +35,33 @@ module MkAnalysis (P : TYPE_ANALYSIS_PARAMS) = struct
     let tenv = Hashtbl.create 127 in
     List.iter2 (fun id t -> Hashtbl.add tenv id t) fundef.input_ids inTypes;    
     (if Signature.has_output_types P.signature then 
-      let outTypes = Signature.output_types signature in
+      let outTypes = Signature.output_types P.signature in
       List.iter2 (fun id t -> Hashtbl.add tenv id t) fundef.output_ids outTypes   
     );  
     tenv 
    
   let value tenv = function 
     | Var id -> get_type tenv id
-    | Num _ -> PQNum.type_of_num n
+    | Num n -> PQNum.type_of_num n
     | Str _ -> DynType.StrT
     | Sym _ -> DynType.SymT
     | Unit -> DynType.UnitT
     | _ -> DynType.AnyT   
   
-  let rec infer_app fnVal argTypes = match fnVal with
+  let rec infer_app tenv fnVal argTypes = match fnVal with
     | Var id ->
         (* if the identifier would evaluate to a function value...*) 
         if Hashtbl.mem P.closures id then
           let fnVal' = Hashtbl.find P.closures id in 
           let closureArgNodes = Hashtbl.find P.closure_args id in 
           let closureArgTypes = 
-            List.map (fun vNode -> value vNode.value) closureArgNodes 
+            List.map (fun vNode -> value tenv vNode.value) closureArgNodes 
           in
-          infer_app fnVal' (closureArgTypes@argTypes)  
+          [infer_app fnVal' (closureArgTypes@argTypes)]  
         else assert false 
-    | Prim.ArrayOp arrayOp ->
+    | Prim (Prim.ArrayOp arrayOp) ->
         [TypeInfer.infer_simple_array_op arrayOp argTypes]
-    | Prim.ScalarOp scalarOp -> 
+    | Prim (Prim.ScalarOp scalarOp) -> 
         [TypeInfer.infer_scalar_op scalarOp argTypes] 
     | GlobalFn _ -> 
         let signature = Signature.from_input_types argTypes in
@@ -68,7 +69,7 @@ module MkAnalysis (P : TYPE_ANALYSIS_PARAMS) = struct
         typedFn.output_types     
     | _ -> assert false
 
-  let infer_higher_order arrayOp args argTypes =
+  let infer_higher_order tenv arrayOp args argTypes =
     match arrayOp, args, argTypes with 
     | Prim.Map, {value=fnVal}::_, _::dataTypes ->
         if List.for_all DynType.is_scalar dataTypes then 
@@ -76,7 +77,7 @@ module MkAnalysis (P : TYPE_ANALYSIS_PARAMS) = struct
         ; 
         (* we're assuming Map works only along the outermost axis of an array *) 
         let eltTypes = List.map DynType.peel_vec dataTypes in 
-        let eltResultTypes = infer_app fnVal dataTypes in 
+        let eltResultTypes = infer_app tenv fnVal dataTypes in 
         List.map (fun t -> DynType.VecT t) eltResultTypes     
     | _ -> failwith "not implemented"     
 
@@ -84,10 +85,10 @@ module MkAnalysis (P : TYPE_ANALYSIS_PARAMS) = struct
   let exp tenv expNode info = match expNode, info with
     | App({value=Prim.ArrayOp arrayOp}, args), AppInfo(_, argTypes)
         when Prim.is_higher_order arrayOp -> 
-          infer_higher_order arrayOp args argTypes
+          infer_higher_order tenv arrayOp args argTypes
     | App (fn, _), AppInfo(fnT, argTypes) when DynType.is_vec fnT -> 
         [TypeInfer.infer_simple_array_op Prim.Index (fnT::argTypes)]   
-    | App(fn, _), AppInfo(fnT, argTypes)-> infer_app fn.value argTypes  
+    | App(fn, _), AppInfo(fnT, argTypes)-> infer_app tenv fn.value argTypes  
     | _, ArrayInfo eltTypes ->
       let commonT = DynType.fold_type_list eltTypes in 
       assert (commonT <> DynType.AnyT); 
@@ -124,10 +125,10 @@ module MkAnalysis (P : TYPE_ANALYSIS_PARAMS) = struct
 end
    
 let type_analysis infer_output_types closureEnv fundef signature = 
-  let module Params : TypeAnalysis.TYPE_ANALYSIS_PARAMS = struct 
+  let module Params : TYPE_ANALYSIS_PARAMS = struct 
     let closures = closureEnv.CollectPartialApps.closures
-    let closureArgs = closureEnv.CollectPartialApps.closure_args 
-    let closureArity = closureEnv.CollectPartialApps.closure_arity 
+    let closure_args = closureEnv.CollectPartialApps.closure_args 
+    let closure_arity = closureEnv.CollectPartialApps.closure_arity 
     let infer_output_types = infer_output_types
     let signature = signature  
   end    

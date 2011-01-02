@@ -198,7 +198,7 @@ val mk_cast : ?src:SourceInfo.source_info -> DynType.t -> value_node -> exp_node
 val mk_exp : 
       ?src:SourceInfo.source_info -> ?types:DynType.t list -> exp -> exp_node
 val mk_call : 
-      ?src:SourceInfo.source_info -> typedFn -> value_node list -> exp_node 
+      ?src:SourceInfo.source_info -> typed_fn -> value_node list -> exp_node 
   
 
 
@@ -216,4 +216,5 @@ val block_idx : block -> int -> stmt_node
 val block_iter_forward : (stmt_node -> unit) -> block -> unit
 val block_iter_backward : (stmt_node -> unit) -> block -> unit
 val block_fold_forward : ('a -> stmt_node -> 'a) -> 'a -> block -> 'a
-val block_fold_backward : ('a -> stmt_node -> 'a) -> 'a -> block -> 'a 
+val block_fold_backward : ('a -> stmt_node -> 'a) -> 'a -> block -> 'a
+val block_for_all : (stmt_node -> bool) -> block -> bool  
