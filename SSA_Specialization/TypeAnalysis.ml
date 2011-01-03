@@ -1,10 +1,12 @@
 (* pp: -parser o pa_macro.cmo *)
+open Printf 
 open Base
 open SSA 
+open SSA_Analysis
 
 module type TYPE_ANALYSIS_PARAMS = sig 
   val closures : (ID.t, value) Hashtbl.t
-  val closure_args : (ID.t, value_node) Hashtbl.t
+  val closure_args : (ID.t, value_node list) Hashtbl.t
   val closure_arity : (ID.t, int) Hashtbl.t
   val infer_output_types : value -> Signature.t -> DynType.t list   
   val signature : Signature.t 
@@ -26,6 +28,12 @@ and is_scalar_stmt_node stmtNode = is_scalar_stmt stmtNode.stmt
 and all_scalar_stmts = SSA.block_for_all is_scalar_stmt_node    
 
 module MkAnalysis (P : TYPE_ANALYSIS_PARAMS) = struct
+  let iterative = true
+  let flow_merge outEnv outId leftEnv leftId rightEnv rightId = None
+
+  let flow_split env = env, env 
+  let dir = Forward 
+  
   type env = (ID.t, DynType.t) Hashtbl.t  
   type exp_info = DynType.t list
   type value_info = DynType.t 
@@ -40,7 +48,8 @@ module MkAnalysis (P : TYPE_ANALYSIS_PARAMS) = struct
     );  
     tenv 
    
-  let value tenv = function 
+   
+  let infer_value_type tenv = function 
     | Var id -> get_type tenv id
     | Num n -> PQNum.type_of_num n
     | Str _ -> DynType.StrT
@@ -48,16 +57,16 @@ module MkAnalysis (P : TYPE_ANALYSIS_PARAMS) = struct
     | Unit -> DynType.UnitT
     | _ -> DynType.AnyT   
   
-  let rec infer_app tenv fnVal argTypes = match fnVal with
+  let value tenv vNode = infer_value_type tenv vNode.value 
+  
+  let rec infer_app tenv fnVal (argTypes:DynType.t list) = match fnVal with
     | Var id ->
         (* if the identifier would evaluate to a function value...*) 
         if Hashtbl.mem P.closures id then
           let fnVal' = Hashtbl.find P.closures id in 
           let closureArgNodes = Hashtbl.find P.closure_args id in 
-          let closureArgTypes = 
-            List.map (fun vNode -> value tenv vNode.value) closureArgNodes 
-          in
-          [infer_app fnVal' (closureArgTypes@argTypes)]  
+          let closureArgTypes = List.map (value tenv) closureArgNodes in
+          infer_app tenv fnVal' (closureArgTypes @ argTypes)  
         else assert false 
     | Prim (Prim.ArrayOp arrayOp) ->
         [TypeInfer.infer_simple_array_op arrayOp argTypes]
@@ -65,8 +74,8 @@ module MkAnalysis (P : TYPE_ANALYSIS_PARAMS) = struct
         [TypeInfer.infer_scalar_op scalarOp argTypes] 
     | GlobalFn _ -> 
         let signature = Signature.from_input_types argTypes in
-        let typedFn = T.specialize fnVal signature in
-        typedFn.output_types     
+        P.infer_output_types fnVal signature 
+             
     | _ -> assert false
 
   let infer_higher_order tenv arrayOp args argTypes =
@@ -77,13 +86,13 @@ module MkAnalysis (P : TYPE_ANALYSIS_PARAMS) = struct
         ; 
         (* we're assuming Map works only along the outermost axis of an array *) 
         let eltTypes = List.map DynType.peel_vec dataTypes in 
-        let eltResultTypes = infer_app tenv fnVal dataTypes in 
+        let eltResultTypes = infer_app tenv fnVal eltTypes in 
         List.map (fun t -> DynType.VecT t) eltResultTypes     
     | _ -> failwith "not implemented"     
 
 
   let exp tenv expNode info = match expNode, info with
-    | App({value=Prim.ArrayOp arrayOp}, args), AppInfo(_, argTypes)
+    | App({value=Prim (Prim.ArrayOp arrayOp)}, args), AppInfo(_, argTypes)
         when Prim.is_higher_order arrayOp -> 
           infer_higher_order tenv arrayOp args argTypes
     | App (fn, _), AppInfo(fnT, argTypes) when DynType.is_vec fnT -> 
@@ -92,11 +101,11 @@ module MkAnalysis (P : TYPE_ANALYSIS_PARAMS) = struct
     | _, ArrayInfo eltTypes ->
       let commonT = DynType.fold_type_list eltTypes in 
       assert (commonT <> DynType.AnyT); 
-      DynType.VecT commonT
+      [DynType.VecT commonT]
     | _, ValuesInfo types -> types  
     | _ -> failwith "not implemented"
   
-  let stmt context stmtNode stmtInfo = match stmtNode, stmtInfo with 
+  let stmt tenv stmtNode stmtInfo = match stmtNode, stmtInfo with 
     | Set(ids, _), SetInfo rhsTypes ->               
         IFDEF DEBUG THEN
           if List.length ids <> List.length rhsTypes then 
@@ -118,9 +127,9 @@ module MkAnalysis (P : TYPE_ANALYSIS_PARAMS) = struct
         tenv', (changed || changedT)
       in 
       let tenv', changed = 
-        List.fold_left2 process_types (context.type_env, false) ids rhsTypes
+        List.fold_left2 process_types (tenv, false) ids rhsTypes
       in  
-      if changed then Some { context with type_env = tenv' } else None 
+      if changed then Some tenv' else None 
     | _ -> failwith "not implemented"
 end
    
