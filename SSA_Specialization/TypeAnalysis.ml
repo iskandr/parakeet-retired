@@ -25,7 +25,7 @@ let rec is_scalar_stmt = function
       all_scalar_stmts tCode && all_scalar_stmts fCode
   | _ -> false   
 and is_scalar_stmt_node stmtNode = is_scalar_stmt stmtNode.stmt 
-and all_scalar_stmts = SSA.block_for_all is_scalar_stmt_node    
+and all_scalar_stmts stmts = SSA.block_for_all is_scalar_stmt_node stmts    
 
 module MkAnalysis (P : TYPE_ANALYSIS_PARAMS) = struct
   let iterative = true
@@ -91,7 +91,7 @@ module MkAnalysis (P : TYPE_ANALYSIS_PARAMS) = struct
     | _ -> failwith "not implemented"     
 
 
-  let exp tenv expNode info = match expNode, info with
+  let exp tenv expNode info = match expNode.exp, info with
     | App({value=Prim (Prim.ArrayOp arrayOp)}, args), AppInfo(_, argTypes)
         when Prim.is_higher_order arrayOp -> 
           infer_higher_order tenv arrayOp args argTypes
@@ -105,7 +105,7 @@ module MkAnalysis (P : TYPE_ANALYSIS_PARAMS) = struct
     | _, ValuesInfo types -> types  
     | _ -> failwith "not implemented"
   
-  let stmt tenv stmtNode stmtInfo = match stmtNode, stmtInfo with 
+  let stmt tenv stmtNode stmtInfo = match stmtNode.stmt, stmtInfo with 
     | Set(ids, _), SetInfo rhsTypes ->               
         IFDEF DEBUG THEN
           if List.length ids <> List.length rhsTypes then 

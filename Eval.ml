@@ -71,13 +71,11 @@ let rec eval_value
         Printf.sprintf "[eval_value] variable %s not found!" (ID.to_str id)
   | Num n -> InterpVal.Scalar n 
         (*MemoryState.add_host memoryState (HostVal.mk_host_scalar n)*)
-  | GlobalFn fnId -> InterpVal.Closure(fnId, [])
-  | Stream (v,_) -> eval_value memoryState env v  
+  | GlobalFn fnId -> InterpVal.Closure(fnId, []) 
   | Str _
   | Sym _
   | Unit
-  | Prim _
-  | Lam _ -> failwith "[eval_value] values of this type not yet implemented" 
+  | Prim _-> failwith "[eval_value] values of this type not yet implemented" 
  
 let rec eval globalFns fundef hostVals =
   let memState = MemoryState.create 127 (* arbitrary *) in
@@ -111,23 +109,14 @@ let rec eval globalFns fundef hostVals =
   ENDIF; 
   hostVals
   
-and eval_block 
-      (memState : MemoryState.t) 
-      (fnTable : FnTable.t) 
-      (env : env) : (SSA.stmt_node list -> env) = function  
-  | [] -> env
-  | stmtNode::rest ->
-      IFDEF DEBUG THEN 
-        Printf.sprintf "[eval_block] stmtNode::rest: %s \n%!"
-             (SSA.stmt_node_to_str stmtNode);
-      ENDIF; 
-      let (env' : env) = eval_stmt memState fnTable env stmtNode in
-      IFDEF DEBUG THEN 
-        Printf.printf "[eval_block] done evaluating stmt %s \n%!"
-          (SSA.stmt_node_to_str stmtNode);
-      ENDIF; 
-      eval_block memState fnTable env' rest
-
+and eval_block (memState : MemoryState.t) (fnTable : FnTable.t) env  block = 
+  let currEnv = ref env in 
+  let n = SSA.block_length block in 
+  for i = 0 to n- 1 do 
+    currEnv := eval_stmt memState fnTable !currEnv (SSA.block_idx block i)
+  done; 
+  !currEnv 
+  
 and eval_stmt 
       (memState : MemoryState.t) 
       (fnTable : FnTable.t) 
@@ -158,8 +147,6 @@ and eval_exp
       (expNode : SSA.exp_node) : InterpVal.t list = 
   match expNode.exp with 
   | Values valNodes -> List.map (eval_value memState env) valNodes
-  | ArrayIndex (arr, indices) -> 
-      failwith "[eval] array indexing not implemented" 
   | Arr elts -> failwith "[eval] array constructor not implemented"
   | Cast (t, valNode) when DynType.is_scalar t -> 
       (match eval_value  memState env valNode with 
