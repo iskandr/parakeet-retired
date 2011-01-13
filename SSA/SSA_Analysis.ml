@@ -1,6 +1,7 @@
 open SSA
 open Base
 
+
 type direction = Forward | Backward
       
 (* like the exp type in SSA, but replacing value_node with generic 'a *)
@@ -127,7 +128,24 @@ struct
   let value _ _ = V.bottom 
   let exp _ _ _ = E.bottom 
   let stmt _ _ _= None
-   
+  
+  let eval_set 
+        (_:env) 
+        (_:SourceInfo.source_info) 
+        ~(ids:ID.t list) 
+        ~(rhs:SSA.exp_node)
+        ~(rhsInfo:E.t) = None 
+  
+  let eval_if 
+        (_:env) 
+        (_:SourceInfo.source_info)
+        ~(cond:SSA.value_node)
+        ~(tBlock:SSA.block)
+        ~(fBlock:SSA.block)
+        ~(gate:SSA.if_gate)
+        ~(condInfo:V.t)
+        ~(tEnv:env)
+        ~(fEnv:env) = None 
 end 
 
 module MkSimpleAnalysis(S:ENV) = MkAnalysis(S)(UnitLattice)(UnitLattice)
@@ -203,6 +221,21 @@ module MkEvaluator(A : ANALYSIS) = struct
         let fnInfo = eval_value env fn in
         let argInfos = eval_values env args in
         AppInfo (fnInfo, argInfos)
+       
+      | Call(typedFn, args) -> CallInfo (eval_values env args) 
+      | Map(closure, args) -> 
+        let closureInfos = eval_values env closure.closure_args in 
+        let argInfos = eval_values env args in  
+        MapInfo (closureInfos, argInfos)
+          
+      | Scan(initClosure, reduceClosure, args) -> 
+        let initInfos = eval_values env initClosure.closure_args in 
+        let reduceInfos = eval_values env reduceClosure.closure_args in 
+        let argInfos = eval_values env args in 
+        ScanInfo (initInfos, reduceInfos, argInfos)
+     | ReduceInfo of 'a list * 'a list * 'a list  
+  | ValuesInfo of 'a list
+  | ArrayInfo of 'a list
       | _ -> failwith "not implemented"     
     in A.exp env expNode info  
    

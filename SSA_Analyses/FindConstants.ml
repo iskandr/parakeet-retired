@@ -52,6 +52,10 @@ module ConstantAnalysis = struct
                )
         else None 
     | _ -> None    
+
+    (* possible alternative definition style: *)
+    (* include DefaultAnalysis *) 
+    (* let set env stmtNode vals = *) 
 end
 
 module ConstEval = SSA_Analysis.MkEvaluator(ConstantAnalysis)

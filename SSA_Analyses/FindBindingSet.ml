@@ -9,7 +9,11 @@ module BindingSetAnalysis = struct
   include SSA_Analysis.MkSimpleAnalysis(Env) 
   let stmt env stmtNode info = match stmtNode.stmt with 
     | Set (ids, _) -> Some (ID.Set.add_list ids env)
-    | _ -> failwith "not implemented"  
+    | _ -> failwith "not implemented"
+
+  
+  (* let eval_stmt env src ids rhsNode rhsInfo = Some (ID.Set.add_list ids env)*)
+  (* let eval_if env src *)   
 end
 module BindingSetEval = SSA_Analysis.MkEvaluator(BindingSetAnalysis)
 
