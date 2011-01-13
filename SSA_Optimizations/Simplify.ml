@@ -1,9 +1,73 @@
-(* TODO: remake this module using SSA_Transform *)
-(* open Base
+open Base
 open DynType 
 open SSA
+open SSA_Transform
+open FindUseCounts
 open FindDefs
+
  
+let is_useless useCounts id =
+  (* by convention, having 0 use counts excludes a varialbe from the 
+     useCount map, but check just in case 
+  *) 
+  if Hashtbl.mem useCounts id  
+  then Hashtbl.find useCounts id = 0 
+  else true  
+
+module SimplifyRules = struct
+  let dir = Forward
+  (* use counts-- constant map? *) 
+  type context = {
+    constants: SSA.value ConstantLattice.t ID.Map.t; 
+    use_counts : (ID.t, int) Hashtbl.t; 
+    types : DynType.t ID.Map.t; 
+  } 
+      
+  let init fundef = {
+    constants = FindConstants.find_constants fundef; 
+    use_counts = FindUseCounts.find_fundef_use_counts fundef;
+    types = fundef.tenv;   
+  } 
+     
+  let finalize cxt fundef = NoChange 
+  let stmt cxt stmtNode = match stmtNode.stmt with 
+   (* 
+    TODO: make this work when only some variables in an assignment are useless 
+   *) 
+    | Set (ids, rhs) when List.for_all (is_useless cxt.use_counts) ids -> 
+      Update SSA.empty_stmt
+      (* UNFINISHED HERE! *) 
+    | If (condVal, tBlock, fBlock, ifGate) ->
+      let get_type id = ID.Map.find id cxt.types in
+      let mk_var id t  = SSA.mk_var ?src:stmtNode.stmt_src ~ty:t id in  
+      begin match condVal.value with 
+        | Num (PQNum.Bool b) ->
+            let branchIds = if b then ifGate.true_ids else ifGate.false_ids in 
+            let types = List.map get_type branchIds in 
+            let rhsVals = List.map2 mk_var branchIds types in   
+            let rhsExp = 
+              SSA.mk_exp ?src:stmtNode.stmt_src ~types (Values rhsVals) 
+            in
+            let assignment = 
+              SSA.mk_set ?src:stmtNode.stmt_src ifGate.if_output_ids rhsExp
+            in     
+            Update assignment
+        | _ -> NoChange  
+      end   
+    | _ -> NoChange 
+    
+  
+  let exp cxt expNode = NoChange 
+  let value cxt valNode = NoChange  
+end
+
+module Simplifer = SSA_Transform.MkSimpleTransform(SimplifyRules)
+
+let simplify_fundef (_ : FnTable.t) = Simplifer.transform_fundef 
+  
+
+(* TODO: remake this module using SSA_Transform *)
+(* open Base
 
 (* chain together function which return a changed boolean *) 
 let (>>) (value,changed) f = 
@@ -27,25 +91,7 @@ let replace_with_const constEnv id =
 (* when we deconstruct an if-statement, we need to turn its gate to a list of
    assignments 
 *)
-let rec create_assignments tenv newIds oldIds =  
-  match newIds, oldIds with 
-  | [], [] -> []
-  | [], _ -> 
-    failwith "[create_assignments] expected id lists to be of same length" 
-  | (newId::newRest), (oldId::oldRest) ->
-     let ty = ID.Map.find_default oldId tenv DynType.BottomT in  
-     let valNode = SSA.mk_var ~ty:ty oldId in 
-     let expNode = SSA.mk_exp ~types:[ty] (Values [valNode]) in 
-     let assign = mk_set [newId] expNode in 
-     assign :: (create_assignments tenv newRest oldRest) 
 
-let is_useless useCounts id =
-  (* by convention, having 0 use counts excludes a varialbe from the 
-     useCount map, but check just in case 
-  *) 
-  if Hashtbl.mem useCounts id  
-  then Hashtbl.find useCounts id = 0 
-  else true  
 
 let rec rewrite_block constEnv useCounts defEnv tenv block = 
   let allStmts, allChanged = 
@@ -244,5 +290,4 @@ let simplify_fundef (functions:FnTable.t) fundef =
       body1
   in 
   {fundef with body = body2}, changed1 || changed2
-*)
-let simplify_fundef fnTable fundef = fundef, false                                                                 
+*)                                                            

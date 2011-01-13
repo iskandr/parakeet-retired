@@ -23,7 +23,6 @@ type ('a,'b,'c) open_stmt =
   (* cond body, cond value, loop body *) 
   | LoopInfo of 'c * 'a * 'c  
 
-
 (* can be reused for most value lattices when environment is a hash *) 
 let mk_hash_merge combine outEnv outId xEnv xId yEnv yId =  
   let x = Hashtbl.find xEnv xId in

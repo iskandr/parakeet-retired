@@ -8,57 +8,7 @@ open InterpVal
 
 let _ = Printexc.record_backtrace true 
 
-module GpuCost = struct 
-  let map memState closureArgs dataArgs fundef =  
-    let launchCost = 3  in
-    (* assume we can transfer 100,000 elements per millsecond to GPU, 
-           and that allocation costs 3ms no matter the size 
-         *)
-    
-    let memoryCosts = 
-      List.sum (List.map (MemoryState.gpu_transfer_time memState) dataArgs)
-      +
-      List.sum (List.map (MemoryState.gpu_transfer_time memState) closureArgs)
-    in  
-    let shapes = List.map (MemoryState.get_shape memState) dataArgs in  
-    let maxShape = match Shape.max_shape_list shapes with 
-      | Some maxShape -> maxShape
-      | None -> failwith "no common shape found"
-    in  
-    (* assume each processor can process 1000 elements per millisecond, and 
-       we have 100 processors
-    *)
-    let runCost = Shape.nelts maxShape / 100  in 
-    launchCost + memoryCosts + runCost 
-  
-  
-  let array_op memState op argVals = match op, argVals with 
-  | _ -> 0         
-end
-
-module HostCost = struct
-  let map memState closureArgs dataArgs fundef = 
-    let memoryCosts = 
-      List.sum (List.map (MemoryState.host_transfer_time memState) dataArgs)
-    in
-    let shapes = List.map (MemoryState.get_shape memState) dataArgs in 
-    let maxShape = match Shape.max_shape_list shapes with 
-      | Some maxShape -> maxShape 
-      | None -> failwith "max shape not found"
-    in 
-    (* assume we process 100 elements per millisecond on the host, 
-       but also assume nested computations are free
-     *) 
-    let runCost = (Shape.get maxShape 0) / 10 in 
-    1 + memoryCosts + runCost  
-    
-  let array_op memState op argVals = match op, argVals with 
-  | _ -> max_int (* don't run anything else on the host *)  
-end
-
-
 type env = InterpVal.t ID.Map.t 
-
 
 let rec eval_value 
     (memoryState : MemoryState.t) 
@@ -168,29 +118,34 @@ and eval_exp
       let argVals = List.map (eval_value memState env) args in 
       eval_scalar_op memState op argVals
       
-  | Call (fnId, args) -> 
+  | Call ({fn_id=fnId}, args) -> 
       let argVals = List.map (eval_value memState env) args in
       let fundef = FnTable.find fnId fnTable in 
       eval_app memState fnTable env fundef argVals
   
   | Map ({closure_fn=fnId; closure_args=closureArgs}, args) ->
       let fundef = FnTable.find fnId fnTable in
-      let closureArgVals = List.map (eval_value memState env) closureArgs in 
-      let argVals = List.map (eval_value memState env) args in 
-      let gpuCost = GpuCost.map memState closureArgVals argVals fundef in  
-      let cpuCost = CpuCost.map memState closureArgVlas argVals fundef in 
-      if gpuCost < cpuCost then 
-        let closureGpuVals = 
-          List.map (MemoryState.get_gpu memState) closureArgs 
-        in 
-        let dataGpuVals = 
-          List.map (MemoryState.get_gpu memState) dataArgs 
-        in
-        GpuRuntime.run_map memState fnTable fundef closureGpuVals dataGpuVals outputTypes 
-        
+      let closureArgVals : InterpVal.t list = 
+        List.map (eval_value memState env) closureArgs 
+      in 
+      let argVals : InterpVal.t list = 
+        List.map (eval_value memState env) args 
+      in 
+      let gpuCost : int = GpuCost.map memState closureArgVals argVals fundef in  
+      let cpuCost : int = CpuCost.map memState closureArgVals argVals fundef in
+      (if gpuCost < cpuCost then 
+        GpuRuntime.eval_map 
+          memState 
+          fnTable 
+          fundef 
+          closureArgVals 
+          argVals 
+          expNode.exp_types
       else 
-        ()     
-     
+        failwith "cpu map not implemented"
+      )
+             
+      (*
   | Reduce (
      {closure_fn=initFnId; closure_args=initClosureArgs},
      {closure_fn=reduceFnId; closure_args=reduceClosureArgs},
@@ -204,10 +159,12 @@ and eval_exp
         | Some nestedFnId -> FnTable.find nestedFnId fnTable
         | None -> fundef 
       in  
+      
       let gpuVals = List.map (MemoryState.get_gpu memState) dataArgs in
       run_reduce memState fnTable fundef2 gpuVals outputTypes
-      
-  | Scan ((initFnId, initClosureArgs), (fnId, closureArgs), args) ->    
+      *)
+  | Scan ({closure_fn=initFnId; closure_args=initClosureArgs}, 
+          {closure_fn=fnId; closure_args=closureArgs}, args) ->    
      failwith "scan not implemented"
 and eval_app memState fnTable env fundef args = 
   (* create an augmented memory state where input ids are bound to the *)
@@ -223,19 +180,16 @@ and eval_app memState fnTable env fundef args =
   List.map (fun id -> ID.Map.find id env3) fundef.output_ids
 and eval_scalar_op memState args = failwith "not implemented"
 and eval_array_op memState fnTable env op argVals outTypes : InterpVal.t list =
-  let runOnGpu = GpuRuntime.implements_array_op op && 
-    (let gpuCost = GpuCost.array_op memState fnTable op argVals in 
-     let hostCost = HostCost.array_op memState fnTable op argVals in
-     IFDEF DEBUG THEN 
+  let gpuCost = GpuCost.array_op memState op argVals in 
+  let hostCost = CpuCost.array_op memState op argVals in
+  IFDEF DEBUG THEN 
        Printf.printf 
          "Estimated cost of running array op %s on host: %d, on gpu: %d\n"
          (Prim.array_op_to_str op)
          hostCost
-         gpuCost 
-       ;
-     ENDIF;
-     gpuCost <= hostCost)
-  in  
+         gpuCost;
+  ENDIF;   
+  let runOnGpu = GpuRuntime.implements_array_op op && gpuCost <= hostCost in  
   if runOnGpu then
     GpuRuntime.eval_array_op memState fnTable  op argVals outTypes
   else match op, argVals with

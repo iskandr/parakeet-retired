@@ -13,6 +13,7 @@ module ConstantAnalysis = struct
   let iterative = true 
   let flow_split env = env, env 
   let flow_merge = SSA_Analysis.mk_map_merge ConstantLattice.join 
+  
         
   let init fundef : env =
     List.fold_left 
@@ -38,8 +39,18 @@ module ConstantAnalysis = struct
     | _ -> List.map (fun _ -> ConstantLattice.top) expNode.exp_types
   
   let stmt env stmtNode stmtInfo = match stmtNode.stmt, stmtInfo with
-    (* TODO: Fix!*) 
-    | Set(ids, _), SetInfo vs -> flow_merge env ids env ids env ids  
+     
+    | Set(ids, _), SetInfo currVals -> 
+        let oldVals = List.map (fun id -> ID.Map.find id env) ids in
+        let combined = List.map2 ConstantLattice.join currVals oldVals in
+        if List.exists2 (<>) oldVals combined then 
+          Some (List.fold_left2 
+                 (fun accEnv id v -> ID.Map.add id v accEnv) 
+                 env
+                 ids 
+                 combined
+               )
+        else None 
     | _ -> None    
 end
 

@@ -10,14 +10,7 @@ type 'a update =
   | Update of 'a 
   | UpdateWithStmts of 'a * (stmt_node list)
   | UpdateWithBlock of 'a * block
-(*
-module type SIMPLE_BLOCK_TRANSFORM_RULES = sig 
-  val dir : direction 
-  val stmt : stmt_node -> stmt_node update
-  val exp : exp_node -> exp_node update
-  val value : value_node -> value_node update 
-end
-*)
+
 module type SIMPLE_TRANSFORM_RULES = sig
   val dir : direction
   type context

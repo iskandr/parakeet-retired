@@ -1,4 +1,6 @@
-  let map memState closureArgs dataArgs fundef =  
+open Base
+  
+let map memState closureArgs dataArgs fundef =  
     let launchCost = 3  in
     (* assume we can transfer 100,000 elements per millsecond to GPU, 
            and that allocation costs 3ms no matter the size 
@@ -21,5 +23,5 @@
     launchCost + memoryCosts + runCost 
   
   
-  let array_op memState op argVals = match op, argVals with 
+let array_op memState op argVals = match op, argVals with 
   | _ -> 0 

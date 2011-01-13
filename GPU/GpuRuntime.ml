@@ -165,7 +165,7 @@ let compile_map globalFunctions payload closureTypes argTypes retTypes =
 
 let mapCache : code_cache = Hashtbl.create 127
  
-let run_map memState globalFunctions payload closureVals gpuVals outputTypes =
+let run_map globalFunctions payload closureVals gpuVals outputTypes =
   let closureTypes = List.map GpuVal.get_type closureVals in 
   let inputTypes = List.map GpuVal.get_type gpuVals in
   let cacheKey = (payload.SSA.fundef_id, closureTypes @ inputTypes) in  
@@ -207,6 +207,15 @@ let run_map memState globalFunctions payload closureVals gpuVals outputTypes =
   in
   LibPQ.launch_ptx cudaModule.Cuda.module_ptr fnName paramsArray gridParams;
   outputVals
+
+ 
+let eval_map memState fnTable payload closArgs dataArgs outTypes =
+  let gpuClosArgs = List.map (MemoryState.get_gpu memState) closArgs in 
+  let gpuDataArgs = List.map (MemoryState.get_gpu memState) dataArgs in  
+  let gpuOutVals = 
+    run_map fnTable payload gpuClosArgs gpuDataArgs outTypes 
+  in 
+  List.map (MemoryState.add_gpu memState) gpuOutVals 
 
 (** REDUCE **)
 let compile_reduce globalFunctions payload retTypes =
