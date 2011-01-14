@@ -4,11 +4,14 @@ open SSA_Analysis
 
 module Env = struct 
   type t = (ID.t, int) Hashtbl.t
-  let init _ = Hashtbl.create 127 
+  let init fundef = 
+    let env = Hashtbl.create 127 in 
+    List.iter (fun id -> Hashtbl.add env id 1) fundef.output_ids; 
+    env  
 end
 
 module UseCountAnalysis = struct
-  include MkSimpleAnalysis(Env) 
+  include MkAnalysis(Env)(ExpUnit)(ValUnit) 
   
   let value counts valNode = match valNode.value with  
     | Var id -> 

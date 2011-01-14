@@ -29,9 +29,9 @@ and all_scalar_stmts stmts = SSA.block_for_all is_scalar_stmt_node stmts
 
 module MkAnalysis (P : TYPE_ANALYSIS_PARAMS) = struct
   let iterative = true
+  let clone_env env = env
   let flow_merge outEnv outId leftEnv leftId rightEnv rightId = None
-
-  let flow_split env = env, env 
+ 
   let dir = Forward 
   
   type env = (ID.t, DynType.t) Hashtbl.t  
@@ -91,46 +91,58 @@ module MkAnalysis (P : TYPE_ANALYSIS_PARAMS) = struct
     | _ -> failwith "not implemented"     
 
 
-  let exp tenv expNode info = match expNode.exp, info with
-    | App({value=Prim (Prim.ArrayOp arrayOp)}, args), AppInfo(_, argTypes)
-        when Prim.is_higher_order arrayOp -> 
-          infer_higher_order tenv arrayOp args argTypes
-    | App (fn, _), AppInfo(fnT, argTypes) when DynType.is_vec fnT -> 
-        [TypeInfer.infer_simple_array_op Prim.Index (fnT::argTypes)]   
-    | App(fn, _), AppInfo(fnT, argTypes)-> infer_app tenv fn.value argTypes  
-    | _, ArrayInfo eltTypes ->
-      let commonT = DynType.fold_type_list eltTypes in 
-      assert (commonT <> DynType.AnyT); 
-      [DynType.VecT commonT]
-    | _, ValuesInfo types -> types  
-    | _ -> failwith "not implemented"
+  let exp_app tenv expNode ~fn ~args ~fnInfo ~argInfo = 
+    match fn.value with 
+    | Prim (Prim.ArrayOp arrayOp)when Prim.is_higher_order arrayOp -> 
+      infer_higher_order tenv arrayOp args argInfo
+    | _  when  DynType.is_vec fnInfo ->   
+      [TypeInfer.infer_simple_array_op Prim.Index (fnInfo::argInfo)]   
+    | fnVal ->  infer_app tenv fnVal argInfo  
   
-  let stmt tenv stmtNode stmtInfo = match stmtNode.stmt, stmtInfo with 
-    | Set(ids, _), SetInfo rhsTypes ->               
-        IFDEF DEBUG THEN
-          if List.length ids <> List.length rhsTypes then 
-          failwith $ sprintf 
-            "malformed SET statement: %d ids for %d rhs values \n"
-            (List.length ids)
-            (List.length rhsTypes)
-        ENDIF; 
-      let rec process_types (tenv, changed) id rhsT =  
-        IFDEF DEBUG THEN 
-          if rhsT = DynType.AnyT then failwith "error during type inference"
-        ENDIF; 
-        let oldT = get_type tenv id in 
-        let newT = DynType.common_type oldT rhsT in 
-        let changedT = oldT <> newT in
-        let tenv' = 
-          if changedT then add_type tenv id newT else tenv 
-        in 
-        tenv', (changed || changedT)
-      in 
-      let tenv', changed = 
-        List.fold_left2 process_types (tenv, false) ids rhsTypes
-      in  
-      if changed then Some tenv' else None 
-    | _ -> failwith "not implemented"
+  let exp_arr tenv expNode ~elts ~info = 
+    let commonT = DynType.fold_type_list info in 
+    assert (commonT <> DynType.AnyT); 
+    [DynType.VecT commonT]
+  
+  let exp_values tenv expNode ~vs ~info = info 
+
+  let exp_call _ _ ~typedFn ~args ~info = 
+    failwith "unexpected typed function call"
+  let exp_scan
+        _ _ ~initClosure ~scanClosure ~args ~initInfo ~scanInfo ~argInfo =
+        failwith "unexpected typed Scan"
+  let exp_reduce 
+        _ _ ~initClosure ~reduceClosure ~args ~initInfo ~reduceInfo ~argInfo = 
+        failwith "unexpected typed Reduce"   
+  let exp_map _ _ ~closure ~args ~closureInfo ~argInfo = 
+        failwith "unexpected typed Map"
+  
+  let stmt_set tenv stmtNode ~ids ~rhs ~rhsInfo = 
+    IFDEF DEBUG THEN
+      if List.length ids <> List.length rhsInfo then 
+        failwith $ sprintf 
+          "malformed SET statement: %d ids for %d rhs values \n"
+          (List.length ids)
+          (List.length rhsInfo)
+    ENDIF; 
+    let rec process_types (tenv, changed) id rhsT =  
+      IFDEF DEBUG THEN 
+        if rhsT = DynType.AnyT then failwith "error during type inference"
+      ENDIF; 
+      let oldT = get_type tenv id in
+      let newT = DynType.common_type oldT rhsT in 
+      let changedT = oldT <> newT in
+      let tenv' = if changedT then add_type tenv id newT else tenv in 
+      tenv', (changed || changedT)
+    in 
+    let tenv', changed = 
+      List.fold_left2 process_types (tenv, false) ids rhsInfo
+    in  
+    if changed then Some tenv' else None 
+ 
+    let stmt_if env stmtNode ~cond ~tBlock ~fBlock ~gate ~condInfo ~tEnv ~fEnv =
+      failwith "IF not implemented"
+ 
 end
    
 let type_analysis infer_output_types closureEnv fundef signature = 

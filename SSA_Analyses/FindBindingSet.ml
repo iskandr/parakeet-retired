@@ -1,19 +1,15 @@
 open Base 
 open SSA 
-
+open SSA_Analysis 
 module Env  = struct
   type t = ID.Set.t 
   let init fundef = ID.Set.of_list (fundef.input_ids @ fundef.output_ids)  
 end
 module BindingSetAnalysis = struct
-  include SSA_Analysis.MkSimpleAnalysis(Env) 
-  let stmt env stmtNode info = match stmtNode.stmt with 
-    | Set (ids, _) -> Some (ID.Set.add_list ids env)
-    | _ -> failwith "not implemented"
-
+  include SSA_Analysis.MkAnalysis(Env)(ExpUnit)(ValUnit)
   
-  (* let eval_stmt env src ids rhsNode rhsInfo = Some (ID.Set.add_list ids env)*)
-  (* let eval_if env src *)   
+  let stmt_set env stmtNode ~ids ~rhs ~rhsInfo = Some (ID.Set.add_list ids env)
+     
 end
 module BindingSetEval = SSA_Analysis.MkEvaluator(BindingSetAnalysis)
 

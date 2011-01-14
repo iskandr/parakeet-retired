@@ -4,10 +4,6 @@ open Base
 open SSA
 open SSA_Analysis 
 
-(* SingleDef is the combination of an expression 
-   index into multiple return values, 
-   number of returned values into total 
-*)
 module DefLattice = struct
   type t = 
     | Val of SSA.value  
@@ -31,50 +27,48 @@ module DefLattice = struct
     | Combine defs, d
     | d, Combine defs -> Combine (d::defs)
     
-  let eq = (=)  
+  let eq = (=)
 end
-module Env = struct 
-       
-end 
-module DefAnalysis = struct 
-  type env = (ID.t, DefLattice.t) Hashtbl.t 
-  type exp_info = DefLattice.t list
-  type value_info = unit 
-    
-  let init fundef =
-    let env = Hashtbl.create 127 in  
-    List.iter  
-      (fun id -> Hashtbl.add env id DefLattice.Top) 
-      fundef.input_ids
-    ; 
-    env
-    
-  let dir = Forward 
-  let flow_split env = env, env
-  let flow_merge = SSA_Analysis.mk_hash_merge DefLattice.combine
-    
-  let iterative = false 
-  
-  let value _ _ = () 
-  let exp env expNode _ =  match expNode.exp  with 
+
+module ExpInfo = struct 
+  include SSA_Analysis.MkListLattice(DefLattice)
+  let mk_default expNode = match expNode.exp with 
     | Values vs -> List.map (fun v -> DefLattice.Val v.value) vs   
     | other -> 
       let numReturnVals = List.length expNode.exp_types in 
       List.map 
         (fun i -> DefLattice.Def (other, i+1, numReturnVals)) 
-        (List.til numReturnVals)  
+        (List.til numReturnVals)
+end 
+   
+module Env = struct 
+  type t = (ID.t, DefLattice.t) Hashtbl.t
+  let init fundef = 
+    let env = Hashtbl.create 127 in  
+    List.iter  
+      (fun id -> Hashtbl.add env id DefLattice.Top) 
+      fundef.input_ids
+    ; 
+    env         
+end 
+module DefAnalysis = struct
+  include SSA_Analysis.MkAnalysis(Env)(ExpInfo)(ValUnit)
   
-  let stmt env stmtNode stmtInfo = match stmtNode.stmt, stmtInfo with
-    | Set (ids, _), SetInfo defs -> 
-      IFDEF DEBUG THEN
-        if not (List.length defs = List.length ids) then 
-          failwith $ Printf.sprintf 
-            "[FindDefs] error in \"%s\", %d ids for %d expressions" 
-            (SSA.stmt_node_to_str stmtNode) (List.length ids) (List.length defs)
-      ENDIF; 
-      List.iter2 (Hashtbl.add env) ids defs; 
-      None   
-    | _ -> None 
+  let flow_merge = SSA_Analysis.mk_hash_merge DefLattice.combine
+    
+  let iterative = false 
+  
+  let stmt_set env stmtNode ~ids ~rhs ~rhsInfo = 
+    IFDEF DEBUG THEN
+      let nDefs = List.length rhsInfo in 
+      let nIds = List.length ids in 
+      if nDefs <> nIds then 
+        failwith $ Printf.sprintf 
+          "[FindDefs] error in \"%s\", %d ids for %d expressions" 
+          (SSA.stmt_node_to_str stmtNode) nDefs nIds 
+    ENDIF; 
+    List.iter2 (Hashtbl.add env) ids rhsInfo;  
+    None    
 end 
 
 module DefEval = MkEvaluator(DefAnalysis)

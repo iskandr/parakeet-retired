@@ -31,6 +31,8 @@ module Replace_Rules(P: REPLACE_PARAMS) = struct
       
   let value idMap valNode = match valNode.value with  
     | Var id -> 
+      (*Printf.printf "~~~ Replace: %d => %d \n" id (ID.Map.find id idMap);*) 
+      
       if ID.Map.mem id idMap then 
         Update { valNode with value= Var (ID.Map.find id idMap) }
       else NoChange 

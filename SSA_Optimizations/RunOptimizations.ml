@@ -9,13 +9,16 @@ let rec fold_optimizations ?(type_check=false) fnTable fundef lastChanged =
   function
   | (name, opt)::rest -> 
       let optimized, changed = opt fnTable fundef in
-      
-      
       IFDEF DEBUG THEN
+        if changed then 
+          Printf.printf "Ran %s, modified output: %s\n"
+            name 
+            (SSA.fundef_to_str optimized)
+        ;  
         if type_check then  
-        let errorLog = TypeCheck.check_fundef optimized in 
-        if not $ Queue.is_empty errorLog then ( 
-        Printf.printf 
+          let errorLog = TypeCheck.check_fundef optimized in 
+          if not $ Queue.is_empty errorLog then ( 
+          Printf.printf 
             "--- Errors found in %s after %s ---\n"
             (FnId.to_str fundef.SSA.fundef_id)
             name
@@ -28,7 +31,7 @@ let rec fold_optimizations ?(type_check=false) fnTable fundef lastChanged =
   | [] -> fundef, lastChanged
    
 let rec optimize_fundef
-      ?(type_check=false)
+      ?(type_check=true)
       ?(iter=1) 
       ?(maxiters=100) 
       (fnTable : FnTable.t) 

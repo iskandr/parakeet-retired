@@ -64,7 +64,7 @@ module Inline_Rules (P:INLINE_PARAMS) = struct
          
   let stmt envRef stmtNode = NoChange     
   let exp envRef expNode = match expNode.exp with 
-    | App ({value=GlobalFn fnId} as fn, args) -> 
+    | App ({value=GlobalFn fnId}, args) -> 
       (match P.lookup fnId with 
         | None -> NoChange  
         | Some fundef -> 
@@ -72,11 +72,16 @@ module Inline_Rules (P:INLINE_PARAMS) = struct
           if List.length fundef.input_ids <> List.length args then NoChange
           else 
           let inlineBlock, outputExp, typesList = do_inline fundef args in
-          add_types_list envRef typesList;
+          let _ = add_types_list envRef typesList in
           IFDEF DEBUG THEN 
             assert (outputExp.exp_types = expNode.exp_types);
           ENDIF;  
           let expNode' = {outputExp with exp_src=expNode.exp_src } in
+          (*Printf.printf "Inline updated exp: %s => %s \n"
+             (SSA.exp_to_str expNode)
+             (SSA.exp_to_str expNode')
+            ; 
+          *)
           UpdateWithBlock(expNode', inlineBlock)
        )
     | _ -> NoChange 

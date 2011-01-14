@@ -3,24 +3,30 @@ open SSA
 open Printf 
 open SSA_Analysis
 
-module ConstantAnalysis = struct
-  
-  type value_info = value ConstantLattice.t
-  type exp_info = value_info list  
-  type env = value_info ID.Map.t 
-  
-  let dir = Forward
-  let iterative = true 
-  let flow_split env = env, env 
-  let flow_merge = SSA_Analysis.mk_map_merge ConstantLattice.join 
-  
-        
-  let init fundef : env =
+module ConstEnv = struct 
+  type t = value ConstantLattice.t ID.Map.t 
+  let init fundef = 
     List.fold_left 
       (fun accEnv id  -> ID.Map.add id ConstantLattice.ManyValues accEnv)
-        ID.Map.empty 
-        fundef.input_ids 
-  
+      ID.Map.empty 
+      fundef.input_ids 
+end 
+module ValInfo = struct 
+  type t = value ConstantLattice.t 
+  let combine (x:t) (y:t) = ConstantLattice.join x y  
+  let bottom = ConstantLattice.bottom
+  let eq = (=)  
+  let mk_default valNode = ConstantLattice.top 
+end
+module ExpInfo = struct
+  include SSA_Analysis.MkListLattice(ValInfo)
+  let mk_default expNode = 
+    List.map (fun _ -> ConstantLattice.top) expNode.exp_types  
+end 
+      
+module ConstantAnalysis = struct
+  include SSA_Analysis.MkAnalysis(ConstEnv)(ExpInfo)(ValInfo) 
+  let flow_merge = SSA_Analysis.mk_map_merge ConstantLattice.join 
   
   let value env valNode = match valNode.value with  
     | Str _ 
@@ -34,31 +40,22 @@ module ConstantAnalysis = struct
            (ID.to_str id))
     | _ ->  ConstantLattice.ManyValues 
   
-  let exp env expNode = function  
-    | ValuesInfo consts -> consts  
-    | _ -> List.map (fun _ -> ConstantLattice.top) expNode.exp_types
+  let exp_values env expNode ~vs ~info = info 
   
-  let stmt env stmtNode stmtInfo = match stmtNode.stmt, stmtInfo with
-     
-    | Set(ids, _), SetInfo currVals -> 
-        let oldVals = List.map (fun id -> ID.Map.find id env) ids in
-        let combined = List.map2 ConstantLattice.join currVals oldVals in
-        if List.exists2 (<>) oldVals combined then 
-          Some (List.fold_left2 
-                 (fun accEnv id v -> ID.Map.add id v accEnv) 
-                 env
-                 ids 
-                 combined
-               )
-        else None 
-    | _ -> None    
-
-    (* possible alternative definition style: *)
-    (* include DefaultAnalysis *) 
-    (* let set env stmtNode vals = *) 
-end
+  let stmt_set env stmtNode ~ids ~rhs ~rhsInfo =
+    let oldVals = 
+      List.map (fun id -> ID.Map.find_default id env ConstantLattice.bottom) ids 
+    in
+    let combined = List.map2 ConstantLattice.join rhsInfo oldVals in
+    if List.exists2 (<>) oldVals combined then
+      let env' = 
+        List.fold_left2 (fun acc id v -> ID.Map.add id v acc) env ids combined
+      in  
+      Some env' 
+    else None
+    
+  end
 
 module ConstEval = SSA_Analysis.MkEvaluator(ConstantAnalysis)
           
 let find_constants fundef = ConstEval.eval_fundef fundef  
- 

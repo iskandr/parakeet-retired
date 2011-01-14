@@ -12,7 +12,7 @@ module Env = struct
     liveSet   
 end
 module LiveIdAnalysis = struct
-  include MkSimpleAnalysis(Env) 
+  include MkAnalysis(Env)(ExpUnit)(ValUnit)
       
   let value liveSet valNode = match valNode.value with 
     | Var id -> MutableSet.add liveSet id
@@ -20,4 +20,3 @@ module LiveIdAnalysis = struct
 end
 module LiveIdEval = MkEvaluator(LiveIdAnalysis) 
 let find_live_ids = LiveIdEval.eval_fundef 
- 

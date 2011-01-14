@@ -3,26 +3,6 @@ open Base
 
 
 type direction = Forward | Backward
-      
-(* like the exp type in SSA, but replacing value_node with generic 'a *)
-(* type parameter used to fill in different value_info types *)  
-type 'a open_exp = 
-  | AppInfo of 'a * 'a list 
-  | CallInfo of 'a list 
-  | MapInfo of 'a list * 'a list  
-  | ScanInfo of 'a list * 'a list * 'a list
-  | ReduceInfo of 'a list * 'a list * 'a list  
-  | ValuesInfo of 'a list
-  | ArrayInfo of 'a list
-
-(* 'a = value_info, 'b = exp_info, 'c = env *) 
-type ('a,'b,'c) open_stmt = 
-  (* rhs exp_info *)  
-  | SetInfo of 'b  
-  (* if condition, true branch env, false branch env *) 
-  | IfInfo of 'a * 'c * 'c
-  (* cond body, cond value, loop body *) 
-  | LoopInfo of 'c * 'a * 'c  
 
 (* can be reused for most value lattices when environment is a hash *) 
 let mk_hash_merge combine outEnv outId xEnv xId yEnv yId =  
@@ -53,7 +33,7 @@ module type ANALYSIS =  sig
     
     val dir : direction
   
-    val flow_split : env -> env * env  
+    val clone_env : env -> env   
     val flow_merge : env -> ID.t -> env -> ID.t -> env -> ID.t -> env option   
     
     (* should analysis be repeated until environment stops changing? *) 
@@ -61,11 +41,45 @@ module type ANALYSIS =  sig
   
     val init : fundef -> env 
   
-    val value : env -> value_node -> value_info 
-    val exp : env -> exp_node -> value_info open_exp -> exp_info  
-    val stmt 
-      : env -> stmt_node -> (value_info, exp_info, env) open_stmt -> env option
-      
+    val value : env -> value_node -> value_info
+    
+    val exp_values 
+      : env -> exp_node -> 
+        vs:value_node list -> info:value_info list -> exp_info
+    
+    val exp_arr 
+      : env -> exp_node -> elts:value_node list -> 
+        info:value_info list -> exp_info 
+    
+    val exp_call 
+      : env -> exp_node -> typedFn:typed_fn -> args:value_node list -> 
+        info:value_info list -> exp_info 
+          
+    val exp_map 
+      : env -> exp_node -> closure:closure -> args:value_node list -> 
+        closureInfo:value_info list -> argInfo:value_info list -> exp_info 
+  
+    val exp_reduce 
+      : env -> exp_node -> initClosure:closure -> reduceClosure:closure -> 
+          args:value_node list -> initInfo : value_info list -> 
+          reduceInfo:value_info list -> argInfo:value_info list -> exp_info 
+    
+    val exp_scan
+      : env -> exp_node -> initClosure:closure -> scanClosure:closure -> 
+          args:value_node list -> initInfo : value_info list -> 
+          scanInfo:value_info list -> argInfo:value_info list -> exp_info 
+            
+    val exp_app 
+      : env -> exp_node -> fn:value_node -> args:value_node list -> 
+        fnInfo : value_info -> argInfo : value_info list -> exp_info 
+     
+    val stmt_set 
+        : env -> stmt_node -> ids:ID.t list -> rhs:exp_node -> 
+            rhsInfo:exp_info -> env option 
+    val stmt_if 
+        : env -> stmt_node -> cond:value_node -> tBlock:block -> fBlock:block ->
+            gate:if_gate -> condInfo:value_info -> tEnv:env -> fEnv:env -> 
+            env option    
 end
 
 module type ENV = sig
@@ -77,8 +91,18 @@ module type LATTICE = sig
   type t 
   val bottom : t  
   val combine : t -> t -> t
-  val eq : t -> t -> bool 
+  val eq : t -> t -> bool
 end
+
+module type VALUE_LATTICE = sig 
+  include LATTICE
+  val mk_default : value_node -> t 
+end
+
+module type EXP_LATTICE = sig 
+  include LATTICE
+  val mk_default : exp_node -> t 
+end 
 
 module UnitLattice  = struct
   type t = unit 
@@ -86,6 +110,14 @@ module UnitLattice  = struct
   let combine _ _ = ()
   let eq _ _ = true
 end
+module ValUnit = struct
+  include UnitLattice 
+  let mk_default valNode = ()
+end 
+module ExpUnit = struct 
+  include UnitLattice 
+  let mk_default expNode = () 
+end 
 
 module TypeLattice  = struct
   type t = DynType.t
@@ -93,6 +125,10 @@ module TypeLattice  = struct
   let combine = DynType.common_type 
   let eq = (=) 
 end 
+module ValType = struct 
+  include TypeLattice 
+  let mk_default valNode = DynType.BottomT 
+end
 
 module MkListLattice(L: LATTICE)  = struct 
   type t = L.t list  
@@ -106,18 +142,24 @@ end
 
 module TypeListLattice = MkListLattice(TypeLattice)
 
+module ExpType = struct
+  include TypeListLattice   
+  let mk_default expNode = List.map (fun _ -> DynType.BottomT) expNode.exp_types
+end 
+
+
 (* only information needed to specify a minimal imperative analysis
    which performs a no-op on every syntax node 
 *)  
 
-module MkAnalysis (S:ENV)(E:LATTICE)(V:LATTICE)  = 
+module MkAnalysis (S:ENV)(E:EXP_LATTICE)(V:VALUE_LATTICE)  = 
 struct
   type env = S.t 
   type exp_info  = E.t 
   type value_info = V.t 
   
   let dir = Forward
-  let flow_split env = env, env  
+  let clone_env env = env  
   let flow_merge _ _ _ _ _ _ = None   
   
   let iterative = false
@@ -125,20 +167,60 @@ struct
   (* ignore the function definition and just create a fresh lattice value *)
   let init fundef = S.init fundef
   
-  let value _ _ = V.bottom 
-  let exp _ _ _ = E.bottom 
-  let stmt _ _ _= None
+  let value (_:env) (valNode:value_node) = V.mk_default valNode  
   
-  let eval_set 
+  let exp_values 
         (_:env) 
-        (_:SourceInfo.source_info) 
+        (expNode:exp_node) 
+        ~(vs:value_node list) 
+        ~(info:V.t list) = E.mk_default expNode
+         
+  let exp_app 
+        (_:env) 
+        (expNode:exp_node) 
+        ~(fn:value_node) 
+        ~(args:value_node list) 
+        ~(fnInfo:V.t)
+        ~(argInfo:V.t list) = E.mk_default expNode    
+
+  let exp_arr (_:env) (expNode:exp_node) 
+        ~(elts:value_node list) ~(info:value_info list) = E.mk_default expNode 
+        
+  let exp_call (_:env) (expNode:exp_node) 
+        ~(typedFn:typed_fn) ~(args:value_node list)
+        ~(info:value_info list) = E.mk_default expNode  
+          
+  let exp_map (_:env) (expNode:exp_node) 
+        ~(closure:closure) ~(args:value_node list)
+        ~(closureInfo:value_info list) ~(argInfo:value_info list) = 
+          E.mk_default expNode 
+        
+  let exp_reduce (_:env) (expNode:exp_node) 
+        ~(initClosure:closure) 
+        ~(reduceClosure:closure) 
+        ~(args:value_node list) 
+        ~(initInfo:value_info list) 
+        ~(reduceInfo:value_info list) 
+        ~(argInfo:value_info list) = E.mk_default expNode  
+  
+  let exp_scan (_:env) (expNode:exp_node) 
+        ~(initClosure:closure) 
+        ~(scanClosure:closure) 
+        ~(args:value_node list) 
+        ~(initInfo:value_info list) 
+        ~(scanInfo:value_info list)
+        ~(argInfo:value_info list) = E.mk_default expNode
+            
+ let stmt_set 
+        (_:env) 
+        (_:stmt_node) 
         ~(ids:ID.t list) 
         ~(rhs:SSA.exp_node)
         ~(rhsInfo:E.t) = None 
   
-  let eval_if 
+  let stmt_if 
         (_:env) 
-        (_:SourceInfo.source_info)
+        (_:stmt_node)
         ~(cond:SSA.value_node)
         ~(tBlock:SSA.block)
         ~(fBlock:SSA.block)
@@ -147,8 +229,6 @@ struct
         ~(tEnv:env)
         ~(fEnv:env) = None 
 end 
-
-module MkSimpleAnalysis(S:ENV) = MkAnalysis(S)(UnitLattice)(UnitLattice)
 
 (*
 module type EVALUATOR = functor (A : ANALYSIS) -> sig 
@@ -183,19 +263,19 @@ module MkEvaluator(A : ANALYSIS) = struct
         !env, !changed
 
   and eval_stmt env stmtNode = match stmtNode.stmt with 
-    | Set (ids, rhs) -> A.stmt env stmtNode (SetInfo (eval_exp env rhs)) 
+    | Set (ids, rhs) -> 
+        A.stmt_set env stmtNode ~ids ~rhs ~rhsInfo:(eval_exp env rhs) 
     | If(cond, tBlock, fBlock, gate) -> 
         let condInfo = eval_value env cond in
-        let trueEnv, falseEnv = A.flow_split env in 
-        let trueEnv', trueChanged = eval_block trueEnv tBlock in 
-        let falseEnv', falseChanged = eval_block falseEnv fBlock in
+        let tEnv, tChanged = eval_block (A.clone_env env) tBlock in 
+        let fEnv, fChanged = eval_block (A.clone_env env) fBlock in
         let mergeChanged = ref false in 
         let folder env outId trueId falseId =
-          match A.flow_merge env outId trueEnv' trueId falseEnv' falseId with
+          match A.flow_merge env outId tEnv trueId fEnv falseId with
             | Some env' -> mergeChanged := true; env'  
             | None -> env
         in       
-        let combinedEnv = 
+        let env' = 
           List.fold_left3 
             folder 
             env 
@@ -203,42 +283,53 @@ module MkEvaluator(A : ANALYSIS) = struct
             gate.true_ids 
             gate.false_ids
         in 
-        let info = IfInfo (condInfo, trueEnv', falseEnv') in 
-        (match A.stmt combinedEnv stmtNode info with 
+        match 
+          A.stmt_if env' stmtNode 
+            ~cond ~tBlock ~fBlock ~gate 
+            ~condInfo ~tEnv ~fEnv 
+        with 
           | None ->
             (* since None indicates no change was made we can only*)
             (* propagate it if none of the operations on child nodes*)
             (* also didn't involve changes *)
-            if trueChanged || falseChanged || !mergeChanged 
-            then Some combinedEnv else None     
-         | modifiedEnv -> modifiedEnv
-         )   
+            if tChanged || fChanged || !mergeChanged 
+            then Some env' else None     
+         | modified -> modified   
     | _ -> failwith "not yet implemented"
      
-  and eval_exp env expNode = 
-    let info = match expNode.exp with 
+  and eval_exp env expNode = match expNode.exp with 
       | App(fn, args) -> 
-        let fnInfo = eval_value env fn in
-        let argInfos = eval_values env args in
-        AppInfo (fnInfo, argInfos)
+          A.exp_app env expNode 
+            ~fn ~args 
+            ~fnInfo:(eval_value env fn) ~argInfo:(eval_values env args)
        
-      | Call(typedFn, args) -> CallInfo (eval_values env args) 
-      | Map(closure, args) -> 
-        let closureInfos = eval_values env closure.closure_args in 
-        let argInfos = eval_values env args in  
-        MapInfo (closureInfos, argInfos)
-          
-      | Scan(initClosure, reduceClosure, args) -> 
-        let initInfos = eval_values env initClosure.closure_args in 
-        let reduceInfos = eval_values env reduceClosure.closure_args in 
-        let argInfos = eval_values env args in 
-        ScanInfo (initInfos, reduceInfos, argInfos)
-     | ReduceInfo of 'a list * 'a list * 'a list  
-  | ValuesInfo of 'a list
-  | ArrayInfo of 'a list
-      | _ -> failwith "not implemented"     
-    in A.exp env expNode info  
-   
+      | Call(typedFn, args) -> 
+          A.exp_call env expNode ~typedFn ~args ~info:(eval_values env args) 
+      | Map(closure, args) ->
+          A.exp_map env expNode 
+            ~closure ~args 
+            ~closureInfo:(eval_values env closure.closure_args) 
+            ~argInfo:(eval_values env args)   
+      
+      | Reduce(initClosure, reduceClosure, args) -> 
+          let initInfo = eval_values env initClosure.closure_args in 
+          let reduceInfo = eval_values env reduceClosure.closure_args in 
+          let argInfo = eval_values env args in 
+          A.exp_reduce env expNode 
+            ~initClosure ~reduceClosure ~args 
+            ~initInfo ~reduceInfo ~argInfo
+      
+      | Scan(initClosure, scanClosure, args) -> 
+          let initInfo = eval_values env initClosure.closure_args in 
+          let scanInfo = eval_values env scanClosure.closure_args in 
+          let argInfo = eval_values env args in 
+          A.exp_scan env expNode
+            ~initClosure ~scanClosure ~args 
+            ~initInfo ~scanInfo ~argInfo
+            
+     | Values vs -> A.exp_values env expNode ~vs ~info:(eval_values env vs)    
+     | Arr elts -> A.exp_arr env expNode ~elts ~info:(eval_values env elts)
+     | _ -> failwith "not implemented"     
   and eval_value = A.value  
   and eval_values env values = List.map (eval_value env) values 
 

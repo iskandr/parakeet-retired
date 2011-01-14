@@ -84,14 +84,24 @@ module BlockState = struct
         xNew 
    
   let process_stmt_update blockState stmtNode update =
-    let stmtNode' = process_update blockState stmtNode update in 
-    add_stmt blockState stmtNode'   
+    add_stmt blockState (process_update blockState stmtNode update)   
 end 
 open BlockState 
 
+let exp_update_to_str = function 
+  | NoChange -> "NoChange"
+  | Update e -> "Update: " ^ (SSA.exp_to_str e)
+  | UpdateWithStmts (e, _)-> "UpdateStmts: " ^ (SSA.exp_to_str e)
+  | UpdateWithBlock (e, _) -> "UpdateBlock: " ^ (SSA.exp_to_str e)
+
+let stmt_update_to_str = function 
+  | NoChange -> "NoChange"
+  | Update e -> "Update: " ^ (SSA.stmt_node_to_str e)
+  | UpdateWithStmts (e, _)-> "UpdateStmts: " ^ (SSA.stmt_node_to_str e)
+  | UpdateWithBlock (e, _) -> "UpdateBlock: " ^ (SSA.stmt_node_to_str e)
+
+
 module MkCustomTransform(R : CUSTOM_TRANSFORM_RULES) = struct 
-  
-  
   let rec transform_block 
           (rewriteStmt : rewrite_helpers -> stmt_node -> stmt_node update) 
           (block:block) = 
@@ -101,13 +111,22 @@ module MkCustomTransform(R : CUSTOM_TRANSFORM_RULES) = struct
       changed = (fun n -> blockState.changes <> n); 
       process_value = 
         (fun f vNode -> BlockState.process_update blockState vNode (f vNode));
+        
       process_exp = 
-        (fun f eNode -> BlockState.process_update blockState eNode (f eNode));
+        (fun f eNode -> 
+          let update = f eNode in
+          (*Printf.printf "original: %s, update: %s\n"
+           (SSA.exp_to_str eNode)
+           (exp_update_to_str update)
+          ;
+          *)
+          BlockState.process_update blockState eNode update);      
+      
       (* recursion in action! *)
       process_block = 
         (fun rewriteStmt' block' -> 
-         let newBlock, _ = transform_block rewriteStmt' block' in newBlock)
-      (*    (rewrite_helpers -> stmt_node -> stmt_node update) -> block -> block;*)
+           let newBlock, _ = transform_block rewriteStmt' block' in newBlock)
+    
     }
     in  
     let n = SSA.block_length block in
@@ -115,7 +134,16 @@ module MkCustomTransform(R : CUSTOM_TRANSFORM_RULES) = struct
     | Forward -> 
         for i = 0 to n - 1 do
           let stmtNode = block_idx block i  in 
+          (*Printf.printf "Curr stmt in block: %s\n"
+            (SSA.stmt_node_to_str stmtNode)
+          ; 
+          *)
           let stmtUpdate = rewriteStmt helpers stmtNode in
+          (*Printf.printf "Curr stmt update: %s => %s\n"
+            (SSA.stmt_node_to_str stmtNode)
+            (stmt_update_to_str stmtUpdate)
+          ;
+          *)
           BlockState.process_stmt_update blockState stmtNode stmtUpdate
         done 
     | Backward ->  
@@ -171,7 +199,7 @@ module CustomFromSimple(R: SIMPLE_TRANSFORM_RULES) = struct
       (* check for memory equality of returned results to avoid
          creating redundant cons cells 
       *)
-      if v == v' || vs == vs' then vNodes
+      if (v == v') && (vs == vs') then vNodes
       else v'::vs' 
      
   
@@ -185,18 +213,23 @@ module CustomFromSimple(R: SIMPLE_TRANSFORM_RULES) = struct
     | App(fn,args) -> 
       let fn' = transform_value helpers cxt fn in 
       let args' = transform_values helpers cxt args in 
-      if changed () then {expNode with exp = App(fn', args')} 
+      if changed () then {expNode with exp = App(fn', args')}
       else expNode 
     | _ -> failwith "not implemented"  
     in 
-    helpers.process_exp (R.exp cxt) expNode'  
+    let result = helpers.process_exp (R.exp cxt) expNode' in 
+    (*Printf.printf "==> %s\n" (SSA.exp_to_str result);*) 
+    result   
            
   let rec stmt cxt helpers stmtNode =
     let oldV = helpers.version () in
-    let changed () = helpers.version () <> oldV in  
+    let changed () = helpers.version () <> oldV in
     let stmtNode' = match stmtNode.stmt with 
     | Set (ids, rhsExpNode) ->
-      let rhsExpNode' = transform_exp helpers cxt rhsExpNode in  
+      let rhsExpNode' = transform_exp helpers cxt rhsExpNode in
+      (*
+        Printf.printf "===> %s (%b)\n" (SSA.exp_to_str rhsExpNode') (changed());
+      *) 
       if changed() then {stmtNode with stmt=Set(ids, rhsExpNode') }
       else stmtNode 
      
@@ -221,7 +254,9 @@ module CustomFromSimple(R: SIMPLE_TRANSFORM_RULES) = struct
         { stmtNode with stmt=WhileLoop(condBlock',condVal',bodyBlock',loopGate)}
       else stmtNode 
     in
-    R.stmt cxt stmtNode'  
+    match R.stmt cxt stmtNode' with 
+      | NoChange when changed() -> Update stmtNode' 
+      | update -> update  
 end 
 
 module MkSimpleTransform(R : SIMPLE_TRANSFORM_RULES) = 
