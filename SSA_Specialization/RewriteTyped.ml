@@ -4,11 +4,6 @@ open SSA_Transform
 open Printf 
 open DynType 
 
-(* Given a type environment and a list of annotated but untyped stmtNodes *)
-(* return a list of typed statement nodes and the modified type environment*)
-(* which might contain the types produced by any inserted coercions. *)
-(* However, don't try to "coerce" functions since function values *)
-(* are assumed to have been correctly specialized by the annotator.  *)
 
 module type REWRITE_PARAMS = sig
   val specializer : value -> Signature.t -> fundef   
@@ -224,4 +219,7 @@ let rewrite_typed tenv closureEnv specializer fundef =
   in    
   let module Transform = SSA_Transform.MkCustomTransform(Rewrite_Rules(Params))
   in 
+  IFDEF DEBUG THEN
+    Printf.printf "Rewrite Typed...\n%!";
+  ENDIF;
   let fundef, _ = Transform.transform_fundef fundef in fundef   

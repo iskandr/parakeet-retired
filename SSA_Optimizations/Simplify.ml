@@ -31,12 +31,8 @@ module SimplifyRules = struct
      
   let finalize cxt fundef = NoChange 
   let stmt cxt stmtNode = match stmtNode.stmt with 
-   (* 
-    TODO: make this work when only some variables in an assignment are useless 
-   *) 
     | Set (ids, rhs) when List.for_all (is_useless cxt.use_counts) ids -> 
       Update SSA.empty_stmt
-      (* UNFINISHED HERE! *) 
     | If (condVal, tBlock, fBlock, ifGate) ->
       let get_type id = ID.Map.find id cxt.types in
       let mk_var id t  = SSA.mk_var ?src:stmtNode.stmt_src ~ty:t id in  
@@ -58,7 +54,13 @@ module SimplifyRules = struct
     
   
   let exp cxt expNode = NoChange 
-  let value cxt valNode = NoChange  
+  let value cxt valNode = match valNode.value with 
+    | Var id  when ID.Map.mem id cxt.constants ->  
+      (match ID.Map.find id cxt.constants with 
+        | ConstantLattice.Const v -> Update {valNode with value = v }
+        | _ -> NoChange
+      )
+    | _ -> NoChange  
 end
 
 module Simplifer = SSA_Transform.MkSimpleTransform(SimplifyRules)

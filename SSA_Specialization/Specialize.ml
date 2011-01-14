@@ -7,11 +7,13 @@ open DynType
 open Printf 
 
 (* make a fresh function definition whose body is only an untyped prim *) 
-let primFnCache : (Prim.prim * int, fundef) Hashtbl.t = Hashtbl.create 127  
+let untypedPrimFnCache : (Prim.prim * int, fundef) Hashtbl.t = 
+  Hashtbl.create 127  
+
 let mk_untyped_prim_fundef prim arity : fundef =
   let key = (prim,arity) in 
-  if Hashtbl.mem primFnCache key  then 
-    Hashtbl.find primFnCache key
+  if Hashtbl.mem untypedPrimFnCache key  then 
+    Hashtbl.find untypedPrimFnCache key
   else 
   let inputs = ID.gen_fresh_list arity in 
   let output = ID.gen() in 
@@ -22,9 +24,14 @@ let mk_untyped_prim_fundef prim arity : fundef =
   let fundef = SSA.mk_fundef inputs [output] body in 
   (Hashtbl.add primFnCache key fundef; fundef) 
 
+
 let rec specialize_fundef interpState fundef signature = 
- let fundef', closures = 
-  CollectPartialApps.collect_partial_apps interpState fundef 
+  IFDEF DEBUG THEN
+    Printf.printf "Specialize_Fundef...\n%!";
+  ENDIF;
+  
+  let fundef', closures = 
+    CollectPartialApps.collect_partial_apps interpState fundef 
   in
   (* to avoid having to make TypeAnalysis and Specialize recursive 
        modules I've untied the recursion by making specialize_value 
@@ -39,6 +46,13 @@ let rec specialize_fundef interpState fundef signature =
   let typedFn = RewriteTyped.rewrite_typed tenv closures specializer fundef' in
   typedFn   
 and specialize_value interpState fnVal signature =
+  IFDEF DEBUG THEN
+    Printf.printf "Specialize_Value %s :: %s\n%!"
+      (SSA.value_to_str fnVal)
+      (Signature.to_str signature)
+    ; 
+  ENDIF;
+  
   match InterpState.maybe_get_specialization interpState fnVal signature with
   | Some fnId -> InterpState.get_typed_function interpState fnId
   | None ->  
@@ -55,6 +69,9 @@ and specialize_value interpState fnVal signature =
     InterpState.add_specialization interpState fnVal signature typedFundef;
     typedFundef
 and specialize_function_id interpState fnId signature = 
+  IFDEF DEBUG THEN
+    Printf.printf "Specialize_Function_Id...\n%!";
+  ENDIF;
   specialize_value interpState (GlobalFn fnId) signature
                  
     

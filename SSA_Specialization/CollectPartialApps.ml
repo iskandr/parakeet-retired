@@ -66,5 +66,8 @@ let collect_partial_apps interpState fundef =
  let module Collector = 
     MkSimpleTransform(CollectRules(struct let interpState = interpState end))
  in
+ IFDEF DEBUG THEN 
+   Printf.printf "Collect Partial Apps...\n%!";
+ ENDIF;
  let fundef', _ = Collector.transform_fundef fundef in 
  fundef', Collector.get_context () 
