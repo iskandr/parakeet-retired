@@ -104,7 +104,11 @@ and check_exp errorLog tenv (defined : ID.Set.t) (expNode : exp_node) : unit =
         err $ sprintf "context expects type %s but cast is to type %s"
           (DynType.type_list_to_str expNode.exp_types)
           (DynType.to_str t)  
-   
+  | Call (typedFn, args) -> ()
+  | PrimApp (typedPrim, args) -> ()  
+  | Map (closure,args) -> ()
+  | Reduce (initClos, reduceClos, args) -> ()   
+  | Scan (initClos, scanClos, args) -> ()
 and check_value (errorLog:errors)(tenv:tenv) (defined : ID.Set.t) vNode : unit = 
  let err msg = Queue.add (vNode.value_src, msg) errorLog in
   match vNode.value with 

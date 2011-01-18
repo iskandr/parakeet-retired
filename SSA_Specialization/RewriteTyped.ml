@@ -19,7 +19,13 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
     type environment 
   *)  
   let finalize _ f = 
-    Update {f with tenv = Hashtbl.fold ID.Map.add P.tenv ID.Map.empty } 
+    Update {f with 
+      tenv = Hashtbl.fold ID.Map.add P.tenv ID.Map.empty;
+      fundef_input_types = 
+        List.map (Hashtbl.find P.tenv) f.input_ids;
+      fundef_output_types = 
+        List.map (Hashtbl.find P.tenv) f.output_ids;   
+    } 
 
   let get_type id = Hashtbl.find P.tenv id 
   let set_type id t = Hashtbl.replace P.tenv id t 
@@ -134,7 +140,30 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
   let rewrite_app fnVal argNodes : exp_node = 
     let argTypes = List.map (fun v -> v.value_type) argNodes in 
     match fnVal with
-    | Prim _ 
+    | Prim ((Prim.ScalarOp op) as p) -> 
+      let outT = TypeInfer.infer_scalar_op op argTypes in
+      if DynType.is_scalar outT then  
+        SSA.mk_primapp p argTypes [outT] argNodes
+      else 
+        let eltTypes = List.map DynType.peel_vec argTypes in 
+        let eltSignature = Signature.from_input_types eltTypes in 
+        
+        let primFundef = P.specializer fnVal eltSignature in
+        let primClosure = SSA.mk_closure primFundef [] in 
+        let mapNode = SSA.mk_map primClosure argNodes in (
+          Printf.printf "fundef: %s\n closure:%s\n mapNode: %s\n"
+            (SSA.fundef_to_str primFundef)
+            (SSA.closure_to_str primClosure)
+            (SSA.exp_to_str mapNode)  
+          ; 
+          mapNode
+        )      
+    | Prim ((Prim.ArrayOp op) as p) -> 
+      if Prim.is_higher_order op then 
+        failwith "hof not implemented!"
+      else 
+        let outT = TypeInfer.infer_simple_array_op op argTypes in 
+        SSA.mk_primapp p argTypes [outT] argNodes   
     | GlobalFn _ -> 
       let typedFundef = 
         P.specializer fnVal (Signature.from_input_types argTypes) 

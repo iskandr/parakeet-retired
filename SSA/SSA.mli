@@ -119,6 +119,7 @@ val value_node_list_to_str : ?sep:string -> value_node list -> string
 val value_list_to_str : ?sep:string -> value list -> string  
   
 val fundef_to_str : fundef -> string  
+val closure_to_str : closure -> string 
 
 val extract_nested_map_fn_id : fundef -> FnId.t option 
     
@@ -199,8 +200,15 @@ val mk_exp :
       ?src:SourceInfo.source_info -> ?types:DynType.t list -> exp -> exp_node
 val mk_call : 
       ?src:SourceInfo.source_info -> typed_fn -> value_node list -> exp_node 
-  
-
+val mk_map : 
+      ?src:SourceInfo.source_info -> closure -> value_node list -> exp_node 
+val mk_reduce : 
+      ?src:SourceInfo.source_info -> closure -> closure -> value_node list ->
+      exp_node
+val mk_scan : 
+      ?src:SourceInfo.source_info -> closure -> closure -> value_node list -> 
+       exp_node
+val mk_closure : fundef -> value_node list -> closure 
 
 val empty_stmt : stmt_node 
 val is_empty_stmt : stmt_node -> bool 

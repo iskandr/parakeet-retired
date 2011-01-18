@@ -215,7 +215,64 @@ module CustomFromSimple(R: SIMPLE_TRANSFORM_RULES) = struct
       let args' = transform_values helpers cxt args in 
       if changed () then {expNode with exp = App(fn', args')}
       else expNode 
-    | _ -> failwith "not implemented"  
+       
+    | Arr elts -> 
+      let elts' = transform_values helpers cxt elts in 
+      if changed() then {expNode with exp=Arr elts'} 
+      else expNode 
+    | Cast(t, v) ->
+      let v' = transform_value helpers cxt v in 
+      if changed() then {expNode with exp=Cast(t,v')}
+      else expNode 
+      
+    | Call (typedFn, args) -> 
+      let args' = transform_values helpers cxt args in 
+      if changed() then {expNode with exp=Call(typedFn, args')}
+      else expNode 
+       
+    | PrimApp (typedPrim, args) ->
+      let args' = transform_values helpers cxt args in 
+      if changed() then {expNode with exp=PrimApp(typedPrim,args')}
+      else expNode 
+       
+    | Map (closure,args) -> 
+      let closureArgs' = transform_values helpers cxt args in 
+      let args' = transform_values helpers cxt args in 
+      if changed() then 
+        let closure' = { closure with closure_args = closureArgs' } in 
+        {expNode with exp = Map(closure', args') } 
+      else expNode 
+    | Reduce (initClos, reduceClos, args) -> 
+        let initClosureArgs' = 
+          transform_values helpers cxt initClos.closure_args 
+        in
+        let reduceClosureArgs' = 
+          transform_values helpers cxt reduceClos.closure_args 
+        in 
+        let args' = transform_values helpers cxt args in 
+        if changed () then 
+          let initClos' = { initClos with closure_args = initClosureArgs'} in 
+          let reduceClos' = 
+            { reduceClos with closure_args = reduceClosureArgs' }
+          in 
+          { expNode with exp = Reduce(initClos', reduceClos', args')} 
+        else expNode      
+    | Scan (initClos, scanClos, args) -> 
+        let initClosureArgs' = 
+          transform_values helpers cxt initClos.closure_args 
+        in
+        let scanClosureArgs' = 
+          transform_values helpers cxt scanClos.closure_args 
+        in 
+        let args' = transform_values helpers cxt args in 
+        if changed () then 
+          let initClos' = { initClos with closure_args = initClosureArgs'} in 
+          let scanClos' = 
+            { scanClos with closure_args = scanClosureArgs' }
+          in 
+          { expNode with exp = Scan(initClos', scanClos', args')} 
+        else expNode  
+    | _ -> failwith ("not implemented: " ^ (SSA.exp_to_str expNode))  
     in 
     let result = helpers.process_exp (R.exp cxt) expNode' in 
     (*Printf.printf "==> %s\n" (SSA.exp_to_str result);*) 

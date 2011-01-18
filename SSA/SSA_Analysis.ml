@@ -50,7 +50,11 @@ module type ANALYSIS =  sig
     val exp_arr 
       : env -> exp_node -> elts:value_node list -> 
         info:value_info list -> exp_info 
-    
+        
+    val exp_primapp 
+      : env -> exp_node -> typedPrim:typed_prim -> args:value_node list ->
+        argInfo:value_info list -> exp_info 
+        
     val exp_call 
       : env -> exp_node -> typedFn:typed_fn -> args:value_node list -> 
         info:value_info list -> exp_info 
@@ -185,7 +189,14 @@ struct
 
   let exp_arr (_:env) (expNode:exp_node) 
         ~(elts:value_node list) ~(info:value_info list) = E.mk_default expNode 
-        
+  
+  let exp_primapp 
+        (_:env) 
+        (expNode:exp_node) 
+        ~(typedPrim:typed_prim) 
+        ~(args:value_node list) 
+        ~(argInfo:value_info list) = E.mk_default expNode 
+            
   let exp_call (_:env) (expNode:exp_node) 
         ~(typedFn:typed_fn) ~(args:value_node list)
         ~(info:value_info list) = E.mk_default expNode  
@@ -282,8 +293,7 @@ module MkEvaluator(A : ANALYSIS) = struct
             gate.if_output_ids 
             gate.true_ids 
             gate.false_ids
-        in 
-        match 
+        in begin match 
           A.stmt_if env' stmtNode 
             ~cond ~tBlock ~fBlock ~gate 
             ~condInfo ~tEnv ~fEnv 
@@ -294,15 +304,22 @@ module MkEvaluator(A : ANALYSIS) = struct
             (* also didn't involve changes *)
             if tChanged || fChanged || !mergeChanged 
             then Some env' else None     
-         | modified -> modified   
-    | _ -> failwith "not yet implemented"
+         | modified -> modified
+        end   
+    | _ -> failwith ("not yet implemented: " ^ (SSA.stmt_node_to_str stmtNode))
      
   and eval_exp env expNode = match expNode.exp with 
       | App(fn, args) -> 
           A.exp_app env expNode 
             ~fn ~args 
             ~fnInfo:(eval_value env fn) ~argInfo:(eval_values env args)
-       
+      | PrimApp(typedPrim, args) -> 
+          A.exp_primapp 
+            env 
+            expNode 
+            ~typedPrim 
+            ~args 
+            ~argInfo:(eval_values env args) 
       | Call(typedFn, args) -> 
           A.exp_call env expNode ~typedFn ~args ~info:(eval_values env args) 
       | Map(closure, args) ->
@@ -329,7 +346,7 @@ module MkEvaluator(A : ANALYSIS) = struct
             
      | Values vs -> A.exp_values env expNode ~vs ~info:(eval_values env vs)    
      | Arr elts -> A.exp_arr env expNode ~elts ~info:(eval_values env elts)
-     | _ -> failwith "not implemented"     
+     | _ -> failwith ("not implemented: " ^ (SSA.exp_to_str expNode))     
   and eval_value = A.value  
   and eval_values env values = List.map (eval_value env) values 
 

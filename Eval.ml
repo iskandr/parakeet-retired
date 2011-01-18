@@ -104,10 +104,7 @@ and eval_exp
         | _ -> failwith "[eval] expected scalar"
       )  
   | Cast (t, valNode) -> failwith "[eval] cast only implemented for scalars"
-  | _ -> 
-      failwith $ Printf.sprintf 
-        "[eval_exp] no implementation for: %s\n"
-        (SSA.exp_to_str expNode)
+  
         
   (* first order array operators only *)          
   | PrimApp ({prim=Prim.ArrayOp op; prim_output_types=outTypes}, args) -> 
@@ -144,7 +141,10 @@ and eval_exp
       else 
         failwith "cpu map not implemented"
       )
-             
+  | _ -> 
+      failwith $ Printf.sprintf 
+        "[eval_exp] no implementation for: %s\n"
+        (SSA.exp_to_str expNode)           
       (*
   | Reduce (
      {closure_fn=initFnId; closure_args=initClosureArgs},
@@ -178,7 +178,7 @@ and eval_app memState fnTable env fundef args =
   in
   let env3 = eval_block memState fnTable env2 fundef.body in
   List.map (fun id -> ID.Map.find id env3) fundef.output_ids
-and eval_scalar_op memState args = failwith "not implemented"
+and eval_scalar_op memState args = failwith "scalar op not implemented"
 and eval_array_op memState fnTable env op argVals outTypes : InterpVal.t list =
   let gpuCost = GpuCost.array_op memState op argVals in 
   let hostCost = CpuCost.array_op memState op argVals in

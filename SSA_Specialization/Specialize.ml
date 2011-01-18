@@ -22,7 +22,7 @@ let mk_untyped_prim_fundef prim arity : fundef =
   let rhs = SSA.mk_app ~types:bottoms (SSA.mk_val (Prim prim)) inputVars in    
   let body = SSA.block_of_stmt (SSA.mk_set [output] rhs) in 
   let fundef = SSA.mk_fundef inputs [output] body in 
-  (Hashtbl.add primFnCache key fundef; fundef) 
+  (Hashtbl.add untypedPrimFnCache key fundef; fundef) 
 
 
 let rec specialize_fundef interpState fundef signature = 
