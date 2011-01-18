@@ -1,0 +1,177 @@
+% !TEX TS-program = pdflatex
+% !TEX encoding = UTF-8 Unicode
+
+\documentclass[preprint]{sigplanconf}
+
+\usepackage{graphicx,listings,fixltx2e,lambda,array,multirow,color}
+
+
+\begin{document}
+\conferenceinfo{WIR 2011}{April 2, 2011, Chamonix, France.}
+\copyrightyear{2011}
+
+\preprintfooter{WIR 2011}
+\titlebanner{DRAFT---Do not distribute}
+
+\title{Just-in-time Compilation of Data Parallel Languages} 
+
+\authorinfo{Anonymous}{Anonymous}{Anonymous}
+\lstset{ 
+basicstyle=\small\footnotesize\ttfamily, % Standardschrift
+numbers=left,                   % where to put the line-numbers
+stepnumber=1,                   % the step between two line-numbers. If it's 1 each line 
+numbersep=12pt,                  % how far the line-numbers are from the code
+showspaces=false,               % show spaces adding particular underscores
+showstringspaces=false,         % underline spaces within strings
+showtabs=false,                 % show tabs within strings adding particular underscores
+tabsize=2,	                % sets default tabsize to 2 spaces
+captionpos=b,                   % sets the caption-position to bottom
+breaklines=true,                % sets automatic line breaking
+breakatwhitespace=false,        % sets if automatic breaks should only happen at whitespace
+keywordstyle=\color{black}\bf,
+morekeywords={til,sum,sqrt,all, min, each, where, while,+,*,-,avg},            % if you want to add more keywords to the set
+moredelim=[is][\itshape]{/*}{*/},
+linewidth={\textwidth},
+xleftmargin=20pt,
+%framexleftmargin=17pt,
+%framexrightmargin=5pt,
+%framexbottommargin=4pt,
+}
+
+% define some useful commands to use in language specification 
+\newcommand{\WITH}{\impfnt{with}}
+\newcommand{\VALUES}{\impfnt{values}}
+\newcommand{\MAP}{\impfnt{map}}
+\newcommand{\REDUCE}{\impfnt{reduce}}
+\newcommand{\ALLPAIRS}{\impfnt{allpairs}}
+\newcommand{\CAST}{\impfnt{cast}}
+\newcommand{\APPLY}{\impfnt{apply}}
+\newcommand{\INDEX}{\impfnt{index}}
+\newcommand{\SCAN}{\impfnt{scan}}
+\newcommand{\THREADIDX}{\impfnt{threadIdx}}
+\newcommand{\BLOCKIDX}{\impfnt{blockIdx}}
+\newcommand{\BLOCKDIM}{\impfnt{blockDim}}
+\newcommand{\GRIDDIM}{\impfnt{gridDim}}
+\newcommand{\VEC}{\impfnt{vec}}
+\newcommand{\SET}{\impfnt{set}}
+\newcommand{\CALL}{\impfnt{call}}
+\newcommand{\CLOSURE}{\impfnt{closure}}
+\newcommand{\PRIM}{\impfnt{prim}}
+\newcommand{\concat}{\ensuremath{+\!\!\!\!+\,}}
+
+\setlength\fboxsep{8pt}
+\setlength\fboxrule{0.5pt}
+
+\maketitle
+
+\section{Introduction}
+Array languages such as APL, Matlab, Q, and the Numpy extensions to Python are characterized by: 
+\begin{enumerate}
+ \item First-class array types and expressive array operators to construct and manipulate arrays
+ \item Implicit scaling/elemental overloading/scalar extension/whatever you call, whereby scalar functions are implicitly mapped over array arguments.
+\end{enumerate}
+Not-quite-array languages: The need for higher-level interfaces to FPGA and GPU programming has motivated several projects
+to utilize the data parallel model.  
+Combine the two: generate parallel code at the backend from operator-specific function templates. At the front end, create a mapping from more general 
+array languages to a typed data parallel intermediate language with a restricted set of higher operators.
+
+Multiple data parallel array languages into a single common compilation pipeline, with multiple backends. 
+The backends implement higher order array operators using templates into which function arguments are spliced. 
+
+1) Define data parallel language
+2) The recent ubiquity of cheap and powerful parallel hardware (programmable GPUs and FPGAs) 
+has lead to a spike in research related to embedded data parallel languages (cite, Data Parallel Haskell, Copperhead, MS Accelerator, Accelerate). 
+There is a great deal of similarity between data parallel DSLs and exisiting array-oriented languages such as Matlab, APL, Q, etc.. 
+\textit{Existing collection-oriented languages (such as Matlab, R, etc...) have also recently seen increased availability of libraries 
+which either utilize accelerators to implement faster library functions (citations?) or more ambitiously, to dynamically compile 
+accelerator programs from fragments of user programs.}
+
+
+\section{Untyped Higher-Order IL}
+\begin{figure}[h!]
+  \begin{tabular}{| m{0.01cm}m{1.5cm}m{0.1cm}m{0.2cm}p{4.5cm} |}
+  \hline
+  & & & &\\ 
+   \multicolumn{5}{|l|}{\textbf{Untyped Higher-Order IL}}  \\[4pt]
+  & program & $p$ &  $\bnfdef$   &  $d_1 \cdots d_n $ \\[4pt]
+  & definition & $d$ & $\bnfdef$ & $f_i(\overline{x}) \rightarrow (\overline{y}) = \overline{s}$ \\[4pt]
+  & statement  & $s$ & $\bnfdef$ & $\overline{x} = e $\\[2pt]
+  &            &     & $\sep$    & $\IF ~v~ \THEN ~ \overline{s} ~ \ELSE ~ \overline{s} $ \\[2pt]
+  &            &     & $\sep$    & $\WHILE ~\overline{s}, x_{cond} ~ \DO ~\overline{s}~ $  \\[5pt]
+  & expression & $e$ & $\bnfdef$ & $\VALUES (\overline{v})$ \\[2pt]
+  &            &     & $\sep$    & $ v_f (\overline{v}) $ \\[9pt]
+  & value      & $v$ & $\bnfdef$ & numeric constant\\[2pt]
+  &            &     & $\sep$    &  $x$  \quad \small{(data variable)} \\[2pt]
+  &            &     & $\sep$    &  $f$  \quad \small{(function label)} \\[2pt]
+  &            &     & $\sep$    &  $\oplus$ \quad \small{(primitive operator)} \\[2pt]
+  &            &     & $\sep$    & $map$\\[2pt]
+  &            &     & $\sep$    & $reduce$ \\[2pt]
+  &            &     & $\sep$    & $scan$\\[5pt]
+  \hline
+  \end{tabular}
+\caption{Untyped Higher-Order Intermediate Language}
+\end{figure}
+
+
+\section{Typed First-Order IL}
+\begin{figure}[h!]
+  \begin{tabular}{| m{0.01cm}m{1.3cm}m{0.1cm}m{0.2cm}p{5.0cm} |}
+  \hline
+    & & & &\\
+   \multicolumn{5}{|l|}{\textbf{Typed First-Order IL}}  \\[4pt]
+  & program & $p$ &  $\bnfdef$   &  $d_1 \cdots d_n $ \\[4pt]
+  & definition & $d$ & $\bnfdef$ & $f_i(x^m : \tau^m) \rightarrow (y^n : \tau^n) = \overline{s} $ \\[4pt]
+  & statement  & $s$ & $\bnfdef$ & $x^m : \tau^m = e $\\[2pt]
+  &            &     & $\sep$    & $\IF ~v~ \THEN ~\overline{s}~ \ELSE ~ \overline{s}$ \\[2pt]
+  &            &     & $\sep$    & $\WHILE ~ \overline{s}, x_{cond} ~ \DO ~ \overline{s} ~  $ \\[4pt]
+  & expression & $e$ & $\bnfdef$ & $\VALUES(\overline{v})$ \\[2pt]
+  &            &     & $\sep$    & $\PRIM_{\left\langle \oplus \right\rangle }(v^m)$ \\[1.5pt]
+  &            &     &           & ~~\small{where arity($\oplus$) = $m$} \\[2pt]
+  &            &     & $\sep$    & $\CALL _{\left\langle f  \right\rangle } (v^m)$ \\[1.5pt] 
+  &            &     &           & ~~\small{where arity($f$) = $m$} \\[2pt]
+  &            &     & $\sep$    & $\MAP _{\left\langle f \right\rangle}(v^c, v^m)$ \\[1.5pt]
+  &            &     &           & ~~\small{where arity($f$) = $c+m$} \\[2pt]
+  &            &     & $\sep$    & $\REDUCE _{ \left\langle f, g, \right\rangle } (v^{c}, v^i, v^{d}, v^{m})$ \\[1.5pt]
+  &            &     &           & ~~\small{where $f : \tau^{c + i} \rightarrow \tau^i$} \\[1.5pt]
+  &            &     &           & ~~~~~~~~~~~ \small{$g : \tau^{d + i + m } \rightarrow \tau^i$} \\[2pt]
+  &            &     & $\sep$    & $\SCAN _{ \left\langle f, g, \right\rangle} (v^{c}, v^i, v^{d}, v^{m})$ \\[1.5pt]
+  &            &     &           & ~~\small{where $f : \tau^{c+i} \rightarrow \tau^i$} \\[1.5pt]
+  &            &     &           & ~~~~~~~~~~~\small{$g : \tau^{d + i + m } \rightarrow \tau^i$} \\[2pt]
+  &            &     & $\sep$    & $\CAST (v, \tau_{src}, \tau_{dest})$ \\[5pt]
+  & value      & $v$ & $\bnfdef$ & numeric constant\\[2pt]
+  &            &     & $\sep$    &  $x$  \quad \small{(data variable)} \\[5pt]
+  & & & &\\
+  \multicolumn{5}{|l|}{\textbf{Type System}} \\[4pt]
+  & data & $\tau$    & $\bnfdef$ & $bool \sep int \sep float \sep \mathbf{vec} \; \tau   $ \\[2pt]
+  & function & $\sigma$ & $\bnfdef$ & $\tau^m \rightarrow \tau^n$ \\[4pt]
+  & & & &\\
+  \hline
+  \end{tabular}\\[4pt]
+\caption{Typed First-Order Language}
+
+\begin{enumerate}
+\item Distinguished map, reduce, scan operators which serve as a basis for both the implementation of other array 
+ operators and compilation of parallel code using operator-specific templates.  
+\item All user-defined functions have first order types. Any function arguments in the original program 
+ must either end up as arguments to the primitive higher order operators (map, reduce, and scan) or
+ must be directly encoded as an enumeration over a finite set of possible function calls (defunctionalization). 
+\end{enumerate}
+
+\section{Backends} 
+A backend is required to supply the following functions: 
+\begin{lstlisting}[numbers=none]
+  type data
+  to_host : data -> Host.data
+  from_host : Host.data -> data
+  call : fn -> data list -> data list
+  map : fn -> data list -> data list -> data list 
+  reduce : fn -> data list -> fn -> data list -> data list -> data list
+  scan : fn -> data list -> fn -> data list -> data list -> data list 
+\end{lstlisting}
+Additionally, if multiple backends are to be used simultaneously then each backend should implement a standard interface for approximating
+execution time as a function of input data shape. 
+
+\end{figure}
+
+
+\end{document}
