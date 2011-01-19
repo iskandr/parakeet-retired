@@ -45,7 +45,7 @@ and infer_exp
         resultShape := Shape.peel_shape !resultShape
       done; 
       [!resultShape] 
-  | App ({value=Prim (Prim.ArrayOp op)}, fnVal::args) when Prim.is_adverb op ->
+  | App ({value=Prim (Prim.Adverb op)}, fnVal::args) ->
       let fundef = FnTable.get_fundef fnTable fnVal in
       let argShapes = List.map (infer_value env) args in   
       let outputs, _ = infer_adverb fnTable op fundef argShapes in 

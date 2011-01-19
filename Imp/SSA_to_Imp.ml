@@ -26,7 +26,7 @@ and translate_exp codegen globalFunctions idEnv expectedType expNode =
       if Prim.is_comparison op then cmp_op op ~t:argT vs' 
       else typed_op op vs' 
   (* assume you only have one array over which you're mapping for now *)
-  | SSA.App({SSA.value=SSA.Prim (Prim.ArrayOp Prim.Map)} as fnNode,
+  | SSA.App({SSA.value=SSA.Prim (Prim.Adverb Prim.Map)} as fnNode,
             payload :: arrays) ->
     IFDEF DEBUG THEN 
       assert (DynType.is_function fnNode.SSA.value_type); 
@@ -58,12 +58,12 @@ and translate_exp codegen globalFunctions idEnv expectedType expNode =
         output
       | _ -> failwith "[ssa->imp] Expected function identifier"
     )
-  | SSA.App({SSA.value=SSA.Prim (Prim.ArrayOp Prim.Map)}, _) -> 
+  | SSA.App({SSA.value=SSA.Prim (Prim.Adverb Prim.Map)}, _) -> 
       failwith "Map not implemented"
 
   (* assume you only have one initial value, and only one scalar output *)    
   | SSA.App({SSA.value=
-               SSA.Prim (Prim.ArrayOp Prim.Reduce)} as fnNode,  
+               SSA.Prim (Prim.Adverb Prim.Reduce)} as fnNode,  
              payload::initial::arrays) ->
     let initialT = initial.SSA.value_type in 
     let arrayTypes = List.map (fun v -> v.SSA.value_type) arrays in 

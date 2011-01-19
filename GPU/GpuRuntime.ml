@@ -452,7 +452,7 @@ let shutdown () =
   *)
  
 let implements_array_op = function 
-  | Prim.Reduce | Prim.Map | Prim.AllPairs | Prim.Index | Prim.Where -> true
+   Prim.Index | Prim.Where -> true
   | _ -> false 
  
 let eval_array_op
@@ -488,7 +488,7 @@ let eval_array_op
       in  
       let gpuVals = List.map (MemoryState.get_gpu memState) dataArgs in
       run_reduce memState fnTable fundef2 gpuVals outputTypes
-  *)
+ 
   | Prim.Reduce, _ -> 
       failwith 
         "[GpuRuntime->eval_array_op] closures not yet supported for Reduce"
@@ -502,7 +502,7 @@ let eval_array_op
   | Prim.AllPairs, _ ->
       failwith 
         "[GpuRuntime->eval_array_op] closures not yet supported for AllPairs"
-
+ *)
   | Prim.Index, [inputVec;indexVec] ->
       let gpuInputVec = MemoryState.get_gpu memState inputVec in
       let gpuIndexVec = MemoryState.get_gpu memState indexVec in

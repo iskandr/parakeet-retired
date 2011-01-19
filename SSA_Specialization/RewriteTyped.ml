@@ -148,12 +148,11 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
           mapNode
         )      
     | Prim ((Prim.ArrayOp op) as p) -> 
-      if Prim.is_higher_order op then 
-        failwith "hof not implemented!"
-      else 
+   
         let outT = TypeInfer.infer_simple_array_op op argTypes in 
         let commonT = DynType.fold_type_list argTypes in 
-        SSA.mk_primapp p commonT [outT] argNodes   
+        SSA.mk_primapp p commonT [outT] argNodes
+    | Prim (Prim.Adverb op) -> failwith "hof not implemented"   
     | GlobalFn _ -> 
       let typedFundef = 
         P.specializer fnVal (Signature.from_input_types argTypes) 

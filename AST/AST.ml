@@ -162,15 +162,15 @@ let rec node_to_str ?(inBlock=false) node =
   | Num (Float32 f) -> Float.to_string f ^ "e"
   | Num n -> num_to_str n 
   | Str str -> "\"" ^ (String.escaped str)  ^ "\""
-  | App ({data=Prim (ArrayOp p)}, [fnArg; arg1; arg2])
-  | App ({data=App({data=Prim (ArrayOp p)}, [])}, [fnArg; arg1; arg2])
-  | App ({data=App({data=Prim (ArrayOp p)}, [fnArg])}, [arg1; arg2])
-    when Prim.is_adverb p  -> 
-      sprintf "%s %s%s %s"
+  | App ({data=Prim (ArrayOp _ as p)}, [fnArg; arg1; arg2])
+  | App ({data=App({data=Prim (ArrayOp _ as p)}, [])}, [fnArg; arg1; arg2])
+  | App ({data=App({data=Prim (Adverb _  as p)}, [fnArg])}, [arg1; arg2]) ->
+     sprintf "%s %s%s %s"
         (node_to_str arg1)
         (node_to_str fnArg)
-        (Prim.array_op_to_str p)
+        (Prim.prim_to_str p)
         (node_to_str arg2)
+      
   | App(fn,args) -> 
         (node_to_str ~inBlock:true fn)^ 
         "[" ^ (args_to_str  args)  ^"]"

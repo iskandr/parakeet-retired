@@ -85,8 +85,8 @@ let mk_codegen_fn
     ~output_ids:outputIds 
     
     
-let reduce = mk_op  (Prim.ArrayOp Prim.Reduce) 
-let map = mk_op (Prim.ArrayOp Prim.Map)
+let reduce = mk_op  (Prim.Adverb Prim.Reduce) 
+let map = mk_op (Prim.Adverb Prim.Map)
 let inf = mk_num (PQNum.Inf DynType.Float32T)
 let neginf = mk_num (PQNum.NegInf DynType.Float32T)
 

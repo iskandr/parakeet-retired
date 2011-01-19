@@ -255,5 +255,5 @@ and eval_map memState fnTable env fundef closureArgs argVals =
   done;   
   Array.to_list $
     Array.map
-      (fun dynArray -> Printf.printf "Creating DynArray\n%!"; InterpVal.Array (DynArray.to_array dynArray))
+      (fun dynArray -> InterpVal.Array (DynArray.to_array dynArray))
     allResults  

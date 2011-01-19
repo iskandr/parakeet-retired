@@ -257,7 +257,7 @@ let extract_nested_map_fn_id (fundef : fundef) =
     | [|{stmt=
           Set(_,{exp=App(map, {value=GlobalFn fnId}::dataArgs)})
        }
-      |] when map.value = Prim (Prim.ArrayOp Prim.Map) ->
+      |] when map.value = Prim (Prim.Adverb Prim.Map) ->
         Some fnId 
     | [|{stmt=Set(_, {exp=Map({closure_fn=fnId}, _)})}|] -> Some fnId 
     | _ -> None   

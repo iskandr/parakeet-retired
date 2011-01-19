@@ -93,7 +93,7 @@ module MkAnalysis (P : TYPE_ANALYSIS_PARAMS) = struct
 
   let exp_app tenv expNode ~fn ~args ~fnInfo ~argInfo = 
     match fn.value with 
-    | Prim (Prim.ArrayOp arrayOp)when Prim.is_higher_order arrayOp -> 
+    | Prim (Prim.Adverb arrayOp) -> 
       infer_higher_order tenv arrayOp args argInfo
     | _  when  DynType.is_vec fnInfo ->   
       [TypeInfer.infer_simple_array_op Prim.Index (fnInfo::argInfo)]   
