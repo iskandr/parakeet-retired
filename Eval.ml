@@ -191,9 +191,10 @@ and eval_array_op memState fnTable env op argVals outTypes : InterpVal.t list =
   if runOnGpu then
     GpuRuntime.eval_array_op memState fnTable  op argVals outTypes
   else match op, argVals with
-  | Prim.Map, (InterpVal.Closure(fnId, closureArgs)::dataArgs) ->
+  (*| Prim.Map, (InterpVal.Closure(fnId, closureArgs)::dataArgs) ->
       let fundef = FnTable.find fnId fnTable in
-      eval_map memState fnTable env fundef closureArgs dataArgs 
+      eval_map memState fnTable env fundef closureArgs dataArgs
+   *) 
   | Prim.DimSize, [array; idx] -> 
       let s = MemoryState.get_shape memState array in
       let i = InterpVal.to_int idx in
