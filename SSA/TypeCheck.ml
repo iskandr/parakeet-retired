@@ -4,7 +4,7 @@ open Base
 open SSA
 open Printf 
 
-type errors = (SourceInfo.source_info option * string) Queue.t 
+type errors = (SourceInfo.t option * string) Queue.t 
 type tenv = DynType.t ID.Map.t 
 
 

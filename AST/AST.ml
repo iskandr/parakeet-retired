@@ -1,6 +1,5 @@
 open Base
 open PQNum
-open SourceInfo
 open Printf
 open Prim 
 
@@ -28,96 +27,96 @@ type exp =
       
 and node = { 
     data:exp; 
-    src:source_info;
+    src:SourceInfo.t;
 		mutable ast_info : ast_info; 
 }
 
-let mk_node ?(astInfo=mk_ast_info()) ?(src=emptySourceInfo) data  = 
+let mk_node ?(astInfo=mk_ast_info()) ?(src=SourceInfo.empty) data  = 
   {data=data; src=src; ast_info = astInfo}
 
 (* Str *) 
-let mk_str_node ?(astInfo=mk_ast_info()) ?(src=emptySourceInfo) s =
+let mk_str_node ?(astInfo=mk_ast_info()) ?(src=SourceInfo.empty) s =
   mk_node ~astInfo ~src (Str s) 
 
 let update_str_node ast s = { ast with data = Str s }
 
 (* Block *) 
-let mk_block_node ?(astInfo=mk_ast_info()) ?(src=emptySourceInfo) nodes = 
+let mk_block_node ?(astInfo=mk_ast_info()) ?(src=SourceInfo.empty) nodes = 
   mk_node ~astInfo ~src (Block nodes)
 
 let update_block_node ast nodes = { ast with data = Block nodes } 
      
 (* Arr *)     
-let mk_arr_node ?(astInfo=mk_ast_info()) ?(src=emptySourceInfo) nodes = 
+let mk_arr_node ?(astInfo=mk_ast_info()) ?(src=SourceInfo.empty) nodes = 
   mk_node ~astInfo ~src (Arr nodes) 
 
 let update_arr_node ast nodes = { ast with data = Arr nodes } 
 
 (* App *) 
-let mk_app_node ?(astInfo=mk_ast_info()) ?(src=emptySourceInfo) fnNode args = 
+let mk_app_node ?(astInfo=mk_ast_info()) ?(src=SourceInfo.empty) fnNode args = 
   mk_node ~astInfo ~src (App (fnNode, args)) 
 
 let update_app_node ast fnNode args = { ast with data = App(fnNode, args)}
 
 (* Prim *) 
-let mk_prim_node ?(astInfo=mk_ast_info()) ?(src=emptySourceInfo) p = 
+let mk_prim_node ?(astInfo=mk_ast_info()) ?(src=SourceInfo.empty) p = 
   mk_node ~astInfo ~src (Prim p) 
   
 let update_prim_node ast p = {ast with data=Prim p} 
 
 (* Var *) 
-let mk_var_node ?(astInfo=mk_ast_info()) ?(src=emptySourceInfo) name = 
+let mk_var_node ?(astInfo=mk_ast_info()) ?(src=SourceInfo.empty) name = 
   mk_node ~astInfo ~src (Var name) 
 
 let update_var_node ast name = { ast with data = Var name } 
 
 (* Def *)   
-let mk_def_node ?(astInfo=mk_ast_info()) ?(src=emptySourceInfo) name rhs = 
+let mk_def_node ?(astInfo=mk_ast_info()) ?(src=SourceInfo.empty) name rhs = 
   mk_node ~astInfo ~src (Def (name,rhs)) 
 
 let update_def_node ast name rhs = { ast with data = Def(name, rhs) }
 
 (* Lam *) 
-let mk_lam_node ?(astInfo=mk_ast_info()) ?(src=emptySourceInfo) args body = 
+let mk_lam_node ?(astInfo=mk_ast_info()) ?(src=SourceInfo.empty) args body = 
   mk_node ~astInfo  ~src  (Lam (args, body))
 
 let update_lam_node ast args body = { ast with data = Lam(args, body) } 
     
 (* If *)     
-let mk_if_node ?(astInfo=mk_ast_info()) ?(src=emptySourceInfo) 
+let mk_if_node ?(astInfo=mk_ast_info()) ?(src=SourceInfo.empty) 
                condNode tNode fNode = 
   mk_node ~astInfo  ~src (If(condNode, tNode, fNode))
 
 let update_if_node ast condNode tNode fNode = 
   {ast with data=If(condNode,tNode,fNode)}
 
-let mk_void_node ?(astInfo=mk_ast_info()) ?(src=emptySourceInfo) () = 
+let mk_void_node ?(astInfo=mk_ast_info()) ?(src=SourceInfo.empty) () = 
   mk_node ~astInfo ~src Void 
   
-let mk_iftrue_node ?(astInfo=mk_ast_info()) ?(src=emptySourceInfo) 
+let mk_iftrue_node ?(astInfo=mk_ast_info()) ?(src=SourceInfo.empty) 
    condNode trueNodes =
   let voidNode = mk_void_node() in 
   let blockNode = mk_block_node trueNodes in 
   mk_node ~astInfo ~src (If(condNode, blockNode, voidNode)) 
 
 (* Int *) 
-let mk_int_node ?(astInfo=mk_ast_info()) ?(src=emptySourceInfo) x = 
+let mk_int_node ?(astInfo=mk_ast_info()) ?(src=SourceInfo.empty) x = 
   mk_node ~astInfo ~src $ Num (Int32 (Int32.of_int x))  
 
 let update_int_node ast x = {ast with data = Num(Int32 (Int32.of_int x)) }
 
-let mk_void_node ?(astInfo=mk_ast_info()) ?(src=emptySourceInfo) () = 
+let mk_void_node ?(astInfo=mk_ast_info()) ?(src=SourceInfo.empty) () = 
   mk_node ~astInfo ~src Void 
 
 (* Array indexing -- special case of App *) 
-let mk_idx_node ?(astInfo=mk_ast_info()) ?(src=emptySourceInfo) arrNode idx = 
+let mk_idx_node ?(astInfo=mk_ast_info()) ?(src=SourceInfo.empty) arrNode idx = 
   mk_app_node ~astInfo ~src arrNode [mk_int_node idx]
 
-let mk_eq_node ?(astInfo=mk_ast_info()) ?(src=emptySourceInfo) lhsNode rhsNode = 
+let mk_eq_node ?(astInfo=mk_ast_info()) ?(src=SourceInfo.empty) lhsNode rhsNode = 
   let eqOp = mk_node $ Prim (Prim.ScalarOp Prim.Eq) in 
   mk_app_node ~astInfo ~src eqOp [lhsNode; rhsNode]
 
-let mk_concat_node ?(astInfo=mk_ast_info()) ?(src=emptySourceInfo) lhs rhs = 
+let mk_concat_node ?(astInfo=mk_ast_info()) ?(src=SourceInfo.empty) lhs rhs = 
   mk_app_node (mk_prim_node (Prim.ArrayOp Prim.Concat))  [lhs; rhs]
 
 (* given an AST lambda node, return the names of its arguments *)

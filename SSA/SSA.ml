@@ -1,7 +1,6 @@
 (* pp: -parser o pa_macro.cmo *)
 
 open Base
-open SourceInfo 
 
 type value = 
   | Var of ID.t
@@ -15,7 +14,7 @@ type value =
 
 and value_node = { 
   value_type : DynType.t;
-  value_src : source_info option; 
+  value_src : SourceInfo.t option; 
   value : value 
 }
 and value_nodes = value_node list   
@@ -34,7 +33,7 @@ type exp =
   | Scan of closure * closure * value_nodes
 and exp_node = { 
   exp: exp; 
-  exp_src : source_info option;
+  exp_src : SourceInfo.t option;
   (* because a function applicatin might return multiple values,*)
   (* expressions have multiple types *)  
   exp_types : DynType.t list; 
@@ -57,7 +56,7 @@ type stmt =
   | WhileLoop of block * value_node * block * loop_gate  
 and stmt_node = { 
     stmt: stmt;
-    stmt_src: source_info option;
+    stmt_src: SourceInfo.t option;
     stmt_id : StmtId.t;  
 }
 and block = stmt_node array

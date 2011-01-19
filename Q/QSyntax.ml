@@ -1,5 +1,3 @@
-open SourceInfo 
-
 type syntax = 
     | StrLit of string 
     | SymLit of string 
@@ -21,10 +19,11 @@ type syntax =
     | TimeExp of syntax_node 
     | LoadExp of string
       
-and syntax_node = syntax * source_info
+and syntax_node = syntax * SourceInfo.t
 
 
-let mk_syntax_node ?(line=0) ?(col=0) exp  = exp, mk_source_info line col 
+let mk_syntax_node ?(line=0) ?(col=0) exp  = 
+  exp, SourceInfo.mk_source_info line col 
 
 open Printf 
 

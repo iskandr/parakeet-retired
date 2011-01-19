@@ -1,9 +1,4 @@
-
 include Std
-
-
-open SourceInfo
-
 
 let ($) f x = f x
 let (>>=) x f = f x
@@ -16,7 +11,7 @@ let debug msg =
   IFDEF DEBUG THEN Printf.printf "%s\n" msg; END;
   ()
 
-exception SourcedError of string * source_info
+exception SourcedError of string * SourceInfo.t
 exception StaticError of string
 
 (*
