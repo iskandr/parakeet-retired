@@ -23,7 +23,7 @@ type exp =
   (* nodes below are only used after type specialization *) 
   | Cast of DynType.t * value_node  
   | Call of FnId.t * value_nodes 
-  | PrimApp of typed_prim * value_nodes  
+  | PrimApp of Prim.prim * value_nodes  
   | Map of closure * value_nodes
   | Reduce of closure * closure * value_nodes   
   | Scan of closure * closure * value_nodes
@@ -41,10 +41,12 @@ and typed_fn = {
   fn_output_types : DynType.t list;   
 } 
 *)
+(*
 and typed_prim = { 
   prim: Prim.prim;
   prim_type_index : DynType.t;  
 } 
+*)
 and closure = {   
   closure_fn: FnId.t; 
   closure_args: value_node list; 
@@ -181,8 +183,9 @@ val mk_app :
      ?src:SourceInfo.source_info -> ?types:DynType.t list -> 
       value_node -> value_node list -> exp_node 
 
-val mk_primapp : ?src:SourceInfo.source_info -> Prim.prim ->
-   DynType.t -> DynType.t list -> value_node list -> exp_node  
+val mk_primapp : 
+     ?src:SourceInfo.source_info -> Prim.prim -> DynType.t list -> 
+       value_node list -> exp_node  
 
 val mk_arr :
       ?src:SourceInfo.source_info ->

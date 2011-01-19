@@ -28,7 +28,7 @@ type exp =
   (* nodes below are only used after type specialization *) 
   | Cast of DynType.t * value_node  
   | Call of FnId.t * value_nodes 
-  | PrimApp of typed_prim * value_nodes  
+  | PrimApp of Prim.prim * value_nodes  
   | Map of closure * value_nodes
   | Reduce of closure * closure * value_nodes   
   | Scan of closure * closure * value_nodes
@@ -39,21 +39,7 @@ and exp_node = {
   (* expressions have multiple types *)  
   exp_types : DynType.t list; 
 } 
-(*
-and typed_fn = { 
-  fn_id : FnId.t; 
-  fn_input_types : DynType.t list; 
-  fn_output_types : DynType.t list;   
-} 
-*)
-and typed_prim = { 
-  (*prim_input_types : DynType.t list; 
-  prim_output_types : DynType.t list;
-  *)
-    
-  prim: Prim.prim;
-  prim_type_index : DynType.t; 
-} 
+
 and closure = {   
   closure_fn: FnId.t; 
   closure_args: value_node list; 
@@ -175,7 +161,7 @@ and typed_prim = {
 } 
 and closure = {   
   closure_fn: FnId.t; 
-  closure_args: value_node list; 
+  closure_args: value_node listf; 
   closure_arg_types: DynType.t list; 
   closure_input_types:DynType.t list; 
   closure_output_types: DynType.t list 
@@ -184,9 +170,9 @@ and closure = {
             
   | Call (fnId, args) -> 
       sprintf "%s(%s)" (FnId.to_str fnId) (value_nodes_to_str args) 
-  | PrimApp (typedPrim, args) -> 
+  | PrimApp (p, args) -> 
       sprintf "prim{%s}(%s)" 
-        (Prim.prim_to_str typedPrim.prim) 
+        (Prim.prim_to_str p) 
         (value_nodes_to_str args)     
   | Map (closure, args) -> 
       sprintf "map{%s}(%s)" (closure_to_str closure) (value_nodes_to_str args) 
@@ -365,16 +351,8 @@ let mk_app ?src ?types fn args =
   in 
   { exp=App(fn,args); exp_src = src; exp_types = retTypes }  
 
-let mk_primapp ?src prim ty outTypes args =
-  let tprim = { 
-    (*prim_input_types = inTypes;
-    prim_output_types = outTypes;
-    *) 
-    prim = prim;
-    prim_type_index = ty;
-  } 
-  in   
-  { exp = PrimApp (tprim, args); exp_src = src; exp_types = outTypes}  
+let mk_primapp ?src prim outTypes args =
+  { exp = PrimApp (prim, args); exp_src = src; exp_types = outTypes}  
 
 let mk_arr ?src ?types elts =
   let argTypes = map_default_types  types elts in

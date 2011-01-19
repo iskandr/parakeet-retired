@@ -230,9 +230,9 @@ module CustomFromSimple(R: SIMPLE_TRANSFORM_RULES) = struct
       if changed() then {expNode with exp=Call(typedFn, args')}
       else expNode 
        
-    | PrimApp (typedPrim, args) ->
+    | PrimApp (prim, args) ->
       let args' = transform_values helpers cxt args in 
-      if changed() then {expNode with exp=PrimApp(typedPrim,args')}
+      if changed() then {expNode with exp=PrimApp(prim,args')}
       else expNode 
        
     | Map (closure,args) -> 

@@ -13,54 +13,62 @@ let rec translate_value idEnv valNode =
   { Imp.exp = vExp; Imp.exp_type = valNode.SSA.value_type }
   
 and translate_exp codegen globalFunctions idEnv expectedType expNode = 
-  let impExpNode = match expNode.SSA.exp with  
-  | SSA.App({SSA.value=SSA.Prim (Prim.ScalarOp Prim.Select)} as fnNode,
-            [cond; tVal; fVal]) ->
+  let impExpNode = match expNode.SSA.exp with
+  | SSA.Values [v] -> translate_value idEnv v
+  | SSA.Values [] -> failwith "[ssa->imp] unexpected empty value list"
+  | SSA.Values _ ->  failwith "[ssa->imp] unexpected multiple return values "
+    
+  | SSA.PrimApp (Prim.ScalarOp Prim.Select, [cond; tVal; fVal]) ->  
       let cond' = translate_value idEnv cond in 
       let tVal' = translate_value idEnv tVal in 
       let fVal' = translate_value idEnv fVal in 
       select cond' tVal' fVal' 
-  | SSA.App({SSA.value=SSA.Prim (Prim.ScalarOp op) } as fnNode,  vs) ->
+  | SSA.PrimApp (Prim.ScalarOp op, vs) -> 
       let vs' = List.map (translate_value idEnv) vs in 
       let argT = (List.hd vs').exp_type in  
       if Prim.is_comparison op then cmp_op op ~t:argT vs' 
-      else typed_op op vs' 
+      else typed_op op vs'
+  | SSA.PrimApp (Prim.ArrayOp Prim.Find, [inArray; elToFind]) -> 
+    let arrT = inArray.SSA.value_type in 
+    let valT = elToFind.SSA.value_type in 
+    let inArray' = translate_value idEnv inArray in
+    let elToFind' = translate_value idEnv elToFind in
+    let i = codegen#fresh_var Int32T in
+    let index = codegen#fresh_var Int32T in
+    let n = codegen#fresh_var Int32T in
+    codegen#emit [
+      set i (int 0);
+      set n (len inArray');
+      set index n;
+      while_ ((i <$ n) &&$ (index =$ n)) [
+        ifTrue ((idx inArray' i) =$ elToFind') [set index i]
+      ]
+    ];
+    index
+  | SSA.Cast (t, vNode) -> cast t (translate_value idEnv vNode) 
   (* assume you only have one array over which you're mapping for now *)
-  | SSA.App({SSA.value=SSA.Prim (Prim.Adverb Prim.Map)} as fnNode,
-            payload :: arrays) ->
-    IFDEF DEBUG THEN 
-      assert (DynType.is_function fnNode.SSA.value_type); 
-      assert (DynType.is_function payload.SSA.value_type); 
-      assert (DynType.fn_output_arity fnNode.SSA.value_type > 0); 
-    ENDIF; 
-    let outputTypes = DynType.fn_output_types fnNode.SSA.value_type in 
-    (* TODO: make this work for multiple outputs *)  
-    let outputType = List.hd outputTypes in
-    (match payload.SSA.value with
-      | SSA.GlobalFn fnId ->
-        let fundef_ssa = FnTable.find fnId globalFunctions in
-        let fundef_imp = translate_fundef globalFunctions fundef_ssa in
-        let arrays_imp = List.map (translate_value idEnv) arrays in
-        let maxInput = largest_val (Array.of_list arrays_imp) in 
-        let output =  
-          codegen#fresh_array_output outputType (all_dims maxInput) 
-        in 
-        let i = codegen#fresh_var Int32T in
-        let n = codegen#fresh_var Int32T in
-        let bodyBlock = [
-          set i (int 0);
-          set n (len maxInput);
-          while_ (i <$ n) [SPLICE; set i (i +$ (int 1))]
-        ] in
-        let lhs = [|idx output i|] in 
-        let rhs = Array.of_list (List.map (fun arr -> idx arr i) arrays_imp) in 
-        codegen#splice_emit fundef_imp rhs lhs bodyBlock;
-        output
-      | _ -> failwith "[ssa->imp] Expected function identifier"
-    )
-  | SSA.App({SSA.value=SSA.Prim (Prim.Adverb Prim.Map)}, _) -> 
-      failwith "Map not implemented"
-
+  | SSA.Map(payload, arrays) ->
+      let outputTypes = payload.SSA.closure_output_types in
+      (* TODO: make this work for multiple outputs *)  
+      let outputType = List.hd outputTypes in
+      let fnId = payload.SSA.closure_fn in 
+      let fundef_ssa = FnTable.find fnId globalFunctions in
+      let fundef_imp = translate_fundef globalFunctions fundef_ssa in
+      let arrays_imp = List.map (translate_value idEnv) arrays in
+      let maxInput = largest_val (Array.of_list arrays_imp) in 
+      let output = codegen#fresh_array_output outputType (all_dims maxInput) in  
+      let i = codegen#fresh_var Int32T in
+      let n = codegen#fresh_var Int32T in
+      let bodyBlock = [
+        set i (int 0);
+        set n (len maxInput);
+        while_ (i <$ n) [SPLICE; set i (i +$ (int 1))]
+      ] in
+      let lhs = [|idx output i|] in 
+      let rhs = Array.of_list (List.map (fun arr -> idx arr i) arrays_imp) in 
+      codegen#splice_emit fundef_imp rhs lhs bodyBlock;
+      output
+  
   (* assume you only have one initial value, and only one scalar output *)    
   | SSA.App({SSA.value=
                SSA.Prim (Prim.Adverb Prim.Reduce)} as fnNode,  
@@ -109,34 +117,6 @@ and translate_exp codegen globalFunctions idEnv expectedType expNode =
         acc
       | _ -> failwith "[ssa->imp] Expected function identifier"
     )
-  | SSA.App({SSA.value=
-               SSA.Prim (Prim.ArrayOp Prim.Find)}, 
-            [inArray; elToFind]) ->
-    let arrT = inArray.SSA.value_type in 
-    let valT = elToFind.SSA.value_type in 
-    let inArray' = translate_value idEnv inArray in
-    let elToFind' = translate_value idEnv elToFind in
-    let i = codegen#fresh_var Int32T in
-    let index = codegen#fresh_var Int32T in
-    let n = codegen#fresh_var Int32T in
-    codegen#emit [
-      set i (int 0);
-      set n (len inArray');
-      set index n;
-      while_ ((i <$ n) &&$ (index =$ n)) [
-        ifTrue ((idx inArray' i) =$ elToFind') [set index i]
-      ]
-    ];
-    index
-  | SSA.App({SSA.value=SSA.GlobalFn fnId}, _) -> 
-      failwith $ 
-        Printf.sprintf  
-          "Encountered call to %s, global functions must be inlined"
-          (FnId.to_str fnId)     
-  | SSA.Cast (t, vNode) -> cast t (translate_value idEnv vNode)  
-  | SSA.Values [v] -> translate_value idEnv v
-  | SSA.Values [] -> failwith "[ssa->imp] unexpected empty value list"
-  | SSA.Values _ ->  failwith "[ssa->imp] unexpected multiple return values "
   | _ -> failwith $ 
     Printf.sprintf 
       "[ssa->imp] typed core exp not yet implemented: %s"

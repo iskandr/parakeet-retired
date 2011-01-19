@@ -132,7 +132,7 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
       let outT = TypeInfer.infer_scalar_op op argTypes in
       let commonT = DynType.fold_type_list argTypes in 
       if DynType.is_scalar outT then  
-        SSA.mk_primapp p commonT [outT] argNodes
+        SSA.mk_primapp p [outT] argNodes
       else 
         let eltTypes = List.map DynType.peel_vec argTypes in 
         let eltSignature = Signature.from_input_types eltTypes in 
@@ -150,8 +150,7 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
     | Prim ((Prim.ArrayOp op) as p) -> 
    
         let outT = TypeInfer.infer_simple_array_op op argTypes in 
-        let commonT = DynType.fold_type_list argTypes in 
-        SSA.mk_primapp p commonT [outT] argNodes
+        SSA.mk_primapp p [outT] argNodes
     | Prim (Prim.Adverb op) -> failwith "hof not implemented"   
     | GlobalFn _ -> 
       let typedFundef = 

@@ -105,11 +105,11 @@ and eval_exp
   
         
   (* first order array operators only *)          
-  | PrimApp ({prim=Prim.ArrayOp op}, args) -> 
+  | PrimApp (Prim.ArrayOp op, args) -> 
      let argVals = List.map (eval_value memState env) args in
      eval_array_op memState fnTable env op argVals expNode.exp_types 
         
-  | PrimApp ({prim=Prim.ScalarOp op}, args) -> 
+  | PrimApp (Prim.ScalarOp op, args) -> 
       let argVals = List.map (eval_value memState env) args in 
       eval_scalar_op memState op argVals
       

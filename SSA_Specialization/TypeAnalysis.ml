@@ -106,7 +106,7 @@ module MkAnalysis (P : TYPE_ANALYSIS_PARAMS) = struct
   
   let exp_values tenv expNode ~vs ~info = info 
 
-  let exp_primapp _ _ ~typedPrim ~args ~argInfo = 
+  let exp_primapp _ _ ~prim ~args ~argInfo = 
     failwith "unexpected typed prim app"
 
   let exp_call _ _ ~fnId ~args ~info = 
