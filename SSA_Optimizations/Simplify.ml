@@ -6,14 +6,6 @@ open FindUseCounts
 open FindDefs
 
  
-let is_useless useCounts id =
-  (* by convention, having 0 use counts excludes a varialbe from the 
-     useCount map, but check just in case 
-  *) 
-  if Hashtbl.mem useCounts id  
-  then Hashtbl.find useCounts id = 0 
-  else true  
-
 module SimplifyRules = struct
   let dir = Forward
   (* use counts-- constant map? *) 
@@ -30,11 +22,41 @@ module SimplifyRules = struct
     use_counts = FindUseCounts.find_fundef_use_counts fundef;
     types = fundef.tenv;   
   } 
-     
-  let finalize cxt fundef = NoChange 
+  
+  (* since all outputs are considered used, dummy assignments leading to an *)
+  (* output don't get cleaned up. This final step gets rid of stray assignments*)
+  (* at the end of a function *)  
+  let finalize cxt fundef =
+    let outputIds = 
+      List.map 
+      (fun id -> match Hashtbl.find cxt.defs id with 
+        | FindDefs.DefLattice.Val (Var id') -> id' 
+        | _ -> id)
+      fundef.output_ids 
+    in 
+    if List.exists2 (<>) outputIds fundef.output_ids then 
+      Update {fundef with output_ids = outputIds } 
+    else 
+      NoChange 
+  
+  let is_live cxt id = 
+    Hashtbl.mem cxt.use_counts id && Hashtbl.find cxt.use_counts id > 0   
+   
   let stmt cxt stmtNode = match stmtNode.stmt with 
-    | Set (ids, rhs) when List.for_all (is_useless cxt.use_counts) ids -> 
-      Update SSA.empty_stmt
+    | Set (ids, ({exp=Values vs} as expNode)) -> 
+      let pairs = List.combine ids vs in 
+      let  livePairs, deadPairs = 
+        List.partition (fun (id,_) -> is_live cxt id) pairs 
+      in
+      if deadPairs = [] then NoChange
+      else if livePairs = [] then Update SSA.empty_stmt 
+      else 
+        let liveIds, liveValues = List.split livePairs in
+        let rhs = {expNode with exp=Values liveValues} in  
+        Update (SSA.mk_set ?src:stmtNode.stmt_src liveIds rhs)      
+    | Set (ids, exp) -> 
+        if List.exists (is_live cxt) ids then NoChange
+        else Update SSA.empty_stmt  
     | If (condVal, tBlock, fBlock, ifGate) ->
       let get_type id = ID.Map.find id cxt.types in
       let mk_var id t  = SSA.mk_var ?src:stmtNode.stmt_src ~ty:t id in  

@@ -63,7 +63,6 @@ TypeCheck.cmx \
 Replace.cmx \
 FindConstants.cmx \
 Inline.cmx \
-ElimDeadCode.cmx \
 Simplify.cmx \
 AdverbFusion.cmx \
 CSE.cmx \

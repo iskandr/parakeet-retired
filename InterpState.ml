@@ -60,7 +60,6 @@ let add_untyped_map interpState ?(optimize=true) fundefMap =
 let default_untyped_optimizations = 
   [
     "simplify", Simplify.simplify_fundef;  
-    "elim dead code", ElimDeadCode.elim_dead_code; 
     "elim common subexpression", CSE.cse;
     "inlining", Inline.run_fundef_inliner;  
   ] 
@@ -76,7 +75,6 @@ let default_typed_optimizations =
   [
     (*"function cloning", TypedFunctionCloning.function_cloning;*)   
     "simplify", Simplify.simplify_fundef; 
-    "dead code elim", ElimDeadCode.elim_dead_code; 
     "adverb fusion", AdverbFusion.optimize_fundef; 
     "inlining", Inline.run_fundef_inliner;  
   ]  
