@@ -18,13 +18,15 @@ module SimplifyRules = struct
   let dir = Forward
   (* use counts-- constant map? *) 
   type context = {
-    constants: SSA.value ConstantLattice.t ID.Map.t; 
+    constants: SSA.value ConstantLattice.t ID.Map.t;
+    defs : (ID.t, DefLattice.t) Hashtbl.t;  
     use_counts : (ID.t, int) Hashtbl.t; 
     types : DynType.t ID.Map.t; 
   } 
       
   let init fundef = {
-    constants = FindConstants.find_constants fundef; 
+    constants = FindConstants.find_constants fundef;
+    defs = FindDefs.find_defs fundef;  
     use_counts = FindUseCounts.find_fundef_use_counts fundef;
     types = fundef.tenv;   
   } 
@@ -54,12 +56,18 @@ module SimplifyRules = struct
     
   
   let exp cxt expNode = NoChange 
-  let value cxt valNode = match valNode.value with 
-    | Var id  when ID.Map.mem id cxt.constants ->  
-      (match ID.Map.find id cxt.constants with 
-        | ConstantLattice.Const v -> Update {valNode with value = v }
-        | _ -> NoChange
-      )
+  
+  let value cxt valNode = match valNode.value with
+    | Var id -> 
+      begin match ID.Map.find_option id cxt.constants with 
+        | Some ConstantLattice.Const v -> Update {valNode with value = v }
+        | Some _ 
+        | None -> 
+          (match Hashtbl.find cxt.defs id with 
+            | FindDefs.DefLattice.Val v -> Update {valNode with value = v }
+            | _ -> NoChange
+          )   
+      end
     | _ -> NoChange  
 end
 

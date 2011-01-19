@@ -58,6 +58,7 @@ ConstantLattice.cmx \
 FindBindingSet.cmx \
 FindUseCounts.cmx \
 FindLiveIds.cmx \
+FindDefs.cmx \
 TypeCheck.cmx \
 Replace.cmx \
 FindConstants.cmx \

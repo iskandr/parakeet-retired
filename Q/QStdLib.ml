@@ -38,7 +38,7 @@ let avg = mk_fn 1 1 2 $ fun inputs outputs locals -> [
   ]  
    
 
-let initState = InterpState.create_from_untyped_list ~opt_queue:false [ 
+let initState = InterpState.create_from_untyped_list ~optimize:false [ 
   "any", any; 
   "all", all; 
   "sum", sum; 

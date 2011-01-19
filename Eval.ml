@@ -244,7 +244,7 @@ and eval_map memState fnTable env fundef closureArgs argVals =
   for elt = 0 to n - 1 do
     Printf.printf "Iteration %d\n" elt; 
     let slices = List.map (get_slice elt) argVals in
-    Printf.printf "GOt slice!\n%!";  
+    Printf.printf "Got slice!\n%!";  
     let inputs = (closureArgs @ slices) in
     let currResults = 
       Array.of_list (eval_app memState fnTable env fundef inputs)

@@ -40,22 +40,22 @@ let create () =
   }
 
 
-let add_untyped interpState ?(opt_queue=true) name fundef = 
+let add_untyped interpState ?(optimize=true) name fundef = 
   let id = fundef.SSA.fn_id in 
   Hashtbl.add interpState.name_to_untyped_id name id; 
   Hashtbl.add interpState.untyped_id_to_name id name;
-  FnTable.add ~opt_queue fundef interpState.untyped_functions
+  FnTable.add ~opt_queue:optimize fundef interpState.untyped_functions
   
 let add_untyped_list 
       interpState 
-      ?(opt_queue=true) 
+      ?(optimize=true) 
       (fundefList: (string*SSA.fundef) list) =
   List.iter 
-    (fun (name,fundef) -> add_untyped interpState  ~opt_queue name fundef) 
+    (fun (name,fundef) -> add_untyped interpState ~optimize name fundef) 
     fundefList
   
-let add_untyped_map interpState ?(opt_queue=true) fundefMap = 
-  String.Map.iter (add_untyped interpState ~opt_queue) fundefMap 
+let add_untyped_map interpState ?(optimize=true) fundefMap = 
+  String.Map.iter (add_untyped interpState ~optimize) fundefMap 
 
 let default_untyped_optimizations = 
   [
@@ -89,14 +89,14 @@ let optimize_typed_functions program =
     default_typed_optimizations
         
                   
-let create_from_untyped_map ?(opt_queue=true) fundefMap =
+let create_from_untyped_map ?(optimize=true) fundefMap =
   let interpState = create () in
-  add_untyped_map interpState ~opt_queue fundefMap;    
+  add_untyped_map interpState ~optimize fundefMap;    
   interpState 
 
-let create_from_untyped_list ?(opt_queue=true) fundefList = 
+let create_from_untyped_list ?(optimize=true) fundefList = 
   let interpState = create () in 
-  add_untyped_list interpState ~opt_queue fundefList;  
+  add_untyped_list interpState ~optimize fundefList;  
   interpState  
 
 let get_untyped_name program id = Hashtbl.find program.untyped_id_to_name id
@@ -107,6 +107,7 @@ let get_untyped_function_table program = program.untyped_functions
 
 let add_specialization 
     program 
+    ?(optimize=true)
     (untypedVal : SSA.value) 
     (signature : Signature.t) 
     (typedFundef : SSA.fundef) =
@@ -120,7 +121,7 @@ let add_specialization
     ENDIF; 
     ()
   )
-  else FnTable.add typedFundef program.typed_functions
+  else FnTable.add ~opt_queue:optimize typedFundef program.typed_functions
   ; 
   let key = (untypedVal, signature) in 
   Hashtbl.add program.specializations key typedFundef.fn_id; 
