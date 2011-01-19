@@ -39,7 +39,7 @@ let rec specialize_fundef interpState fundef signature =
    *)
   let inferTypes fnVal signature = 
     let fundef = specialize_value interpState fnVal signature in 
-    fundef.fundef_output_types 
+    fundef.fn_output_types 
   in 
   let tenv = TypeAnalysis.type_analysis inferTypes closures fundef' signature in
   let specializer = specialize_value interpState in  
@@ -795,7 +795,7 @@ and scalarize_fundef interpState untypedId untypedFundef vecSig =
   let scalarFnType = scalarFundef.fn_type in  
   let mapType = FnT([], scalarFnType :: inputTypes, outputTypes) in  
   let mapNode = SSA.mk_val ~ty:mapType (SSA.Prim (Prim.ArrayOp Prim.Map)) in
-  let fnNode = SSA.mk_val ~ty:scalarFnType (GlobalFn scalarFundef.fundef_id) in     
+  let fnNode = SSA.mk_val ~ty:scalarFnType (GlobalFn scalarFundef.fn_id) in     
   let dataNodes =
     List.map2 (fun id t -> SSA.mk_var ~ty:t id) freshInputIds inputTypes
   in
@@ -868,7 +868,7 @@ and specialize_fundef interpState untypedFundef signature =
       "mismatch between fn arity: actual (%d), expected (%d) for %s : %s"
       nActual 
       nExpected 
-      (FnId.to_str untypedFundef.fundef_id) 
+      (FnId.to_str untypedFundef.fn_id) 
       (Signature.to_str signature)
     ;  
   ENDIF;  
@@ -1012,7 +1012,7 @@ and specialize_function_value interpState v signature : SSA.value_node =
             (SSA.value_to_str other)
      in 
      InterpState.add_specialization interpState v signature  typedFundef; 
-     { value = GlobalFn typedFundef.fundef_id; 
+     { value = GlobalFn typedFundef.fn_id; 
        value_type = typedFundef.fn_type; 
        value_src = None 
      }      

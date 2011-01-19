@@ -21,9 +21,9 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
   let finalize _ f = 
     Update {f with 
       tenv = Hashtbl.fold ID.Map.add P.tenv ID.Map.empty;
-      fundef_input_types = 
+      fn_input_types = 
         List.map (Hashtbl.find P.tenv) f.input_ids;
-      fundef_output_types = 
+      fn_output_types = 
         List.map (Hashtbl.find P.tenv) f.output_ids;   
     } 
 
@@ -70,36 +70,24 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
       let fnVal' = get_closure_val id in
       let fundef = P.specializer fnVal' signature' in
       {    
-        closure_fn = fundef.fundef_id;  
+        closure_fn = fundef.fn_id;  
         closure_args = closureArgs;  
         closure_arg_types = closureArgTypes;  
         closure_input_types = 
-          keep_tail closureArgTypes fundef.fundef_input_types; 
-        closure_output_types = fundef.fundef_output_types;
+          keep_tail closureArgTypes fundef.fn_input_types; 
+        closure_output_types = fundef.fn_output_types;
       }
     | GlobalFn _
     | Prim _ -> 
       let fundef = P.specializer fnVal signature in 
       { 
-        closure_fn = fundef.fundef_id;  
+        closure_fn = fundef.fn_id;  
         closure_args = [];  
         closure_arg_types = [];  
-        closure_input_types = fundef.fundef_input_types; 
-        closure_output_types = fundef.fundef_output_types;   
+        closure_input_types = fundef.fn_input_types; 
+        closure_output_types = fundef.fn_output_types;   
       }
     | _ -> assert false  
-
-  let mk_typed_fn fnVal signature = match fnVal with 
-    | GlobalFn _
-    | Prim _ -> 
-      let fundef = P.specializer fnVal signature in 
-      { 
-        fn_id = fundef.fundef_id;  
-        fn_input_types = fundef.fundef_input_types; 
-        fn_output_types = fundef.fundef_output_types;   
-      }
-    | _ -> assert false
-
                                                                                          
   let annotate_value valNode = 
     let t = infer_value_node_type valNode in  
@@ -142,8 +130,9 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
     match fnVal with
     | Prim ((Prim.ScalarOp op) as p) -> 
       let outT = TypeInfer.infer_scalar_op op argTypes in
+      let commonT = DynType.fold_type_list argTypes in 
       if DynType.is_scalar outT then  
-        SSA.mk_primapp p argTypes [outT] argNodes
+        SSA.mk_primapp p commonT [outT] argNodes
       else 
         let eltTypes = List.map DynType.peel_vec argTypes in 
         let eltSignature = Signature.from_input_types eltTypes in 
@@ -163,18 +152,13 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
         failwith "hof not implemented!"
       else 
         let outT = TypeInfer.infer_simple_array_op op argTypes in 
-        SSA.mk_primapp p argTypes [outT] argNodes   
+        let commonT = DynType.fold_type_list argTypes in 
+        SSA.mk_primapp p commonT [outT] argNodes   
     | GlobalFn _ -> 
       let typedFundef = 
         P.specializer fnVal (Signature.from_input_types argTypes) 
       in
-      let typedFn = { 
-        fn_id = typedFundef.fundef_id; 
-        fn_input_types = typedFundef.fundef_input_types; 
-        fn_output_types = typedFundef.fundef_output_types;
-      }
-      in 
-      SSA.mk_call typedFn argNodes   
+      SSA.mk_call typedFundef.fn_id typedFundef.fn_output_types argNodes   
     | Var id -> 
       if is_closure id then
         let fnVal = get_closure_val id in 
@@ -185,13 +169,7 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
         in 
         let types = closureArgTypes @ directArgTypes in
         let fundef = P.specializer fnVal (Signature.from_input_types types) in 
-        let typedFn = {
-          fn_id = fundef.fundef_id; 
-          fn_input_types = types; 
-          fn_output_types = fundef.fundef_output_types; 
-        } 
-        in 
-        SSA.mk_call typedFn (closureArgs @ argNodes)   
+        SSA.mk_call fundef.fn_id fundef.fn_output_types (closureArgs @ argNodes)   
       else failwith "array indexing"
       
       

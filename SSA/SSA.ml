@@ -27,7 +27,7 @@ type exp =
   | Values of value_nodes
   (* nodes below are only used after type specialization *) 
   | Cast of DynType.t * value_node  
-  | Call of typed_fn * value_nodes 
+  | Call of FnId.t * value_nodes 
   | PrimApp of typed_prim * value_nodes  
   | Map of closure * value_nodes
   | Reduce of closure * closure * value_nodes   
@@ -39,15 +39,20 @@ and exp_node = {
   (* expressions have multiple types *)  
   exp_types : DynType.t list; 
 } 
+(*
 and typed_fn = { 
   fn_id : FnId.t; 
   fn_input_types : DynType.t list; 
   fn_output_types : DynType.t list;   
 } 
+*)
 and typed_prim = { 
-  prim_input_types : DynType.t list; 
-  prim_output_types : DynType.t list; 
-  prim: Prim.prim; 
+  (*prim_input_types : DynType.t list; 
+  prim_output_types : DynType.t list;
+  *)
+    
+  prim: Prim.prim;
+  prim_type_index : DynType.t; 
 } 
 and closure = {   
   closure_fn: FnId.t; 
@@ -100,9 +105,9 @@ type fundef = {
   tenv : tenv;
   input_ids:ID.t list;
   output_ids: ID.t list; 
-  fundef_input_types : DynType.t list;
-  fundef_output_types : DynType.t list;
-  fundef_id : FnId.t; 
+  fn_input_types : DynType.t list;
+  fn_output_types : DynType.t list;
+  fn_id : FnId.t; 
 }
 and tenv = DynType.t ID.Map.t 
 
@@ -177,8 +182,8 @@ and closure = {
 } 
 *)
             
-  | Call (typedFn, args) -> 
-      sprintf "%s(%s)" (FnId.to_str typedFn.fn_id) (value_nodes_to_str args) 
+  | Call (fnId, args) -> 
+      sprintf "%s(%s)" (FnId.to_str fnId) (value_nodes_to_str args) 
   | PrimApp (typedPrim, args) -> 
       sprintf "prim{%s}(%s)" 
         (Prim.prim_to_str typedPrim.prim) 
@@ -186,13 +191,19 @@ and closure = {
   | Map (closure, args) -> 
       sprintf "map{%s}(%s)" (closure_to_str closure) (value_nodes_to_str args) 
   | Reduce (initClos, reduceClos, args) -> 
-      sprintf "reduce{%s}{%s}(%s)"
-        (closure_to_str initClos)
+      sprintf "reduce%s{%s}(%s)"
+        (if initClos.closure_fn <> reduceClos.closure_fn then 
+          "{" ^ (closure_to_str initClos) ^ "}"
+         else ""
+        )
         (closure_to_str reduceClos)
         (value_nodes_to_str args)    
   | Scan (initClos, scanClos, args) -> 
-      sprintf "scan{%s}{%s}(%s)"
-        (closure_to_str initClos)
+      sprintf "scan%s{%s}(%s)"
+        (if initClos.closure_fn <> scanClos.closure_fn then 
+          "{" ^ (closure_to_str initClos) ^ "}"
+         else ""
+        )
         (closure_to_str scanClos)
         (value_nodes_to_str args)    
 and closure_to_str cl =
@@ -231,7 +242,7 @@ and value_list_to_str ?(sep=",") vs =
 
 let fundef_to_str (fundef:fundef) = 
   sprintf "%s (%s)=>(%s) { \n %s \n }"
-    (FnId.to_str fundef.fundef_id) 
+    (FnId.to_str fundef.fn_id) 
     (typed_id_list_to_str fundef.tenv fundef.input_ids)
     (typed_id_list_to_str fundef.tenv fundef.output_ids)
     (block_to_str ~space:"\t" ~tenv:fundef.tenv fundef.body)
@@ -263,9 +274,9 @@ let mk_fundef  ?(tenv=ID.Map.empty) ~input_ids ~output_ids ~body =
     tenv = tenv; 
     input_ids = input_ids; 
     output_ids = output_ids; 
-    fundef_input_types = inTypes;
-    fundef_output_types = outTypes; 
-    fundef_id = FnId.gen()  
+    fn_input_types = inTypes;
+    fn_output_types = outTypes; 
+    fn_id = FnId.gen()  
   }  
   
 
@@ -354,11 +365,13 @@ let mk_app ?src ?types fn args =
   in 
   { exp=App(fn,args); exp_src = src; exp_types = retTypes }  
 
-let mk_primapp ?src prim inTypes outTypes args =
+let mk_primapp ?src prim ty outTypes args =
   let tprim = { 
-    prim_input_types = inTypes;
-    prim_output_types = outTypes; 
-    prim = prim
+    (*prim_input_types = inTypes;
+    prim_output_types = outTypes;
+    *) 
+    prim = prim;
+    prim_type_index = ty;
   } 
   in   
   { exp = PrimApp (tprim, args); exp_src = src; exp_types = outTypes}  
@@ -400,8 +413,8 @@ let mk_exp ?src ?types exp =
   in 
   { exp= exp; exp_types = types'; exp_src = src} 
 
-let mk_call ?src typedFn args = 
-  { exp = Call(typedFn, args); exp_types = typedFn.fn_output_types; exp_src=src}
+let mk_call ?src fnId outTypes args  = 
+  { exp = Call(fnId, args); exp_types = outTypes; exp_src=src}
 
 let mk_map ?src closure args = 
   { exp = Map(closure, args); 
@@ -421,30 +434,13 @@ let mk_scan ?src initClosure scanClosure args =
     exp_types = scanClosure.closure_output_types; 
     exp_src = src; 
   }
-  (*and typed_fn = { 
-  fn_id : FnId.t; 
-  fn_input_types : DynType.t list; 
-  fn_output_types : DynType.t list;   
-} 
-and typed_prim = { 
-  prim_input_types : DynType.t list; 
-  prim_output_types : DynType.t list; 
-  prim: Prim.prim; 
-} 
-and closure = {   
-  closure_fn: FnId.t; 
-  closure_args: value_node list; 
-  closure_arg_types: DynType.t list; 
-  closure_input_types:DynType.t list; 
-  closure_output_types: DynType.t list 
-} 
-*) 
+   
 let mk_closure fundef args = {
-  closure_fn = fundef.fundef_id; 
+  closure_fn = fundef.fn_id; 
   closure_args = args; 
   closure_arg_types = List.map (fun v -> v.value_type) args; 
-  closure_input_types = List.drop (List.length args) fundef.fundef_input_types; 
-  closure_output_types = fundef.fundef_output_types; 
+  closure_input_types = List.drop (List.length args) fundef.fn_input_types; 
+  closure_output_types = fundef.fn_output_types; 
 } 
 
 let empty_stmt = mk_set [] (mk_vals_exp [])

@@ -6,7 +6,8 @@ open SSA
 module StmtId = Int
 
 module StmtSet = StmtId.Set
-module StmtMap = StmtId.Map 
+module StmtMap = StmtId.Map
+ 
 (*
 (* map every value produced by an adverb to the array operation, *) 
 type adverb_descriptor = {

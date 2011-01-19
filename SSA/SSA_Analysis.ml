@@ -56,7 +56,7 @@ module type ANALYSIS =  sig
         argInfo:value_info list -> exp_info 
         
     val exp_call 
-      : env -> exp_node -> typedFn:typed_fn -> args:value_node list -> 
+      : env -> exp_node -> fnId:FnId.t -> args:value_node list -> 
         info:value_info list -> exp_info 
           
     val exp_map 
@@ -198,7 +198,7 @@ struct
         ~(argInfo:value_info list) = E.mk_default expNode 
             
   let exp_call (_:env) (expNode:exp_node) 
-        ~(typedFn:typed_fn) ~(args:value_node list)
+        ~(fnId:FnId.t) ~(args:value_node list)
         ~(info:value_info list) = E.mk_default expNode  
           
   let exp_map (_:env) (expNode:exp_node) 
@@ -320,8 +320,8 @@ module MkEvaluator(A : ANALYSIS) = struct
             ~typedPrim 
             ~args 
             ~argInfo:(eval_values env args) 
-      | Call(typedFn, args) -> 
-          A.exp_call env expNode ~typedFn ~args ~info:(eval_values env args) 
+      | Call(fnId, args) -> 
+          A.exp_call env expNode ~fnId ~args ~info:(eval_values env args) 
       | Map(closure, args) ->
           A.exp_map env expNode 
             ~closure ~args 

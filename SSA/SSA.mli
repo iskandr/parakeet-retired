@@ -22,7 +22,7 @@ type exp =
   | Values of value_nodes
   (* nodes below are only used after type specialization *) 
   | Cast of DynType.t * value_node  
-  | Call of typed_fn * value_nodes 
+  | Call of FnId.t * value_nodes 
   | PrimApp of typed_prim * value_nodes  
   | Map of closure * value_nodes
   | Reduce of closure * closure * value_nodes   
@@ -34,15 +34,16 @@ and exp_node = {
   (* expressions have multiple types *)  
   exp_types : DynType.t list; 
 } 
+(*
 and typed_fn = { 
   fn_id : FnId.t; 
   fn_input_types : DynType.t list; 
   fn_output_types : DynType.t list;   
 } 
+*)
 and typed_prim = { 
-  prim_input_types : DynType.t list; 
-  prim_output_types : DynType.t list; 
-  prim: Prim.prim; 
+  prim: Prim.prim;
+  prim_type_index : DynType.t;  
 } 
 and closure = {   
   closure_fn: FnId.t; 
@@ -94,9 +95,9 @@ type fundef = {
   tenv : tenv;
   input_ids:ID.t list;
   output_ids: ID.t list; 
-  fundef_input_types : DynType.t list;
-  fundef_output_types : DynType.t list;  
-  fundef_id : FnId.t; 
+  fn_input_types : DynType.t list;
+  fn_output_types : DynType.t list;  
+  fn_id : FnId.t; 
 }
 and tenv = DynType.t ID.Map.t 
 
@@ -181,7 +182,7 @@ val mk_app :
       value_node -> value_node list -> exp_node 
 
 val mk_primapp : ?src:SourceInfo.source_info -> Prim.prim ->
-   DynType.t list -> DynType.t list -> value_node list -> exp_node  
+   DynType.t -> DynType.t list -> value_node list -> exp_node  
 
 val mk_arr :
       ?src:SourceInfo.source_info ->
@@ -199,7 +200,8 @@ val mk_cast : ?src:SourceInfo.source_info -> DynType.t -> value_node -> exp_node
 val mk_exp : 
       ?src:SourceInfo.source_info -> ?types:DynType.t list -> exp -> exp_node
 val mk_call : 
-      ?src:SourceInfo.source_info -> typed_fn -> value_node list -> exp_node 
+      ?src:SourceInfo.source_info -> FnId.t -> DynType.t list  -> 
+        value_node list -> exp_node 
 val mk_map : 
       ?src:SourceInfo.source_info -> closure -> value_node list -> exp_node 
 val mk_reduce : 

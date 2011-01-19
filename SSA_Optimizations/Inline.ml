@@ -17,16 +17,16 @@ let do_inline fundef argVals =
   let argAssignments = 
     mk_set 
       freshFundef.input_ids 
-      (SSA.mk_exp ~types:freshFundef.fundef_input_types (Values argVals)) 
+      (SSA.mk_exp ~types:freshFundef.fn_input_types (Values argVals)) 
   in
   let outputValNodes = 
     List.map2 
       (fun id t -> SSA.mk_var ~ty:t id) 
       freshFundef.output_ids 
-      freshFundef.fundef_output_types 
+      freshFundef.fn_output_types 
   in 
   let outputExp = 
-    mk_exp ~types:freshFundef.fundef_output_types (Values outputValNodes) 
+    mk_exp ~types:freshFundef.fn_output_types (Values outputValNodes) 
   in
   (* list of new ids and their types-- ignore types missing from tenv *) 
   let typesList : (ID.t * DynType.t) list = 
