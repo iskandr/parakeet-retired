@@ -493,10 +493,12 @@ let eval_array_op
       failwith 
         "[GpuRuntime->eval_array_op] closures not yet supported for Reduce"
         
-  | Prim.AllPairs, (InterpVal.Closure(fnId, []))::dataArgs ->
+   (* | Prim.AllPairs, dataArgs -> failwith "all-pairs broken"
+  
       let fundef = FnTable.find fnId fnTable in
       let gpuVals = List.map (MemoryState.get_gpu memState) dataArgs in
-      run_all_pairs memState fnTable fundef gpuVals outputTypes  
+      run_all_pairs memState fnTable fundef gpuVals outputTypes
+    *)  
   | Prim.AllPairs, _ ->
       failwith 
         "[GpuRuntime->eval_array_op] closures not yet supported for AllPairs"

@@ -21,11 +21,9 @@ let rec eval_value
         Printf.sprintf "[eval_value] variable %s not found!" (ID.to_str id)
   | Num n -> InterpVal.Scalar n 
         (*MemoryState.add_host memoryState (HostVal.mk_host_scalar n)*)
-  | GlobalFn fnId -> InterpVal.Closure(fnId, []) 
-  | Str _
-  | Sym _
-  | Unit
-  | Prim _-> failwith "[eval_value] values of this type not yet implemented" 
+ 
+  | _ -> failwith ("[eval_value] values of this type not implemented: " ^
+           (SSA.value_to_str valNode.value))
  
 let rec eval globalFns fundef hostVals =
   let memState = MemoryState.create 127 (* arbitrary *) in
