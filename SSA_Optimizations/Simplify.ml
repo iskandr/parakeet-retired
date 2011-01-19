@@ -4,11 +4,10 @@ open SSA
 open SSA_Transform
 open FindUseCounts
 open FindDefs
-
  
 module SimplifyRules = struct
   let dir = Forward
-  (* use counts-- constant map? *) 
+   
   type context = {
     constants: SSA.value ConstantLattice.t ID.Map.t;
     defs : (ID.t, DefLattice.t) Hashtbl.t;  
@@ -73,9 +72,16 @@ module SimplifyRules = struct
             in     
             Update assignment
         | _ -> NoChange  
-      end   
+      end
+    | SSA.WhileLoop (condBlock, condVal, loopBlock, gate) -> 
+      begin match condVal.value with 
+        | Num PQNum.Bool false -> 
+            (* leave the condBlock for potential side effects, *)
+            (* get rid of loop *) 
+            UpdateWithBlock (SSA.empty_stmt, condBlock)
+        | _ -> NoChange
+      end     
     | _ -> NoChange 
-    
   
   let exp cxt expNode = NoChange 
   
