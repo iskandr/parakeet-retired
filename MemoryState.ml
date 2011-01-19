@@ -39,7 +39,6 @@ let rec get_shape memState = function
       (* assume uniform arrays *)
       let eltShape = get_shape memState arr.(0) in
       Shape.append_dim (Array.length arr) eltShape 
-  | InterpVal.Closure _ -> failwith "closures have no shape"
 
 let rec get_type memState = function 
   | InterpVal.Scalar n -> PQNum.type_of_num n 
@@ -48,7 +47,6 @@ let rec get_type memState = function
       (* for now, assume uniformity of element types *) 
       let eltT = get_type memState arr.(0) in 
       DynType.VecT eltT 
- | InterpVal.Closure _ -> failwith "can't get type of closure"
 
 
 let is_on_gpu memState = function 
@@ -57,15 +55,13 @@ let is_on_gpu memState = function
   (* even if all the array's elements are on the GPU, no guarantee 
      they are a contiguous chunk 
   *)
-  | InterpVal.Array _ 
-  | InterpVal.Closure _ -> false
+  | InterpVal.Array _ -> false
 
 
 let is_on_host memState = function 
   | InterpVal.Data id -> Hashtbl.mem memState.host_vals id 
   | InterpVal.Scalar _ -> true
-  | InterpVal.Array _ 
-  | InterpVal.Closure _ -> false  
+  | InterpVal.Array _ -> false  
 
 
   
@@ -73,7 +69,6 @@ let rec sizeof memState interpVal =
   let t = get_type memState interpVal in 
   match interpVal with  
   | InterpVal.Scalar n -> DynType.sizeof t  
-  | InterpVal.Closure _ -> failwith "can't get size of closure" 
   | InterpVal.Data _ -> 
       let s = get_shape memState interpVal in 
       Shape.nelts s * (DynType.sizeof (DynType.elt_type t))
@@ -95,8 +90,6 @@ let get_gpu memState = function
       gpuVal
    )
   | InterpVal.Scalar n -> GpuVal.GpuScalar n  
-  | InterpVal.Closure _ -> 
-      failwith "[MemoryState->get_gpu] can't send function to gpu"
   | InterpVal.Array arr ->
       (* for now, assume all rows are of uniform type/size *)
       let nrows = Array.length arr in   
@@ -154,9 +147,7 @@ let rec get_host state interpVal =
   | InterpVal.Array arr ->
       HostVal.HostBoxedArray (Array.map (get_host state) arr)
        
-  | InterpVal.Closure _ -> 
-      failwith "[MemoryState->get_host] can't send function to host memory"
-
+  
 let get_scalar state = function 
   | InterpVal.Data id -> 
       if Hashtbl.mem state.host_vals id then 
@@ -168,7 +159,6 @@ let get_scalar state = function
         | _ -> assert false
       )
  | InterpVal.Scalar n -> n 
- | InterpVal.Closure _ -> failwith "How did a closure get here?"
  | InterpVal.Array _ -> failwith "An array? How did that happen?"
 
 
@@ -183,9 +173,7 @@ let slice memState arr idx = match arr with
       else 
         let hostVal = Hashtbl.find memState.host_vals id in 
         add_host memState (HostVal.get_slice hostVal idx)   
-  | InterpVal.Closure _ -> failwith "Can't slice a closure"
-
-
+ 
 let free_gpu state id =
   if Hashtbl.mem state.gpu_vals id then begin
     GpuVal.free (Hashtbl.find state.gpu_vals id);
@@ -220,8 +208,7 @@ let rec gpu_transfer_time memState interpVal =
   | InterpVal.Scalar _ -> 0 
   | InterpVal.Array arr -> 
       Array.sum (Array.map (gpu_transfer_time memState) arr) 
-  | InterpVal.Closure _ -> failwith "Can't transfer closures to GPU"
-
+ 
 let rec host_transfer_time memState interpVal = 
   match interpVal with 
   | InterpVal.Data id -> 
@@ -235,5 +222,4 @@ let rec host_transfer_time memState interpVal =
   | InterpVal.Scalar _ -> 0 
   | InterpVal.Array arr -> 
       Array.sum (Array.map (host_transfer_time memState) arr) 
-  | InterpVal.Closure _ -> failwith "Can't transfer closures to Host"
   
