@@ -9,26 +9,6 @@ open InterpVal
 
 type env = InterpVal.t ID.Map.t 
 
-module type INTERP = sig 
-  type source_info (* attach this as the type param of SourceInfo.t *) 
-  val eval : InterpState.t -> MemoryState.t -> env ->  SSA.stmt_node -> env    
-end
-
-type 'a closure = SSA.fundef * 'a 
-
-module type BACKEND = sig 
-  type data 
-  
-  val to_device : HostVal.host_val -> data 
-  val from_device : data -> HostVal.host_val 
-  
-  val map : data closure -> data list -> data list 
-  val reduce : data closure -> data closure -> data list -> data list
-  val scan : data closure -> data closure -> data list -> data list
-  
-  val array_op : Prim.array_op -> data list -> data list     
-end
-
 let _ = Printexc.record_backtrace true 
 
 let rec eval_value 
@@ -164,7 +144,7 @@ and eval_exp
       failwith $ Printf.sprintf 
         "[eval_exp] no implementation for: %s\n"
         (SSA.exp_to_str expNode)           
-      (*
+      
   | Reduce (
      {closure_fn=initFnId; closure_args=initClosureArgs},
      {closure_fn=reduceFnId; closure_args=reduceClosureArgs},
@@ -178,10 +158,11 @@ and eval_exp
         | Some nestedFnId -> FnTable.find nestedFnId fnTable
         | None -> fundef 
       in  
+      let argVals : InterpVal.t list = 
+        List.map (eval_value memState env) dataArgs 
+      in 
+      failwith "reduce not done in evaluator"
       
-      let gpuVals = List.map (MemoryState.get_gpu memState) dataArgs in
-      run_reduce memState fnTable fundef2 gpuVals outputTypes
-      *)
   | Scan ({closure_fn=initFnId; closure_args=initClosureArgs}, 
           {closure_fn=fnId; closure_args=closureArgs}, args) ->    
      failwith "scan not implemented"
@@ -278,3 +259,26 @@ and eval_map memState fnTable env fundef closureArgs argVals =
     Array.map
       (fun dynArray -> InterpVal.Array (DynArray.to_array dynArray))
     allResults  
+
+
+(*
+module type INTERP = sig 
+  type source_info (* attach this as the type param of SourceInfo.t *) 
+  val eval : InterpState.t -> MemoryState.t -> env ->  SSA.stmt_node -> env    
+end
+
+type 'a closure = SSA.fundef * 'a 
+
+module type BACKEND = sig 
+  type data 
+  
+  val to_device : HostVal.host_val -> data 
+  val from_device : data -> HostVal.host_val 
+  
+  val map : data closure -> data list -> data list 
+  val reduce : data closure -> data closure -> data list -> data list
+  val scan : data closure -> data closure -> data list -> data list
+  
+  val array_op : Prim.array_op -> data list -> data list     
+end
+*)

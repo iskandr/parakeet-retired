@@ -312,6 +312,8 @@ let run_reduce
       aux [gpuVal] numInputElts
     | _ -> failwith "expect one reduce kernel"
 
+
+
 (** ALLPAIRS **)
 let compile_all_pairs globalFunctions payload argTypes retTypes =
   match argTypes with 

@@ -113,6 +113,24 @@ There is a great deal of similarity between data parallel DSLs and exisiting arr
 which either utilize accelerators to implement faster library functions (citations?) or more ambitiously, to dynamically compile 
 accelerator programs from fragments of user programs.}
 
+\paragraph*{Our supported computational sub-languages versus full languages}
+Computational/well-behaved sub-language: ("formal island?")
+\begin{enumerate}
+\item first-class array objects 
+\item builtin array operators for easily constructing/manipulating arrays
+\item finite set of builtin higher order functions
+\item referentially transparent functions 
+\item Types of local variables can be inferred from some initial assumptions (types of arguments to a function)
+\end{enumerate} 
+
+Maybe embedded with a context of a more featureful or dynamic language: 
+\begin{enumerate}
+\item Unrestricted use of first class functions
+\item Arbitrary side effects
+\item Unrestricted dynamicism (type inference undecidable)
+\end{enumerate}
+
+
 \subsection{Limitations Imposed by GPUs}
 \label{GPULimitations}
 GPUs are able to achieve their specialized high performance because they have
