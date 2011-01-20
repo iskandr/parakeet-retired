@@ -24,7 +24,9 @@ module type BACKEND = sig
   
   val map : data closure -> data list -> data list 
   val reduce : data closure -> data closure -> data list -> data list
-  val scan : data closure -> data closure -> data list -> data list    
+  val scan : data closure -> data closure -> data list -> data list
+  
+  val array_op : Prim.array_op -> data list -> data list     
 end
 
 let _ = Printexc.record_backtrace true 

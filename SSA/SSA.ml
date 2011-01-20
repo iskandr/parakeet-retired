@@ -10,18 +10,17 @@ type value =
   | Unit
   | Prim of Prim.prim
   | GlobalFn of FnId.t  
-
-
 and value_node = { 
   value_type : DynType.t;
   value_src : SourceInfo.t option; 
   value : value 
 }
 and value_nodes = value_node list   
-    
 
 type exp = 
+  (* application of arbitrary values used only in untyped code *) 
   | App of  value_node * value_nodes
+  (* construction of arrays and values used by both typed and untyped ssa *) 
   | Arr of value_nodes
   | Values of value_nodes
   (* nodes below are only used after type specialization *) 
@@ -38,7 +37,6 @@ and exp_node = {
   (* expressions have multiple types *)  
   exp_types : DynType.t list; 
 } 
-
 and closure = {   
   closure_fn: FnId.t; 
   closure_args: value_node list; 
@@ -46,8 +44,6 @@ and closure = {
   closure_input_types:DynType.t list; 
   closure_output_types: DynType.t list 
 } 
-
-
 
 type stmt = 
   | Set of ID.t list * exp_node 
@@ -149,24 +145,6 @@ and exp_to_str expNode =
   | Cast(t, v) -> 
       sprintf "cast<%s>(%s)" (DynType.to_str t) (value_node_to_str v)
 
-(*fn_id : FnId.t; 
-  fn_input_types : DynType.t list; 
-  fn_output_types : DynType.t list;   
-} 
-and typed_prim = { 
-  prim_input_types : DynType.t list; 
-  prim_output_types : DynType.t list; 
-  prim: Prim.prim; 
-} 
-and closure = {   
-  closure_fn: FnId.t; 
-  closure_args: value_node listf; 
-  closure_arg_types: DynType.t list; 
-  closure_input_types:DynType.t list; 
-  closure_output_types: DynType.t list 
-} 
-*)
-            
   | Call (fnId, args) -> 
       sprintf "%s(%s)" (FnId.to_str fnId) (value_nodes_to_str args) 
   | PrimApp (p, args) -> 
