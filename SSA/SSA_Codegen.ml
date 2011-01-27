@@ -1,7 +1,7 @@
 open Base
 open SSA
 
-class typed_ssa_codegen =
+class ssa_codegen =
   object (self : 'a)
      
     val types = (ref ID.Map.empty :  DynType.t ID.Map.t ref)  
@@ -24,13 +24,7 @@ class typed_ssa_codegen =
       if from_type = to_type then valNode 
       else ( 
         if DynType.nest_depth from_type > DynType.nest_depth  to_type then 
-          failwith "Cannot convert from vector to scalar" 
-        else if DynType.nest_depth to_type > DynType.nest_depth from_type then (
-          (* THIS IS A HACK!!! BEWARE. *)
-          IFDEF DEBUG THEN
-            print_string"HACKHACKHACK!";
-          ENDIF;
-          mk_stream valNode to_type)
+          failwith "Cannot convert from vector to scalar"
         else ( 
           let castNode = 
           { 
@@ -44,7 +38,7 @@ class typed_ssa_codegen =
           DynArray.add code stmtNode; 
           {value = Var freshId; value_type = to_type; value_src = None } 
        )
-    )
+     )
     
     method cvt_list ~to_type ~from_types args = 
         List.map2 
@@ -55,7 +49,7 @@ class typed_ssa_codegen =
     method emit stmtList = 
       List.iter (fun stmt -> DynArray.add code stmt) stmtList
     
-    method finalize = DynArray.to_list code 
+    method finalize = DynArray.to_array code 
 end
 
 (* creates a codegen with identifiers initialized for input and output types,*)
@@ -63,8 +57,11 @@ end
 (* which emits SSA into the codegen. *)
 (* Once the body is finished, wrap up the code and type environment *)
 (* as a fundef *)   
-let mk_lambda inputTypes outputTypes fn  = 
-  let codegen = new typed_ssa_codegen in 
+let mk_codegen_fn 
+      (inputTypes : DynType.t list) 
+      (outputTypes  : DynType.t list) 
+      (constr : ssa_codegen -> value_node list -> value_node list -> unit)  = 
+  let codegen = new ssa_codegen in 
   let inputIds = List.map codegen#fresh_var inputTypes in 
   let outputIds = List.map codegen#fresh_var outputTypes in 
   let inputVars = 
@@ -80,9 +77,49 @@ let mk_lambda inputTypes outputTypes fn  =
         outputTypes
   in  
   (* allow user provided function to populate the codegen body *) 
-  let _ = fn codegen inputVars outputVars in
+  let _ = constr codegen inputVars outputVars in
   SSA.mk_fundef 
     ~body:codegen#finalize 
     ~tenv:codegen#get_type_env
     ~input_ids:inputIds
     ~output_ids:outputIds 
+    
+    
+let reduce = mk_op  (Prim.Adverb Prim.Reduce) 
+let map = mk_op (Prim.Adverb Prim.Map)
+let inf = mk_num (PQNum.Inf DynType.Float32T)
+let neginf = mk_num (PQNum.NegInf DynType.Float32T)
+
+let (:=) xs y = mk_set (List.map SSA.get_id xs) y 
+let (@@) fn args = mk_app fn args  
+let scalar_op op = mk_op (Prim.ScalarOp op)
+let array_op op = mk_op (Prim.ArrayOp op)
+
+type vars = value_node array 
+(* helper function for creating functions *) 
+let mk_fn 
+      (nInputs : int) 
+      (nOutputs : int) 
+      (nLocals : int) 
+      (bodyConstructor : vars -> vars -> vars -> stmt_node list) =  
+  let inputs = ID.gen_fresh_array nInputs in
+  let inputVars = Array.map SSA.mk_var inputs in 
+  let outputs = ID.gen_fresh_array nOutputs in
+  let outputVars = Array.map SSA.mk_var outputs in
+  let locals = ID.gen_fresh_array nLocals in 
+  let localVars = Array.map SSA.mk_var locals in   
+  let body = SSA.block_of_list $
+    bodyConstructor inputVars outputVars localVars 
+  in 
+  mk_fundef 
+    ~input_ids:(Array.to_list inputs)
+    ~output_ids:(Array.to_list outputs)
+    ~tenv:ID.Map.empty 
+    ~body  
+
+(* special case for creating function with 1 input, 1 output *) 
+let fn1 constructor =
+  let constructorWrapper = 
+    fun inputs outputs _ -> constructor inputs.(0) outputs.(0)
+  in 
+  mk_fn 1 1 0 constructorWrapper   

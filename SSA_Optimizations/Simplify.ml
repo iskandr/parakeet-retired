@@ -1,13 +1,115 @@
 open Base
 open DynType 
 open SSA
+open SSA_Transform
+open FindUseCounts
 open FindDefs
  
+module SimplifyRules = struct
+  let dir = Forward
+   
+  type context = {
+    constants: SSA.value ConstantLattice.t ID.Map.t;
+    defs : (ID.t, DefLattice.t) Hashtbl.t;  
+    use_counts : (ID.t, int) Hashtbl.t; 
+    types : DynType.t ID.Map.t; 
+  } 
+      
+  let init fundef = {
+    constants = FindConstants.find_constants fundef;
+    defs = FindDefs.find_defs fundef;  
+    use_counts = FindUseCounts.find_fundef_use_counts fundef;
+    types = fundef.tenv;   
+  } 
+  
+  (* since all outputs are considered used, dummy assignments leading to an *)
+  (* output don't get cleaned up. This final step gets rid of stray assignments*)
+  (* at the end of a function *)  
+  let finalize cxt fundef =
+    let outputIds = 
+      List.map 
+      (fun id -> match Hashtbl.find cxt.defs id with 
+        | FindDefs.DefLattice.Val (Var id') -> id' 
+        | _ -> id)
+      fundef.output_ids 
+    in 
+    if List.exists2 (<>) outputIds fundef.output_ids then 
+      Update {fundef with output_ids = outputIds } 
+    else 
+      NoChange 
+  
+  let is_live cxt id = 
+    Hashtbl.mem cxt.use_counts id && Hashtbl.find cxt.use_counts id > 0   
+   
+  let stmt cxt stmtNode = match stmtNode.stmt with 
+    | Set (ids, ({exp=Values vs} as expNode)) -> 
+      let pairs = List.combine ids vs in 
+      let  livePairs, deadPairs = 
+        List.partition (fun (id,_) -> is_live cxt id) pairs 
+      in
+      if deadPairs = [] then NoChange
+      else if livePairs = [] then Update SSA.empty_stmt 
+      else 
+        let liveIds, liveValues = List.split livePairs in
+        let rhs = {expNode with exp=Values liveValues} in  
+        Update (SSA.mk_set ?src:stmtNode.stmt_src liveIds rhs)      
+    | Set (ids, exp) -> 
+        if List.exists (is_live cxt) ids then NoChange
+        else Update SSA.empty_stmt  
+    | If (condVal, tBlock, fBlock, ifGate) ->
+      let get_type id = ID.Map.find id cxt.types in
+      let mk_var id t  = SSA.mk_var ?src:stmtNode.stmt_src ~ty:t id in  
+      begin match condVal.value with 
+        | Num (PQNum.Bool b) ->
+            let branchIds = if b then ifGate.true_ids else ifGate.false_ids in 
+            let types = List.map get_type branchIds in 
+            let rhsVals = List.map2 mk_var branchIds types in   
+            let rhsExp = 
+              SSA.mk_exp ?src:stmtNode.stmt_src ~types (Values rhsVals) 
+            in
+            let assignment = 
+              SSA.mk_set ?src:stmtNode.stmt_src ifGate.if_output_ids rhsExp
+            in     
+            Update assignment
+        | _ -> NoChange  
+      end
+    | SSA.WhileLoop (condBlock, condVal, loopBlock, gate) -> 
+      begin match condVal.value with 
+        | Num PQNum.Bool false -> 
+            (* leave the condBlock for potential side effects, *)
+            (* get rid of loop *) 
+            UpdateWithBlock (SSA.empty_stmt, condBlock)
+        | _ -> NoChange
+      end     
+    | _ -> NoChange 
+  
+  let exp cxt expNode = NoChange 
+  
+  let value cxt valNode = match valNode.value with
+    | Var id -> 
+      begin match ID.Map.find_option id cxt.constants with 
+        | Some ConstantLattice.Const v -> Update {valNode with value = v }
+        | Some _ 
+        | None -> 
+          (match Hashtbl.find cxt.defs id with 
+            | FindDefs.DefLattice.Val v -> Update {valNode with value = v }
+            | _ -> NoChange
+          )   
+      end
+    | _ -> NoChange  
+end
+
+module Simplifer = SSA_Transform.MkSimpleTransform(SimplifyRules)
+
+let simplify_fundef (_ : FnTable.t) = Simplifer.transform_fundef 
+  
+
+(* TODO: remake this module using SSA_Transform *)
+(* open Base
 
 (* chain together function which return a changed boolean *) 
 let (>>) (value,changed) f = 
   if changed then (value,changed) else (Lazy.force_val f)
-  
 
 let replace_with_def defEnv id = 
   if ID.Map.mem id defEnv then match ID.Map.find id defEnv with 
@@ -27,25 +129,7 @@ let replace_with_const constEnv id =
 (* when we deconstruct an if-statement, we need to turn its gate to a list of
    assignments 
 *)
-let rec create_assignments tenv newIds oldIds =  
-  match newIds, oldIds with 
-  | [], [] -> []
-  | [], _ -> 
-    failwith "[create_assignments] expected id lists to be of same length" 
-  | (newId::newRest), (oldId::oldRest) ->
-     let ty = ID.Map.find_default oldId tenv DynType.BottomT in  
-     let valNode = SSA.mk_var ~ty:ty oldId in 
-     let expNode = SSA.mk_exp ~types:[ty] (Values [valNode]) in 
-     let assign = mk_set [newId] expNode in 
-     assign :: (create_assignments tenv newRest oldRest) 
 
-let is_useless useCounts id =
-  (* by convention, having 0 use counts excludes a varialbe from the 
-     useCount map, but check just in case 
-  *) 
-  if ID.Map.mem id useCounts 
-  then ID.Map.find id useCounts = 0 
-  else true  
 
 let rec rewrite_block constEnv useCounts defEnv tenv block = 
   let allStmts, allChanged = 
@@ -189,17 +273,17 @@ let simplify_typed_block
 *)  
 
 let copy_redundant_stmt stmtNode defEnv useCounts = 
-  let nochange = stmtNode, false, useCounts, defEnv in 
+  let nochange = stmtNode, false, defEnv in 
   match stmtNode.stmt with 
   | Set([id], expNode) ->
-   
      (match expNode.exp with 
-      | Values [{value=Var rhsId}] when ID.Map.find rhsId useCounts = 1 ->
+      | Values [{value=Var rhsId}] 
+         when Hashtbl.mem useCounts rhsId && Hashtbl.find useCounts rhsId = 1 ->
           (match ID.Map.find rhsId defEnv with
           | SingleDef (exp, 1, 1) as def->
+             Hashtbl.replace useCounts rhsId 0; 
              {stmtNode with stmt = Set([id], { expNode with exp = exp})}, 
-             true, 
-             ID.Map.add rhsId 0 useCounts, 
+             true,  
              ID.Map.remove rhsId (ID.Map.add id def defEnv)
           | _ -> nochange
           ) 
@@ -211,28 +295,27 @@ let rec copy_redundant_block
         ?(changed=false) 
         ?(accBody=[]) 
         defEnv 
-        useCounts = 
+        (useCounts : (ID.t, int) Hashtbl.t) = 
   function
-  | [] -> List.rev accBody, changed, useCounts, defEnv 
+  | [] -> List.rev accBody, changed,  defEnv 
   | stmt::rest -> 
-      let stmt', changed', useCounts', defEnv'  = 
-        copy_redundant_stmt stmt defEnv useCounts 
+      let stmt', changed', defEnv'  = copy_redundant_stmt stmt defEnv useCounts 
       in   
       copy_redundant_block 
         ~changed:(changed||changed') 
         ~accBody:(stmt'::accBody)
-        defEnv' 
-        useCounts'          
+        defEnv'
+        useCounts 
         rest
   
     
 let simplify_fundef (functions:FnTable.t) fundef =
   let defEnv =  FindDefs.find_function_defs fundef in
-  let useCounts, _ = FindUseCounts.find_fundef_use_counts fundef in
+  let useCounts = FindUseCounts.find_fundef_use_counts fundef in
   (* forward propagate expressions through linear use chains...
      will create redundant work unless followed by a simplification 
   *)
-  let body1, changed1, useCounts1, defEnv1 = 
+  let body1, changed1, defEnv1 = 
     copy_redundant_block defEnv useCounts fundef.body
   in
   (* perform simple constant propagation and useless assignment elim *)
@@ -240,9 +323,9 @@ let simplify_fundef (functions:FnTable.t) fundef =
     simplify_typed_block functions 
       ~tenv:fundef.tenv 
       ~def_env:defEnv1
-      ~use_counts:useCounts1    
+      ~use_counts:useCounts   
       ~free_vars:fundef.input_ids  
       body1
   in 
   {fundef with body = body2}, changed1 || changed2
-                                                                         
+*)                                                            

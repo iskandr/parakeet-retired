@@ -2,6 +2,7 @@ open Base
 open AST
 open AST_Info
 open SSA
+open SSA_Codegen 
 
 
 (* environment mapping strings to SSA IDs or global function IDs *)
@@ -54,90 +55,90 @@ end
 open Env 
 
         
-(* retId is an optional parameter, if it's provided then the generated 
+(* value_id is an optional parameter, if it's provided then the generated 
    statements must set retId to the last value 
 *)
-let rec translate_stmt env ?value_id node =  
+let rec translate_stmt 
+          (env:Env.t) 
+          (codegen:SSA_Codegen.ssa_codegen) 
+          ?value_id 
+          (node : AST.node) : Env.t =  
   let mk_stmt s = SSA.mk_stmt ~src:node.AST.src s in
   match node.AST.data with
   | AST.If(cond, trueNode, falseNode) ->
-      let condStmts, condEnv, condVal = translate_value env cond in
-     (* let tNames = PSet.inter trueNode.ast_info.defs trueNode.info.used_after in*) 
-      (*let fNames = PSet.inter trueNode.defs trueNode.info.used_after in*)
+      let condEnv, condVal = translate_value env codegen cond in
       let tNames = trueNode.ast_info.defs_local in 
       let fNames = falseNode.ast_info.defs_local in 
       let mergeNames = PSet.to_list $ PSet.union tNames fNames in  
       let mergeIds = ID.gen_fresh_list (List.length mergeNames) in
-      
+      let trueCodegen = new SSA_Codegen.ssa_codegen in 
+      let falseCodegen = new SSA_Codegen.ssa_codegen in 
       (* is this If an expression or an effectful statement? *)
-      let trueBlock, falseBlock, gate = match value_id with 
+      let gate = (match value_id with 
       | Some valId -> 
-          let trueRetId = ID.gen () in 
-          let trueBlock, (trueEnv : Env.t) = 
-            translate_stmt condEnv ~value_id:trueRetId trueNode 
+          let trueRetId = ID.gen () in
+          let trueEnv : Env.t = 
+            translate_stmt condEnv codegen ~value_id:trueRetId trueNode 
           in
           let trueIds = List.map (lookup_ssa_id trueEnv) mergeNames in
           let falseRetId = ID.gen() in  
-          let falseBlock, falseEnv = 
-            translate_stmt condEnv ~value_id:falseRetId falseNode in
+          let falseEnv = 
+            translate_stmt condEnv codegen ~value_id:falseRetId falseNode 
+          in
           let falseIds = List.map (lookup_ssa_id falseEnv) mergeNames in
-          let ifGate = { 
+          { 
             if_output_ids = valId :: mergeIds;
             true_ids = trueRetId :: trueIds;
             false_ids = falseRetId :: falseIds;
-          } in 
-          trueBlock, falseBlock, ifGate
+          }  
           
       | None ->
           (* note that here we're not passing any return/value IDs *) 
-          let trueBlock, trueEnv = translate_stmt condEnv trueNode in
-          let falseBlock, falseEnv = translate_stmt condEnv falseNode in
-          let ifGate = { 
+          let trueEnv = translate_stmt condEnv trueCodegen trueNode in
+          let falseEnv = translate_stmt condEnv falseCodegen falseNode in
+          { 
             if_output_ids = mergeIds;
             true_ids = List.map (lookup_ssa_id trueEnv) mergeNames;
             false_ids =List.map (lookup_ssa_id falseEnv) mergeNames;
-          } in 
-          trueBlock, falseBlock, ifGate
-      in    
-      let stmt = mk_stmt $ If(condVal,trueBlock,falseBlock, gate) in
-      let env' = add_data_bindings env mergeNames mergeIds in 
-      condStmts @ [stmt], env' 
+          } 
+      )
+      in 
+      let trueBlock = trueCodegen#finalize in 
+      let falseBlock = falseCodegen#finalize in     
+      codegen#emit [mk_stmt $ If(condVal,trueBlock,falseBlock, gate)];
+      add_data_bindings env mergeNames mergeIds
    
   | AST.Def(name, rhs) -> 
       let id = ID.gen () in 
-      let rhsStmts, rhsEnv, rhsExp = translate_exp env rhs in 
-      (* is a return value expected in value_id? *)
-      let stmts = match value_id with 
+      let rhsEnv, rhsExp = translate_exp env codegen rhs in 
+      (match value_id with 
         | Some valId -> 
-          [mk_set [id] rhsExp;
-           mk_set [valId] $ mk_val_exp (Var id)
+          codegen#emit [
+            mk_set [id] rhsExp; mk_set [valId] $ mk_val_exp (Var id)
           ]
-        | None ->  [mk_stmt $ Set([id], rhsExp)]
-      in
-      let env' = add_data_binding rhsEnv name id in 
-      rhsStmts @ stmts, env' 
+        | None ->  codegen#emit [mk_stmt $ Set([id], rhsExp)]
+      );
+      add_data_binding rhsEnv name id  
        
-  | AST.Block [] -> [], env         
-  | AST.Block [node] -> translate_stmt env ?value_id node
+  | AST.Block [] ->  env         
+  | AST.Block [node] -> translate_stmt env codegen ?value_id node
   | AST.Block (node::nodes) ->
-      let nodeStmts, nodeEnv = translate_stmt env node in
+      let nodeEnv = translate_stmt env codegen node in
       let restNode = {node with AST.data = AST.Block nodes } in 
-      let restStmts, restEnv = 
-        translate_stmt nodeEnv ?value_id restNode in 
-      nodeStmts @ restStmts, restEnv   
-  
+      translate_stmt nodeEnv codegen ?value_id restNode 
   | AST.SetIdx(name, indices, rhs) -> failwith "setidx not implemented"
   | AST.WhileLoop(cond,code) -> failwith "while loop not implemented"
   | AST.CountLoop(upper,code) -> failwith "count loop not implemented"
   | simple ->  
-      let stmts, env', exp = translate_exp env node in
+      let env', exp = translate_exp env codegen node in
       (* simple values shouldn't contain any statements *) 
-      let assign = match value_id with 
-        | Some valId -> [mk_stmt $ Set([valId], exp)]
-        | None -> [mk_stmt $ Set([], exp)]
-      in stmts @ assign, env'
+      (match value_id with 
+        | Some valId -> codegen#emit [mk_stmt $ Set([valId], exp)]
+        | None -> codegen#emit [mk_stmt $ Set([], exp)]
+      );
+      env'
 
-and translate_exp env node =
+and translate_exp env codegen node =
   let mk_exp e = 
     { exp= e; exp_src=Some node.src; exp_types=[DynType.BottomT]} 
   in
@@ -150,7 +151,7 @@ and translate_exp env node =
         exp_types=[DynType.BottomT]
       } 
     in 
-    [], env, expNode 
+    env, expNode 
      
   in  
   match node.data with 
@@ -161,18 +162,16 @@ and translate_exp env node =
   | AST.Sym s -> value (Sym s)
   | AST.Void -> value Unit 
   | AST.App (fn, args) ->
-      let fnStmts, fnEnv, fn' = translate_value env fn in 
-      let argStmts, argEnv, args' = translate_args fnEnv args in
-      let stmts = fnStmts @ argStmts in 
+      let fnEnv, fn' = translate_value env codegen fn in 
+      let argEnv, args' = translate_args fnEnv codegen args in
       let app' = mk_exp $ App(fn', args') in
-      stmts, argEnv, app'
-  | AST.Lam (vars, body) -> 
-      let fundef = translate_fn env vars body in 
-      value (Lam fundef) 
+      argEnv, app'
+  (* TODO: lambda lift here *) 
+  | AST.Lam (vars, body) -> failwith "lambda lifting not implemented"
        
   | AST.Arr args -> 
-      let stmts, ssaEnv, ssaArgs = translate_args env args in 
-      stmts, ssaEnv, SSA.mk_arr ssaArgs
+      let ssaEnv, ssaArgs = translate_args env codegen args in 
+      ssaEnv, SSA.mk_arr ssaArgs
   | AST.If _  -> failwith "unexpected If while converting to SSA"
   | AST.Def _ -> failwith "unexpected Def while converting to SSA"
   | AST.SetIdx _ -> failwith "unexpected SetIdx while converting to SSA"
@@ -181,9 +180,9 @@ and translate_exp env node =
   | AST.CountLoop _ -> failwith "unexpected CountLoop while converting to SSA"
    
                     
-and translate_value env node =
+and translate_value env codegen node =
   (* simple values generate no statements and don't modify the environment *)  
-  let return v = [], env, mk_val v in 
+  let return v = env, mk_val v in 
   match node.AST.data with 
   | AST.Var name -> return $ lookup_ssa env name 
   | AST.Prim p -> return $ Prim p  
@@ -195,15 +194,15 @@ and translate_value env node =
   *)
   | _ -> 
       let tempId = ID.gen() in 
-      let stmts, env' = translate_stmt env ~value_id:tempId node in 
-      stmts, env', mk_val $ Var tempId
+      let env' = translate_stmt env codegen ~value_id:tempId node in 
+      env', mk_val $ Var tempId
         
-and translate_args env = function 
-  | [] -> [] (* no statements *), env (* same env *) , [] (* no values *)   
+and translate_args env codegen = function 
+  | [] ->  env (* same env *) , [] (* no values *)   
   | arg::args -> 
-      let currStmts, currEnv, v = translate_value env arg in 
-      let restStmts, restEnv, vs = translate_args currEnv args in 
-      currStmts @ restStmts, restEnv, v :: vs 
+      let currEnv, v = translate_value env codegen arg in 
+      let restEnv, vs = translate_args currEnv codegen args in 
+      restEnv, v :: vs 
       
       
 (* given the arg names and AST body of function, generate its SSA fundef *)     
@@ -214,11 +213,12 @@ and translate_fn parentEnv argNames body =
   (* map string names to their SSA identifiers -- 
      assume globalMap contains only functions 
   *)  
-  let initEnv = extend parentEnv argNames argIds in  
-  let stmts, _ = translate_stmt initEnv ~value_id:retId body in
+  let initEnv = extend parentEnv argNames argIds in
+  let codegen = new ssa_codegen in   
+  let _ = translate_stmt initEnv codegen ~value_id:retId body in
   (* make an empty type env since this function hasn't been typed yet *) 
   SSA.mk_fundef 
-    ~body:stmts 
+    ~body:(codegen#finalize) 
     ~tenv:ID.Map.empty 
     ~input_ids:argIds 
     ~output_ids:[retId]  

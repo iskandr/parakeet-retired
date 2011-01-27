@@ -68,7 +68,7 @@ let rec extend_interp_state interpState = function
       in
       let argNames = locals @ globals in  
       let fundef = AST_to_SSA.translate_fn ssaEnv argNames bodyAST in  
-      InterpState.add_untyped interpState ~opt_queue:true name fundef; 
+      InterpState.add_untyped interpState ~optimize:true name fundef; 
       extend_interp_state interpState rest 
    
 (* replace the concept of a "module" with just an untyped interpState 

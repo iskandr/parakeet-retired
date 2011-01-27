@@ -1,0 +1,522 @@
+% !TEX TS-program = pdflatex
+% !TEX encoding = UTF-8 Unicode
+
+\documentclass[preprint]{sigplanconf}
+
+\usepackage{graphicx,listings,fixltx2e,lambda,array,multirow,color}
+
+
+\begin{document}
+\conferenceinfo{WIR 2011}{April 2, 2011, Chamonix, France.}
+\copyrightyear{2011}
+
+\preprintfooter{WIR 2011}
+\titlebanner{DRAFT---Do not distribute}
+
+\title{Just-in-time Compilation of Data Parallel Languages} 
+
+\authorinfo{Anonymous}{Anonymous}{Anonymous}
+\lstset{ 
+basicstyle=\small\footnotesize\ttfamily, % Standardschrift
+numbers=left,                   % where to put the line-numbers
+stepnumber=1,                   % the step between two line-numbers. If it's 1 each line 
+numbersep=12pt,                  % how far the line-numbers are from the code
+showspaces=false,               % show spaces adding particular underscores
+showstringspaces=false,         % underline spaces within strings
+showtabs=false,                 % show tabs within strings adding particular underscores
+tabsize=2,	                % sets default tabsize to 2 spaces
+captionpos=b,                   % sets the caption-position to bottom
+breaklines=true,                % sets automatic line breaking
+breakatwhitespace=false,        % sets if automatic breaks should only happen at whitespace
+keywordstyle=\color{black}\bf,
+morekeywords={til,sum,sqrt,all, min, each, where, while,+,*,-,avg},            % if you want to add more keywords to the set
+moredelim=[is][\itshape]{/*}{*/},
+linewidth={\textwidth},
+xleftmargin=20pt,
+%framexleftmargin=17pt,
+%framexrightmargin=5pt,
+%framexbottommargin=4pt,
+}
+
+% define some useful commands to use in language specification 
+\newcommand{\WITH}{\impfnt{with}}
+\newcommand{\VALUES}{\impfnt{values}}
+\newcommand{\MAP}{\impfnt{map}}
+\newcommand{\REDUCE}{\impfnt{reduce}}
+\newcommand{\ALLPAIRS}{\impfnt{allpairs}}
+\newcommand{\CAST}{\impfnt{cast}}
+\newcommand{\APPLY}{\impfnt{apply}}
+\newcommand{\INDEX}{\impfnt{index}}
+\newcommand{\SCAN}{\impfnt{scan}}
+\newcommand{\THREADIDX}{\impfnt{threadIdx}}
+\newcommand{\BLOCKIDX}{\impfnt{blockIdx}}
+\newcommand{\BLOCKDIM}{\impfnt{blockDim}}
+\newcommand{\GRIDDIM}{\impfnt{gridDim}}
+\newcommand{\VEC}{\impfnt{vec}}
+\newcommand{\SET}{\impfnt{set}}
+\newcommand{\CALL}{\impfnt{call}}
+\newcommand{\CLOSURE}{\impfnt{closure}}
+\newcommand{\PRIM}{\impfnt{prim}}
+\newcommand{\ADVERB}{\impfnt{adverb}}
+\newcommand{\concat}{\ensuremath{+\!\!\!\!+\,}}
+
+\setlength\fboxsep{8pt}
+\setlength\fboxrule{0.5pt}
+
+\maketitle
+
+\section{Introduction}
+
+Going from untyped array languages to Executable, Typed, Structured, First-Order IL. 
+
+\paragraph*{Structure}
+(1) Languages of interest (subsets of existing array languages, 
+  embedded array-oriented DSLs) targetting data parallel backends (CUDA, OpenCL, multi-thread CPU code ala 
+  existing Data Parallel Haskell backend along with existing work in Skeletal programming). 
+(2) Why method-at-a-time JIT? More fashionable to perform dynamic compilation using a tracing JIT. Tracing JITs 
+rely on finding "hot" paths through code which correspond to loops. We work from the opposite perspective-- 
+replace explicit loops with structured iteration primitives which can be more easily parallelized. 
+\paragraph*{Inlining}
+We assume inlining is not merely an optional optimization but rather required for the correct translation of
+higher order functions into a first-order intermediate language. 
+\paragraph*{IL limitations} 
+\begin{enumerate}
+\item after inlining the only higher order functions should be the primitive operators
+\item functions can be called or locally partially applied. They cannot, however, be stored in a container or escape a function's scope. 
+\item recursion is disallowed since it is both burdensome to parallelize and can prevent exhaustive inlining. 
+\item To facilitate speedy compile times, the intermediate languages only support structured control flow. Exceptions and arbitrary use of goto-statements cannot be easily implemented. The use of break and continue statements, however, can theoretically be encoded using techniques found in [structured compiler]. 
+\end{enumerate}
+\paragraph*{JITs should not introduce noticeable delays}
+Since dynamic languages are often associated with the use of a REPL and exploratory programming style, a JIT for these languages should not introduce noticeable runtime delays. Towards this end, we maintain a representation which...does what? 
+\paragraph*{Pipeline} 
+Source Language $\rightarrow $ Generic AST $ \rightarrow $ \\ 
+(SSA conversion, lambda lifting): Untyped IL (self loop for optimizations) $\rightarrow$ \\
+(function call triggers specialization): Typed IL (self loop for optimizations) $\rightarrow$\\
+Backends: (Interpreter, CUDA, OpenCL, multi-threaded CPU code)
+
+\paragraph*{Actual intro}
+Array languages such as APL, Matlab, Q, and the Numpy extensions to Python are characterized by: 
+\begin{enumerate}
+ \item First-class array types and expressive array operators to construct and manipulate arrays
+ \item Implicit scaling/elemental overloading/scalar extension/whatever you call, whereby scalar functions are implicitly mapped over array arguments.
+\end{enumerate}
+Not-quite-array languages: The need for higher-level interfaces to FPGA and GPU programming has motivated several projects
+to utilize the data parallel model.  
+Combine the two: generate parallel code at the backend from operator-specific function templates. At the front end, create a mapping from more general 
+array languages to a typed data parallel intermediate language with a restricted set of higher operators.
+
+Multiple data parallel array languages into a single common compilation pipeline, with multiple backends. 
+The backends implement higher order array operators using templates into which function arguments are spliced. 
+
+1) Define data parallel language
+2) The recent ubiquity of cheap and powerful parallel hardware (programmable GPUs and FPGAs) 
+has lead to a spike in research related to embedded data parallel languages (cite, Data Parallel Haskell, Copperhead, MS Accelerator, Accelerate). 
+There is a great deal of similarity between data parallel DSLs and exisiting array-oriented languages such as Matlab, APL, Q, etc.. 
+\textit{Existing collection-oriented languages (such as Matlab, R, etc...) have also recently seen increased availability of libraries 
+which either utilize accelerators to implement faster library functions (citations?) or more ambitiously, to dynamically compile 
+accelerator programs from fragments of user programs.}
+
+\paragraph*{Our supported computational sub-languages versus full languages}
+Computational/well-behaved sub-language: ("formal island?")
+\begin{enumerate}
+\item first-class array objects 
+\item builtin array operators for easily constructing/manipulating arrays
+\item finite set of builtin higher order functions
+\item referentially transparent functions 
+\item Types of local variables can be inferred from some initial assumptions (types of arguments to a function)
+\end{enumerate} 
+
+Maybe embedded with a context of a more featureful or dynamic language: 
+\begin{enumerate}
+\item Unrestricted use of first class functions
+\item Arbitrary side effects
+\item Unrestricted dynamicism (type inference undecidable)
+\end{enumerate}
+
+
+\subsection{Limitations Imposed by GPUs}
+\label{GPULimitations}
+GPUs are able to achieve their specialized high performance because they have
+been optimized for data parallel workloads. 
+Data parallelism is widely found in typical graphics applications
+that perform simple operations on large amounts of pixel or triangle data, and
+so is a natural choice for graphics accelerators.  However, this optimization
+carries with it various restrictions on the types of code and programming models
+that naturally fit the GPU architecture:
+
+\begin{itemize}
+\item \textbf{Flat, unboxed data representation}. GPU hardware is optimized to
+utilize memory in highly structured access patterns (so-called "coalescing"). 
+The use of boxed or indirectly accessed data leads to 
+unstructured memory accesses
+and results in severe performance degradation.
+
+\item \textbf{No polymorphism}. GPUs generally share instruction dispatch units
+among many concurrently executing threads. When a group of threads
+``diverge'', meaning that they take different branches through a program, their
+execution must be serialized. Thus it is important to eliminate as many sources
+of runtime uncertainty as possible. In particular, type-tag dispatch commonly
+used to implement polymorphic operations would incur unacceptable costs if
+translated naively to the GPU.
+
+\item \textbf {No function pointers}. Most GPUs (excluding the recently released
+NVIDIA Fermi architecture) do not support the use of indirect jumps or function
+pointers. In fact, a common implementation strategy for GPU function calls is
+extensive inlining. Even in the case where function pointers are theoretically
+supported, they require every possible function to be transferred to the GPU and
+incur overhead due to potentially unpredictable branching. 
+
+\item \textbf{No global communication}. Synchronization in a GPU computation is
+limited to local neighborhoods of threads. Various schemes have been devised for
+achieving global synchronization between all executing threads~\cite{feng10},
+but these schemes are all either slow or unsafe. This implies that the use of
+shared mutable state is a large hindrance to effective utilization of GPU
+resources.
+
+\item \textbf{All data must be preallocated}. The current generation of GPUs
+lack any mechanism for dynamically allocating memory. Any heap space required by
+a GPU computation (for output or temporary values) must be allocated
+beforehand. 
+\end{itemize}
+
+
+\section{Untyped Higher-Order IL}
+\begin{figure}[h!]
+  \begin{tabular}{| m{0.01cm}m{1.5cm}m{0.1cm}m{0.2cm}p{4.5cm} |}
+  \hline
+  & & & &\\ 
+   \multicolumn{5}{|l|}{\textbf{Untyped Higher-Order IL}}  \\[4pt]
+  & program & $p$ &  $\bnfdef$   &  $d_1 \cdots d_n $ \\[4pt]
+  & definition & $d$ & $\bnfdef$ & $f_i(\overline{x}) \rightarrow (\overline{y}) = \overline{s}$ \\[4pt]
+  & statement  & $s$ & $\bnfdef$ & $\overline{x} = e $\\[2pt]
+  &            &     & $\sep$    & $\mathrm{if} ~v~ \mathrm{then} ~ \overline{s} ~ \mathrm{else} ~ \overline{s} $ \\[2pt]
+  &            &     & $\sep$    & $\mathrm{while} ~\overline{s}, x_{cond} ~ \mathrm{do} ~\overline{s}~ $  \\[5pt]
+  & expression & $e$ & $\bnfdef$ & $\mathrm{values} (\overline{v})$ \\[2pt]
+  &            &     & $\sep$    & $ v_f (\overline{v}) $ \\[9pt]
+  & value      & $v$ & $\bnfdef$ & numeric constant \\[2pt]
+  &            &     & $\sep$    &  $x$  \quad \small{(data variable)} \\[2pt]
+  &            &     & $\sep$    &  $f$  \quad \small{(function label)} \\[2pt]
+  &            &     & $\sep$    &  $\oplus$ \quad \small{(primitive operator)} \\[5pt]
+  \hline
+  \end{tabular}
+\caption{Untyped Higher-Order Intermediate Language}
+\end{figure}
+
+Now we turn to the problem
+of compiling an array language program into an efficient GPU program.
+At first glance, there is a significant mismatch between the highly dynamic
+expressiveness of an array language like Q and the limitations imposed by GPU
+hardware discussed in Section \ref{GPULimitations}. Indeed, the Parakeet
+intermediate language must serve as a compromise between two competing tensions.
+First, in order to translate array programs into efficient GPU code it is
+necessary for the compiler to eliminate as much abstraction as possible. On the
+other hand, we must be careful not to make our program representation overly
+concrete with regard to evaluation order (which would eliminate opportunities
+for parallelism provided by the array operators).
+
+In deference to the above-mentioned GPU hardware restrictions we disallow from
+our intermediate language:
+
+\begin{itemize}
+\item Polymorphism of all kinds
+\item Recursion
+\item User-specified higher-order functions
+\item Compound data types other than arrays
+\end{itemize}
+
+These restrictions are not necessarily as severe as they initially seem, since
+the programmer needn't know about them.
+This is simply the internal format Parakeet uses in
+order to generate efficient GPU back end code. We explain the
+specialization algorithm later on in this paper.
+
+Our intermediate language is shown in Figure \ref{ILandType}. The parallelism
+abstraction we prefer to maintain is the use of the higher-order array operators
+$\MAP$, $\REDUCE$, and $\SCAN$. The higher-order array operators
+form a carefully confined higher-order subset of our otherwise first-order
+language and thus we elevate them to primitive syntax. These operators are
+important since they are the only constructs in our language that we attempt to
+parallelize automatically through GPU code synthesis.
+
+This isn't to say these are the only constructs executed in parallel on the
+GPU. The simple array operators such as \textbf{sort} (a full list can be found
+in Figure \ref{ArrayOps}) are executed in parallel on the GPU as well. They
+simply aren't higher-order, and thus are implemented via a fixed parallel
+standard library.
+
+We take inspiration from \cite{Bol09} and allow functions to both accept and
+return multiple values. This feature simplifies the specification of certain
+optimizations and naturally models the simultaneous creation of multiple values
+on the GPU. By convention we will write $\overline{\tau_m}$ to denote a sequence
+of $m$ simple types, $\overline{v_n}$ for a sequence  of $n$ values, etc. A
+single element is equivalent to a sequence of length 1 and sequences may be
+concatenated via juxtaposition, such that $\tau, \overline{\tau_n} =
+\overline{\tau_{m+1}}$.
+
+
+\section{Typed First-Order IL}
+\begin{figure}[h!]
+  \begin{tabular}{| m{0.01cm}m{1.3cm}m{0.1cm}m{0.2cm}p{5.0cm} |}
+  \hline
+    & & & &\\
+   \multicolumn{5}{|l|}{\textbf{Typed First-Order IL}}  \\[4pt]
+  & program & $p$ &  $\bnfdef$   &  $d_1 \cdots d_n $ \\[4pt]
+  & definition & $d$ & $\bnfdef$ & $f_i(x^m : \tau^m) \rightarrow (y^n : \tau^n) = \overline{s} $ \\[4pt]
+  & statement  & $s$ & $\bnfdef$ & $x^m : \tau^m = e $\\[2pt]
+  &            &     & $\sep$    & $\mathrm{if} ~v~ \mathrm{then} ~\overline{s}~ \mathrm{else} ~ \overline{s}$ \\[2pt]
+  &            &     & $\sep$    & $\mathrm{while} ~ \overline{s}, x_{cond} ~ \mathrm{do} ~ \overline{s} ~  $ \\[4pt]
+  & expression & $e$ & $\bnfdef$ & $\mathrm{values}(\overline{v})$ \\[2pt]
+  &            &     & $\sep$    & $\mathrm{cast} (v, \tau_{src}, \tau_{dest})$ \\[2pt]
+  &            &     & $\sep$    & $\mathrm{prim}_{\left\langle \oplus \right\rangle }(\overline{v})$ \\[2pt]
+  &            &     & $\sep$    & $\mathrm{call}_{\left\langle f  \right\rangle } (\overline{v})$ \\[2pt] 
+  &            &     & $\sep$    & $\mathbf{stencil} \MAP _{\left\langle c \right\rangle}(\overline{v})$ \\[2pt]
+  
+  &            &     & $\sep$    & $\MAP _{\left\langle c \right\rangle}(\overline{v})$ \\[2pt]
+  &            &     & $\sep$    & $\REDUCE _{ \left\langle c_i, c_r \right\rangle } (\overline{v_i}, \overline{v})$ \\[2pt]
+  &            &     & $\sep$    & $\SCAN _{ \left\langle c_i, c_r, \right\rangle} (\overline{v_i}, \overline{v})$ \\[5pt]
+  & value      & $v$ & $\bnfdef$ & numeric constant \\[2pt]
+  &            &     & $\sep$    &  $x$  \quad \small{(data variable)} \\[2pt]
+  & closure    & $c$ & $\bnfdef$ & $f \times \overline{v}$ \\[4pt]
+  & type & $\tau$    & $\bnfdef$ & $bool \sep int \sep float \sep \mathbf{vec} \; \tau   $\\[5pt]
+  \hline
+  \end{tabular}\\[4pt]
+  \caption{Typed First-Order Language}
+\end{figure} 
+
+\begin{enumerate}
+\item Distinguished map, reduce, scan operators which serve as a basis for both the implementation of other array 
+ operators and compilation of parallel code using operator-specific templates.  
+\item All user-defined functions have first order types. Any function arguments in the original program 
+ must either end up as arguments to the primitive higher order operators (map, reduce, and scan) or
+ must be directly encoded as an enumeration over a finite set of possible function calls (defunctionalization). 
+\end{enumerate}
+
+\section{Translation, Specialization, and Optimization}
+\label{Compilation}
+In this section we describe the various program transformations we perform
+before executing a user's function. Some of these transformations (such as
+lambda lifting and specialization) are necessary in order to bridge the
+abstraction gap between an expressive dynamically typed language and the GPU
+hardware. We also demonstrate several optimizations which, while beneficial in
+any compiler, are particularly important when targetting a graphics processor.
+Seemingly small residual inefficiencies in our intermediate form can later
+manifest themselves as the creation of large arrays, needless memory transfers,
+or wasteful GPU computations.
+
+To help elucidate the different program transformations performed by Parakeet,
+we will show the effect of each stage on a distance function defined in Q,
+shown in Figure \ref{QDist}.
+
+\begin{figure}[h!]
+    \begin{lstlisting}[numbers=none]
+    dist: {[x;y] sqrt sum (x-y) * (x-y)}
+    \end{lstlisting}
+    \caption{Distance Function in Q}
+    \label{QDist}
+\end{figure}
+
+\subsection{Lambda Lifting and SSA Conversion } 
+After a function call has been
+intercepted by the Parakeet runtime, Parakeet
+performs a syntax-directed translation from a
+language-specific abstract syntax tree (AST) into Parakeet's IL. 
+Since type information is not yet
+available to specialize user functions, the
+functions must be translated into an untyped
+form (by setting all type assignments to $\bot$). The translation into
+Parakeet's IL maintains a closure environment and a name environment so that
+simultaneous lambda lifting and SSA conversion can be performed.
+% What does SSA conversion mean? We should define.
+
+Since we would like to interpret our intermediate language we use a gated SSA
+form based on the GSA sub-language of the Program Dependence Web \cite{Ott90}.
+Classical SSA cannot be directly executed since the $\phi$-nodes lack
+deterministic semantics. Gated SSA overcomes this limitation by using "gates"
+which not only merge data flow but also associate predicates with each data flow
+branch. Aside from simplifying certain optimizations, these gates also enable us
+to execute our code without converting out of SSA.  Figure \ref{UntypedSSADist}
+shows the \texttt{dist} function after it has been translated to Untyped SSA.
+
+\begin{figure}[h!]
+\fbox{
+\begin{tabular}{ m{0.1cm} m{6.7cm} }
+  \multicolumn{2}{l}{dist $($ x, y $) \rightarrow  ($ z $) =$} \\
+  & t$_1 = \mathrm{x} - \mathrm{y} $        \\
+  & t$_2 = \mathrm{x} - \mathrm{y} $        \\
+  & t$_3  = \mathrm{t}_1 * \mathrm{t}_2 $   \\
+  & t$_4  = $sum$(\mathrm{t}_2) $           \\
+  & z $  = \; \mathrm{sqrt}(\mathrm{t}_4)$   \\
+\end{tabular}
+}
+\caption{Untyped Distance Function in SSA form}
+\label{UntypedSSADist}
+\end{figure}
+
+
+\subsection{Untyped Optimizations}
+Parakeet performs optimizations both before and after type specialization. We
+subject the untyped representation to inlining, common subexpression elimination
+and simplification (which consists of simultaneous constant propagation and dead
+code elimination). This step occurs once for each function, upon its first
+interception by Parakeet. It is preferable to eliminate as much code as possible
+at this early stage since an untyped function body serves as a template for a
+potentially large number of future specializations. The only optimizations we do
+not perform on the untyped representation are array fusion rewrites, since these
+rely on type annotations to ensure correctness.
+
+In our distance example, untyped optimizations will both remove a redundant
+subtraction and inline the definition of the $sum$ function, which expands to a
+$\REDUCE$ of addition.
+\begin{figure}[h!]
+\fbox{
+\begin{tabular}{ m{0.1cm} m{6.7cm} }
+  \multicolumn{2}{l}{dist $($ x, y $) \rightarrow  ($ z $) =$} \\
+  & t$_1 = \mathrm{x} - \mathrm{y} $        \\
+  & t$_2  = \mathrm{t}_1 * \mathrm{t}_1 $   \\
+  & t$_3  = \REDUCE(+, 0, \mathrm{t}_2) $    \\
+  & z $  = \; \mathrm{sqrt}(\mathrm{t}_3)$   \\
+\end{tabular}
+}
+\caption{Distance Function after untyped optimizations}
+\end{figure}
+
+\subsection{Specialization}
+The purpose of specialization is to eliminate polymorphism, to make manifest
+all implicit behavior (such as coercion and scalar promotion), and to assign
+simple unboxed types to all data used within a function body. Beyond the
+fact that the GPU requires its programs to be statically typed, these goals are
+all essential for the efficient execution of user code on the GPU.
+Thus, the specializer generates a different specialized version
+of a function for each distinct call string, with all of the function's
+variables receiving the appropriate types.  
+
+The signature of data is one of our
+built-in dynamic value types such as $float$ or $vec~vec~int$.  The signature of
+functions is a closure that includes a function tag and a list of data
+signatures.  It is important to note that specialization is thus not just on
+types, but also on function tags and the types of their associated closure
+arguments. This is equivalent to performing defunctionalization (Reynolds) and
+then specializing exhaustively on the constant values of closure records. One
+caveat here is that non-constant closure values are disallowed.  This prevents
+us from having to implement them as large switch statements on the GPU, which
+would be very inefficient due to branch divergence.  Finally, only data is
+allowed to cross the boundary from our system to the source
+language--specialized Parakeet functions remain enclosed in our runtime.
+
+To continue the example, if the \textit{dist} function is called with arguments
+of type $vec~ float$ the specializer will then generate the code shown in Figure
+\ref{SpecDist}.
+
+\begin{figure}[h!]
+\fbox{
+  \begin{tabular}{m{0.1cm} m{6.7cm}}
+    \multicolumn{2}{l}{dist $($ x $ : vec \; float $, y : $ vec \; float $) $
+\rightarrow  ($ z $ : float ) =$}  \\
+    & t$_1   = \MAP ( -_{\mathrm{float}}, \mathrm{x}, \mathrm{y})$   \\
+    & t$_2   = \MAP (*_{\mathrm{float}}, \mathrm{x}, \mathrm{y})$    \\
+    & t$_3 = \REDUCE (+_{\mathrm{float}}, 0, \mathrm{t}_2)$          \\
+    & z $  = \; \mathrm{sqrt}(\mathrm{t}_3)$                         \\
+  \end{tabular}
+}
+\caption{Distance Function After Specialization}
+\label{SpecDist}
+\end{figure}
+
+The actual intermediate language associates type annotations with every binding,
+which we elide here for clarity. Note that the polymorphism inherent in math
+operations between dynamically typed values has been removed through the use of
+statically typed math operators, and implicit \textbf{map}s on vectors (such
+as the subtraction between $x$ and $y$) have been expanded and made explicit.
+
+
+\subsection{Array Operator Fusion}
+In addition to standard compiler optimizations (such as constant folding,
+function inlining, and common sub-expression elimination), we employ fusion
+rules~\cite{Jones01} to combine array operators. Fusion enables us to minimize
+kernel launches, boost the computational density of generated kernels, and
+avoid the generation of unnecessary array temporaries.
+
+We present the fusion rules used by Parakeet in simplified form, such that
+array operators only consume and produce a single value. Our rewrite engine
+actually generalizes these rules to accept functions of arbitrary input and
+output arities.
+\\[5pt]
+\begin{tabular}{|m{0.001cm} m{0.05cm} p{6.75cm} p{0.05cm} |}
+  \hline 
+  & &  & \\
+  & \multicolumn{2}{l}{\large{Map Fusion} }  &  \\[2.5pt]
+  & & $\MAP(g, \MAP(f, x)) \leadsto \MAP(g \circ f, x)$ & \\
+  & & & \\
+  & \multicolumn{2}{l}{\large{Reduce-Map Fusion} }  & \\[2.5pt]
+  & & $\REDUCE(g_r, g_{i}, \MAP(f, x)) \leadsto \REDUCE(g_r \circ f, g_{i} \circ f, x)$ & \\
+  & & & \\
+  \hline
+\end{tabular}\\[4pt]
+These transformations are safe if the following conditions hold: 
+\begin{enumerate}
+\item All the functions involved are referentially transparent.
+
+\item Every output of the predecessor function ($f$) is used by the successor
+($g$).
+
+\item The outputs of the predecessor are used \textit{only} by the successor.
+\end{enumerate}
+The last two conditions restrict our optimizer from
+rewriting anything but linear chains of produced/consumed temporaries. A large
+body of previous work~\cite{Ald01} has demonstrated both the existence of
+richer fusion rules and cost-directed strategies for applying those rules in
+more general scenarios. Still, despite the simplicity of our approach, we have
+observed that many wasteful temporaries in idiomatic array code are removed
+by using only the above rules.
+
+In Figure \ref{DistFuse}, we see the resulting optimized and specialized
+\texttt{dist} function. The two \textbf{map}s have been fused into the
+\textbf{reduce} operator, with a new function $f_1$ generated to perform the
+computation of all three original higher-order operators.
+
+\begin{figure}[h!]
+
+\fbox{
+  \begin{tabular}{m{0.1cm} m{6.7cm} }
+    \multicolumn{2}{l}{$\mathrm{f}_1 ($ acc : $ float $,  x $ : float $, y : $ float $) $ \rightarrow  ($ z $ :  float ) =$} \\
+    & t$_1 = x - y $            \\
+    & t$_2  = t_1 * t_1 $       \\
+    & z $ = $ acc $+$ t$_2$     \\
+    &  \\ 
+  \multicolumn{2}{l}{$\mathrm{dist} ($ x $ : vec \; float $, y : $ vec \; float
+$) $ \rightarrow  ($ z $ : float ) =$} \\
+  & t$_3 = \REDUCE (\mathrm{f}_1, 0.0, \mathrm{x}, \mathrm{y})$   \\
+  & z $ = \mathrm{sqrt}(\mathrm{t}_3)$  \\
+  \end{tabular}
+}
+\caption{Distance Function After Fusion Optimization}
+\label{DistFuse}
+\end{figure}
+
+
+\section{Backends} 
+A backend is required to supply the following functions: 
+\begin{figure}[h!]
+\begin{tabular}{| m{0.001cm}m{7.8cm} |}
+ \hline 
+& \\[0.1pt]
+& $\mathbf{type} ~~ \mathrm{data}$   \\[3pt]
+& $\mathbf{val} ~~ \mathit{to\_host}  : \mathrm{data} \rightarrow  \mathrm{Host.data}$ \\
+& $\mathbf{val} ~~ \mathit{from\_host}  : \mathrm{Host.data}  \rightarrow \mathrm{data}$ \\[3pt]
+& $\mathbf{val} ~~ \mathit{map}  : \mathrm{closure}  \rightarrow \mathrm{data ~ list}  \rightarrow \mathrm{data~ list} $ \\
+& $\mathbf{val} ~~ \mathit{reduce}  : \mathrm{closure}  \rightarrow \mathrm{closure}  \rightarrow \mathrm{data~ list}  \rightarrow \mathrm{data ~ list}$ \\ 
+& $\mathbf{val} ~~ \mathit{scan}  : \mathrm{closure}  \rightarrow \mathrm{closure}  \rightarrow  \mathrm{data  ~ list}  \rightarrow \mathrm{data ~ list}$ \\
+& \\
+ \hline
+\end{tabular}\\[4pt]
+\caption{Interface implemented by each backend}
+\end{figure}
+
+Additionally, if multiple backends are to be used simultaneously then each backend should implement a standard interface for approximating
+execution time as a function of input data shape. 
+
+\bibliographystyle{acm}
+\bibliography{../Parallelism}{}
+
+
+\end{document}

@@ -3,15 +3,16 @@ open Base
 type t 
 
 val create : unit -> t 
-val add_untyped : t ->  ?opt_queue:bool -> string -> SSA.fundef -> unit  
+val add_untyped : t ->  ?optimize:bool -> string -> SSA.fundef -> unit  
 
-val create_from_untyped_map : ?opt_queue:bool -> SSA.fundef String.Map.t -> t 
-val create_from_untyped_list : ?opt_queue:bool -> (string * SSA.fundef) list -> t
+val create_from_untyped_map : ?optimize:bool -> SSA.fundef String.Map.t -> t 
+val create_from_untyped_list : ?optimize:bool -> (string * SSA.fundef) list -> t
 
-val add_untyped_list : t -> ?opt_queue:bool -> (string * SSA.fundef) list -> unit  
-val add_untyped_map : t -> ?opt_queue:bool ->  SSA.fundef String.Map.t -> unit
+val add_untyped_list : t -> ?optimize:bool -> (string * SSA.fundef) list -> unit  
+val add_untyped_map : t -> ?optimize:bool ->  SSA.fundef String.Map.t -> unit
  
-val add_specialization : t -> SSA.value -> Signature.t -> SSA.fundef -> unit 
+val add_specialization : t -> ?optimize:bool -> 
+      SSA.value -> Signature.t -> SSA.fundef -> unit 
       
 val maybe_get_specialization : 
   t -> SSA.value -> Signature.t -> FnId.t option 

@@ -17,7 +17,8 @@ OCAMLINCLUDES = -I $(BUILDPATH) -I $(BUILDPATH)/Analysis \
 	-I $(BUILDPATH)/ImpKernelTemplates \
 	-I $(BUILDPATH)/SSA \
 	-I $(BUILDPATH)/SSA_Optimizations \
- 	-I $(BUILDPATH)/SSA_Analysis \
+ 	-I $(BUILDPATH)/SSA_Analyses \
+	-I $(BUILDPATH)/SSA_Specialization \
         -I $(EXTLIB_DIR) \
         -I $(UINT_DIR)
 
@@ -47,30 +48,30 @@ SourceInfo.cmx QSyntax.cmx AST_Info.cmx AST.cmx QSyntax_to_AST.cmx \
 QParser.cmx \
 QLexer.cmx  \
 FnId.cmx StmtId.cmx \
-SSA.cmx AST_to_SSA.cmx \
+SSA.cmx \
+SSA_Codegen.cmx \
+AST_to_SSA.cmx \
+SSA_Analysis.cmx \
+SSA_Transform.cmx \
 FnTable.cmx \
 ConstantLattice.cmx \
-SSA_Base_Analysis.cmx \
-UntypedFindGenSet.cmx \
+FindBindingSet.cmx \
 FindUseCounts.cmx \
-TypeCheck.cmx \
-UntypedReplace.cmx \
-FindConstants.cmx \
 FindDefs.cmx \
+TypeCheck.cmx \
+Replace.cmx \
+FindConstants.cmx \
 Inline.cmx \
-FindLiveIds.cmx \
-ElimDeadCode.cmx \
-ElimPartialApps.cmx \
 Simplify.cmx \
 AdverbFusion.cmx \
 CSE.cmx \
 RunOptimizations.cmx \
-TypeInfer.cmx \
 Signature.cmx \
 InterpState.cmx \
-SSA_Codegen.cmx \
-InsertCoercions.cmx \
-InsertTypedClosures.cmx \
+TypeInfer.cmx \
+CollectPartialApps.cmx \
+TypeAnalysis.cmx \
+RewriteTyped.cmx \
 Specialize.cmx \
 PtxType.cmx PtxVal.cmx Ptx.cmx Shape.cmx \
 Timing.cmx \
@@ -90,9 +91,10 @@ ImpToPtx.cmx \
 SSA_to_Imp.cmx \
 ImpShapeInference.cmx \
 QType.cmx HardwareInfo.cmx \
-ShapeInference.cmx \
 GpuRuntime.cmx \
 QStdLib.cmx \
+GpuCost.cmx \
+CpuCost.cmx \
 Eval.cmx \
 CodeTemplate.cmx Callbacks.cmx
 

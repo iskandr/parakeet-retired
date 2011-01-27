@@ -29,11 +29,12 @@ let infer_scalar_op op argTypes = match op, argTypes with
         if Prim.is_comparison op then 
           fill_elt_type BoolT t3
         else if Prim.is_float_binop op then 
-          let resultT = 
-            if DynType.sizeof t3 <= DynType.sizeof Float32T then Float32T
+          let eltT = DynType.elt_type t3 in
+          let eltResultT = 
+            if DynType.sizeof eltT <= DynType.sizeof Float32T then Float32T 
             else Float64T 
           in 
-          fill_elt_type resultT t3     
+          fill_elt_type eltResultT t3     
         else t3
      end
   | op, [t1] when Prim.is_unop op ->
@@ -124,7 +125,7 @@ let infer_adverb op inputTypes =
            
   | _ -> failwith $ Printf.sprintf 
            "inference not implemented for operator: %s with inputs %s"
-           (Prim.array_op_to_str op) 
+           (Prim.adverb_to_str op) 
            (DynType.type_list_to_str inputTypes)
 
 (* given an operator and types of its arguments, return list of types to which *)

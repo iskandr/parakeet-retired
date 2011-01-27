@@ -165,7 +165,7 @@ let compile_map globalFunctions payload closureTypes argTypes retTypes =
 
 let mapCache : code_cache = Hashtbl.create 127
  
-let run_map memState globalFunctions payload closureVals gpuVals outputTypes =
+let run_map globalFunctions payload closureVals gpuVals outputTypes =
   let closureTypes = List.map GpuVal.get_type closureVals in 
   let inputTypes = List.map GpuVal.get_type gpuVals in
   let cacheKey = (payload.SSA.fn_id, closureTypes @ inputTypes) in  
@@ -207,6 +207,15 @@ let run_map memState globalFunctions payload closureVals gpuVals outputTypes =
   in
   LibPQ.launch_ptx cudaModule.Cuda.module_ptr fnName paramsArray gridParams;
   outputVals
+
+ 
+let eval_map memState fnTable payload closArgs dataArgs outTypes =
+  let gpuClosArgs = List.map (MemoryState.get_gpu memState) closArgs in 
+  let gpuDataArgs = List.map (MemoryState.get_gpu memState) dataArgs in  
+  let gpuOutVals = 
+    run_map fnTable payload gpuClosArgs gpuDataArgs outTypes 
+  in 
+  List.map (MemoryState.add_gpu memState) gpuOutVals 
 
 (** REDUCE **)
 let compile_reduce globalFunctions payload retTypes =
@@ -302,6 +311,8 @@ let run_reduce
       in
       aux [gpuVal] numInputElts
     | _ -> failwith "expect one reduce kernel"
+
+
 
 (** ALLPAIRS **)
 let compile_all_pairs globalFunctions payload argTypes retTypes =
@@ -443,7 +454,7 @@ let shutdown () =
   *)
  
 let implements_array_op = function 
-  | Prim.Reduce | Prim.Map | Prim.AllPairs | Prim.Index | Prim.Where -> true
+   Prim.Index | Prim.Where -> true
   | _ -> false 
  
 let eval_array_op
@@ -457,6 +468,7 @@ let eval_array_op
      Printf.printf "In eval array op\n";
   ENDIF; 
   let gpuVals = match op, args  with  
+  (*
   | Prim.Map, (InterpVal.Closure(fnId, closureArgs))::dataArgs ->
       let fundef = FnTable.find fnId fnTable in
       let closureVals = List.map (MemoryState.get_gpu memState) closureArgs in 
@@ -478,19 +490,21 @@ let eval_array_op
       in  
       let gpuVals = List.map (MemoryState.get_gpu memState) dataArgs in
       run_reduce memState fnTable fundef2 gpuVals outputTypes
-  
+ 
   | Prim.Reduce, _ -> 
       failwith 
         "[GpuRuntime->eval_array_op] closures not yet supported for Reduce"
         
-  | Prim.AllPairs, (InterpVal.Closure(fnId, []))::dataArgs ->
+   (* | Prim.AllPairs, dataArgs -> failwith "all-pairs broken"
+  
       let fundef = FnTable.find fnId fnTable in
       let gpuVals = List.map (MemoryState.get_gpu memState) dataArgs in
-      run_all_pairs  memState fnTable fundef gpuVals outputTypes  
+      run_all_pairs memState fnTable fundef gpuVals outputTypes
+    *)  
   | Prim.AllPairs, _ ->
       failwith 
         "[GpuRuntime->eval_array_op] closures not yet supported for AllPairs"
-
+ *)
   | Prim.Index, [inputVec;indexVec] ->
       let gpuInputVec = MemoryState.get_gpu memState inputVec in
       let gpuIndexVec = MemoryState.get_gpu memState indexVec in

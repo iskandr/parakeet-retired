@@ -1,3 +1,5 @@
+(* pp: -parser o pa_macro.cmo *)
+
 open Base 
 open Printf 
 open SSA
@@ -38,28 +40,26 @@ let create () =
   }
 
 
-let add_untyped interpState ?(opt_queue=true) name fundef = 
+let add_untyped interpState ?(optimize=true) name fundef = 
   let id = fundef.SSA.fn_id in 
   Hashtbl.add interpState.name_to_untyped_id name id; 
   Hashtbl.add interpState.untyped_id_to_name id name;
-  FnTable.add ~opt_queue fundef interpState.untyped_functions
+  FnTable.add ~opt_queue:optimize fundef interpState.untyped_functions
   
 let add_untyped_list 
       interpState 
-      ?(opt_queue=true) 
+      ?(optimize=true) 
       (fundefList: (string*SSA.fundef) list) =
   List.iter 
-    (fun (name,fundef) -> add_untyped interpState  ~opt_queue name fundef) 
+    (fun (name,fundef) -> add_untyped interpState ~optimize name fundef) 
     fundefList
   
-let add_untyped_map interpState ?(opt_queue=true) fundefMap = 
-  String.Map.iter (add_untyped interpState ~opt_queue) fundefMap 
+let add_untyped_map interpState ?(optimize=true) fundefMap = 
+  String.Map.iter (add_untyped interpState ~optimize) fundefMap 
 
 let default_untyped_optimizations = 
   [
     "simplify", Simplify.simplify_fundef;  
-    "elim dead code", ElimDeadCode.elim_dead_code; 
-    "elim partial applications", ElimPartialApps.elim_partial_apps;
     "elim common subexpression", CSE.cse;
     "inlining", Inline.run_fundef_inliner;  
   ] 
@@ -75,7 +75,6 @@ let default_typed_optimizations =
   [
     (*"function cloning", TypedFunctionCloning.function_cloning;*)   
     "simplify", Simplify.simplify_fundef; 
-    "dead code elim", ElimDeadCode.elim_dead_code; 
     "adverb fusion", AdverbFusion.optimize_fundef; 
     "inlining", Inline.run_fundef_inliner;  
   ]  
@@ -88,14 +87,14 @@ let optimize_typed_functions program =
     default_typed_optimizations
         
                   
-let create_from_untyped_map ?(opt_queue=true) fundefMap =
+let create_from_untyped_map ?(optimize=true) fundefMap =
   let interpState = create () in
-  add_untyped_map interpState ~opt_queue fundefMap;    
+  add_untyped_map interpState ~optimize fundefMap;    
   interpState 
 
-let create_from_untyped_list ?(opt_queue=true) fundefList = 
+let create_from_untyped_list ?(optimize=true) fundefList = 
   let interpState = create () in 
-  add_untyped_list interpState ~opt_queue fundefList;  
+  add_untyped_list interpState ~optimize fundefList;  
   interpState  
 
 let get_untyped_name program id = Hashtbl.find program.untyped_id_to_name id
@@ -106,6 +105,7 @@ let get_untyped_function_table program = program.untyped_functions
 
 let add_specialization 
     program 
+    ?(optimize=true)
     (untypedVal : SSA.value) 
     (signature : Signature.t) 
     (typedFundef : SSA.fundef) =
@@ -119,9 +119,10 @@ let add_specialization
     ENDIF; 
     ()
   )
-  else FnTable.add typedFundef program.typed_functions
+  else FnTable.add ~opt_queue:optimize typedFundef program.typed_functions
   ; 
-  Hashtbl.add program.specializations (untypedVal, signature) typedFundef.fn_id;
+  let key = (untypedVal, signature) in 
+  Hashtbl.add program.specializations key typedFundef.fn_id; 
   IFDEF DEBUG THEN
     let untypedValStr = 
       match untypedVal with 
@@ -163,7 +164,6 @@ let get_typed_function interpState typedId =
 
 let get_typed_fundef_from_value interpState = function 
   | GlobalFn fnId -> FnTable.find fnId interpState.typed_functions  
-  | Lam fundef -> fundef  
   | _ -> failwith "expected a function" 
 
 let have_untyped_function interpState name = 

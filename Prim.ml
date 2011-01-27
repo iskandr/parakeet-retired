@@ -45,13 +45,6 @@ type scalar_op =
 
 
 type array_op = 
-  | Map 
-  | EachLeft (* each left *)
-  | EachRight (* each right *)
-  | Scan  
-  | Reduce 
-  | AllPairs (* each left / each right *) 
-  | AllPairsRight  (* each right / each left *)
   | Zip 
   | Concat 
   | Enlist (* make array from one element *) 
@@ -62,6 +55,15 @@ type array_op =
   | Find 
   | DimSize
 
+type adverb = 
+  | Map 
+  | EachLeft (* each left *)
+  | EachRight (* each right *)
+  | Scan  
+  | Reduce 
+  | AllPairs (* each left / each right *) 
+  | AllPairsRight  (* each right / each left *)
+   
 type impure_op = ResetTimer | GetTimer | Print 
                 
 
@@ -71,11 +73,12 @@ type q_op =  Q_WriteOrLoadText | Q_WriteOrLoadBinary | Q_Question |  Q_Dollar
 type prim =
   | ScalarOp of scalar_op  
   | ArrayOp of array_op
+  | Adverb of adverb 
   | ImpureOp of impure_op
   | Q_Op of q_op 
 
     
-        
+(*        
 let is_adverb = function 
   | Map 
   | EachLeft (* each left *)
@@ -85,7 +88,7 @@ let is_adverb = function
   | AllPairs (* each left / each right *) 
   | AllPairsRight  (* each right / each left *) -> true
   | _ -> false
-  
+*)  
 let is_binop = function  
   | Add 
   | Sub 
@@ -130,7 +133,8 @@ let is_unop = function
   | Log10 -> true
   | _ -> false 
 
-(* does the operator expect a function argument *) 
+(* does the operator expect a function argument *)
+(* 
 let is_higher_order = function 
   | Map 
   | EachLeft (* each left *)
@@ -140,7 +144,7 @@ let is_higher_order = function
   | AllPairs  
   | AllPairsRight  -> true 
   | _ -> false 
-
+*)
 
 (* binary operators which preserve the greatest type of their args *) 
 let is_comparison = function   
@@ -173,18 +177,19 @@ let min_prim_arity = function
   | ArrayOp Zip
   | ArrayOp Rand 
   | ArrayOp DimSize 
-  | ArrayOp Index
-  | ArrayOp Map  -> 2 
-  | ArrayOp _ -> 3
+  | ArrayOp Index -> 2
+  | ArrayOp _ -> 3  
+  | Adverb Map -> 2 
+  | Adverb _ -> 3
   | ImpureOp Print  -> 1
   | ImpureOp _ -> 0
   | Q_Op _ -> 2 
 
 let max_prim_arity = function 
-  | ArrayOp Map
   | ArrayOp Concat 
-  | ArrayOp Reduce 
-  | ArrayOp Zip -> max_int 
+  | ArrayOp Zip 
+  | Adverb Map
+  | Adverb Reduce -> max_int 
   | other -> min_prim_arity other
 	
 let scalar_op_to_str = function 
@@ -235,6 +240,12 @@ let array_op_to_str = function
 	| Enlist -> "enlist"
 	| Til -> "til"
 	| Rand -> "rand"
+  | Index -> "@"
+  | Where -> "where"
+  | DimSize -> "dimsize" 
+  | Find -> "?"
+
+let adverb_to_str = function 
   | Map -> "each"
   | EachLeft -> "/:"
   | EachRight -> "\\:"
@@ -242,10 +253,7 @@ let array_op_to_str = function
   | Scan -> "\\"
   | AllPairs -> "/:\\:" 
   | AllPairsRight -> "\\:/:"  
-  | Index -> "@"
-  | Where -> "where"
-  | DimSize -> "dimsize" 
-  | Find -> "?"
+  
 
 let impure_op_to_str = function
   | ResetTimer -> "reset_timer"
@@ -261,6 +269,7 @@ let q_op_to_str = function
 let prim_to_str = function 
   | ScalarOp op -> scalar_op_to_str op 
   | ArrayOp op ->  array_op_to_str op
+  | Adverb op -> adverb_to_str op 
   | ImpureOp op -> impure_op_to_str op   
   | Q_Op op -> q_op_to_str op 
   

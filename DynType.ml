@@ -22,8 +22,7 @@ type t  =
   | TableT of t String.Map.t
   | BottomFnT (* function about which we know nothing *) 
   | AnyFnT (* overspecified function type *)
-  (* function with closure args, inputs, outputs *)
-  | FnT of t list * t list * t list 
+  | FnT of  t list * t list 
             
   
 let rec to_str = function 
@@ -46,12 +45,10 @@ let rec to_str = function
   | TupleT ts -> 
     "(" ^ (String.concat " * " (Array.to_list (Array.map to_str ts))) ^ ")"
   | TableT _ -> "table"
-  | FnT (c, x,y) -> 
-      let sc = type_list_to_str c in
+  | FnT (x,y) -> 
       let sx = type_list_to_str x in
       let sy = type_list_to_str y in
-      sprintf "%s%s -> %s"
-        (if List.length c > 0 then sc ^ " => " else "")
+      sprintf "%s -> %s"
         (if List.length x > 0 then "{" ^ sx ^ "}" else sx)
         (if List.length y > 0 then "{" ^ sy ^ "}" else sy)   
   | AnyFnT -> "? -> ?"
@@ -212,19 +209,15 @@ let fold_type_list = function
   | [] -> AnyT 
   | t::ts -> List.fold_left common_type_folder t ts
 
-let fn_closure_types = function 
-  | FnT(closureTypes, _, _) -> closureTypes  
-  | _ -> failwith "[DynType] fn_closure_types: expected function"
  
 let fn_input_types = function 
-  | FnT(_,inputs, _) -> inputs
+  | FnT(inputs, _) -> inputs
   | _ -> failwith "[DynType] fn_input_types: expected function"
 
 let fn_output_types = function 
-  | FnT (_, _, outputs) -> outputs
+  | FnT ( _, outputs) -> outputs
   | _ -> failwith "[DynType] fn_output_types: expected function"
 
-let fn_closure_arity t = List.length (fn_closure_types t)
 let fn_input_arity t = List.length (fn_input_types t)
 let fn_output_arity t = List.length (fn_output_types t)
 

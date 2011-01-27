@@ -5,57 +5,11 @@ open Base
 
 open SSA 
 open InterpVal 
-
-let _ = Printexc.record_backtrace true 
-
-module GpuCost = struct 
-  let array_op memState fnTable op argVals = match op, argVals with 
-  | Prim.Map, (InterpVal.Closure(fnId, closureArgs))::dataArgs -> 
-    let launchCost = 3  in
-    (* assume we can transfer 100,000 elements per millsecond to GPU, 
-           and that allocation costs 3ms no matter the size 
-         *)
-    
-    let memoryCosts = 
-      List.sum (List.map (MemoryState.gpu_transfer_time memState) dataArgs)
-      +
-      List.sum (List.map (MemoryState.gpu_transfer_time memState) closureArgs)
-    in  
-    let shapes = List.map (MemoryState.get_shape memState) dataArgs in  
-    let maxShape = match Shape.max_shape_list shapes with 
-      | Some maxShape -> maxShape
-      | None -> failwith "no common shape found"
-    in  
-    (* assume each processor can process 1000 elements per millisecond, and 
-       we have 100 processors
-    *)
-    let runCost = Shape.nelts maxShape / 100  in 
-    launchCost + memoryCosts + runCost 
-  | _ -> 0         
-end
-
-module HostCost = struct 
-  let array_op memState fnTable op argVals = match op, argVals with 
-  | Prim.Map, (InterpVal.Closure(fnId, _))::dataArgs ->
-    let memoryCosts = 
-      List.sum (List.map (MemoryState.host_transfer_time memState) dataArgs)
-    in
-    let shapes = List.map (MemoryState.get_shape memState) dataArgs in 
-    let maxShape = match Shape.max_shape_list shapes with 
-      | Some maxShape -> maxShape 
-      | None -> failwith "max shape not found"
-    in 
-    (* assume we process 100 elements per millisecond on the host, 
-       but also assume nested computations are free
-     *) 
-    let runCost = (Shape.get maxShape 0) / 10 in 
-    1 + memoryCosts + runCost  
-  | _ -> max_int (* don't run anything else on the host *)  
-end
-
+ 
 
 type env = InterpVal.t ID.Map.t 
 
+let _ = Printexc.record_backtrace true 
 
 let rec eval_value 
     (memoryState : MemoryState.t) 
@@ -68,13 +22,9 @@ let rec eval_value
         Printf.sprintf "[eval_value] variable %s not found!" (ID.to_str id)
   | Num n -> InterpVal.Scalar n 
         (*MemoryState.add_host memoryState (HostVal.mk_host_scalar n)*)
-  | GlobalFn fnId -> InterpVal.Closure(fnId, [])
-  | Stream (v,_) -> eval_value memoryState env v  
-  | Str _
-  | Sym _
-  | Unit
-  | Prim _
-  | Lam _ -> failwith "[eval_value] values of this type not yet implemented" 
+ 
+  | _ -> failwith ("[eval_value] values of this type not implemented: " ^
+           (SSA.value_to_str valNode.value))
  
 let rec eval globalFns fundef hostVals =
   let memState = MemoryState.create 127 (* arbitrary *) in
@@ -108,23 +58,14 @@ let rec eval globalFns fundef hostVals =
   ENDIF; 
   hostVals
   
-and eval_block 
-      (memState : MemoryState.t) 
-      (fnTable : FnTable.t) 
-      (env : env) : (SSA.stmt_node list -> env) = function  
-  | [] -> env
-  | stmtNode::rest ->
-      IFDEF DEBUG THEN 
-        Printf.sprintf "[eval_block] stmtNode::rest: %s \n%!"
-             (SSA.stmt_node_to_str stmtNode);
-      ENDIF; 
-      let (env' : env) = eval_stmt memState fnTable env stmtNode in
-      IFDEF DEBUG THEN 
-        Printf.printf "[eval_block] done evaluating stmt %s \n%!"
-          (SSA.stmt_node_to_str stmtNode);
-      ENDIF; 
-      eval_block memState fnTable env' rest
-
+and eval_block (memState : MemoryState.t) (fnTable : FnTable.t) env  block = 
+  let currEnv = ref env in 
+  let n = SSA.block_length block in 
+  for i = 0 to n- 1 do 
+    currEnv := eval_stmt memState fnTable !currEnv (SSA.block_idx block i)
+  done; 
+  !currEnv 
+  
 and eval_stmt 
       (memState : MemoryState.t) 
       (fnTable : FnTable.t) 
@@ -154,40 +95,7 @@ and eval_exp
       (env : env) 
       (expNode : SSA.exp_node) : InterpVal.t list = 
   match expNode.exp with 
-  | Values valNodes -> List.map (eval_value memState env) valNodes         
-  (* assume all array operators take only one function argument *) 
-  | App ({value=Prim (Prim.ArrayOp op); value_type=ty}, args) ->
-      let outTypes = DynType.fn_output_types ty in
-      let argVals = List.map (eval_value memState env) args in
-      eval_array_op memState fnTable env op argVals outTypes
-  | App ({value=Prim (Prim.ScalarOp op)}, args) -> 
-      let argVals = List.map (eval_value memState env) args in 
-      eval_scalar_op memState op argVals   
-  | App ({value=Var id}, args) ->
-      let argVals = List.map (eval_value memState env) args in
-      (match ID.Map.find id env with 
-        | InterpVal.Closure (fnId, otherArgs) -> 
-           let fundef = FnTable.find fnId fnTable in 
-           let combinedArgs = otherArgs @ argVals in 
-           let arity = FnTable.get_arity  fnId fnTable in 
-           if arity = List.length combinedArgs then 
-             eval_app memState fnTable env fundef combinedArgs
-          else 
-             [InterpVal.Closure(fnId, combinedArgs)]
-       | _ -> failwith "[eval] closure expected" 
-      )
-  | App ({value=GlobalFn fnId}, args) -> 
-      let argVals = List.map (eval_value memState env) args in
-      let arity = FnTable.get_arity fnId fnTable  in 
-      let nArgs = List.length argVals in 
-      if arity = nArgs then
-        let fundef = FnTable.find fnId fnTable in 
-        eval_app memState fnTable env fundef argVals
-      else
-        [InterpVal.Closure(fnId, argVals)]
-      
-  | ArrayIndex (arr, indices) -> 
-      failwith "[eval] array indexing not implemented" 
+  | Values valNodes -> List.map (eval_value memState env) valNodes
   | Arr elts -> failwith "[eval] array constructor not implemented"
   | Cast (t, valNode) when DynType.is_scalar t -> 
       (match eval_value  memState env valNode with 
@@ -195,12 +103,69 @@ and eval_exp
         | _ -> failwith "[eval] expected scalar"
       )  
   | Cast (t, valNode) -> failwith "[eval] cast only implemented for scalars"
+  
+        
+  (* first order array operators only *)          
+  | PrimApp (Prim.ArrayOp op, args) -> 
+     let argVals = List.map (eval_value memState env) args in
+     eval_array_op memState fnTable env op argVals expNode.exp_types 
+        
+  | PrimApp (Prim.ScalarOp op, args) -> 
+      let argVals = List.map (eval_value memState env) args in 
+      eval_scalar_op memState op argVals
+      
+  | Call (fnId, args) -> 
+      let argVals = List.map (eval_value memState env) args in
+      let fundef = FnTable.find fnId fnTable in 
+      eval_app memState fnTable env fundef argVals
+  
+  | Map ({closure_fn=fnId; closure_args=closureArgs}, args) ->
+      let fundef = FnTable.find fnId fnTable in
+      let closureArgVals : InterpVal.t list = 
+        List.map (eval_value memState env) closureArgs 
+      in 
+      let argVals : InterpVal.t list = 
+        List.map (eval_value memState env) args 
+      in 
+      let gpuCost : int = GpuCost.map memState closureArgVals argVals fundef in  
+      let cpuCost : int = CpuCost.map memState closureArgVals argVals fundef in
+      (if gpuCost < cpuCost then 
+        GpuRuntime.eval_map 
+          memState 
+          fnTable 
+          fundef 
+          closureArgVals 
+          argVals 
+          expNode.exp_types
+      else 
+        failwith "cpu map not implemented"
+      )
   | _ -> 
       failwith $ Printf.sprintf 
         "[eval_exp] no implementation for: %s\n"
-        (SSA.exp_to_str expNode)
- 
-
+        (SSA.exp_to_str expNode)           
+      
+  | Reduce (
+     {closure_fn=initFnId; closure_args=initClosureArgs},
+     {closure_fn=reduceFnId; closure_args=reduceClosureArgs},
+     dataArgs
+    ) -> 
+      let fundef = FnTable.find reduceFnId fnTable in
+      (* the current reduce kernel works either for 1d data or 
+         for maps over 2d data 
+      *) 
+      let fundef2 = match SSA.extract_nested_map_fn_id fundef with 
+        | Some nestedFnId -> FnTable.find nestedFnId fnTable
+        | None -> fundef 
+      in  
+      let argVals : InterpVal.t list = 
+        List.map (eval_value memState env) dataArgs 
+      in 
+      failwith "reduce not done in evaluator"
+      
+  | Scan ({closure_fn=initFnId; closure_args=initClosureArgs}, 
+          {closure_fn=fnId; closure_args=closureArgs}, args) ->    
+     failwith "scan not implemented"
 and eval_app memState fnTable env fundef args = 
   (* create an augmented memory state where input ids are bound to the *)
   (* argument values on the gpu *) 
@@ -213,27 +178,25 @@ and eval_app memState fnTable env fundef args =
   in
   let env3 = eval_block memState fnTable env2 fundef.body in
   List.map (fun id -> ID.Map.find id env3) fundef.output_ids
-and eval_scalar_op memState args = failwith "not implemented"
+and eval_scalar_op memState args = failwith "scalar op not implemented"
 and eval_array_op memState fnTable env op argVals outTypes : InterpVal.t list =
-  let runOnGpu = GpuRuntime.implements_array_op op && 
-    (let gpuCost = GpuCost.array_op memState fnTable op argVals in 
-     let hostCost = HostCost.array_op memState fnTable op argVals in
-     IFDEF DEBUG THEN 
+  let gpuCost = GpuCost.array_op memState op argVals in 
+  let hostCost = CpuCost.array_op memState op argVals in
+  IFDEF DEBUG THEN 
        Printf.printf 
          "Estimated cost of running array op %s on host: %d, on gpu: %d\n"
          (Prim.array_op_to_str op)
          hostCost
-         gpuCost 
-       ;
-     ENDIF;
-     gpuCost <= hostCost)
-  in  
+         gpuCost;
+  ENDIF;   
+  let runOnGpu = GpuRuntime.implements_array_op op && gpuCost <= hostCost in  
   if runOnGpu then
     GpuRuntime.eval_array_op memState fnTable  op argVals outTypes
   else match op, argVals with
-  | Prim.Map, (InterpVal.Closure(fnId, closureArgs)::dataArgs) ->
+  (*| Prim.Map, (InterpVal.Closure(fnId, closureArgs)::dataArgs) ->
       let fundef = FnTable.find fnId fnTable in
-      eval_map memState fnTable env fundef closureArgs dataArgs 
+      eval_map memState fnTable env fundef closureArgs dataArgs
+   *) 
   | Prim.DimSize, [array; idx] -> 
       let s = MemoryState.get_shape memState array in
       let i = InterpVal.to_int idx in
@@ -283,7 +246,7 @@ and eval_map memState fnTable env fundef closureArgs argVals =
   for elt = 0 to n - 1 do
     Printf.printf "Iteration %d\n" elt; 
     let slices = List.map (get_slice elt) argVals in
-    Printf.printf "GOt slice!\n%!";  
+    Printf.printf "Got slice!\n%!";  
     let inputs = (closureArgs @ slices) in
     let currResults = 
       Array.of_list (eval_app memState fnTable env fundef inputs)
@@ -294,5 +257,28 @@ and eval_map memState fnTable env fundef closureArgs argVals =
   done;   
   Array.to_list $
     Array.map
-      (fun dynArray -> Printf.printf "Creating DynArray\n%!"; InterpVal.Array (DynArray.to_array dynArray))
+      (fun dynArray -> InterpVal.Array (DynArray.to_array dynArray))
     allResults  
+
+
+(*
+module type INTERP = sig 
+  type source_info (* attach this as the type param of SourceInfo.t *) 
+  val eval : InterpState.t -> MemoryState.t -> env ->  SSA.stmt_node -> env    
+end
+
+type 'a closure = SSA.fundef * 'a 
+
+module type BACKEND = sig 
+  type data 
+  
+  val to_device : HostVal.host_val -> data 
+  val from_device : data -> HostVal.host_val 
+  
+  val map : data closure -> data list -> data list 
+  val reduce : data closure -> data closure -> data list -> data list
+  val scan : data closure -> data closure -> data list -> data list
+  
+  val array_op : Prim.array_op -> data list -> data list     
+end
+*)

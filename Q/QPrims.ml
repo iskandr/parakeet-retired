@@ -33,14 +33,15 @@ let prim_hash =  Hashtbl.of_list [
 			
       "??", ScalarOp Select;
       
-			"'", ArrayOp Map; 
-			"/:", ArrayOp EachLeft; 
-			"\\:", ArrayOp EachRight;
-			"each", ArrayOp Map; 
-			"/:\\:", ArrayOp AllPairs;
-			"\\:/:", ArrayOp AllPairs;
-			"\\", ArrayOp Scan;
-      "/", ArrayOp Reduce; 
+			"'", Adverb Map; 
+			"/:", Adverb EachLeft; 
+			"\\:", Adverb EachRight;
+			"each", Adverb Map; 
+			"/:\\:", Adverb AllPairs;
+			"\\:/:", Adverb AllPairs;
+			"\\", Adverb Scan;
+      "/", Adverb Reduce;
+       
       "where", ArrayOp Where; 
       "enlist", ArrayOp Enlist; 
        
