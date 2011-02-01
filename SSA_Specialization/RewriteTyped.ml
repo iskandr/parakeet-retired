@@ -47,8 +47,8 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
     | Str _ -> DynType.StrT
     | Sym _ -> DynType.SymT
     | Unit -> DynType.UnitT
-    | other -> 
-      failwith $ "unexpected SSA value: %s" ^ (SSA.value_to_str other)
+    | other -> DynType.BottomT 
+      
   
   let infer_value_node_type valNode = infer_value_type valNode.value   
                
@@ -125,8 +125,9 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
           (SSA.value_node_to_str valNode) (DynType.to_str t)
   
   
-  let rewrite_app fnVal argNodes : exp_node = 
+  let rewrite_app fn argNodes : exp_node = 
     let argTypes = List.map (fun v -> v.value_type) argNodes in 
+    let fnVal = fn.value in 
     match fnVal with
     | Prim ((Prim.ScalarOp op) as p) -> 
       let outT = TypeInfer.infer_scalar_op op argTypes in
@@ -167,8 +168,22 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
         in 
         let types = closureArgTypes @ directArgTypes in
         let fundef = P.specializer fnVal (Signature.from_input_types types) in 
-        SSA.mk_call fundef.fn_id fundef.fn_output_types (closureArgs @ argNodes)   
-      else failwith "array indexing"
+        SSA.mk_call 
+          ?src:fn.value_src 
+          fundef.fn_id 
+          fundef.fn_output_types 
+          (closureArgs @ argNodes)   
+      else 
+        let nIndices = List.length argNodes in 
+        let arrType = infer_value_node_type fn in 
+        let outTypes = [DynType.slice_type arrType argTypes] in
+        let arrNode = {fn with value_type = arrType} in 
+        SSA.mk_primapp 
+          ?src:fn.value_src 
+          (Prim.ArrayOp Prim.Index)
+          outTypes 
+          (arrNode::argNodes)
+        
       
       
   let rewrite_exp 
@@ -189,7 +204,7 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
         in 
         Update {expNode with exp = Values vs'; exp_types = types } 
       | App (fn, args), _ -> 
-        Update (rewrite_app fn.value (annotate_values args))       
+        Update (rewrite_app fn (annotate_values args))       
     
   let rec stmt context helpers stmtNode =
     match stmtNode.stmt with

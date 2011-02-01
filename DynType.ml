@@ -238,4 +238,6 @@ let rec slice_type arrayType types = match arrayType, types with
       slice_type nestedT rest 
   | _ when is_scalar arrayType -> 
       failwith "[slice_type] indexing into scalar not allowed"
-  | _ -> assert false  
+  | notVec, notIndices -> 
+      failwith (Printf.sprintf "Can't index into %s with indices of type %s"
+        (to_str notVec) (type_list_to_str notIndices))  
