@@ -55,11 +55,11 @@ let rec specialize_fundef interpState fundef signature =
    *)
   let tenv = 
     TypeAnalysis.type_analysis 
-      specialize_value 
-      interpState 
-      closures 
-      fundef' 
-      signature 
+      ~specializer:specialize_value 
+      ~interpState:interpState 
+      ~closureEnv:closures 
+      ~fundef:fundef' 
+      ~signature 
   in
   let specializer = specialize_value interpState in  
   let typedFn = RewriteTyped.rewrite_typed tenv closures specializer fundef' in

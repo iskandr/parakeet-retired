@@ -1,7 +1,7 @@
 open SSA
  
 val type_analysis : 
-      specializer:InterpState.t -> value -> Signature.t -> fundef ->
+      specializer:(InterpState.t -> value -> Signature.t -> fundef)->
       interpState:InterpState.t ->  
       closureEnv:CollectPartialApps.closure_env -> 
       fundef:fundef -> 

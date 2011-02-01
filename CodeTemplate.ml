@@ -61,6 +61,9 @@ let build_function_body_ast body =
 let rec extend_interp_state interpState = function 
   | [] -> interpState  
   | (name,locals,globals,bodyText)::rest ->
+      IFDEF DEBUG THEN 
+        Printf.printf "Building AST for %s\n" name; 
+      ENDIF; 
       let bodyAST = build_function_body_ast bodyText in
       (* global function lookup function used by AST_to_SSA conversion *)
       let ssaEnv = 

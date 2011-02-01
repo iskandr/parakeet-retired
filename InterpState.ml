@@ -157,7 +157,7 @@ let maybe_get_specialization interpState v signature =
   else None   
 
 let is_untyped_function interpState untypedId = 
-  FnTable.mem untypdId interpState.untyped_functions 
+  FnTable.mem untypedId interpState.untyped_functions 
 
 let get_untyped_function interpState untypedId =
   FnTable.find untypedId interpState.untyped_functions  
