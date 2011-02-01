@@ -5,13 +5,12 @@ open SSA
 open SSA_Analysis
 
 module type TYPE_ANALYSIS_PARAMS = sig 
-  val closures : (ID.t, value) Hashtbl.t
-  val closure_args : (ID.t, value_node list) Hashtbl.t
-  val closure_arity : (ID.t, int) Hashtbl.t
+  val closure_val : ID.t -> value 
+  val closure_args : ID.t -> value_node list
+  val output_arity : value -> int 
   val infer_output_types : value -> Signature.t -> DynType.t list   
   val signature : Signature.t 
 end
-  
  
 let get_type tenv id = Hashtbl.find_default tenv id DynType.BottomT  
 let add_type tenv id t = Hashtbl.add tenv id t; tenv 
@@ -88,7 +87,12 @@ module MkAnalysis (P : TYPE_ANALYSIS_PARAMS) = struct
         let eltTypes = List.map DynType.peel_vec dataTypes in 
         let eltResultTypes = infer_app tenv fnVal eltTypes in 
         List.map (fun t -> DynType.VecT t) eltResultTypes     
-    | _ -> failwith "not implemented"     
+    | Prim.Reduce, {value=fnVal}::_, _::initType::vecTypes -> 
+        let eltTypes = List.map DynType.peel_vec vecTypes in
+         
+        let accResultTypes = infer_app tenv fnVal initType in 
+        failwith "boot!"
+    | other, _, _ -> failwith (Prim.adverb_to_str other ^ " not impl")     
 
 
   let exp_app tenv expNode ~fn ~args ~fnInfo ~argInfo = 
@@ -147,13 +151,40 @@ module MkAnalysis (P : TYPE_ANALYSIS_PARAMS) = struct
       failwith "IF not implemented"
  
 end
-   
-let type_analysis infer_output_types closureEnv fundef signature = 
+
+let rec output_arity interpState closureArityHash = function 
+  | Var id -> 
+      let fnVal' = Hashtbl.find closureArityHash id in 
+      output_arity fnTable closureArityHash fnVal' 
+  | GlobalFn fnId -> 
+      let fundef = 
+        if InterpState.is_untyped_function interpState fnId then
+          InterpState.get_untyped_function interpState fnId  
+        else 
+          InterpState.get_typed_function interpState fnId 
+      in  
+      List.length fundef.fn_input_types
+  | Prim p -> Prim.min_prim_arity p       
+  | _ -> assert false 
+
+
+let type_analysis
+      ~specializer:(InterpState.t->SSA.value->Signature.t->SSA.fundef) -> 
+      ~interpState:(InterpState.t) ->
+      ~closureEnv:(CollectPartialApps.closure_env) ->
+      ~fundef:(SSA.fundef) ->
+      ~signature:(Signature.t) =
   let module Params : TYPE_ANALYSIS_PARAMS = struct 
-    let closures = closureEnv.CollectPartialApps.closures
-    let closure_args = closureEnv.CollectPartialApps.closure_args 
-    let closure_arity = closureEnv.CollectPartialApps.closure_arity 
-    let infer_output_types = infer_output_types
+    let closure_val = 
+      (fun id -> Hashtbl.find closureEnv.CollectPartialApps.closures id)
+    let closure_args = 
+      (fun id -> closureEnv.CollectPartialApps.closure_args id) 
+    let output_arity = 
+      (output_arity interpState closureEnv.CollectPartialApps.closure_arity)  
+    let infer_output_types = 
+      (fun fnVal fnSig -> 
+        let fundef = specializer interpState fnVal fnSig in 
+        fundef.fn_output_types)
     let signature = signature  
   end    
   in

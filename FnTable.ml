@@ -7,7 +7,7 @@ type t = {
   arities : (FnId.t, int) Hashtbl.t; 
 }
 
-let add ?(opt_queue=true) fundef cache =
+let add ?(opt_queue=true) fundef (cache:t) =
   
   let id = fundef.SSA.fn_id in 
   Hashtbl.add cache.fundefs id fundef;

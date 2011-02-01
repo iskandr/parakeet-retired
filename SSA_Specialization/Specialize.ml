@@ -53,11 +53,14 @@ let rec specialize_fundef interpState fundef signature =
        modules I've untied the recursion by making specialize_value 
        a parameter of TypeAnalysis. 
    *)
-  let inferTypes fnVal signature = 
-    let fundef = specialize_value interpState fnVal signature in 
-    fundef.fn_output_types 
-  in 
-  let tenv = TypeAnalysis.type_analysis inferTypes closures fundef' signature in
+  let tenv = 
+    TypeAnalysis.type_analysis 
+      specialize_value 
+      interpState 
+      closures 
+      fundef' 
+      signature 
+  in
   let specializer = specialize_value interpState in  
   let typedFn = RewriteTyped.rewrite_typed tenv closures specializer fundef' in
   typedFn   
