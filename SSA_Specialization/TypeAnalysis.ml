@@ -75,6 +75,12 @@ module MkAnalysis (P : TYPE_ANALYSIS_PARAMS) = struct
              
     | _ -> assert false
 
+  (* splits a list into its first nth elemenets and the rest *) 
+  let rec split_nth n ?(left=[])  right = match (n,right) with  
+    | (_,[]) -> left, [] 
+    | (0, _) -> List.rev left, right  
+    | (n, x::xs) -> split_nth (n-1) ~left:(x::left) xs  
+        
   let infer_higher_order tenv arrayOp args argTypes =
     match arrayOp, args, argTypes with 
     | Prim.Map, {value=fnVal}::_, _::dataTypes ->
@@ -85,10 +91,20 @@ module MkAnalysis (P : TYPE_ANALYSIS_PARAMS) = struct
         let eltTypes = List.map DynType.peel_vec dataTypes in 
         let eltResultTypes = infer_app tenv fnVal eltTypes in 
         List.map (fun t -> DynType.VecT t) eltResultTypes     
-    | Prim.Reduce, {value=fnVal}::_, _::initType::vecTypes -> 
-        let eltTypes = List.map DynType.peel_vec vecTypes in
-        let accResultTypes = infer_app tenv fnVal [initType] in 
-        failwith "boot!"
+    | Prim.Reduce, {value=fnVal}::_, _::argTypes ->
+        let arity = P.output_arity fnVal in 
+        let initTypes, vecTypes = split_nth arity argTypes in
+        Printf.printf "Reduce init types: %s; vec types: %s\n"
+          (DynType.type_list_to_str initTypes)
+          (DynType.type_list_to_str vecTypes); 
+        
+        let eltTypes = List.map DynType.peel_vec vecTypes in 
+        let accTypes = infer_app tenv fnVal (initTypes @ eltTypes) in
+        let accTypes' = infer_app tenv fnVal (accTypes @ eltTypes) in 
+        if accTypes <> accTypes' then 
+          failwith "unable to infer accumulator type"
+        ; 
+        accTypes 
     | other, _, _ -> failwith (Prim.adverb_to_str other ^ " not impl")     
 
 
@@ -149,8 +165,10 @@ module MkAnalysis (P : TYPE_ANALYSIS_PARAMS) = struct
  
 end
 
-let rec output_arity interpState closureArityHash = function 
-  | Var id -> Hashtbl.find closureArityHash id 
+let rec output_arity interpState closures = function 
+  | Var id -> 
+      let fnVal = Hashtbl.find closures id in 
+      output_arity interpState closures fnVal 
   | GlobalFn fnId -> 
       let fundef = 
         if InterpState.is_untyped_function interpState fnId then
@@ -158,8 +176,8 @@ let rec output_arity interpState closureArityHash = function
         else 
           InterpState.get_typed_function interpState fnId 
       in  
-      List.length fundef.fn_input_types
-  | Prim p -> Prim.min_prim_arity p       
+      List.length fundef.fn_output_types
+  | Prim p -> 1
   | _ -> assert false 
 
 
@@ -175,7 +193,7 @@ let type_analysis
     let closure_args = 
       (fun id -> Hashtbl.find closureEnv.CollectPartialApps.closure_args id) 
     let output_arity = 
-      (output_arity interpState closureEnv.CollectPartialApps.closure_arity)  
+      (output_arity interpState closureEnv.CollectPartialApps.closures)  
     let infer_output_types = 
       (fun fnVal fnSig -> 
         let fundef = specializer interpState fnVal fnSig in 
