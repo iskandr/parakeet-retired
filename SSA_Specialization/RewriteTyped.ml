@@ -124,10 +124,12 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
         failwith  $ Printf.sprintf "Can't coerce value %s to type %s"
           (SSA.value_node_to_str valNode) (DynType.to_str t)
   
+  let rewrite_adverb src adverb argNodes = failwith "rewrite-adverb not implemented"  
   
-  let rewrite_app fn argNodes : exp_node = 
-    let argTypes = List.map (fun v -> v.value_type) argNodes in 
-    let fnVal = fn.value in 
+  
+  let rewrite_app src fn argNodes : exp_node = 
+    let argTypes = List.map (fun v -> v.value_type) argNodes in
+    let fnVal = fn.value in  
     match fnVal with
     | Prim ((Prim.ScalarOp op) as p) -> 
       let outT = TypeInfer.infer_scalar_op op argTypes in
@@ -149,15 +151,18 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
           mapNode
         )      
     | Prim ((Prim.ArrayOp op) as p) -> 
-   
         let outT = TypeInfer.infer_simple_array_op op argTypes in 
-        SSA.mk_primapp p [outT] argNodes
-    | Prim (Prim.Adverb op) -> failwith "hof not implemented"   
+        SSA.mk_primapp ?src p [outT] argNodes
+    | Prim (Prim.Adverb adverb) -> rewrite_adverb src adverb argNodes    
     | GlobalFn _ -> 
       let typedFundef = 
         P.specializer fnVal (Signature.from_input_types argTypes) 
       in
-      SSA.mk_call typedFundef.fn_id typedFundef.fn_output_types argNodes   
+      SSA.mk_call 
+        ?src 
+        typedFundef.fn_id 
+        typedFundef.fn_output_types 
+        argNodes   
     | Var id -> 
       if is_closure id then
         let fnVal = get_closure_val id in 
@@ -169,7 +174,7 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
         let types = closureArgTypes @ directArgTypes in
         let fundef = P.specializer fnVal (Signature.from_input_types types) in 
         SSA.mk_call 
-          ?src:fn.value_src 
+          ?src
           fundef.fn_id 
           fundef.fn_output_types 
           (closureArgs @ argNodes)   
@@ -179,7 +184,7 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
         let outTypes = [DynType.slice_type arrType argTypes] in
         let arrNode = {fn with value_type = arrType} in 
         SSA.mk_primapp 
-          ?src:fn.value_src 
+          ?src 
           (Prim.ArrayOp Prim.Index)
           outTypes 
           (arrNode::argNodes)
@@ -204,7 +209,7 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
         in 
         Update {expNode with exp = Values vs'; exp_types = types } 
       | App (fn, args), _ -> 
-        Update (rewrite_app fn (annotate_values args))       
+        Update (rewrite_app expNode.exp_src fn (annotate_values args))       
     
   let rec stmt context helpers stmtNode =
     match stmtNode.stmt with

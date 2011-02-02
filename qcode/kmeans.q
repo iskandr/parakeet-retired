@@ -1,12 +1,14 @@
 sqr: {x*x};
-dist: { sqrt  0+/ sqr x-y };
-calc_centroids:{[X;a;k] {[a;i] (0 +/ X where a = i) % sum a = i }[a] each til k};
-kmeans:{ [X;k;niters] 
+dist: { sqrt  sum sqr x-y };
+calc_centroid: {[X;a;i] avg X where a = i }; 
+calc_centroids: {[X;a;k] calc_centroid[X;a] each til k};
+findmin: { x ? min x};
+kmeans: { [X;k;niters] 
   n: count X; 
   a: n ? k;
   C: calc_centroids[X;a;k]; 
   do[niters; 
     D: X dist/:\: C;
-    a: { x ? min x } each D; 
+    a: findmin each D; 
     C: calc_centroids[X;a;k]];
   C }
