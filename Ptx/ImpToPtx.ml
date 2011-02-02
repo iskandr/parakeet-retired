@@ -204,7 +204,11 @@ let rec gen_stmt codegen stmt =
           codegen#emit [st_global rhsStorageT address rhsRegCvt]
        )
   | Imp.SyncThreads -> codegen#emit [bar]  
-  | Imp.Comment str -> codegen#emit [comment ("Imp comment: " ^ str)]
+  | Imp.Comment str -> 
+      IFDEF DEBUG THEN 
+        codegen#emit [comment ("Imp comment: " ^ str)];
+      ENDIF 
+      
   | Imp.While (cond, block) ->
       let testLabel = codegen#fresh_label in
       codegen#emit [label testLabel (comment "loop test")];

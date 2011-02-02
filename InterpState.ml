@@ -156,6 +156,9 @@ let maybe_get_specialization interpState v signature =
     Some (Hashtbl.find interpState.specializations (v, signature))
   else None   
 
+let is_untyped_function interpState untypedId = 
+  FnTable.mem untypedId interpState.untyped_functions 
+
 let get_untyped_function interpState untypedId =
   FnTable.find untypedId interpState.untyped_functions  
 

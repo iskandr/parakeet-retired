@@ -5,13 +5,12 @@ open SSA
 open SSA_Analysis
 
 module type TYPE_ANALYSIS_PARAMS = sig 
-  val closures : (ID.t, value) Hashtbl.t
-  val closure_args : (ID.t, value_node list) Hashtbl.t
-  val closure_arity : (ID.t, int) Hashtbl.t
+  val closure_val : ID.t -> value 
+  val closure_args : ID.t -> value_node list
+  val output_arity : value -> int 
   val infer_output_types : value -> Signature.t -> DynType.t list   
   val signature : Signature.t 
 end
-  
  
 let get_type tenv id = Hashtbl.find_default tenv id DynType.BottomT  
 let add_type tenv id t = Hashtbl.add tenv id t; tenv 
@@ -62,12 +61,10 @@ module MkAnalysis (P : TYPE_ANALYSIS_PARAMS) = struct
   let rec infer_app tenv fnVal (argTypes:DynType.t list) = match fnVal with
     | Var id ->
         (* if the identifier would evaluate to a function value...*) 
-        if Hashtbl.mem P.closures id then
-          let fnVal' = Hashtbl.find P.closures id in 
-          let closureArgNodes = Hashtbl.find P.closure_args id in 
-          let closureArgTypes = List.map (value tenv) closureArgNodes in
-          infer_app tenv fnVal' (closureArgTypes @ argTypes)  
-        else assert false 
+        let fnVal' = P.closure_val id in
+        let closureArgNodes = P.closure_args id in  
+        let closureArgTypes = List.map (value tenv) closureArgNodes in
+        infer_app tenv fnVal' (closureArgTypes @ argTypes)   
     | Prim (Prim.ArrayOp arrayOp) ->
         [TypeInfer.infer_simple_array_op arrayOp argTypes]
     | Prim (Prim.ScalarOp scalarOp) -> 
@@ -78,6 +75,7 @@ module MkAnalysis (P : TYPE_ANALYSIS_PARAMS) = struct
              
     | _ -> assert false
 
+        
   let infer_higher_order tenv arrayOp args argTypes =
     match arrayOp, args, argTypes with 
     | Prim.Map, {value=fnVal}::_, _::dataTypes ->
@@ -88,7 +86,17 @@ module MkAnalysis (P : TYPE_ANALYSIS_PARAMS) = struct
         let eltTypes = List.map DynType.peel_vec dataTypes in 
         let eltResultTypes = infer_app tenv fnVal eltTypes in 
         List.map (fun t -> DynType.VecT t) eltResultTypes     
-    | _ -> failwith "not implemented"     
+    | Prim.Reduce, {value=fnVal}::_, _::argTypes ->
+        let arity = P.output_arity fnVal in 
+        let initTypes, vecTypes = List.split_nth arity argTypes in
+        let eltTypes = List.map DynType.peel_vec vecTypes in 
+        let accTypes = infer_app tenv fnVal (initTypes @ eltTypes) in
+        let accTypes' = infer_app tenv fnVal (accTypes @ eltTypes) in 
+        if accTypes <> accTypes' then 
+          failwith "unable to infer accumulator type"
+        ; 
+        accTypes 
+    | other, _, _ -> failwith (Prim.adverb_to_str other ^ " not impl")     
 
 
   let exp_app tenv expNode ~fn ~args ~fnInfo ~argInfo = 
@@ -147,13 +155,24 @@ module MkAnalysis (P : TYPE_ANALYSIS_PARAMS) = struct
       failwith "IF not implemented"
  
 end
-   
-let type_analysis infer_output_types closureEnv fundef signature = 
+
+
+
+let type_analysis 
+      ~(specializer:SSA.value-> Signature.t -> SSA.fundef) 
+      ~(output_arity: SSA.value -> int)
+      ~(closureEnv:CollectPartialApps.closure_env) 
+      ~(fundef:SSA.fundef) 
+      ~(signature:Signature.t) =
   let module Params : TYPE_ANALYSIS_PARAMS = struct 
-    let closures = closureEnv.CollectPartialApps.closures
-    let closure_args = closureEnv.CollectPartialApps.closure_args 
-    let closure_arity = closureEnv.CollectPartialApps.closure_arity 
-    let infer_output_types = infer_output_types
+    let closure_val = 
+      (fun id -> Hashtbl.find closureEnv.CollectPartialApps.closures id)
+    let closure_args = 
+      (fun id -> Hashtbl.find closureEnv.CollectPartialApps.closure_args id) 
+    let output_arity = output_arity  
+    let infer_output_types = 
+      (fun fnVal fnSig -> 
+        let fundef = specializer fnVal fnSig in fundef.fn_output_types)
     let signature = signature  
   end    
   in

@@ -17,6 +17,7 @@ val add_specialization : t -> ?optimize:bool ->
 val maybe_get_specialization : 
   t -> SSA.value -> Signature.t -> FnId.t option 
       
+val is_untyped_function : t -> FnId.t -> bool
 val get_untyped_function : t -> FnId.t -> SSA.fundef 
 val get_typed_function : t -> FnId.t -> SSA.fundef 
 

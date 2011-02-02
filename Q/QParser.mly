@@ -119,6 +119,7 @@ args_sep:
 simple_exp:
 /* tighter binding form of function application */
 | lhs=simple_exp; LBRACKET args=args_list RBRACKET { mk $ AppExp(lhs, args) }  
+| lhs=ADVERB; LBRACKET args=args_list RBRACKET { mk$ AppExp(mk $ Id lhs, args) } 
 /* parens used to specify evaluation order */ 
 | LPAREN e = compound_exp RPAREN { e }
 /* parens used to create an array */ 

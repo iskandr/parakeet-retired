@@ -56,7 +56,12 @@ let infer_scalar_op op argTypes = match op, argTypes with
              "nest depth of predicate must match nest depth of value in Select"
            else t3 
          end
-  | _ -> failwith "no operators expected except unops, binops and select"     
+  | other, types -> 
+      failwith 
+        (Printf.sprintf 
+          "can't infer type for %s with args %s, not a scalar operation" 
+          (Prim.scalar_op_to_str other)
+          (DynType.type_list_to_str types))     
   
 let infer_unop op t = infer_scalar_op op [t] 
 let infer_binop op t1 t2 = infer_scalar_op op [t1; t2]

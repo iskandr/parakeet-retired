@@ -6,6 +6,7 @@ open DynType
 
 
 module type REWRITE_PARAMS = sig
+  val output_arity : value -> int 
   val specializer : value -> Signature.t -> fundef   
   val closureEnv : CollectPartialApps.closure_env
   val tenv : (ID.t, DynType.t) Hashtbl.t 
@@ -47,8 +48,8 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
     | Str _ -> DynType.StrT
     | Sym _ -> DynType.SymT
     | Unit -> DynType.UnitT
-    | other -> 
-      failwith $ "unexpected SSA value: %s" ^ (SSA.value_to_str other)
+    | other -> DynType.BottomT 
+      
   
   let infer_value_node_type valNode = infer_value_type valNode.value   
                
@@ -124,9 +125,34 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
         failwith  $ Printf.sprintf "Can't coerce value %s to type %s"
           (SSA.value_node_to_str valNode) (DynType.to_str t)
   
+  let rewrite_adverb src adverb fnVal argNodes argTypes = match adverb with 
+      | Prim.Map -> 
+        let eltTypes = List.map DynType.peel_vec argTypes in 
+        let closure = 
+          mk_typed_closure fnVal (Signature.from_input_types eltTypes) 
+        in 
+        SSA.mk_map closure argNodes 
+      | Prim.Reduce -> 
+        let arity = P.output_arity fnVal in 
+        let initArgs, args = List.split_nth arity argNodes in 
+        let initTypes, argTypes = List.split_nth arity argTypes in
+        let eltTypes = List.map DynType.peel_vec argTypes in
+        let initSignature = 
+          Signature.from_input_types (initTypes @ eltTypes)
+        in 
+        let initClosure = mk_typed_closure fnVal initSignature in
+        let accTypes = initClosure.closure_output_types in      
+        let reduceSignature = 
+          Signature.from_types (accTypes @ eltTypes) accTypes 
+        in 
+        let reduceClosure = mk_typed_closure fnVal reduceSignature in 
+        SSA.mk_reduce ?src initClosure reduceClosure argNodes  
+        
+      | other -> failwith $ (Prim.adverb_to_str other) ^ " not implemented"
   
-  let rewrite_app fnVal argNodes : exp_node = 
+  let rewrite_app src fn argNodes : exp_node =
     let argTypes = List.map (fun v -> v.value_type) argNodes in 
+    let fnVal = fn.value in  
     match fnVal with
     | Prim ((Prim.ScalarOp op) as p) -> 
       let outT = TypeInfer.infer_scalar_op op argTypes in
@@ -134,29 +160,26 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
       if DynType.is_scalar outT then  
         SSA.mk_primapp p [outT] argNodes
       else 
-        let eltTypes = List.map DynType.peel_vec argTypes in 
-        let eltSignature = Signature.from_input_types eltTypes in 
-        
-        let primFundef = P.specializer fnVal eltSignature in
-        let primClosure = SSA.mk_closure primFundef [] in 
-        let mapNode = SSA.mk_map primClosure argNodes in (
-          Printf.printf "fundef: %s\n closure:%s\n mapNode: %s\n"
-            (SSA.fundef_to_str primFundef)
-            (SSA.closure_to_str primClosure)
-            (SSA.exp_to_str mapNode)  
-          ; 
-          mapNode
-        )      
+        rewrite_adverb src Prim.Map fnVal argNodes argTypes 
+              
     | Prim ((Prim.ArrayOp op) as p) -> 
-   
         let outT = TypeInfer.infer_simple_array_op op argTypes in 
-        SSA.mk_primapp p [outT] argNodes
-    | Prim (Prim.Adverb op) -> failwith "hof not implemented"   
+        SSA.mk_primapp ?src p [outT] argNodes
+    | Prim (Prim.Adverb adverb) -> 
+        (match argNodes, argTypes with 
+          | fn::rest, _::restTypes -> 
+              rewrite_adverb src adverb fn.value rest restTypes
+          | _ -> assert false
+        )     
     | GlobalFn _ -> 
       let typedFundef = 
         P.specializer fnVal (Signature.from_input_types argTypes) 
       in
-      SSA.mk_call typedFundef.fn_id typedFundef.fn_output_types argNodes   
+      SSA.mk_call 
+        ?src 
+        typedFundef.fn_id 
+        typedFundef.fn_output_types 
+        argNodes   
     | Var id -> 
       if is_closure id then
         let fnVal = get_closure_val id in 
@@ -167,8 +190,22 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
         in 
         let types = closureArgTypes @ directArgTypes in
         let fundef = P.specializer fnVal (Signature.from_input_types types) in 
-        SSA.mk_call fundef.fn_id fundef.fn_output_types (closureArgs @ argNodes)   
-      else failwith "array indexing"
+        SSA.mk_call 
+          ?src
+          fundef.fn_id 
+          fundef.fn_output_types 
+          (closureArgs @ argNodes)   
+      else 
+        let nIndices = List.length argNodes in 
+        let arrType = infer_value_node_type fn in 
+        let outTypes = [DynType.slice_type arrType argTypes] in
+        let arrNode = {fn with value_type = arrType} in 
+        SSA.mk_primapp 
+          ?src 
+          (Prim.ArrayOp Prim.Index)
+          outTypes 
+          (arrNode::argNodes)
+        
       
       
   let rewrite_exp 
@@ -189,7 +226,7 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
         in 
         Update {expNode with exp = Values vs'; exp_types = types } 
       | App (fn, args), _ -> 
-        Update (rewrite_app fn.value (annotate_values args))       
+        Update (rewrite_app expNode.exp_src fn (annotate_values args))       
     
   let rec stmt context helpers stmtNode =
     match stmtNode.stmt with
@@ -215,11 +252,12 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
     
 end 
 
-let rewrite_typed tenv closureEnv specializer fundef =
+let rewrite_typed ~tenv ~closureEnv ~specializer ~output_arity ~fundef =
   let module Params = struct
     let tenv = tenv
     let closureEnv = closureEnv 
     let specializer = specializer 
+    let output_arity = output_arity 
   end
   in    
   let module Transform = SSA_Transform.MkCustomTransform(Rewrite_Rules(Params))
