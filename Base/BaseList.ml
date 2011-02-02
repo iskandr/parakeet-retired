@@ -62,3 +62,11 @@ include ExtList.List
   let rec take ?(acc=[]) n lst = 
     if n = 0 then rev acc
     else take ~acc:((hd lst)::acc) (n-1) (tl lst)
+    
+  (* splits a list into its first nth elemenets and the rest *) 
+  let rec split_nth n ?(left=[])  right = match (n,right) with  
+    | (_,[]) -> left, [] 
+    | (0, _) -> List.rev left, right
+    | (1, x::xs) -> List.rev (x::left), xs  (* slight optimization *)   
+    | (n, x::xs) -> split_nth (n-1) ~left:(x::left) xs  
+  

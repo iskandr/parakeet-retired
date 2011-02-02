@@ -75,11 +75,6 @@ module MkAnalysis (P : TYPE_ANALYSIS_PARAMS) = struct
              
     | _ -> assert false
 
-  (* splits a list into its first nth elemenets and the rest *) 
-  let rec split_nth n ?(left=[])  right = match (n,right) with  
-    | (_,[]) -> left, [] 
-    | (0, _) -> List.rev left, right  
-    | (n, x::xs) -> split_nth (n-1) ~left:(x::left) xs  
         
   let infer_higher_order tenv arrayOp args argTypes =
     match arrayOp, args, argTypes with 
@@ -93,11 +88,7 @@ module MkAnalysis (P : TYPE_ANALYSIS_PARAMS) = struct
         List.map (fun t -> DynType.VecT t) eltResultTypes     
     | Prim.Reduce, {value=fnVal}::_, _::argTypes ->
         let arity = P.output_arity fnVal in 
-        let initTypes, vecTypes = split_nth arity argTypes in
-        Printf.printf "Reduce init types: %s; vec types: %s\n"
-          (DynType.type_list_to_str initTypes)
-          (DynType.type_list_to_str vecTypes); 
-        
+        let initTypes, vecTypes = List.split_nth arity argTypes in
         let eltTypes = List.map DynType.peel_vec vecTypes in 
         let accTypes = infer_app tenv fnVal (initTypes @ eltTypes) in
         let accTypes' = infer_app tenv fnVal (accTypes @ eltTypes) in 
