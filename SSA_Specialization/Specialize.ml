@@ -33,6 +33,23 @@ let rec is_scalar_stmt stmtNode = match stmtNode.stmt with
   | _ -> false 
 and is_scalar_block block = SSA.block_for_all is_scalar_stmt block
   
+
+let rec output_arity interpState closures = function 
+  | Var id -> 
+      let fnVal = Hashtbl.find closures id in 
+      output_arity interpState closures fnVal 
+  | GlobalFn fnId -> 
+      let fundef = 
+        if InterpState.is_untyped_function interpState fnId then
+          InterpState.get_untyped_function interpState fnId  
+        else 
+          InterpState.get_typed_function interpState fnId 
+      in  
+      List.length fundef.fn_output_types
+  | Prim p -> 1
+  | _ -> assert false 
+
+    
 let rec specialize_fundef interpState fundef signature = 
   IFDEF DEBUG THEN
     Printf.printf "Specialize_Fundef...\n%!";
@@ -46,23 +63,34 @@ let rec specialize_fundef interpState fundef signature =
      is_scalar_block fundef.body 
   then scalarize_fundef interpState fundef signature 
   else 
-  let fundef', closures = 
+  let fundef', closureEnv = 
     CollectPartialApps.collect_partial_apps interpState fundef 
   in
+  
+  let outputArity : SSA.value -> int = 
+    output_arity interpState closureEnv.CollectPartialApps.closures
+  in
+  let specializer = specialize_value interpState in  
   (* to avoid having to make TypeAnalysis and Specialize recursive 
        modules I've untied the recursion by making specialize_value 
        a parameter of TypeAnalysis. 
-   *)
+   *)  
   let tenv = 
     TypeAnalysis.type_analysis 
-      ~specializer:specialize_value 
-      ~interpState:interpState 
-      ~closureEnv:closures 
+      ~specializer 
+      ~output_arity:outputArity 
+      ~closureEnv 
       ~fundef:fundef' 
       ~signature 
   in
-  let specializer = specialize_value interpState in  
-  let typedFn = RewriteTyped.rewrite_typed tenv closures specializer fundef' in
+  let typedFn = 
+    RewriteTyped.rewrite_typed 
+      ~tenv 
+      ~closureEnv 
+      ~specializer 
+      ~output_arity:outputArity 
+      ~fundef:fundef' 
+  in
   typedFn   
 and scalarize_fundef interpState untypedFundef vecSig =
   let inTypes = Signature.input_types vecSig in 

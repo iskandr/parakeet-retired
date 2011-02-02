@@ -125,15 +125,28 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
         failwith  $ Printf.sprintf "Can't coerce value %s to type %s"
           (SSA.value_node_to_str valNode) (DynType.to_str t)
   
-  let rewrite_adverb src adverb fnVal argNodes argTypes = 
-    let eltTypes = List.map DynType.peel_vec argTypes in 
-    match adverb with 
+  let rewrite_adverb src adverb fnVal argNodes argTypes = match adverb with 
       | Prim.Map -> 
-        let eltSignature = Signature.from_input_types eltTypes in 
-        let primFundef = P.specializer fnVal eltSignature in
-        let primClosure = SSA.mk_closure primFundef [] in 
-        SSA.mk_map primClosure argNodes 
+        let eltTypes = List.map DynType.peel_vec argTypes in 
+        let closure = 
+          mk_typed_closure fnVal (Signature.from_input_types eltTypes) 
+        in 
+        SSA.mk_map closure argNodes 
       | Prim.Reduce -> 
+        let arity = P.output_arity fnVal in 
+        let initArgs, args = List.split_nth arity argNodes in 
+        let initTypes, argTypes = List.split_nth arity argTypes in
+        let eltTypes = List.map DynType.peel_vec argTypes in
+        let initSignature = 
+          Signature.from_input_types (initTypes @ eltTypes)
+        in 
+        let initClosure = mk_typed_closure fnVal initSignature in
+        let accTypes = initClosure.closure_output_types in      
+        let reduceSignature = 
+          Signature.from_types (accTypes @ eltTypes) accTypes 
+        in 
+        let reduceClosure = mk_typed_closure fnVal reduceSignature in 
+        SSA.mk_reduce ?src initClosure reduceClosure argNodes  
         
       | other -> failwith $ (Prim.adverb_to_str other) ^ " not implemented"
   
@@ -239,12 +252,12 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
     
 end 
 
-let rewrite_typed tenv closureEnv specializer outputArity fundef =
+let rewrite_typed ~tenv ~closureEnv ~specializer ~output_arity ~fundef =
   let module Params = struct
     let tenv = tenv
     let closureEnv = closureEnv 
     let specializer = specializer 
-    let output_arity = outputArity 
+    let output_arity = output_arity 
   end
   in    
   let module Transform = SSA_Transform.MkCustomTransform(Rewrite_Rules(Params))

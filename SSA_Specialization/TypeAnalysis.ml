@@ -156,25 +156,11 @@ module MkAnalysis (P : TYPE_ANALYSIS_PARAMS) = struct
  
 end
 
-let rec output_arity interpState closures = function 
-  | Var id -> 
-      let fnVal = Hashtbl.find closures id in 
-      output_arity interpState closures fnVal 
-  | GlobalFn fnId -> 
-      let fundef = 
-        if InterpState.is_untyped_function interpState fnId then
-          InterpState.get_untyped_function interpState fnId  
-        else 
-          InterpState.get_typed_function interpState fnId 
-      in  
-      List.length fundef.fn_output_types
-  | Prim p -> 1
-  | _ -> assert false 
 
 
 let type_analysis 
-      ~(specializer:InterpState.t -> SSA.value-> Signature.t -> SSA.fundef) 
-      ~(interpState:InterpState.t) 
+      ~(specializer:SSA.value-> Signature.t -> SSA.fundef) 
+      ~(output_arity: SSA.value -> int)
       ~(closureEnv:CollectPartialApps.closure_env) 
       ~(fundef:SSA.fundef) 
       ~(signature:Signature.t) =
@@ -183,12 +169,10 @@ let type_analysis
       (fun id -> Hashtbl.find closureEnv.CollectPartialApps.closures id)
     let closure_args = 
       (fun id -> Hashtbl.find closureEnv.CollectPartialApps.closure_args id) 
-    let output_arity = 
-      (output_arity interpState closureEnv.CollectPartialApps.closures)  
+    let output_arity = output_arity  
     let infer_output_types = 
       (fun fnVal fnSig -> 
-        let fundef = specializer interpState fnVal fnSig in 
-        fundef.fn_output_types)
+        let fundef = specializer fnVal fnSig in fundef.fn_output_types)
     let signature = signature  
   end    
   in

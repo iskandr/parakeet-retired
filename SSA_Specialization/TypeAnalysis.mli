@@ -1,10 +1,11 @@
 open SSA
  
 val type_analysis : 
-      specializer:(InterpState.t -> value -> Signature.t -> fundef)->
-      interpState:InterpState.t ->  
+      specializer:(value -> Signature.t -> fundef) ->
+      output_arity:(value->int)->  
       closureEnv:CollectPartialApps.closure_env -> 
       fundef:fundef -> 
       signature:Signature.t -> 
       (ID.t, DynType.t) Hashtbl.t       
+  
   
