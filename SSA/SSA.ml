@@ -67,9 +67,6 @@ and loop_gate = {
   *)
   loop_outputs : ID.t list; 
   
-  (* what variables are assigned in the body of this loop? *) 
-  loop_local_defs : ID.t list;
-  
   (* every loop local variable gets its value either from above the 
      loop on the first iteration, or from a further loop variable on 
      a repeat iteration  

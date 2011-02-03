@@ -74,6 +74,11 @@ let free = function
 (* send a shape vector the gpu *) 
 let shape_to_gpu shape =
   let shapeBytes = Shape.nbytes shape in
+  IFDEF DEBUG THEN 
+    Printf.printf "Sending shape to GPU: %s (%d bytes)\n"
+      (Shape.to_str shape)
+      shapeBytes
+  ENDIF;
   let shapeDevPtr = cuda_malloc shapeBytes in
   let shapeHostPtr = get_array1_ptr $ Shape.to_c_array shape in
   cuda_memcpy_to_device shapeHostPtr shapeDevPtr shapeBytes;

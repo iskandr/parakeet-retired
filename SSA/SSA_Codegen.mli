@@ -37,6 +37,20 @@ val (@@) : value_node -> value_node list -> exp_node
 val scalar_op : Prim.scalar_op -> value_node
 val array_op : Prim.array_op -> value_node 
 
+val plus : value_node  
+val minus : value_node  
+
+val lt : value_node 
+val lte : value_node 
+val eq : value_node  
+
+
+val one : value_node 
+val zero : value_node  
+
+val incr : ID.t -> value_node -> stmt_node   
+val set_int : ID.t -> Int32.t -> stmt_node 
+
 type vars = value_node array 
 val  mk_fn : int -> int -> int -> 
        (vars -> vars -> vars -> stmt_node list) -> fundef

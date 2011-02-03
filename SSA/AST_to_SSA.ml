@@ -39,20 +39,37 @@ module Env = struct
      SSA value-- either Var _ for data or Fn _ for a function   
   *) 
   let rec lookup_ssa env name = match env with 
-  | GlobalScope fnLookup ->  SSA.GlobalFn (fnLookup name)
   | LocalScope (dataEnv, parent) -> 
       if String.Map.mem name dataEnv then 
         SSA.Var (String.Map.find name dataEnv)
       else lookup_ssa parent name
-
+  | GlobalScope fnLookup ->  SSA.GlobalFn (fnLookup name)
+  
   (* assume that we know this name is not of a global function *) 
   let lookup_ssa_id env name  = 
     match lookup_ssa env name with 
     | SSA.Var id -> id 
     | _ -> assert false 
+  
+  let rec lookup_ssa_opt env name = match env with 
+    | LocalScope (map, parent) -> 
+        if String.Map.mem name map then 
+          Some (SSA.Var (String.Map.find name map))
+        else lookup_ssa_opt parent name 
+    | GlobalScope lookup ->
+        (*if the lookup function fails, then name isn't a member of any scope*) 
+        (try Some (SSA.GlobalFn (lookup name)) with _ -> None)
+  
+  let lookup_ssa_id_opt env name = match lookup_ssa_opt env name with 
+    | Some (SSA.Var id) -> Some id 
+    | _ -> None 
+
+  let has_id env name = (lookup_ssa_opt env name) <> None  
+  
 end 
 
 open Env 
+
 
         
 (* value_id is an optional parameter, if it's provided then the generated 
@@ -61,7 +78,7 @@ open Env
 let rec translate_stmt 
           (env:Env.t) 
           (codegen:SSA_Codegen.ssa_codegen) 
-          ?value_id 
+          ?(value_id : ID.t option) 
           (node : AST.node) : Env.t =  
   let mk_stmt s = SSA.mk_stmt ~src:node.AST.src s in
   match node.AST.data with
@@ -73,7 +90,10 @@ let rec translate_stmt
       let mergeIds = ID.gen_fresh_list (List.length mergeNames) in
       let trueCodegen = new SSA_Codegen.ssa_codegen in 
       let falseCodegen = new SSA_Codegen.ssa_codegen in 
-      (* is this If an expression or an effectful statement? *)
+      (* if we need to return a particular value, we track the returned 
+         value along each branch and then set the return var to be the 
+         SSA merge of the two branch values 
+      *)
       let gate = (match value_id with 
       | Some valId -> 
           let trueRetId = ID.gen () in
@@ -120,17 +140,56 @@ let rec translate_stmt
       );
       add_data_binding rhsEnv name id  
        
-  | AST.Block [] ->  env         
-  | AST.Block [node] -> translate_stmt env codegen ?value_id node
-  | AST.Block (node::nodes) ->
-      let nodeEnv = translate_stmt env codegen node in
-      let restNode = {node with AST.data = AST.Block nodes } in 
-      translate_stmt nodeEnv codegen ?value_id restNode 
+  
+  | AST.Block nodes  -> translate_block env codegen ?value_id nodes  
   | AST.SetIdx(name, indices, rhs) -> failwith "setidx not implemented"
   | AST.WhileLoop(cond,code) -> failwith "while loop not implemented"
-  | AST.CountLoop(upper,code) -> 
+  | AST.CountLoop(upper,body) ->
+    (* store the upper loop limit in a fresh ID *)  
+      let upperId = ID.gen() in 
+      let upperVar = SSA.mk_var upperId in 
+      let env' = translate_stmt env codegen ~value_id:upperId upper in  
+      (* SSA form requires the counter variable to carry three distinct IDs:
+           - before the loop starts
+           - merge information at the beginning of the loop 
+           - update counter value 
+      *)  
+      let initCounterId = ID.gen() in 
+      let startCounterId = ID.gen() in
+      let endCounterId = ID.gen() in        
+      (* initialize loop counter to 1 *)
+      codegen#emit [SSA_Codegen.set_int initCounterId 0l];
+        
+      let condId = ID.gen() in
+      let startCounterVar = SSA.mk_var startCounterId in 
+      let compNode = 
+        SSA.mk_app SSA_Codegen.lt [startCounterVar; upperVar] 
+      in 
+      let condBlock = SSA.block_of_stmt (SSA.mk_set [condId] compNode) in
+      let bodyCodegen = new SSA_Codegen.ssa_codegen in 
+      (* update the body codegen and generate a loop gate *)
+      let loopGate = translate_loop_body env' bodyCodegen body  in
+      (* incremenet counter and add SSA gate for counter to loopGate *)
+      bodyCodegen#emit [SSA_Codegen.incr endCounterId startCounterVar]; 
+      let loopGate' = { loopGate with 
+        loop_header_map = 
+          ID.Map.add 
+            startCounterId 
+            (initCounterId, endCounterId) 
+            loopGate.loop_header_map
+      }        
+      in 
+      let bodyBlock = bodyCodegen#finalize in
+      let condVar = SSA.mk_var condId in  
+      codegen#emit [
+        SSA.mk_stmt (SSA.WhileLoop(condBlock, condVar, bodyBlock, loopGate'))
+      ]; 
+      (* TODO: 
+         we should maintain a different SSA environment after the loop
+      *)  
+      env'
       
-      failwith "count loop not implemented"
+       
   | simple ->  
       let env', exp = translate_exp env codegen node in
       (* simple values shouldn't contain any statements *) 
@@ -139,7 +198,70 @@ let rec translate_stmt
         | None -> codegen#emit [mk_stmt $ Set([], exp)]
       );
       env'
-
+and translate_loop_body envBefore codegen body : SSA.loop_gate = 
+  let bodyDefs = body.ast_info.defs_local in
+  let bodyUses = body.ast_info.reads_local in
+  let overlap = PSet.inter bodyDefs bodyUses in 
+  let overlapList = PSet.to_list overlap in 
+  let overlapIds = ID.gen_fresh_list (List.length overlapList) in
+  (* give a unique ID to every variable which is both 
+     read and modified in the loop body 
+   *) 
+  let envOverlap = add_data_bindings envBefore overlapList overlapIds in
+  (* translate the body of the loop, using SSA IDs of variables 
+     defined before loop and the recently created IDs of variables 
+     which feed back into the loop
+  *)  
+  let envEnd = translate_stmt envOverlap codegen body in
+  (* At the end of the loop, 
+     what are the IDs of variables which are both read and written to?
+  *)
+  let overlapFinalIds = List.map (lookup_ssa_id envEnd) overlapList in
+  let bodyDefsList = PSet.to_list bodyDefs in
+  let build_output_map (gateMap, ids) name = 
+    (* what ID does this var have at the end of the loop? *) 
+    let loopId = lookup_ssa_id envEnd name in 
+    (* if ID was defined before loop, then have to merge outputs *) 
+    match lookup_ssa_id_opt envBefore name with 
+      | None -> gateMap, loopId::ids 
+      | Some prevId ->
+          let freshId = ID.gen() in 
+          ID.Map.add freshId (prevId, loopId) gateMap, freshId::ids
+  in 
+  let outputMap, outputIds = 
+     List.fold_left build_output_map (ID.Map.empty,[]) bodyDefs
+  in  
+  (* the CORRECT thing to do for input gates would be to create gates for 
+     variables which are read before being defined in the body. 
+     For now, just use the overlap list of variables which are both read and 
+     defined. 
+  *)     
+  let build_input_map gateMap name =
+    match lookup_ssa_id_opt envBefore name with 
+      | None -> assert false
+      | Some prevId ->
+        (* ID of variable at start of loop *)  
+        let loopStartId = lookup_ssa_id envOverlap name in
+        let loopEndId = lookup_ssa_id envEnd name in  
+        ID.Map.add loopStartId (prevId, loopEndId) gateMap 
+  in 
+  let inputMap  = List.fold_left build_input_map ID.Map.empty overlapList in
+  (*let build_final_env accEnv name = 
+    
+  let envAfter =
+    *) 
+  { 
+    loop_outputs = outputIds;  
+    loop_header_map = inputMap;
+    loop_output_map = outputMap;   
+  }
+  
+and translate_block env codegen ?value_id = function 
+  | [] -> env
+  | node::nodes -> 
+      let nodeEnv = translate_stmt env ?value_id codegen node in
+      translate_block nodeEnv codegen ?value_id nodes 
+      
 and translate_exp env codegen node =
   let mk_exp e = 
     { exp= e; exp_src=Some node.src; exp_types=[DynType.BottomT]} 

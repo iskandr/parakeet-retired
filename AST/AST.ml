@@ -161,13 +161,13 @@ let rec node_to_str ?(inBlock=false) node =
   | Num (Float32 f) -> Float.to_string f ^ "e"
   | Num n -> num_to_str n 
   | Str str -> "\"" ^ (String.escaped str)  ^ "\""
-  | App ({data=Prim (ArrayOp _ as p)}, [fnArg; arg1; arg2])
-  | App ({data=App({data=Prim (ArrayOp _ as p)}, [])}, [fnArg; arg1; arg2])
-  | App ({data=App({data=Prim (Adverb _  as p)}, [fnArg])}, [arg1; arg2]) ->
+  | App ({data=Prim (Adverb p)}, [fnArg; arg1; arg2])
+  | App ({data=App({data=Prim (Adverb p)}, [])}, [fnArg; arg1; arg2])
+  | App ({data=App({data=Prim (Adverb p)}, [fnArg])}, [arg1; arg2]) ->
      sprintf "%s %s%s %s"
         (node_to_str arg1)
         (node_to_str fnArg)
-        (Prim.prim_to_str p)
+        (Prim.adverb_to_str p)
         (node_to_str arg2)
       
   | App(fn,args) -> 

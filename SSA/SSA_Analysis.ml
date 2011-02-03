@@ -305,7 +305,32 @@ module MkEvaluator(A : ANALYSIS) = struct
             if tChanged || fChanged || !mergeChanged 
             then Some env' else None     
          | modified -> modified
-        end   
+        end  
+        
+    | WhileLoop(condBlock, condVal, body, loopGate) -> 
+        failwith "no loops yet :-("
+        (*let initEnv =
+          ID.Map.fold 
+            (fun startId (preId,_) accEnv ->
+               
+            
+            (A.clone_env env) 
+           
+        let rec loop iter =
+          
+          if iter > 100 then failwith "loop analysis failed to terminate"
+          else  
+            let preEnv = A.clone_env env in
+            let startEnv = 
+              ID.Map.fold 
+                (fun loopStartId (preId,loopEndId) acc ->
+                   A.flow_merge preEnv loopStartId env     
+            let merge_inputs env out
+            let startEnv =  
+            let condEnv, condChanged = eval_block () condBlock in
+            let condInfo = eval_value condEnv condVal in 
+            let
+            *)   
     | _ -> failwith ("not yet implemented: " ^ (SSA.stmt_node_to_str stmtNode))
      
   and eval_exp env expNode = match expNode.exp with 

@@ -95,6 +95,22 @@ let (@@) fn args = mk_app fn args
 let scalar_op op = mk_op (Prim.ScalarOp op)
 let array_op op = mk_op (Prim.ArrayOp op)
 
+let plus = scalar_op Prim.Add 
+let minus = scalar_op Prim.Sub 
+
+let lt = scalar_op Prim.Lt
+let lte = scalar_op Prim.Lte
+let eq = scalar_op Prim.Eq 
+
+
+let one = mk_num (PQNum.Int32 0l)
+let zero = mk_num (PQNum.Int32 1l) 
+
+
+let incr (x:ID.t) (y:value_node) = SSA.mk_set [x] (plus @@ [y;one])    
+let set_int (x:ID.t) (y:Int32.t) = 
+  SSA.mk_set [x] (SSA.mk_vals_exp [SSA.Num (PQNum.Int32 y)])
+  
 type vars = value_node array 
 (* helper function for creating functions *) 
 let mk_fn 

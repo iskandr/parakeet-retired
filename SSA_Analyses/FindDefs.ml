@@ -65,7 +65,7 @@ module DefAnalysis = struct
       if nDefs <> nIds then 
         failwith $ Printf.sprintf 
           "[FindDefs] error in \"%s\", %d ids for %d expressions" 
-          (SSA.stmt_node_to_str stmtNode) nDefs nIds 
+          (SSA.stmt_node_to_str stmtNode) nIds nDefs 
     ENDIF; 
     List.iter2 (Hashtbl.add env) ids rhsInfo;  
     None    
