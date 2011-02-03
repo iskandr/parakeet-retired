@@ -5,18 +5,18 @@ open DynType
 open Imp
 open ImpCodegen
 
-let gen_reduce_2d_capable payload threadsPerBlock outTypes =
+let gen_reduce_2d_capable payload threadsPerBlock =
   (* For now only works on 1D and 2D inputs *)
   
   let codegen = new imp_codegen in
-  (* THIS ASSUMPTION SUCKS: You might output different values than your inputs*)
-  let ty = List.hd outTypes in
+  assert (Array.length payload.output_types = 2);
+  (* assume result of reduction is same as elements of vector *) 
+  let ty = payload.output_types.(1) in 
   let input = codegen#fresh_input (VecT ty) in
   let eltype = DynType.elt_type ty in
   IFDEF DEBUG THEN
     Printf.printf 
       "Creating reduce kernel with output types %s with payload (%s) -> (%s)\n"
-      (DynType.type_list_to_str outTypes)
       (DynType.type_array_to_str payload.input_types)
       (DynType.type_array_to_str payload.output_types);
   ENDIF;  
@@ -120,9 +120,10 @@ let gen_reduce_2d_capable payload threadsPerBlock outTypes =
   codegen#finalize
 
 (* reduces each block's subvector to a single output element *) 
-let gen_reduce_old payload threadsPerBlock outTypes =
-  assert (List.length outTypes = 1);
-  let ty = List.hd outTypes in
+let gen_reduce_old payload threadsPerBlock =
+  assert (Array.length payload.output_types = 2);
+  (* assume result of reduction is same as elements of vector *) 
+  let ty = payload.output_types.(1) in
   let codegen = new imp_codegen in
   let input = codegen#fresh_input (VecT ty) in
   let eltype = DynType.elt_type ty in

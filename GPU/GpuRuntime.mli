@@ -1,21 +1,21 @@
 
+module type GPU_RUNTIME_PARAMS = sig 
+  val fnTable : FnTable.t 
+  val memState : MemoryState.t 
+end
 
+type value = GpuVal.gpu_val 
+type values = value list 
 
-(* given a memstate, fntable, function definition, 
-   closure arguments, direct map arguments and output types, 
-   return gpu values 
-*) 
-val run_map : 
-  FnTable.t -> SSA.fundef -> 
-    GpuVal.gpu_val list -> GpuVal.gpu_val list -> 
-    DynType.t list -> GpuVal.gpu_val list     
+module Mk(P:GPU_RUNTIME_PARAMS) : sig
+  val map : payload:SSA.fundef ->  closureArgs:values -> args:values -> values 
+  val reduce : 
+    init:SSA.fundef -> initClosureArgs:values ->
+    payload:SSA.fundef -> payloadClosureArgs:values -> 
+    args:values -> values  
+  
+  val where : value -> value 
+  val index : value -> value -> value   
+end 
 
-val implements_array_op : Prim.array_op -> bool 
-                                
-
-val eval_array_op :  
-     MemoryState.t -> FnTable.t ->  Prim.array_op -> 
-        InterpVal.t list -> DynType.t list -> InterpVal.t list 
-
-val eval_map : MemoryState.t -> FnTable.t -> SSA.fundef -> 
-  InterpVal.t list -> InterpVal.t list -> DynType.t list -> InterpVal.t list    
+              
