@@ -184,6 +184,9 @@ CAMLprim value ocaml_pq_launch_ptx (
             result,  i, num_args);
         exit(1);
       }
+#ifdef DEBUG
+  printf("Sent array arg to kernel at ptr %x\n", ptr_arg);
+#endif
       offset += sizeof(void*);
 
     } else if (Tag_val(ocaml_gpu_arg) == PQNUM_GPU_SCALAR_ARG) {
@@ -194,7 +197,9 @@ CAMLprim value ocaml_pq_launch_ptx (
       int64_t int64_val;
       float f;
       double d;
-
+#ifdef DEBUG
+  printf("Sending scalar arg to kernel\n");
+#endif
       switch (pqnum_tag) {
 
       case PQNUM_INT32:

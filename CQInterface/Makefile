@@ -91,6 +91,7 @@ ImpToPtx.cmx \
 SSA_to_Imp.cmx \
 ImpShapeInference.cmx \
 QType.cmx HardwareInfo.cmx \
+PtxCallingConventions.cmx \
 GpuRuntime.cmx \
 QStdLib.cmx \
 GpuCost.cmx \

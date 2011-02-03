@@ -252,7 +252,7 @@ class imp_codegen =
       | DimSize (i, arg) -> 
           let stmts, arg' = flatten_arg arg in
           let expNode' = {expNode with exp = DimSize(i,arg') } in 
-         stmts, expNode'   
+          stmts, expNode'   
       | Idx (lhs, rhs) ->
           let lhsStmts, lhs' = flatten_arg lhs in 
           let rhsStmts, rhs' = flatten_arg rhs in
@@ -282,19 +282,11 @@ class imp_codegen =
        into their own statements 
     *) 
     method private flatten_stmt (stmt : Imp.stmt) : Imp.stmt list =
-      (*
-      IFDEF DEBUG THEN
-        Printf.printf "[ImpCodegen] flattening {%d}: %s\n"  
-          (Hashtbl.length types)  
-          (Imp.stmt_to_str stmt)
-      ENDIF;
-      *)
       let flatten_block block = 
-          List.rev $ 
-                List.fold_left 
-                  (fun acc stmt -> (self#flatten_stmt stmt) @ acc) 
-                  [] 
-                  block
+        let dynArray = DynArray.create () in
+        let add_stmts = List.iter (DynArray.add dynArray) in  
+        List.iter (fun stmt-> add_stmts (self#flatten_stmt stmt)) block;
+        DynArray.to_list dynArray 
       in 
       match stmt with 
       | If (cond, tBlock, fBlock) -> 

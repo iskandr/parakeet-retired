@@ -245,7 +245,7 @@ let translate_kernel ?input_spaces (impfn : Imp.fn) =
     (* if we have no preferences about the space our inputs live in, 
        put all scalars in PARAM and all vectors in GLOBAL 
     *) 
-    | None -> 
+    | _ -> 
        Array.map
          (fun t -> if DynType.is_scalar t then PtxVal.PARAM else PtxVal.GLOBAL) 
          impfn.input_types

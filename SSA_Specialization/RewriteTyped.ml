@@ -28,7 +28,7 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
         List.map (Hashtbl.find P.tenv) f.output_ids;   
     } 
 
-  let get_type id = print_string $ "get_type " ^ (string_of_int id) ^ "\n"; Hashtbl.find P.tenv id 
+  let get_type id = Hashtbl.find P.tenv id 
   let set_type id t = Hashtbl.replace P.tenv id t 
   
   let is_closure id = Hashtbl.mem P.closureEnv.CollectPartialApps.closures id
