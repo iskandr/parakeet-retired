@@ -28,7 +28,7 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
         List.map (Hashtbl.find P.tenv) f.output_ids;   
     } 
 
-  let get_type id = Hashtbl.find P.tenv id 
+  let get_type id = print_string $ "get_type " ^ (string_of_int id) ^ "\n"; Hashtbl.find P.tenv id 
   let set_type id t = Hashtbl.replace P.tenv id t 
   
   let is_closure id = Hashtbl.mem P.closureEnv.CollectPartialApps.closures id
@@ -43,17 +43,14 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
     Hashtbl.find P.closureEnv.CollectPartialApps.closure_arity id   
   
   let infer_value_type = function 
-    | Var id -> get_type id 
+    | Var id -> if is_closure id then DynType.BottomT else get_type id 
     | Num n -> PQNum.type_of_num n 
     | Str _ -> DynType.StrT
     | Sym _ -> DynType.SymT
     | Unit -> DynType.UnitT
     | other -> DynType.BottomT 
-      
   
   let infer_value_node_type valNode = infer_value_type valNode.value   
-               
- 
   
   (* keeps only the portion of the second list which is longer than the first *) 
   let rec keep_tail l1 l2 = 
@@ -61,7 +58,11 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
     else if l2 = [] then [] 
     else keep_tail (List.tl l1) (List.tl l2) 
      
-  let mk_typed_closure fnVal signature = match fnVal with 
+  let mk_typed_closure fnVal signature = 
+    Printf.printf "RewriteTyped->mk_typed_closure %s : %s\n" 
+      (SSA.value_to_str fnVal) (Signature.to_str signature)
+    ;  
+    match fnVal with 
     | Var id ->
       let closureArgs = get_closure_args id in  
       let closureArgTypes = List.map infer_value_node_type closureArgs in 
@@ -263,6 +264,6 @@ let rewrite_typed ~tenv ~closureEnv ~specializer ~output_arity ~fundef =
   let module Transform = SSA_Transform.MkCustomTransform(Rewrite_Rules(Params))
   in 
   IFDEF DEBUG THEN
-    Printf.printf "Rewrite Typed...\n%!";
+    Printf.printf "Rewrite Typed: %s \n%!" (SSA.fundef_to_str fundef);
   ENDIF;
   let fundef, _ = Transform.transform_fundef fundef in fundef   

@@ -278,24 +278,3 @@ let eval globalFns fundef hostVals =
   MemoryState.free_all_gpu memState;
   hostVals
 
-(*
-module type INTERP = sig 
-  type source_info (* attach this as the type param of SourceInfo.t *) 
-  val eval : InterpState.t -> MemoryState.t -> env ->  SSA.stmt_node -> env    
-end
-
-type 'a closure = SSA.fundef * 'a 
-
-module type BACKEND = sig 
-  type data 
-  
-  val to_device : HostVal.host_val -> data 
-  val from_device : data -> HostVal.host_val 
-  
-  val map : data closure -> data list -> data list 
-  val reduce : data closure -> data closure -> data list -> data list
-  val scan : data closure -> data closure -> data list -> data list
-  
-  val array_op : Prim.array_op -> data list -> data list     
-end
-*)

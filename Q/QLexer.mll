@@ -79,7 +79,7 @@ and token = parse
        single_comment lexbuf
     else ADVERB str 
   }
-  | newline whitespace* '/' { Printf.printf "comment1\n"; incr_lineno lexbuf; single_comment lexbuf }
+  | newline whitespace* '/' { incr_lineno lexbuf; single_comment lexbuf }
   |  '/'  {  single_comment lexbuf } (*whitespace+*)
   
   | control as str { CONTROL str }

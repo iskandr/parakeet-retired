@@ -9,9 +9,10 @@ let gen_reduce_2d_capable payload threadsPerBlock =
   (* For now only works on 1D and 2D inputs *)
   
   let codegen = new imp_codegen in
-  assert (Array.length payload.output_types = 2);
+  assert (Array.length payload.input_types = 2);
+  assert (Array.length payload.output_types = 1);
   (* assume result of reduction is same as elements of vector *) 
-  let ty = payload.output_types.(1) in 
+  let ty = payload.output_types.(0) in 
   let input = codegen#fresh_input (VecT ty) in
   let eltype = DynType.elt_type ty in
   IFDEF DEBUG THEN
