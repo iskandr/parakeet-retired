@@ -75,7 +75,13 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
     let inputShapes = List.map GpuVal.get_shape inputs in 
     let shapeEnv = ImpShapeInference.infer_shapes impfn inputShapes in
     let process_input env id gpuVal =
+      
       let location = ID.Map.find id cc.PtxCallingConventions.data_locations in
+      IFDEF DEBUG THEN 
+        Printf.printf "Creating GPU argument for %s at location %s\n"
+          (ID.to_str id)
+          (PtxCallingConventions.loc_to_str location);
+      ENDIF; 
       let gpuArgs = create_input_args modulePtr gpuVal location in
       ID.Map.add id gpuArgs env
     in  
