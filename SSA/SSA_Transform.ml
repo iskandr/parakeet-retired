@@ -134,16 +134,7 @@ module MkCustomTransform(R : CUSTOM_TRANSFORM_RULES) = struct
     | Forward -> 
         for i = 0 to n - 1 do
           let stmtNode = block_idx block i  in 
-          (*Printf.printf "Curr stmt in block: %s\n"
-            (SSA.stmt_node_to_str stmtNode)
-          ; 
-          *)
           let stmtUpdate = rewriteStmt helpers stmtNode in
-          (*Printf.printf "Curr stmt update: %s => %s\n"
-            (SSA.stmt_node_to_str stmtNode)
-            (stmt_update_to_str stmtUpdate)
-          ;
-          *)
           BlockState.process_stmt_update blockState stmtNode stmtUpdate
         done 
     | Backward ->  
@@ -284,9 +275,6 @@ module CustomFromSimple(R: SIMPLE_TRANSFORM_RULES) = struct
     let stmtNode' = match stmtNode.stmt with 
     | Set (ids, rhsExpNode) ->
       let rhsExpNode' = transform_exp helpers cxt rhsExpNode in
-      (*
-        Printf.printf "===> %s (%b)\n" (SSA.exp_to_str rhsExpNode') (changed());
-      *) 
       if changed() then {stmtNode with stmt=Set(ids, rhsExpNode') }
       else stmtNode 
      

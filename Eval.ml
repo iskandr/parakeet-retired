@@ -47,20 +47,30 @@ module Mk(P : EVAL_PARAMS) = struct
     !currEnv 
   
   and eval_stmt (env : env) (stmtNode : SSA.stmt_node) : env = 
-   IFDEF DEBUG THEN
-        Printf.printf "[eval_stmt] %s\n" (SSA.stmt_node_to_str stmtNode);
-  ENDIF;       
-  match stmtNode.stmt with 
-  | Set (ids, expNode) ->
+    IFDEF DEBUG THEN
+      Printf.printf "[eval_stmt] %s\n" (SSA.stmt_node_to_str stmtNode);
+    ENDIF;       
+    match stmtNode.stmt with 
+    | Set (ids, expNode) ->
       let results =  eval_exp env expNode in
       IFDEF DEBUG THEN
         debug "[eval_stmt] after eval_exp\n";
         assert (List.length ids = List.length results); 
       ENDIF; 
       ID.Map.extend env ids results 
-  | SetIdx (id, indices, rhs) -> failwith "not yet implemented"   
-  | If (boolVal, tBlock, fBlock, ifGate) -> failwith "not yet implemented"
-  
+    | SetIdx (id, indices, rhs) -> failwith "not yet implemented"   
+    | If (boolVal, tBlock, fBlock, ifGate) -> failwith "not yet implemented"
+    | WhileLoop (condBlock, condVal, body, gate) ->
+      let env' = eval_block env condBlock in 
+      (match eval_value env condVal with 
+        | InterpVal.Scalar (PQNum.Bool true) -> 
+            let env' = eval_block env body in 
+            eval_stmt env' stmtNode (* loop implemented via recursive call *)    
+        | InterpVal.Scalar (PQNum.Bool false) -> 
+            env (* not handling SSA gate properly *)  
+        | _ -> failwith "expected boolean value for loop condition" 
+      ) 
+         
 and eval_exp (env : env) (expNode : SSA.exp_node) : InterpVal.t list = 
   match expNode.exp with 
   | Values valNodes -> List.map (eval_value env) valNodes
@@ -221,7 +231,7 @@ and eval_exp (env : env) (expNode : SSA.exp_node) : InterpVal.t list =
 
            
   and eval_map env ~payload closureArgs argVals =
-    Printf.printf "Running MAP on host!\n";
+    IFDEF DEBUG THEN Printf.printf "Running MAP on host!\n"; ENDIF; 
     let dataShapes = List.map (MemoryState.get_shape P.memState) argVals in
     let maxShape = match Shape.max_shape_list dataShapes with 
     | Some maxShape -> maxShape 
@@ -236,15 +246,15 @@ and eval_exp (env : env) (expNode : SSA.exp_node) : InterpVal.t list =
     let nOutputs = Array.length outputIds in  
     let allResults = Array.init nOutputs  (fun _ -> DynArray.create ()) in
     let get_slice idx v =
-      Printf.printf "Getting slice %d\n%!" idx;  
+      IFDEF DEBUG THEN 
+        Printf.printf "Getting slice %d\n%!" idx;
+      ENDIF;   
       let t = MemoryState.get_type P.memState v in 
       if DynType.is_vec t then MemoryState.slice P.memState v idx
       else v    
     in 
     for elt = 0 to n - 1 do
-      Printf.printf "Iteration %d\n" elt; 
       let slices = List.map (get_slice elt) argVals in
-      Printf.printf "Got slice!\n%!";  
       let inputs = (closureArgs @ slices) in
       let currResults = 
         Array.of_list (eval_app env payload inputs)

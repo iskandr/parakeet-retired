@@ -128,7 +128,9 @@ let rec translate_stmt
       translate_stmt nodeEnv codegen ?value_id restNode 
   | AST.SetIdx(name, indices, rhs) -> failwith "setidx not implemented"
   | AST.WhileLoop(cond,code) -> failwith "while loop not implemented"
-  | AST.CountLoop(upper,code) -> failwith "count loop not implemented"
+  | AST.CountLoop(upper,code) -> 
+      
+      failwith "count loop not implemented"
   | simple ->  
       let env', exp = translate_exp env codegen node in
       (* simple values shouldn't contain any statements *) 

@@ -103,18 +103,23 @@ compound_exp:
    { mk $ ControlExp (control, args) }  
 | arg1=simple_exp; op=simple_exp; adverb=ADVERB; arg2=compound_exp
    { mk $ AppExp(mk $ Id adverb, [op; arg1; arg2]) }
- 
+
 
 amend: 
 | name=ID; COLON rhs=compound_exp { mk $ DefExp(name, rhs) }
 | name=ID; binop=BINOP_AMEND; rhs=compound_exp 
   { mk $ DefExp (name, mk $ AppExp (mk $ Id binop, [mk $ Id name; rhs])) }    
 
-args_list: 
- | args = separated_list(args_sep, compound_exp) { args } 
+arg: 
+ | c = compound_exp { c }
+ | b=inline_block { b } 
 
 args_sep: 
  | SEMICOLON EOL* { } 
+
+args_list: 
+ | args = separated_list(args_sep, arg) { args } 
+
 
 simple_exp:
 /* tighter binding form of function application */
@@ -134,6 +139,7 @@ simple_exp:
 | str = STR { mk $ StrLit str } 
 | sym = SYM { mk $ SymLit sym }
 | op=BINOP { mk $ Id op }  
+
 
 
 /* uniform vector or number */ 
@@ -186,3 +192,5 @@ formals_list:
 block: 
 | items = separated_nonempty_list(sep+, compound_exp) { mk $ BlockExp items }  
 
+inline_block:
+| LBRACKET items = separated_nonempty_list(SEMICOLON, compound_exp) RBRACKET { mk $ BlockExp items }  
