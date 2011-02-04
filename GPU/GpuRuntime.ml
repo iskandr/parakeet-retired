@@ -153,11 +153,11 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
     in 
     let cacheKey = (payload.SSA.fn_id, closureTypes @ inputTypes) in  
     let {imp_source=impKernel; cc=cc; cuda_module=cudaModule} = 
-    if Hashtbl.mem mapCache cacheKey then Hashtbl.find mapCache cacheKey
-    else (
-      let entry = compile_map payload closureTypes inputTypes outputTypes in
-      Hashtbl.add mapCache cacheKey entry; 
-      entry
+      if Hashtbl.mem mapCache cacheKey then Hashtbl.find mapCache cacheKey
+      else (
+        let entry = compile_map payload closureTypes inputTypes outputTypes in
+        Hashtbl.add mapCache cacheKey entry; 
+        entry
     )  
   in
   let paramsArray, outputVals =
