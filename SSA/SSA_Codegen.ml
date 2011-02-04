@@ -85,18 +85,28 @@ let mk_codegen_fn
     ~output_ids:outputIds 
     
     
-let reduce = mk_op  (Prim.Adverb Prim.Reduce) 
-let map = mk_op (Prim.Adverb Prim.Map)
-let inf = mk_num (PQNum.Inf DynType.Float32T)
-let neginf = mk_num (PQNum.NegInf DynType.Float32T)
 
 let (:=) xs y = mk_set (List.map SSA.get_id xs) y 
 let (@@) fn args = mk_app fn args  
 let scalar_op op = mk_op (Prim.ScalarOp op)
 let array_op op = mk_op (Prim.ArrayOp op)
 
+let reduce = mk_op  (Prim.Adverb Prim.Reduce) 
+let map = mk_op (Prim.Adverb Prim.Map)
+let allPairs = mk_op (Prim.Adverb Prim.AllPairs) 
+
+let where = mk_op (Prim.ArrayOp Prim.Where) 
+let index = mk_op (Prim.ArrayOp Prim.Index) 
+let til = mk_op (Prim.ArrayOp Prim.Til) 
+let find = mk_op (Prim.ArrayOp Prim.Find)
+
+let inf = mk_num (PQNum.Inf DynType.Float32T)
+let neginf = mk_num (PQNum.NegInf DynType.Float32T)
+
+
 let plus = scalar_op Prim.Add 
 let minus = scalar_op Prim.Sub 
+let mul = scalar_op Prim.Mult  
 
 let lt = scalar_op Prim.Lt
 let lte = scalar_op Prim.Lte
