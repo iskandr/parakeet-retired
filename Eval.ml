@@ -106,7 +106,7 @@ and eval_exp (env : env) (expNode : SSA.exp_node) : InterpVal.t list =
         List.map (eval_value env) args 
       in 
       let gpuCost = GpuCost.map P.memState closureArgVals argVals fundef in  
-      let 100000000000 = CpuCost.map P.memState closureArgVals argVals fundef in
+      let cpuCost = 100000000000 in 
       (if gpuCost < cpuCost then 
         let gpuResults = 
           GpuEval.map 

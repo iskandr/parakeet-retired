@@ -355,14 +355,6 @@ class imp_codegen =
       
     method fresh_input_id t =
       let id = self#fresh_id t in
-      (*
-      IFDEF DEBUG THEN 
-        Printf.printf "[ImpCodegen] Creating input %d : %s\n"
-          id
-          (DynType.to_str t)
-        ;
-      ENDIF;
-      *) 
       MutableSet.add inputSet id; 
       DynArray.add inputs (id,t);
       id 
