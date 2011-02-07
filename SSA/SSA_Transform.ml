@@ -1,8 +1,6 @@
 open Base 
 open SSA 
 
-
-
 type direction = Forward | Backward
 
 type 'a update =
@@ -54,7 +52,8 @@ module BlockState = struct
   }
 
   let finalize blockState = 
-    DynArray.to_array blockState.stmts, blockState.changes > 0
+    Block.of_array (DynArray.to_array blockState.stmts),
+    blockState.changes > 0
 
   (* add statement to block unless it's a no-op *)  
   let add_stmt blockState stmtNode = 
@@ -65,7 +64,7 @@ module BlockState = struct
     List.iter (add_stmt blockState) stmts 
   
   let add_block blockState block = 
-    block_iter_forward (add_stmt blockState) block 
+    Block.iter_forward (add_stmt blockState) block 
   
   let incr_changes blockState = 
     blockState.changes <- blockState.changes + 1 
@@ -129,17 +128,17 @@ module MkCustomTransform(R : CUSTOM_TRANSFORM_RULES) = struct
     
     }
     in  
-    let n = SSA.block_length block in
+    let n = Block.length block in
     (match R.dir with 
     | Forward -> 
         for i = 0 to n - 1 do
-          let stmtNode = block_idx block i  in 
+          let stmtNode = Block.idx block i  in 
           let stmtUpdate = rewriteStmt helpers stmtNode in
           BlockState.process_stmt_update blockState stmtNode stmtUpdate
         done 
     | Backward ->  
         for i = n-1 downto 0 do 
-          let stmtNode = block_idx block i  in 
+          let stmtNode = Block.idx block i  in 
           let stmtUpdate = rewriteStmt helpers stmtNode in
           BlockState.process_stmt_update blockState stmtNode stmtUpdate
         done  
@@ -167,9 +166,9 @@ module MkCustomTransform(R : CUSTOM_TRANSFORM_RULES) = struct
       | NoChange -> fundef', changed
       | Update fundef'' -> fundef'', true 
       | UpdateWithStmts (fundef'', stmts) -> 
-        { fundef'' with body = block_append (block_of_list stmts) body'}, true   
+        { fundef'' with body = Block.append (Block.of_list stmts) body'}, true   
       | UpdateWithBlock (fundef'', block) ->
-        { fundef'' with body = block_append block body' }, true     
+        { fundef'' with body = Block.append block body' }, true     
 end 
 
 module CustomFromSimple(R: SIMPLE_TRANSFORM_RULES) = struct
@@ -272,6 +271,7 @@ module CustomFromSimple(R: SIMPLE_TRANSFORM_RULES) = struct
   let rec stmt cxt helpers stmtNode =
     let oldV = helpers.version () in
     let changed () = helpers.version () <> oldV in
+    
     let stmtNode' = match stmtNode.stmt with 
     | Set (ids, rhsExpNode) ->
       let rhsExpNode' = transform_exp helpers cxt rhsExpNode in
@@ -284,19 +284,25 @@ module CustomFromSimple(R: SIMPLE_TRANSFORM_RULES) = struct
       if changed() then 
         {stmtNode with stmt=SetIdx(id, indices', rhsVal')} 
       else stmtNode 
-    | If (v, tBlock, fBlock, ifGate) -> 
-      let v' = transform_value helpers cxt v in 
+    | If (cond, tBlock, fBlock, merge) ->  
+      let cond' = transform_value helpers cxt cond  in
       let tBlock' = helpers.process_block (stmt cxt) tBlock in 
       let fBlock' = helpers.process_block (stmt cxt) fBlock in 
+      let merge' = helpers.process_block (stmt cxt) merge in
       if changed() then 
-        { stmtNode with stmt = If(v', tBlock', fBlock', ifGate) }
+        { stmtNode with stmt = If(cond',tBlock',fBlock',merge')  }
       else stmtNode  
-    | WhileLoop (condBlock, condVal, bodyBlock, loopGate) ->
-      let condBlock' = helpers.process_block (stmt cxt) condBlock in
-      let condVal' = transform_value helpers cxt condVal in  
-      let bodyBlock' = helpers.process_block (stmt cxt) bodyBlock in 
-      if changed() then 
-        { stmtNode with stmt=WhileLoop(condBlock',condVal',bodyBlock',loopGate)}
+    | WhileLoop (test, body, gates) ->
+      let self = stmt cxt in 
+      let testBlock' = helpers.process_block self test.test_block in
+      let testVal' = transform_value helpers cxt test.test_value in  
+      let bodyBlock' = helpers.process_block self body in
+      let header' = helpers.process_block self gates.loop_header in 
+      let exit' = helpers.process_block self gates.loop_exit in 
+      if changed() then
+        let test' = { test_block = testBlock'; test_value = testVal' } in 
+        let gates' = { loop_header = header'; loop_exit = exit' } in 
+        { stmtNode with stmt=WhileLoop(test',bodyBlock',gates')}
       else stmtNode 
     in
     match R.stmt cxt stmtNode' with 

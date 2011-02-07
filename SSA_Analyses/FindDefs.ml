@@ -28,18 +28,16 @@ module DefLattice = struct
     | d, Combine defs -> Combine (d::defs)
     
   let eq = (=)
-end
-
-module ExpInfo = struct 
-  include SSA_Analysis.MkListLattice(DefLattice)
-  let mk_default expNode = match expNode.exp with 
+  
+  let exp_default expNode =  match expNode.exp with 
     | Values vs -> List.map (fun v -> DefLattice.Val v.value) vs   
     | other -> 
       let numReturnVals = List.length expNode.exp_types in 
       List.map 
         (fun i -> DefLattice.Def (other, i+1, numReturnVals)) 
         (List.til numReturnVals)
-end 
+end
+
    
 module Env = struct 
   type t = (ID.t, DefLattice.t) Hashtbl.t
@@ -52,9 +50,7 @@ module Env = struct
     env         
 end 
 module DefAnalysis = struct
-  include SSA_Analysis.MkAnalysis(Env)(ExpInfo)(ValUnit)
-  
-  let flow_merge = SSA_Analysis.mk_hash_merge DefLattice.combine
+  include SSA_Analysis.MkAnalysis(Env)(DefLattice)
     
   let iterative = false 
   
