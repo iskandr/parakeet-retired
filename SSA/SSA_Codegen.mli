@@ -27,15 +27,38 @@ val mk_codegen_fn
         (ssa_codegen -> value_node list-> value_node list -> unit) -> fundef 
     
     
-val reduce : value_node  
-val map : value_node
-val inf : value_node 
-val neginf : value_node 
 
 val (:=) : value_node list -> exp_node -> stmt_node  
 val (@@) : value_node -> value_node list -> exp_node   
 val scalar_op : Prim.scalar_op -> value_node
 val array_op : Prim.array_op -> value_node 
+
+val reduce : value_node  
+val map : value_node
+val allPairs : value_node
+
+val where : value_node 
+val index : value_node 
+val til : value_node  
+val find : value_node 
+
+val inf : value_node 
+val neginf : value_node 
+
+val plus : value_node  
+val minus : value_node  
+val mul : value_node 
+
+val lt : value_node 
+val lte : value_node 
+val eq : value_node  
+
+
+val one : value_node 
+val zero : value_node  
+
+val incr : ID.t -> value_node -> stmt_node   
+val set_int : ID.t -> Int32.t -> stmt_node 
 
 type vars = value_node array 
 val  mk_fn : int -> int -> int -> 

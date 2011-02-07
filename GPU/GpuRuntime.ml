@@ -67,15 +67,21 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
     [LibPQ.GpuArrayArg((GpuVal.get_shape_ptr inputVal),
                        (GpuVal.get_shape_nbytes inputVal))] 
   
-  let create_args
-      (modulePtr : Cuda.CuModulePtr.t)
-      (impfn : Imp.fn)
-      (cc : PtxCallingConventions.calling_conventions)
-      (inputs: GpuVal.gpu_val list) =
+  let create_args 
+        (modulePtr : Cuda.CuModulePtr.t) 
+        impfn 
+        cc 
+        (inputs: GpuVal.gpu_val list) 
+        : LibPQ.gpu_arg array * GpuVal.gpu_val list  =
     let inputShapes = List.map GpuVal.get_shape inputs in 
     let shapeEnv = ImpShapeInference.infer_shapes impfn inputShapes in
     let process_input env id gpuVal =
       let location = ID.Map.find id cc.PtxCallingConventions.data_locations in
+      IFDEF DEBUG THEN 
+        Printf.printf "Creating GPU argument for %s at location %s\n"
+          (ID.to_str id)
+          (PtxCallingConventions.loc_to_str location);
+      ENDIF; 
       let gpuArgs = create_input_args modulePtr gpuVal location in
       ID.Map.add id gpuArgs env
     in  
@@ -94,12 +100,12 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
       assert (Shape.rank shape > 0);
       let outputVal = GpuVal.mk_gpu_vec ty shape in
       DynArray.add outputMap outputVal;
-      ID.Map.add
+      ID.Map.add 
         id
-        [LibPQ.GpuArrayArg((GpuVal.get_ptr outputVal),
-                           (GpuVal.get_nbytes outputVal));
-         LibPQ.GpuArrayArg((GpuVal.get_shape_ptr outputVal),
-                           (GpuVal.get_shape_nbytes outputVal))]
+        [LibPQ.GpuArrayArg(GpuVal.get_ptr outputVal,
+                           GpuVal.get_nbytes outputVal);
+         LibPQ.GpuArrayArg(GpuVal.get_shape_ptr outputVal,
+                           GpuVal.get_shape_nbytes outputVal)]
         env 
     in    
     let valueEnv = 
@@ -147,16 +153,22 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
     in 
     let cacheKey = (payload.SSA.fn_id, closureTypes @ inputTypes) in  
     let {imp_source=impKernel; cc=cc; cuda_module=cudaModule} = 
-    if Hashtbl.mem mapCache cacheKey then Hashtbl.find mapCache cacheKey
-    else (
-      let entry = compile_map payload closureTypes inputTypes outputTypes in
-      Hashtbl.add mapCache cacheKey entry; 
-      entry
+      if Hashtbl.mem mapCache cacheKey then Hashtbl.find mapCache cacheKey
+      else (
+        let entry = compile_map payload closureTypes inputTypes outputTypes in
+        Hashtbl.add mapCache cacheKey entry; 
+        entry
     )  
   in
   let paramsArray, outputVals =
     create_args cudaModule.Cuda.module_ptr impKernel cc (closureArgs @ args)
   in  
+  IFDEF DEBUG THEN
+    Printf.printf "Gpu args being sent:\n"; 
+    Array.iter 
+      (fun arg -> Printf.printf "\t %s\n" (LibPQ.gpu_arg_to_str arg))
+      paramsArray 
+  ENDIF;      
   (* create one CUDA thread per every input element *) 
   assert (List.length cudaModule.Cuda.kernel_names = 1); 
   let fnName = List.hd cudaModule.Cuda.kernel_names in
@@ -245,14 +257,19 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
         if curNumElts > 1 then (
           let numOutputElts = safe_div curNumElts (threadsPerBlock * 2) in
           let args, outputsList =
-            create_args compiledModule.Cuda.module_ptr impKernel cc inputArgs in
-              let gridParams = {
-                LibPQ.threads_x=x_threads; threads_y=256; threads_z=1;
-                grid_x=x_grid; grid_y=numOutputElts;
-              }
-              in
+            create_args compiledModule.Cuda.module_ptr impKernel cc inputArgs 
+          in
+          let gridParams = {
+            LibPQ.threads_x=x_threads; threads_y=256; threads_z=1;
+            grid_x=x_grid; grid_y=numOutputElts;
+          }
+          in
           LibPQ.launch_ptx
-            compiledModule.Cuda.module_ptr fnName args gridParams;
+            compiledModule.Cuda.module_ptr 
+            fnName 
+            args 
+            gridParams
+          ;
           if curNumElts < numInputElts then GpuVal.free (List.hd inputArgs);
           aux outputsList numOutputElts
           )
@@ -375,6 +392,9 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
   (** WHERE **)
   let where (binVec : value) =
     let nelts = GpuVal.nelts binVec in
+    IFDEF DEBUG THEN 
+      Printf.printf "Running WHERE on %d elements\n" nelts;
+    ENDIF; 
     let scanShape = GpuVal.get_shape binVec in
     let scanInterm = 
       GpuVal.mk_gpu_vec (DynType.VecT DynType.Int32T) scanShape 
@@ -382,9 +402,12 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
     let binPtr = GpuVal.get_ptr binVec in
     let scanPtr = GpuVal.get_ptr scanInterm in
     Thrust.thrust_prefix_sum_bool_to_int binPtr nelts scanPtr;
-    let numIdxs = Cuda.cuda_get_gpu_int_vec_element scanPtr (nelts - 1) in
+    let resultLength = Cuda.cuda_get_gpu_int_vec_element scanPtr (nelts - 1) in
+    IFDEF DEBUG THEN 
+      Printf.printf "WHERE returned %d elements\n" resultLength;
+    ENDIF; 
     let outputShape = Shape.create 1 in
-    Shape.set outputShape 0 numIdxs;
+    Shape.set outputShape 0 resultLength;
     let output = GpuVal.mk_gpu_vec (DynType.VecT DynType.Int32T) outputShape in
     Kernels.bind_where_tex scanPtr nelts;
     Kernels.where_tex nelts (GpuVal.get_ptr output);

@@ -56,12 +56,12 @@ let rec check_stmt
       check_value_list errorLog tenv defined indices;
       check_value errorLog tenv defined rhs;
       defined  
-  | If (test, tBlock, fBlock, gate) ->
+  | If (test, tBlock, fBlock, merge) ->
       check_value errorLog tenv defined test;
       let _ = check_block errorLog tenv defined tBlock in  
-      let _ = check_block errorLog tenv defined fBlock in 
-      (* TODO: check to make sure information in SSA gate is valid *) 
-      ID.Set.add_list gate.SSA.if_output_ids defined
+      let _ = check_block errorLog tenv defined fBlock in
+      check_block errorLog tenv defined merge  
+      
   | WhileLoop _ -> failwith "type checking of loops not yet implemented"
 and check_exp errorLog tenv (defined : ID.Set.t) (expNode : exp_node) : unit = 
   let err msg = Queue.add (expNode.exp_src, msg) errorLog in
@@ -137,7 +137,7 @@ and check_value (errorLog:errors)(tenv:tenv) (defined : ID.Set.t) vNode : unit =
 and check_value_list errorLog tenv defined values = 
   List.iter (check_value errorLog tenv defined) values
 and check_block (errorLog : errors) (tenv : DynType.t ID.Map.t) defined block = 
-   SSA.block_fold_forward 
+  Block.fold_forward
     (fun accDefined stmtNode -> check_stmt errorLog tenv accDefined stmtNode) 
     defined
     block 

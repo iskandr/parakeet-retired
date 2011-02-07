@@ -13,6 +13,10 @@ type grid_params = {
 
 type gpu_arg = GpuScalarArg of PQNum.num | GpuArrayArg of Int64.t * int
 
+let gpu_arg_to_str = function 
+  | GpuScalarArg n -> "Scalar: " ^ (PQNum.num_to_str n)
+  | GpuArrayArg (ptr, n) -> Printf.sprintf "Array: %Lx (%d)" ptr n 
+
 external cuda_init : unit -> unit = "ocaml_pq_init"
 
 (* arguments: a ptx string and a desired number of threads per block *) 

@@ -23,6 +23,7 @@ type exp =
   (* construction of arrays and values used by both typed and untyped ssa *) 
   | Arr of value_nodes
   | Values of value_nodes
+  | Phi of value_node * value_node
   (* nodes below are only used after type specialization *) 
   | Cast of DynType.t * value_node  
   | Call of FnId.t * value_nodes 
@@ -30,6 +31,7 @@ type exp =
   | Map of closure * value_nodes
   | Reduce of closure * closure * value_nodes   
   | Scan of closure * closure * value_nodes
+   
 and exp_node = { 
   exp: exp; 
   exp_src : SourceInfo.t option;
@@ -48,38 +50,23 @@ and closure = {
 type stmt = 
   | Set of ID.t list * exp_node 
   | SetIdx of ID.t * value_nodes * value_node
-  | If of value_node * block * block * if_gate
-  | WhileLoop of block * value_node * block * loop_gate  
+  | If of value_node * block * block * block 
+  | WhileLoop of test * block * gates 
+and test = { 
+  test_block: block; 
+  test_value : value_node; 
+}
+and gates = {  
+  loop_header: block; 
+  loop_exit: block; 
+} 
+
 and stmt_node = { 
     stmt: stmt;
     stmt_src: SourceInfo.t option;
     stmt_id : StmtId.t;  
 }
-and block = stmt_node array
-and if_gate = { 
-  if_output_ids : ID.t list;
-  true_ids : ID.t list; 
-  false_ids : ID.t list 
-}
-and loop_gate = { 
-  (* what variables visible after this loop are generated, and
-     from which internal var do they get their value?  
-  *)
-  loop_outputs : ID.t list; 
-  
-  (* what variables are assigned in the body of this loop? *) 
-  loop_local_defs : ID.t list;
-  
-  (* every loop local variable gets its value either from above the 
-     loop on the first iteration, or from a further loop variable on 
-     a repeat iteration  
-  *) 
-  loop_header_map : (ID.t * ID.t) ID.Map.t;
-  (* every loop output can either come a loop variable or from some
-     variable preceding the loop (including, presumably, undefined)
-  *)
-  loop_output_map : (ID.t * ID.t) ID.Map.t;  
-}
+and block = stmt_node Block.t
 
 type fundef = {
   body: block;
@@ -123,9 +110,7 @@ let rec typed_id_list_to_str tenv = function
     sprintf "%s, %s" (typed_id_to_str tenv id) (typed_id_list_to_str tenv rest)
   
 let rec block_to_str ?(space="") ?(tenv=ID.Map.empty) block = 
-    String.concat "\n" 
-    (Array.to_list 
-      (Array.map (stmt_node_to_str ~space ~tenv) block))
+  Block.to_str (stmt_node_to_str ~space ~tenv) block 
 and stmt_node_to_str ?(space="") ?(tenv=ID.Map.empty) stmtNode = 
   let str = match stmtNode.stmt with 
   | Set (ids, rhs) -> 
@@ -191,12 +176,6 @@ and value_to_str = function
   | Sym s -> "`" ^ s
   | Unit -> "()"
   | Prim p -> "PRIM(" ^ (Prim.prim_to_str p) ^ ")"
-  (*| Lam fundef -> 
-    Format.sprintf "fun input:[%s] output:[%s] { \n @[<hov 2> %s @] \n}" 
-      (String.concat ", " (List.map ID.to_str fundef.input_ids))
-      (String.concat ", " (List.map ID.to_str fundef.output_ids))
-      (block_to_str fundef.body)
-  *) 
 and value_node_list_to_str ?(sep=",") vs = 
   String.concat (sep^" ") (List.map value_node_to_str vs)
   
@@ -209,22 +188,20 @@ let fundef_to_str (fundef:fundef) =
     (typed_id_list_to_str fundef.tenv fundef.input_ids)
     (typed_id_list_to_str fundef.tenv fundef.output_ids)
     (block_to_str ~space:"\t" ~tenv:fundef.tenv fundef.body)
-  
- 
+
+
+
 (* if a function contains nothing but a map, extracted the nested 
    function being mapped 
 *) 
-let extract_nested_map_fn_id (fundef : fundef) = 
-  match fundef.body with 
-    (* LEGACY-- should deleted *) 
-    | [|{stmt=
-          Set(_,{exp=App(map, {value=GlobalFn fnId}::dataArgs)})
-       }
-      |] when map.value = Prim (Prim.Adverb Prim.Map) ->
-        Some fnId 
-    | [|{stmt=Set(_, {exp=Map({closure_fn=fnId}, _)})}|] -> Some fnId 
-    | _ -> None   
-
+let extract_nested_map_fn_id (fundef : fundef) =
+  if Block.length fundef.body <> 1 then None 
+  else match (Block.idx fundef.body 0).stmt with 
+    | Set(_,{exp=App(map, {value=GlobalFn fnId}::_)})
+      when map.value = Prim (Prim.Adverb Prim.Map) -> Some fnId
+    | Set(_, {exp=Map({closure_fn=fnId}, _)}) ->  Some fnId 
+    | _ -> None 
+      
 let mk_fundef  ?(tenv=ID.Map.empty) ~input_ids ~output_ids ~body =
   let inTypes = 
     List.map (fun id -> ID.Map.find_default id tenv DynType.BottomT) input_ids 
@@ -241,47 +218,8 @@ let mk_fundef  ?(tenv=ID.Map.empty) ~input_ids ~output_ids ~body =
     fn_output_types = outTypes; 
     fn_id = FnId.gen()  
   }  
+
   
-
-(***
-     helpers for statements 
- ***) 
-
-let mk_stmt ?src ?(id=StmtId.gen()) stmt = 
-  { stmt = stmt; stmt_src = src; stmt_id = id }   
-
-let mk_set ?src ids rhs = 
-  { stmt = Set(ids, rhs); 
-    stmt_src = src; 
-    stmt_id = StmtId.gen() 
-  }
-
-let mk_if ?src condVal tBlock fBlock gate = 
-  { stmt = If(condVal, tBlock, fBlock, gate); 
-    stmt_src=src; 
-    stmt_id = StmtId.gen() 
-  } 
-
-(* get the id of a variable value node *) 
-let get_id valNode = match valNode.value with 
-  | Var id -> id 
-  | other -> failwith $ Printf.sprintf 
-     "[SSA->get_id] expected variable, received %s"
-     (value_to_str other)
-
-(* get the ids from a list of variable value nodes *) 
-let get_ids vars = List.map get_id vars 
-
-let get_fn_id valNode = match valNode.value with 
-  | GlobalFn fnId -> fnId
-  | other -> failwith $ 
-      Printf.sprintf 
-        "[SSA->get_fn_id] expected global function, received %s"
-        (value_to_str other)
-  
-
-let get_fn_ids valNodes = List.map get_fn_id valNodes  
-
 
 
 (***
@@ -396,61 +334,60 @@ let mk_closure fundef args = {
   closure_arg_types = List.map (fun v -> v.value_type) args; 
   closure_input_types = List.drop (List.length args) fundef.fn_input_types; 
   closure_output_types = fundef.fn_output_types; 
-} 
+}
 
+let mk_phi ?src ?ty xId yId =
+  let xNode = mk_var ?src ?ty xId in 
+  let yNode = mk_var ?src ?ty yId in
+  mk_exp ?src ~types:[Option.default DynType.BottomT ty ] (Phi(xNode,yNode))
+
+(***
+     helpers for statements 
+ ***) 
+
+let mk_stmt ?src ?(id=StmtId.gen()) stmt = 
+  { stmt = stmt; stmt_src = src; stmt_id = id }   
+
+let mk_set ?src ids rhs = 
+  { stmt = Set(ids, rhs); 
+    stmt_src = src; 
+    stmt_id = StmtId.gen() 
+  }
+
+let mk_set_phi ?src ?ty id x y = mk_set ?src [id] (mk_phi ?src ?ty x y) 
+
+(* make a block of phi nodes merging IDs from the three lists given *) 
+let mk_merge_block outIds leftIds rightIds = 
+  let dynArr = DynArray.create() in 
+  let rec loop = function 
+    | [], _, _ | _,[],_ | _,_,[] -> Block.of_array (DynArray.to_array dynArr)
+    | x::xs, y::ys, z::zs ->
+      DynArray.add dynArr (mk_set_phi x y z); loop (xs,ys,zs) 
+  in 
+  loop (outIds,leftIds,rightIds)
+
+(* get the id of a variable value node *) 
+let get_id valNode = match valNode.value with 
+  | Var id -> id 
+  | other -> failwith $ Printf.sprintf 
+     "[SSA->get_id] expected variable, received %s"
+     (value_to_str other)
+
+(* get the ids from a list of variable value nodes *) 
+let get_ids vars = List.map get_id vars 
+
+let get_fn_id valNode = match valNode.value with 
+  | GlobalFn fnId -> fnId
+  | other -> failwith $ 
+      Printf.sprintf 
+        "[SSA->get_fn_id] expected global function, received %s"
+        (value_to_str other)
+  
+
+let get_fn_ids valNodes = List.map get_fn_id valNodes  
 let empty_stmt = mk_set [] (mk_vals_exp [])
 
 let is_empty_stmt stmtNode =
   match stmtNode.stmt with 
     | Set ([], {exp=Values[]})->true
     | _ -> false 
-   
-let empty_block : block = [||]
-let block_of_stmt stmtNode = [|stmtNode|] 
-let block_append = Array.append
-let block_concat = Array.concat 
-let insert_stmt_after_block block stmtNode = 
-  block_concat [block; block_of_stmt stmtNode]  
-let insert_stmt_before_block stmtNode block = 
-  block_concat [block_of_stmt stmtNode; block]   
-let block_of_list = Array.of_list 
-let block_length = Array.length
-let block_idx = Array.get
-let block_iter_forward f block =
-  let n = block_length block in 
-  for i = 0 to n - 1 do 
-    f (block_idx block i)
-  done
-let block_iter_backward f block = 
-  let n = block_length block in 
-  for i = n-1 downto 0 do 
-    f (block_idx block i)
-  done
-let block_fold_forward f init block = 
-  let acc = ref init in 
-  let n = block_length block in 
-  for i = 0 to n-1 do 
-    acc := f !acc (block_idx block i) 
-  done; 
-  !acc
-   
-let block_fold_backward f init block = 
-  let acc = ref init in 
-  let n = block_length block in 
-  for i = n-1 downto 0 do 
-    acc := f !acc (block_idx block i)
-  done; 
-  !acc
-
-let block_for_all f block  = 
-  let b = ref true in
-  let i = ref 0 in 
-  let n = block_length block in  
-  while !b && !i < n do
-    let currStmtNode = block_idx block !i  in  
-    b := !b && (f currStmtNode); 
-    i := !i + 1;  
-  done; 
-  !b  
-  
- 

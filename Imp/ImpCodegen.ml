@@ -252,7 +252,7 @@ class imp_codegen =
       | DimSize (i, arg) -> 
           let stmts, arg' = flatten_arg arg in
           let expNode' = {expNode with exp = DimSize(i,arg') } in 
-         stmts, expNode'   
+          stmts, expNode'   
       | Idx (lhs, rhs) ->
           let lhsStmts, lhs' = flatten_arg lhs in 
           let rhsStmts, rhs' = flatten_arg rhs in
@@ -282,19 +282,11 @@ class imp_codegen =
        into their own statements 
     *) 
     method private flatten_stmt (stmt : Imp.stmt) : Imp.stmt list =
-      (*
-      IFDEF DEBUG THEN
-        Printf.printf "[ImpCodegen] flattening {%d}: %s\n"  
-          (Hashtbl.length types)  
-          (Imp.stmt_to_str stmt)
-      ENDIF;
-      *)
       let flatten_block block = 
-          List.rev $ 
-                List.fold_left 
-                  (fun acc stmt -> (self#flatten_stmt stmt) @ acc) 
-                  [] 
-                  block
+        let dynArray = DynArray.create () in
+        let add_stmts = List.iter (DynArray.add dynArray) in  
+        List.iter (fun stmt-> add_stmts (self#flatten_stmt stmt)) block;
+        DynArray.to_list dynArray 
       in 
       match stmt with 
       | If (cond, tBlock, fBlock) -> 
@@ -363,54 +355,30 @@ class imp_codegen =
       
     method fresh_input_id t =
       let id = self#fresh_id t in
-      (*
-      IFDEF DEBUG THEN 
-        Printf.printf "[ImpCodegen] Creating input %d : %s\n"
-          id
-          (DynType.to_str t)
-        ;
-      ENDIF;
-      *) 
       MutableSet.add inputSet id; 
       DynArray.add inputs (id,t);
       id 
     
     method fresh_input t = {exp = Var (self#fresh_input_id t); exp_type=t} 
     
-    method fresh_output_id t = 
-      (* if an output is an array, you have to declare 
-         its size using fresh_array_output 
-      *)
-       
-      IFDEF DEBUG THEN 
-        if not $ DynType.is_scalar t then failwith $ 
-          "[ImpCodegen] output arrays must be allocated with fresh_output_array"
-        ;
-      ENDIF;
-       
-      let id = self#fresh_id t in  
-      DynArray.add outputs (id,t);
-      MutableSet.add outputSet id; 
+    method fresh_output_id ?(dims=[]) t = 
+      let id = self#fresh_id t in
+      DynArray.add outputs (id,t); 
+      MutableSet.add outputSet id;
+      if DynType.is_scalar t then 
+        assert (dims = [])
+      else (
+        assert (dims <> []);   
+        self#add_dynamic_size_annot id (List.map (fun e -> e.exp) dims)
+      ); 
       id
       
-    method fresh_array_output t sizes = 
-      IFDEF DEBUG THEN 
-        if not (DynType.is_vec t) then failwith $ 
-          "[ImpCodegen] cannot use fresh_array_output to allocate a scalar"
-        ;
-      ENDIF;
-      let id = self#fresh_id t in  
-      DynArray.add outputs (id,t);
-      MutableSet.add outputSet id;     
-      let sizeExps = List.map (fun e -> e.exp) sizes in  
-      self#add_dynamic_size_annot id sizeExps;
-      {exp= Var id; exp_type=t}
-    
-    method fresh_output t = 
-      let id = self#fresh_output_id t in
+    method fresh_output ?(dims=[]) t  = 
+      let id = self#fresh_output_id ~dims t in
       {exp= Var id; exp_type=t}
     
     method private fresh_ids n t = Array.init n (fun _ -> self#fresh_local_id t)   
+    
     method fresh_vars n t = 
       Array.map (fun id -> {exp=Var id;exp_type=t}) $ self#fresh_ids n t   
     

@@ -52,20 +52,6 @@ module Replace_Rules(P: REPLACE_PARAMS) = struct
           let id' = ID.Map.find id idMap in 
           Update (SSA.mk_stmt ?src:stmtNode.stmt_src (SetIdx(id', idxs, rhs)))
         else NoChange
-    | If (c, t, f, gate) ->
-      let outIds  = replace_id_list idMap gate.if_output_ids in
-      let trueIds = replace_id_list idMap gate.true_ids in
-      let falseIds = replace_id_list idMap gate.false_ids in
-      let changed = 
-        (outIds != gate.if_output_ids || 
-         trueIds != gate.true_ids || 
-         falseIds != gate.false_ids) 
-      in 
-      if changed then   
-        let gate' = { 
-          if_output_ids = outIds; true_ids = trueIds; false_ids = falseIds
-        } in Update {stmtNode with stmt = If(c,t,f,gate') } 
-      else NoChange   
     | _ -> NoChange
 end
 

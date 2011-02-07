@@ -20,6 +20,7 @@ type exp =
   | App of  value_node * value_nodes
   | Arr of value_nodes
   | Values of value_nodes
+  | Phi of value_node * value_node
   (* nodes below are only used after type specialization *) 
   | Cast of DynType.t * value_node  
   | Call of FnId.t * value_nodes 
@@ -27,6 +28,7 @@ type exp =
   | Map of closure * value_nodes
   | Reduce of closure * closure * value_nodes   
   | Scan of closure * closure * value_nodes
+ 
 and exp_node = { 
   exp: exp; 
   exp_src : SourceInfo.t option;
@@ -34,19 +36,6 @@ and exp_node = {
   (* expressions have multiple types *)  
   exp_types : DynType.t list; 
 } 
-(*
-and typed_fn = { 
-  fn_id : FnId.t; 
-  fn_input_types : DynType.t list; 
-  fn_output_types : DynType.t list;   
-} 
-*)
-(*
-and typed_prim = { 
-  prim: Prim.prim;
-  prim_type_index : DynType.t;  
-} 
-*)
 and closure = {   
   closure_fn: FnId.t; 
   closure_args: value_node list; 
@@ -59,38 +48,22 @@ and closure = {
 type stmt = 
   | Set of ID.t list * exp_node 
   | SetIdx of ID.t * value_nodes * value_node
-  | If of value_node * block * block * if_gate
-  | WhileLoop of block * value_node * block * loop_gate  
+  | If of value_node * block * block * block 
+  | WhileLoop of test * block * gates 
+and test = { 
+  test_block: block; 
+  test_value : value_node; 
+}
+and gates = {  
+  loop_header: block; 
+  loop_exit: block; 
+} 
 and stmt_node = { 
     stmt: stmt;
     stmt_src: SourceInfo.t option;
     stmt_id : StmtId.t;  
 }
-and block = stmt_node array
-and if_gate = { 
-  if_output_ids : ID.t list;
-  true_ids : ID.t list; 
-  false_ids : ID.t list 
-}
-and loop_gate = { 
-  (* what variables visible after this loop are generated, and
-     from which internal var do they get their value?  
-  *)
-  loop_outputs : ID.t list; 
-  
-  (* what variables are assigned in the body of this loop? *) 
-  loop_local_defs : ID.t list;
-  
-  (* every loop local variable gets its value either from above the 
-     loop on the first iteration, or from a further loop variable on 
-     a repeat iteration  
-  *) 
-  loop_header_map : (ID.t * ID.t) ID.Map.t;
-  (* every loop output can either come a loop variable or from some
-     variable preceding the loop (including, presumably, undefined)
-  *)
-  loop_output_map : (ID.t * ID.t) ID.Map.t;  
-}
+and block = stmt_node Block.t 
 
 type fundef = {
   body: block;
@@ -135,10 +108,9 @@ val mk_fundef :
 
 val mk_stmt : ?src:SourceInfo.t -> ?id:StmtId.t -> stmt -> stmt_node 
 val mk_set : ?src:SourceInfo.t -> ID.t list -> exp_node -> stmt_node 
-  
-val mk_if : 
-     ?src:SourceInfo.t -> value_node -> block -> block -> 
-       if_gate -> stmt_node
+val mk_set_phi 
+  : ?src:SourceInfo.t -> ?ty:DynType.t  -> 
+    ID.t -> ID.t -> ID.t -> stmt_node 
       
 (* get the id of a variable value node *) 
 val get_id : value_node -> ID.t 
@@ -201,20 +173,6 @@ val mk_reduce :
 val mk_scan : 
       ?src:SourceInfo.t -> closure -> closure -> value_node list -> exp_node
 val mk_closure : fundef -> value_node list -> closure 
-
+val mk_phi : ?src:SourceInfo.t -> ?ty:DynType.t -> ID.t ->ID.t -> exp_node
 val empty_stmt : stmt_node 
 val is_empty_stmt : stmt_node -> bool 
-val empty_block : block 
-val block_of_stmt : stmt_node -> block 
-val block_append : block -> block -> block  
-val block_concat : block list -> block 
-val insert_stmt_after_block : block -> stmt_node -> block 
-val insert_stmt_before_block : stmt_node -> block -> block  
-val block_of_list : stmt_node list -> block  
-val block_length : block -> int 
-val block_idx : block -> int -> stmt_node
-val block_iter_forward : (stmt_node -> unit) -> block -> unit
-val block_iter_backward : (stmt_node -> unit) -> block -> unit
-val block_fold_forward : ('a -> stmt_node -> 'a) -> 'a -> block -> 'a
-val block_fold_backward : ('a -> stmt_node -> 'a) -> 'a -> block -> 'a
-val block_for_all : (stmt_node -> bool) -> block -> bool  

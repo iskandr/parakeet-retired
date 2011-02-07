@@ -38,7 +38,9 @@ let infer_channel_format = function
     Printf.sprintf "Cannot infer texture channel format for type %s"
     (DynType.to_str t) 
 
-external cuda_malloc : int -> GpuPtr.t = "ocaml_cuda_malloc"
+external cuda_malloc' : int -> GpuPtr.t = "ocaml_cuda_malloc"
+let cuda_malloc n = assert (n > 0); cuda_malloc' n 
+ 
 external cuda_free : GpuPtr.t -> unit = "ocaml_cuda_free"
 
 external cuda_device_get_count : unit -> int = "ocaml_cuda_device_get_count"

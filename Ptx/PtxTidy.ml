@@ -57,20 +57,6 @@ let register_use_counts instructions  =
     List.concat (List.map ptx_registers_used (DynArray.to_list instructions)) in
   count_uniq allUses 
 
-
-(*
-let find_constants instructions = 
-  let declared = MutableSet.create 127 in 
-  let mutated = MutableSet.create 127 in 
-  let pure = MutableSet.create 127 in 
-  for i = 0 to DynArray.length instructions - 1 do 
-    let instr = DynArray.get instructions i in 
-    if is_ptx_assignment instr.op then 
-      match instr.args.(0) with 
-        | Sym 
-      
-*) 
-        
     
   (* modifies the DynArray instructions and Hashtbl registerAllocs to 
      get rid of dead registers 

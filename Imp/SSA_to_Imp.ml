@@ -12,11 +12,16 @@ let rec translate_value idEnv valNode =
   in
   { Imp.exp = vExp; Imp.exp_type = valNode.SSA.value_type }
   
-and translate_exp codegen globalFunctions idEnv expectedType expNode = 
+and translate_exp 
+      (codegen : ImpCodegen.imp_codegen) 
+      (globalFunctions : FnTable.t) 
+      idEnv 
+      expectedType 
+      expNode = 
   let impExpNode = match expNode.SSA.exp with
   | SSA.Values [v] -> translate_value idEnv v
   | SSA.Values [] -> failwith "[ssa->imp] unexpected empty value list"
-  | SSA.Values _ ->  failwith "[ssa->imp] unexpected multiple return values "
+  | SSA.Values _ ->  failwith "[ssa->imp] unexpected multiple return values"
     
   | SSA.PrimApp (Prim.ScalarOp Prim.Select, [cond; tVal; fVal]) ->  
       let cond' = translate_value idEnv cond in 
@@ -56,7 +61,7 @@ and translate_exp codegen globalFunctions idEnv expectedType expNode =
       let fundef_imp = translate_fundef globalFunctions fundef_ssa in
       let arrays_imp = List.map (translate_value idEnv) arrays in
       let maxInput = largest_val (Array.of_list arrays_imp) in 
-      let output = codegen#fresh_array_output outputType (all_dims maxInput) in  
+      let output = codegen#fresh_output ~dims:(all_dims maxInput) outputType in  
       let i = codegen#fresh_var Int32T in
       let n = codegen#fresh_var Int32T in
       let bodyBlock = [

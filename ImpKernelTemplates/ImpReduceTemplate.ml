@@ -7,10 +7,11 @@ open ImpCodegen
 
 let gen_reduce_2d_capable payload threadsPerBlock =
   (* For now only works on 1D and 2D inputs *)
-  
   let codegen = new imp_codegen in
-  assert (Array.length payload.input_types = 2);
-  assert (Array.length payload.output_types = 1);
+  IFDEF DEBUG THEN 
+    assert (Array.length payload.input_types = 2);
+    assert (Array.length payload.output_types = 1);
+  ENDIF; 
   (* assume result of reduction is same as elements of vector *) 
   let ty = payload.output_types.(0) in 
   let input = codegen#fresh_input (VecT ty) in
@@ -22,8 +23,8 @@ let gen_reduce_2d_capable payload threadsPerBlock =
       (DynType.type_array_to_str payload.output_types);
   ENDIF;  
   let head::tail = all_dims input in
-  let output = codegen#fresh_array_output (VecT ty)
-                 ((safe_div_ head (int $ threadsPerBlock * 2))::tail) in
+  let outputDims = (safe_div_ head (int $ threadsPerBlock * 2))::tail in 
+  let output = codegen#fresh_output ~dims:outputDims  (VecT ty) in
 
   let cache = codegen#shared_vec_var eltype [threadsPerBlock] in
   
@@ -129,8 +130,8 @@ let gen_reduce_old payload threadsPerBlock =
   let input = codegen#fresh_input (VecT ty) in
   let eltype = DynType.elt_type ty in
   let head::tail = all_dims input in
-  let output = codegen#fresh_array_output (VecT ty)
-                 ((safe_div_ head (int $ threadsPerBlock * 2))::tail) in
+  let outputDims =  ((safe_div_ head (int $ threadsPerBlock * 2))::tail) in 
+  let output = codegen#fresh_output ~dims:outputDims (VecT ty) in
 
   let cache = codegen#shared_vec_var eltype [threadsPerBlock] in
 

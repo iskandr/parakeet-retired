@@ -84,10 +84,11 @@ let get_gpu memState = function
     else (
 
       let hostVal = Hashtbl.find memState.host_vals id in
-      IFDEF DEBUG THEN Printf.printf "--%s\n" (HostVal.to_str hostVal); ENDIF; 
-      let gpuVal = GpuVal.to_gpu hostVal in
-      Hashtbl.replace memState.gpu_vals id gpuVal; 
-      gpuVal
+      IFDEF DEBUG THEN 
+        Printf.printf "Sending to GPU: --%s\n" (HostVal.to_str hostVal); ENDIF; 
+        let gpuVal = GpuVal.to_gpu hostVal in
+        Hashtbl.replace memState.gpu_vals id gpuVal; 
+        gpuVal
    )
   | InterpVal.Scalar n -> GpuVal.GpuScalar n  
   | InterpVal.Array arr ->

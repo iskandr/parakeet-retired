@@ -96,6 +96,8 @@ module MkAnalysis (P : TYPE_ANALYSIS_PARAMS) = struct
           failwith "unable to infer accumulator type"
         ; 
         accTypes 
+    | Prim.AllPairs, {value=fnVal}::_, _::argTypes -> 
+      failwith "no all-pairs impl yet"
     | other, _, _ -> failwith (Prim.adverb_to_str other ^ " not impl")     
 
 

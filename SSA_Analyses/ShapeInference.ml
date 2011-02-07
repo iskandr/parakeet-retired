@@ -3,6 +3,81 @@
 open Base 
 open Base
 open SSA
+open SSA_Analysis 
+
+
+module ShapeAnalysis = struct 
+    type shape_lookup =  ID.t -> Shape.t  
+    type value_info =  shape_lookup -> Shape.t
+    type exp_info = value_info list   
+    type env = value_info ID.Map.t 
+    
+    let dir = Forward
+    let init fundef = 
+      List.fold_left 
+        (fun accEnv id -> ID.Map.add id (fun lookup -> lookup id) accEnv)
+        ID.Map.empty 
+        fundef.input_ids 
+
+    
+  
+    let clone_env env = env    
+    let flow_merge outEnv outId leftEnv leftId rightEnv rightId = 
+      failwith "can't merge shapes"   
+    
+    (* should analysis be repeated until environment stops changing? *) 
+    val iterative : bool
+  
+    val init : fundef -> env 
+  
+    val value : env -> value_node -> value_info
+    
+    val exp_values 
+      : env -> exp_node -> 
+        vs:value_node list -> info:value_info list -> exp_info
+    
+    val exp_arr 
+      : env -> exp_node -> elts:value_node list -> 
+        info:value_info list -> exp_info 
+        
+    val exp_primapp 
+      : env -> exp_node -> prim:Prim.prim -> args:value_node list ->
+        argInfo:value_info list -> exp_info 
+        
+    val exp_call 
+      : env -> exp_node -> fnId:FnId.t -> args:value_node list -> 
+        info:value_info list -> exp_info 
+          
+    val exp_map 
+      : env -> exp_node -> closure:closure -> args:value_node list -> 
+        closureInfo:value_info list -> argInfo:value_info list -> exp_info 
+  
+    val exp_reduce 
+      : env -> exp_node -> initClosure:closure -> reduceClosure:closure -> 
+          args:value_node list -> initInfo : value_info list -> 
+          reduceInfo:value_info list -> argInfo:value_info list -> exp_info 
+    
+    val exp_scan
+      : env -> exp_node -> initClosure:closure -> scanClosure:closure -> 
+          args:value_node list -> initInfo : value_info list -> 
+          scanInfo:value_info list -> argInfo:value_info list -> exp_info 
+            
+    val exp_app 
+      : env -> exp_node -> fn:value_node -> args:value_node list -> 
+        fnInfo : value_info -> argInfo : value_info list -> exp_info 
+     
+    val stmt_set 
+        : env -> stmt_node -> ids:ID.t list -> rhs:exp_node -> 
+            rhsInfo:exp_info -> env option 
+    val stmt_if 
+        : env -> stmt_node -> cond:value_node -> tBlock:block -> fBlock:block ->
+            gate:if_gate -> condInfo:value_info -> tEnv:env -> fEnv:env -> 
+            env option    
+end
+
+
+module Env = struct
+end
 
 type shape_env = Shape.t ID.Map.t 
 

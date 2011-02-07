@@ -48,6 +48,7 @@ SourceInfo.cmx QSyntax.cmx AST_Info.cmx AST.cmx QSyntax_to_AST.cmx \
 QParser.cmx \
 QLexer.cmx  \
 FnId.cmx StmtId.cmx \
+Block.cmx \
 SSA.cmx \
 SSA_Codegen.cmx \
 AST_to_SSA.cmx \
@@ -91,6 +92,7 @@ ImpToPtx.cmx \
 SSA_to_Imp.cmx \
 ImpShapeInference.cmx \
 QType.cmx HardwareInfo.cmx \
+PtxCallingConventions.cmx \
 GpuRuntime.cmx \
 QStdLib.cmx \
 GpuCost.cmx \
