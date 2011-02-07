@@ -4,31 +4,24 @@ open Printf
 open SSA_Analysis
 
 module ConstEnv = struct 
-  type t = value ConstantLattice.t ID.Map.t 
-  type value = SSA.value ConstantLattice.t 
+  type env = value ConstantLattice.t ID.Map.t 
   
   let init fundef = 
     List.fold_left 
       (fun accEnv id  -> ID.Map.add id ConstantLattice.ManyValues accEnv)
       ID.Map.empty 
       fundef.input_ids
-      
-  let add env id value = ID.Map.add id value env 
-  let mem env id = ID.Map.mem id env
-  let find env id = ID.Map.find id env  
 end 
 
-module ValInfo = struct 
+module ConstVal = struct 
   type t = value ConstantLattice.t 
-  let combine (x:t) (y:t) = ConstantLattice.join x y  
   let bottom = ConstantLattice.bottom
-  let eq = (=)  
   let exp_default expNode = 
     List.map (fun _ -> ConstantLattice.top) expNode.exp_types 
 end
       
 module ConstantAnalysis = struct
-  include SSA_Analysis.MkAnalysis(ConstEnv)(ValInfo) 
+  include SSA_Analysis.MkAnalysis(ConstEnv)(ConstVal) 
   
   let value env valNode = match valNode.value with  
     | Str _ 

@@ -59,29 +59,25 @@ module SimplifyRules = struct
     | Set (ids, exp) -> 
         if List.exists (is_live cxt) ids then NoChange
         else Update SSA.empty_stmt  
-    | If (condVal, tBlock, fBlock, ifGate) ->
+    | If (condVal, tBlock, fBlock, merge) ->
       let get_type id = ID.Map.find id cxt.types in
       let mk_var id t  = SSA.mk_var ?src:stmtNode.stmt_src ~ty:t id in  
       begin match condVal.value with 
         | Num (PQNum.Bool b) ->
-            let branchIds = if b then ifGate.true_ids else ifGate.false_ids in 
-            let types = List.map get_type branchIds in 
-            let rhsVals = List.map2 mk_var branchIds types in   
-            let rhsExp = 
-              SSA.mk_exp ?src:stmtNode.stmt_src ~types (Values rhsVals) 
-            in
-            let assignment = 
-              SSA.mk_set ?src:stmtNode.stmt_src ifGate.if_output_ids rhsExp
-            in     
-            Update assignment
+            let ids, valNodes = SSA.collect_phi_nodes merge b in 
+            let types = List.map get_type ids in 
+            let expNode = 
+              SSA.mk_exp ?src:stmtNode.stmt_src ~types (SSA.Values valNodes) 
+            in 
+            Update (SSA.mk_set ?src:stmtNode.stmt_src ids expNode)
         | _ -> NoChange  
       end
-    | SSA.WhileLoop (condBlock, condVal, loopBlock, gate) -> 
-      begin match condVal.value with 
+    | SSA.WhileLoop (test, body, gates) -> 
+      begin match test.test_value.value with 
         | Num PQNum.Bool false -> 
             (* leave the condBlock for potential side effects, *)
             (* get rid of loop *) 
-            UpdateWithBlock (SSA.empty_stmt, condBlock)
+            UpdateWithBlock (SSA.empty_stmt, test.test_block)
         | _ -> NoChange
       end     
     | _ -> NoChange 
