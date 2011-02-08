@@ -40,7 +40,7 @@ let do_inline fundef argVals =
       idSet
       [] 
   in 
-  let body' = block_append (block_of_stmt argAssignments) freshFundef.body in  
+  let body' = Block.append (Block.singleton argAssignments) freshFundef.body in  
   body', outputExp, typesList 
   
 module type INLINE_PARAMS = sig 

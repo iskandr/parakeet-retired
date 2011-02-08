@@ -38,14 +38,7 @@ module Mk(P : EVAL_PARAMS) = struct
       let valStr = SSA.value_to_str valNode.value in 
       failwith ("[eval_value] values of this type not implemented: " ^ valStr)
     
-  and eval_block env  block = 
-    let currEnv = ref env in 
-    let n = SSA.block_length block in 
-    for i = 0 to n- 1 do 
-      currEnv := eval_stmt !currEnv (SSA.block_idx block i)
-    done; 
-    !currEnv 
-  
+  and eval_block env block = Block.fold_forward eval_stmt env block  
   and eval_stmt (env : env) (stmtNode : SSA.stmt_node) : env = 
     IFDEF DEBUG THEN
       Printf.printf "[eval_stmt] %s\n" (SSA.stmt_node_to_str stmtNode);
@@ -60,8 +53,9 @@ module Mk(P : EVAL_PARAMS) = struct
       ID.Map.extend env ids results 
     | SetIdx (id, indices, rhs) -> failwith "not yet implemented"   
     | If (boolVal, tBlock, fBlock, ifGate) -> failwith "not yet implemented"
-    | WhileLoop (condBlock, condVal, body, gate) ->
-      let env' = eval_block env condBlock in 
+    | WhileLoop (test, body, gates) -> assert false
+       (*
+      let env' = eval_block env  in 
       (match eval_value env condVal with 
         | InterpVal.Scalar (PQNum.Bool true) -> 
             let env' = eval_block env body in 
@@ -69,7 +63,7 @@ module Mk(P : EVAL_PARAMS) = struct
         | InterpVal.Scalar (PQNum.Bool false) -> 
             env (* not handling SSA gate properly *)  
         | _ -> failwith "expected boolean value for loop condition" 
-      ) 
+      ) *)
          
 and eval_exp (env : env) (expNode : SSA.exp_node) : InterpVal.t list = 
   match expNode.exp with 

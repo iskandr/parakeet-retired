@@ -30,17 +30,17 @@ module DefLattice = struct
   let eq = (=)
   
   let exp_default expNode =  match expNode.exp with 
-    | Values vs -> List.map (fun v -> DefLattice.Val v.value) vs   
+    | Values vs -> List.map (fun v -> Val v.value) vs   
     | other -> 
       let numReturnVals = List.length expNode.exp_types in 
       List.map 
-        (fun i -> DefLattice.Def (other, i+1, numReturnVals)) 
+        (fun i -> Def (other, i+1, numReturnVals)) 
         (List.til numReturnVals)
 end
 
    
 module Env = struct 
-  type t = (ID.t, DefLattice.t) Hashtbl.t
+  type env = (ID.t, DefLattice.t) Hashtbl.t
   let init fundef = 
     let env = Hashtbl.create 127 in  
     List.iter  

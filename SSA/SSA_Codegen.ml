@@ -49,7 +49,7 @@ class ssa_codegen =
     method emit stmtList = 
       List.iter (fun stmt -> DynArray.add code stmt) stmtList
     
-    method finalize = DynArray.to_array code 
+    method finalize = Block.of_array (DynArray.to_array code) 
 end
 
 (* creates a codegen with identifiers initialized for input and output types,*)
@@ -134,9 +134,7 @@ let mk_fn
   let outputVars = Array.map SSA.mk_var outputs in
   let locals = ID.gen_fresh_array nLocals in 
   let localVars = Array.map SSA.mk_var locals in   
-  let body = SSA.block_of_list $
-    bodyConstructor inputVars outputVars localVars 
-  in 
+  let body = Block.of_list $ bodyConstructor inputVars outputVars localVars in 
   mk_fundef 
     ~input_ids:(Array.to_list inputs)
     ~output_ids:(Array.to_list outputs)

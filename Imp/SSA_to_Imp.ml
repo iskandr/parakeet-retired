@@ -129,7 +129,7 @@ and translate_exp
   in 
   impExpNode
 
-and translate_stmt globalFunctions idEnv codegen stmtNode =
+and translate_stmt globalFunctions codegen idEnv  stmtNode =
   let get_imp_id ssaId t =
     if ID.Map.mem ssaId idEnv then ID.Map.find ssaId idEnv
     else codegen#fresh_local_id t
@@ -148,17 +148,16 @@ and translate_stmt globalFunctions idEnv codegen stmtNode =
         | _ -> failwith "[ssa->imp] expected only single value on rhs of set"
        )
   | SSA.Set(ids, {SSA.exp=SSA.Values vs;SSA.exp_types=exp_types}) ->
-      let rec flatten_assignment idEnv ids types vs =
-        match ids, types, vs with 
-          | id::restIds, t::restTypes, v::restValues ->
-             let id' = get_imp_id id t in
-             let rhs = translate_value idEnv v in
-             let varNode = { Imp.exp = Var id'; Imp.exp_type = t} in  
-             codegen#emit [set varNode rhs];
-             let idEnv' = ID.Map.add id id' idEnv in 
-             flatten_assignment idEnv' restIds restTypes restValues   
-          | [], [], [] -> idEnv  
-          | _ -> failwith "[ssa->imp] length mismatch in set stmt"
+      let rec flatten_assignment idEnv ids types vs = match ids, types, vs with 
+        | id::restIds, t::restTypes, v::restValues ->
+           let id' = get_imp_id id t in
+           let rhs = translate_value idEnv v in
+           let varNode = { Imp.exp = Var id'; Imp.exp_type = t} in  
+           codegen#emit [set varNode rhs];
+           let idEnv' = ID.Map.add id id' idEnv in 
+           flatten_assignment idEnv' restIds restTypes restValues   
+        | [], [], [] -> idEnv  
+        | _ -> failwith "[ssa->imp] length mismatch in set stmt"
       in flatten_assignment idEnv ids exp_types vs
   | SSA.Set(_::_::_, _) -> 
       failwith "[ssa->imp] multiple return values not implemented"
@@ -198,9 +197,10 @@ and translate_fundef globalFunctions fn =
        fn.SSA.output_ids 
        outputTypes 
   in  
-  let _ = SSA.block_fold_forward 
-    (fun idEnv stmt -> translate_stmt globalFunctions idEnv codegen stmt) 
-    idEnv
-    fn.SSA.body 
+  let _ =
+    Block.fold_forward 
+      (translate_stmt globalFunctions codegen) 
+      idEnv 
+      fn.SSA.body 
   in 
   codegen#finalize

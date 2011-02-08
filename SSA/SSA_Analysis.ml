@@ -4,24 +4,6 @@ open Base
 
 type direction = Forward | Backward
 
-(* can be reused for most value lattices when environment is a hash *) 
-let mk_hash_merge combine env id x y  =  
-  let newVal = combine x y in 
-  if Hashtbl.mem env id then 
-    let oldVal = Hashtbl.find env id in  
-    if oldVal = newVal then None 
-    else (Hashtbl.add env id (combine oldVal newVal);  Some env)
-  else (Hashtbl.add env id newVal; Some env)
-    
-(* can be reused for most value lattices when environment is a tree map *) 
-let mk_map_merge combine env id x y = 
-  let newVal = combine x y in 
-  if ID.Map.mem id env then 
-    let oldVal = ID.Map.find id env in 
-    if oldVal = newVal then None 
-    else Some (ID.Map.add id (combine oldVal newVal) env)
-  else Some (ID.Map.add id newVal env)   
-         
 module type ANALYSIS =  sig
     type env
     type exp_info
@@ -88,39 +70,27 @@ module type ANALYSIS =  sig
             env option    
 end
 
-module type ENV = sig
-  type value 
+module type INIT = sig
   type env
-  
   val init : fundef -> env
-  
-  val add : env -> ID.t -> value -> env
-  val mem : env -> ID.t -> bool 
-  val find : env -> ID.t -> value 
 end 
 
-module type LATTICE = sig 
+module type VALUE = sig 
   type t 
   val bottom : t  
-  val combine : t -> t -> t
-  val eq : t -> t -> bool
   val exp_default : exp_node -> t list  
 end
 
-module UnitLattice  = struct
+module UnitVal  = struct
   type t = unit 
   let bottom = ()
-  let combine _ _ = ()
-  let eq _ _ = true
   let exp_default _ = [] 
 end
 
-module TypeLattice  = struct
+module TypeVal  = struct
   type t = DynType.t
   let bottom = DynType.BottomT
-  let combine = DynType.common_type 
-  let eq = (=) 
-  let exp_default expNode = expNode.exp_types 
+  let exp_default expNode = expNode.exp_types  
 end 
 
 
@@ -128,9 +98,9 @@ end
    which performs a no-op on every syntax node 
 *)  
 
-module MkAnalysis (Env:ENV)(V:LATTICE with type t = Env.value) =  
+module MkAnalysis (Init : INIT)(V : VALUE) =  
 struct
-  type env = Env.env 
+  type env = Init.env 
   type exp_info  = V.t list 
   type value_info = V.t 
   
@@ -140,7 +110,7 @@ struct
   let iterative = false
   
   (* ignore the function definition and just create a fresh lattice value *)
-  let init fundef = Env.init fundef
+  let init = Init.init
   
   let value (_:env) (valNode:value_node) = V.bottom  
   
@@ -192,30 +162,21 @@ struct
         ~(initInfo:value_info list) 
         ~(scanInfo:value_info list)
         ~(argInfo:value_info list) = V.exp_default expNode
-        
+ 
+               
  let exp_phi 
         (_:env) (expNode:exp_node) 
         ~(left:value_node)
         ~(right:value_node)
         ~(leftInfo:value_info)
-        ~(rightInfo:value_info) = [V.combine leftInfo rightInfo] 
+        ~(rightInfo:value_info) = V.exp_default expNode 
                     
  let stmt_set 
         (env:env) 
         (_:stmt_node) 
         ~(ids:ID.t list) 
         ~(rhs:exp_node) 
-        ~(rhsInfo:V.t list) = 
-          let add_value accEnv id rhsVal = 
-            let newVal = 
-              if Env.mem accEnv id then 
-                let oldVal = Env.find accEnv id in 
-                V.combine oldVal rhsVal
-              else rhsVal 
-            in 
-            Env.add accEnv id newVal 
-          in    
-          Some (List.fold_left2 add_value env ids rhsInfo)  
+        ~(rhsInfo:V.t list) = None
                 
   
   let stmt_if 
@@ -341,8 +302,10 @@ module MkEvaluator(A : ANALYSIS) = struct
             
       | _ -> failwith ("not implemented: " ^ (SSA.exp_to_str expNode))     
   and eval_value = A.value  
-  and eval_values env values = List.map (eval_value env) values 
-
+  and eval_values env = function 
+    | [] -> [] 
+    | v::vs -> (eval_value env v) :: (eval_values env vs) 
+     
   let eval_fundef fundef = 
     let env = A.init fundef in
     let env', _ = eval_block env fundef.body in 

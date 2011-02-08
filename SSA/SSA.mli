@@ -176,3 +176,6 @@ val mk_closure : fundef -> value_node list -> closure
 val mk_phi : ?src:SourceInfo.t -> ?ty:DynType.t -> ID.t ->ID.t -> exp_node
 val empty_stmt : stmt_node 
 val is_empty_stmt : stmt_node -> bool 
+
+val mk_merge_block : ID.t list -> ID.t list -> ID.t list -> block  
+val collect_phi_nodes : block -> bool -> ID.t list * value_node list 
