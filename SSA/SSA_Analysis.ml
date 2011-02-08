@@ -302,8 +302,10 @@ module MkEvaluator(A : ANALYSIS) = struct
             
       | _ -> failwith ("not implemented: " ^ (SSA.exp_to_str expNode))     
   and eval_value = A.value  
-  and eval_values env values = List.map (eval_value env) values 
-
+  and eval_values env = function 
+    | [] -> [] 
+    | v::vs -> (eval_value env v) :: (eval_values env vs) 
+     
   let eval_fundef fundef = 
     let env = A.init fundef in
     let env', _ = eval_block env fundef.body in 
