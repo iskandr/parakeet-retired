@@ -4,24 +4,6 @@ open Base
 
 type direction = Forward | Backward
 
-(* can be reused for most value lattices when environment is a hash *) 
-let mk_hash_merge combine env id x y  =  
-  let newVal = combine x y in 
-  if Hashtbl.mem env id then 
-    let oldVal = Hashtbl.find env id in  
-    if oldVal = newVal then None 
-    else (Hashtbl.add env id (combine oldVal newVal);  Some env)
-  else (Hashtbl.add env id newVal; Some env)
-    
-(* can be reused for most value lattices when environment is a tree map *) 
-let mk_map_merge combine env id x y = 
-  let newVal = combine x y in 
-  if ID.Map.mem id env then 
-    let oldVal = ID.Map.find id env in 
-    if oldVal = newVal then None 
-    else Some (ID.Map.add id (combine oldVal newVal) env)
-  else Some (ID.Map.add id newVal env)   
-         
 module type ANALYSIS =  sig
     type env
     type exp_info

@@ -29,10 +29,12 @@ module ConstantAnalysis = struct
     | Unit
     | Num _ -> ConstantLattice.Const valNode.value  
     | Var id ->
-        if ID.Map.mem id env then ID.Map.find id env  
-        else failwith  
-          (Printf.sprintf "unbound identifier %s in constant analysis"
-           (ID.to_str id))
+        (
+          try ID.Map.find id env with 
+          |_ -> failwith $ Printf.sprintf 
+              "unbound identifier %s in constant analysis"
+              (ID.to_str id)
+        )
     | _ ->  ConstantLattice.ManyValues 
   
   let exp_values env expNode ~vs ~info = info 

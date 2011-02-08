@@ -46,8 +46,8 @@ module BlockState = struct
   }     
 
   (* initializer *) 
-  let create () = { 
-    stmts = DynArray.create (); 
+  let create n = { 
+    stmts = DynArray.make n; 
     changes = 0 
   }
 
@@ -104,7 +104,7 @@ module MkCustomTransform(R : CUSTOM_TRANSFORM_RULES) = struct
   let rec transform_block 
           (rewriteStmt : rewrite_helpers -> stmt_node -> stmt_node update) 
           (block:block) = 
-    let blockState = BlockState.create () in
+    let blockState = BlockState.create (Block.length block) in
     let rec helpers = { 
       version = (fun() -> blockState.changes); 
       changed = (fun n -> blockState.changes <> n); 
@@ -113,14 +113,8 @@ module MkCustomTransform(R : CUSTOM_TRANSFORM_RULES) = struct
         
       process_exp = 
         (fun f eNode -> 
-          let update = f eNode in
-          (*Printf.printf "original: %s, update: %s\n"
-           (SSA.exp_to_str eNode)
-           (exp_update_to_str update)
-          ;
-          *)
+          let update = f eNode in 
           BlockState.process_update blockState eNode update);      
-      
       (* recursion in action! *)
       process_block = 
         (fun rewriteStmt' block' -> 

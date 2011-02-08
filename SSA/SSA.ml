@@ -366,6 +366,23 @@ let mk_merge_block outIds leftIds rightIds =
   in 
   loop (outIds,leftIds,rightIds)
 
+(* assume a block contains only phi, collect the IDs and 
+   either the left or right values 
+*) 
+let collect_phi_nodes block chooseLeft =
+  let n = Block.length block in 
+  let ids = DynArray.make n in 
+  let vals = DynArray.make n in 
+  let collector = function 
+    | {stmt=Set([id], {exp=Phi(left,right)})} -> 
+      DynArray.add ids id;  
+      if chooseLeft then DynArray.add vals left else DynArray.add vals right
+    | _ -> assert false
+  in        
+  Block.iter_forward collector block; 
+  DynArray.to_list ids, DynArray.to_list vals  
+
+
 (* get the id of a variable value node *) 
 let get_id valNode = match valNode.value with 
   | Var id -> id 
@@ -392,18 +409,5 @@ let is_empty_stmt stmtNode =
     | Set ([], {exp=Values[]})->true
     | _ -> false 
 
-(* assume a block contains only phi, collect the IDs and 
-   either the left or right values 
-*) 
-let collect_phi_nodes block chooseLeft =
-  let n = Block.length block in 
-  let ids = DynArray.make n in 
-  let vals = DynArray.make n in 
-  let collector = function 
-    | {stmt=Set([id], {exp=Phi(left,right)})} -> 
-      DynArray.add ids id;  
-      if chooseLeft then DynArray.add vals left else DynArray.add vals right
-    | _ -> assert false
-  in        
-  Block.iter_forward collector block; 
-  DynArray.to_list ids, DynArray.to_list vals  
+  
+

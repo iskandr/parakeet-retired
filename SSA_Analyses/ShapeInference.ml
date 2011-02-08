@@ -21,64 +21,39 @@ module ShapeAnalysis = struct
 
     
   
-    let clone_env env = env    
-    let flow_merge outEnv outId leftEnv leftId rightEnv rightId = 
-      failwith "can't merge shapes"   
-    
+    let clone_env env = env
+        
     (* should analysis be repeated until environment stops changing? *) 
-    val iterative : bool
+    let iterative = true  
   
-    val init : fundef -> env 
-  
-    val value : env -> value_node -> value_info
+    let init fundef = assert false 
+    let value env valNode = assert false 
     
-    val exp_values 
-      : env -> exp_node -> 
-        vs:value_node list -> info:value_info list -> exp_info
-    
-    val exp_arr 
-      : env -> exp_node -> elts:value_node list -> 
-        info:value_info list -> exp_info 
-        
-    val exp_primapp 
-      : env -> exp_node -> prim:Prim.prim -> args:value_node list ->
-        argInfo:value_info list -> exp_info 
-        
-    val exp_call 
-      : env -> exp_node -> fnId:FnId.t -> args:value_node list -> 
-        info:value_info list -> exp_info 
+    let exp_values env expNode ~vs ~info = assert false  
+      
+    let exp_arr env expNode ~elt ~info = assert false 
+       
+    let exp_primapp env expNode ~prim ~args ~argInfo = assert false 
+    let exp_call env expNode ~fnID ~args ~info = assert false 
           
-    val exp_map 
-      : env -> exp_node -> closure:closure -> args:value_node list -> 
-        closureInfo:value_info list -> argInfo:value_info list -> exp_info 
-  
-    val exp_reduce 
-      : env -> exp_node -> initClosure:closure -> reduceClosure:closure -> 
-          args:value_node list -> initInfo : value_info list -> 
-          reduceInfo:value_info list -> argInfo:value_info list -> exp_info 
-    
-    val exp_scan
-      : env -> exp_node -> initClosure:closure -> scanClosure:closure -> 
-          args:value_node list -> initInfo : value_info list -> 
-          scanInfo:value_info list -> argInfo:value_info list -> exp_info 
+    let exp_map env expNode ~closure ~args ~closureInfo ~argInfo = assert false
+    let exp_reduce env expNode 
+          ~initClosure ~reduceClosure ~args 
+          ~initInfo ~initInfo ~reduceInfo ~argInfo = assert false 
+          
+    let exp_scan env expNode 
+         ~initClosure ~scanClosure ~args
+         ~initInfo ~scanInfo ~argInfo = assert false 
             
-    val exp_app 
-      : env -> exp_node -> fn:value_node -> args:value_node list -> 
-        fnInfo : value_info -> argInfo : value_info list -> exp_info 
-     
-    val stmt_set 
-        : env -> stmt_node -> ids:ID.t list -> rhs:exp_node -> 
-            rhsInfo:exp_info -> env option 
-    val stmt_if 
-        : env -> stmt_node -> cond:value_node -> tBlock:block -> fBlock:block ->
-            gate:if_gate -> condInfo:value_info -> tEnv:env -> fEnv:env -> 
-            env option    
+    let exp_app env expNode ~fn ~args ~fnInfo ~argInfo = assert false
+    let stmt_set env stmtNode ~ids ~rhs ~rhsInfo = assert false 
+        
 end
-
+(*
 
 module Env = struct
 end
-
+*)
 type shape_env = Shape.t ID.Map.t 
 
 let get_output_shapes (fundef : SSA.fundef) (env : shape_env) : Shape.t list = 
@@ -165,7 +140,7 @@ and infer_stmt (fnTable : FnTable.t) (env : Shape.t ID.Map.t) stmtNode =
       
   (*| WhileLoop (condExp, body, loopGate) ->*)   
 and infer_body (fnTable : FnTable.t) (env : Shape.t ID.Map.t) block = 
-  SSA.block_fold_forward (infer_stmt fnTable) env block 
+  Block.fold_forward (infer_stmt fnTable) env block 
 and infer_fundef fnTable fundef inputShapes : shape_env = 
   let env =
     ID.Map.extend ID.Map.empty fundef.input_ids inputShapes  
@@ -221,5 +196,3 @@ and infer_allpairs fnTable fundef argShapes : Shape.t list * shape_env =
       in  
       outputShapes, nestedEnv 
     | _ -> failwith "expected two shapes for all-pairs operator"   
-  
-   

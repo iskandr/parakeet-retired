@@ -250,19 +250,26 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
         in 
         Update {stmtNode with stmt = Set(ids, rhs')}
     | SetIdx (arrayId, indices, rhs) -> failwith "setidx not implemented"
-    | If(cond, tBlock, fBlock, gate) -> 
+    | If(cond, tBlock, fBlock, mergeBlock) -> 
         let cond' = helpers.process_value (coerce_value DynType.BoolT) cond in
         let tBlock' = helpers.process_block (stmt context) tBlock in 
-        let fBlock' = helpers.process_block (stmt context) fBlock in 
-        Update {stmtNode with stmt = If(cond', tBlock', fBlock',gate)}
-    | WhileLoop(condBlock, condVal, body, gate) -> 
-        let condBlock' = helpers.process_block (stmt context) condBlock in
-        let condVal' = 
-          helpers.process_value (coerce_value DynType.BoolT) condVal 
-        in  
+        let fBlock' = helpers.process_block (stmt context) fBlock in
+        let mergeBlock' = helpers.process_block (stmt context) mergeBlock in  
+        Update {stmtNode with stmt = If(cond', tBlock', fBlock', mergeBlock')}
+    | WhileLoop(test, body, gates) -> 
         let body' = helpers.process_block (stmt context) body in
-        Update {stmtNode with stmt=WhileLoop(condBlock', condVal', body', gate)} 
-    
+        let gates' = { 
+          loop_exit =  helpers.process_block (stmt context) gates.loop_header;
+          loop_header = helpers.process_block (stmt context) gates.loop_exit
+        } 
+        in 
+        let test' = { 
+          test_block= helpers.process_block (stmt context) test.test_block; 
+          test_value = 
+            helpers.process_value (coerce_value DynType.BoolT) test.test_value 
+        } 
+        in  
+        Update {stmtNode with stmt =WhileLoop(test', body', gates')} 
 end 
 
 let rewrite_typed ~tenv ~closureEnv ~specializer ~output_arity ~fundef =

@@ -24,12 +24,11 @@ let rec is_scalar_stmt = function
       all_scalar_stmts tCode && all_scalar_stmts fCode
   | _ -> false   
 and is_scalar_stmt_node stmtNode = is_scalar_stmt stmtNode.stmt 
-and all_scalar_stmts stmts = SSA.block_for_all is_scalar_stmt_node stmts    
+and all_scalar_stmts stmts = Block.for_all is_scalar_stmt_node stmts    
 
 module MkAnalysis (P : TYPE_ANALYSIS_PARAMS) = struct
   let iterative = true
   let clone_env env = env
-  let flow_merge outEnv outId leftEnv leftId rightEnv rightId = None
  
   let dir = Forward 
   
@@ -115,12 +114,16 @@ module MkAnalysis (P : TYPE_ANALYSIS_PARAMS) = struct
     [DynType.VecT commonT]
   
   let exp_values tenv expNode ~vs ~info = info 
-
+  
+  let exp_phi tenv expNode ~left ~right ~leftInfo ~rightInfo = 
+    [DynType.common_type leftInfo rightInfo]
+     
   let exp_primapp _ _ ~prim ~args ~argInfo = 
     failwith "unexpected typed prim app"
 
   let exp_call _ _ ~fnId ~args ~info = 
     failwith "unexpected typed function call"
+    
   let exp_scan
         _ _ ~initClosure ~scanClosure ~args ~initInfo ~scanInfo ~argInfo =
         failwith "unexpected typed Scan"
@@ -128,7 +131,7 @@ module MkAnalysis (P : TYPE_ANALYSIS_PARAMS) = struct
         _ _ ~initClosure ~reduceClosure ~args ~initInfo ~reduceInfo ~argInfo = 
         failwith "unexpected typed Reduce"   
   let exp_map _ _ ~closure ~args ~closureInfo ~argInfo = 
-        failwith "unexpected typed Map"
+    failwith "unexpected typed Map"
   
   let stmt_set tenv stmtNode ~ids ~rhs ~rhsInfo = 
     IFDEF DEBUG THEN
@@ -153,7 +156,9 @@ module MkAnalysis (P : TYPE_ANALYSIS_PARAMS) = struct
     in  
     if changed then Some tenv' else None 
  
-    let stmt_if env stmtNode ~cond ~tBlock ~fBlock ~gate ~condInfo ~tEnv ~fEnv =
+    let stmt_if env stmtNode 
+                ~cond ~tBlock ~fBlock ~merge 
+                ~condInfo ~tEnv ~fEnv ~mergeEnv =
       failwith "IF not implemented"
  
 end

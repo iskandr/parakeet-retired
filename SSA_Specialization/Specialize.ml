@@ -20,7 +20,7 @@ let mk_untyped_prim_fundef prim arity : fundef =
   let bottoms = List.map (fun _ -> DynType.BottomT) inputs in 
   let inputVars = List.map (fun id -> SSA.mk_var id) inputs in 
   let rhs = SSA.mk_app ~types:bottoms (SSA.mk_val (Prim prim)) inputVars in    
-  let body = SSA.block_of_stmt (SSA.mk_set [output] rhs) in 
+  let body = Block.singleton (SSA.mk_set [output] rhs) in 
   let fundef = SSA.mk_fundef inputs [output] body in 
   (Hashtbl.add untypedPrimFnCache key fundef; fundef) 
 
@@ -61,7 +61,7 @@ let rec is_scalar_stmt stmtNode = match stmtNode.stmt with
   | SSA.If(_, tCode, fCode, _) -> 
       is_scalar_block tCode && is_scalar_block fCode
   | _ -> false 
-and is_scalar_block block = SSA.block_for_all is_scalar_stmt block
+and is_scalar_block block = Block.for_all is_scalar_stmt block
   
 
 let rec output_arity interpState closures = function 
