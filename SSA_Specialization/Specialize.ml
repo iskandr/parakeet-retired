@@ -84,6 +84,7 @@ let rec specialize_fundef interpState fundef signature =
   IFDEF DEBUG THEN
     Printf.printf "Specialize_Fundef...\n%!";
   ENDIF;
+  Timing.start_timer "Specialization";
   (* first check to see whether we're mapping a function of scalar operators*)
   (* over vector data. if so, rather than creating a large number of Map nodes *)
   (* and then merging them we directly create a single Map *) 
@@ -121,7 +122,9 @@ let rec specialize_fundef interpState fundef signature =
       ~output_arity:outputArity 
       ~fundef:fundef' 
   in
-  typedFn   
+  Timing.stop_timer "Specialization";
+  typedFn
+     
 and scalarize_fundef interpState untypedFundef vecSig =
   let inTypes = Signature.input_types vecSig in 
   let scalarSig = 

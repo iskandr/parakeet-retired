@@ -58,16 +58,17 @@ external cuda_init_runtime : unit -> unit = "ocaml_cuda_init_runtime"
 external cuda_memcpy_to_device_impl  : HostPtr.t -> GpuPtr.t -> int -> unit
   = "ocaml_cuda_memcpy_to_device"
 let cuda_memcpy_to_device hostPtr gpuPtr bytes =
-  let mem_xfer_start = Timing.get_time () in
+  Timing.start_timer "GPU transfer";
   cuda_memcpy_to_device_impl hostPtr gpuPtr bytes;
-  Timing.inc_mem_xfer_time mem_xfer_start
+  Timing.stop_timer "GPU transfer"
 
 external cuda_memcpy_to_host_impl : HostPtr.t -> GpuPtr.t -> int -> unit
   = "ocaml_cuda_memcpy_to_host"
+  
 let cuda_memcpy_to_host hostPtr gpuPtr bytes =
-  let mem_xfer_start = Timing.get_time () in
+  Timing.start_timer "GPU transfer";
   cuda_memcpy_to_host_impl hostPtr gpuPtr bytes;
-  Timing.inc_mem_xfer_time mem_xfer_start
+  Timing.stop_timer "GPU transfer"
   
 external cuda_memcpy_device_to_device : GpuPtr.t -> GpuPtr.t -> int -> unit 
   = "ocaml_cuda_memcpy_device_to_device"

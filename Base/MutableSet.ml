@@ -7,3 +7,4 @@ let mem = Hashtbl.mem
 let add set x = Hashtbl.add set x () 
 let remove = Hashtbl.remove
 let enum x = Enum.map fst (Hashtbl.enum x)  
+let iter  f  set= Hashtbl.iter (fun k v -> f k) set 

@@ -23,7 +23,6 @@ type exp =
   (* construction of arrays and values used by both typed and untyped ssa *) 
   | Arr of value_nodes
   | Values of value_nodes
-  | Phi of value_node * value_node
   (* nodes below are only used after type specialization *) 
   | Cast of DynType.t * value_node  
   | Call of FnId.t * value_nodes 
@@ -50,23 +49,23 @@ and closure = {
 type stmt = 
   | Set of ID.t list * exp_node 
   | SetIdx of ID.t * value_nodes * value_node
-  | If of value_node * block * block * block 
-  | WhileLoop of test * block * gates 
-and test = { 
-  test_block: block; 
-  test_value : value_node; 
-}
-and gates = {  
-  loop_header: block; 
-  loop_exit: block; 
-} 
-
+  | If of value_node * block * block * phi_nodes
+  (* testBlock, testVal, body, loop header, loop exit *)  
+  | WhileLoop of block * value_node * block * phi_nodes * phi_nodes 
 and stmt_node = { 
     stmt: stmt;
     stmt_src: SourceInfo.t option;
     stmt_id : StmtId.t;  
 }
 and block = stmt_node Block.t
+and phi_node = { 
+  phi_id : ID.t;
+  phi_left:  value_node;
+  phi_right: value_node;
+  phi_type : DynType.t; 
+  phi_src : SourceInfo.t option; 
+}  
+and phi_nodes = phi_node list 
 
 type fundef = {
   body: block;
@@ -336,11 +335,7 @@ let mk_closure fundef args = {
   closure_output_types = fundef.fn_output_types; 
 }
 
-let mk_phi ?src ?ty xId yId =
-  let xNode = mk_var ?src ?ty xId in 
-  let yNode = mk_var ?src ?ty yId in
-  mk_exp ?src ~types:[Option.default DynType.BottomT ty ] (Phi(xNode,yNode))
-
+  
 (***
      helpers for statements 
  ***) 
@@ -354,34 +349,39 @@ let mk_set ?src ids rhs =
     stmt_id = StmtId.gen() 
   }
 
-let mk_set_phi ?src ?ty id x y = mk_set ?src [id] (mk_phi ?src ?ty x y) 
+(***
+   helpers for phi-nodes 
+  
+ ***)
+
+
+let mk_phi ?src ?ty id left right = 
+  { 
+    phi_id = id; 
+    phi_left = left; 
+    phi_right = right;
+    phi_type = Option.default DynType.BottomT ty; 
+    phi_src = src; 
+  }  
 
 (* make a block of phi nodes merging IDs from the three lists given *) 
-let mk_merge_block outIds leftIds rightIds = 
-  let dynArr = DynArray.create() in 
-  let rec loop = function 
-    | [], _, _ | _,[],_ | _,_,[] -> Block.of_array (DynArray.to_array dynArr)
-    | x::xs, y::ys, z::zs ->
-      DynArray.add dynArr (mk_set_phi x y z); loop (xs,ys,zs) 
-  in 
-  loop (outIds,leftIds,rightIds)
+let rec mk_phi_nodes outIds leftIds rightIds = 
+  match (outIds, leftIds, rightIds) with 
+    | [], _, _ | _,[],_ | _,_,[] -> []  
+    | x::xs, y::ys, z::zs -> 
+      (mk_phi x (mk_var y) (mk_var z)) :: (mk_phi_nodes xs ys zs) 
+      
 
 (* assume a block contains only phi, collect the IDs and 
    either the left or right values 
 *) 
-let collect_phi_nodes block chooseLeft =
-  let n = Block.length block in 
-  let ids = DynArray.make n in 
-  let vals = DynArray.make n in 
-  let collector = function 
-    | {stmt=Set([id], {exp=Phi(left,right)})} -> 
-      DynArray.add ids id;  
-      if chooseLeft then DynArray.add vals left else DynArray.add vals right
-    | _ -> assert false
-  in        
-  Block.iter_forward collector block; 
-  DynArray.to_list ids, DynArray.to_list vals  
-
+let rec collect_phi_values chooseLeft = function 
+  | [] -> [], [] 
+  | p::ps -> 
+    let ids, valNodes = collect_phi_values chooseLeft ps in 
+    let currVal = if chooseLeft then p.phi_left else p.phi_right in 
+    p.phi_id :: ids, currVal :: valNodes 
+    
 
 (* get the id of a variable value node *) 
 let get_id valNode = match valNode.value with 

@@ -13,7 +13,7 @@ module DefLattice = struct
     | Bottom
 
   let bottom = Bottom
-   
+  (* TODO: use this for phi nodes and redefinitions *) 
   let combine x y = match x,y with
     | _, Top 
     | Top, _ -> Top 
@@ -26,47 +26,50 @@ module DefLattice = struct
     | Combine defs1, Combine defs2 -> Combine (defs1 @ defs2)
     | Combine defs, d
     | d, Combine defs -> Combine (d::defs)
-    
-  let eq = (=)
-  
-  let exp_default expNode =  match expNode.exp with 
-    | Values vs -> List.map (fun v -> Val v.value) vs   
-    | other -> 
-      let numReturnVals = List.length expNode.exp_types in 
-      List.map 
-        (fun i -> Def (other, i+1, numReturnVals)) 
-        (List.til numReturnVals)
 end
 
    
-module Env = struct 
+module DefEval = MkEvaluator(struct 
   type env = (ID.t, DefLattice.t) Hashtbl.t
+  type value_info = DefLattice.t
+  type exp_info = DefLattice.t list 
+  
+  let iterative = false
+  let dir = Forward
+  let clone_env env = env 
+  
   let init fundef = 
     let env = Hashtbl.create 127 in  
     List.iter  
       (fun id -> Hashtbl.add env id DefLattice.Top) 
       fundef.input_ids
     ; 
-    env         
-end 
-module DefAnalysis = struct
-  include SSA_Analysis.MkAnalysis(Env)(DefLattice)
-    
-  let iterative = false 
+    env
   
-  let stmt_set env stmtNode ~ids ~rhs ~rhsInfo = 
-    IFDEF DEBUG THEN
-      let nDefs = List.length rhsInfo in 
-      let nIds = List.length ids in 
-      if nDefs <> nIds then 
-        failwith $ Printf.sprintf 
-          "[FindDefs] error in \"%s\", %d ids for %d expressions" 
-          (SSA.stmt_node_to_str stmtNode) nIds nDefs 
-    ENDIF; 
-    List.iter2 (Hashtbl.add env) ids rhsInfo;  
-    None    
-end 
+  (* never gets used *) 
+  let value env valNode = DefLattice.bottom
+  let exp env expNode helpers = match expNode.exp with 
+    | Values vs -> List.map (fun v -> DefLattice.Val v.value) vs   
+    | other -> 
+        let numReturnVals = List.length expNode.exp_types in 
+        List.map 
+          (fun i -> DefLattice.Def (other, i+1, numReturnVals)) 
+          (List.til numReturnVals)  
+  
+  let stmt env stmtNode helpers = match stmtNode.stmt with 
+    | Set(ids, rhs) ->
+        let rhsInfo = exp env rhs helpers in  
+        IFDEF DEBUG THEN
+          let nDefs = List.length rhsInfo in 
+          let nIds = List.length ids in 
+          if nDefs <> nIds then 
+            failwith $ Printf.sprintf 
+              "[FindDefs] error in \"%s\", %d ids for %d expressions" 
+              (SSA.stmt_node_to_str stmtNode) nIds nDefs 
+        ENDIF; 
+        List.iter2 (Hashtbl.add env) ids rhsInfo;  
+        None
+   | _ -> helpers.eval_stmt env stmtNode     
+end)
 
-module DefEval = MkEvaluator(DefAnalysis)
- 
-let find_defs = DefEval.eval_fundef  
+let find_defs f = DefEval.eval_fundef f  

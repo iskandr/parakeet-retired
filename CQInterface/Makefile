@@ -38,6 +38,7 @@ BaseCommon.cmx Tuple.cmx BaseArray.cmx BaseList.cmx  BaseSet.cmx  BaseMap.cmx \
 Graph.cmx \
 Bool.cmx Float.cmx Int.cmx PSet.cmx BasePMap.cmx Base.cmx \
 MutableSet.cmx \
+Timing.cmx \
 DynType.cmx \
 UID.cmx \
 ID.cmx \
@@ -75,7 +76,6 @@ TypeAnalysis.cmx \
 RewriteTyped.cmx \
 Specialize.cmx \
 PtxType.cmx PtxVal.cmx Ptx.cmx Shape.cmx \
-Timing.cmx \
 Cuda.cmx \
 HostVal.cmx GpuVal.cmx InterpVal.cmx \
 MemoryState.cmx \

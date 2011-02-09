@@ -41,24 +41,32 @@ module BlockState = struct
   (* use a record instead of an object to track block state*)
   (* for improved performance *) 
   type t = { 
-    stmts : stmt_node DynArray.t; 
+    stmts : (stmt_node list) ref;
+    old_block : SSA.block;  
     mutable changes : int;  
   }     
 
   (* initializer *) 
-  let create n = { 
-    stmts = DynArray.make n; 
+  let create (oldBlock:SSA.block) = { 
+    stmts = ref []; 
+    old_block = oldBlock; 
     changes = 0 
   }
 
-  let finalize blockState = 
-    Block.of_array (DynArray.to_array blockState.stmts),
-    blockState.changes > 0
+  let finalize (blockState:t) =
+    let changed = blockState.changes > 0 in 
+    let block = 
+      if changed then 
+        Block.of_list (List.rev !(blockState.stmts))
+      else blockState.old_block 
+    in 
+    block, changed 
 
   (* add statement to block unless it's a no-op *)  
   let add_stmt blockState stmtNode = 
-    if not (SSA.is_empty_stmt stmtNode) then 
-      DynArray.add blockState.stmts stmtNode
+    if not (SSA.is_empty_stmt stmtNode) then
+      blockState.stmts := stmtNode :: !(blockState.stmts) 
+      (*DynArray.add blockState.stmts stmtNode*)
       
   let add_stmt_list blockState stmts = 
     List.iter (add_stmt blockState) stmts 
@@ -104,7 +112,7 @@ module MkCustomTransform(R : CUSTOM_TRANSFORM_RULES) = struct
   let rec transform_block 
           (rewriteStmt : rewrite_helpers -> stmt_node -> stmt_node update) 
           (block:block) = 
-    let blockState = BlockState.create (Block.length block) in
+    let blockState = BlockState.create block in
     let rec helpers = { 
       version = (fun() -> blockState.changes); 
       changed = (fun n -> blockState.changes <> n); 
@@ -123,20 +131,14 @@ module MkCustomTransform(R : CUSTOM_TRANSFORM_RULES) = struct
     }
     in  
     let n = Block.length block in
-    (match R.dir with 
-    | Forward -> 
-        for i = 0 to n - 1 do
-          let stmtNode = Block.idx block i  in 
-          let stmtUpdate = rewriteStmt helpers stmtNode in
-          BlockState.process_stmt_update blockState stmtNode stmtUpdate
-        done 
-    | Backward ->  
-        for i = n-1 downto 0 do 
-          let stmtNode = Block.idx block i  in 
-          let stmtUpdate = rewriteStmt helpers stmtNode in
-          BlockState.process_stmt_update blockState stmtNode stmtUpdate
-        done  
-    );
+    let folder stmtNode = 
+      let stmtUpdate = rewriteStmt helpers stmtNode in
+      BlockState.process_stmt_update blockState stmtNode stmtUpdate
+    in 
+    (match R.dir with  
+      | Forward -> Block.iter_forward folder block 
+      | Backward -> Block.iter_backward folder block 
+    ); 
     BlockState.finalize blockState 
     
   (* these exist so we can access the transform env from outside functions, *)
@@ -282,21 +284,24 @@ module CustomFromSimple(R: SIMPLE_TRANSFORM_RULES) = struct
       let cond' = transform_value helpers cxt cond  in
       let tBlock' = helpers.process_block (stmt cxt) tBlock in 
       let fBlock' = helpers.process_block (stmt cxt) fBlock in 
-      let merge' = helpers.process_block (stmt cxt) merge in
+      (* TODO: process phi nodes *) 
+      (*let merge' = helpers.process_block (stmt cxt) merge in*)
       if changed() then 
-        { stmtNode with stmt = If(cond',tBlock',fBlock',merge')  }
+        { stmtNode with stmt = If(cond',tBlock',fBlock',merge)  }
       else stmtNode  
-    | WhileLoop (test, body, gates) ->
+    | WhileLoop (testBlock, testVal, body, header, exit) ->
       let self = stmt cxt in 
-      let testBlock' = helpers.process_block self test.test_block in
-      let testVal' = transform_value helpers cxt test.test_value in  
+      let testBlock' = helpers.process_block self testBlock in
+      let testVal' = transform_value helpers cxt testVal in  
       let bodyBlock' = helpers.process_block self body in
-      let header' = helpers.process_block self gates.loop_header in 
-      let exit' = helpers.process_block self gates.loop_exit in 
+      (* TODO: process phi nodes  *) 
+      (*let header' = helpers.process_block self gates.loop_header in 
+      let exit' = helpers.process_block self gates.loop_exit in
+      *) 
       if changed() then
-        let test' = { test_block = testBlock'; test_value = testVal' } in 
-        let gates' = { loop_header = header'; loop_exit = exit' } in 
-        { stmtNode with stmt=WhileLoop(test',bodyBlock',gates')}
+        { stmtNode with 
+            stmt= WhileLoop(testBlock', testVal', bodyBlock', header, exit)
+        }
       else stmtNode 
     in
     match R.stmt cxt stmtNode' with 

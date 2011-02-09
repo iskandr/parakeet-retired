@@ -8,6 +8,7 @@ type optimization = FnTable.t -> SSA.fundef -> SSA.fundef * bool
 let rec fold_optimizations ?(type_check=false) fnTable fundef lastChanged = 
   function
   | (name, opt)::rest -> 
+      (*Timing.start_timer ("opt::"^name);*)
       IFDEF DEBUG THEN Printf.printf "Running %s...\n%! " name; ENDIF; 
       let optimized, changed = opt fnTable fundef in
       IFDEF DEBUG THEN
@@ -28,6 +29,7 @@ let rec fold_optimizations ?(type_check=false) fnTable fundef lastChanged =
        
         );
       ENDIF;
+      (*Timing.stop_timer ("opt::"^name);*)
       fold_optimizations fnTable optimized (changed || lastChanged)  rest 
   | [] -> fundef, lastChanged
    
@@ -86,5 +88,6 @@ let optimize_all_fundefs
             (SSA.fundef_to_str optimized)
       ;
     ENDIF;
-    FnTable.update  optimized fnTable       
-  done  
+    FnTable.update optimized fnTable       
+  done
+  

@@ -59,8 +59,9 @@ let rec check_stmt
   | If (test, tBlock, fBlock, merge) ->
       check_value errorLog tenv defined test;
       let _ = check_block errorLog tenv defined tBlock in  
-      let _ = check_block errorLog tenv defined fBlock in
-      check_block errorLog tenv defined merge  
+      let _ = check_block errorLog tenv defined fBlock in  
+      (* TODO: check phi nodes check_block errorLog tenv defined merge*)
+      defined 
       
   | WhileLoop _ -> failwith "type checking of loops not yet implemented"
 and check_exp errorLog tenv (defined : ID.Set.t) (expNode : exp_node) : unit = 

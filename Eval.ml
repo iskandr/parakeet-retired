@@ -53,7 +53,7 @@ module Mk(P : EVAL_PARAMS) = struct
       ID.Map.extend env ids results 
     | SetIdx (id, indices, rhs) -> failwith "not yet implemented"   
     | If (boolVal, tBlock, fBlock, ifGate) -> failwith "not yet implemented"
-    | WhileLoop (test, body, gates) -> assert false
+    | WhileLoop (testBlock, testVal, body, header, exit) -> assert false
        (*
       let env' = eval_block env  in 
       (match eval_value env condVal with 
