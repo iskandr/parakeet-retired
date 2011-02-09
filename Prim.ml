@@ -41,8 +41,7 @@ type scalar_op =
   | Select
       (* returns array where i'th element is from 2nd arg if 
          i'th conditional element is true, otherwise choose from 3rd arg
-      *) 
-
+      *)
 
 type array_op = 
   | Zip 
@@ -63,12 +62,10 @@ type adverb =
   | Reduce 
   | AllPairs (* each left / each right *) 
   | AllPairsRight  (* each right / each left *)
-   
+
 type impure_op = ResetTimer | GetTimer | Print 
-                
 
 type q_op =  Q_WriteOrLoadText | Q_WriteOrLoadBinary | Q_Question |  Q_Dollar  
-      
 
 type prim =
   | ScalarOp of scalar_op  
@@ -76,7 +73,6 @@ type prim =
   | Adverb of adverb 
   | ImpureOp of impure_op
   | Q_Op of q_op 
-
     
 (*        
 let is_adverb = function 

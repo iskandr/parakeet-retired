@@ -11,7 +11,7 @@
 #define PRIM_VARIANTS_H_
 
 /** For Prim.ml **/
-enum scalar_op {
+typedef enum scalar_op {
   Scalar_Op_Add = 0,
   Scalar_Op_Sub,
   Scalar_Op_Mult,
@@ -51,9 +51,9 @@ enum scalar_op {
   Scalar_Op_Lg2,
   Scalar_Op_Log10,
   Scalar_Op_Select
-};
+} scalar_op_t;
 
-enum array_op {
+typedef enum array_op {
   Array_Op_Zip = 0,
   Array_Op_Concat,
   Array_Op_Enlist,
@@ -63,9 +63,9 @@ enum array_op {
   Array_Op_Where,
   Array_Op_Find,
   Array_Op_DimSize
-};
+} array_op_t;
 
-enum adverb {
+typedef enum adverb {
   Adverb_Map = 0,
   Adverb_EachLeft,
   Adverb_EachRight,
@@ -73,27 +73,27 @@ enum adverb {
   Adverb_Reduce,
   Adverb_AllPairs,
   Adverb_AllPairsRight
-};
+} adverb_t;
 
-enum impure_op {
+typedef enum impure_op {
   Impure_Op_ResetTimer = 0,
   Impure_Op_GetTimer,
   Impure_Op_Print
-};
+} impure_op_t;
 
-enum q_op {
+typedef enum q_op {
   Q_Op_Q_WriteOrLoadText = 0,
   Q_Op_Q_WriteOrLoadBinary,
   Q_Op_Q_Question,
   Q_Op_Q_Dollar
-};
+} q_op_t;
 
-enum prim {
+typedef enum prim {
   Prim_ScalarOp = 0,
   Prim_ArrayOp,
   Prim_Adverb,
   Prim_ImpureOp,
   Prim_Q_Op
-};
+} prim_t;
 
 #endif

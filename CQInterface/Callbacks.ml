@@ -12,4 +12,4 @@ let _ = Callback.register "get_function_template"
   CodeTemplate.get_function_template
 let _ = Callback.register "run_template" CodeTemplate.run_template
 let _ = Callback.register "c_compact" CodeTemplate.c_compact
-
+let _ = Callback.register "mk_ast_info" AST_Info.mk_ast_info

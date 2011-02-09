@@ -47,7 +47,7 @@ int num_module_templates;
 int sizeof_function_templates;
 int num_function_templates;
 
-void init_dt() {
+void init_kc() {
   CAMLparam0();
 
   if (init) {
@@ -56,8 +56,7 @@ void init_dt() {
   init = 1;
 
   // Initialize OCaml
-  char *argv[] = {"argv", NULL};
-  caml_startup(argv);
+  parakeet_init();
 
 #ifndef DEBUG
   //ocaml_compiler_init          = caml_named_value("compiler_init");
@@ -103,7 +102,7 @@ K gen_module_template(K functions) {
   CAMLlocal3(func_list1, func_list2, func_desc);
 
   // TODO: Really don't like this here, but only works if it is.
-  init_dt();
+  init_kc();
 
   // Fill the OCaml block with the appropriate function info.
   int i;
@@ -140,8 +139,8 @@ K gen_module_template(K functions) {
     // Extend vector
     value *new_vector = (value*)malloc(sizeof(value) * num_module_templates*2);
     for (i = 0; i < num_module_templates; ++i) {
-      new_vector[i] = module_templates[i];
       caml_register_global_root(&new_vector[i]);
+      new_vector[i] = module_templates[i];
       caml_remove_global_root(&module_templates[i]);
     }
     sizeof_module_templates *= 2;
@@ -177,8 +176,8 @@ K get_function_template(K mod_temp, K func_name) {
     value *new_vector = (value*)malloc(sizeof(value)*num_function_templates*2);
     int i;
     for (i = 0; i < num_function_templates; ++i) {
-      new_vector[i] = function_templates[i];
       caml_register_global_root(&new_vector[i]);
+      new_vector[i] = function_templates[i];
       caml_remove_global_root(&function_templates[i]);
     }
     sizeof_function_templates *= 2;
@@ -735,7 +734,8 @@ K hostval_to_qval(value hostVal) {
      /* convert the OCaml-side type tag of the array into the K type number
       * of the array elements
       */
-     if(!ocaml_dyn_type_to_ktypenum) { printf("ERROR: dyn_type_to_ktypenum not found\n"); exit(1); } 
+     if(!ocaml_dyn_type_to_ktypenum) {
+       printf("ERROR: dyn_type_to_ktypenum not found\n"); exit(1); } 
      int k_type_num =
        Int_val(caml_callback(*ocaml_dyn_type_to_ktypenum,hostType));
      int k_elt_type = -1 * abs(k_type_num);
@@ -780,7 +780,7 @@ K dump_variables(K filename, K vars) {
   CAMLlocal2(ocaml_dyn_type, ocaml_scalar_type);
 
   // TODO: remove
-  init_dt();
+  init_kc();
 
   char *cname;
   if (filename->t == -KC) {

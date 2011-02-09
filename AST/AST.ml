@@ -10,7 +10,7 @@ type exp =
     | Lam of (string list) * node
     | Var of string
     | Prim of prim
-    | Num of num 
+    | Num of num
     | Str of string
     | Sym of string
 				
@@ -31,7 +31,7 @@ and node = {
 		mutable ast_info : ast_info; 
 }
 
-let mk_node ?(astInfo=mk_ast_info()) ?(src=SourceInfo.empty) data  = 
+let mk_node ?(astInfo=mk_ast_info()) ?(src=SourceInfo.empty) data =
   {data=data; src=src; ast_info = astInfo}
 
 (* Str *) 
@@ -41,26 +41,26 @@ let mk_str_node ?(astInfo=mk_ast_info()) ?(src=SourceInfo.empty) s =
 let update_str_node ast s = { ast with data = Str s }
 
 (* Block *) 
-let mk_block_node ?(astInfo=mk_ast_info()) ?(src=SourceInfo.empty) nodes = 
+let mk_block_node ?(astInfo=mk_ast_info()) ?(src=SourceInfo.empty) nodes =
   mk_node ~astInfo ~src (Block nodes)
 
-let update_block_node ast nodes = { ast with data = Block nodes } 
+let update_block_node ast nodes = { ast with data = Block nodes }
      
 (* Arr *)     
-let mk_arr_node ?(astInfo=mk_ast_info()) ?(src=SourceInfo.empty) nodes = 
+let mk_arr_node ?(astInfo=mk_ast_info()) ?(src=SourceInfo.empty) nodes =
   mk_node ~astInfo ~src (Arr nodes) 
 
-let update_arr_node ast nodes = { ast with data = Arr nodes } 
+let update_arr_node ast nodes = { ast with data = Arr nodes }
 
 (* App *) 
-let mk_app_node ?(astInfo=mk_ast_info()) ?(src=SourceInfo.empty) fnNode args = 
+let mk_app_node ?(astInfo=mk_ast_info()) ?(src=SourceInfo.empty) fnNode args =
   mk_node ~astInfo ~src (App (fnNode, args)) 
 
 let update_app_node ast fnNode args = { ast with data = App(fnNode, args)}
 
 (* Prim *) 
-let mk_prim_node ?(astInfo=mk_ast_info()) ?(src=SourceInfo.empty) p = 
-  mk_node ~astInfo ~src (Prim p) 
+let mk_prim_node ?(astInfo=mk_ast_info()) ?(src=SourceInfo.empty) p =
+  mk_node ~astInfo ~src (Prim p)
   
 let update_prim_node ast p = {ast with data=Prim p} 
 

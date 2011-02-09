@@ -12,6 +12,8 @@
 #include <caml/memory.h>
 #include <caml/mlvalues.h>
 
+void parakeet_init(void);
+
 value build_ocaml_host_scalar(value num);
 value build_ocaml_host_array(int num_bytes, value ocaml_dyn_type,
                              int *shape, int shape_len, char *flattened);

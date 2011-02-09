@@ -1,38 +1,35 @@
-open Base 
-
+open Base
 
 type ast_info = { 
-		mutable defs_local : string PSet.t;
-		mutable defs_global : string PSet.t; 
+	mutable defs_local : string PSet.t;
+	mutable defs_global : string PSet.t; 
 
-    mutable reads_local : string PSet.t;
-    mutable reads_global : string PSet.t; 
+  mutable reads_local : string PSet.t;
+  mutable reads_global : string PSet.t; 
     		
-		mutable writes_local : string PSet.t;
-		mutable writes_global : string PSet.t; 
+	mutable writes_local : string PSet.t;
+	mutable writes_global : string PSet.t; 
 		
-		(* write to disk, print to screen, read from internet, etc... *)
-		mutable io : bool;
+	(* write to disk, print to screen, read from internet, etc... *)
+	mutable io : bool;
     
-		mutable nested_functions : bool;
-    mutable is_function : bool;
-    
+	mutable nested_functions : bool;
+  mutable is_function : bool;
 }
 
-
 let mk_ast_info () = { 
-		 defs_local = PSet.empty; 
-     defs_global = PSet.empty; 
+	defs_local = PSet.empty; 
+  defs_global = PSet.empty; 
 		
-     reads_local = PSet.empty; 
-     reads_global = PSet.empty; 
+  reads_local = PSet.empty; 
+  reads_global = PSet.empty; 
         	 
-		 writes_local = PSet.empty; 
-		 writes_global = PSet.empty; 		 
+	writes_local = PSet.empty; 
+	writes_global = PSet.empty; 		 
 		  
-		 io = false; 
-		 nested_functions = false;
-     is_function = false;
+	io = false; 
+	nested_functions = false;
+  is_function = false;
 }
 	
 let combine_ast_info info1 info2 = {	
