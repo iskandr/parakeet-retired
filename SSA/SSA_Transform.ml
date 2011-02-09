@@ -284,21 +284,24 @@ module CustomFromSimple(R: SIMPLE_TRANSFORM_RULES) = struct
       let cond' = transform_value helpers cxt cond  in
       let tBlock' = helpers.process_block (stmt cxt) tBlock in 
       let fBlock' = helpers.process_block (stmt cxt) fBlock in 
-      let merge' = helpers.process_block (stmt cxt) merge in
+      (* TODO: process phi nodes *) 
+      (*let merge' = helpers.process_block (stmt cxt) merge in*)
       if changed() then 
-        { stmtNode with stmt = If(cond',tBlock',fBlock',merge')  }
+        { stmtNode with stmt = If(cond',tBlock',fBlock',merge)  }
       else stmtNode  
-    | WhileLoop (test, body, gates) ->
+    | WhileLoop (testBlock, testVal, body, header, exit) ->
       let self = stmt cxt in 
-      let testBlock' = helpers.process_block self test.test_block in
-      let testVal' = transform_value helpers cxt test.test_value in  
+      let testBlock' = helpers.process_block self testBlock in
+      let testVal' = transform_value helpers cxt testVal in  
       let bodyBlock' = helpers.process_block self body in
-      let header' = helpers.process_block self gates.loop_header in 
-      let exit' = helpers.process_block self gates.loop_exit in 
+      (* TODO: process phi nodes  *) 
+      (*let header' = helpers.process_block self gates.loop_header in 
+      let exit' = helpers.process_block self gates.loop_exit in
+      *) 
       if changed() then
-        let test' = { test_block = testBlock'; test_value = testVal' } in 
-        let gates' = { loop_header = header'; loop_exit = exit' } in 
-        { stmtNode with stmt=WhileLoop(test',bodyBlock',gates')}
+        { stmtNode with 
+            stmt= WhileLoop(testBlock', testVal', bodyBlock', header, exit)
+        }
       else stmtNode 
     in
     match R.stmt cxt stmtNode' with 

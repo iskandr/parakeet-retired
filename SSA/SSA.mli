@@ -20,7 +20,6 @@ type exp =
   | App of  value_node * value_nodes
   | Arr of value_nodes
   | Values of value_nodes
-  | Phi of value_node * value_node
   (* nodes below are only used after type specialization *) 
   | Cast of DynType.t * value_node  
   | Call of FnId.t * value_nodes 
@@ -48,22 +47,24 @@ and closure = {
 type stmt = 
   | Set of ID.t list * exp_node 
   | SetIdx of ID.t * value_nodes * value_node
-  | If of value_node * block * block * block 
-  | WhileLoop of test * block * gates 
-and test = { 
-  test_block: block; 
-  test_value : value_node; 
-}
-and gates = {  
-  loop_header: block; 
-  loop_exit: block; 
-} 
+  | If of value_node * block * block * phi_nodes
+  (* testBlock, testVal, body, loop header, loop exit *)  
+  | WhileLoop of block * value_node * block * phi_nodes * phi_nodes 
 and stmt_node = { 
     stmt: stmt;
     stmt_src: SourceInfo.t option;
     stmt_id : StmtId.t;  
 }
-and block = stmt_node Block.t 
+and block = stmt_node Block.t
+and phi_node = { 
+  phi_id : ID.t;
+  phi_left:  value_node;
+  phi_right: value_node;
+  phi_type : DynType.t; 
+  phi_src : SourceInfo.t option; 
+}  
+and phi_nodes = phi_node list 
+
 
 type fundef = {
   body: block;
@@ -108,9 +109,6 @@ val mk_fundef :
 
 val mk_stmt : ?src:SourceInfo.t -> ?id:StmtId.t -> stmt -> stmt_node 
 val mk_set : ?src:SourceInfo.t -> ID.t list -> exp_node -> stmt_node 
-val mk_set_phi 
-  : ?src:SourceInfo.t -> ?ty:DynType.t  -> 
-    ID.t -> ID.t -> ID.t -> stmt_node 
       
 (* get the id of a variable value node *) 
 val get_id : value_node -> ID.t 
@@ -173,9 +171,13 @@ val mk_reduce :
 val mk_scan : 
       ?src:SourceInfo.t -> closure -> closure -> value_node list -> exp_node
 val mk_closure : fundef -> value_node list -> closure 
-val mk_phi : ?src:SourceInfo.t -> ?ty:DynType.t -> ID.t ->ID.t -> exp_node
+
 val empty_stmt : stmt_node 
 val is_empty_stmt : stmt_node -> bool 
 
-val mk_merge_block : ID.t list -> ID.t list -> ID.t list -> block  
-val collect_phi_nodes : block -> bool -> ID.t list * value_node list 
+val mk_phi : 
+     ?src:SourceInfo.t -> ?ty:DynType.t -> 
+       ID.t -> value_node -> value_node -> phi_node
+       
+val mk_phi_nodes : ID.t list -> ID.t list -> ID.t list -> phi_nodes  
+val collect_phi_values :bool -> phi_nodes -> ID.t list * value_node list 

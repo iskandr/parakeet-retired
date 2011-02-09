@@ -2,9 +2,8 @@ open Base
 open SSA
 open SSA_Analysis 
 
-module UseCountAnalysis = SSA_Analysis.MkAnalysis(struct 
+module UseCountEval = MkEvaluator(struct 
   type env = (ID.t, int) Hashtbl.t
-  
   type value_info = unit 
   type exp_info = unit 
   
@@ -23,9 +22,8 @@ module UseCountAnalysis = SSA_Analysis.MkAnalysis(struct
       Hashtbl.add counts id (oldCount+1)
     | _ -> ()
 
-  let exp env expNode helpers = helpers.iter_exp_children expNode 
-  let stmt env stmtNode helpers = helpers.iter_stmt stmtNode
+  let exp env expNode helpers = helpers.iter_exp_children env expNode 
+  let stmt env stmtNode helpers = helpers.eval_stmt env stmtNode
 end)
  
-module UseCountEval = MkEvaluator(UseCountAnalysis)
-let find_fundef_use_counts = UseCountEval.eval_fundef
+let find_fundef_use_counts f = UseCountEval.eval_fundef f 

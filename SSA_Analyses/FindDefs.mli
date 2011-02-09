@@ -9,7 +9,6 @@ module DefLattice : sig
 
   val bottom : t
   val combine : t -> t -> t 
-  val eq : t -> t -> bool   
 end
 
 val find_defs : SSA.fundef -> (ID.t, DefLattice.t) Hashtbl.t 

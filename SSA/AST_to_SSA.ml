@@ -92,7 +92,7 @@ let rec translate_stmt
          value along each branch and then set the return var to be the 
          SSA merge of the two branch values 
       *)
-      let mergeBlock = (match value_id with 
+      let phiNodes = (match value_id with 
       | Some valId -> 
           let trueRetId = ID.gen () in
           let trueEnv : Env.t = 
@@ -108,7 +108,7 @@ let rec translate_stmt
           let falseIds = 
             falseRetId :: List.map (lookup_id falseEnv) mergeNames 
           in
-          mk_merge_block (valId::mergeIds) trueIds falseIds 
+          SSA.mk_phi_nodes (valId::mergeIds) trueIds falseIds 
           
       | None ->
           (* note that here we're not passing any return/value IDs *) 
@@ -116,12 +116,12 @@ let rec translate_stmt
           let trueIds = List.map (lookup_id trueEnv) mergeNames in 
           let falseEnv = translate_stmt condEnv falseCodegen falseNode in
           let falseIds = List.map (lookup_id falseEnv) mergeNames in 
-          mk_merge_block mergeIds trueIds falseIds  
+          SSA.mk_phi_nodes mergeIds trueIds falseIds  
       )
       in 
       let trueBlock = trueCodegen#finalize in 
       let falseBlock = falseCodegen#finalize in     
-      codegen#emit [mk_stmt $ If(condVal,trueBlock,falseBlock, mergeBlock)];
+      codegen#emit [mk_stmt $ If(condVal,trueBlock,falseBlock, phiNodes)];
       add_list env mergeNames mergeIds
    
   | AST.Def(name, rhs) -> 
@@ -149,10 +149,12 @@ let rec translate_stmt
            - merge information at the beginning of the loop 
            - update counter value 
       *)  
-      let initCounterId = ID.gen() in 
+      let initCounterId = ID.gen() in
+      let initCounterVar = SSA.mk_var initCounterId in  
       let startCounterId = ID.gen() in
       let startCounterVar = SSA.mk_var startCounterId in 
-      let endCounterId = ID.gen() in        
+      let endCounterId = ID.gen() in
+      let endCounterVar = SSA.mk_var endCounterId in         
       (* initialize loop counter to 1 *)
       codegen#emit [SSA_Codegen.set_int initCounterId 0l];
       let condId = ID.gen() in
@@ -163,20 +165,20 @@ let rec translate_stmt
       in 
       let bodyCodegen = new SSA_Codegen.ssa_codegen in 
       (* update the body codegen and generate a loop gate *)
-      let headerBlock, exitBlock, exitEnv = 
-        translate_loop_body env' bodyCodegen body  
-      in
+      let header, exit, exitEnv = translate_loop_body env' bodyCodegen body  in
       (* incremenet counter and add SSA gate for counter to loopGate *)
       bodyCodegen#emit [SSA_Codegen.incr endCounterId startCounterVar];
-      let headerPhi = 
-        SSA.mk_set_phi startCounterId initCounterId endCounterId
+      
+      let header' = 
+        (SSA.mk_phi startCounterId initCounterVar endCounterVar) :: header
       in 
-      let headerBlock' = Block.insert_after headerBlock headerPhi in
-      let test = {test_block=condBlock; test_value = SSA.mk_var condId} in 
-      let gates = { loop_header = headerBlock'; loop_exit = exitBlock } in 
-      codegen#emit [SSA.mk_stmt $ WhileLoop(test, bodyCodegen#finalize, gates)];
+      let condVal = SSA.mk_var condId in 
+      let body = bodyCodegen#finalize in  
+      codegen#emit [
+        SSA.mk_stmt $ WhileLoop(condBlock, condVal,  body, header', exit)
+        
+      ];
       exitEnv 
-       
   | simple ->  
       let env', exp = translate_exp env codegen node in
       (* simple values shouldn't contain any statements *) 
@@ -185,7 +187,8 @@ let rec translate_stmt
         | None -> codegen#emit [mk_stmt $ Set([], exp)]
       );
       env'
-and translate_loop_body envBefore codegen body : SSA.block * SSA.block * Env.t = 
+and translate_loop_body envBefore codegen body 
+      : SSA.phi_nodes * SSA.phi_nodes * Env.t = 
   let bodyDefs = body.ast_info.defs_local in
   let bodyUses = body.ast_info.reads_local in
   (* At the end of the loop, 
@@ -203,18 +206,16 @@ and translate_loop_body envBefore codegen body : SSA.block * SSA.block * Env.t =
      which feed back into the loop
   *)  
   let envEnd : Env.t = translate_stmt envOverlap codegen body in
-  
-  let mk_header_phi_node name = 
+  let mk_header_phi name = 
     let prevId = lookup_id envBefore name in
     let loopStartId = lookup_id envOverlap name in
     let loopEndId = lookup_id envEnd name in
-    SSA.mk_set_phi loopStartId prevId loopEndId  
+    SSA.mk_phi loopStartId (SSA.mk_var prevId) (SSA.mk_var loopEndId)  
   in      
-  let loopHeader = Block.of_list $ List.map mk_header_phi_node overlapList in
-  (* a buffer for the Phi nodes of the loop exit block *) 
-  let loopExitBuffer = DynArray.create () in
-  (* create the final environment after the loop exit block has executed *)      
-  let loop_exit_folder (exitEnv : Env.t) name = 
+  let loopHeader = List.map mk_header_phi overlapList in
+  (* create the final environment after the loop exit block has executed *)
+  let loopExitBuffer = DynArray.create () in       
+  let loop_exit_folder exitEnv name = 
       (* what ID does this var have at the end of the loop? *) 
       let loopId = lookup_id envEnd name in 
       (* if ID wasn't defined , then have to merge outputs *) 
@@ -223,15 +224,17 @@ and translate_loop_body envBefore codegen body : SSA.block * SSA.block * Env.t =
         | None -> assert false (*ID.undefined*)   
         | Some prevId -> prevId
       in 
-      let freshId = ID.gen() in 
-      DynArray.add loopExitBuffer (SSA.mk_set_phi freshId loopId prevId); 
-      Env.add exitEnv name freshId 
-  in  
+      let freshId = ID.gen() in
+      DynArray.add 
+        loopExitBuffer 
+        (SSA.mk_phi freshId (SSA.mk_var loopId) (SSA.mk_var prevId))
+      ;
+      Env.add exitEnv name freshId  
+  in   
   let envExit = 
-    List.fold_left loop_exit_folder envEnd (PSet.to_list bodyDefs) 
+    List.fold_left loop_exit_folder envBefore (PSet.to_list bodyDefs) 
   in
-  let loopExit = Block.of_array (DynArray.to_array loopExitBuffer) in 
-  loopHeader, loopExit, envExit 
+  loopHeader, DynArray.to_list loopExitBuffer, envExit 
   
 and translate_block env codegen ?value_id = function 
   | [] -> env

@@ -99,71 +99,51 @@ module MkAnalysis (P : TYPE_ANALYSIS_PARAMS) = struct
       failwith "no all-pairs impl yet"
     | other, _, _ -> failwith (Prim.adverb_to_str other ^ " not impl")     
 
-
-  let exp_app tenv expNode ~fn ~args ~fnInfo ~argInfo = 
-    match fn.value with 
-    | Prim (Prim.Adverb arrayOp) -> 
-      infer_higher_order tenv arrayOp args argInfo
-    | _  when  DynType.is_vec fnInfo ->   
-      [TypeInfer.infer_simple_array_op Prim.Index (fnInfo::argInfo)]   
-    | fnVal ->  infer_app tenv fnVal argInfo  
+  let exp tenv expNode helpers = match expNode.exp with 
+    | App({value=SSA.Prim (Prim.Adverb arrayOp)}, args) ->
+        infer_higher_order tenv arrayOp args (helpers.eval_values tenv args)
+    | App(fn, args) ->
+        let fnT = value tenv fn in 
+        let argTypes = helpers.eval_values tenv args in 
+        if DynType.is_vec fnT then   
+          [TypeInfer.infer_simple_array_op Prim.Index (fnT::argTypes)]
+        else infer_app tenv fn.value argTypes   
+    | Arr elts -> 
+        let commonT = DynType.fold_type_list (helpers.eval_values tenv elts) in
+        assert (commonT <> DynType.AnyT); 
+        [DynType.VecT commonT]
   
-  let exp_arr tenv expNode ~elts ~info = 
-    let commonT = DynType.fold_type_list info in 
-    assert (commonT <> DynType.AnyT); 
-    [DynType.VecT commonT]
-  
-  let exp_values tenv expNode ~vs ~info = info 
-  
-  let exp_phi tenv expNode ~left ~right ~leftInfo ~rightInfo = 
-    [DynType.common_type leftInfo rightInfo]
-     
-  let exp_primapp _ _ ~prim ~args ~argInfo = 
-    failwith "unexpected typed prim app"
-
-  let exp_call _ _ ~fnId ~args ~info = 
-    failwith "unexpected typed function call"
-    
-  let exp_scan
-        _ _ ~initClosure ~scanClosure ~args ~initInfo ~scanInfo ~argInfo =
-        failwith "unexpected typed Scan"
-  let exp_reduce 
-        _ _ ~initClosure ~reduceClosure ~args ~initInfo ~reduceInfo ~argInfo = 
-        failwith "unexpected typed Reduce"   
-  let exp_map _ _ ~closure ~args ~closureInfo ~argInfo = 
-    failwith "unexpected typed Map"
-  
-  let stmt_set tenv stmtNode ~ids ~rhs ~rhsInfo = 
-    IFDEF DEBUG THEN
-      if List.length ids <> List.length rhsInfo then 
-        failwith $ sprintf 
-          "malformed SET statement: %d ids for %d rhs values \n"
-          (List.length ids)
-          (List.length rhsInfo)
-    ENDIF; 
-    let rec process_types (tenv, changed) id rhsT =  
-      IFDEF DEBUG THEN 
-        if rhsT = DynType.AnyT then failwith "error during type inference"
+    | Values vs -> helpers.eval_values tenv vs  
+       
+ 
+  let stmt tenv stmtNode helpers = match stmtNode.stmt with 
+    | Set(ids, rhs) ->
+      let types = exp tenv rhs helpers in   
+      IFDEF DEBUG THEN
+        if List.length ids <> List.length types then 
+          failwith $ sprintf 
+            "malformed SET statement: %d ids for %d rhs values \n"
+            (List.length ids)
+            (List.length types)
       ENDIF; 
-      let oldT = get_type tenv id in
-      let newT = DynType.common_type oldT rhsT in 
-      let changedT = oldT <> newT in
-      let tenv' = if changedT then add_type tenv id newT else tenv in 
-      tenv', (changed || changedT)
-    in 
-    let tenv', changed = 
-      List.fold_left2 process_types (tenv, false) ids rhsInfo
-    in  
-    if changed then Some tenv' else None 
+      let rec process_types (tenv, changed) id rhsT =  
+        IFDEF DEBUG THEN 
+          if rhsT = DynType.AnyT then failwith "error during type inference"
+        ENDIF; 
+        let oldT = get_type tenv id in
+        let newT = DynType.common_type oldT rhsT in 
+        let changedT = oldT <> newT in
+        let tenv' = if changedT then add_type tenv id newT else tenv in 
+        tenv', (changed || changedT)
+      in 
+      let tenv', changed = 
+        List.fold_left2 process_types (tenv, false) ids types
+      in  
+      if changed then Some tenv' else None 
  
-    let stmt_if env stmtNode 
-                ~cond ~tBlock ~fBlock ~merge 
-                ~condInfo ~tEnv ~fEnv ~mergeEnv =
-      failwith "IF not implemented"
- 
+    | If (cond, tBlock, fBlock, merge) ->  
+        failwith "IF not implemented"
 end
-
-
 
 let type_analysis 
       ~(specializer:SSA.value-> Signature.t -> SSA.fundef) 

@@ -8,7 +8,7 @@ module BindingSetEval = SSA_Analysis.MkEvaluator(struct
   type exp_info = unit 
   
   let dir = Forward
-  let clone_env = env 
+  let clone_env env = env 
   let iterative = false 
   
   let init fundef = ID.Set.of_list (fundef.input_ids @ fundef.output_ids)
@@ -17,7 +17,7 @@ module BindingSetEval = SSA_Analysis.MkEvaluator(struct
   let exp _ _ _ = ()
   let stmt env stmtNode helpers = match stmtNode.stmt with 
     | Set(ids, _) -> Some (ID.Set.add_list ids env)
-    | _ -> helpers.visit_stmt env stmtNode  
+    | _ -> helpers.eval_stmt env stmtNode  
      
 end)
 

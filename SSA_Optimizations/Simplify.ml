@@ -71,7 +71,7 @@ module SimplifyRules = struct
       let mk_var id t  = SSA.mk_var ?src:stmtNode.stmt_src ~ty:t id in  
       begin match condVal.value with 
         | Num (PQNum.Bool b) ->
-            let ids, valNodes = SSA.collect_phi_nodes merge b in 
+            let ids, valNodes = SSA.collect_phi_values b merge in 
             let types = List.map get_type ids in 
             let expNode = 
               SSA.mk_exp ?src:stmtNode.stmt_src ~types (SSA.Values valNodes) 
@@ -79,14 +79,15 @@ module SimplifyRules = struct
             Update (SSA.mk_set ?src:stmtNode.stmt_src ids expNode)
         | _ -> NoChange  
       end
-    | SSA.WhileLoop (test, body, gates) -> 
+    | SSA.WhileLoop (testBlock, testVal, body, header, exit) -> NoChange 
+    (* 
       begin match test.test_value.value with 
         | Num PQNum.Bool false -> 
             (* leave the condBlock for potential side effects, *)
             (* get rid of loop *) 
             UpdateWithBlock (SSA.empty_stmt, test.test_block)
         | _ -> NoChange
-      end     
+      end*)     
     | _ -> NoChange 
   
   let exp cxt expNode = NoChange 

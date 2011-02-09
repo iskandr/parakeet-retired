@@ -9,6 +9,10 @@ module ConstEval = SSA_Analysis.MkEvaluator(struct
   type exp_info = value_info list  
   type env = value ConstantLattice.t ID.Map.t 
   
+  let iterative = true
+  let clone_env env = env 
+  let dir = Forward 
+  
   let init fundef = 
     List.fold_left 
       (fun accEnv id  -> ID.Map.add id ConstantLattice.ManyValues accEnv)
@@ -29,25 +33,25 @@ module ConstEval = SSA_Analysis.MkEvaluator(struct
     | _ ->  ConstantLattice.ManyValues 
   
   let exp  env expNode helpers  = match expNode.exp with 
-    | Values vs -> helpers.visit_values env vs 
-    | _ -> List.map (fun _ -> ConstantLattice.top) expNode.exp_types expNode 
+    | Values vs -> helpers.eval_values env vs 
+    | _ -> List.map (fun _ -> ConstantLattice.top) expNode.exp_types 
 
   let stmt env stmtNode helpers  = match stmtNode.stmt with 
     | Set(ids, rhs) -> 
-      let rhsVals = exp  env rhs helpers  in 
+      let rhsVals = exp env rhs helpers in 
       let oldVals = 
         List.map 
           (fun id -> ID.Map.find_default id env ConstantLattice.bottom) 
           ids 
       in
-      let combined = List.map2 ConstantLattice.join rhsInfo oldVals in
+      let combined = List.map2 ConstantLattice.join rhsVals oldVals in
       if List.eq_elts oldVals combined then None 
       else 
       let env' = 
         List.fold_left2 (fun acc id v -> ID.Map.add id v acc) env ids combined
       in  
       Some env'
-   | _ -> helpers.visit_stmt env stmtNode    
+   | _ -> helpers.eval_stmt env stmtNode    
 end)
 
 let find_constants fundef =
