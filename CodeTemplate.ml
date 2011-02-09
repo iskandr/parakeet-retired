@@ -65,6 +65,9 @@ let rec extend_interp_state interpState = function
         Printf.printf "Building AST for %s\n" name; 
       ENDIF; 
       let bodyAST = build_function_body_ast bodyText in
+      IFDEF DEBUG THEN 
+        Printf.printf "%s\n" (AST.node_to_str bodyAST);
+      ENDIF; 
       (* global function lookup function used by AST_to_SSA conversion *)
       let ssaEnv = 
         AST_to_SSA.Env.GlobalScope (InterpState.get_untyped_id interpState)  

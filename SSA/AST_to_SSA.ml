@@ -238,8 +238,9 @@ and translate_loop_body envBefore codegen body
   
 and translate_block env codegen ?value_id = function 
   | [] -> env
+  | [lastNode] -> translate_stmt env codegen ?value_id lastNode  
   | node::nodes -> 
-      let nodeEnv = translate_stmt env ?value_id codegen node in
+      let nodeEnv = translate_stmt env codegen node in
       translate_block nodeEnv codegen ?value_id nodes 
       
 and translate_exp env codegen node =

@@ -53,7 +53,10 @@ module MkEvaluator(A : ANALYSIS) = struct
     env', !changed 
   and default_stmt env stmtNode = match stmtNode.stmt with
     (* by default don't do anything to the env *) 
-    | Set (ids, rhs) -> None
+    | Set (ids, rhs) ->
+        (* evaluate rhs for possible side effects *)  
+        let _  = A.exp env rhs helpers in 
+        None 
     | If(cond, tBlock, fBlock,  merge) ->
         let cond' = A.value env cond in  
         let tEnv, tChanged = eval_block (A.clone_env env) tBlock in 
