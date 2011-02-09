@@ -106,8 +106,8 @@ let run_template
   (* TODO: For now, make these calls here. *)
   HardwareInfo.hw_init ();
   LibPQ.init ();
+  Timing.start_timer "RunTemplate";
   (* TODO: Make the timings more controllable (mem transfer e.g.) *)
-  let total_start = Timing.get_time () in
   let args = globals @ locals in
   let argTypes = List.map HostVal.get_type args in
   let untypedFn = InterpState.get_untyped_function interpState untypedId in
@@ -142,6 +142,5 @@ let run_template
   let fnTable = InterpState.get_typed_function_table interpState in
   let resultVals = Eval.eval fnTable typedFundef args in
   let result = Success (List.hd resultVals) in
-  Timing.inc_total_run_time total_start;
   Timing.print_timers();
   result

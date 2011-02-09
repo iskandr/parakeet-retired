@@ -1,39 +1,57 @@
-let kernel_compile_time = ref 0.0
-let mem_xfer_time = ref 0.0
-let gpu_run_time = ref 0.0
-let total_run_time = ref 0.0
+open Base 
 
-let reset_timers () =
-  kernel_compile_time := 0.0;
-  mem_xfer_time := 0.0;
-  gpu_run_time := 0.0;
-  total_run_time := 0.0
+let timers : string  list ref = ref []  
 
+let startTimes : (string, float) Hashtbl.t = Hashtbl.create 127
+(* accumulated time *) 
+let accTimes : (string, float) Hashtbl.t = Hashtbl.create 127 
+  
 let get_time () = Unix.gettimeofday ()
 
-let inc_kernel_compile_time offset =
-  kernel_compile_time := !kernel_compile_time +.
-                         (Unix.gettimeofday ()) -. offset
-let inc_mem_xfer_time offset =
-  mem_xfer_time := !mem_xfer_time +.
-                   (Unix.gettimeofday ()) -. offset
-let inc_gpu_run_time offset =
-  gpu_run_time := !gpu_run_time +.
-                  (Unix.gettimeofday ()) -. offset
-let inc_total_run_time offset =
-  total_run_time := !total_run_time +.
-                    (Unix.gettimeofday ()) -. offset
+let reset_timer name =
+  if not (List.mem name !timers) then timers := name :: !timers;  
+  Hashtbl.remove startTimes name; 
+  Hashtbl.replace accTimes name 0.0
 
+let start_timer name = 
+  let currTime = get_time() in 
+(* if not yet initialized, then initialize *) 
+  if not (Hashtbl.mem accTimes name) then (
+    timers := name :: !timers; 
+    Hashtbl.add accTimes name 0.0 
+  );
+  Hashtbl.replace startTimes name currTime 
+  
+let stop_timer name =
+  if Hashtbl.mem startTimes name then ( 
+    let currTime = get_time() in
+    let startTime = Hashtbl.find startTimes name in 
+    let extra = currTime -. startTime in
+    let accTime = Hashtbl.find accTimes name in
+    Hashtbl.replace accTimes name (accTime +. extra);
+    Hashtbl.remove startTimes name
+  ) 
+
+
+let stop_all () = List.iter stop_timer !timers  
+  
+let get_total name =
+  let accTime = try Hashtbl.find accTimes name with 
+    | _ -> failwith (name ^ " timer was never initialized ")
+  in 
+  (* is the timer still running? *)   
+  let extraTime = 
+    if Hashtbl.mem startTimes name then 
+      get_time() -. (Hashtbl.find startTimes name)
+    else 0.0 
+  in 
+  accTime +. extraTime 
+       
+  
 let print_timers () =
-  let parakeet_time =
-    !total_run_time -. !gpu_run_time -. !mem_xfer_time -. !kernel_compile_time
-  in
-  Printf.printf "Kernel compile time: %f\n"    !kernel_compile_time;
-  Printf.printf "Memory transfer time: %f\n"   !mem_xfer_time;
-  Printf.printf "GPU run time: %f\n"           !gpu_run_time;
-  Printf.printf "Total run time: %f\n"         !total_run_time;
-  Printf.printf "Parakeet compiler overhead\n";
-  Printf.printf "  (Excluding mem xfers, PTX JIT, GPU runtime): %f\n"
-    parakeet_time;
-  reset_timers();
-  flush stdout
+  stop_all (); 
+  let print name = 
+    Printf.printf "%s: %f\n" name (get_total name) 
+  in 
+  List.iter print !timers;
+  Pervasives.flush_all()  

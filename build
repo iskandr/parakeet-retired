@@ -80,7 +80,7 @@ else
     UINT_FLAGS="-lib uint32 -lib uint64 -lib uint128 -cflags -I,$UINT_DIR -lflags -I,$UINT_DIR"
 
     printf "\n\n******* Building Preprocessor and Q Callbacks *******\n"; 
-    if ! $OCAMLBUILD $TARGET $EXTLIB_FLAGS $UINT_FLAGS -lib str -no-hygiene; then echo "Preprocessor build failed"; exit 1; fi 
+    if ! $OCAMLBUILD $TARGET $EXTLIB_FLAGS $UINT_FLAGS -lib str -lib unix -no-hygiene; then echo "Preprocessor build failed"; exit 1; fi 
   fi
 
 

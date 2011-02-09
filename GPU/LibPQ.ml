@@ -23,9 +23,9 @@ external cuda_init : unit -> unit = "ocaml_pq_init"
 external compile_module_impl
     : string -> int -> CuModulePtr.t = "ocaml_pq_compile_module"
 let compile_module ptx threadsPerBlock =
-  let kernel_compile_time = Timing.get_time () in
+  Timing.start_timer "Compile PTX";
   let modulePtr = compile_module_impl ptx threadsPerBlock in
-  Timing.inc_kernel_compile_time kernel_compile_time;
+  Timing.stop_timer "Compile PTX";
   modulePtr
 
 external destroy_module
@@ -51,14 +51,14 @@ let launch_ptx (cudaModule : CuModulePtr.t) (fnName : string)
       (args : gpu_arg array)
       (gridParams : grid_params) =
     IFDEF DEBUG THEN printf "In launch\n%!"; END;
-    let gpu_start = Timing.get_time () in
+    Timing.start_timer "GPU Execution";
     launch_ptx_impl cudaModule fnName args 
     gridParams.threads_x 
     gridParams.threads_y
         gridParams.threads_z
         gridParams.grid_x
         gridParams.grid_y;
-    Timing.inc_gpu_run_time gpu_start
+    Timing.stop_timer "GPU Execution"
 
 let cuda_module_from_kernel_list  
       (kernelList : (string * Ptx.kernel) list)

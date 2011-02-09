@@ -5,6 +5,11 @@ open Base
 open SSA
 open SSA_Analysis 
 
+(* takes an SSA function and a map of its IDs to their counterparts in some
+   future Imp function. Infers an Imp.exp array corresponding to each
+   variable's shape 
+*)  
+
 
 module ShapeAnalysis = struct 
     type shape_lookup =  ID.t -> Shape.t  
@@ -18,9 +23,7 @@ module ShapeAnalysis = struct
         (fun accEnv id -> ID.Map.add id (fun lookup -> lookup id) accEnv)
         ID.Map.empty 
         fundef.input_ids 
-
-    
-  
+   
     let clone_env env = env
         
     (* should analysis be repeated until environment stops changing? *) 
@@ -29,23 +32,7 @@ module ShapeAnalysis = struct
     let init fundef = assert false 
     let value env valNode = assert false 
     
-    let exp_values env expNode ~vs ~info = assert false  
-      
-    let exp_arr env expNode ~elt ~info = assert false 
-       
-    let exp_primapp env expNode ~prim ~args ~argInfo = assert false 
-    let exp_call env expNode ~fnID ~args ~info = assert false 
-          
-    let exp_map env expNode ~closure ~args ~closureInfo ~argInfo = assert false
-    let exp_reduce env expNode 
-          ~initClosure ~reduceClosure ~args 
-          ~initInfo ~initInfo ~reduceInfo ~argInfo = assert false 
-          
-    let exp_scan env expNode 
-         ~initClosure ~scanClosure ~args
-         ~initInfo ~scanInfo ~argInfo = assert false 
-            
-    let exp_app env expNode ~fn ~args ~fnInfo ~argInfo = assert false
+    let exp env expNode helpers = assert false 
     let stmt_set env stmtNode ~ids ~rhs ~rhsInfo = assert false 
         
 end

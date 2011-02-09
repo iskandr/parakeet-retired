@@ -10,17 +10,14 @@ module Make (M: ORD) = struct
   *)    
   exception KeyNotFound of M.t 
 
-  let find key map = 
-    if mem key map then find key map  
-    else raise (KeyNotFound key)
-
-  let find_default elt m default = 
-    if mem elt m then find elt m 
-    else default
+  let find key map =
+    try find key map with  _ -> raise (KeyNotFound key)  
     
-  let find_option elt m = 
-    if mem elt m then Some (find elt m) 
-    else None
+  let find_default elt m default = 
+    try find elt m with _ -> default  
+    
+  let find_option elt m =
+    try Some (find elt m) with _ -> None 
     
   let find_list elts m = 
     let rec aux = function 

@@ -1,9 +1,16 @@
 let _ = Printexc.record_backtrace true 
 
 include ExtList.List
-
-
-
+  
+  (* are the elements of the two lists equal? *) 
+  let rec eq_elts x y =
+    let xNil = (x = []) in 
+    let yNil = (y = []) in 
+    if xNil then yNil 
+    else if yNil then xNil 
+    else if hd x = hd y then eq_elts (tl x) (tl y)
+    else false 
+    
   let rec fill x = function 
     | _::rest -> x::(fill x rest)
     | [] -> []
