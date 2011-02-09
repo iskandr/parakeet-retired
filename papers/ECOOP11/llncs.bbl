@@ -1,0 +1,168 @@
+\begin{thebibliography}{10}
+
+\bibitem{Ald01}
+Marco Aldinucci, Sergei Gorlatch, Christian Lengauer, and Susanna Pelagatti.
+\newblock Towards parallel programming by transformation: the {FAN} skeleton
+  framework.
+\newblock {\em Parallel Algorithms Appl.}, 16(2-3):87--121, 2001.
+
+\bibitem{Bien08}
+Christian Bienia, Sanjeev Kumar, Jaswinder~Pal Singh, and Kai Li.
+\newblock The {PARSEC} benchmark suite: Characterization and architectural
+  implications.
+\newblock In {\em PACT '08: Proceedings of the 17th International Conference on
+  Processors, Architectures, and Compilation Techniques}, October 2008.
+
+\bibitem{Blac73}
+Fischer Black and Myron Scholes.
+\newblock The pricing of options and corporate liabilities.
+\newblock {\em The Journal of Political Economy}, 81(3):637--654, 1973.
+
+\bibitem{Bol09}
+Maximilian~C. Bolingbroke and Simon L.~Peyton Jones.
+\newblock Types are calling conventions.
+\newblock In {\em Proceedings of the 2009 Haskell Workshop}, September 2009.
+
+\bibitem{Borr08}
+Jeffrey~A. Borror.
+\newblock {\em Q For Mortals: A Tutorial In Q Programming}.
+\newblock CreateSpace, 2008.
+
+\bibitem{Buck04}
+Ian Buck, Tim Foley, Daniel Horn, Jeremy Sugerman, Kayvon Fatahalian, Mike
+  Houston, and Pat Hanrahan.
+\newblock Brook for {GPU}s: stream computing on graphics hardware.
+\newblock In {\em ACM SIGGRAPH 2004 Papers}, SIGGRAPH '04, pages 777--786, New
+  York, NY, USA, 2004. ACM.
+
+\bibitem{Cata10}
+Bryan Catanzaro, Michael Garland, and Kurt Keutzer.
+\newblock Copperhead: Compiling an embedded data parallel language.
+\newblock Technical Report UCB/EECS-2010-124, EECS Department, University of
+  California, Berkeley, Sep 2010.
+
+\bibitem{ChakAcc}
+Manuel~M.T. Chakravarty, Gabrielle Keller, Sean Lee, Trevor~L. McDonnel, and
+  Vinod Grover.
+\newblock Accelerating haskell array codes with multicore gpus.
+
+\bibitem{Che09}
+Shuai Che, Michael Boyer, Jiayuan Meng, David Tarjan, Jeremy Sheaffer, Sang-ha
+  Lee, and Kevin Skadron.
+\newblock Rodinia: A benchmark suite for heterogeneous computing.
+\newblock In {\em Proceedings of the IEEE International Symposium on Workload
+  Characterization (IISWC)}, pages 44--54, October 2009.
+
+\bibitem{Cole04}
+Murray Cole.
+\newblock Bringing skeletons out of the closet: A pragmatic manifesto for
+  skeletal parallel programming.
+\newblock {\em Parallel Computing}, 30(3):389--406, 2004.
+
+\bibitem{feng10}
+Wu-chun Feng and Shucai Xiao.
+\newblock {To GPU Synchronize or Not GPU Synchronize?}
+\newblock In {\em IEEE International Symposium on Circuits and Systems
+  (ISCAS)}, Paris, France, May 2010.
+
+\bibitem{Hobe10}
+Jared Hoberock and Nathan Bell.
+\newblock Thrust: A parallel template library, 2010.
+\newblock Version 1.3.0.
+
+\bibitem{Iverson62}
+Kenneth~E. Iverson.
+\newblock A programming language.
+\newblock In {\em Proceedings of the May 1-3, 1962, spring joint computer
+  conference}, AIEE-IRE '62 (Spring), pages 345--351, New York, NY, USA, 1962.
+  ACM.
+
+\bibitem{Jay97}
+C.~Barry Jay and Milan Sekanina.
+\newblock Shape checking of array programs.
+\newblock Technical report, In Computing: the Australasian Theory Seminar,
+  Proceedings, 1997.
+
+\bibitem{Jones01}
+Simon~Peyton Jones, Andrew Tolmach, and Tony Hoare.
+\newblock Playing by the rules: rewriting as a practical optimisation technique
+  in {GHC}.
+\newblock In {\em Proceedings of the 2004 Haskell Workshop}, 2001.
+
+\bibitem{Ju94}
+D.~C.~R. Ju, C.~L. Wu, and P.~Carini.
+\newblock The classification, fusion, and parallelization of array language
+  primitives.
+\newblock {\em IEEE Trans. Parallel Distrib. Syst.}, 5:1113--1120, October
+  1994.
+
+\bibitem{Latt02}
+Chris Lattner.
+\newblock {LLVM}: An infrastructure for multi-stage optimization.
+\newblock Master's thesis, Computer Science Dept., University of Illinois at
+  Urbana-Champaign, Urbana, IL, Dec 2002.
+\newblock {\em See {\tt http://llvm.cs.uiuc.edu}.}
+
+\bibitem{Lengyel90}
+Jed Lengyel, Mark Reicher, Bruce~R. Donald, and Donald~P. Greenberg.
+\newblock Real-time robot motion planning using rasterizing computer graphics
+  hardware.
+\newblock In {\em In Proc. SIGGRAPH}, pages 327--335, 1990.
+
+\bibitem{Main10}
+Geoffrey Mainland and Greg Morrisett.
+\newblock Nikola: Embedding compiled {GPU} functions in haskell.
+\newblock In {\em Proceedings of the 2010 Haskell Workshop}, September 2010.
+
+\bibitem{Moler80}
+Cleve~B. Moler.
+\newblock {MATLAB} --- an interactive matrix laboratory.
+\newblock Technical Report 369, University of New Mexico. Dept. of Computer
+  Science, 1980.
+
+\bibitem{Muns10}
+Aaftab Munshi.
+\newblock The {O}pen{CL} specification version 1.1, September 2010.
+
+\bibitem{NvidCU}
+{NVIDIA}.
+\newblock {CUDA ZONE}.
+\newblock {\tt http://www.nvidia.com/cuda}.
+
+\bibitem{NvidSD}
+{NVIDIA}.
+\newblock {NVIDIA} {CUDA} {SDK} 3.2.
+\newblock {\tt http://www.nvidia.com/cuda}.
+
+\bibitem{Oliphant07}
+Oli07 Oliphant.
+\newblock Python for scientific computing.
+\newblock {\em Computing in Science and Engineering}, 9:10--20, 2007.
+
+\bibitem{Ott90}
+Karl~J. Ottenstein, Robert~A. Ballance, and Arthur~B. MacCabe.
+\newblock The program dependence web: a representation supporting control-,
+  data-, and demand-driven interpretation of imperative languages.
+\newblock {\em SIGPLAN Not.}, 25:257--271, June 1990.
+
+\bibitem{Sip91}
+Jay Sipelstein and Guy~E. Blelloch.
+\newblock {C}ollection-{O}riented languages.
+\newblock In {\em Proceedings of the IEEE}, pages 504--523, 1991.
+
+\bibitem{Sven08}
+Joel Svensson, Mary Sheeran, and Koen Claessen.
+\newblock Obsidian: A domain specific embedded language for parallel
+  programming of graphics processors.
+\newblock In {\em Implementation and Application of Functional Languages, 20th
+  International Symposium, IFL 2008}, 2008.
+
+\bibitem{Tard06}
+David Tarditi, Sidd Puri, and Jose Oglesby.
+\newblock Accelerator: Using data parallelism to program {GPU}s for
+  general-purpose uses.
+\newblock In {\em ASPLOS '06: Proceedings of the 12th International Conference
+  on Architectural Support for Programming Languages and Operating Systems},
+  November 2006.
+
+\end{thebibliography}
