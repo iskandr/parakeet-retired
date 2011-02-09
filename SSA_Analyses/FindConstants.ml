@@ -4,7 +4,7 @@ open Printf
 open SSA_Analysis
 
     
-module ConstantAnalysis = SSA_Analysis.MkEvaluator(struct 
+module ConstEval = SSA_Analysis.MkEvaluator(struct 
   type value_info = value ConstantLattice.t
   type exp_info = value_info list  
   type env = value ConstantLattice.t ID.Map.t 
@@ -28,13 +28,13 @@ module ConstantAnalysis = SSA_Analysis.MkEvaluator(struct
         )
     | _ ->  ConstantLattice.ManyValues 
   
-  let exp env expNode helpers  = match expNode.exp with 
-    | Values vs -> helpers.eval_values vs 
+  let exp  env expNode helpers  = match expNode.exp with 
+    | Values vs -> helpers.visit_values env vs 
     | _ -> List.map (fun _ -> ConstantLattice.top) expNode.exp_types expNode 
 
-  let stmt env stmtNode helpers = match stmtNode.stmt with 
+  let stmt env stmtNode helpers  = match stmtNode.stmt with 
     | Set(ids, rhs) -> 
-      let rhsVals = helpers.eval_exp env rhs in 
+      let rhsVals = exp  env rhs helpers  in 
       let oldVals = 
         List.map 
           (fun id -> ID.Map.find_default id env ConstantLattice.bottom) 
@@ -47,11 +47,9 @@ module ConstantAnalysis = SSA_Analysis.MkEvaluator(struct
         List.fold_left2 (fun acc id v -> ID.Map.add id v acc) env ids combined
       in  
       Some env'
-   | _ -> helpers.eval_stmt env stmtNode    
+   | _ -> helpers.visit_stmt env stmtNode    
 end)
 
-module ConstEval = SSA_Analysis.MkEvaluator(ConstantAnalysis)
-          
 let find_constants fundef =
   Timing.start_timer "analysis::FindConstants"; 
   let fundef' = ConstEval.eval_fundef fundef in 

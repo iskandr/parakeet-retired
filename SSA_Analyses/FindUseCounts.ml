@@ -17,15 +17,14 @@ module UseCountAnalysis = SSA_Analysis.MkAnalysis(struct
     List.iter (fun id -> Hashtbl.add env id 1) fundef.output_ids; 
     env
     
-  
   let value counts valNode = match valNode.value with  
     | Var id -> 
       let oldCount = Hashtbl.find_default counts id 0 in 
       Hashtbl.add counts id (oldCount+1)
     | _ -> ()
 
-  let exp env expNode helpers = helpers.visit_children expNode 
-  let stmt env stmtNode helpers = helpers.visit_children stmtNode
+  let exp env expNode helpers = helpers.iter_exp_children expNode 
+  let stmt env stmtNode helpers = helpers.iter_stmt stmtNode
 end)
  
 module UseCountEval = MkEvaluator(UseCountAnalysis)
