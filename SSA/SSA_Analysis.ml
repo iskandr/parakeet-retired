@@ -28,7 +28,7 @@ module type ANALYSIS =  sig
     val iterative : bool
   
     val init : fundef -> env 
-  
+    val phi : env -> ID.t -> env -> value_node -> env -> value_node -> value_info
     val value : env -> value_node -> value_info
     val exp : env -> exp_node -> (env, value_info) helpers -> exp_info 
     val stmt : env -> stmt_node -> (env, value_info) helpers -> env option 
