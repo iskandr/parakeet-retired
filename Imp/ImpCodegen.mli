@@ -12,12 +12,12 @@ class imp_codegen : object
     method emit : Imp.block -> unit 
     
     method fresh_id : DynType.t -> ID.t 
-      
+
+  
     method fresh_local_id : DynType.t -> ID.t 
     
-    method fresh_var : DynType.t -> Imp.exp_node 
-    
-    method fresh_array_var : DynType.t -> Imp.exp_node list -> Imp.exp_node   
+    method fresh_var : ?dims:(Imp.exp_node list) -> DynType.t -> Imp.exp_node 
+    method fresh_vars : int -> DynType.t -> Imp.exp_node array
     
     method fresh_input_id  : DynType.t -> ID.t 
     method fresh_input : DynType.t -> Imp.exp_node 
@@ -25,11 +25,9 @@ class imp_codegen : object
     method fresh_output_id : ?dims:(Imp.exp_node list) -> DynType.t -> ID.t 
     method fresh_output : ?dims:(Imp.exp_node list) -> DynType.t -> Imp.exp_node 
     
-    method fresh_vars : int -> DynType.t -> Imp.exp_node array 
-    
     method shared_vec_id : DynType.t -> int list -> ID.t 
-    method shared_vec_var : DynType.t -> int list -> Imp.exp_node 
-
+    method shared_vec_var : DynType.t -> int list -> Imp.exp_node  
+    
     method finalize : Imp.fn 
      
     method splice : Imp.fn -> Imp.exp_node array -> Imp.exp_node array -> 

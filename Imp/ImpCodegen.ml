@@ -26,7 +26,7 @@ class imp_codegen =
        declarations but also make lookup efficient 
     *)
 
-    val outputSizes : ((ID.t, Imp.exp list) Hashtbl.t) = Hashtbl.create 127
+    val outputSizes : ((ID.t, Imp.exp_node list) Hashtbl.t) = Hashtbl.create 127
     
     val localSizes : ((ID.t, Imp.array_annot) Hashtbl.t) = Hashtbl.create 127
     
@@ -128,9 +128,7 @@ class imp_codegen =
             IFDEF DEBUG THEN Printf.printf "RANK: %d\n" rank; ENDIF; 
             let arrT = self#get_type arrId in  
             let varNode = {Imp.exp=Imp.Var arrId; exp_type=arrT} in 
-            let dims = 
-              List.map (fun i -> Imp.DimSize(i, varNode)) (List.til rank)
-            in 
+            let dims = List.map (fun i -> Imp.dim i varNode) (List.til rank) in 
             Hashtbl.add localSizes sliceId (Imp.InputSlice (List.tl dims))  
             
         
@@ -149,14 +147,6 @@ class imp_codegen =
         : (Imp.exp * DynType.t, Imp.exp_node) Hashtbl.t = Hashtbl.create 127
     (* create a Set node and insert a cast if necessary *)     
     method private set_or_coerce id (rhs : exp_node) =
-      (* 
-      IFDEF DEBUG THEN 
-         Printf.printf "Set or Coerce: %s <- %s"
-          (ID.to_str id)
-          (Imp.exp_node_to_str rhs)
-        ; 
-      ENDIF;
-      *) 
       if not (Hashtbl.mem types id) then
         self#fail_with_context $ 
           sprintf "[imp_codegen->set_or_coerce] no type for: %s" (ID.to_str id)
@@ -302,15 +292,8 @@ class imp_codegen =
       
       | Set (id, rhs) -> 
           let rhsStmts, rhs' = self#flatten_exp rhs in
-          
           let setStmts = self#set_or_coerce id rhs' in  
           let allStmts = rhsStmts @ setStmts in 
-          (*
-          IFDEF DEBUG THEN 
-            Printf.printf "[ImpCodegen->flatten_stmt] ... %s\n"
-               (String.concat "\n" (List.map Imp.stmt_to_str allStmts));
-          ENDIF;
-          *) 
           self#add_slice_annotations allStmts;
           allStmts   
          
@@ -341,17 +324,13 @@ class imp_codegen =
       DynArray.add localIds id;
       id
 
-    method fresh_var t =
+    method fresh_var ?(dims=[]) t =
       let id = self#fresh_local_id t in
-      {exp = Var id; exp_type = t}
-     
-     method fresh_array_var  t sizes =
-      let id = self#fresh_local_id t in
-      assert (not $ DynType.is_scalar t);
-      (* strip outermost node record off size expressions *)  
-      let sizeExps = List.map (fun e -> e.exp) sizes in  
-      self#add_dynamic_size_annot id sizeExps;
-      {exp = Var id; exp_type = t}  
+      if DynType.is_vec t then 
+        IFDEF DEBUG THEN assert (dims <> []); ENDIF; 
+        self#add_dynamic_size_annot id dims
+      ;
+      {exp = Var id; exp_type = t}    
       
     method fresh_input_id t =
       let id = self#fresh_id t in
@@ -369,7 +348,7 @@ class imp_codegen =
         assert (dims = [])
       else (
         assert (dims <> []);   
-        self#add_dynamic_size_annot id (List.map (fun e -> e.exp) dims)
+        self#add_dynamic_size_annot id dims
       ); 
       id
       
@@ -391,48 +370,28 @@ class imp_codegen =
     method shared_vec_var t dims = 
       assert (DynType.is_scalar t); 
       {exp =Var (self#shared_vec_id t dims); exp_type=DynType.VecT t} 
-     
-  
-    
     
     method finalize = 
-     (* assert (DynArray.length inputs > 0 || DynArray.length outputs > 0);*)
-      let inputIds = DynArray.to_array $ DynArray.map fst inputs in 
-      let inputTypes = DynArray.to_array $ DynArray.map snd inputs in  
-      let outputIds = DynArray.to_array $ DynArray.map fst outputs in 
-      let outputTypes = DynArray.to_array $ DynArray.map snd outputs in
-      
-      let localIds = DynArray.to_array localIds in 
-      let localTypes = Array.map self#get_type localIds in
-      (* only keep PrivateArray annotations for local_arrays field of final
-         function-- maybe rename this field to "private_arrays"? 
-      *) 
-      let localArrays = 
-        PMap.of_enum 
-            (Enum.filter 
-               (function (_, Imp.PrivateArray _) -> true | _ -> false)
-               (Hashtbl.enum localSizes)
-            )
-      in 
+      let localIdsArr = DynArray.to_array localIds in  
       ImpSimplify.simplify_function {
-        input_types =  inputTypes;
-        input_ids = inputIds; 
+        input_types =  DynArray.to_array $ DynArray.map snd inputs;
+        input_ids = DynArray.to_array $ DynArray.map fst inputs; 
         
-        output_types = outputTypes;   
-        output_ids = outputIds;
-        output_sizes = PMap.of_enum (Hashtbl.enum outputSizes); 
+        output_types = DynArray.to_array $ DynArray.map snd outputs;   
+        output_ids = DynArray.to_array $ DynArray.map fst outputs;
+        output_sizes = Hashtbl.copy outputSizes; 
           
-        local_ids = localIds; 
-        local_types = localTypes;
-        local_arrays = localArrays;  
-           
-        tenv = PMap.of_enum (Hashtbl.enum types);
-        shared_array_allocations = 
-          PMap.of_enum (Hashtbl.enum sharedArrayAllocations);
-        
+        local_ids = localIdsArr; 
+        local_types = Array.map self#get_type localIdsArr;
+        (* TODO: only keep PrivateArray annotations for local_arrays field of
+         final function-- maybe rename this field to "private_arrays"? 
+        *) 
+        local_arrays =  Hashtbl.copy localSizes; 
+        tenv = Hashtbl.copy types;
+        shared_array_allocations = Hashtbl.copy sharedArrayAllocations;
         body = DynArray.to_list code;
       }
-     
+      
     (* first replaces every instance of the function's input/output vars *)
     (* with those provided. Then removes the input/output vars, splices the *)
     (* modified code into the target code. Returns code as a statement list *)
@@ -451,19 +410,19 @@ class imp_codegen =
             (Array.length outputs)
         ;   
       ENDIF; 
-      let oldIds = 
-        Array.to_list $ Array.append fn.input_ids fn.output_ids 
-      in
+      let oldIds = Array.append fn.input_ids fn.output_ids in
       (* remove the input/output ids since they will be replaced *)
-      let tenv' = PMap.remove_list oldIds fn.tenv in
+      let tenv' = Hashtbl.copy fn.tenv in
+      Array.iter (fun id -> Hashtbl.remove tenv' id) oldIds; 
+      
       (* have to rewrite the input/output variables to the expressions *)
       (* we were given as arguments inputExps/outputVars *)
       let inOutMap = 
-          List.fold_left2 
-            (fun accMap id node -> PMap.add (Var id) node.exp accMap)
-            PMap.empty 
-            oldIds
-            (Array.to_list inputs @ Array.to_list outputs)
+        Array.fold_left2 
+          (fun accMap id node -> PMap.add (Var id) node.exp accMap)
+          PMap.empty 
+          oldIds
+          (Array.append inputs outputs)
       in 
       (* generate fresh code at every splice site so that temporaries get 
          different names.  
@@ -471,28 +430,35 @@ class imp_codegen =
       let fresh_code () =  
         (* rename the local variables so they can be spliced safely into the *)
         (* targetCode *) 
-        let idMap = PMap.mapi (fun id t -> self#fresh_id t) tenv' in
+        let idMap = 
+          Hashtbl.fold 
+            (fun id t map -> ID.Map.add id (self#fresh_id t) map)
+            tenv' 
+            ID.Map.empty 
+        in 
         (* make sure new names of shared variables are marked as shared *)
-        PMap.iter 
+        Hashtbl.iter  
           (fun id sz -> 
-              Hashtbl.add sharedArrayAllocations (PMap.find id idMap) sz) 
-          fn.shared_array_allocations;
+            let id' = ID.Map.find id idMap in 
+            Hashtbl.add sharedArrayAllocations id' sz
+          ) 
+          fn.shared_array_allocations
+        ;
         (* copy over all information about locals *)
         let add_local (id : ID.t) = 
-          let (newId : ID.t) = PMap.find id idMap in 
+          let newId = ID.Map.find id idMap in 
           DynArray.add localIds newId; 
           MutableSet.add localIdSet newId;
-          if PMap.mem id fn.local_arrays then 
-            Hashtbl.add localSizes newId (PMap.find id fn.local_arrays)  
+          if Hashtbl.mem fn.local_arrays id then 
+            Hashtbl.add localSizes newId (Hashtbl.find fn.local_arrays id )  
         in 
         Array.iter add_local fn.local_ids;  
           (* TODO: Also update output size decls
     val outputSizes : ((ID.t, Imp.exp list) Hashtbl.t) = Hashtbl.create 127
            *)
       (* replace old ids with their new names in body of function *)
-          
-        let fnCode = List.map (ImpCommon.apply_id_map_to_stmt idMap) fn.body in
-        List.map (ImpCommon.apply_exp_map_to_stmt inOutMap) fnCode   
+        let fnCode = List.map (ImpReplace.apply_id_map_to_stmt idMap) fn.body in
+        List.map (ImpReplace.apply_exp_map_to_stmt inOutMap) fnCode   
       in   
       let rec aux = function
         | [] -> []  

@@ -10,7 +10,7 @@ module LiveIdEval = MkEvaluator(struct
   
   let iterative = false
   let dir = Forward
-  let clone_env = env 
+  let clone_env env = env 
    
   let init fundef = 
     let liveSet = MutableSet.create 127  in 
@@ -22,8 +22,9 @@ module LiveIdEval = MkEvaluator(struct
     | Var id -> MutableSet.add liveSet id
     | _ -> () 
    
-  let exp liveSet expNode helpers = helpers.iter_exp_children expNode 
-  let stmt liveSet stmtNode helpers = helpers.visit_stmt liveSet stmtNode 
-end
+  let exp liveSet expNode helpers = helpers.iter_exp_children liveSet expNode 
+  let stmt liveSet stmtNode helpers = helpers.eval_stmt liveSet stmtNode
+    
+end)
 
 let find_live_ids fundef = LiveIdEval.eval_fundef fundef  

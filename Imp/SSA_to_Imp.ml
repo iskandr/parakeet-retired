@@ -75,53 +75,52 @@ and translate_exp
       output
   
   (* assume you only have one initial value, and only one scalar output *)    
-  | SSA.App({SSA.value=
-               SSA.Prim (Prim.Adverb Prim.Reduce)} as fnNode,  
-             payload::initial::arrays) ->
-    let initialT = initial.SSA.value_type in 
-    let arrayTypes = List.map (fun v -> v.SSA.value_type) arrays in 
-    let outputTypes = DynType.fn_output_types fnNode.SSA.value_type in
-    (* TODO: make this work for multiple outputs *)  
-    let outputType = List.hd outputTypes in   
-    (match payload.SSA.value with 
-        | SSA.GlobalFn fnId -> 
-          let fundef = FnTable.find fnId globalFunctions in 
-        let impPayload = translate_fundef globalFunctions fundef in 
-          let impInit = translate_value idEnv initial in
-        assert (arrays <> []);  (* assume at least one array *) 
-          let impArrays = List.map (translate_value idEnv) arrays in
-        (* for now assume acc is a scalar *) 
-          let acc = codegen#fresh_var initialT in
-          let i = codegen#fresh_var Int32T in
-        let n = codegen#fresh_var Int32T in  
-        (* alex: fixing a bug wherein the "arrays" are actually scalars *)
-        IFDEF DEBUG THEN 
-          assert (List.length impArrays = List.length arrayTypes); 
-        ENDIF; 
-        let arrayElts = 
-            List.map2 
-              (fun arr t -> if DynType.is_scalar t then arr else idx arr i) 
-              impArrays
-              arrayTypes   
-        in
-        let payloadArgs = Array.of_list (acc :: arrayElts) in
-        let payloadOutputs = [|acc|] in
-        let bodyBlock = 
-          if List.exists DynType.is_vec arrayTypes then  
-            [
-              set i (int 0);
-            (* assume arrays are of the same length *) 
-              set n (len $ List.hd impArrays);  
-              set acc impInit; 
-              while_ (i <$ n) [SPLICE; set i (i +$ (int 1))] 
-            ]
-          (* if all arguments are scalars, just call the function directly *)
-          else [SPLICE] 
-        in 
-        codegen#splice_emit impPayload payloadArgs payloadOutputs bodyBlock;
-        acc
-      | _ -> failwith "[ssa->imp] Expected function identifier"
-    )
+  | SSA.Reduce(initClosure, closure, args) ->
+      let nAcc = List.length initClosure.SSA.closure_output_types in 
+      let initArgs, arrays = List.split_nth nAcc args in 
+      (*let initTypes = initClosure.SSA.closure_input_types in*)
+      (* TODO: make use of initClosure *)  
+      let accTypes = closure.SSA.closure_output_types in    
+      let arrayTypes = List.map (fun v -> v.SSA.value_type) arrays in 
+      (* TODO: make this work for multiple outputs *)  
+      let outputType = List.hd accTypes in
+      let initial = List.hd initArgs in 
+      let fundef = FnTable.find closure.SSA.closure_fn  globalFunctions in 
+      let impPayload = translate_fundef globalFunctions fundef in 
+      let impInit = translate_value idEnv initial in
+      assert (arrays <> []);  (* assume at least one array *) 
+      let impArrays = List.map (translate_value idEnv) arrays in
+      (* for now assume acc is a scalar *) 
+      let acc = codegen#fresh_var outputType in
+      let i = codegen#fresh_var Int32T in
+      let n = codegen#fresh_var Int32T in  
+      (* alex: fixing a bug wherein the "arrays" are actually scalars *)
+      IFDEF DEBUG THEN 
+        assert (List.length impArrays = List.length arrayTypes); 
+      ENDIF; 
+      let arrayElts = 
+        List.map2 
+          (fun arr t -> if DynType.is_scalar t then arr else idx arr i) 
+          impArrays
+          arrayTypes   
+      in
+      let payloadArgs = Array.of_list (acc :: arrayElts) in
+      let payloadOutputs = [|acc|] in
+      let bodyBlock = 
+        if List.exists DynType.is_vec arrayTypes then 
+        [
+          set i (int 0);
+          (* assume arrays are of the same length *) 
+          set n (len $ List.hd impArrays);  
+          set acc impInit; 
+          while_ (i <$ n) [SPLICE; set i (i +$ (int 1))] 
+        ]
+        (* if all arguments are scalars, just call the function directly *)
+        else [SPLICE] 
+      in 
+      codegen#splice_emit impPayload payloadArgs payloadOutputs bodyBlock;
+      acc
+    
   | _ -> failwith $ 
     Printf.sprintf 
       "[ssa->imp] typed core exp not yet implemented: %s"
@@ -163,7 +162,7 @@ and translate_stmt globalFunctions codegen idEnv  stmtNode =
       failwith "[ssa->imp] multiple return values not implemented"
   | _ -> failwith "[ssa->imp] stmt not implemented"      
 
-and translate_fundef globalFunctions fn =
+and translate_fundef fnTable fn =
   let codegen  = new ImpCodegen.imp_codegen in
   let inputTypes = fn.SSA.fn_input_types in
   let outputTypes = fn.SSA.fn_output_types in
@@ -177,30 +176,22 @@ and translate_fundef globalFunctions fn =
   (* jesus, unspecified evaluation order and side effects really don't mix--
      Beware of List.map!  
   *)
-  let inputIdEnv = 
-    List.fold_left2 
-      (fun accEnv ssaId t -> 
-        let impId = codegen#fresh_input_id t in
-        ID.Map.add ssaId impId accEnv
-      )
-      ID.Map.empty 
-      fn.SSA.input_ids  
-      inputTypes
+  let liveIds = FindLiveIds.find_live_ids fn in
+  let sizeExps = ShapeInference.infer_fundef fnTable fn in 
+  let add_id id env =
+    let t = ID.Map.find id fn.SSA.tenv in  
+    let impId = 
+      if List.mem id fn.SSA.input_ids then codegen#fresh_input_id t
+      else 
+        let dims = ID.Map.find id sizeExps in
+        (* rename all vars to refer to new Imp IDs, instead of old SSA IDs *) 
+        let dims' = List.map (ImpReplace.apply_id_map idEnv) in 
+        (if List.mem id fn.SSA.output_ids then 
+          codegen#fresh_output_id ~dims:dims' t 
+        else 
+          codegen#fresh_array_var ~dims:dims' t)
+    in  
+    ID.Map.add id impId env    
   in 
-  let idEnv = 
-    List.fold_left2
-      (fun accEnv ssaId t -> 
-          let impId = codegen#fresh_output_id t in 
-          ID.Map.add ssaId impId accEnv 
-       )
-       inputIdEnv 
-       fn.SSA.output_ids 
-       outputTypes 
-  in  
-  let _ =
-    Block.fold_forward 
-      (translate_stmt globalFunctions codegen) 
-      idEnv 
-      fn.SSA.body 
-  in 
+  Block.iter_forward (translate_stmt fnTable codegen idEnv) fn.SSA.body; 
   codegen#finalize
