@@ -10,17 +10,22 @@ open SSA_Analysis
    variable's shape 
 *)  
 
+module type PARAMS = sig 
+  val renamed : ID.t ID.Map.t 
+end 
 
-module ShapeAnalysis = struct 
-    type shape_lookup =  ID.t -> Shape.t  
-    type value_info =  shape_lookup -> Shape.t
-    type exp_info = value_info list   
+module ShapeAnalysis(P : PARAMS) = struct 
+    type value_info = Imp.exp array 
+    type exp_info = value_info list    
     type env = value_info ID.Map.t 
     
     let dir = Forward
     let init fundef = 
       List.fold_left 
-        (fun accEnv id -> ID.Map.add id (fun lookup -> lookup id) accEnv)
+        (fun accEnv ssaId -> 
+          let impId = ID.Map.find ssaId P.renamed in 
+          ID.Map.add impId (Var impId)  accEnv
+        )
         ID.Map.empty 
         fundef.input_ids 
    
@@ -33,9 +38,16 @@ module ShapeAnalysis = struct
     let value env valNode = assert false 
     
     let exp env expNode helpers = assert false 
-    let stmt_set env stmtNode ~ids ~rhs ~rhsInfo = assert false 
+    let stmt env stmtNode helpers = assert false 
         
 end
+
+let shape_infer (renameMap : ID.t ID.Map.t) (fundef : SSA.fundef)  =
+  let module ShapeEval = 
+    SSA_Analysis.MkEvaluator(ShapeAnalysis(struct let renamed = renameMap end)) 
+  in
+  ShapeEval.eval_fundef fundef    
+
 (*
 
 module Env = struct

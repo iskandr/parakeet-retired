@@ -84,10 +84,10 @@ let gen_module_template entries =
   (* since std lib is initialized here, might as well also fiddle with 
      gc settings 
   *) 
-  (*
+  
   let gcParams = Gc.get() in
   Gc.set { gcParams with Gc.minor_heap_size = 128000; space_overhead = 90 };
-  *)
+  
 (* should 'state' be a returned value? it's actually just an 
    imperative modification of QStdLib.initState 
 *)

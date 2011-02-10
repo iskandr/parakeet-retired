@@ -59,16 +59,14 @@ module Hashtbl = struct
     let of_list pairs = 
         let hash  = Hashtbl.create (List.length pairs) in 
         let iter_fn (a,b) = Hashtbl.add hash a b in 
-        List.iter iter_fn pairs;
-            hash
-    
+        List.iter iter_fn pairs; hash
+            
     let remove_list hash keys = List.iter (Hashtbl.remove hash) keys 
     
     exception KeyNotFound of string 
    
      
-    let find hash x = if mem hash x then find hash x 
-                      else raise (KeyNotFound (dump x))
+    let find hash x = try find hash x  with _ -> raise (KeyNotFound (dump x))
     
     let combine h1 h2 = 
       let h3 = create (2*(length h1 + length h2) + 1) in 
