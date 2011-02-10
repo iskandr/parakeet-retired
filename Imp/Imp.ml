@@ -357,3 +357,5 @@ let sqrt64 x = typed_op Prim.Sqrt ~t:DynType.Float64T [x]
 let id_of = function 
   | {exp=Var id} -> id 
   | _ -> failwith "Imp: expected variable" 
+
+let var ?(t=DynType.BottomT) id = { exp = Var id; exp_type = t}

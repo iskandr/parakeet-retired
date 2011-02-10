@@ -14,7 +14,7 @@ class imp_codegen : object
     method fresh_id : DynType.t -> ID.t 
 
   
-    method fresh_local_id : DynType.t -> ID.t 
+    method fresh_local_id : ?dims:(Imp.exp_node list) -> DynType.t -> ID.t 
     
     method fresh_var : ?dims:(Imp.exp_node list) -> DynType.t -> Imp.exp_node 
     method fresh_vars : int -> DynType.t -> Imp.exp_node array

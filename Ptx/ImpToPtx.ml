@@ -259,11 +259,11 @@ let translate_kernel ?input_spaces (impfn : Imp.fn) =
   *)
   let register_local id dynT = 
     (* TODO: this is wrong since we've changed array annotations *)
-    if PMap.mem id impfn.shared_array_allocations then
-      let dims = PMap.find id impfn.shared_array_allocations in
+    if Hashtbl.mem impfn.shared_array_allocations id then
+      let dims = Hashtbl.find impfn.shared_array_allocations id in
         ignore $ codegen#declare_shared_vec id (DynType.elt_type dynT) dims
       else (
-        if PMap.mem id impfn.local_arrays then ( 
+        if Hashtbl.mem impfn.local_arrays id then ( 
           IFDEF DEBUG THEN
             Printf.printf "[imp2ptx] declaring local array %s : %s\n"
               (ID.to_str id)

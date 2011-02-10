@@ -4,8 +4,7 @@ open Base
 open Bigarray
 open HostVal
 open Printf 
-open ImpShapeInference
-open ShapeInference
+open ImpShapeEval
 
 module type GPU_RUNTIME_PARAMS = sig 
   val fnTable : FnTable.t
@@ -74,7 +73,7 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
         (inputs: GpuVal.gpu_val list) 
         : LibPQ.gpu_arg array * GpuVal.gpu_val list  =
     let inputShapes = List.map GpuVal.get_shape inputs in 
-    let shapeEnv = ImpShapeInference.infer_shapes impfn inputShapes in
+    let shapeEnv = ImpShapeEval.infer_shapes impfn inputShapes in
     let process_input env id gpuVal =
       let location = ID.Map.find id cc.PtxCallingConventions.data_locations in
       IFDEF DEBUG THEN 
@@ -91,13 +90,16 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
     in   
     let outputMap = DynArray.create() in
     let process_output env id  =
-      assert (PMap.mem id impfn.Imp.tenv);
-      (* don't yet handle scalar outputs *)
-      let ty = PMap.find id impfn.Imp.tenv in
-      assert (DynType.is_vec ty);
-      assert (ID.Map.mem id shapeEnv);
+      IFDEF DEBUG THEN 
+        assert (Hashtbl.mem impfn.Imp.tenv id);
+        assert (ID.Map.mem id shapeEnv); 
+      ENDIF;
+      let ty = Hashtbl.find impfn.Imp.tenv id in
       let shape = ID.Map.find id shapeEnv in
-      assert (Shape.rank shape > 0);
+      IFDEF DEBUG THEN 
+        assert (DynType.is_vec ty);
+        assert (Shape.rank shape > 0);
+      ENDIF; 
       let outputVal = GpuVal.mk_gpu_vec ty shape in
       DynArray.add outputMap outputVal;
       ID.Map.add 

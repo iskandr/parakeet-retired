@@ -14,7 +14,7 @@ let rec translate_value idEnv valNode =
   
 and translate_exp 
       (codegen : ImpCodegen.imp_codegen) 
-      (globalFunctions : FnTable.t) 
+      (fnTable : FnTable.t) 
       idEnv 
       expectedType 
       expNode = 
@@ -57,8 +57,8 @@ and translate_exp
       (* TODO: make this work for multiple outputs *)  
       let outputType = List.hd outputTypes in
       let fnId = payload.SSA.closure_fn in 
-      let fundef_ssa = FnTable.find fnId globalFunctions in
-      let fundef_imp = translate_fundef globalFunctions fundef_ssa in
+      let fundef_ssa = FnTable.find fnId fnTable in
+      let fundef_imp = translate_fundef fnTable fundef_ssa in
       let arrays_imp = List.map (translate_value idEnv) arrays in
       let maxInput = largest_val (Array.of_list arrays_imp) in 
       let output = codegen#fresh_output ~dims:(all_dims maxInput) outputType in  
@@ -85,8 +85,8 @@ and translate_exp
       (* TODO: make this work for multiple outputs *)  
       let outputType = List.hd accTypes in
       let initial = List.hd initArgs in 
-      let fundef = FnTable.find closure.SSA.closure_fn  globalFunctions in 
-      let impPayload = translate_fundef globalFunctions fundef in 
+      let fundef = FnTable.find closure.SSA.closure_fn  fnTable in 
+      let impPayload = translate_fundef fnTable fundef in 
       let impInit = translate_value idEnv initial in
       assert (arrays <> []);  (* assume at least one array *) 
       let impArrays = List.map (translate_value idEnv) arrays in
@@ -128,36 +128,30 @@ and translate_exp
   in 
   impExpNode
 
-and translate_stmt globalFunctions codegen idEnv  stmtNode =
-  let get_imp_id ssaId t =
-    if ID.Map.mem ssaId idEnv then ID.Map.find ssaId idEnv
-    else codegen#fresh_local_id t
-  in
-  match stmtNode.SSA.stmt with
+and translate_stmt 
+      (fnTable : FnTable.t)
+      (codegen : ImpCodegen.imp_codegen) 
+      (idEnv : ID.t ID.Map.t)
+      (stmtNode : SSA.stmt_node) = match stmtNode.SSA.stmt with
   | SSA.Set([id], expNode) ->
       (match expNode.SSA.exp_types with
         | [t] ->
-          let id' = get_imp_id id t in
-          let exp' =
-             translate_exp codegen globalFunctions idEnv t expNode 
-          in
+          let id' = ID.Map.find id idEnv in
+          let exp' = translate_exp codegen fnTable idEnv t expNode in
           let varNode = {Imp.exp = Var id'; exp_type = t } in 
-          codegen#emit [set varNode exp'];
-          ID.Map.add id id' idEnv
+          codegen#emit [set varNode exp']
         | _ -> failwith "[ssa->imp] expected only single value on rhs of set"
        )
   | SSA.Set(ids, {SSA.exp=SSA.Values vs;SSA.exp_types=exp_types}) ->
-      let rec flatten_assignment idEnv ids types vs = match ids, types, vs with 
+      let rec flatten_assignment ids types vs = match ids, types, vs with 
         | id::restIds, t::restTypes, v::restValues ->
-           let id' = get_imp_id id t in
+           let impId = ID.Map.find id idEnv in
            let rhs = translate_value idEnv v in
-           let varNode = { Imp.exp = Var id'; Imp.exp_type = t} in  
-           codegen#emit [set varNode rhs];
-           let idEnv' = ID.Map.add id id' idEnv in 
-           flatten_assignment idEnv' restIds restTypes restValues   
-        | [], [], [] -> idEnv  
+           codegen#emit [set (var ~t impId) rhs];
+           flatten_assignment restIds restTypes restValues   
+        | [], [], [] -> ()  
         | _ -> failwith "[ssa->imp] length mismatch in set stmt"
-      in flatten_assignment idEnv ids exp_types vs
+      in flatten_assignment ids exp_types vs
   | SSA.Set(_::_::_, _) -> 
       failwith "[ssa->imp] multiple return values not implemented"
   | _ -> failwith "[ssa->imp] stmt not implemented"      
@@ -176,22 +170,24 @@ and translate_fundef fnTable fn =
   (* jesus, unspecified evaluation order and side effects really don't mix--
      Beware of List.map!  
   *)
-  let liveIds = FindLiveIds.find_live_ids fn in
-  let sizeExps = ShapeInference.infer_fundef fnTable fn in 
+  
+  let liveIds : ID.t MutableSet.t = FindLiveIds.find_live_ids fn in
+  let sizeExps = ShapeInference.shape_infer fnTable fn in 
   let add_id id env =
     let t = ID.Map.find id fn.SSA.tenv in  
     let impId = 
       if List.mem id fn.SSA.input_ids then codegen#fresh_input_id t
       else 
-        let dims = ID.Map.find id sizeExps in
+        let dims : Imp.exp_node list = ID.Map.find id sizeExps in
         (* rename all vars to refer to new Imp IDs, instead of old SSA IDs *) 
-        let dims' = List.map (ImpReplace.apply_id_map idEnv) in 
+        let dims' : Imp.exp_node list = List.map (ImpReplace.apply_id_map env) dims in  
         (if List.mem id fn.SSA.output_ids then 
           codegen#fresh_output_id ~dims:dims' t 
         else 
-          codegen#fresh_array_var ~dims:dims' t)
+          codegen#fresh_local_id ~dims:dims' t)
     in  
     ID.Map.add id impId env    
   in 
+  let idEnv = MutableSet.fold add_id liveIds ID.Map.empty in
   Block.iter_forward (translate_stmt fnTable codegen idEnv) fn.SSA.body; 
   codegen#finalize

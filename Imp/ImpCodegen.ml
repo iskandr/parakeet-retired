@@ -318,18 +318,18 @@ class imp_codegen =
       Hashtbl.add types id t;
       id
       
-    method fresh_local_id t =
-      let id = self#fresh_id t in  
+    method fresh_local_id  ?(dims=[]) t =
+      let id = self#fresh_id t in
       MutableSet.add localIdSet id;
       DynArray.add localIds id;
-      id
-
-    method fresh_var ?(dims=[]) t =
-      let id = self#fresh_local_id t in
-      if DynType.is_vec t then 
+      if DynType.is_vec t then ( 
         IFDEF DEBUG THEN assert (dims <> []); ENDIF; 
         self#add_dynamic_size_annot id dims
-      ;
+      );
+      id
+
+    method fresh_var ?(dims = []) t =
+      let id = self#fresh_local_id ~dims t in 
       {exp = Var id; exp_type = t}    
       
     method fresh_input_id t =

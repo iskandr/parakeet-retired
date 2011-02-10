@@ -60,6 +60,7 @@ ConstantLattice.cmx \
 FindBindingSet.cmx \
 FindUseCounts.cmx \
 FindDefs.cmx \
+FindLiveIds.cmx \
 TypeCheck.cmx \
 Replace.cmx \
 FindConstants.cmx \
@@ -82,15 +83,16 @@ MemoryState.cmx \
 LibPQ.cmx \
 PtxSimplify.cmx PtxTidy.cmx PtxCodegen.cmx \
 Imp.cmx \
-ImpCommon.cmx \
+ImpReplace.cmx \
 ImpSimplify.cmx \
 ImpCodegen.cmx \
 ImpAllPairsTemplate.cmx \
 ImpMapTemplate.cmx \
 ImpReduceTemplate.cmx \
 ImpToPtx.cmx \
+ShapeInference.cmx \
 SSA_to_Imp.cmx \
-ImpShapeInference.cmx \
+ImpShapeEval.cmx \
 QType.cmx HardwareInfo.cmx \
 PtxCallingConventions.cmx \
 GpuRuntime.cmx \
