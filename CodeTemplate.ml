@@ -109,7 +109,7 @@ let run_template
   (* TODO: For now, make these calls here. *)
   HardwareInfo.hw_init ();
   LibPQ.init ();
-  Timing.start_timer "RunTemplate";
+  Timing.start Timing.runTemplate; 
   (* TODO: Make the timings more controllable (mem transfer e.g.) *)
   let args = globals @ locals in
   let argTypes = List.map HostVal.get_type args in
@@ -146,4 +146,13 @@ let run_template
   let resultVals = Eval.eval fnTable typedFundef args in
   let result = Success (List.hd resultVals) in
   Timing.print_timers();
+  let gpuTimes = 
+    Timing.get_total Timing.gpuTransfer +.  
+    Timing.get_total Timing.gpuExec +. 
+    Timing.get_total Timing.ptxCompile 
+  in    
+  Printf.printf "Compiler overhead: %f\n" 
+    (Timing.get_total Timing.runTemplate -. gpuTimes)
+  ;   
+  Pervasives.flush_all(); 
   result

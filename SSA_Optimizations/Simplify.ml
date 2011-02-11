@@ -16,15 +16,13 @@ module SimplifyRules = struct
   } 
       
   let init fundef = 
-    Timing.start_timer "Simplify.init";
-    let cxt = {
+    {
       constants = FindConstants.find_constants fundef;
       defs = FindDefs.find_defs fundef;  
       use_counts = FindUseCounts.find_fundef_use_counts fundef;
       types = fundef.tenv;   
-    } in 
-    Timing.stop_timer "Simplify.init"; cxt  
-  
+    }
+    
   (* since all outputs are considered used, dummy assignments leading to an *)
   (* output don't get cleaned up. This final step gets rid of stray assignments*)
   (* at the end of a function *)  

@@ -55,7 +55,5 @@ module ConstEval = SSA_Analysis.MkEvaluator(struct
 end)
 
 let find_constants fundef =
-  Timing.start_timer "analysis::FindConstants"; 
   let fundef' = ConstEval.eval_fundef fundef in 
-  Timing.stop_timer "analysis::FindConstants";
   fundef'  

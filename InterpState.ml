@@ -65,13 +65,13 @@ let default_untyped_optimizations =
   ] 
 
 let optimize_untyped_functions program = 
-  Timing.start_timer "Optimization (Untyped)";
+  Timing.start Timing.untypedOpt; 
   RunOptimizations.optimize_all_fundefs
     ~maxiters:100 
     program.untyped_functions 
     default_untyped_optimizations
   ; 
-  Timing.stop_timer "Optimization (Untyped)" 
+  Timing.stop Timing.untypedOpt 
 
 let default_typed_optimizations = 
   [
@@ -82,14 +82,14 @@ let default_typed_optimizations =
   ]  
   
 let optimize_typed_functions program = 
-  Timing.start_timer "Optimization (Typed)"; 
+  Timing.start Timing.typedOpt; 
   RunOptimizations.optimize_all_fundefs 
     ~type_check:true
     ~maxiters:100
     program.typed_functions
     default_typed_optimizations
   ;
-  Timing.stop_timer "Optimization (Typed)"      
+  Timing.stop Timing.typedOpt      
                   
 let create_from_untyped_map ?(optimize=true) fundefMap =
   let interpState = create () in

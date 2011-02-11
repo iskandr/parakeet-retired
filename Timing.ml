@@ -1,57 +1,51 @@
 open Base 
 
-let timers : string  list ref = ref []  
-
-let startTimes : (string, float) Hashtbl.t = Hashtbl.create 127
-(* accumulated time *) 
-let accTimes : (string, float) Hashtbl.t = Hashtbl.create 127 
+type timer = { 
+  mutable start_time : float; 
+  mutable acc_time : float;
+  mutable running : bool; 
   
+} 
+
+let timers : (string, timer) Hashtbl.t = Hashtbl.create 13 
+
+
 let get_time () = Unix.gettimeofday ()
 
-let reset_timer name =
-  if not (List.mem name !timers) then timers := name :: !timers;  
-  Hashtbl.remove startTimes name; 
-  Hashtbl.replace accTimes name 0.0
+let mk_timer name = 
+  let timer = { start_time = get_time(); acc_time = 0.0; running=false } in 
+  Hashtbl.replace timers name timer; 
+  timer 
 
-let start_timer name = 
-  let currTime = get_time() in 
-(* if not yet initialized, then initialize *) 
-  if not (Hashtbl.mem accTimes name) then (
-    timers := name :: !timers; 
-    Hashtbl.add accTimes name 0.0 
-  );
-  Hashtbl.replace startTimes name currTime 
+let start timer = timer.start_time <- get_time(); timer.running <- true
   
-let stop_timer name =
-  if Hashtbl.mem startTimes name then ( 
+let stop timer =
+  if timer.running then (
     let currTime = get_time() in
-    let startTime = Hashtbl.find startTimes name in 
-    let extra = currTime -. startTime in
-    let accTime = Hashtbl.find accTimes name in
-    Hashtbl.replace accTimes name (accTime +. extra);
-    Hashtbl.remove startTimes name
-  ) 
+    timer.running <- false;  
+    let extra = currTime -. timer.start_time in
+    timer.acc_time <- timer.acc_time +. extra
+  )
 
-
-let stop_all () = List.iter stop_timer !timers  
+let stop_all () = Hashtbl.iter (fun _ timer -> stop timer) timers   
   
-let get_total name =
-  let accTime = try Hashtbl.find accTimes name with 
-    | _ -> failwith (name ^ " timer was never initialized ")
+let get_total timer =
+  let extra = 
+    if timer.running then get_time() -. timer.start_time else 0.0 
   in 
-  (* is the timer still running? *)   
-  let extraTime = 
-    if Hashtbl.mem startTimes name then 
-      get_time() -. (Hashtbl.find startTimes name)
-    else 0.0 
-  in 
-  accTime +. extraTime 
-       
+  timer.acc_time +. extra 
   
 let print_timers () =
   stop_all (); 
-  let print name = 
-    Printf.printf "%s: %f\n" name (get_total name) 
+  let print name timer = 
+    Printf.printf "%s: %f\n" name (get_total timer) 
   in 
-  List.iter print !timers;
+  Hashtbl.iter print timers; 
   Pervasives.flush_all()  
+  
+let runTemplate = mk_timer "RunTemplate"
+let untypedOpt = mk_timer "Untyped Optimizations"
+let typedOpt = mk_timer "Typed Optimizations"
+let ptxCompile = mk_timer "PTX Compile"
+let gpuTransfer = mk_timer "GPU Transfer"
+let gpuExec = mk_timer "GPU Execution"
