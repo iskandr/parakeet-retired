@@ -4,8 +4,11 @@
  *  Enumerations that represent the numerical values of the OCaml Variant types
  *  we use in the C interface.
  *
- * (c) Eric Hielscher and Alex Rubinsteyn, 2009-2010.
+ * (c) Eric Hielscher and Alex Rubinsteyn, 2009-2011.
  */
+
+#ifndef VARIANTS_H_
+#define VARIANTS_H_
 
 /**
   * Needs to be updated if the types change!
@@ -49,18 +52,18 @@ enum dyn_type_with_data {
 };
 
 enum pqnum_tag {
-     PQNUM_BOOL = 0,
-     PQNUM_CHAR,
-     PQNUM_UINT16,
-     PQNUM_INT16,
-     PQNUM_UINT32,
-     PQNUM_INT32,
-     PQNUM_UINT64,
-     PQNUM_INT64,
-     PQNUM_FLOAT32,
-     PQNUM_FLOAT64,
-     PQNUM_INF,
-     PQNUM_NEGINF
+  PQNUM_BOOL = 0,
+  PQNUM_CHAR,
+  PQNUM_UINT16,
+  PQNUM_INT16,
+  PQNUM_UINT32,
+  PQNUM_INT32,
+  PQNUM_UINT64,
+  PQNUM_INT64,
+  PQNUM_FLOAT32,
+  PQNUM_FLOAT64,
+  PQNUM_INF,
+  PQNUM_NEGINF
 };
 
 enum host_val_tag { HostScalar = 0, HostArray, HostBoxedArray };
@@ -87,3 +90,5 @@ enum pqnum_gpu_array_arg_layout {
   PQNUM_GPU_ARRAY_ARG_PTR = 0,
   PQNUM_GPU_ARRAY_ARG_NBYTES
 };
+
+#endif

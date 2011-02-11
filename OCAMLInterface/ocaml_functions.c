@@ -17,6 +17,10 @@
 #include "ocaml_functions.h"
 #include "variants.h"
 
+void parakeet_init(void) {
+  char *argv[] = {"argv", NULL};
+  caml_startup(argv);
+}
 
 /* given a PQNum value, wrap it in a HostScalar constructor */
 value build_ocaml_host_scalar(value num) {

@@ -18,7 +18,7 @@ K run_template(K t, K args, K globals);
 K dump_variables(K filename, K vars);
 
 /** Helper interface functions between C and OCaml. **/
-void init_dt();
+void init_kc();
 value k_var_to_ocaml(K kvar);
 value ktypenum_to_ocaml_type(int64_t ktypenum);
 
