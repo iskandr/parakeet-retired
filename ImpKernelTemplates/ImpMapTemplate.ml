@@ -28,7 +28,7 @@ let gen_map payload threadsPerBlock closureTypes inTypes outTypes =
     Array.map (fun t -> codegen#fresh_output ~dims:outputSizes t) outTypes 
   in 
   let num = codegen#fresh_var Int32T in
-  let mapIdx = codegen#fresh_var UInt32T in
+  let mapIdx = codegen#fresh_var Int32T in
   codegen#emit [
     set mapIdx 
       (((blockIdx.x +$ (blockIdx.y *$  gridDim.x)) *$  (int threadsPerBlock))
