@@ -31,7 +31,9 @@ module type ANALYSIS =  sig
     val init : fundef -> env 
     (*val phi : env -> ID.t -> env -> value_node -> env -> value_node -> value_info*)
     val value : env -> value_node -> value_info
-    val exp : env -> exp_node -> (env, value_info) helpers -> exp_info 
+    
+    val exp : env -> exp_node -> (env, value_info) helpers -> exp_info
+    val phi : env -> env -> env -> SSA.phi_node -> env option 
     val stmt : env -> stmt_node -> (env, value_info) helpers -> env option 
 end
 
@@ -61,12 +63,18 @@ module MkEvaluator(A : ANALYSIS) = struct
         let cond' = A.value env cond in  
         let tEnv, tChanged = eval_block (A.clone_env env) tBlock in 
         let fEnv, fChanged = eval_block (A.clone_env env) fBlock in
-        (* TODO: eval phi nodes 
-        let mergeEnv, mergeChanged = eval_merge env tEnv fEnv merge in
-        if tChanged || fChanged || mergeChanged 
-        then Some mergeEnv else None
-        *)
-        None       
+        let mergeEnv, mergeChanged = 
+          List.fold_left 
+            (fun (accEnv,changed) phiNode -> 
+              match A.phi accEnv tEnv fEnv phiNode with 
+              | None -> (accEnv, changed)
+              | Some env' -> env', true 
+            ) 
+            (env,false) 
+            merge    
+        in
+        if mergeChanged || tChanged || fChanged then Some mergeEnv else None 
+        
     (* TODO: fix loops *) 
     | WhileLoop(condBlock, condVal, body, header, exit) -> None 
       (* 

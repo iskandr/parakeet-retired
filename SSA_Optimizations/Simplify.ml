@@ -66,7 +66,6 @@ module SimplifyRules = struct
            
     | If (condVal, tBlock, fBlock, merge) ->
       let get_type id = ID.Map.find id cxt.types in
-      let mk_var id t  = SSA.mk_var ?src:stmtNode.stmt_src ~ty:t id in  
       begin match condVal.value with 
         | Num (PQNum.Bool b) ->
             let ids, valNodes = SSA.collect_phi_values b merge in 

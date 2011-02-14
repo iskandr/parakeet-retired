@@ -6,10 +6,10 @@ open DynType
 open SSA_Transform 
 
 let do_inline fundef argVals = 
-  let idSet : ID.Set.t = FindBindingSet.fundef_bindings fundef in 
+  let idSet : ID.t MutableSet.t = FindBindingSet.fundef_bindings fundef in 
   let replaceMap = 
-    ID.Set.fold 
-      (fun  id accMap -> let id' = ID.gen() in ID.Map.add id id' accMap)
+    MutableSet.fold 
+      (fun id accMap -> ID.Map.add id (ID.gen()) accMap)
       idSet 
       ID.Map.empty
   in   
@@ -29,8 +29,8 @@ let do_inline fundef argVals =
     mk_exp ~types:freshFundef.fn_output_types (Values outputValNodes) 
   in
   (* list of new ids and their types-- ignore types missing from tenv *) 
-  let typesList : (ID.t * DynType.t) list = 
-    ID.Set.fold  
+  let typesList : (ID.t * DynType.t) list =
+    MutableSet.fold  
       (fun oldId accList ->
           if ID.Map.mem oldId fundef.tenv then
             let newId = ID.Map.find oldId replaceMap in 

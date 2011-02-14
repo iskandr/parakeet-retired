@@ -46,8 +46,8 @@ module DefEval = MkEvaluator(struct
     ; 
     env
   
-  (* never gets used *) 
-  let value env valNode = DefLattice.bottom
+  let value _ valNode = assert false 
+  
   let exp env expNode helpers = match expNode.exp with 
     | Values vs -> List.map (fun v -> DefLattice.Val v.value) vs   
     | other -> 
@@ -56,6 +56,12 @@ module DefEval = MkEvaluator(struct
           (fun i -> DefLattice.Def (other, i+1, numReturnVals)) 
           (List.til numReturnVals)  
   
+  let phi (env:env) (_:env) (_:env) phiNode =
+    let x = DefLattice.Val (phiNode.phi_left.value) in
+    let y = DefLattice.Val (phiNode.phi_right.value) in   
+    let combined = DefLattice.combine x y in
+    Hashtbl.add env phiNode.phi_id combined; None 
+     
   let stmt env stmtNode helpers = match stmtNode.stmt with 
     | Set(ids, rhs) ->
         let rhsInfo = exp env rhs helpers in  

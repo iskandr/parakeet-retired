@@ -21,7 +21,7 @@ module LiveIdEval = MkEvaluator(struct
   let value liveSet valNode = match valNode.value with 
     | Var id -> MutableSet.add liveSet id
     | _ -> () 
-   
+  let phi liveSet _ _ phiNode = MutableSet.add liveSet phiNode.phi_id; None  
   let exp liveSet expNode helpers = helpers.iter_exp_children liveSet expNode 
   let stmt liveSet stmtNode helpers = helpers.eval_stmt liveSet stmtNode
     

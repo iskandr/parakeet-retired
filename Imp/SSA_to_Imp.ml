@@ -158,9 +158,9 @@ and translate_stmt
 
 and translate_fundef fnTable fn =
   let codegen  = new ImpCodegen.imp_codegen in
-  let inputTypes = fn.SSA.fn_input_types in
   let outputTypes = fn.SSA.fn_output_types in
-  IFDEF DEBUG THEN 
+  IFDEF DEBUG THEN
+     let inputTypes = fn.SSA.fn_input_types in 
      Printf.printf 
        "Translating function into Imp of type %s->%s\n"
        (DynType.type_list_to_str inputTypes)
