@@ -165,7 +165,7 @@ module ShapeEval = SSA_Analysis.MkEvaluator(struct
     (* should analysis be repeated until environment stops changing? *) 
     let iterative = true  
   
-   
+    
     let init fundef = 
       List.fold_left 
         (fun accEnv id -> 
@@ -178,6 +178,19 @@ module ShapeEval = SSA_Analysis.MkEvaluator(struct
     let value env valNode = match valNode.value with 
       | SSA.Var id -> Imp.all_dims (Imp.var ~t:valNode.value_type id)  
       | _ -> [] (* empty list indicates a scalar *) 
+    
+    let phi env leftEnv rightEnv phiNode =
+      let leftShape = value leftEnv phiNode.phi_left in 
+      let rightShape = value rightEnv phiNode.phi_right in 
+      if leftShape <> rightShape then failwith "Shape error";
+      let id = phiNode.phi_id in 
+      if ID.Map.mem id env then ( 
+        let oldShape = ID.Map.find id env in 
+        if leftShape <> oldShape then failwith "Shape error"
+        else None 
+      )
+      else Some (ID.Map.add id leftShape env)
+   
     
     let exp env expNode helpers = match expNode.exp with
       | SSA.Call(fnId, args) ->  

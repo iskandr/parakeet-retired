@@ -57,6 +57,20 @@ module MkAnalysis (P : TYPE_ANALYSIS_PARAMS) = struct
   
   let value tenv vNode = infer_value_type tenv vNode.value 
   
+  let phi tenv (_:env) (_:env)  phiNode = 
+    let tLeft = value tenv phiNode.phi_right in 
+    let tRight = value tenv phiNode.phi_left in
+    let id = phiNode.phi_id in  
+    let combinedT = DynType.common_type tLeft tRight in  
+    try (
+      let oldT = Hashtbl.find tenv phiNode.phi_id in 
+      if oldT = combinedT then None 
+      else 
+        let combinedT' = DynType.common_type oldT combinedT in
+        Some (Hashtbl.replace tenv phiNode.phi_id combinedT'; tenv)
+    )
+    with _ -> Some (Hashtbl.replace tenv phiNode.phi_id combinedT; tenv)   
+           
   let rec infer_app tenv fnVal (argTypes:DynType.t list) = match fnVal with
     | Var id ->
         (* if the identifier would evaluate to a function value...*) 
@@ -114,8 +128,8 @@ module MkAnalysis (P : TYPE_ANALYSIS_PARAMS) = struct
         [DynType.VecT commonT]
   
     | Values vs -> helpers.eval_values tenv vs  
-       
  
+
   let stmt tenv stmtNode helpers = match stmtNode.stmt with 
     | Set(ids, rhs) ->
       let types = exp tenv rhs helpers in   

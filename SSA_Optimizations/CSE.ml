@@ -29,7 +29,27 @@ module CSE_Rules = struct
       ) 
       else (Hashtbl.add env expNode.exp (Var id); NoChange)
     | _ -> NoChange    
-  let exp env envNode = NoChange   
+  let phi env phiNode = NoChange 
+    (* if both branches of the phi node aren't in the env, then 
+       key not found exception gets thrown 
+    *)(* 
+    try ( 
+      let left' = match phiNode.phi_left.value with 
+      | Var leftId -> Hashtbl.find env leftId 
+      | other -> other
+      in 
+      let right' = match phiNode.phi_right.value with 
+      | Var rightId -> Hashtbl.find env rightId 
+      | other -> other 
+      in 
+      if left' = right' then
+        Hashtbl. 
+    )
+    with 
+      | _ -> NoChange
+     *)  
+  let exp env envNode = NoChange
+     
   let value env valNode = NoChange   
 end
 

@@ -246,29 +246,29 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
     | Set(ids, rhs) -> 
         let rhsTypes = List.map (Hashtbl.find P.tenv) ids in
         let rhs' = 
-          helpers.process_exp (rewrite_exp helpers.process_value rhsTypes) rhs 
+          helpers.transform_exp (rewrite_exp helpers.transform_value rhsTypes) rhs 
         in 
         Update {stmtNode with stmt = Set(ids, rhs')}
     | SetIdx (arrayId, indices, rhs) -> failwith "setidx not implemented"
     | If(cond, tBlock, fBlock, merge) -> 
-        let cond' = helpers.process_value (coerce_value DynType.BoolT) cond in
-        let tBlock' = helpers.process_block (stmt context) tBlock in 
-        let fBlock' = helpers.process_block (stmt context) fBlock in
+        let cond' = helpers.transform_value (coerce_value DynType.BoolT) cond in
+        let tBlock' = helpers.transform_block (stmt context) tBlock in 
+        let fBlock' = helpers.transform_block (stmt context) fBlock in
         (* TODO: deal with phi nodes 
-        let mergeBlock' = helpers.process_block (stmt context) mergeBlock in
+        let mergeBlock' = helpers.transform_block (stmt context) mergeBlock in
         *)  
         Update {stmtNode with stmt = If(cond', tBlock', fBlock', merge)}
     | WhileLoop(testBlock, testVal, body, header, exit) -> 
-        let body' = helpers.process_block (stmt context) body in
+        let body' = helpers.transform_block (stmt context) body in
         (* TODO: deal with phi nodes 
         let gates' = { 
-          loop_exit =  helpers.process_block (stmt context) gates.loop_header;
-          loop_header = helpers.process_block (stmt context) gates.loop_exit
+          loop_exit =  helpers.transform_block (stmt context) gates.loop_header;
+          loop_header = helpers.transform_block (stmt context) gates.loop_exit
         } 
         *)
-        let testBlock' = helpers.process_block (stmt context) testBlock in
+        let testBlock' = helpers.transform_block (stmt context) testBlock in
         let testVal' = 
-          helpers.process_value (coerce_value DynType.BoolT) testVal
+          helpers.transform_value (coerce_value DynType.BoolT) testVal
         in  
         Update { stmtNode with 
           stmt =WhileLoop(testBlock', testVal', body', header, exit)

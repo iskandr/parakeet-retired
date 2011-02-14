@@ -89,6 +89,8 @@ module SimplifyRules = struct
   
   let exp cxt expNode = NoChange 
   
+  let phi cxt phiNode = NoChange 
+  
   let value cxt valNode = match valNode.value with
     | Var id -> 
       begin match ID.Map.find_option id cxt.constants with 

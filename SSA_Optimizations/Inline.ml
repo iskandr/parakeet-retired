@@ -86,6 +86,7 @@ module Inline_Rules (P:INLINE_PARAMS) = struct
        )
     | _ -> NoChange 
   
+  let phi env phiNode = NoChange 
   let value env valNode = NoChange       
 end 
 

@@ -24,9 +24,14 @@ end
 type rewrite_helpers = { 
   version : unit -> int; 
   changed : int -> bool; 
-  process_value:  (value_node -> value_node update) -> value_node -> value_node; 
-  process_exp: (exp_node -> exp_node update) -> exp_node -> exp_node;
-  process_block: 
+  transform_value : 
+    (value_node -> value_node update) -> value_node -> value_node; 
+  transform_exp : 
+    (exp_node -> exp_node update) -> exp_node -> exp_node;
+    
+  transform_phi : 
+    (phi_node -> phi_node update) -> phi_node -> phi_node; 
+  transform_block :
     (rewrite_helpers -> stmt_node -> stmt_node update) -> block -> block;
 }  
 
@@ -90,7 +95,7 @@ module BlockState = struct
         incr_changes blockState; 
         add_block blockState block; 
         xNew 
-   
+  
   let process_stmt_update blockState stmtNode update =
     add_stmt blockState (process_update blockState stmtNode update)   
 end 
@@ -109,7 +114,12 @@ let stmt_update_to_str = function
   | UpdateWithBlock (e, _) -> "UpdateBlock: " ^ (SSA.stmt_node_to_str e)
 
 
-module MkCustomTransform(R : CUSTOM_TRANSFORM_RULES) = struct 
+module MkCustomTransform(R : CUSTOM_TRANSFORM_RULES) = struct
+  
+  
+  let generic_node_transform blockState (f : 'a -> 'a update) (node : 'a) = 
+    BlockState.process_update blockState node (f node)
+   
   let rec transform_block 
           (rewriteStmt : rewrite_helpers -> stmt_node -> stmt_node update) 
           (block:block) = 
@@ -117,21 +127,17 @@ module MkCustomTransform(R : CUSTOM_TRANSFORM_RULES) = struct
     let rec helpers = { 
       version = (fun() -> blockState.changes); 
       changed = (fun n -> blockState.changes <> n); 
-      process_value = 
-        (fun f vNode -> BlockState.process_update blockState vNode (f vNode));
-        
-      process_exp = 
-        (fun f eNode -> 
-          let update = f eNode in 
-          BlockState.process_update blockState eNode update);      
+      
+      transform_value = (generic_node_transform blockState);  
+      transform_phi = (generic_node_transform blockState); 
+      transform_exp = (generic_node_transform blockState);  
+      
       (* recursion in action! *)
-      process_block = 
+      transform_block =  
         (fun rewriteStmt' block' -> 
            let newBlock, _ = transform_block rewriteStmt' block' in newBlock)
-    
     }
     in  
-    let n = Block.length block in
     let folder stmtNode = 
       let stmtUpdate = rewriteStmt helpers stmtNode in
       BlockState.process_stmt_update blockState stmtNode stmtUpdate
@@ -176,7 +182,7 @@ module CustomFromSimple(R: SIMPLE_TRANSFORM_RULES) = struct
   let finalize = R.finalize 
   
   let transform_value helpers cxt vNode = 
-    helpers.process_value (R.value cxt) vNode
+    helpers.transform_value (R.value cxt) vNode
      
   let rec transform_values helpers cxt vNodes = match vNodes with 
     | [] -> []
@@ -190,6 +196,17 @@ module CustomFromSimple(R: SIMPLE_TRANSFORM_RULES) = struct
       else v'::vs' 
      
   
+  let transform_phi helpers cxt phiNode =
+    let version = helpers.version () in 
+    let left' = transform_value helpers cxt phiNode.phi_left in 
+    let right' = transform_value helpers cxt phiNode.phi_right in 
+    let phiNode' = 
+      if helpers.changed version then 
+        {phiNode with phi_left = left'; phi_right = right' } 
+      else phiNode 
+    in R.phi cxt phiNode'  
+     
+    
   let transform_exp helpers cxt expNode =
     let oldV = helpers.version () in
     let changed () = helpers.version () <> oldV in  
@@ -261,10 +278,11 @@ module CustomFromSimple(R: SIMPLE_TRANSFORM_RULES) = struct
         else expNode  
     | _ -> failwith ("not implemented: " ^ (SSA.exp_to_str expNode))  
     in 
-    let result = helpers.process_exp (R.exp cxt) expNode' in 
-    (*Printf.printf "==> %s\n" (SSA.exp_to_str result);*) 
+    let result = helpers.transform_exp (R.exp cxt) expNode' in 
     result   
-           
+  
+  
+                       
   let rec stmt cxt helpers stmtNode =
     let oldV = helpers.version () in
     let changed () = helpers.version () <> oldV in
@@ -283,21 +301,21 @@ module CustomFromSimple(R: SIMPLE_TRANSFORM_RULES) = struct
       else stmtNode 
     | If (cond, tBlock, fBlock, merge) ->  
       let cond' = transform_value helpers cxt cond  in
-      let tBlock' = helpers.process_block (stmt cxt) tBlock in 
-      let fBlock' = helpers.process_block (stmt cxt) fBlock in 
+      let tBlock' = helpers.transform_block (stmt cxt) tBlock in 
+      let fBlock' = helpers.transform_block (stmt cxt) fBlock in 
       (* TODO: process phi nodes *) 
-      (*let merge' = helpers.process_block (stmt cxt) merge in*)
+      (*let merge' = helpers.transform_block (stmt cxt) merge in*)
       if changed() then 
         { stmtNode with stmt = If(cond',tBlock',fBlock',merge)  }
       else stmtNode  
     | WhileLoop (testBlock, testVal, body, header, exit) ->
       let self = stmt cxt in 
-      let testBlock' = helpers.process_block self testBlock in
+      let testBlock' = helpers.transform_block self testBlock in
       let testVal' = transform_value helpers cxt testVal in  
-      let bodyBlock' = helpers.process_block self body in
+      let bodyBlock' = helpers.transform_block self body in
       (* TODO: process phi nodes  *) 
-      (*let header' = helpers.process_block self gates.loop_header in 
-      let exit' = helpers.process_block self gates.loop_exit in
+      (*let header' = helpers.transform_block self gates.loop_header in 
+      let exit' = helpers.transform_block self gates.loop_exit in
       *) 
       if changed() then
         { stmtNode with 

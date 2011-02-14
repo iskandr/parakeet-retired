@@ -57,7 +57,8 @@ module CollectRules(F:sig val interpState: InterpState.t end) = struct
           let argsExp = SSA.mk_exp ?src:stmtNode.stmt_src (Values args) in
           Update (SSA.mk_set ?src:stmtNode.stmt_src closureArgIds argsExp) 
     | _ -> NoChange
-                
+
+  let phi env phiNode = NoChange (* TODO: handle phi nodes correctly *)                                 
   let exp _ _ = NoChange   
   let value _ _  = NoChange    
 end 

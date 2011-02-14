@@ -37,7 +37,8 @@ module Replace_Rules(P: REPLACE_PARAMS) = struct
         Update { valNode with value= Var (ID.Map.find id idMap) }
       else NoChange 
     | _ -> NoChange
- 
+
+  let phi _ _  = NoChange  
   let exp _ _ = NoChange
    
   let stmt idMap stmtNode = match stmtNode.stmt with 
