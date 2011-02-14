@@ -16,7 +16,8 @@ module type SIMPLE_TRANSFORM_RULES = sig
   val finalize : context -> fundef -> fundef update
   val stmt : context -> stmt_node -> stmt_node update  
   val exp : context -> exp_node -> exp_node update 
-  val value : context -> value_node -> value_node update 
+  val value : context -> value_node -> value_node update
+  val phi : context -> phi_node -> phi_node update  
 end
 
 (* used for custom top-down transformations *) 
