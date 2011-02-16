@@ -165,7 +165,7 @@ module ShapeEval = SSA_Analysis.MkEvaluator(struct
     (* should analysis be repeated until environment stops changing? *) 
     let iterative = true  
   
-    
+    (* TODO: add memoization on function ID here *) 
     let init fundef = 
       List.fold_left 
         (fun accEnv id -> 
@@ -217,7 +217,13 @@ module ShapeEval = SSA_Analysis.MkEvaluator(struct
         [Imp.int n :: (List.hd eltShapes)]             
       | Cast (t, v) ->  [value env v] 
       | Values vs -> List.map (value env) vs  
-      | _ -> [[]] 
+      | Map(closure, args) -> 
+          let fundef = FnTable.find closure.closure_fn fnTable in 
+          let shapeEnv = helpers.eval_fundef fundef in
+          () 
+      | other -> 
+          let expStr = SSA.exp_to_str expNode in 
+          failwith (Printf.sprintf "[shape_infer] not implemented: %s\n" expStr) 
 
 
     let stmt env stmtNode helpers = match stmtNode.stmt with 

@@ -8,6 +8,7 @@ type direction = Forward | Backward
 (* 'b = information about value nodes *)
 (* 'c = information about exp nodes *)  
 type ('a, 'b) helpers = {
+  eval_fundef : fundef -> 'a;  
   eval_block : 'a -> block -> 'a * bool;
   eval_stmt : 'a -> stmt_node -> 'a option; 
   eval_values : 'a -> value_node list -> 'b list;
@@ -115,14 +116,14 @@ module MkEvaluator(A : ANALYSIS) = struct
   and eval_values env = function 
     | [] -> [] | v::vs -> (A.value env v) :: (eval_values env vs) 
   and helpers = { 
+      eval_fundef = eval_funef;  
       eval_block = eval_block; 
       eval_stmt = default_stmt;  
       eval_values = eval_values; 
       iter_values = iter_values; 
       iter_exp_children = iter_exp_children;  
   }
-  
-  let eval_fundef fundef = 
+  and eval_fundef fundef = 
     let env = A.init fundef in
     let env', _ = eval_block env fundef.body in 
     env'      
