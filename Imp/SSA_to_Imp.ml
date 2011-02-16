@@ -167,27 +167,35 @@ and translate_fundef fnTable fn =
        (DynType.type_list_to_str outputTypes)
      ;
   ENDIF;
-  (* jesus, unspecified evaluation order and side effects really don't mix--
-     Beware of List.map!  
-  *)
-  
+  (* first generate imp ids for inputs, to make sure their order is preserved *)
+  let inputIdEnv = 
+    List.fold_left2 
+      (fun env id t -> ID.Map.add id (codegen#fresh_input_id t) env)
+      ID.Map.empty 
+      fn.SSA.input_ids 
+      fn.SSA.fn_input_types  
+  in 
+  (* next add all the live locals, along with their size expressions *)
   let liveIds : ID.t MutableSet.t = FindLiveIds.find_live_ids fn in
-  let sizeExps = ShapeInference.shape_infer fnTable fn in 
-  let add_id id env =
-    let t = ID.Map.find id fn.SSA.tenv in  
+  let sizeExps = ShapeInference.shape_infer fnTable fn in
+  let add_local id env =
+    (* ignore inputs since they were already handled *) 
+    if List.mem id fn.SSA.input_ids then env
+    else 
+    let t = ID.Map.find id fn.SSA.tenv in
+    let dims : Imp.exp_node list = ID.Map.find id sizeExps in
+    (* rename all vars to refer to new Imp IDs, instead of old SSA IDs *)
+    let dims' : Imp.exp_node list =
+       List.map (ImpReplace.apply_id_map env) dims 
+    in   
     let impId = 
-      if List.mem id fn.SSA.input_ids then codegen#fresh_input_id t
+      (if List.mem id fn.SSA.output_ids then 
+        codegen#fresh_output_id ~dims:dims' t 
       else 
-        let dims : Imp.exp_node list = ID.Map.find id sizeExps in
-        (* rename all vars to refer to new Imp IDs, instead of old SSA IDs *) 
-        let dims' : Imp.exp_node list = List.map (ImpReplace.apply_id_map env) dims in  
-        (if List.mem id fn.SSA.output_ids then 
-          codegen#fresh_output_id ~dims:dims' t 
-        else 
-          codegen#fresh_local_id ~dims:dims' t)
+        codegen#fresh_local_id ~dims:dims' t)
     in  
     ID.Map.add id impId env    
-  in 
-  let idEnv = MutableSet.fold add_id liveIds ID.Map.empty in
+  in  
+  let idEnv = MutableSet.fold add_local liveIds inputIdEnv in
   Block.iter_forward (translate_stmt fnTable codegen idEnv) fn.SSA.body; 
   codegen#finalize
