@@ -9,7 +9,6 @@ module UseCountEval = MkEvaluator(struct
   
   let dir = Forward
   let iterative = false
-  let clone_env env = env 
   
   let init fundef = 
     let env = Hashtbl.create 127 in 

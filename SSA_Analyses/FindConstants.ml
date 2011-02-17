@@ -10,7 +10,6 @@ module ConstEval = SSA_Analysis.MkEvaluator(struct
   type env = value ConstantLattice.t ID.Map.t 
   
   let iterative = true
-  let clone_env env = env 
   let dir = Forward 
   
   let init fundef = 

@@ -36,7 +36,6 @@ module DefEval = MkEvaluator(struct
   
   let iterative = false
   let dir = Forward
-  let clone_env env = env 
   
   let init fundef = 
     let env = Hashtbl.create 127 in  

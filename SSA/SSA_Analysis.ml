@@ -8,7 +8,6 @@ type direction = Forward | Backward
 (* 'b = information about value nodes *)
 (* 'c = information about exp nodes *)  
 type ('a, 'b) helpers = {
-  eval_fundef : fundef -> 'a;  
   eval_block : 'a -> block -> 'a * bool;
   eval_stmt : 'a -> stmt_node -> 'a option; 
   eval_values : 'a -> value_node list -> 'b list;
@@ -24,8 +23,6 @@ module type ANALYSIS =  sig
     
     val dir : direction
   
-    val clone_env : env -> env
-       
     (* should analysis be repeated until environment stops changing? *) 
     val iterative : bool
   
@@ -62,8 +59,8 @@ module MkEvaluator(A : ANALYSIS) = struct
         None 
     | If(cond, tBlock, fBlock,  merge) ->
         let cond' = A.value env cond in  
-        let tEnv, tChanged = eval_block (A.clone_env env) tBlock in 
-        let fEnv, fChanged = eval_block (A.clone_env env) fBlock in
+        let tEnv, tChanged = eval_block env tBlock in 
+        let fEnv, fChanged = eval_block env fBlock in
         let mergeEnv, mergeChanged = 
           List.fold_left 
             (fun (accEnv,changed) phiNode -> 
@@ -114,16 +111,17 @@ module MkEvaluator(A : ANALYSIS) = struct
   and iter_values env = function 
     | [] -> () | v::vs -> let _ = A.value env v in iter_values env vs 
   and eval_values env = function 
-    | [] -> [] | v::vs -> (A.value env v) :: (eval_values env vs) 
+    | [] -> [] | v::vs -> (A.value env v) :: (eval_values env vs)
   and helpers = { 
-      eval_fundef = eval_funef;  
+   
       eval_block = eval_block; 
       eval_stmt = default_stmt;  
       eval_values = eval_values; 
       iter_values = iter_values; 
       iter_exp_children = iter_exp_children;  
-  }
-  and eval_fundef fundef = 
+  } 
+  
+  let eval_fundef fundef = 
     let env = A.init fundef in
     let env', _ = eval_block env fundef.body in 
     env'      

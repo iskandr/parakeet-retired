@@ -28,8 +28,6 @@ and all_scalar_stmts stmts = Block.for_all is_scalar_stmt_node stmts
 
 module MkAnalysis (P : TYPE_ANALYSIS_PARAMS) = struct
   let iterative = true
-  let clone_env env = env
- 
   let dir = Forward 
   
   type env = (ID.t, DynType.t) Hashtbl.t  

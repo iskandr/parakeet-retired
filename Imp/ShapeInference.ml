@@ -12,7 +12,11 @@ open SSA_Analysis
 
 type shape = Imp.exp_node list
 
-module ShapeEval = SSA_Analysis.MkEvaluator(struct
+module type PARAMS = sig 
+  val output_shapes : FnId.t -> shape list  
+end 
+
+module ShapeAnalysis (P: PARAMS) =  struct
 (*
   let get_output_shapes f _ = [] 
 
@@ -208,9 +212,7 @@ module ShapeEval = SSA_Analysis.MkEvaluator(struct
         [List.drop nIndices arrayShape]
       | SSA.PrimApp (Prim.ScalarOp _, args) when 
         List.for_all (fun arg -> DynType.is_scalar arg.value_type) args -> [[]]
-     
-                
-      | Arr elts ->
+     | Arr elts ->
         let eltShapes = List.map (value env) elts in
         (* TODO: check that elt shapes actually match each other *) 
         let n = List.length eltShapes in
@@ -218,9 +220,12 @@ module ShapeEval = SSA_Analysis.MkEvaluator(struct
       | Cast (t, v) ->  [value env v] 
       | Values vs -> List.map (value env) vs  
       | Map(closure, args) -> 
-          let fundef = FnTable.find closure.closure_fn fnTable in 
-          let shapeEnv = helpers.eval_fundef fundef in
-          () 
+          let closArgDims = List.map (value env) closure.closure_args in 
+          let argDims = List.map (value env) args in
+          let fnOutputShapes = P.output_shapes closure.closure_fn in 
+          fnOutputShapes
+          (* todo: replace input ids in fnOutputShapes with shapes of args *) 
+           
       | other -> 
           let expStr = SSA.exp_to_str expNode in 
           failwith (Printf.sprintf "[shape_infer] not implemented: %s\n" expStr) 
@@ -236,8 +241,18 @@ module ShapeEval = SSA_Analysis.MkEvaluator(struct
               ids 
           in Some env' 
       | _ -> None    
-end)
+end
 
-let shape_infer (fnTable:FnTable.t) (fundef : SSA.fundef)  = 
-  ShapeEval.eval_fundef fundef    
+let rec shape_infer (fnTable:FnTable.t) (fundef : SSA.fundef)  =
+  let module Params = 
+    struct 
+      let output_shapes fnId = 
+        let fundef = FnTable.find fnId fnTable in 
+        let env = shape_infer fnTable fundef in
+        List.map (fun id -> ID.Map.find id env) fundef.input_ids 
+    end 
+  in 
+  let module ShapeEval = SSA_Analysis.MkEvaluator(ShapeAnalysis(Params)) in 
+  ShapeEval.eval_fundef fundef 
+      
 

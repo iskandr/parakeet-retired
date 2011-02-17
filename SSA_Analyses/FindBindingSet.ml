@@ -8,7 +8,6 @@ module BindingSetEval = SSA_Analysis.MkEvaluator(struct
   type exp_info = unit 
   
   let dir = Forward
-  let clone_env env = env 
   let iterative = false 
   
   let init fundef =

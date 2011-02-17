@@ -10,7 +10,6 @@ module LiveIdEval = MkEvaluator(struct
   
   let iterative = false
   let dir = Forward
-  let clone_env env = env 
    
   let init fundef = 
     let liveSet = MutableSet.create 127  in 
