@@ -220,8 +220,8 @@ module ShapeAnalysis (P: PARAMS) =  struct
       | Cast (t, v) ->  [value env v] 
       | Values vs -> List.map (value env) vs  
       | Map(closure, args) -> 
-          let closArgDims = List.map (value env) closure.closure_args in 
-          let argDims = List.map (value env) args in
+          let closArgShapes : shape list= List.map (value env) closure.closure_args in 
+          let argShapes = List.map (value env) args in
           let fnOutputShapes = P.output_shapes closure.closure_fn in 
           fnOutputShapes
           (* todo: replace input ids in fnOutputShapes with shapes of args *) 
@@ -243,13 +243,104 @@ module ShapeAnalysis (P: PARAMS) =  struct
       | _ -> None    
 end
 
+(* given a dim expression (one elt of a shape) which may reference 
+   intermediate variables, "canonicalize" it to only refer to input variables
+*)   
+let rec canonicalize_dim inputSet rawShapeEnv canonicalEnv expNode
+        : Imp.exp_node * shape ID.Map.t  = 
+  match expNode.Imp.exp with  
+  | Imp.Op (op, t, args) ->
+      (* a list of dims and a shape are the same thing, so just reuse the
+         canonicalize_shape function for a list of dim arguments 
+      *) 
+      let args', canonicalEnv' = 
+        canonicalize_shape inputSet rawShapeEnv canonicalEnv args 
+      in 
+      (* a binary operator applied to two known constants can be simplified 
+         in place 
+      *)   
+      let exp = match args' with 
+        | [{Imp.exp = Imp.Const n1}; {Imp.exp = Imp.Const n2}] ->
+          let opFn = match op with 
+            | Prim.Add -> (+) 
+            | Prim.Mult -> ( * ) 
+            | Prim.Div -> (/) 
+            | Prim.Sub -> (-)
+            | Prim.Min -> min 
+            | Prim.Max -> max
+            | Prim.Mod -> (mod) 
+            | _ -> 
+              failwith ("op not implemented: " ^ (Prim.scalar_op_to_str op))
+          in  
+          let n3 = opFn (PQNum.to_int n1) (PQNum.to_int n2) in 
+          Imp.Const (PQNum.coerce_int n3 t)
+        | _ -> Imp.Op(op, t, args') 
+      in 
+      {expNode with Imp.exp = exp }, canonicalEnv'     
+            
+  | Imp.Const n -> expNode, canonicalEnv   
+  | Imp.DimSize (d, {Imp.exp=Imp.Var id}) ->
+      if ID.Set.mem id inputSet then expNode, canonicalEnv 
+      else 
+        let shape, canonicalEnv' = 
+          if ID.Map.mem id canonicalEnv then 
+            ID.Map.find id canonicalEnv, canonicalEnv  
+          else   
+            (* if some local variable's shape has not yet been canonicalized,
+               do so recursively 
+            *) 
+            let rawShape = ID.Map.find id rawShapeEnv in 
+            let canonicalShape, canonicalEnv' = 
+              canonicalize_shape inputSet rawShapeEnv canonicalEnv rawShape 
+            in
+            canonicalShape, ID.Map.add id canonicalShape canonicalEnv'
+        in  
+        (if List.length shape < d then failwith "Shape of insufficient rank");   
+        List.nth shape d, canonicalEnv'   
+  | Imp.Var id -> failwith "variables should only appear in dimsize expressions"
+  | _ ->failwith ("unexpected Imp expression: " ^ (Imp.exp_node_to_str expNode))
+  
+and canonicalize_shape inputSet rawShapeEnv canonicalEnv shape 
+    : shape * shape ID.Map.t  =
+  let foldFn (revDims, canonicalEnv) currDim = 
+    let currDim', canonicalEnv' = 
+      canonicalize_dim inputSet rawShapeEnv canonicalEnv currDim 
+    in  
+    currDim' :: revDims, canonicalEnv' 
+  in 
+  
+  let revShape, env' = List.fold_left foldFn ([], canonicalEnv) shape in
+  List.rev revShape, env' 
+
+let rec canonicalize_shape_list inputSet rawShapeEnv canonicalEnv = function 
+  | [] -> [], canonicalEnv 
+  | shape::rest -> 
+      let rest', canonicalEnv' = 
+        canonicalize_shape_list inputSet rawShapeEnv canonicalEnv rest 
+      in
+      let shape', canonicalEnv'' =
+        canonicalize_shape inputSet rawShapeEnv canonicalEnv shape
+      in 
+      shape'::rest', canonicalEnv''     
+        
 let rec shape_infer (fnTable:FnTable.t) (fundef : SSA.fundef)  =
   let module Params = 
     struct 
       let output_shapes fnId = 
         let fundef = FnTable.find fnId fnTable in 
-        let env = shape_infer fnTable fundef in
-        List.map (fun id -> ID.Map.find id env) fundef.input_ids 
+        let shapeEnv = shape_infer fnTable fundef in
+        let inputSet = ID.Set.of_list fundef.input_ids in
+        let rawShapes = 
+          List.map (fun id -> ID.Map.find id shapeEnv) fundef.output_ids
+        in   
+        let canonicalShapes, _ = 
+          canonicalize_shape_list 
+            inputSet 
+            shapeEnv
+            ID.Map.empty
+            rawShapes  
+        in 
+        canonicalShapes 
     end 
   in 
   let module ShapeEval = SSA_Analysis.MkEvaluator(ShapeAnalysis(Params)) in 
