@@ -21,6 +21,15 @@ let split s ch =
                                                                                                                                                                                                                                              
 let split_nl s = split s '\n'
 
+(* map each character of a string to another *) 
+let rewrite_chars (f : char -> char) s = 
+  let s' = String.copy s in 
+  let n = String.length s in 
+  for i = 0 to n - 1 do 
+    s'.[i] <- f s.[i]
+  done; 
+  s' 
+
 let before_space s =
   try
     String.before s (String.index s ' ')
@@ -46,6 +55,7 @@ let ocamlfind x = S[A"ocamlfind"; x]
 let packages = find_packages ();;  
 let syntaxes = find_syntaxes ();;
 
+
 let _ =  dispatch begin function
    | Before_options ->
        (* by using Before_options one let command line options have an higher priority *)
@@ -59,6 +69,7 @@ let _ =  dispatch begin function
        Options.ocamlmktop := ocamlfind & A"ocamlmktop";
 
    | After_rules ->
+
        (* When one link an OCaml library/binary/package, one should use -linkpkg *)
        flag ["ocaml"; "link"; "program"] & A"-linkpkg";
 
@@ -66,8 +77,8 @@ let _ =  dispatch begin function
        	* compiling, computing dependencies, generating documentation and
        	* linking. *)
        let add_package pkg =
-         (*ocaml_lib ~extern:true ~dir:dir ~tag_name:("pkg_"^pkg) pkg;*)
-         let tagname = "pkg_" ^pkg in 
+(*         ocaml_lib ~extern:true ~dir:dir ~tag_name:("pkg_"^pkg) pkg;*)
+         let tagname = "pkg_" ^pkg in
          flag ["ocaml"; "compile";  tagname] & S[A"-package"; A pkg];
          flag ["ocaml"; "ocamldep"; tagname] & S[A"-package"; A pkg];
          flag ["ocaml"; "doc";      tagname] & S[A"-package"; A pkg];
@@ -79,12 +90,14 @@ let _ =  dispatch begin function
 
        (* Like -package but for extensions syntax. Morover -syntax is useless
        	* when linking. *)
-       List.iter begin fun syntax ->
-         flag ["ocaml"; "compile";  "syntax_"^syntax] & S[A"-syntax"; A syntax];
-         flag ["ocaml"; "ocamldep"; "syntax_"^syntax] & S[A"-syntax"; A syntax];
-         flag ["ocaml"; "doc";      "syntax_"^syntax] & S[A"-syntax"; A syntax];
-         flag ["ocaml"; "infer_interface"; "syntax_"^syntax] & S[A"-syntax"; A syntax];
-       end  syntaxes; 
+       List.iter 
+           (fun syntax ->
+             flag ["ocaml"; "compile";  "syntax_"^syntax] & S[A"-syntax"; A syntax];
+             flag ["ocaml"; "ocamldep"; "syntax_"^syntax] & S[A"-syntax"; A syntax];
+             flag ["ocaml"; "doc";      "syntax_"^syntax] & S[A"-syntax"; A syntax];
+             flag ["ocaml"; "infer_interface"; "syntax_"^syntax] & S[A"-syntax"; A syntax];
+           )
+           syntaxes; 
        
        (* The default "thread" tag is not compatible with ocamlfind.
           Indeed, the default rules add the "threads.cma" or "threads.cmxa"
@@ -97,6 +110,7 @@ let _ =  dispatch begin function
        flag ["ocaml"; "pkg_threads"; "compile"] (S[A "-thread"]);
        flag ["ocaml"; "pkg_threads"; "link"] (S[A "-thread"]);
        flag ["ocaml"; "pkg_threads"; "infer_interface"] (S[A "-thread"])
+
        
    | _ -> ()
 end

@@ -34,7 +34,7 @@ COBJS = -ccopt -L/usr/lib/nvidia-current -ccopt $(PQ_PATH)/cuda_stubs.cu_o \
 OCAMLOBJS := $(shell find ../_build/ -name '*.cmx' | xargs -n1 basename ) 
 
 OCAMLOBJSRAW := bigarray.cmxa unix.cmxa uint32.cmxa uint64.cmx extLib.cmxa \
-BaseCommon.cmx Tuple.cmx BaseArray.cmx BaseList.cmx  BaseSet.cmx  BaseMap.cmx \
+BaseCommon.cmx BaseArray.cmx BaseList.cmx  BaseSet.cmx  BaseMap.cmx \
 Graph.cmx \
 Bool.cmx Float.cmx Int.cmx PSet.cmx BasePMap.cmx Base.cmx \
 MutableSet.cmx \

@@ -1,6 +1,10 @@
 open Base
 open Imp 
 
+
+
+
+
 let rec find_exp_live currSet expNode = match expNode.exp with 
   | Var id -> ID.Set.add id currSet   
   | Idx (l,r) -> find_exp_live (find_exp_live  currSet l) r   
@@ -193,7 +197,7 @@ and simplify_exp (constEnv : const_env) volatileSet  expNode =
          cachedNode.exp_type <> expNode.exp_type then expNode
       else cachedNode     
     )   
-  else expNode   
+  else expNode    
 
 and simplify_block ?(revAcc=[]) constEnv definedSet volatileSet = function 
   | [] -> List.rev revAcc, constEnv, definedSet, volatileSet 

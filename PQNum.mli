@@ -3,7 +3,7 @@ type num =
   | Char of char 
   | UInt16 of int 
   | Int16 of int 
-  | UInt32 of Uint32.t
+  | UInt32 of Uint64.t
   | Int32 of Int32.t 
   | UInt64 of Uint64.t   
   | Int64 of Int64.t
@@ -23,6 +23,10 @@ val coerce_float : float -> DynType.t -> num
 val coerce_num : num -> DynType.t -> num 
 
 val to_int : num -> int
+val to_int32 : num -> Int32.t 
 val to_float : num -> float 
+
+val is_zero : num -> bool 
+val is_one : num -> bool 
   
  

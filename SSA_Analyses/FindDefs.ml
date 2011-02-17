@@ -26,6 +26,7 @@ module DefLattice = struct
     | Combine defs1, Combine defs2 -> Combine (defs1 @ defs2)
     | Combine defs, d
     | d, Combine defs -> Combine (d::defs)
+    | x,y -> Combine [x;y]
 end
 
    
