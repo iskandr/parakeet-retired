@@ -75,10 +75,7 @@ and translate_exp
       output
   
   (* assume you only have one initial value, and only one scalar output *)    
-  | SSA.Reduce(initClosure, closure, args) ->
-      let nAcc = List.length initClosure.SSA.closure_output_types in 
-      let initArgs, arrays = List.split_nth nAcc args in 
-      (*let initTypes = initClosure.SSA.closure_input_types in*)
+  | SSA.Reduce(initClosure, closure, initArgs, arrays) ->
       (* TODO: make use of initClosure *)  
       let accTypes = closure.SSA.closure_output_types in    
       let arrayTypes = List.map (fun v -> v.SSA.value_type) arrays in 

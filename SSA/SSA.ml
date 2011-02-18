@@ -28,8 +28,8 @@ type exp =
   | Call of FnId.t * value_nodes 
   | PrimApp of Prim.prim * value_nodes  
   | Map of closure * value_nodes
-  | Reduce of closure * closure * value_nodes   
-  | Scan of closure * closure * value_nodes
+  | Reduce of closure * closure * value_nodes * value_nodes 
+  | Scan of closure * closure * value_nodes * value_nodes 
    
 and exp_node = { 
   exp: exp; 
@@ -137,21 +137,23 @@ and exp_to_str expNode =
         (value_nodes_to_str args)     
   | Map (closure, args) -> 
       sprintf "map{%s}(%s)" (closure_to_str closure) (value_nodes_to_str args) 
-  | Reduce (initClos, reduceClos, args) -> 
-      sprintf "reduce%s{%s}(%s)"
+  | Reduce (initClos, reduceClos, initArgs, args) -> 
+      sprintf "reduce%s{%s}(%s | %s)"
         (if initClos.closure_fn <> reduceClos.closure_fn then 
           "{" ^ (closure_to_str initClos) ^ "}"
          else ""
         )
         (closure_to_str reduceClos)
-        (value_nodes_to_str args)    
-  | Scan (initClos, scanClos, args) -> 
-      sprintf "scan%s{%s}(%s)"
+        (value_nodes_to_str initArgs)
+        (value_nodes_to_str args)
+  | Scan (initClos, scanClos, initArgs, args) -> 
+      sprintf "scan%s{%s}(%s | %s)"
         (if initClos.closure_fn <> scanClos.closure_fn then 
           "{" ^ (closure_to_str initClos) ^ "}"
          else ""
         )
         (closure_to_str scanClos)
+        (value_nodes_to_str initArgs)
         (value_nodes_to_str args)    
 and closure_to_str cl =
    (FnId.to_str cl.closure_fn) ^ 
@@ -313,16 +315,16 @@ let mk_map ?src closure args =
     exp_types = List.map (fun t -> DynType.VecT t) closure.closure_output_types; 
     exp_src = src
   } 
-let mk_reduce ?src initClosure reduceClosure args = 
+let mk_reduce ?src initClosure reduceClosure initArgs args = 
   { 
-    exp = Reduce(initClosure, reduceClosure, args); 
+    exp = Reduce(initClosure, reduceClosure, initArgs, args); 
     exp_types = reduceClosure.closure_output_types; 
     exp_src = src; 
   } 
   
-let mk_scan ?src initClosure scanClosure args = 
+let mk_scan ?src initClosure scanClosure initArgs args = 
   { 
-    exp = Scan(initClosure, scanClosure, args); 
+    exp = Scan(initClosure, scanClosure, initArgs, args); 
     exp_types = scanClosure.closure_output_types; 
     exp_src = src; 
   }
@@ -363,6 +365,14 @@ let mk_phi ?src ?ty id left right =
     phi_type = Option.default DynType.BottomT ty; 
     phi_src = src; 
   }  
+
+let empty_phi = mk_phi ID.undefined (mk_var ID.undefined) (mk_var ID.undefined)
+let is_empty_phi phiNode = match phiNode.phi_left, phiNode.phi_right with 
+  | {value=Var idLeft}, {value=Var idRight} -> 
+      idLeft == ID.undefined && idRight == ID.undefined && 
+      phiNode.phi_id == ID.undefined
+  | _ -> false 
+
 
 (* make a block of phi nodes merging IDs from the three lists given *) 
 let rec mk_phi_nodes outIds leftIds rightIds = 

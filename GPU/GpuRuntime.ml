@@ -221,12 +221,13 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
   let reduce
       ~(init: SSA.fundef) ~(initClosureArgs:values)
       ~(payload : SSA.fundef) ~(payloadClosureArgs:values)
-      ~(args:values) : values  = 
-  let inputTypes = List.map GpuVal.get_type args in 
+      ~(initArgs:values) ~(args:values) : values  =
+  let initTypes = List.map GpuVal.get_type initArgs in  
+  let vecTypes = List.map GpuVal.get_type args in 
   IFDEF DEBUG THEN 
     Printf.printf "Launching Reduce kernel\n";
   ENDIF;
-  let cacheKey = payload.SSA.fn_id, inputTypes in 
+  let cacheKey = payload.SSA.fn_id, initTypes @ vecTypes  in 
   let {imp_source=impKernel; cc=cc; cuda_module=compiledModule} =  
     if Hashtbl.mem reduceCache cacheKey then 
       Hashtbl.find reduceCache cacheKey

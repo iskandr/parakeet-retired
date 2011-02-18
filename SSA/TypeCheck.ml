@@ -108,8 +108,8 @@ and check_exp errorLog tenv (defined : ID.Set.t) (expNode : exp_node) : unit =
   | Call (typedFn, args) -> ()
   | PrimApp (typedPrim, args) -> ()  
   | Map (closure,args) -> ()
-  | Reduce (initClos, reduceClos, args) -> ()   
-  | Scan (initClos, scanClos, args) -> ()
+  | Reduce (initClos, reduceClos, initArgs, args) -> ()   
+  | Scan (initClos, scanClos, initArgs, args) -> ()
 and check_value (errorLog:errors)(tenv:tenv) (defined : ID.Set.t) vNode : unit = 
  let err msg = Queue.add (vNode.value_src, msg) errorLog in
   match vNode.value with 

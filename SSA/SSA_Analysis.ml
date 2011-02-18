@@ -101,10 +101,11 @@ module MkEvaluator(A : ANALYSIS) = struct
       | Map(closure, args) ->
           iter_values env closure.closure_args; 
           iter_values env args
-      | Reduce(c1, c2, args) 
-      | Scan (c1, c2, args) -> 
+      | Reduce(c1, c2, initArgs, args) 
+      | Scan (c1, c2, initArgs, args) -> 
           iter_values env c1.closure_args;  
           iter_values env c2.closure_args;
+          iter_values env initArgs; 
           iter_values env args 
      
       | _ -> failwith ("not implemented: " ^ (SSA.exp_to_str expNode))     

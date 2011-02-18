@@ -159,7 +159,7 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
           Signature.from_types (accTypes @ eltTypes) accTypes 
         in 
         let reduceClosure = mk_typed_closure fnVal reduceSignature in 
-        SSA.mk_reduce ?src initClosure reduceClosure argNodes  
+        SSA.mk_reduce ?src initClosure reduceClosure initArgs args  
         
       | other -> failwith $ (Prim.adverb_to_str other) ^ " not implemented"
   

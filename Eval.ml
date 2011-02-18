@@ -113,7 +113,7 @@ and eval_exp (env : env) (expNode : SSA.exp_node) : InterpVal.t list =
         eval_map env ~payload:fundef closureArgVals argVals
       )
       
-  | Reduce (initClosure, reduceClosure, dataArgs)-> 
+  | Reduce (initClosure, reduceClosure, initArgs, dataArgs)-> 
       let initFundef = get_fundef initClosure.closure_fn in
       (* the current reduce kernel works either for 1d data or 
          for maps over 2d data 
@@ -134,6 +134,7 @@ and eval_exp (env : env) (expNode : SSA.exp_node) : InterpVal.t list =
       let reduceClosureArgs = 
         List.map (eval_value env) reduceClosure.closure_args 
       in 
+      let initArgVals = List.map (eval_value env) initArgs in 
       let argVals  = List.map (eval_value env) dataArgs in
       let gpuCost = 0 
         (* 
@@ -151,6 +152,7 @@ and eval_exp (env : env) (expNode : SSA.exp_node) : InterpVal.t list =
             ~initClosureArgs:(List.map get_gpu initClosureArgs)
             ~payload:reduceFundef 
             ~payloadClosureArgs:(List.map get_gpu reduceClosureArgs)
+            ~initArgs:(List.map get_gpu initArgVals)
             ~args:(List.map get_gpu argVals) 
         in 
         List.map add_gpu gpuResults
@@ -159,7 +161,7 @@ and eval_exp (env : env) (expNode : SSA.exp_node) : InterpVal.t list =
       ) 
       
   | Scan ({closure_fn=initFnId; closure_args=initClosureArgs}, 
-          {closure_fn=fnId; closure_args=closureArgs}, args) ->    
+          {closure_fn=fnId; closure_args=closureArgs}, initArgs, args) ->    
      failwith "scan not implemented"
   | _ -> 
       failwith $ Printf.sprintf 

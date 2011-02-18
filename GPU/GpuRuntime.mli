@@ -12,7 +12,7 @@ module Mk(P:GPU_RUNTIME_PARAMS) : sig
   val reduce : 
     init:SSA.fundef -> initClosureArgs:values ->
     payload:SSA.fundef -> payloadClosureArgs:values -> 
-    args:values -> values  
+    initArgs:values -> args:values -> values  
   
   val where : value -> value 
   val index : value -> value -> value   

@@ -227,8 +227,14 @@ module ShapeAnalysis (P: PARAMS) =  struct
             List.map (value env) closure.closure_args 
           in 
           let argShapes = List.map (value env) args in
-          P.output_shapes closure.closure_fn argShapes 
-      
+          P.output_shapes closure.closure_fn (closArgShapes @ argShapes) 
+      | Reduce(initClos, _, initArgs, args) -> 
+          let initClosArgShapes : shape list = 
+            List.map (value env) initClos.closure_args in
+          let initShapes : shape list = List.map (value env) initArgs in 
+          let argShapes : shape list = List.map (value env) args in
+          let allInputs = initClosArgShapes @ initShapes @ argShapes in  
+          P.output_shapes initClos.SSA.closure_fn allInputs  
       | other -> 
           let expStr = SSA.exp_to_str expNode in 
           failwith (Printf.sprintf "[shape_infer] not implemented: %s\n" expStr) 
@@ -319,24 +325,40 @@ let rec rewrite_dim_access env expNode = match expNode.Imp.exp with
       {expNode with Imp.exp = Imp.Op(op,t,args') }
   | _  -> expNode    
 
-
+(* cache the canonical output shape expressions of each function. "Canonical" 
+   means the expressions refer to input IDs, which need to be replaced by some 
+   input expression later
+*)
+let canonicalOutputShapeCache : (FnId.t, shape list) Hashtbl.t = Hashtbl.create 127
+  
 let rec shape_infer (fnTable:FnTable.t) (fundef : SSA.fundef)  =
+  IFDEF DEBUG THEN 
+    Printf.printf 
+      "Inferring shape environment for %s\n" 
+      (FnId.to_str fundef.SSA.fn_id);
+  ENDIF;     
   let module Params : PARAMS = 
     struct 
-      let output_shapes fnId argShapes = 
+      let output_shapes fnId argShapes =
         let fundef = FnTable.find fnId fnTable in 
-        let shapeEnv = shape_infer fnTable fundef in
-        let inputSet = ID.Set.of_list fundef.input_ids in
-        let rawShapes = 
-          List.map (fun id -> ID.Map.find id shapeEnv) fundef.output_ids
-        in   
-        let canonicalShapes, _ = 
-          canonicalize_shape_list 
-            inputSet 
-            shapeEnv
-            ID.Map.empty
-            rawShapes  
-        in
+        let canonicalOutputShapes = 
+          try Hashtbl.find canonicalOutputShapeCache fnId 
+          with _ -> 
+            let shapeEnv = shape_infer fnTable fundef in
+            let inputSet = ID.Set.of_list fundef.input_ids in
+            let rawShapes = 
+              List.map (fun id -> ID.Map.find id shapeEnv) fundef.output_ids
+            in
+            let canonicalShapes, _ = 
+              canonicalize_shape_list 
+                inputSet 
+                shapeEnv
+                ID.Map.empty
+                rawShapes
+            in 
+            Hashtbl.add canonicalOutputShapeCache fnId canonicalShapes; 
+            canonicalShapes    
+        in 
         (* once the shape expressions only refer to input IDs, 
            remap those input IDs argument expressions *)  
         let argEnv : shape ID.Map.t = 
@@ -351,7 +373,7 @@ let rec shape_infer (fnTable:FnTable.t) (fundef : SSA.fundef)  =
           ImpSimplify.simplify_arith d' 
         in 
         let rewrite_shape s = List.map rewrite_dim s in   
-        List.map rewrite_shape canonicalShapes    
+        List.map rewrite_shape canonicalOutputShapes    
     end 
   in 
   let module ShapeEval = SSA_Analysis.MkEvaluator(ShapeAnalysis(Params)) in 
