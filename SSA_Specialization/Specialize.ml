@@ -188,8 +188,9 @@ and specialize_value interpState fnVal signature =
                 | Some outT -> 
                   Signature.from_types nestedInputTypes [DynType.peel_vec outT]
             in
-            let nestedFundef = specialize_value interpState fnVal nestedSig in
-            let  
+            let nestedFundef = specialize_value interpState fnVal nestedSig in 
+            nestedFundef (* TODO: Map this over the unpeeled args *)  
+            
               
             
       | SSA.Prim p -> 
