@@ -90,13 +90,8 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
     | GlobalFn _
     | Prim _ -> 
       let fundef = P.specializer fnVal signature in 
-      { 
-        closure_fn = fundef.fn_id;  
-        closure_args = [];  
-        closure_arg_types = [];  
-        closure_input_types = fundef.fn_input_types; 
-        closure_output_types = fundef.fn_output_types;   
-      }
+      SSA.mk_closure fundef [] 
+      
     | _ -> assert false  
                                                                                          
   let annotate_value valNode = 

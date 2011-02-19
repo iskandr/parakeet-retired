@@ -242,7 +242,7 @@ module ShapeAnalysis (P: PARAMS) =  struct
 
     let stmt env stmtNode helpers = match stmtNode.stmt with 
       | Set(ids, rhs) ->
-          let rhsVal = (exp env rhs helpers) in 
+          let rhsVal = exp env rhs helpers in 
           let env' =
             List.fold_left 
               (fun env id -> ID.Map.add id [] env)

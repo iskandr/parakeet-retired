@@ -52,7 +52,13 @@ let mk_typed_scalar_prim (op : Prim.scalar_op) ?optOutType argTypes =
     in  
     let outputVar = List.hd outputs in 
     codegen#emit [[outputVar] := primAppNode]
-       
+
+let mk_typed_map_fundef ?src nestedFundef inputTypes = 
+  let nestedOutputTypes = nestedFundef.SSA.fn_output_types in 
+  let outTypes = List.map (fun t -> DynType.VecT t) nestedOutputTypes in
+  let closure = SSA.mk_closure nestedFundef [] in 
+  SSA_Codegen.mk_codegen_fn inputTypes outTypes $ fun codegen inputs outputs ->
+    codegen#emit [outputs := (SSA.mk_map ?src closure inputs )]  
 
 (* checks whether a statement uses an untyped scalar operator *) 
 let rec is_scalar_stmt stmtNode = match stmtNode.stmt with 
@@ -166,20 +172,11 @@ and specialize_value interpState fnVal signature =
           typedFundef
       | SSA.Prim (Prim.ScalarOp op) ->
           let optOutType = 
-            if Signature.has_output_types signature then 
-              Some (List.hd (Signature.output_types signature))
-            else None 
-          in   
-          if List.for_all DynType.is_scalar inputTypes then 
-            let typedFundef = mk_typed_scalar_prim op ?optOutType inputTypes in 
-            (InterpState.add_specialization
-              ~optimize:false 
-              interpState 
-              fnVal
-              signature 
-              typedFundef
-            ;
-            typedFundef)
+            Option.map List.hd (Signature.output_types_option signature)
+          in
+          let typedFundef = 
+            if List.for_all DynType.is_scalar inputTypes then 
+             mk_typed_scalar_prim op ?optOutType inputTypes 
           else
             let nestedInputTypes = List.map DynType.peel_vec inputTypes in 
             let nestedSig = 
@@ -188,11 +185,18 @@ and specialize_value interpState fnVal signature =
                 | Some outT -> 
                   Signature.from_types nestedInputTypes [DynType.peel_vec outT]
             in
-            let nestedFundef = specialize_value interpState fnVal nestedSig in 
-            nestedFundef (* TODO: Map this over the unpeeled args *)  
-            
-              
-            
+            let nestedFundef = specialize_value interpState fnVal nestedSig in
+            mk_typed_map_fundef nestedFundef inputTypes
+          in   
+          InterpState.add_specialization
+            ~optimize:false 
+            interpState 
+            fnVal
+            signature 
+            typedFundef
+          ;
+          typedFundef    
+
       | SSA.Prim p -> 
           let arity = List.length inputTypes in
           assert (arity >= Prim.min_prim_arity p && 

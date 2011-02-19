@@ -15,6 +15,8 @@ let output_types s = match s.outputs with
   | Some ts -> ts
   | None -> failwith "no output types in this signature" 
 
+let output_types_option s = s.outputs 
+
 let to_str signature =
   let inputStr = DynType.type_list_to_str signature.inputs in 
   match signature.outputs with 
