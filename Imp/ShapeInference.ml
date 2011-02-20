@@ -213,22 +213,23 @@ module ShapeAnalysis (P: PARAMS) =  struct
         [List.drop nIndices arrayShape]
       | SSA.PrimApp (Prim.ArrayOp Prim.Where, [array]) ->
         [value env array]
+      | SSA.PrimApp (Prim.ArrayOp Prim.DimSize, [array; dim]) -> [[]] 
       | SSA.PrimApp (Prim.ScalarOp _, args) when 
         List.for_all (fun arg -> DynType.is_scalar arg.value_type) args -> [[]]
-     | Arr elts ->
+      | SSA.Arr elts ->
         let eltShapes = List.map (value env) elts in
         (* TODO: check that elt shapes actually match each other *) 
         let n = List.length eltShapes in
         [Imp.int n :: (List.hd eltShapes)]             
-      | Cast (t, v) ->  [value env v] 
-      | Values vs -> List.map (value env) vs  
-      | Map(closure, args) -> 
+      | SSA.Cast (t, v) ->  [value env v] 
+      | SSA.Values vs -> List.map (value env) vs  
+      | SSA.Map(closure, args) -> 
           let closArgShapes : shape list = 
             List.map (value env) closure.closure_args 
           in 
           let argShapes = List.map (value env) args in
           P.output_shapes closure.closure_fn (closArgShapes @ argShapes) 
-      | Reduce(initClos, _, initArgs, args) -> 
+      | SSA.Reduce(initClos, _, initArgs, args) -> 
           let initClosArgShapes : shape list = 
             List.map (value env) initClos.closure_args in
           let initShapes : shape list = List.map (value env) initArgs in 
