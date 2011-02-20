@@ -99,8 +99,15 @@ and eval_exp (env : env) (expNode : SSA.exp_node) : InterpVal.t list =
       let argVals : InterpVal.t list = 
         List.map (eval_value env) args 
       in 
-      let gpuCost = GpuCost.map P.memState closureArgVals argVals fundef in  
-      let cpuCost = 100000000000 in 
+      let gpuCost =
+        GpuCost.map
+          ~memState:P.memState
+          ~fnTable:P.fnTable
+          ~fn:fundef
+          ~closureArgs:closureArgVals 
+          ~dataArgs:argVals
+      in   
+      let cpuCost = CpuCost.map P.memState closureArgVals argVals fundef in 
       (if gpuCost < cpuCost then 
         let gpuResults = 
           GpuEval.map 
@@ -136,15 +143,13 @@ and eval_exp (env : env) (expNode : SSA.exp_node) : InterpVal.t list =
       in 
       let initArgVals = List.map (eval_value env) initArgs in 
       let argVals  = List.map (eval_value env) dataArgs in
-      let gpuCost = 0 
-        (* 
-        GpuCost.reduce ~memState:P.memState ~init:initFundef ~initClosureArgs 
-          ~fn:reduceFundef ~closureArgs:reduceClosureArgs ~argss:argVals
-        *)
+      let gpuCost =  
+        GpuCost.reduce ~memState:P.memState ~fnTable:P.fnTable
+          ~init:initFundef ~initClosureArgs 
+          ~fn:reduceFundef ~closureArgs:reduceClosureArgs ~args:argVals
       in    
-      let cpuCost = 100 in 
- 
-        (*CpuCost.map P.memState closureArgVals argVals fundef in*) 
+      let cpuCost = 100000 in (* 
+        CpuCost.map P.memState  closureArgVals argVals fundef in*) 
       (if gpuCost < cpuCost then
         let gpuResults = 
           GpuEval.reduce

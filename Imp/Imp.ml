@@ -287,21 +287,6 @@ let idx arr idx =
 let dim n x = int_exp $ (DimSize(n, x))
  
      
-
-(* get a list of all the dimensions of an Imp array *) 
-let all_dims ( x : exp_node) : exp_node list =
-  let ndims = DynType.nest_depth x.exp_type in  
-  List.map (fun i -> dim i x) (List.til ndims)
-
-(* return list of dimsizes for value of largest type in the givern array *)
-let largest_val ( exps : exp_node array ) : exp_node = 
-  let maxExp = ref exps.(0) in   
-  for i = 1 to Array.length exps - 1 do
-    if DynType.is_structure_subtype !maxExp.exp_type exps.(i).exp_type then 
-      maxExp := exps.(i)
-  done; 
-  !maxExp
-    
 let len x = uint_exp $ DimSize(1, x)
 
 let max_ ?t x y = typed_op Prim.Max ?t [x;y]

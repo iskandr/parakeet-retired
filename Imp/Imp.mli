@@ -129,12 +129,7 @@ val idx : exp_node -> exp_node -> exp_node
 
 val dim : int -> exp_node -> exp_node 
  
-     
-
-(* get a list of all the dimensions of an Imp array *) 
-val all_dims :  exp_node -> exp_node list 
-
-val largest_val :  exp_node array -> exp_node 
+    
     
 val len : exp_node -> exp_node 
 val max_ : ?t:DynType.t -> exp_node -> exp_node -> exp_node 

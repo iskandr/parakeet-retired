@@ -4,39 +4,12 @@ open Base
 open Base
 open SSA
 open SSA_Analysis 
-
+open SymbolicShape
 (* takes an SSA function and a map of its IDs to their counterparts in some
    future Imp function. Infers an Imp.exp array corresponding to each
    variable's shape 
 *)  
 
-type shape = Imp.exp_node list
-
-let peel_shape = function 
-  | [] -> [] 
-  | _::tailDims -> tailDims 
-
-let peel_shape_list shapes = List.map peel_shape shapes
-    
-let split_shape = function 
-  | [] -> assert false 
-  | dim::dims -> dim, dims 
-
-let rec split_shape_list = function 
-  | [] -> [], [] 
-  | s::rest -> 
-      let d, shape = split_shape s in 
-      let moreDims, moreShapes = split_shape_list rest in 
-      d::moreDims, shape::moreShapes   
-
-let rank shape = List.length shape 
-
-let rec mk_max_dim = function 
-  | [] -> assert false 
-  | [dim] -> dim 
-  | d::dims ->
-      let d' = mk_max_dim dims in 
-      if d.Imp.exp = d'.Imp.exp then d' else Imp.max_ d d'   
 
 
 module type PARAMS = sig 
@@ -44,147 +17,6 @@ module type PARAMS = sig
 end 
 
 module ShapeAnalysis (P: PARAMS) =  struct
-(*
-  let get_output_shapes f _ = [] 
-
-  (* shapes of values returned by a function  *)
-  let rec infer_call_outputs fnTable env fundef args : Shape.t list  = 
-    let argShapes = List.map (infer_value env) args in 
-    get_output_shapes fundef (infer_fundef fnTable fundef argShapes)
-        
-
-  and infer_value (env : Shape.t ID.Map.t) (vNode : SSA.value_node) : Shape.t = 
-    match vNode.value with 
-    | Var id -> ID.Map.find id env 
-    | Num _  
-    | Str _  
-    | Sym _ 
-    | Unit -> Shape.scalar_shape
-    | Prim _
-    | GlobalFn _ -> failwith "[ShapeInference] functions have no shape"
-  
-  
-  and infer_exp 
-      (fnTable : FnTable.t) 
-      (env : Shape.t ID.Map.t) 
-      (expNode : SSA.exp_node) : Shape.t list =
-  match expNode.exp with  
-  | App ({value=GlobalFn fnId}, args) -> 
-      let fundef = FnTable.find fnId fnTable in
-      infer_call_outputs fnTable env fundef args   
-  | App ({value=Prim (Prim.ArrayOp Prim.Index)}, (array::indices)) -> 
-      let arrayShape = infer_value env array in
-      let nIndices = List.length indices in
-      (* for now assume slicing can only happen along the 
-         outermost dimensions and only by scalar indices 
-      *)  
-      let resultShape = ref arrayShape in 
-      for i = 1 to nIndices do 
-        resultShape := Shape.peel_shape !resultShape
-      done; 
-      [!resultShape] 
-  | App ({value=Prim (Prim.Adverb op)}, fnVal::args) ->
-      let fundef = FnTable.get_fundef fnTable fnVal in
-      let argShapes = List.map (infer_value env) args in   
-      let outputs, _ = infer_adverb fnTable op fundef argShapes in 
-      outputs
-  | App (_, args) when 
-      List.for_all (fun arg -> DynType.is_scalar arg.value_type) args ->
-      [Shape.scalar_shape]
-  | App _ -> failwith "unsupported function type"
-                
-  | Arr elts ->
-      let eltShapes = List.map (infer_value env) elts in
-      begin match eltShapes with 
-      | [] -> failwith "[ShapeInference] Cannot create empty array"
-      | firstShape::rest ->
-          if not $ List.for_all (fun shape -> Shape.eq shape firstShape) rest
-          then 
-            failwith "[ShapeInference] Array elements must have uniform shape"
-          else 
-            let n = List.length eltShapes in
-            [Shape.append_dim n firstShape]  
-      end            
-  | Cast (t, v) ->  [infer_value env v] 
-  | Values vs -> List.map (infer_value env) vs  
- 
-  and infer_stmt (fnTable : FnTable.t) (env : Shape.t ID.Map.t) stmtNode = 
-    match stmtNode.stmt with  
-    | Set (ids, rhs) ->  
-      let rhsShapes = infer_exp fnTable env rhs in
-      let nShapes = List.length rhsShapes in
-      let nIds = List.length ids in   
-      if nShapes <> nIds  then
-        failwith $ Printf.sprintf 
-          "[ShapeInference] statement \"%s\" expected %d inputs but received %d"
-          (SSA.stmt_node_to_str stmtNode) nIds nShapes 
-      else  
-      ID.Map.extend env ids rhsShapes    
-    | SetIdx(id, indices, rhs) -> env 
-      (* assume we can't change the shape of an array with 
-         index assignment. 
-      *)
-    | If (condVal, tBlock, fBlock, ifGate) -> env  
-      
-  (*| WhileLoop (condExp, body, loopGate) ->*)   
-  and infer_body (fnTable : FnTable.t) (env : Shape.t ID.Map.t) block = 
-    Block.fold_forward (infer_stmt fnTable) env block 
-  and infer_fundef fnTable fundef inputShapes : shape_env = 
-    let env =
-      ID.Map.extend ID.Map.empty fundef.input_ids inputShapes  
-    in 
-    infer_body fnTable env fundef.body
-  
-  and infer_adverb fnTable op fundef argShapes = match op with 
-  | Prim.Map -> infer_map fnTable fundef argShapes 
-  | Prim.AllPairs -> infer_allpairs fnTable fundef argShapes
-  | Prim.Reduce -> infer_reduce fnTable fundef argShapes 
-  | _ -> failwith "[ShapeInference] adverb not implemented"
-
-  and infer_map fnTable fundef argShapes : Shape.t list * shape_env = 
-  match Shape.max_shape_list argShapes with
-    | None -> failwith "incompatible shapes passed to Map"
-    | Some maxShape -> 
-      assert (Shape.rank maxShape > 0);  
-      let outerDim = Shape.get maxShape 0 in 
-      let nestedInputShapes = List.map Shape.peel_shape argShapes in 
-      let nestedEnv = infer_fundef fnTable fundef nestedInputShapes in
-      let outputShapes = 
-        List.map 
-          (fun s -> Shape.append_dim outerDim s) 
-          (get_output_shapes fundef nestedEnv) 
-      in 
-      outputShapes, nestedEnv 
-      
-  and infer_reduce fnTable fundef argShapes : Shape.t list * shape_env  = 
-  let nestedInputShapes = List.map Shape.peel_shape argShapes in
-  let nestedEnv = infer_fundef fnTable fundef nestedInputShapes in
-  (* the outputs of the reduction function are also
-       the outputs of the whole adverb 
-  *) 
-  (get_output_shapes fundef nestedEnv), nestedEnv  
-     
-    
-  and infer_allpairs fnTable fundef argShapes : Shape.t list * shape_env = 
-   match argShapes with  
-    | [argShape1; argShape2] ->
-      IFDEF DEBUG THEN 
-        assert (Shape.rank argShape1 > 0);
-        assert (Shape.rank argShape2 > 0);
-      ENDIF;  
-      let m = Shape.get argShape1 0 in 
-      let n = Shape.get argShape2 0 in    
-      let nestedEnv = 
-        infer_fundef fnTable fundef (List.map Shape.peel_shape argShapes)  
-      in
-      let outputShapes = 
-        List.map 
-          (fun s -> Shape.append_dims [m; n] s)
-          (get_output_shapes fundef nestedEnv)
-      in  
-      outputShapes, nestedEnv 
-    | _ -> failwith "expected two shapes for all-pairs operator"   
-   *)
     type value_info = shape
     type exp_info = value_info list    
     type env = value_info ID.Map.t 
@@ -201,13 +33,13 @@ module ShapeAnalysis (P: PARAMS) =  struct
       List.fold_left 
         (fun accEnv id -> 
           let varNode = Imp.var ~t:(ID.Map.find id fundef.SSA.tenv) id in 
-          ID.Map.add id (Imp.all_dims varNode)  accEnv
+          ID.Map.add id (all_dims varNode)  accEnv
         )
         ID.Map.empty 
         fundef.input_ids 
    
     let value env valNode = match valNode.value with 
-      | SSA.Var id -> Imp.all_dims (Imp.var ~t:valNode.value_type id)  
+      | SSA.Var id -> all_dims (Imp.var ~t:valNode.value_type id)  
       | _ -> [] (* empty list indicates a scalar *) 
     
     let phi env leftEnv rightEnv phiNode =
@@ -225,10 +57,7 @@ module ShapeAnalysis (P: PARAMS) =  struct
     
     let exp env expNode helpers = match expNode.exp with
       | SSA.Call(fnId, args) ->  
-         (*let fundef = FnTable.find fnId fnTable in
-         helpers.eval_fundef 
-         infer_call_outputs fnTable env fundef args*)
-        assert false
+        failwith "Unexpected function call, inliner should have been exhaustive"
       | SSA.PrimApp (Prim.ArrayOp Prim.Index, array::indices) -> 
         let arrayShape =  value env array in
         let nIndices = List.length indices in
@@ -263,9 +92,8 @@ module ShapeAnalysis (P: PARAMS) =  struct
                 if rank shape = maxRank then peel_shape shape else shape)
               argShapes 
           in
-          let eltOutShapes : shape list = 
-            P.output_shapes closure.closure_fn (closArgShapes @ eltShapes)
-          in  
+          let eltInShapes = (closArgShapes @ eltShapes) in 
+          let eltOutShapes = P.output_shapes closure.closure_fn eltInShapes in  
           (* collect only args of maximal rank *) 
           let maxVecShapes =
             List.filter (fun shape -> rank shape = maxRank) argShapes 
@@ -274,7 +102,31 @@ module ShapeAnalysis (P: PARAMS) =  struct
           let maxDim : Imp.exp_node = 
             mk_max_dim (List.map List.hd maxVecShapes) 
           in
-          List.map (fun outShape -> maxDim :: outShape) eltOutShapes 
+          let vecOutShapes = 
+            List.map (fun outShape -> maxDim :: outShape) eltOutShapes
+          in  
+          IFDEF DEBUG THEN 
+            Printf.printf "\t MAP (%s)(%s)\n"
+              (SSA.closure_to_str closure)
+              (SSA.value_nodes_to_str args)
+            ; 
+            Printf.printf "\t\t ranks: %s\n" 
+              (String.concat ", " (List.map string_of_int ranks))
+            ;
+            Printf.printf "\t\t fn input shapes: %s\n" 
+              (shapes_to_str eltInShapes)
+            ; 
+            Printf.printf "\t\t fn output shapes: %s\n" 
+              (shapes_to_str eltOutShapes)
+            ; 
+            Printf.printf "\t\t maxVecShapes: %s\n" 
+              (shapes_to_str maxVecShapes)
+            ; 
+            Printf.printf "\t\t maxDim: %s\n" (Imp.exp_node_to_str maxDim);
+            Printf.printf "\t\t final output shapes: %s\n"
+              (shapes_to_str vecOutShapes); 
+          ENDIF;  
+          vecOutShapes
           
           
       | SSA.Reduce(initClos, _, initArgs, args) -> 
@@ -299,12 +151,19 @@ module ShapeAnalysis (P: PARAMS) =  struct
 
     let stmt env stmtNode helpers = match stmtNode.stmt with 
       | Set(ids, rhs) ->
-          let rhsVal = exp env rhs helpers in 
+          let rhsShapes = exp env rhs helpers in
+          IFDEF DEBUG THEN 
+            if List.length ids <> List.length rhsShapes then 
+              failwith ("Shape inference error in stmt '" ^
+                        (SSA.stmt_node_to_str stmtNode) ^ 
+                        "': number of IDs must match number of rhs shapes");
+          ENDIF;  
           let env' =
-            List.fold_left 
-              (fun env id -> ID.Map.add id [] env)
+            List.fold_left2 
+              (fun env id shape -> ID.Map.add id shape env)
               env
-              ids 
+              ids
+              rhsShapes 
           in Some env' 
       | _ -> None    
 end
@@ -389,11 +248,12 @@ let rec rewrite_dim_access env expNode = match expNode.Imp.exp with
 let canonicalOutputShapeCache : (FnId.t, shape list) Hashtbl.t = Hashtbl.create 127
   
 let rec shape_infer (fnTable:FnTable.t) (fundef : SSA.fundef)  =
-  IFDEF DEBUG THEN 
+  (*IFDEF DEBUG THEN 
     Printf.printf 
-      "Inferring shape environment for %s\n" 
+      "Inferring shape environment for %s\n..." 
       (FnId.to_str fundef.SSA.fn_id);
-  ENDIF;     
+  ENDIF;
+  *)     
   let module Params : PARAMS = 
     struct 
       let output_shapes fnId argShapes =
@@ -434,6 +294,21 @@ let rec shape_infer (fnTable:FnTable.t) (fundef : SSA.fundef)  =
     end 
   in 
   let module ShapeEval = SSA_Analysis.MkEvaluator(ShapeAnalysis(Params)) in 
-  ShapeEval.eval_fundef fundef 
+  let shapeEnv = ShapeEval.eval_fundef fundef in 
+  IFDEF DEBUG THEN
+    Printf.printf "Inferred shape environment for %s : %s -> %s:\n"
+      (FnId.to_str fundef.SSA.fn_id)
+      (DynType.type_list_to_str fundef.SSA.fn_input_types)
+      (DynType.type_list_to_str fundef.SSA.fn_output_types)
+    ;  
+    ID.Map.iter 
+      (fun id shape -> 
+        Printf.printf " -- %s : %s\n" 
+          (ID.to_str id) 
+          (Imp.exp_node_list_to_str shape)
+      )
+      shapeEnv;
+  ENDIF;  
+  shapeEnv 
       
 

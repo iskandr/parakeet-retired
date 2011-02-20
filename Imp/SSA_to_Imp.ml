@@ -50,18 +50,26 @@ and translate_exp
       ]
     ];
     index
+  | SSA.PrimApp (Prim.ArrayOp Prim.Where, [_]) -> 
+    failwith ("WHERE operator can't be translated to Imp " ^ 
+              "due to unpredictable size semantics") 
+
+  
   | SSA.Cast (t, vNode) -> cast t (translate_value idEnv vNode) 
   (* assume you only have one array over which you're mapping for now *)
   | SSA.Map(payload, arrays) ->
-      let outputTypes = payload.SSA.closure_output_types in
+      let eltOutTypes = payload.SSA.closure_output_types in
       (* TODO: make this work for multiple outputs *)  
-      let outputType = List.hd outputTypes in
+      let eltOutType = List.hd eltOutTypes in
+      let vecOutType = DynType.VecT eltOutType in 
       let fnId = payload.SSA.closure_fn in 
       let fundef_ssa = FnTable.find fnId fnTable in
       let fundef_imp = translate_fundef fnTable fundef_ssa in
       let arrays_imp = List.map (translate_value idEnv) arrays in
-      let maxInput = largest_val (Array.of_list arrays_imp) in 
-      let output = codegen#fresh_output ~dims:(all_dims maxInput) outputType in  
+      let maxInput = SymbolicShape.largest_val (Array.of_list arrays_imp) in 
+      let output = 
+        codegen#fresh_output ~dims:(SymbolicShape.all_dims maxInput) vecOutType 
+      in  
       let i = codegen#fresh_var Int32T in
       let n = codegen#fresh_var Int32T in
       let bodyBlock = [
@@ -155,38 +163,38 @@ and translate_stmt
 
 and translate_fundef fnTable fn =
   let codegen  = new ImpCodegen.imp_codegen in
+  let inputTypes = fn.SSA.fn_input_types in 
   let outputTypes = fn.SSA.fn_output_types in
   IFDEF DEBUG THEN
      let inputTypes = fn.SSA.fn_input_types in 
      Printf.printf 
-       "Translating function into Imp of type %s->%s\n"
+       "Translating %s into Imp of type %s->%s\n"
+       (FnId.to_str fn.SSA.fn_id)
        (DynType.type_list_to_str inputTypes)
        (DynType.type_list_to_str outputTypes)
      ;
   ENDIF;
   (* first generate imp ids for inputs, to make sure their order is preserved *)
+  let add_input env id t = 
+    IFDEF DEBUG THEN 
+      Printf.printf "\t Renaming input %s : %s to..." 
+        (ID.to_str id) 
+        (DynType.to_str t)
+      ;
+    ENDIF; 
+    let impId = codegen#fresh_input_id t in 
+    IFDEF DEBUG THEN Printf.printf "%s\n" (ID.to_str impId); ENDIF;
+    ID.Map.add id impId env  
+  in 
   let inputIdEnv = 
-    List.fold_left2 
-      (fun env id t -> ID.Map.add id (codegen#fresh_input_id t) env)
-      ID.Map.empty 
-      fn.SSA.input_ids 
-      fn.SSA.fn_input_types  
+    List.fold_left2 add_input ID.Map.empty fn.SSA.input_ids inputTypes   
   in 
   (* next add all the live locals, along with their size expressions *)
   let liveIds : ID.t MutableSet.t = FindLiveIds.find_live_ids fn in
   let sizeExps : Imp.exp_node list ID.Map.t = 
     ShapeInference.shape_infer fnTable fn 
   in
-  IFDEF DEBUG THEN
-    Printf.printf "Inferred shape env for %s:\n" (FnId.to_str fn.SSA.fn_id); 
-    ID.Map.iter 
-      (fun id shape -> 
-        Printf.printf " -- %s : %s\n" 
-          (ID.to_str id) 
-          (Imp.exp_node_list_to_str shape)
-      )
-      sizeExps;
-  ENDIF; 
+  
   let add_local id env =
     (* ignore inputs since they were already handled *) 
     if List.mem id fn.SSA.input_ids then env
@@ -197,12 +205,22 @@ and translate_fundef fnTable fn =
     let dims' : Imp.exp_node list =
        List.map (ImpReplace.apply_id_map env) dims 
     in   
+    IFDEF DEBUG THEN 
+      Printf.printf "\t Renaming %s : %s (shape = [%s]) to..." 
+        (ID.to_str id) 
+        (DynType.to_str t)
+        (SymbolicShape.shape_to_str dims')
+      ;
+    ENDIF; 
     let impId = 
       (if List.mem id fn.SSA.output_ids then 
         codegen#fresh_output_id ~dims:dims' t 
       else 
         codegen#fresh_local_id ~dims:dims' t)
     in  
+    IFDEF DEBUG THEN 
+      Printf.printf "%s\n" (ID.to_str impId);
+    ENDIF; 
     ID.Map.add id impId env    
   in  
   let idEnv = MutableSet.fold add_local liveIds inputIdEnv in

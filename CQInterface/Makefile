@@ -83,6 +83,7 @@ MemoryState.cmx \
 LibPQ.cmx \
 PtxSimplify.cmx PtxTidy.cmx PtxCodegen.cmx \
 Imp.cmx \
+SymbolicShape.cmx \
 ImpReplace.cmx \
 ImpSimplify.cmx \
 ImpCodegen.cmx \

@@ -67,6 +67,7 @@ let collect_partial_apps interpState fundef =
  let module Collector = 
     MkSimpleTransform(CollectRules(struct let interpState = interpState end))
  in
+
  IFDEF DEBUG THEN 
    Printf.printf "Collect Partial Apps (before): %s\n%!"
      (SSA.fundef_to_str fundef);

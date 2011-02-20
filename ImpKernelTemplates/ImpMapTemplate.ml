@@ -23,7 +23,9 @@ let gen_map payload threadsPerBlock closureTypes inTypes outTypes =
   (* setup params for closure args, inputs, outputs *) 
   let closureArgs = Array.map codegen#fresh_input closureTypes in 
   let inputArgs = Array.map codegen#fresh_input inTypes in
-  let outputSizes = all_dims (largest_val inputArgs) in
+  let outputSizes = 
+    SymbolicShape.all_dims (SymbolicShape.largest_val inputArgs) 
+  in
   let outputArgs = 
     Array.map (fun t -> codegen#fresh_output ~dims:outputSizes t) outTypes 
   in 

@@ -1,4 +1,6 @@
 open Base  
+
+
 let map memState closureArgs dataArgs fundef = 
     let memoryCosts = 
       List.sum (List.map (MemoryState.host_transfer_time memState) dataArgs)
@@ -15,4 +17,4 @@ let map memState closureArgs dataArgs fundef =
     1 + memoryCosts + runCost  
     
 let array_op memState op argVals = match op, argVals with 
-  | _ -> max_int (* don't run anything else on the host *)  
+  | _ -> 0 (* don't run anything else on the host *)  

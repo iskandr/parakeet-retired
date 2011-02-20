@@ -148,13 +148,13 @@ and scalarize_fundef interpState untypedFundef vecSig =
   ) 
  
 and specialize_value interpState fnVal signature =
-  IFDEF DEBUG THEN
+  (*IFDEF DEBUG THEN
     Printf.printf "Specialize_Value %s :: %s\n%!"
       (SSA.value_to_str fnVal)
       (Signature.to_str signature)
     ; 
   ENDIF;
-  
+  *)
   match InterpState.maybe_get_specialization interpState fnVal signature with
   | Some fnId -> InterpState.get_typed_function interpState fnId
   | None ->  
