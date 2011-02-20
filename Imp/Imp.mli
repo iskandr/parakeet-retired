@@ -54,6 +54,7 @@ and fn = {
 
 val exp_node_to_str : exp_node -> string 
 val exp_to_str : exp -> string   
+val exp_node_list_to_str : exp_node list -> string 
 val stmt_to_str : ?spaces:string -> stmt -> string 
 val block_to_str : ?spaces:string -> stmt list -> string 
 val fn_to_str : fn -> string

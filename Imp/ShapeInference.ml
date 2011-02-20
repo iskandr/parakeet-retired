@@ -12,6 +12,23 @@ open SSA_Analysis
 
 type shape = Imp.exp_node list
 
+let peel_shape = function 
+  | [] -> [] 
+  | _::tailDims -> tailDims 
+
+let peel_shape_list = List.map peel_shape
+    
+let split_shape = function 
+  | [] -> assert false 
+  | dim::dims -> dim, dims 
+
+let rec split_shape_list = function 
+  | [] -> [], [] 
+  | s::rest -> 
+      let d, shape = split_shape s in 
+      let moreDims, moreShapes = split_shape_list rest in 
+      d::moreDims, shape::moreShapes   
+
 
 module type PARAMS = sig 
   val output_shapes : FnId.t -> shape list -> shape list  
@@ -228,7 +245,14 @@ module ShapeAnalysis (P: PARAMS) =  struct
             List.map (value env) closure.closure_args 
           in 
           let argShapes = List.map (value env) args in
-          P.output_shapes closure.closure_fn (closArgShapes @ argShapes) 
+          let argEltShapes = peel_shape_list argShapes in
+          (* TODO: These are the output shapes of the nested function! 
+             Need to rewrap these in the outer element of the highest rank 
+             argument-- which itself needs to be identified  
+          *)  
+          P.output_shapes closure.closure_fn (closArgShapes @ argEltShapes)
+           
+          
       | SSA.Reduce(initClos, _, initArgs, args) -> 
           let initClosArgShapes : shape list = 
             List.map (value env) initClos.closure_args in

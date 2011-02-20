@@ -174,7 +174,19 @@ and translate_fundef fnTable fn =
   in 
   (* next add all the live locals, along with their size expressions *)
   let liveIds : ID.t MutableSet.t = FindLiveIds.find_live_ids fn in
-  let sizeExps = ShapeInference.shape_infer fnTable fn in
+  let sizeExps : Imp.exp_node list ID.Map.t = 
+    ShapeInference.shape_infer fnTable fn 
+  in
+  IFDEF DEBUG THEN
+    Printf.printf "Inferred shape env for %s:\n" (FnId.to_str fn.SSA.fn_id); 
+    ID.Map.iter 
+      (fun id shape -> 
+        Printf.printf " -- %s : %s\n" 
+          (ID.to_str id) 
+          (Imp.exp_node_list_to_str shape)
+      )
+      sizeExps;
+  ENDIF; 
   let add_local id env =
     (* ignore inputs since they were already handled *) 
     if List.mem id fn.SSA.input_ids then env

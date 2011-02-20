@@ -73,7 +73,7 @@ and exp_to_str = function
     sprintf "%s:%s (%s)" 
       (Prim.scalar_op_to_str op)
       (DynType.to_str argT) 
-      (args_to_str args)
+      (exp_node_list_to_str args)
   | Select (t, cond, trueVal, falseVal) -> 
       sprintf "select:%s(%s, %s, %s)" 
         (DynType.to_str t)
@@ -124,7 +124,7 @@ and stmt_to_str ?(spaces="") = function
       sprintf "%s %s[%s] = %s"
         spaces 
         (ID.to_str id) 
-        (args_to_str indices) 
+        (exp_node_list_to_str indices) 
         (exp_node_to_str rhs)
   | SyncThreads -> spaces ^ "syncthreads"
   | Comment s -> spaces ^ "// " ^ s
@@ -132,7 +132,8 @@ and stmt_to_str ?(spaces="") = function
   | SPLICE -> spaces ^ "SPLICE"
 and block_to_str ?(spaces="") stmts = 
   String.concat "\n" (List.map (stmt_to_str ~spaces) stmts)
-and args_to_str exps = String.concat ", " (List.map exp_node_to_str exps) 
+and exp_node_list_to_str exps = 
+  String.concat ", " (List.map exp_node_to_str exps) 
 let fn_to_str fn =
   let inputs = List.map ID.to_str (Array.to_list fn.input_ids) in 
   let outputs = List.map ID.to_str (Array.to_list fn.output_ids) in 
