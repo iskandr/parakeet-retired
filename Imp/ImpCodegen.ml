@@ -376,8 +376,14 @@ class imp_codegen =
     method fresh_vars n t = 
       Array.map (fun id -> {exp=Var id;exp_type=t}) $ self#fresh_ids n t   
     
+    (* TODO: reuse the Imp.exp shapes of non-shared arrays, so we can call
+       the normal local_id method
+    *) 
     method shared_vec_id t dims =
-      let id = self#fresh_local_id (DynType.VecT t) in  
+      let vecT = DynType.VecT t in
+      let id = self#fresh_id t in
+      MutableSet.add localIdSet id;
+      DynArray.add localIds id;
       Hashtbl.add sharedArrayAllocations id dims; 
       self#add_static_size_annot id dims; 
       id 

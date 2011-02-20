@@ -3,7 +3,6 @@ open Imp
 
 type shape = exp_node list
 
-
 let peel_shape = function 
   | [] -> [] 
   | _::tailDims -> tailDims 
@@ -46,4 +45,9 @@ let largest_val ( exps : exp_node array ) : exp_node =
       maxExp := exps.(i)
   done; 
   !maxExp
-    
+
+let rec of_int_list = function 
+  | [] -> [] 
+  | i::rest -> (Imp.int i) :: of_int_list rest 
+
+        

@@ -241,55 +241,57 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
   let outputTypes = payload.SSA.fn_output_types in 
   assert (List.length outputTypes = 1); 
   let outputType = List.hd outputTypes in
-  match compiledModule.Cuda.kernel_names, args with
+  let fnName = match compiledModule.Cuda.kernel_names with 
+    | [fnName] -> fnName
+    | _ -> failwith "expect one reduce kernel" 
+  in 
+  let gpuVal = match args with 
+    | _::[gpuVal] -> gpuVal 
+    | other -> 
+        failwith $ Printf.sprintf 
+          "expected 1 init val, 1 vec val: got %d args" 
+          (List.length other)
+  in   
     (* WAYS THIS IS CURRENTLY WRONG: 
        - we are ignoring the initial value
        - we are only allowing reductions over a single array
        - in the 2D case, we only support embedded maps
     *)
-    | [fnName], _ :: [gpuVal] ->
-      let inShape = GpuVal.get_shape gpuVal in
-      let numInputElts = Shape.get inShape 0 in
-      let x_threads = 1 in
-      let x_grid =
-        if Shape.rank inShape = 1 then 1
-        else (Shape.get inShape 1) / x_threads
+  
+  let inShape = GpuVal.get_shape gpuVal in
+  let numInputElts = Shape.get inShape 0 in
+  let x_threads = 1 in
+  let x_grid = 
+    if Shape.rank inShape = 1 then 1 else (Shape.get inShape 1) / x_threads
+  in
+  IFDEF DEBUG THEN Printf.printf "Launching x grid: %d\n" x_grid; ENDIF;
+  let rec aux inputArgs curNumElts =
+    if curNumElts > 1 then (
+      let numOutputElts = safe_div curNumElts (threadsPerBlock * 2) in
+      let args, outputsList =
+        create_args compiledModule.Cuda.module_ptr impKernel cc inputArgs 
       in
-      IFDEF DEBUG THEN Printf.printf "Launching x grid: %d\n" x_grid; ENDIF;
-      let rec aux inputArgs curNumElts =
-        if curNumElts > 1 then (
-          let numOutputElts = safe_div curNumElts (threadsPerBlock * 2) in
-          let args, outputsList =
-            create_args compiledModule.Cuda.module_ptr impKernel cc inputArgs 
-          in
-          let gridParams = {
-            LibPQ.threads_x=x_threads; threads_y=256; threads_z=1;
-            grid_x=x_grid; grid_y=numOutputElts;
-          }
-          in
-          LibPQ.launch_ptx
-            compiledModule.Cuda.module_ptr 
-            fnName 
-            args 
-            gridParams
-          ;
-          if curNumElts < numInputElts then GpuVal.free (List.hd inputArgs);
-          aux outputsList numOutputElts
-          )
-        else (
-          let result = GpuVal.get_slice (List.hd inputArgs) 0 in
-          IFDEF DEBUG THEN
-            Printf.printf "Final reduction result of shape %s, type %s\n"
-              (Shape.to_str (GpuVal.get_shape result))
-              (DynType.to_str (GpuVal.get_type result))
-            ;
-          ENDIF;
-          [result]
-        )
+      let gridParams = {
+        LibPQ.threads_x=x_threads; threads_y=256; threads_z=1;
+        grid_x=x_grid; grid_y=numOutputElts;
+      }
       in
-      aux [gpuVal] numInputElts
-    | _ -> failwith "expect one reduce kernel"
-
+      LibPQ.launch_ptx compiledModule.Cuda.module_ptr fnName args gridParams;
+      if curNumElts < numInputElts then GpuVal.free (List.hd inputArgs);
+        aux outputsList numOutputElts
+    )
+    else (
+      let result = GpuVal.get_slice (List.hd inputArgs) 0 in
+      IFDEF DEBUG THEN
+        Printf.printf "Final reduction result of shape %s, type %s\n"
+          (Shape.to_str (GpuVal.get_shape result))
+          (DynType.to_str (GpuVal.get_type result))
+        ;
+      ENDIF;
+      [result]
+    )
+    in
+    aux [gpuVal] numInputElts
 
   (** ALLPAIRS **)
   let compile_all_pairs payload argTypes = 
