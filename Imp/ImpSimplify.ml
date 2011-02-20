@@ -4,6 +4,9 @@ open Imp
 
 (* arithmetic simplifications *) 
 let rec simplify_arith expNode = match expNode.Imp.exp with
+  | Imp.Op (Prim.Max, _, [x;y])
+  | Imp.Op (Prim.Min, _, [x;y]) 
+    when x.Imp.exp = y.Imp.exp -> x 
   | Imp.Op (op, t,  args) -> 
       let args' = List.map simplify_arith args in 
       let expNode' = {expNode with Imp.exp = Imp.Op(op, t, args') } in 
