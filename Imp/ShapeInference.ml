@@ -16,7 +16,7 @@ let peel_shape = function
   | [] -> [] 
   | _::tailDims -> tailDims 
 
-let peel_shape_list = List.map peel_shape
+let peel_shape_list shapes = List.map peel_shape shapes
     
 let split_shape = function 
   | [] -> assert false 
@@ -35,8 +35,8 @@ let rec mk_max_dim = function
   | [] -> assert false 
   | [dim] -> dim 
   | d::dims ->
-      let d' = mk_max_shape dims in 
-      if d.exp <> d'.exp then Imp.max_ d d' else d'  
+      let d' = mk_max_dim dims in 
+      if d.Imp.exp = d'.Imp.exp then d' else Imp.max_ d d'   
 
 
 module type PARAMS = sig 
@@ -263,7 +263,7 @@ module ShapeAnalysis (P: PARAMS) =  struct
                 if rank shape = maxRank then peel_shape shape else shape)
               argShapes 
           in
-          let eltOutShapes = 
+          let eltOutShapes : shape list = 
             P.output_shapes closure.closure_fn (closArgShapes @ eltShapes)
           in  
           (* collect only args of maximal rank *) 
@@ -271,14 +271,18 @@ module ShapeAnalysis (P: PARAMS) =  struct
             List.filter (fun shape -> rank shape = maxRank) argShapes 
           in 
           (* combine first dim of each maximal rank into single exp *) 
-          let maxDim = mk_max_dim (List.map List.hd maxVecShapes) in 
-          maxDim::eltOutShapes     
+          let maxDim : Imp.exp_node = 
+            mk_max_dim (List.map List.hd maxVecShapes) 
+          in
+          List.map (fun outShape -> maxDim :: outShape) eltOutShapes 
+          
           
       | SSA.Reduce(initClos, _, initArgs, args) -> 
           let initClosArgShapes : shape list = 
             List.map (value env) initClos.closure_args in
           let initShapes : shape list = List.map (value env) initArgs in 
           let argShapes : shape list = List.map (value env) args in
+          let ranks = List.map rank argShapes in
           let maxRank = List.fold_left max 0 ranks in
           let eltShapes = 
             List.map 
