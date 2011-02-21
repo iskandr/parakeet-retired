@@ -191,10 +191,9 @@ and translate_fundef fnTable fn =
   in 
   (* next add all the live locals, along with their size expressions *)
   let liveIds : ID.t MutableSet.t = FindLiveIds.find_live_ids fn in
-  let sizeExps : Imp.exp_node list ID.Map.t = 
-    ShapeInference.shape_infer fnTable fn 
+  let sizeExps : SymbolicShape.shape ID.Map.t = 
+    ShapeInference.infer_shape_env fnTable fn  
   in
-  
   let add_local id env =
     (* ignore inputs since they were already handled *) 
     if List.mem id fn.SSA.input_ids then env

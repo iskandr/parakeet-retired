@@ -5,7 +5,8 @@ val map :
     
 val reduce : 
       memState:MemoryState.t -> fnTable:FnTable.t -> init:SSA.fundef ->
-        initClosureArgs:InterpVal.t list -> fn:SSA.fundef -> 
-          closureArgs:InterpVal.t list -> args:InterpVal.t list -> int  
+        initClosureArgs:InterpVal.t list -> 
+        fn:SSA.fundef -> closureArgs:InterpVal.t list -> 
+        initArgs:InterpVal.t list -> args:InterpVal.t list -> int  
 
 val array_op : MemoryState.t -> Prim.array_op -> InterpVal.t list -> int           

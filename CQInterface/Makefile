@@ -19,6 +19,7 @@ OCAMLINCLUDES = -I $(BUILDPATH) -I $(BUILDPATH)/Analysis \
 	-I $(BUILDPATH)/SSA_Optimizations \
  	-I $(BUILDPATH)/SSA_Analyses \
 	-I $(BUILDPATH)/SSA_Specialization \
+        -I $(BUILDPATH)/ShapeInference \
         -I $(EXTLIB_DIR) \
         -I $(UINT_DIR)
 
@@ -76,7 +77,8 @@ CollectPartialApps.cmx \
 TypeAnalysis.cmx \
 RewriteTyped.cmx \
 Specialize.cmx \
-PtxType.cmx PtxVal.cmx Ptx.cmx Shape.cmx \
+PtxType.cmx PtxVal.cmx Ptx.cmx \
+Shape.cmx \
 Cuda.cmx \
 HostVal.cmx GpuVal.cmx InterpVal.cmx \
 MemoryState.cmx \
@@ -92,8 +94,8 @@ ImpMapTemplate.cmx \
 ImpReduceTemplate.cmx \
 ImpToPtx.cmx \
 ShapeInference.cmx \
+ShapeEval.cmx \
 SSA_to_Imp.cmx \
-ImpShapeEval.cmx \
 QType.cmx HardwareInfo.cmx \
 PtxCallingConventions.cmx \
 GpuRuntime.cmx \

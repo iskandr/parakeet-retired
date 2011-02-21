@@ -16,3 +16,4 @@
 "ImpKernelTemplates" : include
 "OCAMLInterface" : include
 "stubs" : include
+"ShapeInference" : include

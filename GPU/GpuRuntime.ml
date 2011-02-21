@@ -4,8 +4,6 @@ open Base
 open Bigarray
 open HostVal
 open Printf 
-open ImpShapeEval
-
 module type GPU_RUNTIME_PARAMS = sig 
   val fnTable : FnTable.t
   val memState : MemoryState.t 
@@ -73,7 +71,7 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
         (inputs: GpuVal.gpu_val list) 
         : LibPQ.gpu_arg array * GpuVal.gpu_val list  =
     let inputShapes = List.map GpuVal.get_shape inputs in 
-    let shapeEnv = ImpShapeEval.infer_shapes impfn inputShapes in
+    let shapeEnv = ShapeEval.eval_imp_shape_env impfn inputShapes in 
     let process_input env id gpuVal =
       let location = ID.Map.find id cc.PtxCallingConventions.data_locations in
       IFDEF DEBUG THEN 
@@ -122,7 +120,10 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
     (DynArray.to_array paramsArray), (DynArray.to_list outputMap)
 
 
-  (** MAP **)
+  (**********************************************************
+                           MAP 
+   **********************************************************)
+  
   let map_id_gen = mk_gen ()
   let mapThreadsPerBlock = 256 
   let compile_map payload closureTypes argTypes retTypes =
@@ -192,7 +193,9 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
   outputVals
 
 
-  (** REDUCE **)
+  (**********************************************************
+                           REDUCE 
+   **********************************************************)
   let compile_reduce payload =
     let redThreadsPerBlock = 256 in
     let impPayload = SSA_to_Imp.translate_fundef P.fnTable payload in
@@ -245,13 +248,7 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
     | [fnName] -> fnName
     | _ -> failwith "expect one reduce kernel" 
   in 
-  let gpuVal = match args with 
-    | _::[gpuVal] -> gpuVal 
-    | other -> 
-        failwith $ Printf.sprintf 
-          "expected 1 init val, 1 vec val: got %d args" 
-          (List.length other)
-  in   
+  let gpuVal = List.hd args in 
     (* WAYS THIS IS CURRENTLY WRONG: 
        - we are ignoring the initial value
        - we are only allowing reductions over a single array
@@ -293,7 +290,9 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
     in
     aux [gpuVal] numInputElts
 
-  (** ALLPAIRS **)
+  (**********************************************************
+                           ALLPAIRS 
+   **********************************************************)
   let compile_all_pairs payload argTypes = 
     match argTypes with 
     | [t1; t2] ->
@@ -355,7 +354,10 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
         compiledModule.Cuda.module_ptr fnName paramsArray gridParams;
       outputVals
 
-  (** INDEX **)
+  (**********************************************************
+                          INDEX 
+   **********************************************************)
+  
   let index (inputVec : value) (indexVec : value) =
     let inputShape = GpuVal.get_shape inputVec in
     let ninputels = Shape.nelts inputShape in
@@ -394,8 +396,10 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
     end;
     output
 
-  (** WHERE **)
-  let where (binVec : value) =
+  (**********************************************************
+                          WHERE 
+   **********************************************************)
+    let where (binVec : value) =
     let nelts = GpuVal.nelts binVec in
     IFDEF DEBUG THEN 
       Printf.printf "Running WHERE on %d elements\n" nelts;

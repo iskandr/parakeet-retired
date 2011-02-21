@@ -96,9 +96,11 @@ and eval_exp (env : env) (expNode : SSA.exp_node) : InterpVal.t list =
       let closureArgVals : InterpVal.t list = 
         List.map (eval_value env) closureArgs 
       in 
-      let argVals : InterpVal.t list = 
-        List.map (eval_value env) args 
-      in 
+      let argVals : InterpVal.t list = List.map (eval_value env) args in
+      IFDEF DEBUG THEN
+        Printf.printf "args to map: %s\n"
+          (String.concat ", " (List.map InterpVal.to_str argVals)); 
+      ENDIF;  
       let gpuCost =
         GpuCost.map
           ~memState:P.memState
@@ -132,7 +134,6 @@ and eval_exp (env : env) (expNode : SSA.exp_node) : InterpVal.t list =
       let initClosureArgs = 
         List.map (eval_value env) initClosure.closure_args 
       in
-       
       let reduceFundef = get_fundef reduceClosure.closure_fn in
       let reduceFundef = match SSA.extract_nested_map_fn_id reduceFundef with 
         | Some nestedFnId -> get_fundef nestedFnId 
@@ -144,9 +145,11 @@ and eval_exp (env : env) (expNode : SSA.exp_node) : InterpVal.t list =
       let initArgVals = List.map (eval_value env) initArgs in 
       let argVals  = List.map (eval_value env) dataArgs in
       let gpuCost =  
-        GpuCost.reduce ~memState:P.memState ~fnTable:P.fnTable
+        GpuCost.reduce 
+          ~memState:P.memState ~fnTable:P.fnTable
           ~init:initFundef ~initClosureArgs 
-          ~fn:reduceFundef ~closureArgs:reduceClosureArgs ~args:argVals
+          ~fn:reduceFundef ~closureArgs:reduceClosureArgs 
+          ~initArgs:initArgVals ~args:argVals
       in    
       let cpuCost = 100000 in (* 
         CpuCost.map P.memState  closureArgVals argVals fundef in*) 
