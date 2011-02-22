@@ -19,6 +19,7 @@ OCAMLINCLUDES = -I $(BUILDPATH) -I $(BUILDPATH)/Analysis \
 	-I $(BUILDPATH)/SSA_Optimizations \
  	-I $(BUILDPATH)/SSA_Analyses \
 	-I $(BUILDPATH)/SSA_Specialization \
+        -I $(BUILDPATH)/ShapeInference \
         -I $(EXTLIB_DIR) \
         -I $(UINT_DIR)
 
@@ -34,7 +35,7 @@ COBJS = -ccopt -L/usr/lib/nvidia-current -ccopt $(PQ_PATH)/cuda_stubs.cu_o \
 OCAMLOBJS := $(shell find ../_build/ -name '*.cmx' | xargs -n1 basename ) 
 
 OCAMLOBJSRAW := bigarray.cmxa unix.cmxa uint32.cmxa uint64.cmx extLib.cmxa \
-BaseCommon.cmx Tuple.cmx BaseArray.cmx BaseList.cmx  BaseSet.cmx  BaseMap.cmx \
+BaseCommon.cmx BaseArray.cmx BaseList.cmx  BaseSet.cmx  BaseMap.cmx \
 Graph.cmx \
 Bool.cmx Float.cmx Int.cmx PSet.cmx BasePMap.cmx Base.cmx \
 MutableSet.cmx \
@@ -76,13 +77,15 @@ CollectPartialApps.cmx \
 TypeAnalysis.cmx \
 RewriteTyped.cmx \
 Specialize.cmx \
-PtxType.cmx PtxVal.cmx Ptx.cmx Shape.cmx \
+PtxType.cmx PtxVal.cmx Ptx.cmx \
+Shape.cmx \
 Cuda.cmx \
 HostVal.cmx GpuVal.cmx InterpVal.cmx \
 MemoryState.cmx \
 LibPQ.cmx \
 PtxSimplify.cmx PtxTidy.cmx PtxCodegen.cmx \
 Imp.cmx \
+SymbolicShape.cmx \
 ImpReplace.cmx \
 ImpSimplify.cmx \
 ImpCodegen.cmx \
@@ -91,8 +94,8 @@ ImpMapTemplate.cmx \
 ImpReduceTemplate.cmx \
 ImpToPtx.cmx \
 ShapeInference.cmx \
+ShapeEval.cmx \
 SSA_to_Imp.cmx \
-ImpShapeEval.cmx \
 QType.cmx HardwareInfo.cmx \
 PtxCallingConventions.cmx \
 GpuRuntime.cmx \

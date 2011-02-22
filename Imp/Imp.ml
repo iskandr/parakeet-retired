@@ -73,7 +73,7 @@ and exp_to_str = function
     sprintf "%s:%s (%s)" 
       (Prim.scalar_op_to_str op)
       (DynType.to_str argT) 
-      (args_to_str args)
+      (exp_node_list_to_str args)
   | Select (t, cond, trueVal, falseVal) -> 
       sprintf "select:%s(%s, %s, %s)" 
         (DynType.to_str t)
@@ -124,7 +124,7 @@ and stmt_to_str ?(spaces="") = function
       sprintf "%s %s[%s] = %s"
         spaces 
         (ID.to_str id) 
-        (args_to_str indices) 
+        (exp_node_list_to_str indices) 
         (exp_node_to_str rhs)
   | SyncThreads -> spaces ^ "syncthreads"
   | Comment s -> spaces ^ "// " ^ s
@@ -132,7 +132,8 @@ and stmt_to_str ?(spaces="") = function
   | SPLICE -> spaces ^ "SPLICE"
 and block_to_str ?(spaces="") stmts = 
   String.concat "\n" (List.map (stmt_to_str ~spaces) stmts)
-and args_to_str exps = String.concat ", " (List.map exp_node_to_str exps) 
+and exp_node_list_to_str exps = 
+  String.concat ", " (List.map exp_node_to_str exps) 
 let fn_to_str fn =
   let inputs = List.map ID.to_str (Array.to_list fn.input_ids) in 
   let outputs = List.map ID.to_str (Array.to_list fn.output_ids) in 
@@ -286,21 +287,6 @@ let idx arr idx =
 let dim n x = int_exp $ (DimSize(n, x))
  
      
-
-(* get a list of all the dimensions of an Imp array *) 
-let all_dims ( x : exp_node) : exp_node list =
-  let ndims = DynType.nest_depth x.exp_type in  
-  List.map (fun i -> dim i x) (List.til ndims)
-
-(* return list of dimsizes for value of largest type in the givern array *)
-let largest_val ( exps : exp_node array ) : exp_node = 
-  let maxExp = ref exps.(0) in   
-  for i = 1 to Array.length exps - 1 do
-    if DynType.is_structure_subtype !maxExp.exp_type exps.(i).exp_type then 
-      maxExp := exps.(i)
-  done; 
-  !maxExp
-    
 let len x = uint_exp $ DimSize(1, x)
 
 let max_ ?t x y = typed_op Prim.Max ?t [x;y]

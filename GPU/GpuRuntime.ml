@@ -4,8 +4,6 @@ open Base
 open Bigarray
 open HostVal
 open Printf 
-open ImpShapeEval
-
 module type GPU_RUNTIME_PARAMS = sig 
   val fnTable : FnTable.t
   val memState : MemoryState.t 
@@ -73,7 +71,7 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
         (inputs: GpuVal.gpu_val list) 
         : LibPQ.gpu_arg array * GpuVal.gpu_val list  =
     let inputShapes = List.map GpuVal.get_shape inputs in 
-    let shapeEnv = ImpShapeEval.infer_shapes impfn inputShapes in
+    let shapeEnv = ShapeEval.eval_imp_shape_env impfn inputShapes in 
     let process_input env id gpuVal =
       let location = ID.Map.find id cc.PtxCallingConventions.data_locations in
       IFDEF DEBUG THEN 
@@ -122,7 +120,10 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
     (DynArray.to_array paramsArray), (DynArray.to_list outputMap)
 
 
-  (** MAP **)
+  (**********************************************************
+                           MAP 
+   **********************************************************)
+  
   let map_id_gen = mk_gen ()
   let mapThreadsPerBlock = 256 
   let compile_map payload closureTypes argTypes retTypes =
@@ -192,7 +193,9 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
   outputVals
 
 
-  (** REDUCE **)
+  (**********************************************************
+                           REDUCE 
+   **********************************************************)
   let compile_reduce payload =
     let redThreadsPerBlock = 256 in
     let impPayload = SSA_to_Imp.translate_fundef P.fnTable payload in
@@ -221,12 +224,13 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
   let reduce
       ~(init: SSA.fundef) ~(initClosureArgs:values)
       ~(payload : SSA.fundef) ~(payloadClosureArgs:values)
-      ~(args:values) : values  = 
-  let inputTypes = List.map GpuVal.get_type args in 
+      ~(initArgs:values) ~(args:values) : values  =
+  let initTypes = List.map GpuVal.get_type initArgs in  
+  let vecTypes = List.map GpuVal.get_type args in 
   IFDEF DEBUG THEN 
     Printf.printf "Launching Reduce kernel\n";
   ENDIF;
-  let cacheKey = payload.SSA.fn_id, inputTypes in 
+  let cacheKey = payload.SSA.fn_id, initTypes @ vecTypes  in 
   let {imp_source=impKernel; cc=cc; cuda_module=compiledModule} =  
     if Hashtbl.mem reduceCache cacheKey then 
       Hashtbl.find reduceCache cacheKey
@@ -240,57 +244,55 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
   let outputTypes = payload.SSA.fn_output_types in 
   assert (List.length outputTypes = 1); 
   let outputType = List.hd outputTypes in
-  match compiledModule.Cuda.kernel_names, args with
+  let fnName = match compiledModule.Cuda.kernel_names with 
+    | [fnName] -> fnName
+    | _ -> failwith "expect one reduce kernel" 
+  in 
+  let gpuVal = List.hd args in 
     (* WAYS THIS IS CURRENTLY WRONG: 
        - we are ignoring the initial value
        - we are only allowing reductions over a single array
        - in the 2D case, we only support embedded maps
     *)
-    | [fnName], _ :: [gpuVal] ->
-      let inShape = GpuVal.get_shape gpuVal in
-      let numInputElts = Shape.get inShape 0 in
-      let x_threads = 1 in
-      let x_grid =
-        if Shape.rank inShape = 1 then 1
-        else (Shape.get inShape 1) / x_threads
+  
+  let inShape = GpuVal.get_shape gpuVal in
+  let numInputElts = Shape.get inShape 0 in
+  let x_threads = 1 in
+  let x_grid = 
+    if Shape.rank inShape = 1 then 1 else (Shape.get inShape 1) / x_threads
+  in
+  IFDEF DEBUG THEN Printf.printf "Launching x grid: %d\n" x_grid; ENDIF;
+  let rec aux inputArgs curNumElts =
+    if curNumElts > 1 then (
+      let numOutputElts = safe_div curNumElts (threadsPerBlock * 2) in
+      let args, outputsList =
+        create_args compiledModule.Cuda.module_ptr impKernel cc inputArgs 
       in
-      IFDEF DEBUG THEN Printf.printf "Launching x grid: %d\n" x_grid; ENDIF;
-      let rec aux inputArgs curNumElts =
-        if curNumElts > 1 then (
-          let numOutputElts = safe_div curNumElts (threadsPerBlock * 2) in
-          let args, outputsList =
-            create_args compiledModule.Cuda.module_ptr impKernel cc inputArgs 
-          in
-          let gridParams = {
-            LibPQ.threads_x=x_threads; threads_y=256; threads_z=1;
-            grid_x=x_grid; grid_y=numOutputElts;
-          }
-          in
-          LibPQ.launch_ptx
-            compiledModule.Cuda.module_ptr 
-            fnName 
-            args 
-            gridParams
-          ;
-          if curNumElts < numInputElts then GpuVal.free (List.hd inputArgs);
-          aux outputsList numOutputElts
-          )
-        else (
-          let result = GpuVal.get_slice (List.hd inputArgs) 0 in
-          IFDEF DEBUG THEN
-            Printf.printf "Final reduction result of shape %s, type %s\n"
-              (Shape.to_str (GpuVal.get_shape result))
-              (DynType.to_str (GpuVal.get_type result))
-            ;
-          ENDIF;
-          [result]
-        )
+      let gridParams = {
+        LibPQ.threads_x=x_threads; threads_y=256; threads_z=1;
+        grid_x=x_grid; grid_y=numOutputElts;
+      }
       in
-      aux [gpuVal] numInputElts
-    | _ -> failwith "expect one reduce kernel"
+      LibPQ.launch_ptx compiledModule.Cuda.module_ptr fnName args gridParams;
+      if curNumElts < numInputElts then GpuVal.free (List.hd inputArgs);
+        aux outputsList numOutputElts
+    )
+    else (
+      let result = GpuVal.get_slice (List.hd inputArgs) 0 in
+      IFDEF DEBUG THEN
+        Printf.printf "Final reduction result of shape %s, type %s\n"
+          (Shape.to_str (GpuVal.get_shape result))
+          (DynType.to_str (GpuVal.get_type result))
+        ;
+      ENDIF;
+      [result]
+    )
+    in
+    aux [gpuVal] numInputElts
 
-
-  (** ALLPAIRS **)
+  (**********************************************************
+                           ALLPAIRS 
+   **********************************************************)
   let compile_all_pairs payload argTypes = 
     match argTypes with 
     | [t1; t2] ->
@@ -352,7 +354,10 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
         compiledModule.Cuda.module_ptr fnName paramsArray gridParams;
       outputVals
 
-  (** INDEX **)
+  (**********************************************************
+                          INDEX 
+   **********************************************************)
+  
   let index (inputVec : value) (indexVec : value) =
     let inputShape = GpuVal.get_shape inputVec in
     let ninputels = Shape.nelts inputShape in
@@ -391,8 +396,10 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
     end;
     output
 
-  (** WHERE **)
-  let where (binVec : value) =
+  (**********************************************************
+                          WHERE 
+   **********************************************************)
+    let where (binVec : value) =
     let nelts = GpuVal.nelts binVec in
     IFDEF DEBUG THEN 
       Printf.printf "Running WHERE on %d elements\n" nelts;

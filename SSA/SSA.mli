@@ -25,8 +25,8 @@ type exp =
   | Call of FnId.t * value_nodes 
   | PrimApp of Prim.prim * value_nodes  
   | Map of closure * value_nodes
-  | Reduce of closure * closure * value_nodes   
-  | Scan of closure * closure * value_nodes
+  | Reduce of closure * closure * value_nodes * value_nodes
+  | Scan of closure * closure * value_nodes * value_nodes 
  
 and exp_node = { 
   exp: exp; 
@@ -167,9 +167,14 @@ val mk_call :
          exp_node 
 val mk_map : ?src:SourceInfo.t -> closure -> value_node list -> exp_node 
 val mk_reduce : 
-      ?src:SourceInfo.t -> closure -> closure -> value_node list -> exp_node
+      ?src:SourceInfo.t -> 
+        closure -> closure -> 
+          value_node list -> value_node list -> exp_node
 val mk_scan : 
-      ?src:SourceInfo.t -> closure -> closure -> value_node list -> exp_node
+      ?src:SourceInfo.t -> 
+        closure -> closure -> 
+          value_node list -> value_node list -> exp_node
+          
 val mk_closure : fundef -> value_node list -> closure 
 
 val empty_stmt : stmt_node 
@@ -178,6 +183,9 @@ val is_empty_stmt : stmt_node -> bool
 val mk_phi : 
      ?src:SourceInfo.t -> ?ty:DynType.t -> 
        ID.t -> value_node -> value_node -> phi_node
+
+val empty_phi : phi_node 
+val is_empty_phi : phi_node -> bool 
        
 val mk_phi_nodes : ID.t list -> ID.t list -> ID.t list -> phi_nodes  
 val collect_phi_values :bool -> phi_nodes -> ID.t list * value_node list 

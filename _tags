@@ -1,4 +1,4 @@
-<**/*.ml> : debug, use_unix, use_str, use_bigarray, pkg_uint, pkg_uint32, pkg_uint64, pkg_extlib
+<*.native> or <**/*.ml> or <**/*.mli> : debug, use_unix, use_str, use_bigarray, pkg_uint.uint128, pkg_uint.uint32,  pkg_extlib
 "AST" : include
 "Dump" : include
 "Ptx": include
@@ -16,3 +16,4 @@
 "ImpKernelTemplates" : include
 "OCAMLInterface" : include
 "stubs" : include
+"ShapeInference" : include

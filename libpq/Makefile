@@ -62,9 +62,9 @@ COMMONDIR  := $(ROOTDIR)/../common
 
 # Compilers
 NVCC       := $(CUDA_INSTALL_PATH)/bin/nvcc 
-CXX        := g++-4.3 -fPIC -ggdb3
-CC         := gcc-4.3 -fPIC -ggdb3
-LINK       := g++-4.3 -fPIC
+CXX        := g++ -fPIC -ggdb3
+CC         := gcc -fPIC -ggdb3
+LINK       := g++ -fPIC
 
 # Includes
 INCLUDES  += -I. -I$(CUDA_INSTALL_PATH)/include -I$(COMMONDIR)/inc
@@ -97,7 +97,7 @@ CWARN_FLAGS := $(CXXWARN_FLAGS) \
 	-Wmain \
 
 # Compiler-specific flags
-NVCCFLAGS := --compiler-bindir=/usr/bin/gcc-4.3
+NVCCFLAGS := --compiler-bindir=/usr/bin/gcc
 CXXFLAGS  := $(CXXWARN_FLAGS)
 CFLAGS    := $(CWARN_FLAGS)
 
@@ -326,21 +326,21 @@ pqlib:
 	pqlib.cu $(INCLUDES) $(LIB) -lcuda 
 
 module_tester:
-	gcc-4.3 -o module_tester module_tester.c -I. $(INCLUDES) -lcuda -lrt
+	gcc -o module_tester module_tester.c -I. $(INCLUDES) -lcuda -lrt
 
 tester: pqlib stubs tester.o
 	gcc -g tester.o -I. $(INCLUDES) -o tester $(LIB) -L. -lpq -lpq_stubs
 
 compaction: where.cu_o index.cu_o gen_idx.cu_o scan.cu_o compaction_tester.o \
 		base.o
-	gcc-4.3 where.cu_o index.cu_o gen_idx.cu_o scan.cu_o compaction_tester.o \
+	gcc where.cu_o index.cu_o gen_idx.cu_o scan.cu_o compaction_tester.o \
 	base.o -o compaction $(INCLUDES) $(LIB) -L.
 
 each: each.cu_o each_tester.o base.o
-	gcc-4.3 each.cu_o each_tester.o base.o -I. $(INCLUDES) -o each $(LIB) -L.
+	gcc each.cu_o each_tester.o base.o -I. $(INCLUDES) -o each $(LIB) -L.
 
 boolscan: boolscantester.cu_o
-	gcc-4.3 boolscantester.cu_o -o boolscan -I. $(INCLUDES) $(LIB) -L.
+	gcc boolscantester.cu_o -o boolscan -I. $(INCLUDES) $(LIB) -L.
 
 kmeans: kmeans.cu_o scan.cu_o base.o
 	gcc-4.3 kmeans.cu_o scan.cu_o base.o -o kmeans -I. $(INCLUDES) $(LIB) -L.
@@ -398,7 +398,7 @@ timing: timing.o
 
 stubs: thrust_stubs.cu_o kernel_stubs.cu_o cuda_stubs.cu_o base.o
 	echo $(INCLUDES)
-	$(CC) -c libpq_stubs.c -I. $(INCLUDES) \
+	$(CC) -c libpq_stubs.c -I. $(INCLUDES) -lcuda \
 	      -o libpq_stubs.o $(COMMONFLAGS) $(LIB) -L. 
 	ar rcs libpq_stubs.a libpq_stubs.o cuda_stubs.cu_o thrust_stubs.cu_o \
 		kernel_stubs.cu_o base.o 

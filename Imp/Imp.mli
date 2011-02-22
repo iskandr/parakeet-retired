@@ -54,6 +54,7 @@ and fn = {
 
 val exp_node_to_str : exp_node -> string 
 val exp_to_str : exp -> string   
+val exp_node_list_to_str : exp_node list -> string 
 val stmt_to_str : ?spaces:string -> stmt -> string 
 val block_to_str : ?spaces:string -> stmt list -> string 
 val fn_to_str : fn -> string
@@ -128,12 +129,7 @@ val idx : exp_node -> exp_node -> exp_node
 
 val dim : int -> exp_node -> exp_node 
  
-     
-
-(* get a list of all the dimensions of an Imp array *) 
-val all_dims :  exp_node -> exp_node list 
-
-val largest_val :  exp_node array -> exp_node 
+    
     
 val len : exp_node -> exp_node 
 val max_ : ?t:DynType.t -> exp_node -> exp_node -> exp_node 

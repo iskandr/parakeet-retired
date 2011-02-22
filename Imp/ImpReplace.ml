@@ -17,7 +17,7 @@ let rec apply_exp_map (eMap:exp_map)  eNode =
     | Cast (t1,  e) -> Cast (t1, aux e)   
     | DimSize (n,e) -> DimSize (n, aux e)
     | other -> other
-  in {eNode with exp = exp' }
+  in { eNode with exp = exp' }
 
 (* FIND/REPLACE expressions in Imp statement *)
 let rec apply_exp_map_to_stmt (eMap : exp_map) stmt =

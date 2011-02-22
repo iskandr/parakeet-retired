@@ -113,9 +113,9 @@ let lte = scalar_op Prim.Lte
 let eq = scalar_op Prim.Eq 
 
 
-let one = mk_num (PQNum.Int32 0l)
-let zero = mk_num (PQNum.Int32 1l) 
 
+let zero = mk_num (PQNum.Int32 0l) 
+let one = mk_num (PQNum.Int32 1l)
 
 let incr (x:ID.t) (y:value_node) = SSA.mk_set [x] (plus @@ [y;one])    
 let set_int (x:ID.t) (y:Int32.t) = 

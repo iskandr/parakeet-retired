@@ -4,7 +4,6 @@ printf "|                Medium Sized Whale               |\n";
 printf "===================================================\n";
 
 # Build parameters
-
  
 OBJS="CQInterface/QType.o CQInterface/Debug.o Init.o" # Callbacks.o
 LINKER_FLAGS="-lflags -ccopt,$PQ_PATH/libpq_stubs.o,\
@@ -65,22 +64,9 @@ if [  "tests!" == "$1" ]; then
   printf "\n---Running tests---\n";
  _build/Tests/tests.native;
 else
-#  printf "\n\n******** Building QSyntax.cmxa ********\n";
-
-#  echo $OCAMLBUILD;
-#  if ! $OCAMLBUILD -no-hygiene "Q/QSyntax"${SUFFIX}".cmxa"; then echo "QSyntax build failed"; exit 1; fi 
-
   if [ -n "$TARGET" ]; then
-
-    # the ocamlbuild plugin only seems to partially enable findlib libraries, they still don't get linked in
-    # this is a temporary hack to make all the findlib libraries work
-    EXTLIB_DIR=`ocamlfind query -format "%d" extlib`;
-    EXTLIB_FLAGS="-lib extLib -cflags -I,$EXTLIB_DIR -lflags -I,$EXTLIB_DIR"
-    UINT_DIR=`ocamlfind query -format "%d" uint`;
-    UINT_FLAGS="-lib uint32 -lib uint64 -lib uint128 -cflags -I,$UINT_DIR -lflags -I,$UINT_DIR"
-
     printf "\n\n******* Building Preprocessor and Q Callbacks *******\n"; 
-    if ! $OCAMLBUILD $TARGET $EXTLIB_FLAGS $UINT_FLAGS -lib str -lib unix -no-hygiene; then echo "Preprocessor build failed"; exit 1; fi 
+    if ! $OCAMLBUILD $TARGET -no-hygiene; then echo "Preprocessor build failed"; exit 1; fi 
   fi
 
 

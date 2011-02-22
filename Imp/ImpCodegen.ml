@@ -322,10 +322,14 @@ class imp_codegen =
       let id = self#fresh_id t in
       MutableSet.add localIdSet id;
       DynArray.add localIds id;
-      if DynType.is_vec t then ( 
-        IFDEF DEBUG THEN assert (dims <> []); ENDIF; 
-        self#add_dynamic_size_annot id dims
-      );
+      if (DynType.is_vec t && dims = []) || 
+         (DynType.is_scalar t && dims <> []) then
+        failwith $ Printf.sprintf 
+          "[ImpCodegen] Cannot create local var of type %s and shape %s"
+            (DynType.to_str t)
+            (SymbolicShape.shape_to_str dims)
+      ;
+      if DynType.is_vec t then self#add_dynamic_size_annot id dims;
       id
 
     method fresh_var ?(dims = []) t =
@@ -344,10 +348,21 @@ class imp_codegen =
       let id = self#fresh_id t in
       DynArray.add outputs (id,t); 
       MutableSet.add outputSet id;
-      if DynType.is_scalar t then 
-        assert (dims = [])
+      if DynType.is_scalar t then (  
+        if dims <> [] then failwith 
+           (Printf.sprintf 
+             "[ImpCodegen] Cannot create var of type %s and non-scalar shape %s"
+             (DynType.to_str t)
+             (SymbolicShape.shape_to_str dims))
+        )
       else (
-        assert (dims <> []);   
+        if dims = [] then failwith 
+          (Printf.sprintf 
+             "[ImpCodegen] 
+                 Cannot create var of vector type %s and scalar shape %s"
+             (DynType.to_str t)
+             (SymbolicShape.shape_to_str dims))
+            ;   
         self#add_dynamic_size_annot id dims
       ); 
       id
@@ -361,8 +376,14 @@ class imp_codegen =
     method fresh_vars n t = 
       Array.map (fun id -> {exp=Var id;exp_type=t}) $ self#fresh_ids n t   
     
+    (* TODO: reuse the Imp.exp shapes of non-shared arrays, so we can call
+       the normal local_id method
+    *) 
     method shared_vec_id t dims =
-      let id = self#fresh_local_id (DynType.VecT t) in  
+      let vecT = DynType.VecT t in
+      let id = self#fresh_id t in
+      MutableSet.add localIdSet id;
+      DynArray.add localIds id;
       Hashtbl.add sharedArrayAllocations id dims; 
       self#add_static_size_annot id dims; 
       id 

@@ -1,6 +1,63 @@
 open Base
 open Imp 
 
+
+(* arithmetic simplifications *) 
+let rec simplify_arith expNode = match expNode.Imp.exp with
+  | Imp.Op (Prim.Max, _, [x;y])
+  | Imp.Op (Prim.Min, _, [x;y]) 
+    when x.Imp.exp = y.Imp.exp -> x 
+  | Imp.Op (op, t,  args) -> 
+      let args' = List.map simplify_arith args in 
+      let expNode' = {expNode with Imp.exp = Imp.Op(op, t, args') } in 
+      begin match op, args' with
+        | _, [{Imp.exp = Imp.Const n1}; {Imp.exp = Imp.Const n2}] -> 
+          if DynType.is_integer t && DynType.sizeof t < 32 then  
+            try 
+              let opFn = match op with 
+              | Prim.Add -> (+) | Prim.Sub -> (-)  
+              | Prim.Min -> min  | Prim.Max -> max
+              | Prim.Mult -> ( * ) 
+              | Prim.Mod -> (mod) 
+              | _ -> assert false  
+              in  
+              let n3 = opFn (PQNum.to_int n1) (PQNum.to_int n2) in 
+              { expNode with Imp.exp = Imp.Const (PQNum.coerce_int n3 t) }
+            with _ -> expNode' 
+          else if t = DynType.Int32T then  
+            try 
+              let opFn = match op with 
+              | Prim.Add -> Int32.add | Prim.Sub -> Int32.sub  
+              | Prim.Min ->  min | Prim.Max -> max
+              | Prim.Mult -> Int32.mul 
+              | Prim.Mod -> Int32.rem
+              | _ -> 
+               failwith ("op not implemented: " ^ (Prim.scalar_op_to_str op))
+              in  
+              let n3 = opFn (PQNum.to_int32 n1) (PQNum.to_int32 n2) in 
+              { expNode with Imp.exp = Imp.Const (PQNum.coerce_int32 n3 t) }
+            with _ -> expNode' 
+          else expNode' 
+        (* 0 + x = x + 0 = x 
+           x - 0 = x
+        *)   
+        | Prim.Sub, [x; {Imp.exp = Imp.Const n}] 
+        | Prim.Add, [{Imp.exp = Imp.Const n}; x] 
+        | Prim.Add, [x; {Imp.exp = Imp.Const n}] ->
+          if PQNum.is_zero n then Imp.cast t x 
+          else expNode'
+        | Prim.Mult, [{Imp.exp = Imp.Const n}; x] 
+        | Prim.Mult, [x; {Imp.exp = Imp.Const n}] -> 
+          if PQNum.is_zero n then 
+            Imp.cast t {expNode with Imp.exp = Imp.Const n}
+          else if PQNum.is_one n then 
+            Imp.cast t x 
+          else expNode' 
+        | _ -> expNode'  
+      end
+  | _ -> expNode 
+
+
 let rec find_exp_live currSet expNode = match expNode.exp with 
   | Var id -> ID.Set.add id currSet   
   | Idx (l,r) -> find_exp_live (find_exp_live  currSet l) r   
@@ -193,7 +250,7 @@ and simplify_exp (constEnv : const_env) volatileSet  expNode =
          cachedNode.exp_type <> expNode.exp_type then expNode
       else cachedNode     
     )   
-  else expNode   
+  else simplify_arith expNode     
 
 and simplify_block ?(revAcc=[]) constEnv definedSet volatileSet = function 
   | [] -> List.rev revAcc, constEnv, definedSet, volatileSet 

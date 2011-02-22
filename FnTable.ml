@@ -8,7 +8,6 @@ type t = {
 }
 
 let add ?(opt_queue=true) fundef (cache:t) =
-  
   let id = fundef.SSA.fn_id in 
   Hashtbl.add cache.fundefs id fundef;
   let arity = List.length fundef.SSA.input_ids in

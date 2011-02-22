@@ -52,10 +52,12 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
     | other -> DynType.BottomT 
   
   let infer_value_node_type valNode =
+    (*
     IFDEF DEBUG THEN 
       Printf.printf "\tRewriteTyped::infer_value_node_type %s\n"
         (SSA.value_node_to_str valNode); 
-    ENDIF; 
+    ENDIF;
+    *) 
     infer_value_type valNode.value   
   
   (* keeps only the portion of the second list which is longer than the first *) 
@@ -65,11 +67,13 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
     else keep_tail (List.tl l1) (List.tl l2) 
      
   let mk_typed_closure fnVal signature =
+    (*
     IFDEF DEBUG THEN  
       Printf.printf "\tRewriteTyped::mk_typed_closure %s : %s\n" 
         (SSA.value_to_str fnVal) (Signature.to_str signature)
       ;
-    ENDIF;   
+    ENDIF;
+    *)   
     match fnVal with 
     | Var id ->
       let closureArgs = get_closure_args id in  
@@ -90,13 +94,8 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
     | GlobalFn _
     | Prim _ -> 
       let fundef = P.specializer fnVal signature in 
-      { 
-        closure_fn = fundef.fn_id;  
-        closure_args = [];  
-        closure_arg_types = [];  
-        closure_input_types = fundef.fn_input_types; 
-        closure_output_types = fundef.fn_output_types;   
-      }
+      SSA.mk_closure fundef [] 
+      
     | _ -> assert false  
                                                                                          
   let annotate_value valNode = 
@@ -105,10 +104,11 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
     else NoChange  
 
   let coerce_value t valNode =
-    IFDEF DEBUG THEN 
+    (*IFDEF DEBUG THEN 
       Printf.printf "RewriteTyped::Coerce Value %s\n"
         (SSA.value_node_to_str valNode); 
-    ENDIF; 
+    ENDIF;
+    *) 
     if valNode.value_type = t then NoChange 
     else match valNode.value with 
       | Num n ->
@@ -159,7 +159,7 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
           Signature.from_types (accTypes @ eltTypes) accTypes 
         in 
         let reduceClosure = mk_typed_closure fnVal reduceSignature in 
-        SSA.mk_reduce ?src initClosure reduceClosure argNodes  
+        SSA.mk_reduce ?src initClosure reduceClosure initArgs args  
         
       | other -> failwith $ (Prim.adverb_to_str other) ^ " not implemented"
   
@@ -285,7 +285,9 @@ let rewrite_typed ~tenv ~closureEnv ~specializer ~output_arity ~fundef =
   in    
   let module Transform = SSA_Transform.MkCustomTransform(Rewrite_Rules(Params))
   in 
+  (*
   IFDEF DEBUG THEN
     Printf.printf "Rewrite Typed (before): %s \n%!" (SSA.fundef_to_str fundef);
   ENDIF;
+  *)
   let fundef, _ = Transform.transform_fundef fundef in fundef   

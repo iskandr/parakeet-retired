@@ -6,7 +6,7 @@ type num =
   | Char of char 
   | UInt16 of int 
   | Int16 of int 
-  | UInt32 of Uint32.t
+  | UInt32 of Uint64.t
   | Int32 of Int32.t
   | UInt64 of Uint64.t   
   | Int64 of Int64.t
@@ -20,6 +20,8 @@ let num_to_str = function
   | Int16 x -> string_of_int x
   | Int32 x -> Int32.to_string x
   | Int64 x -> Int64.to_string x
+  | UInt32 ui 
+  | UInt64 ui -> Uint64.to_string ui 
   | Float32 x
   | Float64 x -> Float.to_string x
   | Bool x -> Int.to_string (Bool.to_int x)
@@ -44,7 +46,7 @@ let type_of_num = function
 let coerce_int i = function
   | UInt16T -> assert (i >= 0); UInt16 i 
   | Int16T -> Int16 i  
-  | UInt32T -> UInt32 (Uint32.of_int i)  
+  | UInt32T -> UInt32 (Uint64.of_int i)  
   | Int32T -> Int32 (Int32.of_int i)
   | UInt64T -> UInt64 (Uint64.of_int i) 
   | Int64T -> Int64 (Int64.of_int i)
@@ -83,7 +85,7 @@ let coerce_int32 i = function
 (* this is really an argument for a common NUMBER module interface *)
 (* which is implemented by all of the ocaml number types *) 
 let coerce_int64 i = function
-  | UInt32T -> UInt32 (Uint32.of_int32 $ Int64.to_int32 i)
+  | UInt32T -> UInt32 (Uint64.of_int64 i)
   | Int32T -> Int32 (Int64.to_int32 i)
   | UInt64T -> UInt64 (Uint64.of_int64 i) 
   | Int64T -> Int64 i
@@ -102,7 +104,7 @@ let coerce_int64 i = function
            (DynType.to_str t)
 
 let coerce_float f = function
-  | UInt32T -> UInt32 (Uint32.of_float f)
+  | UInt32T -> UInt32 (Uint64.of_float f)
   | Int32T -> Int32 (Int32.of_float f)
   | UInt64T  
   | Int64T -> Int64 (Int64.of_float f)
@@ -137,9 +139,9 @@ let coerce_num n t =
 let to_int = function
   | UInt16 i 
   | Int16 i -> i 
-  | UInt32 i -> Uint32.to_int i 
-  | Int32 i -> Int32.to_int i  
-  | UInt64 i -> Uint64.to_int i 
+  | Int32 i -> Int32.to_int i
+  | UInt32 ui  
+  | UInt64 ui -> Uint64.to_int ui 
   | Int64 i -> Int64.to_int i  
   | Float32 f
   | Float64 f -> Float.to_int f  
@@ -148,13 +150,44 @@ let to_int = function
   | Inf _ -> max_int
   | NegInf _ -> min_int
 
+let to_int32 = function 
+  | UInt16 i 
+  | Int16 i  -> Int32.of_int i 
+  | Int32 i32 -> i32
+  | UInt32 ui
+  | UInt64 ui -> Uint64.to_int32 ui 
+  | Int64 i64 -> Int64.to_int32 i64 
+  | Float32 f
+  | Float64 f -> Int32.of_float f 
+  | Bool b -> if b then Int32.one else Int32.zero
+  | Char c -> Int32.of_int (Char.code c)
+  | Inf _ -> Int32.max_int 
+  | NegInf _ -> Int32.min_int
+
+
 let to_float = function 
-  | UInt32 i -> Uint32.to_float i 
-  | Int32 i -> Int32.to_float i 
-  | UInt64 i -> Uint64.to_float i 
+  | Int32 i -> Int32.to_float i
+  | UInt32 ui  
+  | UInt64 ui -> Uint64.to_float ui 
   | Int64 i -> Int64.to_float i
   | Float32 f
   | Float64 f -> f
   | Inf _ -> max_float
   | NegInf _ -> min_float 
   | other -> Int.to_float (to_int other)
+
+let is_zero = function 
+  | Int32 i32 -> i32 = Int32.zero
+  | UInt32 ui   
+  | UInt64 ui -> ui = Uint64.zero 
+  | Int64 i64 -> i64 = Int64.zero 
+  | Float32 f | Float64 f -> f = 0.0 
+  | other -> to_int other = 0   
+
+let is_one = function 
+  | Int32 i32 -> i32 = Int32.one
+  | UInt32 ui 
+  | UInt64 ui -> ui = Uint64.one 
+  | Int64 i64 -> i64 = Int64.one 
+  | Float32 f | Float64 f -> f = 1.0 
+  | other -> to_int other = 1  
