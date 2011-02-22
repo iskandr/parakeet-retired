@@ -360,6 +360,9 @@ reduce2d: reduce2d_tester.cu_o base.o
 scan: scan.cu_o scan_tester.o
 	gcc-4.3 scan.cu_o scan_tester.o -o scan $(INCLUDES) $(LIB) -L.
 
+sort: sort.cu_o sort_tester.o
+	gcc-4.3 sort.cu_o sort_tester.o -o sort $(INCLUDES) $(LIB) -L.
+
 where: where.cu_o where_tester.o base.o
 	gcc-4.3 where.cu_o where_tester.o base.o -o where $(INCLUDES) $(LIB) -L.
 

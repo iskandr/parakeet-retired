@@ -45,7 +45,9 @@ paranode mk_str(char *str, source_info_t *src_info);
 
 paranode mk_sym(char *sym, source_info_t *src_info);
 
-paranode mk_app(paranode fun, paranode args, source_info_t *src_info);
+/** Accepts an array of args **/
+paranode mk_app(paranode fun, paranode *args, int num_args,
+                source_info_t *src_info);
 
 paranode mk_arr(paranode nodes, source_info_t *src_info);
 

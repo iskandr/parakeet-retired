@@ -172,16 +172,35 @@ paranode mk_sym(char *sym, source_info_t *src_info) {
   CAMLreturnT(paranode, mk_node(exp_sym, src_info));
 }
 
-paranode mk_app(paranode fun, paranode args, source_info_t *src_info) {
+paranode mk_app(paranode fun, paranode *args, int num_args,
+                source_info_t *src_info) {
   CAMLparam0();
-  CAMLlocal3(val_fun, val_args, app);
-
-  val_fun = get_value_and_remove_root(fun);
-  val_args = get_value_and_remove_root(args);
-
+  CAMLlocal4(val_fun, app, arg1, arg2);
+  
   app = caml_alloc(1, Exp_App);
+  val_fun = get_value_and_remove_root(fun);
   Store_field(app, 0, val_fun);
-  Store_field(app, 1, val_args);
+
+  // Build the args list
+  int i;
+  if (num_args > 0) {
+    // Create the tail of the list
+    arg1 = caml_alloc_tuple(2);
+    Store_field(arg1, 0, get_value_and_remove_root(args[num_args-1]));
+    Store_field(arg1, 1, Val_int(0));
+
+    // Extract each arg and add it to the OCaml list
+    for (i = num_args - 2; i >= 0; --i) {
+      arg2 = caml_alloc_tuple(2);
+      Store_field(arg2, 0, get_value_and_remove_root(args[i]));
+      Store_field(arg2, 1, arg1);
+      arg1 = arg2;
+    }
+  } else {
+    arg1 = Val_int(0);
+  }
+  
+  Store_field(app, 1, arg1);
 
   CAMLreturnT(paranode, mk_node(app, src_info));
 }
