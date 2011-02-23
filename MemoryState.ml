@@ -195,20 +195,6 @@ let free_all_gpu state =
   Hashtbl.clear state.gpu_vals
       
     
-(* TIME IN MILLISECONDS-- ignore device->device copy costs for now  *) 
-let rec gpu_transfer_time memState interpVal =  
-  match interpVal with
-  | InterpVal.Data id -> 
-      if Hashtbl.mem memState.gpu_vals id then 0
-      else  
-        (* assume 2MB / millisecond *) 
-        let transferRate = 2097152 in
-        let nbytes = sizeof memState interpVal in
-        (* assume initiating a transfer requires at least 1 millisecond *)
-        1 + nbytes / transferRate   
-  | InterpVal.Scalar _ -> 0 
-  | InterpVal.Array arr -> 
-      Array.sum (Array.map (gpu_transfer_time memState) arr) 
  
 let rec host_transfer_time memState interpVal = 
   match interpVal with 

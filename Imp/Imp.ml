@@ -273,6 +273,9 @@ let int i =  int_exp $ Const (PQNum.Int32 (Int32.of_int i))
 let float f = f32_exp $ Const (PQNum.Float32 f)  
 let double d = f64_exp $ Const (PQNum.Float64 d) 
 
+let zero = int 0 
+let one = int 1 
+
 let select cond tNode fNode = 
   assert (tNode.exp_type = fNode.exp_type); 
   { exp = Select(tNode.exp_type, cond, tNode, fNode); 

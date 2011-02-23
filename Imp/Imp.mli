@@ -114,12 +114,16 @@ val gridDim : vec3
  
 
 (* GENERAL IMP EXPRESSIONS *)
+
 val uint32 : Int32.t -> exp_node    
 val int32 : Int32.t -> exp_node 
 
 val uint : int -> exp_node
 val int : int -> exp_node 
-  
+
+val zero : exp_node 
+val one : exp_node 
+    
 val float : float -> exp_node   
 val double : float -> exp_node  
 
