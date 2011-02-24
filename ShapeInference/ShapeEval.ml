@@ -78,7 +78,7 @@ let eval_ssa_output_shapes
       (fundef:SSA.fundef) 
       (inputShapes : Shape.t list) : Shape.t list = 
   let symbolicOutputShapes = 
-    ShapeInference.infer_output_shapes fnTable fundef 
+    ShapeInference.infer_normalized_output_shapes fnTable fundef 
   in 
   let shapeEnv = ID.Map.extend ID.Map.empty fundef.SSA.input_ids inputShapes in 
   List.map (eval_shape shapeEnv) symbolicOutputShapes 

@@ -42,7 +42,7 @@ let map
       sum_transfer_time closureArgs + sum_transfer_time dataArgs
     in   
     let argShapes = List.map (fun (s,_,_) -> s) dataArgs in  
-    let maxShape = match Shape.max_shape_list shapes with 
+    let maxShape = match Shape.max_shape_list argShapes with 
       | Some maxShape -> maxShape
       | None -> failwith "no common shape found"
     in  

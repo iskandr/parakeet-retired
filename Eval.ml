@@ -101,27 +101,23 @@ and eval_exp (env : env) (expNode : SSA.exp_node) : InterpVal.t list =
         Printf.printf "args to map: %s\n"
           (String.concat ", " (List.map InterpVal.to_str argVals)); 
       ENDIF;  
-      let gpuCost =
-        GpuCost.map
+      let bestLoc, bestTime = 
+        CostModel.map
           ~memState:P.memState
           ~fnTable:P.fnTable
           ~fn:fundef
           ~closureArgs:closureArgVals 
           ~dataArgs:argVals
-      in   
-      let cpuCost = CpuCost.map P.memState closureArgVals argVals fundef in 
-      (if gpuCost < cpuCost then 
-        let gpuResults = 
-          GpuEval.map 
-            ~payload:fundef  
-            ~closureArgs:(List.map get_gpu closureArgVals) 
-            ~args:(List.map get_gpu argVals)
-        in 
-        List.map add_gpu gpuResults
-      else 
-        eval_map env ~payload:fundef closureArgVals argVals
-      )
-      
+      in begin match bestLoc with  
+        | CostModel.GPU ->
+            let gpuResults = 
+              GpuEval.map 
+                ~payload:fundef  
+                ~closureArgs:(List.map get_gpu closureArgVals) 
+                ~args:(List.map get_gpu argVals)
+            in List.map add_gpu gpuResults
+        | CostModel.CPU -> eval_map env ~payload:fundef closureArgVals argVals   
+      end
   | Reduce (initClosure, reduceClosure, initArgs, dataArgs)-> 
       let initFundef = get_fundef initClosure.closure_fn in
       (* the current reduce kernel works either for 1d data or 
@@ -144,13 +140,14 @@ and eval_exp (env : env) (expNode : SSA.exp_node) : InterpVal.t list =
       in 
       let initArgVals = List.map (eval_value env) initArgs in 
       let argVals  = List.map (eval_value env) dataArgs in
-      let gpuCost =  
-        GpuCost.reduce 
+      let gpuCost = 0 in   
+        (*GpuCost.reduce 
           ~memState:P.memState ~fnTable:P.fnTable
           ~init:initFundef ~initClosureArgs 
           ~fn:reduceFundef ~closureArgs:reduceClosureArgs 
           ~initArgs:initArgVals ~args:argVals
-      in    
+          *)
+      
       let cpuCost = 100000 in (* 
         CpuCost.map P.memState  closureArgVals argVals fundef in*) 
       (if gpuCost < cpuCost then
@@ -185,7 +182,7 @@ and eval_exp (env : env) (expNode : SSA.exp_node) : InterpVal.t list =
   and eval_scalar_op args = failwith "scalar op not implemented"
   and eval_array_op env op argVals outTypes : InterpVal.t list =
     let gpuCost = GpuCost.array_op P.memState op argVals in 
-    let hostCost = CpuCost.array_op P.memState op argVals in
+    let hostCost = 0 in (*CpuCost.array_op P.memState op argVals in*)
     IFDEF DEBUG THEN 
        Printf.printf 
          "Estimated cost of running array op %s on host: %d, on gpu: %d\n"

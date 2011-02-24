@@ -87,25 +87,10 @@ module ShapeAnalysis (P: PARAMS) =  struct
             List.map (value env) closure.closure_args 
           in 
           let argShapes = List.map (value env) args in
-          (* TODO: make this efficient-- don't need so many list traversals *) 
-          let ranks = List.map rank argShapes in 
-          let maxRank = List.fold_left max 0 ranks in 
-          let eltShapes = 
-            List.map 
-              (fun shape -> 
-                if rank shape = maxRank then peel_shape shape else shape)
-              argShapes 
-          in
+          let maxDim, eltShapes = SymbolicShape.split_max_rank argShapes in 
           let eltInShapes = (closArgShapes @ eltShapes) in 
           let eltOutShapes = P.output_shapes closure.closure_fn eltInShapes in  
           (* collect only args of maximal rank *) 
-          let maxVecShapes =
-            List.filter (fun shape -> rank shape = maxRank) argShapes 
-          in 
-          (* combine first dim of each maximal rank into single exp *) 
-          let maxDim : Imp.exp_node = 
-            mk_max_dim (List.map List.hd maxVecShapes) 
-          in
           let vecOutShapes = 
             List.map (fun outShape -> maxDim :: outShape) eltOutShapes
           in  
@@ -114,17 +99,12 @@ module ShapeAnalysis (P: PARAMS) =  struct
               (SSA.closure_to_str closure)
               (SSA.value_nodes_to_str args)
             ; 
-            Printf.printf "\t\t ranks: %s\n" 
-              (String.concat ", " (List.map string_of_int ranks))
-            ;
+         
             Printf.printf "\t\t fn input shapes: %s\n" 
               (shapes_to_str eltInShapes)
             ; 
             Printf.printf "\t\t fn output shapes: %s\n" 
               (shapes_to_str eltOutShapes)
-            ; 
-            Printf.printf "\t\t maxVecShapes: %s\n" 
-              (shapes_to_str maxVecShapes)
             ; 
             Printf.printf "\t\t maxDim: %s\n" (Imp.exp_node_to_str maxDim);
             Printf.printf "\t\t final output shapes: %s\n"
@@ -138,14 +118,7 @@ module ShapeAnalysis (P: PARAMS) =  struct
             List.map (value env) initClos.closure_args in
           let initShapes : shape list = List.map (value env) initArgs in 
           let argShapes : shape list = List.map (value env) args in
-          let ranks = List.map rank argShapes in
-          let maxRank = List.fold_left max 0 ranks in
-          let eltShapes = 
-            List.map 
-              (fun shape -> 
-                if rank shape = maxRank then peel_shape shape else shape)
-              argShapes 
-          in
+          let _, eltShapes = SymbolicShape.split_max_rank argShapes in 
           let allInputs = initClosArgShapes @ initShapes @ eltShapes in  
           P.output_shapes initClos.SSA.closure_fn allInputs  
       | other -> 
@@ -257,7 +230,9 @@ let rec infer_shape_env (fnTable:FnTable.t) (fundef : SSA.fundef) =
     let module Params : PARAMS = struct 
       let output_shapes fnId argShapes =
         let fundef = FnTable.find fnId fnTable in 
-        let normalizedOutputShapes = infer_output_shapes fnTable fundef in   
+        let normalizedOutputShapes = 
+          infer_normalized_output_shapes fnTable fundef 
+        in   
         (* once the shape expressions only refer to input IDs, 
            remap those input IDs argument expressions *)  
         let argEnv : shape ID.Map.t = 
@@ -310,7 +285,7 @@ and infer_normalized_shape_env (fnTable : FnTable.t) (fundef : SSA.fundef) =
     
 and infer_normalized_output_shapes (fnTable : FnTable.t) (fundef : SSA.fundef) = 
   let fnId = fundef.SSA.fn_id in 
-  try Hashtbl.find outputShapeCache fnId 
+  try Hashtbl.find normalizedOutputShapeCache fnId 
   with _ -> 
     let shapeEnv = infer_shape_env fnTable fundef in
     let inputSet = ID.Set.of_list fundef.input_ids in
@@ -320,5 +295,5 @@ and infer_normalized_output_shapes (fnTable : FnTable.t) (fundef : SSA.fundef) =
     let normalizedShapes, _ = 
       normalize_shape_list inputSet shapeEnv ID.Map.empty rawShapes
     in 
-    Hashtbl.add outputShapeCache fnId normalizedShapes; 
+    Hashtbl.add normalizedOutputShapeCache fnId normalizedShapes; 
     normalizedShapes    

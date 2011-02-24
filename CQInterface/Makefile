@@ -85,9 +85,9 @@ MemoryState.cmx \
 LibPQ.cmx \
 PtxSimplify.cmx PtxTidy.cmx PtxCodegen.cmx \
 Imp.cmx \
+ImpSimplify.cmx \
 SymbolicShape.cmx \
 ImpReplace.cmx \
-ImpSimplify.cmx \
 ImpCodegen.cmx \
 ImpAllPairsTemplate.cmx \
 ImpMapTemplate.cmx \
@@ -101,7 +101,7 @@ PtxCallingConventions.cmx \
 GpuRuntime.cmx \
 QStdLib.cmx \
 GpuCost.cmx \
-CpuCost.cmx \
+CostModel.cmx \
 Eval.cmx \
 CodeTemplate.cmx Callbacks.cmx
 

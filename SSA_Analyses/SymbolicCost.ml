@@ -41,7 +41,7 @@ module CostAnalysis(P:COST_ANALYSIS_PARAMS) = struct
 
   let init fundef = 
     { 
-      shapes =  ShapeInference.infer_ssa_shape_env fundef; 
+      shapes = ShapeInference.infer_normalized_shape_env fundef; 
       cost =  Imp.zero 
     } 
       
