@@ -3,9 +3,12 @@ open Imp
 
 type dim = exp_node 
 type shape = dim list
+type env = shape ID.Map.t  
 
 let scalar = [] 
 
+let outer_dim shape = List.hd shape
+ 
 let peel_shape = function 
   | [] -> [] 
   | _::tailDims -> tailDims 
@@ -23,15 +26,34 @@ let rec split_shape_list = function
       let moreDims, moreShapes = split_shape_list rest in 
       d::moreDims, shape::moreShapes   
 
+
 let rank shape = List.length shape 
 
-let rec mk_max_dim = function 
+let max_dim d1 d2 = if d1.exp = d2.exp then d1 else Imp.max_ d1 d2 
+
+let rec max_dim_of_list = function 
   | [] -> assert false 
   | [dim] -> dim 
-  | d::dims ->
-      let d' = mk_max_dim dims in 
-      if d.exp = d'.exp then d' else max_ d d'
-         
+  | d::dims -> max_dim d (max_dim_of_list dims)   
+      
+
+
+(* peels the maximum dim off shapes of maximal rank, leaving others
+   untouched. combine all the maxdims into a single expression *) 
+let split_max_rank shapes = 
+  let ranks = List.map rank shapes in 
+  let maxRank = List.fold_left max 0 ranks in
+  assert (maxRank > 0); 
+  let peeledShapes =
+    List.map2 
+      (fun s r -> if r = maxRank then peel_shape s else s) 
+      shapes
+      ranks
+  in
+  let maxShapes = List.filter (fun s -> rank s = maxRank) shapes in
+  let maxDim = max_dim_of_list (List.map outer_dim maxShapes) in 
+  maxDim, peeledShapes
+                 
 let shape_to_str shape = "[" ^ (exp_node_list_to_str shape) ^ "]"
 let shapes_to_str shapes = String.concat ", " (List.map shape_to_str shapes) 
 

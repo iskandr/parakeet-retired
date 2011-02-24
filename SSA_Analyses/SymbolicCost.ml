@@ -3,6 +3,21 @@ open SSA
 open Printf 
 open SSA_Analysis
 
+(*
+   Evaluate the symbolic cost of calling a function, leaving the shape 
+   of the input variables free/unspecified. 
+   The cost function:
+     - adverbs are costed in terms of their naive sequential interpretation 
+     - all scalar operations have cost 1
+     - assignments have cost 0
+     - array creation has cost length(array)
+     - the cost of a loop is just the cost of the body 
+       (as if it were to only execute for one iteration)
+     - if statements cost the maximum of either branch
+   These symbolic costs are useful for later evaluating an expected cost for 
+   the body of a GPU kernel, given some specific shape inputs.  
+*)     
+
 type symbolic_cost = Imp.exp_node
 
 (* make cost analysis recursive via module param *) 
@@ -23,6 +38,7 @@ module CostAnalysis(P:COST_ANALYSIS_PARAMS) = struct
   let dir = Forward 
   
 
+
   let init fundef = 
     { 
       shapes =  ShapeInference.infer_ssa_shape_env fundef; 
@@ -42,6 +58,14 @@ module CostAnalysis(P:COST_ANALYSIS_PARAMS) = struct
     | PrimApp (Prim.ScalarOp _, _) -> Imp.one
     | Arr elts -> Imp.int (List.length elts) 
     | Map (closure, args) -> 
+        let closureArgShapes = List.map (value env) closure.SSA.closure_args in 
+        let argShapes = List.map (value env) args in
+        let maxDim, nestedShapes = SymbolicShape.split_max_rank argShapes in
+        let nestedCost = 
+          P.call_cost closure.SSA.fn_id (closureArgShapes @ argShapes) 
+        in    
+        Imp.mul maxDim nestedCost
+          
     | Reduce (initClosure, closure, initArgs, args)   
     | Scan (initClosure, closure, initArgs, args) ->  
        
@@ -68,12 +92,14 @@ let rec symbolic_cost fnTable fundef =
   try Hashtbl.find costCache fundef.SSA.fn_id 
   with _ -> 
     let module Params = struct 
-      let call_cost fnId shapes =
+      let call_cost fnId symShapes =
         let fundef' = FnTable.find fnId fnTable in 
         (* cost expression with free input variables *) 
         let costExpr = symbolic_cost fnTable fundef' in 
         (* substitute shapes for input IDs *) 
-        let substEnv = ID.Map.extend ID.Map.empty fundef'.SSA.input_ids shapes in 
+        let substEnv = 
+          ID.Map.extend ID.Map.empty fundef'.SSA.input_ids symShapes 
+        in 
         SymbolicShape.rewrite_dim substEnv costExpr
     end 
     in 
