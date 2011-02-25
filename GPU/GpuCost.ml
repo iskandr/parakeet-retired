@@ -24,24 +24,17 @@ let rec sum_transfer_time = function
       if onGpu then sum_transfer_time rest
       else transfer_time shape t + sum_transfer_time rest 
       
-           
-let map 
-      ~(memState:MemoryState.t)
-      ~(fnTable:FnTable.t)
-      ~(fn:SSA.fundef)
-      ~(closureArgs : gpu_data_info list)
-      ~(dataArgs : gpu_data_info list) =  
+module type GPU_COST_PARAMS = sig
+  val fnTable : FnTable.t 
+end
+
+module Mk(P : GPU_COST_PARAMS) = struct 
+  
+  let map 
+        ~(fn:SSA.fundef) 
+        ~(closureArgShapes : Shape.t list) 
+        ~(argShapes : Shape.t list) =
     let launchCost = 3  in
-    (* assume we can transfer 100,000 elements per millsecond to GPU, 
-           and that allocation costs 3ms no matter the size 
-         *)
-    let mem_cost total (shape,t,onGpu) = 
-      if onGpu then total else total + transfer_time shape t 
-    in   
-    let memoryCosts = 
-      sum_transfer_time closureArgs + sum_transfer_time dataArgs
-    in   
-    let argShapes = List.map (fun (s,_,_) -> s) dataArgs in  
     let maxShape = match Shape.max_shape_list argShapes with 
       | Some maxShape -> maxShape
       | None -> failwith "no common shape found"
@@ -53,14 +46,12 @@ let map
     launchCost + memoryCosts + runCost 
   
 let reduce 
-      ~(memState:MemoryState.t) 
-      ~(fnTable:FnTable.t)
       ~(init:SSA.fundef)
-      ~(initClosureArgs:InterpVal.t list)
+      ~(initClosureArgs:Shape.tlist)
       ~(fn:SSA.fundef)
-      ~(closureArgs:InterpVal.t list)
-      ~(initArgs:InterpVal.t list) 
-      ~(args:InterpVal.t list) = 100 
+      ~(closureArgs:Shape.t list)
+      ~(initArgs:Shape.t list) 
+      ~(args:Shape.t list) = 100 
           
-let array_op memState op argVals = match op, argVals with 
-  | _ -> 10
+let array_op op argShapes = 10
+end
