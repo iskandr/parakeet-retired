@@ -155,7 +155,6 @@ papers/PLDI11
 .git/objects/44
 .git/objects/53
 .git/objects/ae
-_build/ImpKernelTemplates
 _build/libpq
 .git/objects/07
 .git/objects/09
@@ -258,3 +257,6 @@ qcode
 unit
 unit/tmp
 ShapeInference
+.git/objects/7d
+ShapeInference
+_build/ShapeInference
