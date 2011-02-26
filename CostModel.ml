@@ -32,17 +32,27 @@ module Mk(P : COST_MODEL_PARAMS) = struct
   
   let peel_args args = snd (split_args args)   
   
-  let rec map_cost fn closureArgs args =  
+   
+  let rec block_cost block (argEnv : (Shape.t * DynType.t * bool) ID.Map.t) =
+    (* start with zero cost...and add up all the stmtCosts *) 
+    Block.fold_forward 
+      (fun (accCost, locEnv) stmtNode -> 
+        let currCost, env' = stmt_cost accEnv stmtNode in 
+        accCost + currCost, env' 
+      )
+      (shapeEnv, 0)  
+      block
+  and stmt_cost shapeEnv stmtNode = match stmtNode.stmt with 
+    | SSA.Set(ids, rhs) -> 
+        let cost = 
+  and  map_cost fn closureArgs args =  
     let gpuCost = G.map fn closureArgShapes args in
     let maxDim, nestedArgs = split_args args in   
     let nestedCost = call_cost f (closureArgs @ nestedArgs) in   
     let cpuCost = 1 + maxDim * nestedCost in 
     if cpuCost < gpuCost then CPU, cpuCost 
     else GPU, gpuCost  
-  
-  and call_cost fn args = 
-     
-    
+  and call_cost fn args =   
   
   let array_op op argVals = match op, argVals with 
     | _ -> CPU, 0 (* don't run anything else on the host *)  
