@@ -17,16 +17,26 @@ module type EVAL_PARAMS = sig
 end
 
 module Mk(P : EVAL_PARAMS) = struct 
-  module GpuEval = GpuRuntime.Mk(P) 
-  let get_gpu : InterpVal.t -> GpuVal.gpu_val = 
-    (MemoryState.get_gpu P.memState)
-  let get_host : InterpVal.t -> HostVal.host_val = 
-    (MemoryState.get_host P.memState)
-  let add_gpu : GpuVal.gpu_val -> InterpVal.t = (MemoryState.add_gpu P.memState)  
-  let add_host : HostVal.host_val -> InterpVal.t = 
-    (MemoryState.add_host P.memState) 
-  let get_fundef (fnId : FnId.t) : SSA.fundef = FnTable.find fnId P.fnTable  
+  (* pass the global fnTable, memState to modules we want to use *)  
+  module GpuEval = GpuRuntime.Mk(P)
+   
+  let get_gpu interpVal  = MemoryState.get_gpu P.memState interpVal 
+  let get_host interpVal =  MemoryState.get_host P.memState interpVal 
+  let add_gpu gpuVal= MemoryState.add_gpu P.memState gpuVal   
+  let add_host hostVal =  MemoryState.add_host P.memState hostVal 
+  let get_fundef (fnId : FnId.t) : SSA.fundef = FnTable.find fnId P.fnTable
     
+  let typeof interpVal = MemoryState.get_type P.memState interpVal 
+  let shapeof interpVal = MemoryState.get_shape P.memState interpVal
+  let is_on_gpu interpVal = MemoryState.is_on_gpu P.memState interpVal
+  
+  (* the cost model function expect arguments to be described by triplets of *)
+  (* their type, shape, and a boolean indicating whether that argument is on*)
+  (* the gpu. *)
+  let describe_arg interpVal = 
+    typeof interpVal, shapeof interpVal, is_on_gpu interpVal 
+  let describe_args interpVals = List.map describe_arg interpVals
+       
   let rec eval_value (env : env) (valNode : SSA.value_node) : InterpVal.t = 
     match valNode.value with 
     | Var id -> 
@@ -51,8 +61,9 @@ module Mk(P : EVAL_PARAMS) = struct
         assert (List.length ids = List.length results); 
       ENDIF; 
       ID.Map.extend env ids results 
-    | SetIdx (id, indices, rhs) -> failwith "not yet implemented"   
-    | If (boolVal, tBlock, fBlock, ifGate) -> failwith "not yet implemented"
+    | SetIdx (id, indices, rhs) -> assert false    
+    | If (boolVal, tBlock, fBlock, ifGate) -> 
+        assert false 
     | WhileLoop (testBlock, testVal, body, header, exit) -> assert false
        (*
       let env' = eval_block env  in 
@@ -68,7 +79,8 @@ module Mk(P : EVAL_PARAMS) = struct
 and eval_exp (env : env) (expNode : SSA.exp_node) : InterpVal.t list = 
   match expNode.exp with 
   | Values valNodes -> List.map (eval_value env) valNodes
-  | Arr elts -> failwith "[eval] array constructor not implemented"
+  | Arr elts -> 
+      [InterpVal.Array (Array.of_list (List.map (eval_value env) elts))]
   | Cast (t, valNode) when DynType.is_scalar t -> 
       (match eval_value  env valNode with 
         | InterpVal.Scalar n -> [InterpVal.Scalar (PQNum.coerce_num n t)]
@@ -76,7 +88,6 @@ and eval_exp (env : env) (expNode : SSA.exp_node) : InterpVal.t list =
       )  
   | Cast (t, valNode) -> failwith "[eval] cast only implemented for scalars"
   
-        
   (* first order array operators only *)          
   | PrimApp (Prim.ArrayOp op, args) -> 
      let argVals = List.map (eval_value env) args in
@@ -101,27 +112,21 @@ and eval_exp (env : env) (expNode : SSA.exp_node) : InterpVal.t list =
         Printf.printf "args to map: %s\n"
           (String.concat ", " (List.map InterpVal.to_str argVals)); 
       ENDIF;  
-      let gpuCost =
-        GpuCost.map
-          ~memState:P.memState
-          ~fnTable:P.fnTable
-          ~fn:fundef
-          ~closureArgs:closureArgVals 
-          ~dataArgs:argVals
-      in   
-      let cpuCost = CpuCost.map P.memState closureArgVals argVals fundef in 
-      (if gpuCost < cpuCost then 
-        let gpuResults = 
-          GpuEval.map 
-            ~payload:fundef  
-            ~closureArgs:(List.map get_gpu closureArgVals) 
-            ~args:(List.map get_gpu argVals)
-        in 
-        List.map add_gpu gpuResults
-      else 
-        eval_map env ~payload:fundef closureArgVals argVals
-      )
-      
+      let closureArgInfo = describe_args closureArgVals in 
+      let argInfo = describe_args argVals in
+      let bestLoc, bestTime = 
+        CostModel.map_cost P.fnTable fundef closureArgInfo argInfo 
+      in 
+      begin match bestLoc with  
+        | CostModel.GPU ->
+            let gpuResults = 
+              GpuEval.map 
+                ~payload:fundef  
+                ~closureArgs:(List.map get_gpu closureArgVals) 
+                ~args:(List.map get_gpu argVals)
+            in List.map add_gpu gpuResults
+        | CostModel.CPU -> eval_map env ~payload:fundef closureArgVals argVals   
+      end
   | Reduce (initClosure, reduceClosure, initArgs, dataArgs)-> 
       let initFundef = get_fundef initClosure.closure_fn in
       (* the current reduce kernel works either for 1d data or 
@@ -144,15 +149,9 @@ and eval_exp (env : env) (expNode : SSA.exp_node) : InterpVal.t list =
       in 
       let initArgVals = List.map (eval_value env) initArgs in 
       let argVals  = List.map (eval_value env) dataArgs in
-      let gpuCost =  
-        GpuCost.reduce 
-          ~memState:P.memState ~fnTable:P.fnTable
-          ~init:initFundef ~initClosureArgs 
-          ~fn:reduceFundef ~closureArgs:reduceClosureArgs 
-          ~initArgs:initArgVals ~args:argVals
-      in    
-      let cpuCost = 100000 in (* 
-        CpuCost.map P.memState  closureArgVals argVals fundef in*) 
+      let gpuCost = 0 in   
+      let cpuCost = 100000 in  
+       
       (if gpuCost < cpuCost then
         let gpuResults = 
           GpuEval.reduce
@@ -184,16 +183,7 @@ and eval_exp (env : env) (expNode : SSA.exp_node) : InterpVal.t list =
     List.map (fun id -> ID.Map.find id env3) fundef.output_ids
   and eval_scalar_op args = failwith "scalar op not implemented"
   and eval_array_op env op argVals outTypes : InterpVal.t list =
-    let gpuCost = GpuCost.array_op P.memState op argVals in 
-    let hostCost = CpuCost.array_op P.memState op argVals in
-    IFDEF DEBUG THEN 
-       Printf.printf 
-         "Estimated cost of running array op %s on host: %d, on gpu: %d\n"
-         (Prim.array_op_to_str op)
-         hostCost
-         gpuCost;
-    ENDIF;   
-    let runOnGpu = gpuCost <= hostCost in   
+    let bestLoc, bestCost = CostModel.array_op op (describe_args argVals) in 
     match op, argVals with
     | Prim.Index, [array; idx] -> 
       (* always run on GPU *)

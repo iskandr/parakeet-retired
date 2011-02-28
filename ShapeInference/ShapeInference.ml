@@ -87,25 +87,10 @@ module ShapeAnalysis (P: PARAMS) =  struct
             List.map (value env) closure.closure_args 
           in 
           let argShapes = List.map (value env) args in
-          (* TODO: make this efficient-- don't need so many list traversals *) 
-          let ranks = List.map rank argShapes in 
-          let maxRank = List.fold_left max 0 ranks in 
-          let eltShapes = 
-            List.map 
-              (fun shape -> 
-                if rank shape = maxRank then peel_shape shape else shape)
-              argShapes 
-          in
+          let maxDim, eltShapes = SymbolicShape.split_max_rank argShapes in 
           let eltInShapes = (closArgShapes @ eltShapes) in 
           let eltOutShapes = P.output_shapes closure.closure_fn eltInShapes in  
           (* collect only args of maximal rank *) 
-          let maxVecShapes =
-            List.filter (fun shape -> rank shape = maxRank) argShapes 
-          in 
-          (* combine first dim of each maximal rank into single exp *) 
-          let maxDim : Imp.exp_node = 
-            mk_max_dim (List.map List.hd maxVecShapes) 
-          in
           let vecOutShapes = 
             List.map (fun outShape -> maxDim :: outShape) eltOutShapes
           in  
@@ -114,17 +99,12 @@ module ShapeAnalysis (P: PARAMS) =  struct
               (SSA.closure_to_str closure)
               (SSA.value_nodes_to_str args)
             ; 
-            Printf.printf "\t\t ranks: %s\n" 
-              (String.concat ", " (List.map string_of_int ranks))
-            ;
+         
             Printf.printf "\t\t fn input shapes: %s\n" 
               (shapes_to_str eltInShapes)
             ; 
             Printf.printf "\t\t fn output shapes: %s\n" 
               (shapes_to_str eltOutShapes)
-            ; 
-            Printf.printf "\t\t maxVecShapes: %s\n" 
-              (shapes_to_str maxVecShapes)
             ; 
             Printf.printf "\t\t maxDim: %s\n" (Imp.exp_node_to_str maxDim);
             Printf.printf "\t\t final output shapes: %s\n"
@@ -138,14 +118,7 @@ module ShapeAnalysis (P: PARAMS) =  struct
             List.map (value env) initClos.closure_args in
           let initShapes : shape list = List.map (value env) initArgs in 
           let argShapes : shape list = List.map (value env) args in
-          let ranks = List.map rank argShapes in
-          let maxRank = List.fold_left max 0 ranks in
-          let eltShapes = 
-            List.map 
-              (fun shape -> 
-                if rank shape = maxRank then peel_shape shape else shape)
-              argShapes 
-          in
+          let _, eltShapes = SymbolicShape.split_max_rank argShapes in 
           let allInputs = initClosArgShapes @ initShapes @ eltShapes in  
           P.output_shapes initClos.SSA.closure_fn allInputs  
       | other -> 
@@ -174,119 +147,153 @@ end
 
 
 (* given a dim expression (one elt of a shape) which may reference 
-   intermediate variables, "canonicalize" it to only refer to input variables
+   intermediate variables, "normalize" it to only refer to input variables
 *)   
-let rec canonicalize_dim inputSet rawShapeEnv canonicalEnv expNode
+let rec normalize_dim inputSet rawShapeEnv normalizedEnv expNode
         : Imp.exp_node * shape ID.Map.t  = 
   match expNode.Imp.exp with  
   | Imp.Op (op, t, args) ->
       (* a list of dims and a shape are the same thing, so just reuse the
-         canonicalize_shape function for a list of dim arguments 
+         normalize_shape function for a list of dim arguments 
       *) 
-      let args', canonicalEnv' = 
-        canonicalize_shape inputSet rawShapeEnv canonicalEnv args 
+      let args', normalizedEnv' = 
+        normalize_shape inputSet rawShapeEnv normalizedEnv args 
       in 
       let expNode' = {expNode with Imp.exp = Imp.Op(op, t, args') } in
-      ImpSimplify.simplify_arith expNode', canonicalEnv'   
-  | Imp.Const n -> expNode, canonicalEnv   
+      ImpSimplify.simplify_arith expNode', normalizedEnv'   
+  | Imp.Const n -> expNode, normalizedEnv   
   | Imp.DimSize (d, {Imp.exp=Imp.Var id}) ->
-      if ID.Set.mem id inputSet then expNode, canonicalEnv 
+      if ID.Set.mem id inputSet then expNode, normalizedEnv 
       else 
-        let shape, canonicalEnv' = 
-          if ID.Map.mem id canonicalEnv then 
-            ID.Map.find id canonicalEnv, canonicalEnv  
+        let shape, normalizedEnv' = 
+          if ID.Map.mem id normalizedEnv then 
+            ID.Map.find id normalizedEnv, normalizedEnv  
           else   
-            (* if some local variable's shape has not yet been canonicalized,
+            (* if some local variable's shape has not yet been normalized,
                do so recursively 
             *) 
             let rawShape = ID.Map.find id rawShapeEnv in 
-            let canonicalShape, canonicalEnv' = 
-              canonicalize_shape inputSet rawShapeEnv canonicalEnv rawShape 
+            let normalizedShape, normalizedEnv' = 
+              normalize_shape inputSet rawShapeEnv normalizedEnv rawShape 
             in
-            canonicalShape, ID.Map.add id canonicalShape canonicalEnv'
+            normalizedShape, ID.Map.add id normalizedShape normalizedEnv'
         in  
         (if List.length shape < d then failwith "Shape of insufficient rank");   
-        List.nth shape d, canonicalEnv'   
+        List.nth shape d, normalizedEnv'   
   | Imp.Var id -> failwith "variables should only appear in dimsize expressions"
   | _ ->failwith ("unexpected Imp expression: " ^ (Imp.exp_node_to_str expNode))
   
-and canonicalize_shape inputSet rawShapeEnv canonicalEnv shape 
+and normalize_shape inputSet rawShapeEnv normalizedEnv shape 
     : shape * shape ID.Map.t  =
-  let foldFn (revDims, canonicalEnv) currDim = 
-    let currDim', canonicalEnv' = 
-      canonicalize_dim inputSet rawShapeEnv canonicalEnv currDim 
+  let foldFn (revDims, normalizedEnv) currDim = 
+    let currDim', normalizedEnv' = 
+      normalize_dim inputSet rawShapeEnv normalizedEnv currDim 
     in  
-    currDim' :: revDims, canonicalEnv' 
+    currDim' :: revDims, normalizedEnv' 
   in 
   
-  let revShape, env' = List.fold_left foldFn ([], canonicalEnv) shape in
+  let revShape, env' = List.fold_left foldFn ([], normalizedEnv) shape in
   List.rev revShape, env' 
 
-let rec canonicalize_shape_list inputSet rawShapeEnv canonicalEnv = function 
-  | [] -> [], canonicalEnv 
+let rec normalize_shape_list inputSet rawShapeEnv normalizedEnv = function 
+  | [] -> [], normalizedEnv 
   | shape::rest -> 
-      let rest', canonicalEnv' = 
-        canonicalize_shape_list inputSet rawShapeEnv canonicalEnv rest 
+      let rest', normalizedEnv' = 
+        normalize_shape_list inputSet rawShapeEnv normalizedEnv rest 
       in
-      let shape', canonicalEnv'' =
-        canonicalize_shape inputSet rawShapeEnv canonicalEnv shape
+      let shape', normalizedEnv'' =
+        normalize_shape inputSet rawShapeEnv normalizedEnv shape
       in 
-      shape'::rest', canonicalEnv''     
+      shape'::rest', normalizedEnv''     
 
 
-(* cache the canonical output shape expressions of each function. "Canonical" 
+
+(* cache the normalized output shape expressions of each function. "normalized" 
    means the expressions refer to input IDs, which need to be replaced by some 
    input expression later
 *)
-let canonicalOutputShapeCache : (FnId.t, shape list) Hashtbl.t = 
+let normalizedOutputShapeCache : (FnId.t, shape list) Hashtbl.t = 
   Hashtbl.create 127
   
-let rec infer_shape_env (fnTable:FnTable.t) (fundef : SSA.fundef)   =  
-  let module Params : PARAMS = struct 
-    let output_shapes fnId argShapes =
-      let fundef = FnTable.find fnId fnTable in 
-      let canonicalOutputShapes = infer_output_shapes fnTable fundef in   
-      (* once the shape expressions only refer to input IDs, 
-         remap those input IDs argument expressions *)  
-      let argEnv : shape ID.Map.t = 
-        List.fold_left2 
-              (fun env id argShape -> ID.Map.add id argShape env)
-              ID.Map.empty 
-              fundef.SSA.input_ids 
-              argShapes
-      in 
-      List.map (SymbolicShape.rewrite_shape argEnv) canonicalOutputShapes
-  end 
-  in 
-  let module ShapeEval = SSA_Analysis.MkEvaluator(ShapeAnalysis(Params)) in 
-  let shapeEnv = ShapeEval.eval_fundef fundef in 
-  IFDEF DEBUG THEN
-    Printf.printf "Inferred shape environment for %s : %s -> %s:\n"
-      (FnId.to_str fundef.SSA.fn_id)
-      (DynType.type_list_to_str fundef.SSA.fn_input_types)
-      (DynType.type_list_to_str fundef.SSA.fn_output_types)
-    ;  
-    ID.Map.iter 
-      (fun id shape -> 
-        Printf.printf " -- %s : %s\n" 
-          (ID.to_str id) 
-          (Imp.exp_node_list_to_str shape)
-      )
-      shapeEnv;
-  ENDIF;  
-  shapeEnv 
-
-and infer_output_shapes (fnTable : FnTable.t) (fundef : SSA.fundef) = 
+let shapeEnvCache : (FnId.t, SymbolicShape.env) Hashtbl.t = Hashtbl.create 127
+(* like the shape env cache, except the shape expressions have all been 
+   normalize to refer only to input variables and not intermediates
+*) 
+let normalizedShapeEnvCache : (FnId.t, SymbolicShape.env) Hashtbl.t = 
+  Hashtbl.create 127 
+  
+  
+let rec infer_shape_env (fnTable:FnTable.t) (fundef : SSA.fundef) =
+  let fnId = fundef.SSA.fn_id in   
+  try Hashtbl.find shapeEnvCache fnId  
+  with _ -> 
+    let module Params : PARAMS = struct 
+      let output_shapes fnId argShapes =
+        let fundef = FnTable.find fnId fnTable in 
+        let normalizedOutputShapes = 
+          infer_normalized_output_shapes fnTable fundef 
+        in   
+        (* once the shape expressions only refer to input IDs, 
+           remap those input IDs argument expressions *)  
+        let argEnv : shape ID.Map.t = 
+          List.fold_left2 
+            (fun env id argShape -> ID.Map.add id argShape env)
+            ID.Map.empty 
+            fundef.SSA.input_ids 
+            argShapes
+          in 
+          List.map (SymbolicShape.rewrite_shape argEnv) normalizedOutputShapes
+    end 
+    in 
+    let module ShapeEval = SSA_Analysis.MkEvaluator(ShapeAnalysis(Params)) in 
+    let shapeEnv = ShapeEval.eval_fundef fundef in
+    IFDEF DEBUG THEN
+      Printf.printf "Inferred shape environment for %s : %s -> %s:\n"
+        (FnId.to_str fnId)
+        (DynType.type_list_to_str fundef.SSA.fn_input_types)
+        (DynType.type_list_to_str fundef.SSA.fn_output_types)
+      ;  
+      ID.Map.iter 
+        (fun id shape -> 
+          Printf.printf " -- %s : %s\n" 
+            (ID.to_str id) 
+            (Imp.exp_node_list_to_str shape)
+        )
+        shapeEnv;
+    ENDIF;
+    Hashtbl.add shapeEnvCache fnId shapeEnv;   
+    shapeEnv 
+    
+and infer_normalized_shape_env (fnTable : FnTable.t) (fundef : SSA.fundef) = 
   let fnId = fundef.SSA.fn_id in 
-  try Hashtbl.find canonicalOutputShapeCache fnId 
+  try Hashtbl.find normalizedShapeEnvCache fnId 
+  with _ -> 
+    let rawShapeEnv = infer_shape_env fnTable fundef in 
+    let inputIdSet = ID.Set.of_list fundef.SSA.input_ids in
+    let normalizer id shape normalizedEnv =
+      (* if already normalized, don't do it again *) 
+      if ID.Map.mem id normalizedEnv then normalizedEnv
+      else    
+        let shape', normalizedEnv' =
+          normalize_shape inputIdSet rawShapeEnv normalizedEnv shape 
+        in
+        ID.Map.add id shape' normalizedEnv' 
+    in   
+    let normalizedEnv = ID.Map.fold normalizer rawShapeEnv ID.Map.empty in  
+    Hashtbl.add normalizedShapeEnvCache fnId normalizedEnv; 
+    normalizedEnv 
+    
+and infer_normalized_output_shapes (fnTable : FnTable.t) (fundef : SSA.fundef) = 
+  let fnId = fundef.SSA.fn_id in 
+  try Hashtbl.find normalizedOutputShapeCache fnId 
   with _ -> 
     let shapeEnv = infer_shape_env fnTable fundef in
     let inputSet = ID.Set.of_list fundef.input_ids in
     let rawShapes = 
       List.map (fun id -> ID.Map.find id shapeEnv) fundef.output_ids
     in
-    let canonicalShapes, _ = 
-      canonicalize_shape_list inputSet shapeEnv ID.Map.empty rawShapes
+    let normalizedShapes, _ = 
+      normalize_shape_list inputSet shapeEnv ID.Map.empty rawShapes
     in 
-    Hashtbl.add canonicalOutputShapeCache fnId canonicalShapes; 
-    canonicalShapes    
+    Hashtbl.add normalizedOutputShapeCache fnId normalizedShapes; 
+    normalizedShapes    

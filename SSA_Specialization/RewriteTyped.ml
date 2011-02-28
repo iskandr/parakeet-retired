@@ -19,7 +19,7 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
  (* convert the types hashtbl to a ID.Map.t, store it as the function's 
     type environment 
   *)  
-  let finalize _ f = 
+  let finalize _ f =
     Update {f with 
       tenv = Hashtbl.fold ID.Map.add P.tenv ID.Map.empty;
       fn_input_types = 

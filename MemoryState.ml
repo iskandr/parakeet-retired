@@ -195,7 +195,7 @@ let free_all_gpu state =
   Hashtbl.clear state.gpu_vals
       
     
- 
+ (*
 let rec host_transfer_time memState interpVal = 
   match interpVal with 
   | InterpVal.Data id -> 
@@ -209,4 +209,4 @@ let rec host_transfer_time memState interpVal =
   | InterpVal.Scalar _ -> 0 
   | InterpVal.Array arr -> 
       Array.sum (Array.map (host_transfer_time memState) arr) 
-  
+  *)
