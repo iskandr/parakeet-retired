@@ -20,17 +20,12 @@ type gpu_data_info = Shape.t * DynType.t * bool
 *) 
 let rec sum_transfer_time = function 
   | [] -> 0 
-  | (shape,t,onGpu)::rest -> 
+  | (t,shape,onGpu)::rest -> 
       if onGpu then sum_transfer_time rest
       else transfer_time shape t + sum_transfer_time rest 
-      
-module type GPU_COST_PARAMS = sig
-  val fnTable : FnTable.t 
-end
-
-module Mk(P : GPU_COST_PARAMS) = struct 
   
   let map 
+        ~(fnTable:FnTable.t) 
         ~(fn:SSA.fundef) 
         ~(closureArgShapes : Shape.t list) 
         ~(argShapes : Shape.t list) =
@@ -42,16 +37,19 @@ module Mk(P : GPU_COST_PARAMS) = struct
     (* assume each processor can process 1000 elements per millisecond, and 
        we have 100 processors-- what about cost of nested function? 
     *)
-    let runCost = Shape.nelts maxShape / 100  in 
-    launchCost + memoryCosts + runCost 
+    let runCost = Shape.nelts maxShape / 100  in
+    Printf.printf "GPU map cost: %d\n" runCost;  
+    launchCost +  runCost 
   
 let reduce 
+      ~(fnTable:FnTable.t)
       ~(init:SSA.fundef)
-      ~(initClosureArgs:Shape.tlist)
+      ~(initClosureArgs:Shape.t list)
       ~(fn:SSA.fundef)
       ~(closureArgs:Shape.t list)
       ~(initArgs:Shape.t list) 
       ~(args:Shape.t list) = 100 
           
 let array_op op argShapes = 10
-end
+
+
