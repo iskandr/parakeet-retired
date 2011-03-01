@@ -128,19 +128,19 @@ type cost = int
     let maxDim, nestedArgs = split_args args in   
     let nestedCost = call_cost fnTable fn (closureArgs @ nestedArgs) in   
     let cpuCost = 1 + maxDim * nestedCost in
-    Printf.printf "CPU map cost: %d\n" cpuCost;  
+    IFDEF DEBUG THEN 
+      Printf.printf "Compute MAP cost: GPU - %d, HOST: %d\n" gpuCost cpuCost; 
+    ENDIF; 
     if cpuCost < gpuCost then CPU, cpuCost 
     else GPU, gpuCost  
   
   and call_cost fnTable fn argInfo =
-    let folder (shapeEnv, gpuSet) id (_,shape,onGpu) = 
-      let shapeEnv' = ID.Map.add id shape shapeEnv in
-      let gpuSet' =  if onGpu then ID.Set.add id gpuSet else gpuSet in 
-      shapeEnv', gpuSet'
+    let mkSet gpuSet id (_,_,onGpu) = 
+      if onGpu then ID.Set.add id gpuSet else gpuSet 
     in 
-    let shapeEnv, gpuSet = 
-      List.fold_left2 folder (ID.Map.empty, ID.Set.empty) fn.input_ids argInfo 
-    in 
+    let gpuSet = List.fold_left2 mkSet ID.Set.empty fn.input_ids argInfo in  
+    let shapes = get_shapes argInfo in 
+    let shapeEnv = ShapeEval.eval_ssa_shape_env fnTable fn shapes in 
     let cost, _ = block_cost fnTable shapeEnv gpuSet fn.body in 
     cost   
   

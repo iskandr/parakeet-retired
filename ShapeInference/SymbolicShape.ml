@@ -7,7 +7,14 @@ type env = shape ID.Map.t
 
 let scalar = [] 
 
-let outer_dim shape = List.hd shape
+
+let rank shape = List.length shape 
+
+let get_dim shape d = 
+  if rank shape < d-1 then failwith "Insufficient rank"
+  else List.nth shape d 
+  
+let outer_dim shape = get_dim shape 0 
  
 let peel_shape = function 
   | [] -> [] 
@@ -27,15 +34,25 @@ let rec split_shape_list = function
       d::moreDims, shape::moreShapes   
 
 
-let rank shape = List.length shape 
 
-let max_dim d1 d2 = if d1.exp = d2.exp then d1 else Imp.max_ d1 d2 
 
-let rec max_dim_of_list = function 
-  | [] -> assert false 
+let rec fold_shape f = function 
+  | [] -> assert false
   | [dim] -> dim 
-  | d::dims -> max_dim d (max_dim_of_list dims)   
-      
+  | d::dims -> f d (fold_shape f dims)
+
+
+let max_dim d1 d2 = if d1.exp = d2.exp then d1 else Imp.max_ d1 d2  
+let rec max_dim_of_list dims = fold_shape max_dim dims
+
+let mult_dim d1 d2 = match d1.exp, d2.exp with 
+  | Const n1, _ when PQNum.is_zero n1 -> Imp.zero
+  | _, Const n2 when PQNum.is_zero n2 -> Imp.zero
+  | Const n1, _ when PQNum.is_one n1 -> d2
+  | _, Const n2 when PQNum.is_one n2 -> d1
+  | _ -> Imp.mul d1 d2 
+
+let nelts dims = fold_shape mult_dim dims 
 
 
 (* peels the maximum dim off shapes of maximal rank, leaving others
@@ -60,7 +77,7 @@ let shapes_to_str shapes = String.concat ", " (List.map shape_to_str shapes)
 (* get a list of all the dimensions of an Imp array *) 
 let all_dims ( x : exp_node) : exp_node list =
   let ndims = DynType.nest_depth x.exp_type in  
-  List.map (fun i -> dim i x) (List.til ndims)
+  List.map (fun i -> dim i x) (List.range 0 (ndims-1))
 
 (* return list of dimsizes for value of largest type in the given array *)
 let largest_val ( exps : exp_node array ) : exp_node = 
@@ -80,8 +97,7 @@ let rec rewrite_dim_helper env expNode = match expNode.Imp.exp with
   | Imp.DimSize (d, {Imp.exp = Imp.Var id}) -> 
       if ID.Map.mem id env then 
         let shape = ID.Map.find id env in
-        (if List.length shape < d then failwith "Insufficient rank");  
-        List.nth shape d 
+        get_dim shape d 
       else expNode 
   | Imp.Op(op, t, args) ->
       let args' = List.map (rewrite_dim_helper env) args in 
@@ -93,4 +109,6 @@ let rewrite_dim env d =
   ImpSimplify.simplify_arith d' 
 
 let rewrite_shape env shape = List.map (rewrite_dim env) shape   
+
+let to_str shape = Imp.exp_node_list_to_str shape
         

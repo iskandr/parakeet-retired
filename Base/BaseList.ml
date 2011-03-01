@@ -17,11 +17,13 @@ include ExtList.List
 
 
   (* returns a list of numbers from 0 to upper_bound - 1 *)
-  let til upperBound =
-    let rec aux acc x =
-      if x <= 0 then acc
-        else let x' = x-1 in aux (x'::acc) x'
-    in aux [] upperBound
+  let rec range lowerBound upperBound = 
+    if lowerBound > upperBound then [] 
+    else lowerBound :: range (lowerBound +1) upperBound
+    
+  let til upperBound = range 0 (upperBound - 1)
+    
+  
 
   let rev_iter f lst = iter f (rev lst)
 

@@ -38,7 +38,6 @@ let rec sum_transfer_time = function
        we have 100 processors-- what about cost of nested function? 
     *)
     let runCost = Shape.nelts maxShape / 100  in
-    Printf.printf "GPU map cost: %d\n" runCost;  
     launchCost +  runCost 
   
 let reduce 

@@ -128,9 +128,6 @@ unit
 .git/objects/b8
 .git/objects/b9
 .git/objects/ec
-Old
-Old/extlib
-Old/extlib/extlib-doc
 .git/objects/f8
 ImpKernelTemplates
 .git/objects/0b
@@ -237,9 +234,6 @@ GPU
 Imp
 ImpKernelTemplates
 OCAMLInterface
-Old
-Old/extlib
-Old/extlib/extlib-doc
 Ptx
 Q
 SSA

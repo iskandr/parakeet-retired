@@ -20,13 +20,18 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
     type environment 
   *)  
   let finalize _ f =
-    Update {f with 
-      tenv = Hashtbl.fold ID.Map.add P.tenv ID.Map.empty;
-      fn_input_types = 
-        List.map (Hashtbl.find P.tenv) f.input_ids;
-      fn_output_types = 
-        List.map (Hashtbl.find P.tenv) f.output_ids;   
-    } 
+    (* create a new fundef with a fresh ID, 
+       since any untyped function can map to 
+       multipe typed variants 
+     *) 
+    let f' = 
+      SSA.mk_fundef 
+        ~tenv:(Hashtbl.fold ID.Map.add P.tenv ID.Map.empty) 
+        ~input_ids:f.input_ids
+        ~output_ids:f.output_ids
+        ~body:f.body
+    in Update f' 
+
 
   let get_type id = Hashtbl.find P.tenv id 
      
@@ -52,12 +57,6 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
     | other -> DynType.BottomT 
   
   let infer_value_node_type valNode =
-    (*
-    IFDEF DEBUG THEN 
-      Printf.printf "\tRewriteTyped::infer_value_node_type %s\n"
-        (SSA.value_node_to_str valNode); 
-    ENDIF;
-    *) 
     infer_value_type valNode.value   
   
   (* keeps only the portion of the second list which is longer than the first *) 
@@ -67,13 +66,6 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
     else keep_tail (List.tl l1) (List.tl l2) 
      
   let mk_typed_closure fnVal signature =
-    (*
-    IFDEF DEBUG THEN  
-      Printf.printf "\tRewriteTyped::mk_typed_closure %s : %s\n" 
-        (SSA.value_to_str fnVal) (Signature.to_str signature)
-      ;
-    ENDIF;
-    *)   
     match fnVal with 
     | Var id ->
       let closureArgs = get_closure_args id in  
@@ -285,9 +277,4 @@ let rewrite_typed ~tenv ~closureEnv ~specializer ~output_arity ~fundef =
   in    
   let module Transform = SSA_Transform.MkCustomTransform(Rewrite_Rules(Params))
   in 
-  (*
-  IFDEF DEBUG THEN
-    Printf.printf "Rewrite Typed (before): %s \n%!" (SSA.fundef_to_str fundef);
-  ENDIF;
-  *)
   let fundef, _ = Transform.transform_fundef fundef in fundef   

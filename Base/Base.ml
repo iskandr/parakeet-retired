@@ -66,7 +66,7 @@ module Hashtbl = struct
     exception KeyNotFound of string 
    
      
-    let find hash x = try find hash x  with _ -> raise (KeyNotFound (dump x))
+    (*let find hash x = try find hash x  with _ -> raise (KeyNotFound (dump x))*)
     
     let combine h1 h2 = 
       let h3 = create (2*(length h1 + length h2) + 1) in 
