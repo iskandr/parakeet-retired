@@ -3,6 +3,7 @@ type shape = Imp.exp_node list
 type env = shape ID.Map.t 
 
 val scalar : shape
+val is_scalar : shape -> bool 
 
 val rank : shape -> int 
 
@@ -34,6 +35,8 @@ val all_dims : Imp.exp_node -> shape
  
 val largest_val : Imp.exp_node array ->  Imp.exp_node
 val of_int_list : int list -> shape 
+ 
+val concat : shape -> shape -> shape
 
 val rewrite_dim : shape ID.Map.t -> dim -> dim
 val rewrite_shape : shape ID.Map.t -> shape -> shape

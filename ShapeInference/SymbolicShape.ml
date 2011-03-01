@@ -7,6 +7,7 @@ type env = shape ID.Map.t
 
 let scalar = [] 
 
+let is_scalar s = (s=[])
 
 let rank shape = List.length shape 
 
@@ -109,6 +110,8 @@ let rewrite_dim env d =
   ImpSimplify.simplify_arith d' 
 
 let rewrite_shape env shape = List.map (rewrite_dim env) shape   
+
+let concat s1 s2 = s1 @ s2 
 
 let to_str shape = Imp.exp_node_list_to_str shape
         
