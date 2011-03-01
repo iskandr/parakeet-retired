@@ -61,8 +61,9 @@ module ShapeAnalysis (P: PARAMS) =  struct
     let exp env expNode helpers = debug "exp"; match expNode.exp with
       | SSA.Call(fnId, args) -> 
           raise (ShapeInferenceFailure "unexpected function call")
+
       | SSA.PrimApp (Prim.ArrayOp Prim.Index, array::indices) -> 
-        let arrayShape =  value env array in
+        let arrayShape = value env array in
         let nIndices = List.length indices in
         (* for now assume slicing can only happen along the 
            outermost dimensions and only by scalar indices 
@@ -73,8 +74,10 @@ module ShapeAnalysis (P: PARAMS) =  struct
         (* an upper bound would be: [value env array], but 
            for now fail if we can't be exact 
          *)
-         let arrayShape = value env array in 
-         [[SymbolicShape.nelts arrayShape]]
+         let arrayShape = value env array in
+         let n = SymbolicShape.nelts arrayShape in
+         Printf.printf "--- WHERE SHAPE: %s\n" (Imp.exp_node_to_str n);   
+         [[n]]
          (*raise (ShapeInferenceFailure "Can't infer output shape of WHERE prim")*)
          
       | SSA.PrimApp (Prim.ArrayOp Prim.DimSize, [array; dim]) -> [[]] 
@@ -174,18 +177,19 @@ let rec normalize_dim inputSet rawShapeEnv normalizedEnv expNode
       else  
         let shape, normalizedEnv' = 
           if ID.Map.mem id normalizedEnv then 
-            ID.Map.find id normalizedEnv, normalizedEnv  
+            (debug $ (ID.to_str id) ^ " already normalized"; 
+            ID.Map.find id normalizedEnv, normalizedEnv)  
           else   
             (* if some local variable's shape has not yet been normalized,
                do so recursively 
             *) 
             
             let rawShape = ID.Map.find id rawShapeEnv in
-            debug ("raw shape: " ^ (SymbolicShape.to_str rawShape)); 
+            debug ("raw shape of : "^ (ID.to_str id) ^ " " ^(SymbolicShape.to_str rawShape)); 
             let normalizedShape, normalizedEnv' = 
               normalize_shape inputSet rawShapeEnv normalizedEnv rawShape 
             in
-            debug ("normalized shape: " ^ (SymbolicShape.to_str normalizedShape));
+            debug ("normalized shape: of " ^ (ID.to_str id) ^" " ^ (SymbolicShape.to_str normalizedShape));
             normalizedShape, ID.Map.add id normalizedShape normalizedEnv'
         in  
         debug ("final shape: " ^ (SymbolicShape.to_str shape)); 
@@ -196,7 +200,8 @@ let rec normalize_dim inputSet rawShapeEnv normalizedEnv expNode
   
 and normalize_shape inputSet rawShapeEnv normalizedEnv shape 
     : shape * shape ID.Map.t  =
-  debug "normalize_shape";
+  debug ("normalize_shape: " ^ (SymbolicShape.shape_to_str shape));
+  
   let foldFn (revDims, normalizedEnv) currDim = 
     let currDim', normalizedEnv' = 
       normalize_dim inputSet rawShapeEnv normalizedEnv currDim 
@@ -210,6 +215,7 @@ and normalize_shape inputSet rawShapeEnv normalizedEnv shape
 let rec normalize_shape_list inputSet rawShapeEnv normalizedEnv = function 
   | [] -> [], normalizedEnv 
   | shape::rest -> 
+    debug $ "shape list: " ^ (SymbolicShape.to_str shape); 
       let rest', normalizedEnv' = 
         normalize_shape_list inputSet rawShapeEnv normalizedEnv rest 
       in
@@ -286,9 +292,13 @@ and infer_normalized_shape_env (fnTable : FnTable.t) (fundef : SSA.fundef) =
   let fnId = fundef.SSA.fn_id in 
   try Hashtbl.find normalizedShapeEnvCache fnId 
   with _ ->  begin
-    let rawShapeEnv = infer_shape_env fnTable fundef in 
+    
+    let rawShapeEnv = infer_shape_env fnTable fundef in
+    debug "got raw shape env"; 
     let inputIdSet = ID.Set.of_list fundef.SSA.input_ids in
+    debug "got input id set";
     let normalizer id shape normalizedEnv =
+      debug $ "** normalizing " ^ (ID.to_str id) ^ (SymbolicShape.to_str shape) ^"\n"; 
       (* if already normalized, don't do it again *) 
       if ID.Map.mem id normalizedEnv then normalizedEnv
       else    
