@@ -4,12 +4,17 @@ printf "|                Medium Sized Whale               |\n";
 printf "===================================================\n";
 
 # Build parameters
- 
+
+if [ "$PQ_PATH" = "" ]
+then 
+  export PQ_PATH="../libpq"
+fi 
+
 OBJS="CQInterface/QType.o CQInterface/Debug.o Init.o" # Callbacks.o
 LINKER_FLAGS="-lflags -ccopt,$PQ_PATH/libpq_stubs.o,\
 -ccopt,$PQ_PATH/cuda_stubs.cu_o,\
 -ccopt,$PQ_PATH/base.o,\
--ccopt,-L/usr/local/cuda/lib/,\
+-ccopt,-L/usr/local/cuda/lib64/,\
 -ccopt,-L/usr/lib/nvidia-current,\
 -ccopt,-lcuda,\
 -ccopt,-lcudart,\

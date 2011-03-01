@@ -1,3 +1,4 @@
+PQPATH ?= ../libpq
 BUILDPATH = ../_build
 CFLAGS = -Wall -O3
 LDFLAGS = -lpthread -lm -lrt
@@ -27,7 +28,7 @@ OCAMLINCLUDES = -I $(BUILDPATH) -I $(BUILDPATH)/Analysis \
 OBJS = cinterface.o
 COBJS = -ccopt -L/usr/lib/nvidia-current -ccopt $(PQ_PATH)/cuda_stubs.cu_o \
   $(PQ_PATH)/libpq_stubs.o $(PQ_PATH)/../OCAMLInterface/ocaml_interface.a \
-	-ccopt -lcuda -ccopt -L/usr/local/cuda/lib -ccopt -lcudart \
+	-ccopt -lcuda -ccopt -L/usr/local/cuda/lib64 -ccopt -lcudart \
 	-ccopt $(PQ_PATH)/thrust_stubs.cu_o -ccopt $(PQ_PATH)/kernel_stubs.cu_o \
 	-ccopt $(PQ_PATH)/base.o \
   -ccopt $(UINT_DIR)/libuint32_stubs.a -ccopt $(UINT_DIR)/libuint64_stubs.a
