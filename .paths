@@ -34,10 +34,8 @@ AST
 qcode
 unit
 unit/tmp
-SSA_Optimizations
 .git/logs/refs/remotes/origin
 .git/refs/remotes/origin
-SSA_Optimizations
 qcode
 unit
 .git/objects/1a
@@ -129,7 +127,6 @@ unit
 .git/objects/b9
 .git/objects/ec
 .git/objects/f8
-ImpKernelTemplates
 .git/objects/0b
 .git/objects/11
 .git/objects/4d
@@ -204,10 +201,6 @@ _build/libpq
 .git/objects/ed
 .git/objects/f5
 .git/objects/f7
-SSA_Specialization
-SSA_Analyses
-SSA_Analyses
-SSA_Specialization
 .git/objects/0b
 .git/objects/15
 .git/objects/2f
@@ -232,14 +225,10 @@ CQInterface
 Dump
 GPU
 Imp
-ImpKernelTemplates
 OCAMLInterface
 Ptx
 Q
 SSA
-SSA_Analyses
-SSA_Optimizations
-SSA_Specialization
 Tests
 experiments
 libpq
@@ -254,3 +243,10 @@ ShapeInference
 .git/objects/7d
 ShapeInference
 _build/ShapeInference
+CostModel
+Common
+Imp/KernelTemplates
+SSA/Analyses
+SSA/Optimizations
+SSA/Specialization
+Eval
