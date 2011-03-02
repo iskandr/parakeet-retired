@@ -1,19 +1,21 @@
-<*.native> or <**/*.ml> or <**/*.mli> : debug, use_unix, use_str, use_bigarray, pkg_uint.uint128, pkg_uint.uint32,  pkg_extlib
+<**/*.native> or <**/*.ml> or <**/*.mli> or <**/*.cmx> : debug, use_unix, use_str, use_bigarray, pkg_uint.uint128, pkg_uint.uint32, pkg_extlib
+"Common" : include
+"Base" : include
 "AST" : include
 "Dump" : include
 "Ptx": include
 "Tests" : include
-"Base" : include
 "GPU" : include
-"libpq" : include
 "Q" : include
 "SSA" : include
-"SSA_Analyses" : include
-"SSA_Optimizations" : include
-"SSA_Specialization" : include
+"SSA/Analyses" : include
+"SSA/Optimizations" : include
+"SSA/Specialization" : include
+"ShapeInference" : include
+"CostModel" : include
+"Runtime" : include
 "CQInterface" : include
 "Imp" : include
-"ImpKernelTemplates" : include
+"Imp/KernelTemplates" : include
 "OCAMLInterface" : include
 "stubs" : include
-"ShapeInference" : include
