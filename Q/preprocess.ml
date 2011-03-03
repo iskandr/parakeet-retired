@@ -1,3 +1,5 @@
+(* pp: -parser o pa_macro.cmo *)
+
 open Printf 
 open Base
 open SourceInfo
