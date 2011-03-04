@@ -57,7 +57,7 @@ module ShapeAnalysis (P: PARAMS) =  struct
       else Some (ID.Map.add id leftShape env)
    
     
-    let exp env expNode helpers = debug "exp"; match expNode.exp with
+    let exp env expNode helpers = match expNode.exp with
       | SSA.Call(fnId, args) -> 
           raise (ShapeInferenceFailure "unexpected function call")
 

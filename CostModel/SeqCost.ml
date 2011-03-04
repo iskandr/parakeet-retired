@@ -86,16 +86,16 @@ module CostAnalysis(P:COST_ANALYSIS_PARAMS) = struct
 end
 
 
-let costCache : (FnId.t, symbolic_cost) Hashtbl.t = Hahstbl.create 127 
+let symCostCache : (FnId.t, symbolic_cost) Hashtbl.t = Hahstbl.create 127 
 
-let rec symbolic_cost fnTable fundef = 
-  try Hashtbl.find costCache fundef.SSA.fn_id 
+let rec symbolic_seq_cost fnTable fundef = 
+  try Hashtbl.find symCostCache fundef.SSA.fn_id 
   with _ -> 
     let module Params = struct 
       let call_cost fnId symShapes =
         let fundef' = FnTable.find fnId fnTable in 
         (* cost expression with free input variables *) 
-        let costExpr = symbolic_cost fnTable fundef' in 
+        let costExpr = symbolic_seq_cost fnTable fundef' in 
         (* substitute shapes for input IDs *) 
         let substEnv = 
           ID.Map.extend ID.Map.empty fundef'.SSA.input_ids symShapes 
@@ -105,5 +105,16 @@ let rec symbolic_cost fnTable fundef =
     in 
     let C = SSA_Analysis.MkEvaluator(CostAnalysis(Params)) in 
     let cost = (C.eval_fundef fundef).cost in 
-    Hashtbl.add costCache fundef.SSA.fn_id cost; 
+    Hashtbl.add symCostCache fundef.SSA.fn_id cost; 
     cost   
+
+let costCache : (FnId.t * Shape.t list, float) Hashtbl.t = Hashtbl.create 127 
+let seq_cost fnTable fundef shapes =
+  let key = fundef.SSA.fn_id, shapes in  
+  try Hashtbl.find costCache key 
+  with _ ->  
+    let symCost = symbolic_seq_cost fnTable fundef in
+    let shapeEnv = ID.Map.extend ID.Map.empty fundef.SSA.input_ids shapes in  
+    let cost = float_of_int (ShapeEval.eval_exp shapeEnv symCost)
+    Hashtbl.add costCache key cost; 
+    cost    

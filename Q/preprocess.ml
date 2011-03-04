@@ -425,7 +425,6 @@ let process_lexbuf ~debug lexbuf =
     let astStr = "\\l dt.q\n" ^ astStr in 
     print_endline astStr
     
-    
 let process_file debug filename = 
   let channel = open_in filename in 
   let lexbuf = Lexing.from_channel channel in 
@@ -446,11 +445,12 @@ let _ =
     (* if a file argument was given, then load that filename
        otherwise enter an interactive prompt 
     *) 
-    if (Array.length Sys.argv) > 1 then
-       let filename, debug = if Array.length Sys.argv = 2 then 
-                                Sys.argv.(1), false
-                             else Sys.argv.(2),Sys.argv.(1) = "-debug"  in  
-       if debug then printf "--- Loading %s --- \n" filename;
+    
+    if Array.length Sys.argv > 1 then
+       let filename, debug = 
+         if Array.length Sys.argv = 2 then Sys.argv.(1), false
+         else Sys.argv.(2), Sys.argv.(1) = "-debug"  
+       in  
        process_file debug filename  
     else prompt ()
   

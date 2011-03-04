@@ -3,25 +3,27 @@
 open Base
 open Imp 
 
-let rec eval_dim shapeEnv expNode : int = 
+let rec eval_exp shapeEnv expNode : int = 
   match expNode.exp with  
   | Op (Prim.Add, _, [arg1; arg2]) -> 
-      let x1 = eval_dim shapeEnv arg1 in 
-      let x2 = eval_dim shapeEnv arg2 in 
+      let x1 = eval_exp shapeEnv arg1 in 
+      let x2 = eval_exp shapeEnv arg2 in 
       x1 + x2   
   | Op(Prim.Add, _, _) -> 
       failwith "[ShapeEval] wrong number of args for addition"
   | Op(Prim.SafeDiv, _, [arg1; arg2]) -> 
-      let x1 = eval_dim shapeEnv arg1 in 
-      let x2 = eval_dim shapeEnv arg2 in 
+      let x1 = eval_exp shapeEnv arg1 in 
+      let x2 = eval_exp shapeEnv arg2 in 
       safe_div x1 x2 
   | Op (Prim.Mult, _, [arg1; arg2]) ->
-      let x1 = eval_dim shapeEnv arg1 in 
-      let x2 = eval_dim shapeEnv arg2 in 
+      let x1 = eval_exp shapeEnv arg1 in 
+      let x2 = eval_exp shapeEnv arg2 in 
       x1 * x2 
   | Op (Prim.Mult, _, _) ->
       failwith "[ShapeEval] wrong number of args for multiplication"
-  
+  | Op(Prim.Log, _, [arg]) -> 
+      let x = eval_exp shapeEnv arg in 
+      int_of_float (ceil (log (float_of_int x)))
   | Const n -> PQNum.to_int n
   | DimSize(dim, {exp=Var id}) -> 
       if ID.Map.mem id shapeEnv then 
@@ -34,7 +36,7 @@ let rec eval_dim shapeEnv expNode : int =
       (Imp.exp_to_str other)
 
 let eval_shape shapeEnv expNodeList : Shape.t = 
-  Shape.of_list (List.map (eval_dim shapeEnv) expNodeList)
+  Shape.of_list (List.map (eval_exp shapeEnv) expNodeList)
   
 let eval_imp_shape_env (fn:Imp.fn) (inputShapes : Shape.t list) =
   IFDEF DEBUG THEN
@@ -54,7 +56,7 @@ let eval_imp_shape_env (fn:Imp.fn) (inputShapes : Shape.t list) =
     (Array.of_list inputShapes)
   in     
   let aux id sizeExpressions shapeEnv  =
-    let dims = List.map (eval_dim shapeEnv) sizeExpressions in
+    let dims = List.map (eval_exp shapeEnv) sizeExpressions in
     let shape = Shape.of_list dims in   
     IFDEF DEBUG THEN 
       Printf.printf "Inferred shape for %s: %s  \n"

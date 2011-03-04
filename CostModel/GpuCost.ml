@@ -29,6 +29,7 @@ let rec sum_transfer_time = function
         ~(fn:SSA.fundef) 
         ~(closureArgShapes : Shape.t list) 
         ~(argShapes : Shape.t list) =
+    let symNestedCost = 0 in 
     let launchCost = 3  in
     let maxShape = match Shape.max_shape_list argShapes with 
       | Some maxShape -> maxShape
