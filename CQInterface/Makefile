@@ -40,19 +40,19 @@ COBJS = -ccopt -L/usr/lib/nvidia-current -ccopt $(PQ_PATH)/cuda_stubs.cu_o \
 
 
 OCAML_LIB_OBJECTS :=  bigarray.cmxa unix.cmxa str.cmxa uint32.cmxa uint64.cmx extLib.cmxa
-DEPENDENCY_SORTED_OBJECTS := $(shell ocamlopt depsort.ml -o depsort; ./depsort ls $(PARAKEET_INCLUDES))
 
+$(shell ocamlopt depsort.ml -o depsort)
+DEPENDENCY_SORTED_OBJECTS := $(shell ./depsort -E preprocess.cmx $(PARAKEET_INCLUDES))
 OCAMLOBJSRAW := $(OCAML_LIB_OBJECTS) $(DEPENDENCY_SORTED_OBJECTS)
-
 ifneq ($(PROF),)
-	OCAMLOBJS = $(patsubst %.cmx,%.p.cmx,$(OCAMLOBJSRAW))
+  OCAMLOBJS = $(patsubst %.cmx,%.p.cmx,$(OCAMLOBJSRAW))
 else
-	OCAMLOBJS = $(OCAMLOBJSRAW) 
+  OCAMLOBJS = $(OCAMLOBJSRAW) 
 endif
 
 all: cinterface 
 
-cinterface: depsort $(OBJS) 
+cinterface: $(OBJS) 
 	$(OCAMLCC) -linkall -ccopt -shared -ccopt -Wl,-Bsymbolic $(OBJS) \
 	$(OCAMLINCLUDES) $(COBJS) $(DEBUG) -ccopt -Wl,--start-group $(OCAMLOBJS) \
 	-ccopt -Wl,--end-group -o cinterface.so -verbose -cclib -lstdc++

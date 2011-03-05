@@ -1,7 +1,7 @@
 open Base  
 open SSA 
 type compute_location = GPU | CPU 
-type cost = int
+type cost = float 
  
   let describe_value 
         (shapeEnv : Shape.t ID.Map.t)
@@ -72,23 +72,26 @@ type cost = int
             (fnTable : FnTable.t) 
             (shapeEnv : Shape.t ID.Map.t) 
             (gpuSet : ID.Set.t) 
-            block  = 
+            block : cost * ID.Set.t  = 
     (* start with zero cost...and add up all the stmtCosts *) 
     Block.fold_forward 
       (fun (accCost, gpuSet) stmtNode -> 
         let currCost, gpuSet' =  stmt_cost fnTable shapeEnv gpuSet stmtNode in 
-        accCost + currCost, gpuSet' 
+        accCost +. currCost, gpuSet' 
       ) 
-      (0, gpuSet)
+      (0., gpuSet)
       block
   and stmt_cost 
         (fnTable : FnTable.t) 
         (shapeEnv : Shape.t ID.Map.t)
         (gpuSet : ID.Set.t) 
-        (stmtNode : SSA.stmt_node) = match stmtNode.stmt with 
+        (stmtNode : SSA.stmt_node) : cost * ID.Set.t = match stmtNode.stmt with 
     | Set(_, rhs) -> 
-        let _, (cost:cost)  = exp_cost fnTable shapeEnv gpuSet rhs in cost, gpuSet
-    | SetIdx(_, indices, _) -> List.length indices, gpuSet   
+        let _, (cost:cost)  = 
+          exp_cost fnTable shapeEnv gpuSet rhs 
+        in 
+        cost, gpuSet
+    | SetIdx(_, indices, _) -> float_of_int (List.length indices), gpuSet   
     | WhileLoop (condBlock, _, body, header, exit) -> 
         let gpuSet' = phi_nodes gpuSet header in 
         let condCost, condGpuSet = 
@@ -98,13 +101,13 @@ type cost = int
           block_cost fnTable shapeEnv condGpuSet body 
         in
         let exitGpuSet = phi_nodes bodyGpuSet exit in 
-        let totalCost = condCost + bodyCost in 
+        let totalCost = condCost +. bodyCost in 
         totalCost, exitGpuSet  
     | If(_, tBlock, fBlock, merge) -> 
         let tCost, tGpuSet = block_cost fnTable shapeEnv gpuSet tBlock in 
         let fCost, fGpuSet = block_cost fnTable shapeEnv tGpuSet fBlock in 
         let finalGpuSet = phi_nodes fGpuSet merge in 
-        let totalCost = tCost + fCost in 
+        let totalCost = tCost +. fCost in 
         totalCost, finalGpuSet 
   and exp_cost 
         (fnTable : FnTable.t)
@@ -119,22 +122,22 @@ type cost = int
               in
               let argInfo = describe_values shapeEnv gpuSet args in     
               map_cost fnTable fundef closureArgInfo argInfo 
-            | _ -> CPU, 1
+            | _ -> CPU, 1.
 
-  and  map_cost fnTable fn closureArgs args =  
-    let gpuCost = 
+  and  map_cost fnTable fn closureArgs args : compute_location * cost =  
+    let gpuCost : cost = 
       GpuCost.map fnTable fn (get_shapes closureArgs) (get_shapes args) 
     in
     let maxDim, nestedArgs = split_args args in   
-    let nestedCost = call_cost fnTable fn (closureArgs @ nestedArgs) in   
-    let cpuCost = 1 + maxDim * nestedCost in
+    let nestedCost : cost = call_cost fnTable fn (closureArgs @ nestedArgs) in   
+    let cpuCost : cost = 1. +. float_of_int maxDim *. nestedCost in
     IFDEF DEBUG THEN 
-      Printf.printf "Compute MAP cost: GPU - %d, HOST: %d\n" gpuCost cpuCost; 
+      Printf.printf "Compute MAP cost: GPU - %f, HOST: %f\n" gpuCost cpuCost; 
     ENDIF; 
     if cpuCost < gpuCost then CPU, cpuCost 
     else GPU, gpuCost  
   
-  and call_cost fnTable fn argInfo =
+  and call_cost fnTable fn argInfo  : cost =
     let mkSet gpuSet id (_,_,onGpu) = 
       if onGpu then ID.Set.add id gpuSet else gpuSet 
     in 
@@ -145,4 +148,4 @@ type cost = int
     cost   
   
   let array_op op argVals = match op, argVals with 
-    | _ -> CPU, 0 (* don't run anything else on the host *)  
+    | _ -> CPU, 0. (* don't run anything else on the host *)  

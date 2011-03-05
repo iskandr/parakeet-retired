@@ -431,7 +431,8 @@ let process_file debug filename =
   process_lexbuf ~debug lexbuf 
      
                     
-let rec prompt () = 
+let rec prompt () = assert false 
+(*
 	print_string "> ";
 	let str = read_line () in
 	if str = "\\\\" then ()
@@ -440,12 +441,11 @@ let rec prompt () =
 		let lexbuf = Lexing.from_string str in
     process_lexbuf ~debug:true lexbuf;  
     prompt ()
-  
+  *)
 let _ = 
     (* if a file argument was given, then load that filename
        otherwise enter an interactive prompt 
     *) 
-    
     if Array.length Sys.argv > 1 then
        let filename, debug = 
          if Array.length Sys.argv = 2 then Sys.argv.(1), false

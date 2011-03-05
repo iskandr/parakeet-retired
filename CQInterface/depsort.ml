@@ -132,7 +132,13 @@ let main () =
   let add_dir name = searchDirs := name :: !searchDirs in
   let recursive = ref false in
   let fullpath = ref false in  
+  let excludeSet = ref StringSet.empty in 
   let opts = [ 
+    (
+      "-E",
+      Arg.String (fun s -> excludeSet := StringSet.add s !excludeSet; Printf.eprintf "Excluding %s\n" s),
+      "files to exclude"
+    ); 
     (
       "-P", 
       Arg.Unit (fun() -> fullpath := true), 
@@ -155,7 +161,15 @@ let main () =
   if !searchDirs = [] then searchDirs := ["."];  
   let filteredSearchDirs = List.filter check_dir !searchDirs in 
   let allFiles = List.concat (List.map dir_contents filteredSearchDirs) in    
-  let cmxFiles : string list = List.filter is_native_module allFiles in
+  let cmxFiles = 
+    List.filter 
+      (fun s -> 
+           is_native_module s && 
+           not (StringSet.mem s !excludeSet) && 
+           not (StringSet.mem (Filename.basename s) !excludeSet)
+      ) 
+      allFiles
+  in 
   let cmxInfoList = List.map get_cmx_info cmxFiles in
   let sortedModules = topsort cmxInfoList in
   (* mapping between module names and cmx filenames *) 
@@ -173,6 +187,7 @@ let main () =
   let sortedFiles = 
     List.map (fun name -> StringMap.find name filenameLookup) sortedModules 
   in
+  (*
   Printf.eprintf "Module dependencies: \n";
   List.iter 
     (fun info -> 
@@ -185,7 +200,8 @@ let main () =
   Printf.eprintf 
     "Topologically sorted module files: %s\n" 
     (String.concat ", " sortedFiles)
-  ;  
+  ; 
+  *) 
   print_string (String.concat " " sortedFiles)
    
   
