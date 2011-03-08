@@ -29,17 +29,15 @@ let rec sum_transfer_time = function
         ~(fn:SSA.fundef) 
         ~(closureArgShapes : Shape.t list) 
         ~(argShapes : Shape.t list) =
-    let symNestedCost = 0. in 
-    let launchCost = 3.  in
-    let maxShape = match Shape.max_shape_list argShapes with 
-      | Some maxShape -> maxShape
-      | None -> failwith "no common shape found"
-    in  
+    let outerDim, nestedArgShapes = Shape.split_nested_shapes argShapes in
+    let nestedShapes = closureArgShapes @ nestedArgShapes in 
+    let nestedCost = SeqCost.seq_cost fnTable fn nestedShapes in 
     (* assume each processor can process 1000 elements per millisecond, and 
        we have 100 processors-- what about cost of nested function? 
     *)
     let parallelism = 100. in 
-    let runCost = float_of_int (Shape.nelts maxShape) /. parallelism  in
+    let runCost = (float_of_int outerDim) *. nestedCost /. parallelism in 
+    let launchCost = 3. in 
     launchCost +.  runCost 
   
 let reduce 
@@ -51,6 +49,11 @@ let reduce
       ~(initArgs:Shape.t list) 
       ~(args:Shape.t list) = 100. 
           
-let array_op op argShapes = 10.
-
+let array_op op argShapes = match op, argShapes with 
+  | Prim.Where, [x] -> float_of_int  (Shape.nelts x)
+  | Prim.Index, [x;idx] -> 
+    (* assume x is 1D *) 
+    let numIndices = Shape.nelts idx in
+    float_of_int numIndices   
+  | _ -> infinity 
 

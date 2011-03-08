@@ -35,27 +35,6 @@ let rec split_shape_list = function
       d::moreDims, shape::moreShapes   
 
 
-
-
-let rec fold_shape f = function 
-  | [] -> assert false
-  | [dim] -> dim 
-  | d::dims -> f d (fold_shape f dims)
-
-
-let max_dim d1 d2 = if d1.exp = d2.exp then d1 else Imp.max_ d1 d2  
-let rec max_dim_of_list dims = fold_shape max_dim dims
-
-let mult_dim d1 d2 = match d1.exp, d2.exp with 
-  | Const n1, _ when PQNum.is_zero n1 -> Imp.zero
-  | _, Const n2 when PQNum.is_zero n2 -> Imp.zero
-  | Const n1, _ when PQNum.is_one n1 -> d2
-  | _, Const n2 when PQNum.is_one n2 -> d1
-  | _ -> Imp.mul d1 d2 
-
-let nelts dims = fold_shape mult_dim dims 
-
-
 (* peels the maximum dim off shapes of maximal rank, leaving others
    untouched. combine all the maxdims into a single expression *) 
 let split_max_rank shapes = 
@@ -112,6 +91,6 @@ let rewrite_dim env d =
 let rewrite_shape env shape = List.map (rewrite_dim env) shape   
 
 let concat s1 s2 = s1 @ s2 
-
+let nelts = Imp.prod_exp_node_list 
 let to_str shape = Imp.exp_node_list_to_str shape
         

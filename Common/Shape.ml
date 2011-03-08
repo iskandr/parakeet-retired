@@ -103,7 +103,17 @@ let peel_shape shape =
       set shape' i (get shape (i+1)) 
     done;   
     shape'
+
+(* peel the maximal shapes in a list, leaving the rest unchanged *) 
+let split_nested_shapes shapes = 
+  let maxShape = Option.get (max_shape_list shapes) in 
+  assert (rank maxShape > 0); 
+  let peeler shape = 
+    if eq shape maxShape then peel_shape shape else shape 
+  in 
+  get maxShape 0, List.map peeler shapes  
   
+    
 let append shape1 shape2 = 
   let m = rank shape1 in 
   let n = rank shape2 in 

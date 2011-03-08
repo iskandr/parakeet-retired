@@ -24,13 +24,9 @@ type cost = float
   let get_shape (t,s,onGpu) = s 
   let get_shapes argInfo = List.map get_shape argInfo 
   
-  let max_shape shapes = match Shape.max_shape_list shapes with 
-      | Some maxShape -> maxShape 
-      | None -> failwith "max shape not found" 
-  
   (* split args into max dim, and peeled inner args *) 
   let split_args args =
-    let maxShape = max_shape (get_shapes args) in
+    let maxShape = Option.get (Shape.max_shape_list (get_shapes args)) in
     assert (Shape.rank maxShape > 0);
     let peeler (ty,shape,gpuSet) =
       if Shape.eq shape maxShape then 
@@ -40,14 +36,6 @@ type cost = float
     Shape.get maxShape 0, List.map peeler args 
   
   let peel_args args = snd (split_args args)   
-  
-  let split_shapes shapes = 
-    let maxShape = max_shape shapes in 
-    assert (Shape.rank maxShape > 0); 
-    let peeler shape = 
-      if Shape.eq shape maxShape then Shape.peel_shape shape else shape 
-    in 
-    Shape.get maxShape 0, List.map peeler shapes  
   
   
   let val_node_on_gpu gpuSet valNode = match valNode.value with 

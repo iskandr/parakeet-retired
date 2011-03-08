@@ -39,6 +39,9 @@ val append_dims : int list -> t -> t
 
 val peel_shape : t -> t
 
+(* return max outer dim, and nested shapes *)
+val split_nested_shapes : t list -> int * t list 
+
 (* remove dims specified int the list of dims *) 
 val slice_shape : t -> int list -> t 
 
