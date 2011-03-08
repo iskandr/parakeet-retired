@@ -149,7 +149,6 @@ papers/PLDI11
 .git/objects/44
 .git/objects/53
 .git/objects/ae
-_build/libpq
 .git/objects/07
 .git/objects/09
 .git/objects/11
@@ -216,8 +215,6 @@ _build/libpq
 .git/objects/f2
 .git/objects/f6
 .git/objects/f9
-_build/SSA_Analyses
-_build/SSA_Specialization
 papers/WIR11
 AST
 Base
@@ -250,3 +247,19 @@ SSA/Analyses
 SSA/Optimizations
 SSA/Specialization
 Runtime
+.git/objects/0e
+Common
+CostModel
+Imp/KernelTemplates
+Runtime
+SSA/Analyses
+SSA/Optimizations
+SSA/Specialization
+_build/Common
+_build/CostModel
+_build/Imp
+_build/Imp/KernelTemplates
+_build/Runtime
+_build/SSA/Analyses
+_build/SSA/Optimizations
+_build/SSA/Specialization

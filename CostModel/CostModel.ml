@@ -24,13 +24,9 @@ type cost = float
   let get_shape (t,s,onGpu) = s 
   let get_shapes argInfo = List.map get_shape argInfo 
   
-  let max_shape shapes = match Shape.max_shape_list shapes with 
-      | Some maxShape -> maxShape 
-      | None -> failwith "max shape not found" 
-  
   (* split args into max dim, and peeled inner args *) 
   let split_args args =
-    let maxShape = max_shape (get_shapes args) in
+    let maxShape = Option.get (Shape.max_shape_list (get_shapes args)) in
     assert (Shape.rank maxShape > 0);
     let peeler (ty,shape,gpuSet) =
       if Shape.eq shape maxShape then 
@@ -40,14 +36,6 @@ type cost = float
     Shape.get maxShape 0, List.map peeler args 
   
   let peel_args args = snd (split_args args)   
-  
-  let split_shapes shapes = 
-    let maxShape = max_shape shapes in 
-    assert (Shape.rank maxShape > 0); 
-    let peeler shape = 
-      if Shape.eq shape maxShape then Shape.peel_shape shape else shape 
-    in 
-    Shape.get maxShape 0, List.map peeler shapes  
   
   
   let val_node_on_gpu gpuSet valNode = match valNode.value with 
@@ -72,7 +60,7 @@ type cost = float
             (fnTable : FnTable.t) 
             (shapeEnv : Shape.t ID.Map.t) 
             (gpuSet : ID.Set.t) 
-            block  = 
+            block : cost * ID.Set.t  = 
     (* start with zero cost...and add up all the stmtCosts *) 
     Block.fold_forward 
       (fun (accCost, gpuSet) stmtNode -> 
@@ -85,9 +73,16 @@ type cost = float
         (fnTable : FnTable.t) 
         (shapeEnv : Shape.t ID.Map.t)
         (gpuSet : ID.Set.t) 
-        (stmtNode : SSA.stmt_node) = match stmtNode.stmt with 
+        (stmtNode : SSA.stmt_node) : cost * ID.Set.t = match stmtNode.stmt with 
     | Set(_, rhs) -> 
+<<<<<<< HEAD
         let _, cost  = exp_cost fnTable shapeEnv gpuSet rhs in cost, gpuSet
+=======
+        let _, (cost:cost)  = 
+          exp_cost fnTable shapeEnv gpuSet rhs 
+        in 
+        cost, gpuSet
+>>>>>>> 18f4de07daa66e820909ffc494462639ce036d4a
     | SetIdx(_, indices, _) -> float_of_int (List.length indices), gpuSet   
     | WhileLoop (condBlock, _, body, header, exit) -> 
         let gpuSet' = phi_nodes gpuSet header in 
@@ -121,20 +116,25 @@ type cost = float
               map_cost fnTable fundef closureArgInfo argInfo 
             | _ -> CPU, 1.
 
-  and  map_cost fnTable fn closureArgs args =  
-    let gpuCost = 
+  and  map_cost fnTable fn closureArgs args : compute_location * cost =  
+    let gpuCost : cost = 
       GpuCost.map fnTable fn (get_shapes closureArgs) (get_shapes args) 
     in
     let maxDim, nestedArgs = split_args args in   
+<<<<<<< HEAD
     let nestedCost = call_cost fnTable fn (closureArgs @ nestedArgs) in   
     let cpuCost = 1. +. (float_of_int maxDim) *. nestedCost in
+=======
+    let nestedCost : cost = call_cost fnTable fn (closureArgs @ nestedArgs) in   
+    let cpuCost : cost = 1. +. float_of_int maxDim *. nestedCost in
+>>>>>>> 18f4de07daa66e820909ffc494462639ce036d4a
     IFDEF DEBUG THEN 
       Printf.printf "Compute MAP cost: GPU - %f, HOST: %f\n" gpuCost cpuCost; 
     ENDIF; 
     if cpuCost < gpuCost then CPU, cpuCost 
     else GPU, gpuCost  
   
-  and call_cost fnTable fn argInfo =
+  and call_cost fnTable fn argInfo  : cost =
     let mkSet gpuSet id (_,_,onGpu) = 
       if onGpu then ID.Set.add id gpuSet else gpuSet 
     in 
@@ -145,4 +145,8 @@ type cost = float
     cost   
   
   let array_op op argVals = match op, argVals with 
+<<<<<<< HEAD
     | _ -> CPU, 0. 
+=======
+    | _ -> CPU, 0. (* don't run anything else on the host *)  
+>>>>>>> 18f4de07daa66e820909ffc494462639ce036d4a

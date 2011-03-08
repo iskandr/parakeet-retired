@@ -9,7 +9,13 @@ OCAMLCFLAGS = -ccopt -fPIC
 EXTLIB_DIR=$(shell ocamlfind query extlib)
 UINT_DIR=$(shell ocamlfind query uint)
 
+<<<<<<< HEAD
 OCAMLINCLUDES = -I $(BUILDPATH) \
+=======
+LIB_INCLUDES = -I $(EXTLIB_DIR) -I $(UINT_DIR)
+PARAKEET_INCLUDES = -I $(BUILDPATH) \
+	-I $(BUILDPATH)/CQInterface \
+>>>>>>> 18f4de07daa66e820909ffc494462639ce036d4a
 	-I $(BUILDPATH)/Base \
 	-I $(BUILDPATH)/CQInterface \
 	-I $(BUILDPATH)/Common \
@@ -25,9 +31,8 @@ OCAMLINCLUDES = -I $(BUILDPATH) \
 	-I $(BUILDPATH)/SSA/Specialization \
         -I $(BUILDPATH)/ShapeInference \
 	-I $(BUILDPATH)/CostModel \
-	-I $(BUILDPATH)/Runtime \
-        -I $(EXTLIB_DIR) \
-        -I $(UINT_DIR)
+	-I $(BUILDPATH)/Runtime
+OCAMLINCLUDES := $(LIB_INCLUDES) $(PARAKEET_INCLUDES)
 
 #COBJS = -ccopt $(PQ_PATH)/libpq.so 
 OBJS = cinterface.o
@@ -39,6 +44,7 @@ COBJS = -ccopt -L/usr/lib/nvidia-current -ccopt $(PQ_PATH)/cuda_stubs.cu_o \
   -ccopt $(UINT_DIR)/libuint32_stubs.a -ccopt $(UINT_DIR)/libuint64_stubs.a
 
 
+<<<<<<< HEAD
 OCAML_LIB_OBJECTS :=  bigarray.cmxa unix.cmxa uint32.cmxa uint64.cmx extLib.cmxa
 #OCAML_BUILT_OBJECTS :=   $(shell find $(PQ_PATH)/../_build/ -name '*.cmx' | xargs -n1 basename ) 
 #OCAMLDEP := ocamldep -pp 'camlp4o pa_macro.cmo' 
@@ -116,21 +122,31 @@ GpuCost.cmx \
 CostModel.cmx \
 Eval.cmx \
 CodeTemplate.cmx Callbacks.cmx
+=======
+OCAML_LIB_OBJECTS :=  bigarray.cmxa unix.cmxa str.cmxa uint32.cmxa uint64.cmx extLib.cmxa
+>>>>>>> 18f4de07daa66e820909ffc494462639ce036d4a
 
+$(shell ocamlopt depsort.ml -o depsort)
+DEPENDENCY_SORTED_OBJECTS := $(shell ./depsort -E preprocess.cmx $(PARAKEET_INCLUDES))
+OCAMLOBJSRAW := $(OCAML_LIB_OBJECTS) $(DEPENDENCY_SORTED_OBJECTS)
 ifneq ($(PROF),)
-	OCAMLOBJS = $(patsubst %.cmx,%.p.cmx,$(OCAMLOBJSRAW))
+  OCAMLOBJS = $(patsubst %.cmx,%.p.cmx,$(OCAMLOBJSRAW))
 else
-	OCAMLOBJS = $(OCAMLOBJSRAW) 
+  OCAMLOBJS = $(OCAMLOBJSRAW) 
 endif
 
 all: cinterface 
 
+<<<<<<< HEAD
 cinterface: $(OBJS)
 	@echo "!!! lib objects: $(OCAML_LIB_OBJECTS)" 
 	@echo "!!! built: $(OCAML_BUILT_OBJECTS)"
 	@echo "!!! dependency: $(DEPENDENCY_SORTED_OBJECTS)"
 	@echo "!!! filtered: $(OCAML_FILTERED_OBJECTS)"
 	@echo "shell ocamldsort $(OCAMLINCLUDES) -d $(OCAMLDEP) $(PQ_PATH)/../AST/*.ml"
+=======
+cinterface: $(OBJS) 
+>>>>>>> 18f4de07daa66e820909ffc494462639ce036d4a
 	$(OCAMLCC) -linkall -ccopt -shared -ccopt -Wl,-Bsymbolic $(OBJS) \
 	$(OCAMLINCLUDES) $(COBJS) $(DEBUG) -ccopt -Wl,--start-group $(OCAMLOBJS) \
 	-ccopt -Wl,--end-group -o cinterface.so -verbose -cclib -lstdc++
@@ -141,5 +157,6 @@ cinterface.o: cinterface.c cinterface.h
 ocaml_interface.o: ocaml_interface.c ocaml_interface.h
 	$(OCAMLCC) $(OCAMLCFLAGS) $(DEBUG) -o ocaml_interface.o ocaml_interface.c
 
+
 clean:
-	rm -f cinterface.so *~ *.o QType.cmx QType.mli QType.cmi
+	rm -f cinterface.so *~ *.o QType.cmx QType.mli QType.cmi depsort

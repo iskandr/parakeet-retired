@@ -123,6 +123,7 @@ val int : int -> exp_node
 
 val zero : exp_node 
 val one : exp_node 
+val infinity : exp_node 
     
 val float : float -> exp_node   
 val double : float -> exp_node  
@@ -188,4 +189,12 @@ val sqrt32 : exp_node -> exp_node
 val sqrt64 : exp_node -> exp_node   
 
 val id_of : exp_node -> ID.t 
-val var : ?t:DynType.t -> ID.t -> exp_node 
+val var : ?t:DynType.t -> ID.t -> exp_node
+
+val max_simplify : exp_node -> exp_node -> exp_node
+val mult_simplify : exp_node -> exp_node -> exp_node
+val add_simplify : exp_node -> exp_node -> exp_node 
+
+val max_exp_node_list : exp_node list -> exp_node
+val prod_exp_node_list : exp_node list -> exp_node
+val sum_exp_node_list : exp_node list -> exp_node  

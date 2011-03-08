@@ -275,6 +275,7 @@ let double d = f64_exp $ Const (PQNum.Float64 d)
 
 let zero = int 0 
 let one = int 1 
+let infinity = typed_exp DynType.Float64T (Const (PQNum.Inf DynType.Float64T))
 
 let select cond tNode fNode = 
   assert (tNode.exp_type = fNode.exp_type); 
@@ -348,3 +349,27 @@ let id_of = function
   | _ -> failwith "Imp: expected variable" 
 
 let var ?(t=DynType.BottomT) id = { exp = Var id; exp_type = t}
+
+
+let max_simplify d1 d2 = if d1.exp = d2.exp then d1 else max_ d1 d2
+
+let mult_simplify d1 d2 = match d1.exp, d2.exp with 
+  | Const n1, _ when PQNum.is_zero n1 -> zero
+  | _, Const n2 when PQNum.is_zero n2 -> zero
+  | Const n1, _ when PQNum.is_one n1 -> d2
+  | _, Const n2 when PQNum.is_one n2 -> d1
+  | _ -> mul d1 d2 
+
+let add_simplify d1 d2 = match d1.exp, d2.exp with 
+  | Const n1, _ when PQNum.is_zero n1 -> d2 
+  | _, Const n2 when PQNum.is_zero n2 -> d1 
+  | _ -> add d1 d2 
+
+let rec fold_exp_node_list f = function 
+  | [] -> assert false
+  | [e] -> e 
+  | e::es -> f e (fold_exp_node_list f es)
+
+let max_exp_node_list es = fold_exp_node_list max_simplify es
+let sum_exp_node_list es = fold_exp_node_list add_simplify es 
+let prod_exp_node_list es = fold_exp_node_list mult_simplify es 

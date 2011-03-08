@@ -56,6 +56,7 @@ module CostAnalysis(P:COST_ANALYSIS_PARAMS) = struct
         P.call_cost fnId argShapes  
     | Cast _
     | PrimApp (Prim.ScalarOp _, _) -> Imp.one
+    | PrimApp _ -> Imp.infinity 
     | Arr elts -> Imp.int (List.length elts) 
     | Map (closure, args) -> 
         let closureArgShapes = List.map (value env) closure.SSA.closure_args in 
@@ -64,38 +65,43 @@ module CostAnalysis(P:COST_ANALYSIS_PARAMS) = struct
         let nestedCost = 
           P.call_cost closure.SSA.fn_id (closureArgShapes @ argShapes) 
         in    
-        Imp.mul maxDim nestedCost
+        Imp.mul_simplify maxDim nestedCost
           
     | Reduce (initClosure, closure, initArgs, args)   
-    | Scan (initClosure, closure, initArgs, args) ->  
-       
+    | Scan (initClosure, closure, initArgs, args) -> assert false   
     | App _ -> failwith "Unexpected untyped function application"   
- 
-      
 
   (* shape info already computed, assignments have zero cost in our model, *)
   (* so there's nothing to do for phi nodes *) 
   let phi env leftEnv rightEnv phiNode = None 
   
   let stmt env stmtNode helpers  = match stmtNode.stmt with 
-    | Set(ids, rhs) -> assert false 
-    | SetIdx of ID.t * value_nodes * value_node
-    | If of value_node * block * block * phi_nodes
+    | Set(ids, rhs) -> 
+      let rhsCost = exp env rhs helpers in 
+      { env with cost = Imp.add_simplify rhsCost env.cost }   
+       
+    | SetIdx (id, indices, rhs) -> assert false 
+    | If (testVal, tBlock, fBlock, phiNodes) -> 
+        let tEnv, _  = helpers.eval_block env tBlock in 
+        let fEnv, _  = helpers.eval_block env fBlock in 
+        { env with cost = Imp.max_simplify tEnv.cost fEnv.cost } 
+        
      (* testBlock, testVal, body, loop header, loop exit *)  
-    | WhileLoop of block * value_node * block * phi_nodes * phi_nodes    
+    | WhileLoop (testBlock, testVal, body, header, exit) -> 
+      assert false     
 end
 
 
-let costCache : (FnId.t, symbolic_cost) Hashtbl.t = Hahstbl.create 127 
+let symCostCache : (FnId.t, symbolic_cost) Hashtbl.t = Hahstbl.create 127 
 
-let rec symbolic_cost fnTable fundef = 
-  try Hashtbl.find costCache fundef.SSA.fn_id 
+let rec symbolic_seq_cost fnTable fundef = 
+  try Hashtbl.find symCostCache fundef.SSA.fn_id 
   with _ -> 
     let module Params = struct 
       let call_cost fnId symShapes =
         let fundef' = FnTable.find fnId fnTable in 
         (* cost expression with free input variables *) 
-        let costExpr = symbolic_cost fnTable fundef' in 
+        let costExpr = symbolic_seq_cost fnTable fundef' in 
         (* substitute shapes for input IDs *) 
         let substEnv = 
           ID.Map.extend ID.Map.empty fundef'.SSA.input_ids symShapes 
@@ -105,5 +111,16 @@ let rec symbolic_cost fnTable fundef =
     in 
     let C = SSA_Analysis.MkEvaluator(CostAnalysis(Params)) in 
     let cost = (C.eval_fundef fundef).cost in 
-    Hashtbl.add costCache fundef.SSA.fn_id cost; 
+    Hashtbl.add symCostCache fundef.SSA.fn_id cost; 
     cost   
+
+let costCache : (FnId.t * Shape.t list, float) Hashtbl.t = Hashtbl.create 127 
+let seq_cost fnTable fundef shapes =
+  let key = fundef.SSA.fn_id, shapes in  
+  try Hashtbl.find costCache key 
+  with _ ->  
+    let symCost = symbolic_seq_cost fnTable fundef in
+    let shapeEnv = ID.Map.extend ID.Map.empty fundef.SSA.input_ids shapes in  
+    let cost = float_of_int (ShapeEval.eval_exp shapeEnv symCost) in 
+    Hashtbl.add costCache key cost; 
+    cost    

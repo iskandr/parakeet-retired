@@ -57,7 +57,7 @@ module ShapeAnalysis (P: PARAMS) =  struct
       else Some (ID.Map.add id leftShape env)
    
     
-    let exp env expNode helpers = debug "exp"; match expNode.exp with
+    let exp env expNode helpers = match expNode.exp with
       | SSA.Call(fnId, args) -> 
           raise (ShapeInferenceFailure "unexpected function call")
 
@@ -131,7 +131,6 @@ module ShapeAnalysis (P: PARAMS) =  struct
           ENDIF;  
           vecOutShapes
           
-          
       | SSA.Reduce(initClos, _, initArgs, args) -> 
           let initClosArgShapes : shape list = 
             List.map (value env) initClos.closure_args in
@@ -143,9 +142,8 @@ module ShapeAnalysis (P: PARAMS) =  struct
       | other -> 
           let expStr = SSA.exp_to_str expNode in 
           failwith (Printf.sprintf "[shape_infer] not implemented: %s\n" expStr) 
-
-
-    let stmt env stmtNode helpers = debug "stmt"; match stmtNode.stmt with 
+      
+      let stmt env stmtNode helpers = match stmtNode.stmt with
       | Set(ids, rhs) ->
           let rhsShapes = exp env rhs helpers in
           IFDEF DEBUG THEN 
