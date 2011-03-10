@@ -3,72 +3,64 @@
 open Base
 open Imp 
 
-module type MATHOPS = sig 
-  type t 
-  val safe_div : t -> t -> t 
-  val log : t -> t
-  val mul : t -> t -> t 
-  val add : t -> t -> t
-  val of_int : int -> t
-  val of_int32 : Int32.t -> t   
-  val of_float : float -> t 
-end
 
-module IntOps = struct 
-  type t = int 
-  let safe_div = safe_div 
-  let log x =  int_of_float (ceil (log (float_of_int x)))
-  let mul x y = x * y
-  let add x y = x + y
-  let of_int x = x
-  let of_int32 x = Int32.to_int x 
-  let of_float x = int_of_float x 
-end 
 
-module FloatOps = struct 
-  type t = int 
-  let safe_div = safe_div 
-  let log x =  int_of_float (ceil (log (float_of_int x)))
-  let mul x y = x * y
-  let add x y = x + y
-  let of_int x = x
-  let of_int32 x = Int32.to_int x 
-  let of_float x = int_of_float x 
-end 
+type 'a math_ops = {   
+  safe_div : 'a -> 'a -> 'a;  
+  log : 'a -> 'a; 
+  mul : 'a -> 'a -> 'a;  
+  add : 'a -> 'a -> 'a; 
+  of_int : int -> 'a; 
+  of_pqnum : PQNum.num -> 'a; 
+} 
 
-module MkExpEval (M : MATHOPS)  = struct 
-    let rec eval_exp (shapeEnv:Shape.t ID.Map.t) expNode : M.t = 
-      match expNode.exp with  
-      | Op (Prim.Add, _, [arg1; arg2]) -> 
-        M.add (eval_exp shapeEnv arg1) (eval_exp shapeEnv arg2)   
-      | Op(Prim.Add, _, _) -> 
-        failwith "[ShapeEval] wrong number of args for addition"
-      | Op(Prim.SafeDiv, _, [arg1; arg2]) -> 
-        M.safe_div (eval_exp shapeEnv arg1) (eval_exp shapeEnv arg2) 
-      | Op (Prim.Mult, _, [arg1; arg2]) ->
-        M.mul (eval_exp shapeEnv arg1) (eval_exp shapeEnv arg2) 
-      | Op (Prim.Mult, _, _) ->
-        failwith "[ShapeEval] wrong number of args for multiplication"
-      | Op(Prim.Log, _, [arg]) -> M.log (eval_exp shapeEnv arg) 
-      | Const (PQNum.Int16 i) -> M.of_int i
-      | Const (PQNum.Int32 i32) -> M.of_int32 i32
-      | Const n -> M.of_float (PQNum.to_float n)
-      | DimSize(dim, {exp=Var id}) -> 
-        if ID.Map.mem id shapeEnv then 
-          let shape = ID.Map.find id shapeEnv in 
-          M.of_int (Shape.get shape dim)
-        else failwith $ Printf.sprintf 
-          "[ShapeEval] shape not found for %s" (ID.to_str id)    
-      | other -> failwith $ 
-         Printf.sprintf "[ShapeEval] Unexpected expression: %s"
-           (Imp.exp_to_str other)
-end 
+let rec eval_exp (m : 'a math_ops) (shapeEnv:Shape.t ID.Map.t) expNode : 'a  =
+  let recur (e : Imp.exp_node) : 'a  = eval_exp m shapeEnv e in   
+  match expNode.exp with  
+  | Op (Prim.Add, _, [arg1; arg2]) -> 
+    m.add (recur arg1) (recur arg2)   
+  | Op(Prim.Add, _, _) -> 
+    failwith "[ShapeEval] wrong number of args for addition"
+  | Op(Prim.SafeDiv, _, [arg1; arg2]) -> 
+    m.safe_div (recur arg1) (recur arg2) 
+  | Op (Prim.Mult, _, [arg1; arg2]) ->
+    m.mul (recur arg1) (recur arg2) 
+  | Op (Prim.Mult, _, _) ->
+    failwith "[ShapeEval] wrong number of args for multiplication"
+  | Op(Prim.Log, _, [arg]) -> m.log (recur arg) 
+  | Const n -> m.of_pqnum n
+  | DimSize(dim, {exp=Var id}) -> 
+    if ID.Map.mem id shapeEnv then 
+      let shape = ID.Map.find id shapeEnv in 
+      m.of_int (Shape.get shape dim)
+    else failwith $ Printf.sprintf  
+      "[ShapeEval] shape not found for %s" (ID.to_str id)    
+  | other -> failwith $ 
+      Printf.sprintf "[ShapeEval] Unexpected expression: %s"
+        (Imp.exp_to_str other)
 
-let eval_exp_as_int = MkExpEval(IntOps).eval_exp
-let eval_exp_as_float = MkExpEval(FloatOps).eval_exp  
-  
-(*module SymbolicExpEval = MkExpEval(SymbolicOps)*)
+let int_ops : int math_ops = {  
+  safe_div = safe_div; 
+  log =  (fun x -> int_of_float (ceil (log (float_of_int x))));
+  mul = Int.mul;  
+  add = ( + );
+  of_int = (fun x -> x); 
+  of_pqnum = PQNum.to_int;  
+}
 
+
+
+let float_ops : float math_ops = { 
+  safe_div = (/.);  
+  log = log; 
+  mul = ( *. );
+  add = ( +. ); 
+  of_int = float_of_int; 
+  of_pqnum = PQNum.to_float;   
+} 
+
+let eval_exp_as_int = (eval_exp int_ops)
+let eval_exp_as_float = (eval_exp float_ops)   
 
 let eval_shape shapeEnv expNodeList : Shape.t = 
   Shape.of_list (List.map (eval_exp_as_int shapeEnv) expNodeList)
@@ -106,6 +98,7 @@ let eval_imp_shape_env (fn:Imp.fn) (inputShapes : Shape.t list) =
     | Imp.InputSlice sizes 
     | Imp.PrivateArray sizes -> aux id sizes shapeEnv
     | Imp.SharedArray _ -> shapeEnv  
+    | _ -> assert false 
   in         
   Hashtbl.fold aux2 fn.local_arrays  outputEnv  
   

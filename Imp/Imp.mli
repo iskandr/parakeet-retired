@@ -192,7 +192,7 @@ val id_of : exp_node -> ID.t
 val var : ?t:DynType.t -> ID.t -> exp_node
 
 val max_simplify : exp_node -> exp_node -> exp_node
-val mult_simplify : exp_node -> exp_node -> exp_node
+val mul_simplify : exp_node -> exp_node -> exp_node
 val add_simplify : exp_node -> exp_node -> exp_node 
 
 val max_exp_node_list : exp_node list -> exp_node

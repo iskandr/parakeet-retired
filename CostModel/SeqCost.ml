@@ -18,20 +18,19 @@ open SSA_Analysis
    the body of a GPU kernel, given some specific shape inputs.  
 *)     
 
-type symbolic_cost = Imp.exp_node
 
 (* make cost analysis recursive via module param *) 
 module type COST_ANALYSIS_PARAMS = sig 
-  val call_cost : FnId.t -> SymbolicShape.shape list -> symbolic_cost  
+  val call_cost : FnId.t -> SymbolicShape.shape list -> Imp.exp_node   
+  val get_shape_env : SSA.fundef -> SymbolicShape.shape ID.Map.t 
 end 
 
 module CostAnalysis(P:COST_ANALYSIS_PARAMS) = struct 
-  
   type value_info = SymbolicShape.shape  
-  type exp_info = symbolic_cost    
+  type exp_info = Imp.exp_node    
   type env = {
     shapes : SymbolicShape.shape ID.Map.t; 
-    cost : symbolic_cost 
+    cost : Imp.exp_node 
   }  
   
   let iterative = false
@@ -41,7 +40,7 @@ module CostAnalysis(P:COST_ANALYSIS_PARAMS) = struct
 
   let init fundef = 
     { 
-      shapes = ShapeInference.infer_normalized_shape_env fundef; 
+      shapes = P.get_shape_env fundef;  
       cost =  Imp.zero 
     } 
       
@@ -49,8 +48,8 @@ module CostAnalysis(P:COST_ANALYSIS_PARAMS) = struct
     | Var id -> ID.Map.find id env.shapes
     | _ -> SymbolicShape.scalar 
     
-  let exp  env expNode helpers  = match expNode.exp with 
-    | Values vs -> helpers.eval_values env vs
+  let exp env expNode helpers  = match expNode.exp with 
+    | Values vs -> Imp.int (List.length vs)
     | Call (fnId, args) -> 
         let argShapes = List.map (value env) args in 
         P.call_cost fnId argShapes  
@@ -62,9 +61,9 @@ module CostAnalysis(P:COST_ANALYSIS_PARAMS) = struct
         let closureArgShapes = List.map (value env) closure.SSA.closure_args in 
         let argShapes = List.map (value env) args in
         let maxDim, nestedShapes = SymbolicShape.split_max_rank argShapes in
-        let nestedCost = 
-          P.call_cost closure.SSA.fn_id (closureArgShapes @ argShapes) 
-        in    
+        let fnId : FnId.t = closure.SSA.closure_fn in  
+        let nestedArgs = closureArgShapes @ argShapes in
+        let nestedCost : Imp.exp_node = P.call_cost  fnId nestedArgs in   
         Imp.mul_simplify maxDim nestedCost
           
     | Reduce (initClosure, closure, initArgs, args)   
@@ -78,13 +77,13 @@ module CostAnalysis(P:COST_ANALYSIS_PARAMS) = struct
   let stmt env stmtNode helpers  = match stmtNode.stmt with 
     | Set(ids, rhs) -> 
       let rhsCost = exp env rhs helpers in 
-      { env with cost = Imp.add_simplify rhsCost env.cost }   
+      Some { env with cost = Imp.add_simplify rhsCost env.cost }   
        
     | SetIdx (id, indices, rhs) -> assert false 
     | If (testVal, tBlock, fBlock, phiNodes) -> 
         let tEnv, _  = helpers.eval_block env tBlock in 
         let fEnv, _  = helpers.eval_block env fBlock in 
-        { env with cost = Imp.max_simplify tEnv.cost fEnv.cost } 
+        Some { env with cost = Imp.max_simplify tEnv.cost fEnv.cost } 
         
      (* testBlock, testVal, body, loop header, loop exit *)  
     | WhileLoop (testBlock, testVal, body, header, exit) -> 
@@ -92,13 +91,17 @@ module CostAnalysis(P:COST_ANALYSIS_PARAMS) = struct
 end
 
 
-let symCostCache : (FnId.t, symbolic_cost) Hashtbl.t = Hahstbl.create 127 
+let symCostCache : (FnId.t, Imp.exp_node) Hashtbl.t = Hashtbl.create 127 
 
 let rec symbolic_seq_cost fnTable fundef = 
   try Hashtbl.find symCostCache fundef.SSA.fn_id 
   with _ -> 
-    let module Params = struct 
-      let call_cost fnId symShapes =
+    let module Params = struct
+      
+      let get_shape_env fundef = 
+        ShapeInference.infer_normalized_shape_env fnTable fundef
+        
+      let call_cost fnId symShapes : Imp.exp_node =
         let fundef' = FnTable.find fnId fnTable in 
         (* cost expression with free input variables *) 
         let costExpr = symbolic_seq_cost fnTable fundef' in 
@@ -108,9 +111,10 @@ let rec symbolic_seq_cost fnTable fundef =
         in 
         SymbolicShape.rewrite_dim substEnv costExpr
     end 
-    in 
-    let C = SSA_Analysis.MkEvaluator(CostAnalysis(Params)) in 
-    let cost = (C.eval_fundef fundef).cost in 
+    in  
+    let module C = CostAnalysis(Params) in 
+    let module E = SSA_Analysis.MkEvaluator(C) in  
+    let cost = (E.eval_fundef fundef).C.cost in 
     Hashtbl.add symCostCache fundef.SSA.fn_id cost; 
     cost   
 
@@ -121,6 +125,6 @@ let seq_cost fnTable fundef shapes =
   with _ ->  
     let symCost = symbolic_seq_cost fnTable fundef in
     let shapeEnv = ID.Map.extend ID.Map.empty fundef.SSA.input_ids shapes in  
-    let cost = float_of_int (ShapeEval.eval_exp shapeEnv symCost) in 
+    let cost = ShapeEval.eval_exp_as_float shapeEnv symCost in 
     Hashtbl.add costCache key cost; 
     cost    

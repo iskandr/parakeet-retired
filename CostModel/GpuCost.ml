@@ -28,20 +28,6 @@ let rec sum_transfer_time = function
         ~(fnTable:FnTable.t) 
         ~(fn:SSA.fundef) 
         ~(closureArgShapes : Shape.t list) 
-<<<<<<< HEAD
-        ~(argShapes : Shape.t list) : float =
-    let launchCost = 3.  in
-    let maxShape = match Shape.max_shape_list argShapes with 
-      | Some maxShape -> maxShape
-      | None -> failwith "no common shape found"
-    in  
-    (* assume each processor can process 1000 elements per millisecond, and 
-       we have 100 processors-- what about cost of nested function? 
-    *)
-    let nProcs = 100. in 
-    let runCost = float_of_int (Shape.nelts maxShape) /. nProcs  
-    in
-=======
         ~(argShapes : Shape.t list) =
     let outerDim, nestedArgShapes = Shape.split_nested_shapes argShapes in
     let nestedShapes = closureArgShapes @ nestedArgShapes in 
@@ -52,7 +38,6 @@ let rec sum_transfer_time = function
     let parallelism = 100. in 
     let runCost = (float_of_int outerDim) *. nestedCost /. parallelism in 
     let launchCost = 3. in 
->>>>>>> 18f4de07daa66e820909ffc494462639ce036d4a
     launchCost +.  runCost 
   
 let reduce 
@@ -62,13 +47,8 @@ let reduce
       ~(fn:SSA.fundef)
       ~(closureArgs:Shape.t list)
       ~(initArgs:Shape.t list) 
-<<<<<<< HEAD
       ~(args:Shape.t list) = 100.
           
-let array_op op argShapes = 10.
-
-=======
-      ~(args:Shape.t list) = 100. 
           
 let array_op op argShapes = match op, argShapes with 
   | Prim.Where, [x] -> float_of_int  (Shape.nelts x)
@@ -77,5 +57,4 @@ let array_op op argShapes = match op, argShapes with
     let numIndices = Shape.nelts idx in
     float_of_int numIndices   
   | _ -> infinity 
->>>>>>> 18f4de07daa66e820909ffc494462639ce036d4a
 

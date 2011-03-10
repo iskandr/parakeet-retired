@@ -23,7 +23,7 @@ val split_shape_list : shape list -> dim list * shape list
 *)
 val split_max_rank : shape list -> dim * shape list  
 
-val nelts : shape -> exp_node  
+val nelts : shape -> Imp.exp_node  
 
 val shape_to_str : shape -> string 
 val shapes_to_str : shape list -> string 

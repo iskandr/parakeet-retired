@@ -75,14 +75,7 @@ type cost = float
         (gpuSet : ID.Set.t) 
         (stmtNode : SSA.stmt_node) : cost * ID.Set.t = match stmtNode.stmt with 
     | Set(_, rhs) -> 
-<<<<<<< HEAD
         let _, cost  = exp_cost fnTable shapeEnv gpuSet rhs in cost, gpuSet
-=======
-        let _, (cost:cost)  = 
-          exp_cost fnTable shapeEnv gpuSet rhs 
-        in 
-        cost, gpuSet
->>>>>>> 18f4de07daa66e820909ffc494462639ce036d4a
     | SetIdx(_, indices, _) -> float_of_int (List.length indices), gpuSet   
     | WhileLoop (condBlock, _, body, header, exit) -> 
         let gpuSet' = phi_nodes gpuSet header in 
@@ -121,13 +114,8 @@ type cost = float
       GpuCost.map fnTable fn (get_shapes closureArgs) (get_shapes args) 
     in
     let maxDim, nestedArgs = split_args args in   
-<<<<<<< HEAD
     let nestedCost = call_cost fnTable fn (closureArgs @ nestedArgs) in   
     let cpuCost = 1. +. (float_of_int maxDim) *. nestedCost in
-=======
-    let nestedCost : cost = call_cost fnTable fn (closureArgs @ nestedArgs) in   
-    let cpuCost : cost = 1. +. float_of_int maxDim *. nestedCost in
->>>>>>> 18f4de07daa66e820909ffc494462639ce036d4a
     IFDEF DEBUG THEN 
       Printf.printf "Compute MAP cost: GPU - %f, HOST: %f\n" gpuCost cpuCost; 
     ENDIF; 
@@ -145,8 +133,4 @@ type cost = float
     cost   
   
   let array_op op argVals = match op, argVals with 
-<<<<<<< HEAD
-    | _ -> CPU, 0. 
-=======
     | _ -> CPU, 0. (* don't run anything else on the host *)  
->>>>>>> 18f4de07daa66e820909ffc494462639ce036d4a

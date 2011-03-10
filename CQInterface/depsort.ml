@@ -125,7 +125,14 @@ let topsort cmxInfoList : string list =
 let is_native_module name =  
    (Filename.check_suffix name "cmx") && 
    (Filename.basename name <> "myocamlbuild.cmx")
-        
+
+(* inefficient O(n^2) algorithm to filter duplicates *) 
+let rec unique = function
+  | [] -> []
+  | hd :: tl ->
+      if List.mem hd tl then unique tl
+      else hd :: unique tl  
+      
 let main () =
   (* start by only searching the current directory *) 
   let searchDirs = ref [] in
@@ -187,22 +194,7 @@ let main () =
   let sortedFiles = 
     List.map (fun name -> StringMap.find name filenameLookup) sortedModules 
   in
-  (*
-  Printf.eprintf "Module dependencies: \n";
-  List.iter 
-    (fun info -> 
-      Printf.eprintf "-- %s: %s\n"
-        (Filename.basename info.filename)
-        (String.concat ", " info.imports)
-    )
-    cmxInfoList
-  ;  
-  Printf.eprintf 
-    "Topologically sorted module files: %s\n" 
-    (String.concat ", " sortedFiles)
-  ; 
-  *) 
-  print_string (String.concat " " sortedFiles)
+  print_string (String.concat " " (unique sortedFiles))
    
   
     

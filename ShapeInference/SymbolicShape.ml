@@ -48,7 +48,7 @@ let split_max_rank shapes =
       ranks
   in
   let maxShapes = List.filter (fun s -> rank s = maxRank) shapes in
-  let maxDim = max_dim_of_list (List.map outer_dim maxShapes) in 
+  let maxDim = Imp.max_exp_node_list (List.map outer_dim maxShapes) in 
   maxDim, peeledShapes
                  
 let shape_to_str shape = "[" ^ (exp_node_list_to_str shape) ^ "]"

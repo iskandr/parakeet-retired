@@ -263,3 +263,11 @@ _build/Runtime
 _build/SSA/Analyses
 _build/SSA/Optimizations
 _build/SSA/Specialization
+Old
+_build/Common
+_build/CostModel
+_build/Imp/KernelTemplates
+_build/Runtime
+_build/SSA/Analyses
+_build/SSA/Optimizations
+_build/SSA/Specialization
