@@ -171,11 +171,13 @@ let gen_run_node fnName argNames templateName globalVars =
   let globalVarNodes = add_void_terminator $ List.map mk_var_node globalVars in   
   let retName = "pqvalue" in 
   let retVar = mk_var_node retName in
+  (* note that globals go before args! *) 
   let appNode = mk_app_node (mk_var_node "pq_run_template") $
     [
       mk_var_node templateName;
-      mk_arr_node argNodes; 
       mk_arr_node globalVarNodes;
+      mk_arr_node argNodes; 
+
     ] 
   in 
   (* the value returned by pq_run_template stores an error code in 
@@ -200,10 +202,12 @@ let gen_run_node fnName argNames templateName globalVars =
 let gen_module_entry_node  name locals globals bodyStr =
 let localNodes = add_void_terminator $ List.map mk_str_node locals in 
   let globalNodes = add_void_terminator $ List.map mk_str_node globals in    
+  (* carefully note that the order of globals and locals got switched: *)
+  (* locals go first! *) 
   mk_arr_node [
     mk_str_node name;
-    mk_arr_node localNodes; 
     mk_arr_node globalNodes;  
+    mk_arr_node localNodes; 
     mk_str_node bodyStr
   ]
 
@@ -288,7 +292,7 @@ let rec rewrite_ast safeFnMap dataReadsMap ast =
         let fnTemplates'' = (fnName,templateName)::fnTemplates' in 
         
         let globalsRenamed = List.map rename_global globals in 
-        let moduleEntry = fnName,args,globalsRenamed,rhsStr in 
+        let moduleEntry = fnName,globalsRenamed,args,rhsStr in 
         let moduleEntries'' = moduleEntry::moduleEntries' in 
         let runNode = gen_run_node fnName argsRenamed templateName globals in
         let ast'' = mk_block_node [ast'; runNode] in

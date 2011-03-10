@@ -202,7 +202,7 @@ K get_function_template(K mod_temp, K func_name) {
  * Returns some particular type when we decide for whatever reason we don't
  * want to run the function in our framework to allow Q to do it for us.
  */
-K run_template(K t, K args, K globals) {
+K run_template(K t,  K globals, K args) {
   CAMLparam0();
   CAMLlocal4(ocaml_ret, ocaml_template, ocaml_globals, ocaml_args);
 

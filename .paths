@@ -239,7 +239,6 @@ unit/tmp
 ShapeInference
 .git/objects/7d
 ShapeInference
-_build/ShapeInference
 CostModel
 Common
 Imp/KernelTemplates
@@ -256,18 +255,5 @@ SSA/Analyses
 SSA/Optimizations
 SSA/Specialization
 _build/Common
-_build/CostModel
-_build/Imp
-_build/Imp/KernelTemplates
-_build/Runtime
-_build/SSA/Analyses
-_build/SSA/Optimizations
-_build/SSA/Specialization
 Old
 _build/Common
-_build/CostModel
-_build/Imp/KernelTemplates
-_build/Runtime
-_build/SSA/Analyses
-_build/SSA/Optimizations
-_build/SSA/Specialization
