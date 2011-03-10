@@ -75,11 +75,9 @@ let dir_contents dirName =
     (Array.map (fun basename -> Filename.concat dirName basename) files)
 
 let topsort cmxInfoList : string list =
- 
-   
   let moduleNames = List.map (fun info -> info.module_name) cmxInfoList in
   let moduleSet = set_from_list moduleNames in
-  
+  (* make moduleNames list unique*) 
   (* initialize dependency graph and ready queue *) 
   let successors = Hashtbl.create 127 in
   let degrees = Hashtbl.create 127 in
@@ -107,7 +105,7 @@ let topsort cmxInfoList : string list =
   in 
   List.iter insert_module cmxInfoList;
   
-  let remove_module (name : string) = 
+  let remove_module (name : string) =
     sorted := name :: !sorted;  
     let succs = try Hashtbl.find successors name with _ -> StringSet.empty in
     StringSet.iter 
@@ -127,11 +125,15 @@ let is_native_module name =
    (Filename.basename name <> "myocamlbuild.cmx")
 
 (* inefficient O(n^2) algorithm to filter duplicates *) 
-let rec unique = function
+let rec unique_modules = function
   | [] -> []
   | hd :: tl ->
-      if List.mem hd tl then unique tl
-      else hd :: unique tl  
+      if List.filter (fun m -> m.module_name = hd.module_name) tl <> [] then 
+        unique_modules tl
+      else hd :: unique_modules tl  
+
+
+
       
 let main () =
   (* start by only searching the current directory *) 
@@ -177,7 +179,9 @@ let main () =
       ) 
       allFiles
   in 
-  let cmxInfoList = List.map get_cmx_info cmxFiles in
+  (*  modules with duplicate names will get dropped *) 
+  let cmxInfoList = unique_modules (List.map get_cmx_info cmxFiles) in
+  
   let sortedModules = topsort cmxInfoList in
   (* mapping between module names and cmx filenames *) 
   let filenameLookup = 
@@ -194,7 +198,7 @@ let main () =
   let sortedFiles = 
     List.map (fun name -> StringMap.find name filenameLookup) sortedModules 
   in
-  print_string (String.concat " " (unique sortedFiles))
+  print_string (String.concat " "  sortedFiles)
    
   
     

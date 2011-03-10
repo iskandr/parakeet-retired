@@ -10,7 +10,6 @@ then
   export PQ_PATH="../libpq"
 fi 
 
-OBJS="CQInterface/QType.o CQInterface/Debug.o Init.o" # Callbacks.o
 LINKER_FLAGS="-lflags -ccopt,$PQ_PATH/libpq_stubs.o,\
 -ccopt,$PQ_PATH/cuda_stubs.cu_o,\
 -ccopt,$PQ_PATH/base.o,\
@@ -21,7 +20,7 @@ LINKER_FLAGS="-lflags -ccopt,$PQ_PATH/libpq_stubs.o,\
 -ccopt,$PQ_PATH/../OCAMLInterface/ocaml_interface.a"
 
 SUFFIX=
-TARGET="preprocess.native Callbacks.cmx"
+TARGET="Callbacks.cmx preprocess.native"
 PPFLAGS=
 MAKEFLAGS=
 FINALTARGET=
