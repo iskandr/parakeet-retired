@@ -76,11 +76,11 @@ let _ =  dispatch begin function
        (* For each ocamlfind package one inject the -package option when
        	* compiling, computing dependencies, generating documentation and
        	* linking. *)
-       Printf.printf "\n---\nocamlbuild packages available: "; 
+(*       Printf.printf "\n---\nocamlbuild packages available: "; *)
        let add_package pkg =
 (*         ocaml_lib ~extern:true ~dir:dir ~tag_name:("pkg_"^pkg) pkg;*)
          let tagname = "pkg_" ^pkg in
-         Printf.printf " %s " pkg; 
+(*         Printf.printf " %s " pkg; *)
          flag ["ocaml"; "compile";  tagname] & S[A"-package"; A pkg];
          flag ["ocaml"; "ocamldep"; tagname] & S[A"-package"; A pkg];
          flag ["ocaml"; "doc";      tagname] & S[A"-package"; A pkg];
@@ -88,7 +88,7 @@ let _ =  dispatch begin function
          flag ["ocaml"; "infer_interface"; tagname] & S[A"-package"; A pkg]
        in
        List.iter add_package packages;
-       Printf.printf "\n---\n"; 
+(*       Printf.printf "\n---\n"; *)
       
 
        (* Like -package but for extensions syntax. Morover -syntax is useless
