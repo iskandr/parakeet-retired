@@ -107,18 +107,39 @@ let rec typed_id_list_to_str tenv = function
   | [id] -> typed_id_to_str tenv id 
   | id::rest -> 
     sprintf "%s, %s" (typed_id_to_str tenv id) (typed_id_list_to_str tenv rest)
+
+let value_to_str = function 
+  | GlobalFn fnId -> FnId.to_str fnId 
+  | Var id -> ID.to_str id 
+  | Num n -> PQNum.num_to_str n 
+  | Str s -> "\""^s ^"\""
+  | Sym s -> "`" ^ s
+  | Unit -> "()"
+  | Prim p -> "PRIM(" ^ (Prim.prim_to_str p) ^ ")"
+
+let value_node_to_str vNode =
+  let valStr = value_to_str vNode.value in  
+  if vNode.value_type <> DynType.BottomT then 
+    sprintf "%s : %s" valStr (DynType.to_str vNode.value_type)
+  else valStr
+
+let rec value_nodes_to_str = function 
+  | [] -> ""
+  | [v] -> value_node_to_str v
+  | v::vs -> (value_node_to_str v) ^ "; " ^ (value_nodes_to_str vs)  
+and value_node_list_to_str ?(sep=",") vs = 
+  String.concat (sep^" ") (List.map value_node_to_str vs)
   
-let rec block_to_str ?(space="") ?(tenv=ID.Map.empty) block = 
-  Block.to_str (stmt_node_to_str ~space ~tenv) block 
-and stmt_node_to_str ?(space="") ?(tenv=ID.Map.empty) stmtNode = 
-  let str = match stmtNode.stmt with 
-  | Set (ids, rhs) -> 
-    sprintf "%s = %s " (typed_id_list_to_str tenv ids) (exp_to_str rhs)
-  | SetIdx _ -> "<set-idx>" 
-  | If _ -> "if ???"
-  | WhileLoop _ -> "while ???"
-  in space ^ str
-and exp_to_str expNode = 
+let value_list_to_str ?(sep=",") vs = 
+  String.concat (sep^" ") (List.map value_to_str vs)
+
+let closure_to_str cl =
+   (FnId.to_str cl.closure_fn) ^ 
+   (if List.length cl.closure_args > 0 then 
+      " @ " ^ (value_nodes_to_str cl.closure_args)
+    else "")
+
+let exp_to_str expNode = 
   match expNode.exp with  
   | Values vs -> value_nodes_to_str vs 
   | App ({value=Prim op}, args) ->    
@@ -155,33 +176,63 @@ and exp_to_str expNode =
         (closure_to_str scanClos)
         (value_nodes_to_str initArgs)
         (value_nodes_to_str args)    
-and closure_to_str cl =
-   (FnId.to_str cl.closure_fn) ^ 
-   (if List.length cl.closure_args > 0 then 
-      " @ " ^ (value_nodes_to_str cl.closure_args)
-    else "")
-and value_node_to_str vNode =
-  let valStr = value_to_str vNode.value in  
-  if vNode.value_type <> DynType.BottomT then 
-    sprintf "%s : %s" valStr (DynType.to_str vNode.value_type)
-  else valStr
-and value_nodes_to_str = function 
-  | [] -> ""
-  | [v] -> value_node_to_str v
-  | v::vs -> (value_node_to_str v) ^ "; " ^ (value_nodes_to_str vs)  
-and value_to_str = function 
-  | GlobalFn fnId -> FnId.to_str fnId 
-  | Var id -> ID.to_str id 
-  | Num n -> PQNum.num_to_str n 
-  | Str s -> "\""^s ^"\""
-  | Sym s -> "`" ^ s
-  | Unit -> "()"
-  | Prim p -> "PRIM(" ^ (Prim.prim_to_str p) ^ ")"
-and value_node_list_to_str ?(sep=",") vs = 
-  String.concat (sep^" ") (List.map value_node_to_str vs)
-  
-and value_list_to_str ?(sep=",") vs = 
-  String.concat (sep^" ") (List.map value_to_str vs)
+
+let phi_node_to_str ?(space="") phiNode = 
+  Printf.sprintf "%s%s <- phi(%s, %s)"
+    space 
+    (ID.to_str phiNode.phi_id)
+    (value_node_to_str phiNode.phi_left)
+    (value_node_to_str phiNode.phi_right)
+
+let phi_nodes_to_str ?(space="") phiNodes = 
+  String.concat "\n" (List.map (phi_node_to_str ~space) phiNodes)
+    
+let rec block_to_str ?(space="") ?(tenv=ID.Map.empty) block = 
+  Block.to_str (stmt_node_to_str ~space ~tenv) block 
+and stmt_node_to_str ?(space="") ?(tenv=ID.Map.empty) stmtNode = 
+  let str = match stmtNode.stmt with 
+  | Set (ids, rhs) -> 
+    sprintf "%s = %s " (typed_id_list_to_str tenv ids) (exp_to_str rhs)
+  | SetIdx _ -> "<set-idx>" 
+  | If (cond,tBlock,fBlock, phiNodes) ->      
+    Printf.sprintf "if %s \nthen %s \nelse %s"
+      (value_node_to_str cond)
+      (block_to_str ~space:("\t"^space) ~tenv tBlock)
+      (block_to_str ~space:("\t"^space) ~tenv fBlock)
+      
+  | WhileLoop (testBlock, testVal, body, header,exit) ->
+      let space' =  "\t"^space in 
+      let headerStr =
+        Printf.sprintf "%s  <Header>:\n%s"
+          space
+          (phi_nodes_to_str ~space:space' header)
+      in  
+      
+      let loopTestStr = 
+        Printf.sprintf "%s  <TestBlock>:%s\n%s  <TestVal>: %s"
+          space
+          (block_to_str ~space:space' ~tenv testBlock)
+          space
+          (value_node_to_str testVal)
+      in 
+      let exitStr =
+        Printf.sprintf "%s  <Exit>:\n%s"
+          space 
+          (phi_nodes_to_str ~space:space' exit)
+      in  
+      let bodyStr = 
+        Printf.sprintf "%s  <Body>:%s" 
+          space 
+          (block_to_str ~space:space' ~tenv body)
+      in 
+          
+      Printf.sprintf "while\n%s\n%s\n%s\n%s"
+        headerStr
+        loopTestStr
+        bodyStr 
+        exitStr
+       
+  in space ^ str
 
 let fundef_to_str (fundef:fundef) = 
   sprintf "%s (%s)=>(%s) { \n %s \n }"

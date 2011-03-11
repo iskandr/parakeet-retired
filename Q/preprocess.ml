@@ -177,7 +177,6 @@ let gen_run_node fnName argNames templateName globalVars =
       mk_var_node templateName;
       mk_arr_node globalVarNodes;
       mk_arr_node argNodes; 
-
     ] 
   in 
   (* the value returned by pq_run_template stores an error code in 

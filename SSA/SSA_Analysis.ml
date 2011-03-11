@@ -29,9 +29,11 @@ module type ANALYSIS =  sig
     val init : fundef -> env 
     val value : env -> value_node -> value_info
     
-    val exp : env -> exp_node -> (env, value_info) helpers -> exp_info
-    val phi : env -> env -> env -> SSA.phi_node -> env option 
-    val stmt : env -> stmt_node -> (env, value_info) helpers -> env option 
+    val exp : env -> exp_node -> (env, value_info) helpers -> exp_info 
+    val stmt : env -> stmt_node -> (env, value_info) helpers -> env option
+    
+    val phi_set : env -> ID.t -> value_info -> env option 
+    val phi_merge : env -> ID.t -> value_info -> value_info -> env option 
 end
 
 module MkEvaluator(A : ANALYSIS) = struct
@@ -50,6 +52,29 @@ module MkEvaluator(A : ANALYSIS) = struct
       | Backward -> Block.fold_backward fold_stmts initEnv block   
     in 
     env', !changed 
+     
+  and eval_loop_header ?(changed=false) envOut envIn = function 
+    | [] -> envOut, changed  
+    | phiNode::rest -> 
+      let valInfo = A.value envIn phiNode.SSA.phi_left in
+      let currEnvOut = A.phi_set envOut phiNode.SSA.phi_id valInfo in 
+      let envOut' = Option.default envOut currEnvOut in
+      let currChanged = changed || Option.is_some currEnvOut in   
+      eval_loop_header ~changed:currChanged envOut' envIn rest
+  
+  and eval_phi_nodes ?(changed=false) envOut envLeft envRight = function 
+    | [] -> if changed then Some envOut else None 
+    | phiNode::rest -> 
+      let leftInfo = A.value envLeft phiNode.SSA.phi_left in 
+      let rightInfo = A.value envRight phiNode.SSA.phi_right in
+      let currEnvOut = 
+        A.phi_merge envOut phiNode.SSA.phi_id leftInfo rightInfo
+      in 
+      let envOut' = Option.default envOut currEnvOut in
+      let currChanged = changed || Option.is_some currEnvOut in 
+      eval_phi_nodes ~changed:currChanged envOut' envLeft envRight rest 
+  
+           
   and default_stmt env stmtNode = match stmtNode.stmt with
     (* by default don't do anything to the env *) 
     | Set (ids, rhs) ->
@@ -60,37 +85,32 @@ module MkEvaluator(A : ANALYSIS) = struct
         let cond' = A.value env cond in  
         let tEnv, tChanged = eval_block env tBlock in 
         let fEnv, fChanged = eval_block env fBlock in
-        let mergeEnv, mergeChanged = 
-          List.fold_left 
-            (fun (accEnv,changed) phiNode -> 
-              match A.phi accEnv tEnv fEnv phiNode with 
-              | None -> (accEnv, changed)
-              | Some env' -> env', true 
-            ) 
-            (env,false) 
-            merge    
-        in
-        if mergeChanged || tChanged || fChanged then Some mergeEnv else None 
-        
-    (* TODO: fix loops *) 
-    | WhileLoop(condBlock, condVal, body, header, exit) -> None 
-      (* 
-        let rec loop iter =
-          if iter > 100 then failwith "loop analysis failed to terminate"
-          else  
-            let preEnv = A.clone_env env in
-            let startEnv = 
-              ID.Map.fold 
-                (fun loopStartId (preId,loopEndId) acc ->
-                   A.flow_merge preEnv loopStartId env     
-            let merge_inputs env out
-            let startEnv =  
-            let condEnv, condChanged = eval_block () condBlock in
-            let condInfo = eval_value condEnv condVal in 
-            let
-            *)   
-    | _ -> failwith ("not yet implemented: " ^ (SSA.stmt_node_to_str stmtNode))
-   
+        eval_phi_nodes env tEnv fEnv merge 
+    | WhileLoop(condBlock, condVal, body, header, exit) -> 
+        let maxIters = 100 in
+        let iter = ref 0 in
+        let loopEnv = ref env in
+        let changed = ref true in  
+        while !changed do
+          iter := !iter + 1;  
+          if !iter > maxIters then failwith "loop analysis failed to terminate"
+          else (  
+            let headerEnv, headerChanged =  
+              if !iter = 1 then eval_loop_header !loopEnv env header
+              else match eval_phi_nodes env !loopEnv !loopEnv header with 
+                | None -> !loopEnv, false
+                | Some newEnv -> newEnv, true 
+            in  
+            let condEnv, condChanged = eval_block headerEnv condBlock in
+            ignore (A.value !loopEnv condVal);
+            let bodyEnv, bodyChanged = eval_block condEnv body in 
+            loopEnv := bodyEnv; 
+            changed := headerChanged || condChanged || bodyChanged
+          )    
+        done;
+        eval_phi_nodes ~changed:(!iter > 1) !loopEnv env !loopEnv exit
+    | _ -> assert false 
+  
   and iter_exp_children env expNode = match expNode.exp with 
       | App(x, xs) ->  A.value env x; iter_values env xs
       | Call(_, xs) 

@@ -44,18 +44,18 @@ module ShapeAnalysis (P: PARAMS) =  struct
       | SSA.Var id -> all_dims (Imp.var ~t:valNode.value_type id)  
       | _ -> [] (* empty list indicates a scalar *) 
     
-    let phi env leftEnv rightEnv phiNode =
-      let leftShape = value leftEnv phiNode.phi_left in 
-      let rightShape = value rightEnv phiNode.phi_right in 
-      if leftShape <> rightShape then failwith "Shape error";
-      let id = phiNode.phi_id in 
+    let phi_set env id shape = 
       if ID.Map.mem id env then ( 
         let oldShape = ID.Map.find id env in 
-        if leftShape <> oldShape then failwith "Shape error"
+        if shape <> oldShape then failwith "Shape error"
         else None 
       )
-      else Some (ID.Map.add id leftShape env)
+      else Some (ID.Map.add id shape env)
    
+    let phi_merge env id leftShape rightShape = 
+      if leftShape <> rightShape then failwith "Shape error";
+      phi_set env id leftShape 
+      
     
     let exp env expNode helpers = match expNode.exp with
       | SSA.Call(fnId, args) -> 

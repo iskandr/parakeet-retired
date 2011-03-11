@@ -21,10 +21,8 @@ module UseCountEval = MkEvaluator(struct
       Hashtbl.add counts id (oldCount+1)
     | _ -> ()
    
-  let phi counts (_:env) (_:env) phiNode = 
-    value counts phiNode.phi_left;
-    value counts phiNode.phi_right;
-    None
+  let phi_set _ _ _ = None 
+  let phi_merge _ _ _ _ = None 
      
   let exp env expNode helpers = helpers.iter_exp_children env expNode 
   let stmt env stmtNode helpers = helpers.eval_stmt env stmtNode

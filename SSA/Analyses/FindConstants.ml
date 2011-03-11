@@ -31,15 +31,22 @@ module ConstEval = SSA_Analysis.MkEvaluator(struct
         )
     | _ ->  ConstantLattice.ManyValues 
   
+     
   let exp  env expNode helpers  = match expNode.exp with 
     | Values vs -> helpers.eval_values env vs 
     | _ -> List.map (fun _ -> ConstantLattice.top) expNode.exp_types 
 
-  let phi env leftEnv rightEnv phiNode = 
-    let leftConst = value leftEnv phiNode.phi_left in 
-    let rightConst = value rightEnv phiNode.phi_right in
-    let combined = ConstantLattice.join leftConst rightConst in 
-    Some (ID.Map.add phiNode.phi_id combined env)
+  let phi_set env id const =
+    if ID.Map.mem id env then 
+      let oldVal = ID.Map.find id env in 
+      if oldVal <> const then 
+        let const' = ConstantLattice.join oldVal const in 
+        Some (ID.Map.add id const' env) 
+      else None
+    else None 
+    
+  let phi_merge env id leftConst rightConst =  
+    phi_set env id (ConstantLattice.join leftConst rightConst)  
      
   let stmt env stmtNode helpers  = match stmtNode.stmt with 
     | Set(ids, rhs) -> 

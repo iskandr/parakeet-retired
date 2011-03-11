@@ -72,7 +72,8 @@ module CostAnalysis(P:COST_ANALYSIS_PARAMS) = struct
 
   (* shape info already computed, assignments have zero cost in our model, *)
   (* so there's nothing to do for phi nodes *) 
-  let phi env leftEnv rightEnv phiNode = None 
+  let phi_set _ _ _ = None 
+  let phi_merge _ _ _ _ = None  
   
   let stmt env stmtNode helpers  = match stmtNode.stmt with 
     | Set(ids, rhs) -> 

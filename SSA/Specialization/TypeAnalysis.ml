@@ -55,19 +55,19 @@ module MkAnalysis (P : TYPE_ANALYSIS_PARAMS) = struct
   
   let value tenv vNode = infer_value_type tenv vNode.value 
   
-  let phi tenv (_:env) (_:env)  phiNode = 
-    let tLeft = value tenv phiNode.phi_right in 
-    let tRight = value tenv phiNode.phi_left in
-    let id = phiNode.phi_id in  
-    let combinedT = DynType.common_type tLeft tRight in  
+  let phi_set tenv id t = 
     try (
-      let oldT = Hashtbl.find tenv phiNode.phi_id in 
-      if oldT = combinedT then None 
+      let oldT = Hashtbl.find tenv id in 
+      if oldT = t then None 
       else 
-        let combinedT' = DynType.common_type oldT combinedT in
-        Some (Hashtbl.replace tenv phiNode.phi_id combinedT'; tenv)
+        let t' = DynType.common_type oldT t in
+        (Hashtbl.replace tenv id t'; Some tenv)
     )
-    with _ -> Some (Hashtbl.replace tenv phiNode.phi_id combinedT; tenv)   
+    with _ -> Hashtbl.replace tenv id t; Some tenv
+  
+  let phi_merge tenv id tLeft tRight = 
+    phi_set tenv id (DynType.common_type tLeft tRight)  
+       
            
   let rec infer_app tenv fnVal (argTypes:DynType.t list) = match fnVal with
     | Var id ->
