@@ -1,3 +1,5 @@
+(* pp: -parser o pa_macro.cmo *)
+
 open Base
 open SSA
 open Printf 
@@ -37,15 +39,24 @@ module ConstEval = SSA_Analysis.MkEvaluator(struct
     | _ -> List.map (fun _ -> ConstantLattice.top) expNode.exp_types 
 
   let phi_set env id const =
+    
     if ID.Map.mem id env then 
       let oldVal = ID.Map.find id env in 
       if oldVal <> const then 
         let const' = ConstantLattice.join oldVal const in 
         Some (ID.Map.add id const' env) 
       else None
-    else None 
+    else Some (ID.Map.add id const env) 
     
-  let phi_merge env id leftConst rightConst =  
+  let phi_merge env id leftConst rightConst =
+    let combined = ConstantLattice.join leftConst rightConst in 
+    IFDEF DEBUG THEN 
+      Printf.printf "[FindConstants] %s <- phi(%s, %s) = %s\n"
+        (ID.to_str id)
+        (ConstantLattice.const_to_str leftConst)
+        (ConstantLattice.const_to_str rightConst)
+        (ConstantLattice.const_to_str combined) 
+    ENDIF;
     phi_set env id (ConstantLattice.join leftConst rightConst)  
      
   let stmt env stmtNode helpers  = match stmtNode.stmt with 

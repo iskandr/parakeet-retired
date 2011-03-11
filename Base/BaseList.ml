@@ -79,3 +79,8 @@ include ExtList.List
     | (1, x::xs) -> List.rev (x::left), xs  (* slight optimization *)   
     | (n, x::xs) -> split_nth (n-1) ~left:(x::left) xs  
   
+  let rec unique = function 
+    | [] -> [] 
+    | x::xs -> 
+      let xs' = unique xs in 
+      if List.mem x xs' then xs' else x::xs'  

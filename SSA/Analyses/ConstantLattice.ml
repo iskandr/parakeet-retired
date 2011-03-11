@@ -13,7 +13,7 @@ let join v1 v2 = match v1, v2 with
 let const_to_str = function 
   | NoValue -> "<no info>"
   | ManyValues -> "<multiple values>"
-  | Const _ -> "<constant>" 
+  | Const _ -> "<constant>"  
 
 let extract_value = function  
   | Const v -> v 

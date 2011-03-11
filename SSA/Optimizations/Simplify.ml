@@ -76,7 +76,8 @@ module SimplifyRules = struct
             Update (SSA.mk_set ?src:stmtNode.stmt_src ids expNode)
         | _ -> NoChange  
       end
-    | SSA.WhileLoop (testBlock, testVal, body, header, exit) -> NoChange 
+    | SSA.WhileLoop (testBlock, testVal, body, header, exit) -> NoChange  
+      
     (* 
       begin match test.test_value.value with 
         | Num PQNum.Bool false -> 

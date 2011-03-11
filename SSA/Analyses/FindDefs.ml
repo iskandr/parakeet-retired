@@ -13,20 +13,22 @@ module DefLattice = struct
     | Bottom
 
   let bottom = Bottom
-  (* TODO: use this for phi nodes and redefinitions *) 
+  
+ 
+  
   let combine x y = match x,y with
     | _, Top 
     | Top, _ -> Top 
     | Bottom, x 
     | x, Bottom -> x
-    | Val n1, Val n2 -> 
-      if n1 = n2 then x else Combine [x;y] 
-    | Def (e1,i,m), Def (e2,j,n) -> 
-        if i = j && m=n && e1 = e2 then x else Combine [x;y]
-    | Combine defs1, Combine defs2 -> Combine (defs1 @ defs2)
+    | Combine defs1, Combine defs2 ->
+        Combine (List.unique (defs1 @ defs2))
     | Combine defs, d
-    | d, Combine defs -> Combine (d::defs)
-    | x,y -> Combine [x;y]
+    | d, Combine defs ->
+        if List.mem d defs then Combine defs else Combine (d::defs) 
+    | x,y -> 
+        if x = y then x else Combine [x;y] 
+        
 end
 
    
@@ -62,7 +64,7 @@ module DefEval = MkEvaluator(struct
       if  oldVal <> defVal then 
         (Hashtbl.replace env id (DefLattice.combine oldVal defVal); Some env) 
       else None
-    with _ -> None   
+    with _ -> Hashtbl.replace env id defVal; Some env    
        
   let phi_merge env id leftVal rightVal =
     phi_set env id (DefLattice.combine leftVal rightVal)

@@ -1,3 +1,5 @@
+(* pp: -parser o pa_macro.cmo *)
+
 open SSA
 open Base
 
@@ -93,16 +95,17 @@ module MkEvaluator(A : ANALYSIS) = struct
         let changed = ref true in  
         while !changed do
           iter := !iter + 1;  
-          if !iter > maxIters then failwith "loop analysis failed to terminate"
+          if !iter > maxIters then 
+            failwith $ "loop analysis failed to terminate"
           else (  
             let headerEnv, headerChanged =  
               if !iter = 1 then eval_loop_header !loopEnv env header
-              else match eval_phi_nodes env !loopEnv !loopEnv header with 
+              else match eval_phi_nodes !loopEnv env !loopEnv header with 
                 | None -> !loopEnv, false
                 | Some newEnv -> newEnv, true 
             in  
             let condEnv, condChanged = eval_block headerEnv condBlock in
-            ignore (A.value !loopEnv condVal);
+            ignore (A.value condEnv condVal);
             let bodyEnv, bodyChanged = eval_block condEnv body in 
             loopEnv := bodyEnv; 
             changed := headerChanged || condChanged || bodyChanged
