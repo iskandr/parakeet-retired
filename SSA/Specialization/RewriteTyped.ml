@@ -170,6 +170,7 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
     | Prim ((Prim.ArrayOp op) as p) -> 
         let outT = TypeInfer.infer_simple_array_op op argTypes in 
         SSA.mk_primapp ?src p [outT] argNodes
+    | Prim (Prim.Q_Op qOp) ->   assert false 
     | Prim (Prim.Adverb adverb) -> 
         (match argNodes, argTypes with 
           | fn::rest, _::restTypes -> 

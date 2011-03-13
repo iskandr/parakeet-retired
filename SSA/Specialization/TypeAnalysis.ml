@@ -80,11 +80,25 @@ module MkAnalysis (P : TYPE_ANALYSIS_PARAMS) = struct
         [TypeInfer.infer_simple_array_op arrayOp argTypes]
     | Prim (Prim.ScalarOp scalarOp) -> 
         [TypeInfer.infer_scalar_op scalarOp argTypes] 
+    | Prim (Prim.Q_Op Prim.Q_Question) -> 
+        (match argTypes with 
+          | [DynType.VecT eltT; searchT] -> 
+            assert (DynType.common_type eltT searchT <> DynType.AnyT);
+            (* returns the type of indices *)  
+            [DynType.Int32T]
+          | _ -> failwith $ Printf.sprintf 
+                  "unexpected argument types for Q's ? operator: %s"
+                  (DynType.type_list_to_str argTypes)    
+        )
     | GlobalFn _ -> 
         let signature = Signature.from_input_types argTypes in
         P.infer_output_types fnVal signature 
              
-    | _ -> assert false
+    | _ -> 
+       failwith $ 
+          Printf.sprintf 
+            "Inference for function application where fn = %s not implemented"
+            (SSA.value_to_str fnVal) 
 
         
   let infer_higher_order tenv arrayOp args argTypes =
@@ -126,7 +140,9 @@ module MkAnalysis (P : TYPE_ANALYSIS_PARAMS) = struct
         [DynType.VecT commonT]
   
     | Values vs -> helpers.eval_values tenv vs  
- 
+    | _ -> failwith $ Printf.sprintf 
+            "Type analysis not implemented for expression: %s"
+            (SSA.exp_to_str expNode)
 
   let stmt tenv stmtNode helpers = match stmtNode.stmt with 
     | Set(ids, rhs) ->
@@ -152,9 +168,13 @@ module MkAnalysis (P : TYPE_ANALYSIS_PARAMS) = struct
         List.fold_left2 process_types (tenv, false) ids types
       in  
       if changed then Some tenv' else None 
- 
-    | If (cond, tBlock, fBlock, merge) ->  
-        failwith "IF not implemented"
+   | _ -> helpers.eval_stmt tenv stmtNode 
+    (* 
+    (*| If (cond, tBlock, fBlock, merge) ->*)  
+    | _ -> failwith $ Printf.sprintf 
+            "Type analysis not implemented for statement: %s"
+            (SSA.stmt_node_to_str stmtNode)
+    *)
 end
 
 let type_analysis 

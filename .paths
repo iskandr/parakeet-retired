@@ -257,3 +257,15 @@ SSA/Specialization
 _build/Common
 Old
 _build/Common
+_build/CostModel
+_build/GPU
+_build/Imp
+_build/Imp/KernelTemplates
+_build/Ptx
+_build/Q
+_build/Runtime
+_build/SSA
+_build/SSA/Analyses
+_build/SSA/Optimizations
+_build/SSA/Specialization
+_build/ShapeInference

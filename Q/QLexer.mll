@@ -55,7 +55,7 @@ let binop = basic_binop | "ij" | "xprev" | "xbar" | "rotate" | "msum" | "mmin"
 						| "mmax" | "mdev" | "mcount" | "mavg" | "wsum" | "mavg" | "mmu"  
 						|  "lsq" | "cross" | "vs" | "sv" |  "like" | "bin"  | "mod" 
 						| "xexp" | "xlog" | "inter" | "union" | "except" | "each" 
-						| "insert" | "upsert" |  "0:" | "where"
+						| "insert" | "upsert" |  "0:" 
            
 let control = "do" | "while" | "if" 
 let adverb = "'" | "/" | "\\" | "\\:" |  "/:" | "':" | "\\:/:" | "/:\\:"
