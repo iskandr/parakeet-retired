@@ -240,4 +240,13 @@ let rec slice_type arrayType types = match arrayType, types with
       failwith "[slice_type] indexing into scalar not allowed"
   | notVec, notIndices -> 
       failwith (Printf.sprintf "Can't index into %s with indices of type %s"
-        (to_str notVec) (type_list_to_str notIndices))  
+        (to_str notVec) (type_list_to_str notIndices))
+        
+(* only peel types of maximal depth *)           
+let rec peel_maximal types = 
+  let depths = List.map nest_depth types in 
+  let maxDepth = List.fold_left max 0 depths in 
+  List.map2 
+    (fun t depth -> if depth = maxDepth then peel_vec t else t)   
+    types 
+    depths   

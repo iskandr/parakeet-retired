@@ -121,8 +121,11 @@ module MkAnalysis (P : TYPE_ANALYSIS_PARAMS) = struct
           failwith "unable to infer accumulator type"
         ; 
         accTypes 
-    | Prim.AllPairs, {value=fnVal}::_, _::argTypes -> 
-      failwith "no all-pairs impl yet"
+    | Prim.AllPairs, {value=fnVal}::_, _::argTypes ->  
+        let eltTypes = List.map DynType.peel_vec argTypes in 
+        let outTypes = infer_app tenv fnVal  eltTypes in
+        List.map (fun t -> DynType.VecT (DynType.VecT t)) outTypes 
+        
     | other, _, _ -> failwith (Prim.adverb_to_str other ^ " not impl")     
 
   let exp tenv expNode helpers = match expNode.exp with 
