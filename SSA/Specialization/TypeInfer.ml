@@ -7,8 +7,6 @@ open Printf
 
 exception WrongArity
 
-
-
 let rec fill_elt_type fill = function  
   | VecT t' -> VecT (fill_elt_type fill t' )
   | TableT map -> TableT (String.Map.map (fill_elt_type fill) map) 
@@ -165,3 +163,15 @@ let required_scalar_op_types op argtypes =
       | _ -> failwith 
             ("no valid coercions for operator " ^ (Prim.scalar_op_to_str op) ^ 
              " with input types " ^ (DynType.type_list_to_str argtypes)) 
+
+let infer_q_op qOp argTypes = match qOp, argTypes with 
+  (* find index of 2nd argument within the first *) 
+  | Prim.Q_Question, [DynType.VecT t1; t2] 
+    when DynType.common_type t1 t2 <> DynType.AnyT -> DynType.Int32T
+  | _ -> assert false 
+
+let translate_q_op qOp argTypes = match qOp, argTypes with 
+  | Prim.Q_Question, [DynType.VecT t1; t2] 
+    when DynType.common_type t1 t2 <> DynType.AnyT -> Prim.ArrayOp Prim.Find
+  | _ -> assert false
+   

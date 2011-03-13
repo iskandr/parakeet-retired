@@ -80,16 +80,7 @@ module MkAnalysis (P : TYPE_ANALYSIS_PARAMS) = struct
         [TypeInfer.infer_simple_array_op arrayOp argTypes]
     | Prim (Prim.ScalarOp scalarOp) -> 
         [TypeInfer.infer_scalar_op scalarOp argTypes] 
-    | Prim (Prim.Q_Op Prim.Q_Question) -> 
-        (match argTypes with 
-          | [DynType.VecT eltT; searchT] -> 
-            assert (DynType.common_type eltT searchT <> DynType.AnyT);
-            (* returns the type of indices *)  
-            [DynType.Int32T]
-          | _ -> failwith $ Printf.sprintf 
-                  "unexpected argument types for Q's ? operator: %s"
-                  (DynType.type_list_to_str argTypes)    
-        )
+    | Prim (Prim.Q_Op qOp) -> [TypeInfer.infer_q_op qOp argTypes]
     | GlobalFn _ -> 
         let signature = Signature.from_input_types argTypes in
         P.infer_output_types fnVal signature 

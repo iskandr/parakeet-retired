@@ -130,8 +130,9 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
         failwith  $ Printf.sprintf "Can't coerce value %s to type %s"
           (SSA.value_node_to_str valNode) (DynType.to_str t)
   
-  let rewrite_adverb src adverb fnVal argNodes argTypes = match adverb with 
-      | Prim.Map -> 
+  let rewrite_adverb src adverb fnVal argNodes argTypes = 
+    match adverb with 
+      | Prim.Map ->
         let eltTypes = List.map DynType.peel_vec argTypes in 
         let closure = 
           mk_typed_closure fnVal (Signature.from_input_types eltTypes) 
@@ -152,7 +153,10 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
         in 
         let reduceClosure = mk_typed_closure fnVal reduceSignature in 
         SSA.mk_reduce ?src initClosure reduceClosure initArgs args  
-        
+      | Prim.AllPairs -> 
+        let eltTypes = List.map DynType.peel_vec argTypes in
+        let eltSignature = Signature.from_input_types eltTypes in 
+        assert false  
       | other -> failwith $ (Prim.adverb_to_str other) ^ " not implemented"
   
   let rewrite_app src fn argNodes : exp_node =
@@ -170,7 +174,10 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
     | Prim ((Prim.ArrayOp op) as p) -> 
         let outT = TypeInfer.infer_simple_array_op op argTypes in 
         SSA.mk_primapp ?src p [outT] argNodes
-    | Prim (Prim.Q_Op qOp) ->   assert false 
+    | Prim (Prim.Q_Op qOp) ->  
+        let outT = TypeInfer.infer_q_op qOp argTypes in 
+        let prim = TypeInfer.translate_q_op qOp argTypes in 
+        SSA.mk_primapp ?src prim [outT] argNodes   
     | Prim (Prim.Adverb adverb) -> 
         (match argNodes, argTypes with 
           | fn::rest, _::restTypes -> 
@@ -243,22 +250,14 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
         in 
         Update {stmtNode with stmt = Set(ids, rhs')}
     | SetIdx (arrayId, indices, rhs) -> failwith "setidx not implemented"
+    (* TODO: Deal properly with phi nodes *) 
     | If(cond, tBlock, fBlock, merge) -> 
         let cond' = helpers.transform_value (coerce_value DynType.BoolT) cond in
         let tBlock' = helpers.transform_block (stmt context) tBlock in 
         let fBlock' = helpers.transform_block (stmt context) fBlock in
-        (* TODO: deal with phi nodes 
-        let mergeBlock' = helpers.transform_block (stmt context) mergeBlock in
-        *)  
         Update {stmtNode with stmt = If(cond', tBlock', fBlock', merge)}
     | WhileLoop(testBlock, testVal, body, header, exit) -> 
         let body' = helpers.transform_block (stmt context) body in
-        (* TODO: deal with phi nodes 
-        let gates' = { 
-          loop_exit =  helpers.transform_block (stmt context) gates.loop_header;
-          loop_header = helpers.transform_block (stmt context) gates.loop_exit
-        } 
-        *)
         let testBlock' = helpers.transform_block (stmt context) testBlock in
         let testVal' = 
           helpers.transform_value (coerce_value DynType.BoolT) testVal
