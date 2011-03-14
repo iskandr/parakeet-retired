@@ -68,7 +68,7 @@ and translate_exp
       let arrays_imp = List.map (translate_value idEnv) arrays in
       let maxInput = SymbolicShape.largest_val (Array.of_list arrays_imp) in 
       let output = 
-        codegen#fresh_output ~dims:(SymbolicShape.all_dims maxInput) vecOutType 
+        codegen#fresh_var ~dims:(SymbolicShape.all_dims maxInput) vecOutType 
       in  
       let i = codegen#fresh_var Int32T in
       let n = codegen#fresh_var Int32T in
@@ -165,25 +165,9 @@ and translate_fundef fnTable fn =
   let codegen  = new ImpCodegen.imp_codegen in
   let inputTypes = fn.SSA.fn_input_types in 
   let outputTypes = fn.SSA.fn_output_types in
-  IFDEF DEBUG THEN
-     let inputTypes = fn.SSA.fn_input_types in 
-     Printf.printf 
-       "Translating %s into Imp of type %s->%s\n"
-       (FnId.to_str fn.SSA.fn_id)
-       (DynType.type_list_to_str inputTypes)
-       (DynType.type_list_to_str outputTypes)
-     ;
-  ENDIF;
   (* first generate imp ids for inputs, to make sure their order is preserved *)
   let add_input env id t = 
-    IFDEF DEBUG THEN 
-      Printf.printf "\t Renaming input %s : %s to..." 
-        (ID.to_str id) 
-        (DynType.to_str t)
-      ;
-    ENDIF; 
     let impId = codegen#fresh_input_id t in 
-    IFDEF DEBUG THEN Printf.printf "%s\n" (ID.to_str impId); ENDIF;
     ID.Map.add id impId env  
   in 
   let inputIdEnv = 
@@ -204,13 +188,6 @@ and translate_fundef fnTable fn =
     let dims' : Imp.exp_node list =
        List.map (ImpReplace.apply_id_map env) dims 
     in   
-    IFDEF DEBUG THEN 
-      Printf.printf "\t Renaming %s : %s (shape = [%s]) to..." 
-        (ID.to_str id) 
-        (DynType.to_str t)
-        (SymbolicShape.shape_to_str dims')
-      ;
-    ENDIF; 
     let impId = 
       (if List.mem id fn.SSA.output_ids then 
         codegen#fresh_output_id ~dims:dims' t 
@@ -218,10 +195,18 @@ and translate_fundef fnTable fn =
         codegen#fresh_local_id ~dims:dims' t)
     in  
     IFDEF DEBUG THEN 
-      Printf.printf "%s\n" (ID.to_str impId);
+        Printf.printf "[ssa2imp] Renamed %s to %s\n"
+          (ID.to_str id)
+          (ID.to_str impId); 
     ENDIF; 
     ID.Map.add id impId env    
   in  
   let idEnv = MutableSet.fold add_local liveIds inputIdEnv in
-  Block.iter_forward (translate_stmt fnTable codegen idEnv) fn.SSA.body; 
-  codegen#finalize
+  Block.iter_forward (translate_stmt fnTable codegen idEnv) fn.SSA.body;
+  let impFn =  codegen#finalize in 
+  IFDEF DEBUG THEN 
+    Printf.printf "[ssa2imp] Translated %s into: %s\n"
+      (FnId.to_str fn.SSA.fn_id)
+      (Imp.fn_to_str impFn);
+  ENDIF;
+  impFn 

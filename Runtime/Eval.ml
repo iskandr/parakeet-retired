@@ -132,18 +132,11 @@ and eval_exp (env : env) (expNode : SSA.exp_node) : InterpVal.t list =
       (* the current reduce kernel works either for 1d data or 
          for maps over 2d data 
       *) 
-      let initFundef =  match SSA.extract_nested_map_fn_id initFundef with  
-        | Some nestedFnId -> get_fundef nestedFnId 
-        | None -> initFundef 
-      in 
+       
       let initClosureArgs = 
         List.map (eval_value env) initClosure.closure_args 
       in
       let reduceFundef = get_fundef reduceClosure.closure_fn in
-      let reduceFundef = match SSA.extract_nested_map_fn_id reduceFundef with 
-        | Some nestedFnId -> get_fundef nestedFnId 
-        | None -> reduceFundef 
-      in  
       let reduceClosureArgs = 
         List.map (eval_value env) reduceClosure.closure_args 
       in 
@@ -151,7 +144,10 @@ and eval_exp (env : env) (expNode : SSA.exp_node) : InterpVal.t list =
       let argVals  = List.map (eval_value env) dataArgs in
       let gpuCost = 0 in   
       let cpuCost = 100000 in  
-       
+      let reduceFundef = match SSA.extract_nested_map_fn_id reduceFundef with 
+        | Some nestedFnId -> get_fundef nestedFnId 
+        | None -> reduceFundef 
+      in
       (if gpuCost < cpuCost then
         let gpuResults = 
           GpuEval.reduce

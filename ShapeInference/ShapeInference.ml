@@ -57,14 +57,16 @@ module ShapeAnalysis (P: PARAMS) =  struct
       phi_set env id leftShape 
       
     
-    let exp env expNode helpers = match expNode.exp with
+    let exp env expNode helpers = 
+      let get_shapes args = List.map (value env) args in  
+      match expNode.exp with
       | SSA.Call(fnId, args) -> 
           raise (ShapeInferenceFailure "unexpected function call")
 
       | SSA.PrimApp (Prim.ArrayOp Prim.Index, array::indices) ->
         let arrayShape = value env array in
         let nIndices = List.length indices in 
-        let indexShapes = List.map (value env) indices in 
+        let indexShapes = get_shapes indices in 
         if List.for_all SymbolicShape.is_scalar indexShapes then (  
               
         (* for now assume slicing can only happen along the 
@@ -105,7 +107,7 @@ module ShapeAnalysis (P: PARAMS) =  struct
           let closArgShapes : shape list = 
             List.map (value env) closure.closure_args 
           in 
-          let argShapes = List.map (value env) args in
+          let argShapes = get_shapes args in
           let maxDim, eltShapes = SymbolicShape.split_max_rank argShapes in 
           let eltInShapes = (closArgShapes @ eltShapes) in 
           let eltOutShapes = P.output_shapes closure.closure_fn eltInShapes in  
@@ -131,14 +133,13 @@ module ShapeAnalysis (P: PARAMS) =  struct
           ENDIF;  
           vecOutShapes
           
-      | SSA.Reduce(initClos, _, initArgs, args) -> 
-          let initClosArgShapes : shape list = 
-            List.map (value env) initClos.closure_args in
-          let initShapes : shape list = List.map (value env) initArgs in 
-          let argShapes : shape list = List.map (value env) args in
+      | SSA.Reduce(initClos, clos, initArgs, args) -> 
+          let initClosArgShapes = get_shapes initClos.closure_args in 
+          let initShapes  = get_shapes initArgs in 
+          let argShapes = get_shapes args in
           let _, eltShapes = SymbolicShape.split_max_rank argShapes in 
           let allInputs = initClosArgShapes @ initShapes @ eltShapes in  
-          P.output_shapes initClos.SSA.closure_fn allInputs  
+          P.output_shapes initClos.SSA.closure_fn allInputs    
       | other -> 
           let expStr = SSA.exp_to_str expNode in 
           failwith (Printf.sprintf "[shape_infer] not implemented: %s\n" expStr) 
@@ -322,4 +323,15 @@ and infer_call_result_shapes fnTable fundef argShapes =
       fundef.SSA.input_ids 
       argShapes
   in 
-  List.map (SymbolicShape.rewrite_shape argEnv) normalizedOutputShapes 
+  let resultShapes = 
+    List.map (SymbolicShape.rewrite_shape argEnv) normalizedOutputShapes
+  in 
+  IFDEF DEBUG THEN 
+    Printf.printf "[ShapeInference] Calling %s with %s => %s\n"
+      (FnId.to_str fundef.SSA.fn_id)
+      (SymbolicShape.shapes_to_str argShapes)
+      (SymbolicShape.shapes_to_str resultShapes);
+  ENDIF; 
+  resultShapes 
+       
+   

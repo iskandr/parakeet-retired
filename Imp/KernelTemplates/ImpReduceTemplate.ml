@@ -10,7 +10,10 @@ let gen_reduce_2d_capable payload threadsPerBlock =
   let codegen = new imp_codegen in
   IFDEF DEBUG THEN 
     assert (Array.length payload.input_types = 2);
-    assert (Array.length payload.output_types = 1);
+    if Array.length payload.output_types <> 1 then 
+      failwith $ Printf.sprintf 
+        "[ImpReduceTemplate] Function has return values %s, expected only 1"
+        (DynType.type_array_to_str payload.output_types);
   ENDIF; 
   (* assume result of reduction is same as elements of vector *) 
   let ty = payload.output_types.(0) in 
