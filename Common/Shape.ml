@@ -36,6 +36,8 @@ let to_str s =
   Printf.bprintf b "]";
   Buffer.contents b
 
+let shape_list_to_str shapes = 
+      "{" ^ (String.concat "; " (List.map to_str shapes)) ^ "}"
 
 let of_list l =
   let n = List.length l in
@@ -107,7 +109,11 @@ let peel_shape shape =
 (* peel the maximal shapes in a list, leaving the rest unchanged *) 
 let split_nested_shapes shapes = 
   let maxShape = Option.get (max_shape_list shapes) in 
-  assert (rank maxShape > 0); 
+  if rank maxShape = 0 then 
+    failwith $ 
+      "Cannot split nested shapes when all shape arguments are scalars: " ^
+      (shape_list_to_str shapes)
+      ; 
   let peeler shape = 
     if eq shape maxShape then peel_shape shape else shape 
   in 

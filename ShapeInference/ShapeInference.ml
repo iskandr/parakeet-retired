@@ -252,19 +252,7 @@ let rec infer_shape_env (fnTable:FnTable.t) (fundef : SSA.fundef) =
     let module Params : PARAMS = struct 
       let output_shapes fnId argShapes =
         let fundef = FnTable.find fnId fnTable in 
-        let normalizedOutputShapes = 
-          infer_normalized_output_shapes fnTable fundef 
-        in   
-        (* once the shape expressions only refer to input IDs, 
-           remap those input IDs argument expressions *)  
-        let argEnv : shape ID.Map.t = 
-          List.fold_left2 
-            (fun env id argShape -> ID.Map.add id argShape env)
-            ID.Map.empty 
-            fundef.SSA.input_ids 
-            argShapes
-          in 
-          List.map (SymbolicShape.rewrite_shape argEnv) normalizedOutputShapes
+        infer_call_result_shapes fnTable fundef argShapes 
     end 
     in 
     let module ShapeEval = SSA_Analysis.MkEvaluator(ShapeAnalysis(Params)) in 
@@ -320,5 +308,18 @@ and infer_normalized_output_shapes (fnTable : FnTable.t) (fundef : SSA.fundef) =
     in 
     Hashtbl.add normalizedOutputShapeCache fnId normalizedShapes;
     normalizedShapes    
-    
  end
+
+and infer_call_result_shapes fnTable fundef argShapes = 
+  let normalizedOutputShapes = infer_normalized_output_shapes fnTable fundef in   
+  (* once the shape expressions only refer to input IDs, 
+     remap those input IDs argument expressions 
+   *)  
+  let argEnv : shape ID.Map.t = 
+    List.fold_left2 
+      (fun env id argShape -> ID.Map.add id argShape env)
+      ID.Map.empty 
+      fundef.SSA.input_ids 
+      argShapes
+  in 
+  List.map (SymbolicShape.rewrite_shape argEnv) normalizedOutputShapes 

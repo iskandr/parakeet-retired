@@ -111,7 +111,11 @@ type cost = float
 
   and  map_cost fnTable fn closureArgs args : compute_location * cost =  
     let gpuCost : cost = 
-      GpuCost.map fnTable fn (get_shapes closureArgs) (get_shapes args) 
+      GpuCost.map 
+        ~fnTable 
+        ~fn 
+        ~closureArgShapes:(get_shapes closureArgs) 
+        ~argShapes:(get_shapes args) 
     in
     let maxDim, nestedArgs = split_args args in   
     let nestedCost = call_cost fnTable fn (closureArgs @ nestedArgs) in   

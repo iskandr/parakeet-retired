@@ -344,6 +344,9 @@ let (||$) = or_
 let sqrt32 x = typed_op Prim.Sqrt ~t:DynType.Float32T [x] 
 let sqrt64 x = typed_op Prim.Sqrt ~t:DynType.Float64T [x]  
 
+let ln_32 x = typed_op Prim.Log ~t:DynType.Float32T [x]
+let ln_64 x = typed_op Prim.Log ~t:DynType.Float64T [x] 
+
 let id_of = function 
   | {exp=Var id} -> id 
   | _ -> failwith "Imp: expected variable" 
@@ -354,6 +357,8 @@ let var ?(t=DynType.BottomT) id = { exp = Var id; exp_type = t}
 let max_simplify d1 d2 = if d1.exp = d2.exp then d1 else max_ d1 d2
 
 let mul_simplify d1 d2 = match d1.exp, d2.exp with 
+  | Const n1, _ when PQNum.is_inf n1 -> infinity
+  | _, Const n2 when PQNum.is_inf n2 -> infinity 
   | Const n1, _ when PQNum.is_zero n1 -> zero
   | _, Const n2 when PQNum.is_zero n2 -> zero
   | Const n1, _ when PQNum.is_one n1 -> d2
@@ -361,6 +366,8 @@ let mul_simplify d1 d2 = match d1.exp, d2.exp with
   | _ -> mul d1 d2 
 
 let add_simplify d1 d2 = match d1.exp, d2.exp with 
+  | Const n1, _ when PQNum.is_inf n1 -> infinity
+  | _, Const n2 when PQNum.is_inf n2 -> infinity 
   | Const n1, _ when PQNum.is_zero n1 -> d2 
   | _, Const n2 when PQNum.is_zero n2 -> d1 
   | _ -> add d1 d2 

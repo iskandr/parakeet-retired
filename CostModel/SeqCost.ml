@@ -22,7 +22,9 @@ open SSA_Analysis
 (* make cost analysis recursive via module param *) 
 module type COST_ANALYSIS_PARAMS = sig 
   val call_cost : FnId.t -> SymbolicShape.shape list -> Imp.exp_node   
-  val get_shape_env : SSA.fundef -> SymbolicShape.shape ID.Map.t 
+  val infer_shape_env : SSA.fundef -> SymbolicShape.shape ID.Map.t
+  val infer_output_shapes 
+        : FnId.t -> SymbolicShape.shape list -> SymbolicShape.shape list  
 end 
 
 module CostAnalysis(P:COST_ANALYSIS_PARAMS) = struct 
@@ -40,7 +42,7 @@ module CostAnalysis(P:COST_ANALYSIS_PARAMS) = struct
 
   let init fundef = 
     { 
-      shapes = P.get_shape_env fundef;  
+      shapes = P.infer_shape_env fundef;  
       cost =  Imp.zero 
     } 
       
@@ -48,26 +50,41 @@ module CostAnalysis(P:COST_ANALYSIS_PARAMS) = struct
     | Var id -> ID.Map.find id env.shapes
     | _ -> SymbolicShape.scalar 
     
-  let exp env expNode helpers  = match expNode.exp with 
+  let exp env expNode helpers  = 
+    let get_shapes args = List.map (value env) args in
+    match expNode.exp with 
     | Values vs -> Imp.int (List.length vs)
-    | Call (fnId, args) -> 
-        let argShapes = List.map (value env) args in 
-        P.call_cost fnId argShapes  
+    | Call (fnId, args) -> P.call_cost fnId  (get_shapes args)   
     | Cast _
     | PrimApp (Prim.ScalarOp _, _) -> Imp.one
     | PrimApp _ -> Imp.infinity 
     | Arr elts -> Imp.int (List.length elts) 
     | Map (closure, args) -> 
-        let closureArgShapes = List.map (value env) closure.SSA.closure_args in 
-        let argShapes = List.map (value env) args in
-        let maxDim, nestedShapes = SymbolicShape.split_max_rank argShapes in
-        let fnId : FnId.t = closure.SSA.closure_fn in  
-        let nestedArgs = closureArgShapes @ argShapes in
-        let nestedCost : Imp.exp_node = P.call_cost  fnId nestedArgs in   
+        let maxDim, nestedShapes = 
+          SymbolicShape.split_max_rank (get_shapes args) 
+        in
+        let nestedArgs = (get_shapes closure.SSA.closure_args) @ nestedShapes in
+        let nestedCost  = P.call_cost closure.SSA.closure_fn nestedArgs in   
         Imp.mul_simplify maxDim nestedCost
           
     | Reduce (initClosure, closure, initArgs, args)   
-    | Scan (initClosure, closure, initArgs, args) -> assert false   
+    | Scan (initClosure, closure, initArgs, args) ->
+        let argShapes = get_shapes args in
+        let maxDim, nestedShapes = SymbolicShape.split_max_rank argShapes in
+        let accShapes = 
+          P.infer_output_shapes 
+            initClosure.SSA.closure_fn
+            (get_shapes initClosure.SSA.closure_args @ 
+             get_shapes initArgs @ 
+             nestedShapes)
+        in   
+        let closureArgShapes = get_shapes closure.SSA.closure_args in   
+        let nestedCost = 
+          P.call_cost 
+            closure.SSA.closure_fn 
+            (closureArgShapes @  accShapes @ nestedShapes)
+        in
+        Imp.mul_simplify maxDim nestedCost    
     | App _ -> failwith "Unexpected untyped function application"   
 
   (* shape info already computed, assignments have zero cost in our model, *)
@@ -98,9 +115,12 @@ let rec symbolic_seq_cost fnTable fundef =
   try Hashtbl.find symCostCache fundef.SSA.fn_id 
   with _ -> 
     let module Params = struct
+      let infer_output_shapes fnId argShapes = 
+        let fundef' = FnTable.find fnId fnTable in
+        ShapeInference.infer_call_result_shapes fnTable fundef' argShapes  
       
-      let get_shape_env fundef = 
-        ShapeInference.infer_normalized_shape_env fnTable fundef
+      let infer_shape_env fundef' =
+        ShapeInference.infer_normalized_shape_env fnTable fundef'
         
       let call_cost fnId symShapes : Imp.exp_node =
         let fundef' = FnTable.find fnId fnTable in 

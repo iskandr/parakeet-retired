@@ -191,3 +191,8 @@ let is_one = function
   | Int64 i64 -> i64 = Int64.one 
   | Float32 f | Float64 f -> f = 1.0 
   | other -> to_int other = 1  
+
+let is_inf = function 
+  | Inf _  
+  | NegInf _ -> true
+  | _ -> false 

@@ -28,5 +28,6 @@ val to_float : num -> float
 
 val is_zero : num -> bool 
 val is_one : num -> bool 
+val is_inf : num -> bool 
   
  

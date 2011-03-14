@@ -188,6 +188,9 @@ val (||$) : exp_node -> exp_node -> exp_node
 val sqrt32 : exp_node -> exp_node  
 val sqrt64 : exp_node -> exp_node   
 
+val ln_32 : exp_node -> exp_node 
+val ln_64 : exp_node -> exp_node  
+
 val id_of : exp_node -> ID.t 
 val var : ?t:DynType.t -> ID.t -> exp_node
 

@@ -15,6 +15,8 @@ type 'a math_ops = {
 } 
 
 let rec eval_exp (m : 'a math_ops) (shapeEnv:Shape.t ID.Map.t) expNode : 'a  =
+  Printf.printf "[ShapeEval] eval_exp: %s\n"
+    (Imp.exp_node_to_str expNode); 
   let recur (e : Imp.exp_node) : 'a  = eval_exp m shapeEnv e in   
   match expNode.exp with  
   | Op (Prim.Add, _, [arg1; arg2]) -> 
@@ -35,6 +37,7 @@ let rec eval_exp (m : 'a math_ops) (shapeEnv:Shape.t ID.Map.t) expNode : 'a  =
       m.of_int (Shape.get shape dim)
     else failwith $ Printf.sprintf  
       "[ShapeEval] shape not found for %s" (ID.to_str id)    
+  | Cast(_, expNode') -> recur expNode'    
   | other -> failwith $ 
       Printf.sprintf "[ShapeEval] Unexpected expression: %s"
         (Imp.exp_to_str other)

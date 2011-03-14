@@ -262,33 +262,31 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
     if Shape.rank inShape = 1 then 1 else (Shape.get inShape 1) / x_threads
   in
   IFDEF DEBUG THEN Printf.printf "Launching x grid: %d\n" x_grid; ENDIF;
-  let rec aux inputArgs curNumElts =
-    if curNumElts > 1 then (
-      let numOutputElts = safe_div curNumElts (threadsPerBlock * 2) in
-      let args, outputsList =
-        create_args compiledModule.Cuda.module_ptr impKernel cc inputArgs 
-      in
-      let gridParams = {
-        LibPQ.threads_x=x_threads; threads_y=256; threads_z=1;
-        grid_x=x_grid; grid_y=numOutputElts;
-      }
-      in
-      LibPQ.launch_ptx compiledModule.Cuda.module_ptr fnName args gridParams;
-      if curNumElts < numInputElts then GpuVal.free (List.hd inputArgs);
-        aux outputsList numOutputElts
-    )
-    else (
-      let result = GpuVal.get_slice (List.hd inputArgs) 0 in
-      IFDEF DEBUG THEN
-        Printf.printf "Final reduction result of shape %s, type %s\n"
-          (Shape.to_str (GpuVal.get_shape result))
-          (DynType.to_str (GpuVal.get_type result))
-        ;
-      ENDIF;
-      [result]
-    )
+  let currInputElts = ref numInputElts in 
+  let inputArgs = ref [gpuVal] in 
+  while !currInputElts > 1 do 
+    let numOutputElts = safe_div !currInputElts (threadsPerBlock * 2) in
+    let args, outputsList =
+      create_args compiledModule.Cuda.module_ptr impKernel cc !inputArgs 
     in
-    aux [gpuVal] numInputElts
+    let gridParams = {
+      LibPQ.threads_x=x_threads; threads_y=256; threads_z=1;
+      grid_x=x_grid; grid_y=numOutputElts;
+    }
+    in
+    LibPQ.launch_ptx compiledModule.Cuda.module_ptr fnName args gridParams;
+    if !currInputElts < numInputElts then GpuVal.free (List.hd !inputArgs); 
+    inputArgs := outputsList; 
+    currInputElts := numOutputElts; 
+  done; 
+  let result = GpuVal.get_slice (List.hd !inputArgs) 0 in
+  IFDEF DEBUG THEN
+    Printf.printf "Final reduction result of shape %s, type %s\n"
+    (Shape.to_str (GpuVal.get_shape result))
+    (DynType.to_str (GpuVal.get_type result));
+  ENDIF;
+  [result]
+    
 
   (**********************************************************
                            ALLPAIRS 

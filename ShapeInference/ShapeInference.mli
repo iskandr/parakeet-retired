@@ -17,4 +17,6 @@ exception ShapeInferenceFailure of string
 val normalize_shape : ID.Set.t -> env -> env -> shape -> shape * env  
 val infer_shape_env :  FnTable.t -> SSA.fundef -> env
 val infer_normalized_shape_env : FnTable.t -> SSA.fundef -> env 
-val infer_normalized_output_shapes : FnTable.t -> SSA.fundef -> shape list    
+val infer_normalized_output_shapes : FnTable.t -> SSA.fundef -> shape list
+val infer_call_result_shapes : 
+      FnTable.t -> SSA.fundef -> shape list -> shape list      
