@@ -24,21 +24,20 @@ let rec sum_transfer_time = function
       if onGpu then sum_transfer_time rest
       else transfer_time shape t +. sum_transfer_time rest 
   
+  (* constants useful for computing adverb costs on the GPU *) 
+  let parallelism = 100. 
+  let launchCost = 3. 
+    
   let map 
         ~(fnTable:FnTable.t) 
         ~(fn:SSA.fundef) 
-        ~(closureArgShapes : Shape.t list) 
-        ~(argShapes : Shape.t list) =
-    let outerDim, nestedArgShapes = Shape.split_nested_shapes argShapes in
-    let nestedShapes = closureArgShapes @ nestedArgShapes in 
+        ~(closureArgs : Shape.t list) 
+        ~(args : Shape.t list) =
+    let outerDim, nestedArgs = Shape.split_nested_shapes args in
+    let nestedShapes = closureArgs @ nestedArgs in 
     let nestedCost = SeqCost.seq_cost fnTable fn nestedShapes in 
-    (* assume each processor can process 1000 elements per millisecond, and 
-       we have 100 processors-- what about cost of nested function? 
-    *)
-    let parallelism = 100. in 
     let runCost = (float_of_int outerDim) *. nestedCost /. parallelism in 
-    let launchCost = 3. in 
-    launchCost +.  runCost 
+   launchCost +.  runCost 
   
 let reduce 
       ~(fnTable:FnTable.t)
@@ -47,8 +46,14 @@ let reduce
       ~(fn:SSA.fundef)
       ~(closureArgs:Shape.t list)
       ~(initArgs:Shape.t list) 
-      ~(args:Shape.t list) = 100.
-          
+      ~(args:Shape.t list) =
+    (* for now, assume the initFn takes as much time as the normal fn *)  
+    let outerDim, nestedArgs = Shape.split_nested_shapes args in
+    let nestedShapes = initClosureArgs @ initArgs @ nestedArgs in
+    let nestedCost = SeqCost.seq_cost fnTable init nestedShapes in
+    let runCost = (float_of_int outerDim) *. nestedCost /. parallelism in 
+    let numLaunches = log (float_of_int outerDim) in  
+    numLaunches *. (launchCost +. runCost)                
           
 let array_op op argShapes = match op, argShapes with 
   | Prim.Where, [x] -> float_of_int  (Shape.nelts x)

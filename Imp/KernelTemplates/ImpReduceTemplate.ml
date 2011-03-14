@@ -43,9 +43,9 @@ let gen_reduce_2d_capable payload threadsPerBlock =
   else
     failwith "Reduce only supported on 1D or 2D inputs for now";
   
-  let spin1 = codegen#fresh_var eltype in
-  let spin2 = codegen#fresh_var eltype in
-  let spout = codegen#fresh_var eltype in
+  let spin1 = codegen#fresh_var ty in
+  let spin2 = codegen#fresh_var ty in
+  let spout = codegen#fresh_var ty in
   
   let bx = codegen#fresh_var Int32T in
   let by = codegen#fresh_var Int32T in

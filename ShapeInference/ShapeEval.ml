@@ -4,6 +4,7 @@ open Base
 open Imp 
 
 
+let _ = Printexc.record_backtrace true 
 
 type 'a math_ops = {   
   safe_div : 'a -> 'a -> 'a;  
@@ -71,7 +72,7 @@ let eval_shape shapeEnv expNodeList : Shape.t =
 let eval_imp_shape_env (fn:Imp.fn) (inputShapes : Shape.t list) =
   IFDEF DEBUG THEN
     Printf.printf 
-      "Inferring shapes for function (%s)->(%s) with input shapes %s\n"
+      "[ShapeEval] Inferring shapes for fn (%s)->(%s) with input shapes %s\n"
       (String.concat ", " (Array.to_list (Array.map ID.to_str fn.input_ids)))
       (String.concat ", " (Array.to_list (Array.map ID.to_str fn.output_ids)))
       (String.concat ", " (List.map Shape.to_str inputShapes)) 
@@ -89,7 +90,7 @@ let eval_imp_shape_env (fn:Imp.fn) (inputShapes : Shape.t list) =
     let dims = List.map (eval_exp_as_int shapeEnv) sizeExpressions in
     let shape = Shape.of_list dims in   
     IFDEF DEBUG THEN 
-      Printf.printf "Inferred shape for %s: %s  \n"
+      Printf.printf "[ShapeEval] Inferred shape for %s: %s  \n"
         (ID.to_str id)
         (Shape.to_str shape);
     ENDIF; 

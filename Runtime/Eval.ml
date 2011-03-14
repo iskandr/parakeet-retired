@@ -112,10 +112,12 @@ and eval_exp (env : env) (expNode : SSA.exp_node) : InterpVal.t list =
         Printf.printf "args to map: %s\n"
           (String.concat ", " (List.map InterpVal.to_str argVals)); 
       ENDIF;  
-      let closureArgInfo = describe_args closureArgVals in 
-      let argInfo = describe_args argVals in
       let bestLoc, bestTime = 
-        CostModel.map_cost P.fnTable fundef closureArgInfo argInfo 
+        CostModel.map_cost 
+          P.fnTable 
+          fundef 
+          (describe_args closureArgVals)
+          (describe_args argVals) 
       in 
       begin match bestLoc with  
         | CostModel.GPU ->
@@ -142,27 +144,42 @@ and eval_exp (env : env) (expNode : SSA.exp_node) : InterpVal.t list =
       in 
       let initArgVals = List.map (eval_value env) initArgs in 
       let argVals  = List.map (eval_value env) dataArgs in
-      let gpuCost = 0 in   
-      let cpuCost = 100000 in  
-      let reduceFundef = match SSA.extract_nested_map_fn_id reduceFundef with 
-        | Some nestedFnId -> get_fundef nestedFnId 
-        | None -> reduceFundef 
-      in
-      (if gpuCost < cpuCost then
-        let gpuResults = 
-          GpuEval.reduce
+      (match 
+        CostModel.reduce_cost 
+            ~fnTable:P.fnTable 
             ~init:initFundef
-            ~initClosureArgs:(List.map get_gpu initClosureArgs)
-            ~payload:reduceFundef 
-            ~payloadClosureArgs:(List.map get_gpu reduceClosureArgs)
-            ~initArgs:(List.map get_gpu initArgVals)
-            ~args:(List.map get_gpu argVals) 
-        in 
-        List.map add_gpu gpuResults
-      else 
-        failwith "cpu map not implemented"
-      ) 
-      
+            ~initClosureArgs:(describe_args initClosureArgs)
+            ~fn:reduceFundef
+            ~closureArgs:(describe_args reduceClosureArgs)
+            ~initArgs:(describe_args initArgVals)
+            ~args:(describe_args argVals) 
+      with 
+        | CostModel.GPU, _ -> 
+          (* this is very hackish, but we know that the GPU can compile *)
+          (* a better kernel for maps nested within a reduce, so we extract*)
+          (* the function being mapped and pass it as if it were the *)
+          (* direct argument to reduce. This relies on the code generator for*)
+          (* the kernel doing something smart with 2D arguments. BEWARE! *) 
+          let initFundef, reduceFundef = match 
+            SSA.extract_nested_map_fn_id initFundef, 
+            SSA.extract_nested_map_fn_id reduceFundef with  
+              | Some initFnId, Some reduceFnId -> 
+                FnTable.find initFnId P.fnTable, 
+                FnTable.find reduceFnId P.fnTable
+              | _ -> initFundef, reduceFundef 
+          in 
+          let gpuResults = 
+            GpuEval.reduce
+              ~init:initFundef
+              ~initClosureArgs:(List.map get_gpu initClosureArgs)
+              ~payload:reduceFundef 
+              ~payloadClosureArgs:(List.map get_gpu reduceClosureArgs)
+              ~initArgs:(List.map get_gpu initArgVals)
+              ~args:(List.map get_gpu argVals) 
+          in 
+          List.map add_gpu gpuResults
+        | CostModel.CPU, _ ->   failwith "CPU reduction not implemented"
+      )
   | Scan ({closure_fn=initFnId; closure_args=initClosureArgs}, 
           {closure_fn=fnId; closure_args=closureArgs}, initArgs, args) ->    
      failwith "scan not implemented"

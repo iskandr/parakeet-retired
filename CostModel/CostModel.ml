@@ -111,11 +111,7 @@ type cost = float
 
   and  map_cost fnTable fn closureArgs args : compute_location * cost =  
     let gpuCost : cost = 
-      GpuCost.map 
-        ~fnTable 
-        ~fn 
-        ~closureArgShapes:(get_shapes closureArgs) 
-        ~argShapes:(get_shapes args) 
+      GpuCost.map fnTable fn (get_shapes closureArgs) (get_shapes args) 
     in
     let maxDim, nestedArgs = split_args args in   
     let nestedCost = call_cost fnTable fn (closureArgs @ nestedArgs) in   
@@ -125,6 +121,34 @@ type cost = float
     ENDIF; 
     if cpuCost < gpuCost then CPU, cpuCost 
     else GPU, gpuCost  
+  
+  and reduce_cost 
+        ~fnTable 
+        ~init 
+        ~initClosureArgs 
+        ~fn 
+        ~closureArgs 
+        ~initArgs 
+        ~args =   
+    let gpuCost : cost = 
+      GpuCost.reduce 
+        ~fnTable 
+        ~init
+        ~initClosureArgs:(get_shapes initClosureArgs)
+        ~fn 
+        ~closureArgs:(get_shapes closureArgs) 
+        ~initArgs:(get_shapes initArgs) 
+        ~args:(get_shapes args) 
+    in
+    let maxDim, nestedArgs = split_args args in   
+    let nestedCost = call_cost fnTable fn (closureArgs @ nestedArgs) in   
+    let cpuCost = 1. +. (float_of_int maxDim) *. nestedCost in
+    IFDEF DEBUG THEN 
+      Printf.printf "Compute REDUCE cost: GPU - %f, HOST: %f\n" gpuCost cpuCost; 
+    ENDIF; 
+    if cpuCost < gpuCost then CPU, cpuCost 
+    else GPU, gpuCost  
+  
   
   and call_cost fnTable fn argInfo  : cost =
     let mkSet gpuSet id (_,_,onGpu) = 

@@ -116,7 +116,7 @@ module ShapeAnalysis (P: PARAMS) =  struct
             List.map (fun outShape -> maxDim :: outShape) eltOutShapes
           in  
           IFDEF DEBUG THEN 
-            Printf.printf "\t MAP (%s)(%s)\n"
+            Printf.printf "\t [ShapeInference] MAP (%s)(%s)\n"
               (SSA.closure_to_str closure)
               (SSA.value_nodes_to_str args)
             ; 
@@ -160,7 +160,8 @@ module ShapeAnalysis (P: PARAMS) =  struct
               ids
               rhsShapes 
           in Some env' 
-      | _ -> None    
+      | _ -> helpers.eval_stmt env stmtNode  
+   
 end
 
 
@@ -246,7 +247,9 @@ let normalizedShapeEnvCache : (FnId.t, SymbolicShape.env) Hashtbl.t =
 let rec infer_shape_env (fnTable:FnTable.t) (fundef : SSA.fundef) =
   let fnId = fundef.SSA.fn_id in
   IFDEF DEBUG THEN 
-    Printf.printf "Looking up shape env for %s\n" (FnId.to_str fnId);
+    Printf.printf 
+      "[ShapeInference::infer_shape_env] Looking up shape env for %s\n" 
+      (FnId.to_str fnId);
   ENDIF;  
   try Hashtbl.find shapeEnvCache fnId  
   with _ -> 
@@ -259,7 +262,7 @@ let rec infer_shape_env (fnTable:FnTable.t) (fundef : SSA.fundef) =
     let module ShapeEval = SSA_Analysis.MkEvaluator(ShapeAnalysis(Params)) in 
     let shapeEnv = ShapeEval.eval_fundef fundef in
     IFDEF DEBUG THEN
-      Printf.printf "Inferred shape environment for %s : %s -> %s:\n"
+      Printf.printf "[ShapeInference::infer_shape_env]  %s : %s -> %s:\n"
         (FnId.to_str fnId)
         (DynType.type_list_to_str fundef.SSA.fn_input_types)
         (DynType.type_list_to_str fundef.SSA.fn_output_types)
@@ -312,6 +315,12 @@ and infer_normalized_output_shapes (fnTable : FnTable.t) (fundef : SSA.fundef) =
  end
 
 and infer_call_result_shapes fnTable fundef argShapes = 
+  IFDEF DEBUG THEN 
+    Printf.printf "[ShapeInference] Calling %s with %s\n"
+      (FnId.to_str fundef.SSA.fn_id)
+      (SymbolicShape.shapes_to_str argShapes);
+  ENDIF; 
+  
   let normalizedOutputShapes = infer_normalized_output_shapes fnTable fundef in   
   (* once the shape expressions only refer to input IDs, 
      remap those input IDs argument expressions 
@@ -327,9 +336,8 @@ and infer_call_result_shapes fnTable fundef argShapes =
     List.map (SymbolicShape.rewrite_shape argEnv) normalizedOutputShapes
   in 
   IFDEF DEBUG THEN 
-    Printf.printf "[ShapeInference] Calling %s with %s => %s\n"
+    Printf.printf "[ShapeInference] %s returned: %s\n"
       (FnId.to_str fundef.SSA.fn_id)
-      (SymbolicShape.shapes_to_str argShapes)
       (SymbolicShape.shapes_to_str resultShapes);
   ENDIF; 
   resultShapes 
