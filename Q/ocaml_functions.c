@@ -15,12 +15,7 @@
 #include <string.h>
 
 #include "ocaml_functions.h"
-#include "variants.h"
-
-void parakeet_init(void) {
-  char *argv[] = {"argv", NULL};
-  caml_startup(argv);
-}
+#include "../FrontEnd/variants.h"
 
 /* given a PQNum value, wrap it in a HostScalar constructor */
 value build_ocaml_host_scalar(value num) {
@@ -62,7 +57,6 @@ value build_ocaml_host_array (int num_bytes, value ocaml_dyn_type,
   Store_field(ocaml_host_val, 0, ocaml_tuple);
   CAMLreturn(ocaml_host_val);
 }
-
 
 value build_pqnum_int32(int32_t i) {
   CAMLparam0();
@@ -139,3 +133,4 @@ double get_pqnum_float64(value pqnum) {
   double ret = Double_val(Field(pqnum, 0));
   CAMLreturnT(double, ret);
 }
+

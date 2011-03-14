@@ -1,5 +1,5 @@
 /*
- *  cinterface.c
+ *  cqinterface.c
  *
  * Interface between the OCaml and Q runtimes.
  *
@@ -18,9 +18,10 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "cinterface.h"
+#include "cqinterface.h"
 #include "k.h"
-#include "../OCAMLInterface/ocaml_functions.h"
+#include "ocaml_functions.h"
+#include "../FrontEnd/parakeet.h"
 
 #define INITIAL_VECTOR_SIZE 8
 

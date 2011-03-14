@@ -11,9 +11,7 @@ UINT_DIR=$(shell ocamlfind query uint)
 
 LIB_INCLUDES = -I $(EXTLIB_DIR) -I $(UINT_DIR)
 PARAKEET_INCLUDES = -I $(BUILDPATH) \
-	-I $(BUILDPATH)/CQInterface \
 	-I $(BUILDPATH)/Base \
-	-I $(BUILDPATH)/CQInterface \
 	-I $(BUILDPATH)/Common \
 	-I $(BUILDPATH)/Ptx \
 	-I $(BUILDPATH)/GPU \
@@ -25,22 +23,22 @@ PARAKEET_INCLUDES = -I $(BUILDPATH) \
 	-I $(BUILDPATH)/SSA/Optimizations \
  	-I $(BUILDPATH)/SSA/Analyses \
 	-I $(BUILDPATH)/SSA/Specialization \
-        -I $(BUILDPATH)/ShapeInference \
+  -I $(BUILDPATH)/ShapeInference \
 	-I $(BUILDPATH)/CostModel \
-	-I $(BUILDPATH)/Runtime
+	-I $(BUILDPATH)/Runtime \
+  -I $(BUILDPATH)/FrontEnd
 OCAMLINCLUDES := $(LIB_INCLUDES) $(PARAKEET_INCLUDES)
 
-#COBJS = -ccopt $(PQ_PATH)/libpq.so 
-OBJS = cinterface.o
+OBJS = cqinterface.o ocaml_functions.o
 COBJS = -ccopt -L/usr/lib/nvidia-current -ccopt $(PQ_PATH)/cuda_stubs.cu_o \
-  $(PQ_PATH)/libpq_stubs.o $(PQ_PATH)/../OCAMLInterface/ocaml_interface.a \
+  $(PQ_PATH)/libpq_stubs.o $(PQ_PATH)/../FrontEnd/parakeet.a \
 	-ccopt -lcuda -ccopt -L/usr/local/cuda/lib64 -ccopt -lcudart \
 	-ccopt $(PQ_PATH)/thrust_stubs.cu_o -ccopt $(PQ_PATH)/kernel_stubs.cu_o \
 	-ccopt $(PQ_PATH)/base.o \
   -ccopt $(UINT_DIR)/libuint32_stubs.a -ccopt $(UINT_DIR)/libuint64_stubs.a
 
-
-OCAML_LIB_OBJECTS :=  bigarray.cmxa unix.cmxa str.cmxa uint32.cmxa uint64.cmx extLib.cmxa
+OCAML_LIB_OBJECTS := bigarray.cmxa unix.cmxa str.cmxa \
+                     uint32.cmxa uint64.cmx extLib.cmxa
 
 $(shell ocamlopt depsort.ml -o depsort)
 DEPENDENCY_SORTED_OBJECTS := $(shell ./depsort -E preprocess.cmx $(PARAKEET_INCLUDES))
@@ -51,19 +49,20 @@ else
   OCAMLOBJS = $(OCAMLOBJSRAW) 
 endif
 
-all: cinterface 
+all: parakeetq
 
-cinterface: $(OBJS) 
+parakeetq: $(OBJS) 
 	$(OCAMLCC) -linkall -ccopt -shared -ccopt -Wl,-Bsymbolic $(OBJS) \
 	$(OCAMLINCLUDES) $(COBJS) $(DEBUG) -ccopt -Wl,--start-group $(OCAMLOBJS) \
-	-ccopt -Wl,--end-group -o cinterface.so -verbose -cclib -lstdc++
+	-ccopt -Wl,--end-group -o parakeetq.so -verbose -cclib -lstdc++
 
-cinterface.o: cinterface.c cinterface.h
-	$(OCAMLCC) $(OCAMLCFLAGS) $(DEBUG) -o cinterface.o cinterface.c
+cqinterface.o: cqinterface.c cqinterface.h
+	$(OCAMLCC) $(OCAMLCFLAGS) $(DEBUG) -o cqinterface.o cqinterface.c
 
-ocaml_interface.o: ocaml_interface.c ocaml_interface.h
-	$(OCAMLCC) $(OCAMLCFLAGS) $(DEBUG) -o ocaml_interface.o ocaml_interface.c
-
+ocaml_functions.o: ocaml_functions.c ocaml_functions.h
+	gcc -fPIC -c ocaml_functions.c -I. $(OCAMLINCLUDES) -o ocaml_functions.o \
+	  $(LIB_INCLUDES)
 
 clean:
 	rm -f cinterface.so *~ *.o QType.cmx QType.mli QType.cmi depsort
+

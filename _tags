@@ -14,8 +14,7 @@
 "ShapeInference" : include
 "CostModel" : include
 "Runtime" : include
-"CQInterface" : include
 "Imp" : include
 "Imp/KernelTemplates" : include
-"OCAMLInterface" : include
+"FrontEnd" : include
 "stubs" : include

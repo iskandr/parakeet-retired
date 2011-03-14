@@ -49,12 +49,13 @@ let whitespace = [' ' '\t' ]+
   
 let basic_binop = "+" | "-" | "*" | "%" | "^" | "=" | "<>"  | "<"|"<="|">"|">=" 
 					  | "?"| "~" | "&" | "|" | "," | "@" | "."  | "#" | "$" | "!"  | "_"
+            | "|" | "&"
 
 let binop = basic_binop | "ij" | "xprev" | "xbar" | "rotate" | "msum" | "mmin" 
 						| "mmax" | "mdev" | "mcount" | "mavg" | "wsum" | "mavg" | "mmu"  
 						|  "lsq" | "cross" | "vs" | "sv" |  "like" | "bin"  | "mod" 
 						| "xexp" | "xlog" | "inter" | "union" | "except" | "each" 
-						| "insert" | "upsert" |  "0:"
+						| "insert" | "upsert" |  "0:" 
            
 let control = "do" | "while" | "if" 
 let adverb = "'" | "/" | "\\" | "\\:" |  "/:" | "':" | "\\:/:" | "/:\\:"
@@ -70,16 +71,16 @@ and token = parse
   | binop as str { BINOP str }
   
   (* having an adverb overloaded as the comment character is remarkably dumb *)
-  | newline whitespace* '/' { incr_lineno lexbuf; single_comment lexbuf }
-  | whitespace+ '/' { single_comment lexbuf }
   | newline { incr_lineno lexbuf;  EOL  }   
   | adverb as str 
   { 
     if str = "/" && lexbuf.lex_curr_p.pos_cnum = lexbuf.lex_curr_p.pos_bol + 1 
     then 
-      single_comment lexbuf
+       single_comment lexbuf
     else ADVERB str 
   }
+  | newline whitespace* '/' { incr_lineno lexbuf; single_comment lexbuf }
+  |  '/'  {  single_comment lexbuf } (*whitespace+*)
   
   | control as str { CONTROL str }
   | ":" {  COLON }
@@ -114,11 +115,11 @@ and token = parse
   | '`' id whitespace '`' id 
     { err "cannot use symbol as a function" }
   | whitespace { token lexbuf }	
-  | eof		{ EOF }
+  | eof		{  EOF }
   | _ as c { err (sprintf "unrecognize character: %c" c) }  
 and single_comment = parse
   | newline  { incr_lineno lexbuf; EOL }
-  | eof { err "eof"  }
+  | eof { EOF }
   | _ { single_comment lexbuf }
 (* if we've seen only integers in our vector so far *) 
 and int_vec elts  = parse 

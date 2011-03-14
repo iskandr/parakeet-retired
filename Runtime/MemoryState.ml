@@ -48,7 +48,6 @@ let rec get_type memState = function
       let eltT = get_type memState arr.(0) in 
       DynType.VecT eltT 
 
-
 let is_on_gpu memState = function 
   | InterpVal.Data id -> Hashtbl.mem memState.gpu_vals id 
   | InterpVal.Scalar _ -> true
@@ -57,13 +56,10 @@ let is_on_gpu memState = function
   *)
   | InterpVal.Array _ -> false
 
-
 let is_on_host memState = function 
   | InterpVal.Data id -> Hashtbl.mem memState.host_vals id 
   | InterpVal.Scalar _ -> true
-  | InterpVal.Array _ -> false  
-
-
+  | InterpVal.Array _ -> false
   
 let rec sizeof memState interpVal = 
   let t = get_type memState interpVal in 
@@ -74,8 +70,6 @@ let rec sizeof memState interpVal =
       Shape.nelts s * (DynType.sizeof (DynType.elt_type t))
   | InterpVal.Array arr ->  
       Array.fold_left (fun sum elt -> sum + sizeof memState elt) 0 arr 
-
-
 
 let get_gpu memState = function 
   | InterpVal.Data id -> 
@@ -121,8 +115,6 @@ let get_gpu memState = function
           | _ -> assert false
        done; 
        destVal 
-       
-
 
 let rec get_host state interpVal = 
   match interpVal with  
@@ -147,8 +139,7 @@ let rec get_host state interpVal =
   | InterpVal.Scalar n -> HostVal.HostScalar n 
   | InterpVal.Array arr ->
       HostVal.HostBoxedArray (Array.map (get_host state) arr)
-       
-  
+
 let get_scalar state = function 
   | InterpVal.Data id -> 
       if Hashtbl.mem state.host_vals id then 
@@ -161,7 +152,6 @@ let get_scalar state = function
       )
  | InterpVal.Scalar n -> n 
  | InterpVal.Array _ -> failwith "An array? How did that happen?"
-
 
   (* slice on the GPU or CPU? *) 
 let slice memState arr idx = match arr with 

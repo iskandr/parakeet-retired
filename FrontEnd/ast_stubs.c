@@ -1,3 +1,11 @@
+/*
+ *  ast_stubs.c
+ *
+ *  Functions for front ends to create Parakeet ASTs.
+ *
+ * (c) Eric Hielscher and Alex Rubinsteyn, 2009-2011.
+ */
+
 #include <caml/alloc.h>
 #include <caml/bigarray.h>
 #include <caml/callback.h>
@@ -6,8 +14,9 @@
 #include <string.h>
 
 #include "ast_stubs.h"
+#include "ast_variants.h"
 #include "prim_variants.h"
-#include "../OCAMLInterface/variants.h"
+#include "variants.h"
 
 /** Private members **/
 value *ocaml_mk_ast_info = NULL;
@@ -108,7 +117,7 @@ paranode mk_q_op(q_op_t op, source_info_t *src_info) {
   return mk_prim(Prim_Q_Op, op, src_info);
 }
 
-paranode mk_int32(int32_t i, source_info_t *src_info) {
+paranode mk_int32_paranode(int32_t i, source_info_t *src_info) {
   CAMLparam0();
   CAMLlocal1(val);
 
@@ -117,7 +126,7 @@ paranode mk_int32(int32_t i, source_info_t *src_info) {
   CAMLreturnT(paranode, mk_num(val, src_info));
 }
   
-paranode mk_int64(int64_t l, source_info_t *src_info) {
+paranode mk_int64_paranode(int64_t l, source_info_t *src_info) {
   CAMLparam0();
   CAMLlocal1(val);
 
@@ -126,7 +135,7 @@ paranode mk_int64(int64_t l, source_info_t *src_info) {
   CAMLreturnT(paranode, mk_num(val, src_info));
 }
 
-paranode mk_float(float f, source_info_t *src_info) {
+paranode mk_float_paranode(float f, source_info_t *src_info) {
   CAMLparam0();
   CAMLlocal1(val);
 
@@ -135,7 +144,7 @@ paranode mk_float(float f, source_info_t *src_info) {
   CAMLreturnT(paranode, mk_num(val, src_info));
 }
 
-paranode mk_double(double d, source_info_t *src_info) {
+paranode mk_double_paranode(double d, source_info_t *src_info) {
   CAMLparam0();
   CAMLlocal1(val);
 

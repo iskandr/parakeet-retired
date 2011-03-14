@@ -14,7 +14,7 @@
 #include <string.h>
 #include <time.h>
 
-#include "../OCAMLInterface/variants.h"
+#include "../FrontEnd/variants.h"
 
 #define ALIGN_UP(offset, alignment) \
   (offset) = ((offset) + (alignment) - 1) & ~((alignment) - 1)
@@ -203,13 +203,13 @@ CAMLprim value ocaml_pq_launch_ptx (
       switch (pqnum_tag) {
 
       case PQNUM_INT32:
-        int32_val = get_pqnum_int32(ocaml_gpu_val);
+        int32_val = Int32_val(Field(ocaml_gpu_val, 0));
         ptr_arg = (void*) &int32_val;
         arg_size = sizeof(int32_t);
         break;
 
       case PQNUM_INT64:
-        int64_val = get_pqnum_int64(ocaml_gpu_val);
+        int64_val = Int64_val(Field(ocaml_gpu_val, 0));
         ptr_arg = (void*) &int64_val;
         arg_size = sizeof(int64_t);
         break;

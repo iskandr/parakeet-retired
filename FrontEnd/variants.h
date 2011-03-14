@@ -24,7 +24,7 @@ enum run_template_ret_val_data {
   Error
 };
 
-enum dyn_type_no_data {
+typedef enum dyn_type_no_data {
   BottomT = 0,
   AnyT,
   UnitT,
@@ -42,14 +42,14 @@ enum dyn_type_no_data {
   StrT,
   BottomFnT,
   AnyFnT
-};
+} dyn_type_no_data_t;
 
-enum dyn_type_with_data {
+typedef enum dyn_type_with_data {
   VecT = 0,
   TupleT,
   TableT,
   FnT
-};
+} dyn_type_with_data_t;
 
 enum pqnum_tag {
   PQNUM_BOOL = 0,
