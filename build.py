@@ -8,8 +8,8 @@ parser = argparse.ArgumentParser(description='Parakeet Build System')
 parser.add_argument('-q', action='store_true', help='Build Q front end')
 parser.add_argument('-p', '--python', action='store_true',
                     help='Build Python front end')
-parser.add_argument('-d', '--debug', action='store_true',
-                    help='Enable debug mode')
+parser.add_argument('-o', '--opt', action='store_true',
+                    help='Disable debug mode')
 parser.add_argument('-r', '--prof', action='store_true',
                     help='Enable profiling')
 parser.add_argument('-t', '--tests', action='store_true',
@@ -73,8 +73,7 @@ build_command = ["ocamlbuild", "-lflags",
 
 # Handle debugging
 os.environ['dbg'] = '0'
-if args['debug']:
-  print "Debug mode"
+if not args['opt']:
   build_command.append("-ppflag")
   build_command.append("-DDEBUG")
   make_command.append("DEBUG=-g")
