@@ -51,8 +51,11 @@ class imp_codegen =
 
     method private register_slice_storage = function 
       | [] -> () 
-      | (Set(id, {exp=Idx({exp=Var arrId}, _)}))::rest -> 
-          Hashtbl.replace array_storage id Imp.Slice 
+      | (Set(id, {exp=Idx({exp=Var arrId}, _)}))::rest 
+        when DynType.nest_depth (self#get_type arrId) > 1 -> 
+          Hashtbl.replace array_storage id Imp.Slice; 
+          self#register_slice_storage rest 
+             
       | _::rest -> self#register_slice_storage rest 
     
             

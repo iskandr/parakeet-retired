@@ -55,7 +55,6 @@ and fn = {
 }
 
 
-
 (* PRETTY PRINTING *) 
 open Printf 
 
@@ -131,26 +130,34 @@ and block_to_str ?(spaces="") stmts =
   String.concat "\n" (List.map (stmt_to_str ~spaces) stmts)
 and exp_node_list_to_str exps = 
   String.concat ", " (List.map exp_node_to_str exps)
+and array_storage_to_str = function 
+  | Global -> "global"
+  | Private -> "private"
+  | Shared -> "shared"
+  | Slice -> "slice"
 and shared_to_str fn = 
   let s = ref "" in
   let extend_string id = 
-    if Hashtbl.mem fn.array_storage id then 
-      match Hashtbl.find fn.array_storage id with
-        | Shared ->
-          let currStr = Printf.sprintf "  shared %s :: [%s]\n"
+    if Hashtbl.mem fn.array_storage id  && 
+       not $ MutableSet.mem fn.input_id_set id then
+        let currStr = 
+          Printf.sprintf "  %s %s :: [%s]"
+            (array_storage_to_str $ Hashtbl.find fn.array_storage id)   
             (ID.to_str id)
             (exp_node_list_to_str $ Hashtbl.find fn.sizes id)
-          in  
-          s := !s ^ currStr
-        | _ -> ()
+         in s := !s ^"\n" ^ currStr 
   in    
   MutableSet.iter  extend_string fn.local_id_set; 
   !s 
 let fn_to_str fn =
-  let inputs = List.map ID.to_str (Array.to_list fn.input_ids) in 
-  let outputs = List.map ID.to_str (Array.to_list fn.output_ids) in 
+  let id_to_str id  = 
+    let t = Hashtbl.find fn.types id in 
+    ID.to_str id ^ " : " ^ (DynType.to_str t)
+  in 
+  let inputs = List.map id_to_str (Array.to_list fn.input_ids)  in 
+  let outputs = List.map id_to_str (Array.to_list fn.output_ids) in 
   let bodyStr = block_to_str  fn.body in 
-  sprintf "fn (%s) -> (%s) = {\n%s\n%s\n}"
+  sprintf "fn (%s) -> (%s) = {\n%s\n\n%s\n}"
     (String.concat ", " inputs) 
     (String.concat ", " outputs)
     (shared_to_str fn)  
