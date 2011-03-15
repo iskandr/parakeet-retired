@@ -5,7 +5,10 @@ open DynType
 open Imp
 open ImpCodegen
 
-let gen_reduce_2d_capable payload threadsPerBlock =
+(* ty = type of vector elements, which confusingly may differ from the 
+   input type of the payload for 2d reductions 
+*) 
+let gen_reduce_2d_capable nestedType payload threadsPerBlock =
   (* For now only works on 1D and 2D inputs *)
   let codegen = new imp_codegen in
   IFDEF DEBUG THEN 
@@ -16,26 +19,25 @@ let gen_reduce_2d_capable payload threadsPerBlock =
         (DynType.type_array_to_str payload.output_types);
   ENDIF; 
   (* assume result of reduction is same as elements of vector *) 
-  let ty = payload.output_types.(0) in 
-  let input = codegen#fresh_input (VecT ty) in
-  let eltype = DynType.elt_type ty in
+  let input = codegen#fresh_input (DynType.VecT nestedType) in
+  let scalarType = DynType.elt_type nestedType in
+  let outerDim::nestedShape = SymbolicShape.all_dims input in
+  let reducedDim = safe_div_ outerDim (int $ threadsPerBlock * 2) in 
+  let outputShape = reducedDim::nestedShape in 
+  let output = codegen#fresh_output ~dims:outputShape nestedType in
   IFDEF DEBUG THEN
     Printf.printf 
-      "Creating reduce kernel with output types %s with payload (%s) -> (%s)\n"
+      "Creating reduce kernel with output shape {%s} w/ payload (%s) -> (%s)\n"
+      (SymbolicShape.to_str outputShape) 
       (DynType.type_array_to_str payload.input_types)
       (DynType.type_array_to_str payload.output_types);
   ENDIF;  
-  let head::tail = SymbolicShape.all_dims input in
-  let outputDims = (safe_div_ head (int $ threadsPerBlock * 2))::tail in 
-  let output = codegen#fresh_output ~dims:outputDims  (VecT ty) in
-
-  let cache = codegen#shared_vec_var eltype [threadsPerBlock] in
-  
+  let cache = codegen#shared_vec_var scalarType [threadsPerBlock] in
   let num_vecs = codegen#fresh_var Int32T in
   codegen#emit [set num_vecs (len input)];
   
   let vec_len = codegen#fresh_var Int32T in
-  let ndims = DynType.nest_depth (VecT ty) in
+  let ndims = DynType.nest_depth nestedType + 1 in
   if ndims = 1 then
     codegen#emit [set vec_len (int 1)]
   else if ndims = 2 then
@@ -43,9 +45,9 @@ let gen_reduce_2d_capable payload threadsPerBlock =
   else
     failwith "Reduce only supported on 1D or 2D inputs for now";
   
-  let spin1 = codegen#fresh_var ty in
-  let spin2 = codegen#fresh_var ty in
-  let spout = codegen#fresh_var ty in
+  let spin1 = codegen#fresh_var scalarType in
+  let spin2 = codegen#fresh_var scalarType in
+  let spout = codegen#fresh_var scalarType in
   
   let bx = codegen#fresh_var Int32T in
   let by = codegen#fresh_var Int32T in
@@ -125,6 +127,7 @@ let gen_reduce_2d_capable payload threadsPerBlock =
   codegen#finalize
 
 (* reduces each block's subvector to a single output element *) 
+(*
 let gen_reduce_old payload threadsPerBlock =
   assert (Array.length payload.output_types = 2);
   (* assume result of reduction is same as elements of vector *) 
@@ -249,3 +252,80 @@ let gen_reduce_opt payload threadsPerBlock ty =
                  [set (idx output linearBlockIdx) (idx cache $ int 0)]
                ];
   codegen#finalize
+*)
+
+(* PULLED from ImpGenReduce2D.ml 
+(* Assumes 256 threads per block *)
+let gen_reduce_2d payload inputType =
+  let codegen = new imp_codegen in
+  let elType = DynType.peel_vec inputType in
+  let input = codegen#fresh_input inputType in
+  let init = codegen#fresh_input elType in
+  let output = codegen#fresh_output elType in
+  let cache = codegen#shared_vec_var elType [256] in
+  let idx = codegen#fresh_var Int32T in
+  let idy = codegen#fresh_var Int32T in
+  let vec_len = codegen#fresh_var Int32T in
+  let firstvec = codegen#fresh_var Int32T in
+  let elidx = codegen#fresh_var Int32T in
+  let cacheid = codegen#fresh_var Int32T in
+  let cur_y = codegen#fresh_var Int32T in
+  codegen#emit [
+    set idx (add (mul blockIdx.x blockDim.x) threadIdx.x);
+    set idy (add (mul blockIdx.y blockDim.y) threadIdx.y);
+    set vec_len (idx input (int 0));
+  ];
+  let tmparg1 = codegen#fresh_var elType in
+  let tmparg2 = codegen#fresh_var elType in
+  let tmprslt = codegen#fresh_var elType in
+  let template1 = [
+    set firstvec (mul (int 2) idy);
+      set elidx (add (mul firstvec vec_len) idx);
+      set cacheid (add (mul blockDim.x threadIdx.y) threadIdx.x);
+      setidx cache cacheid init;
+      ifTrue (lt firstvec (len input)) [
+      set tmparg1 (idx cache cacheid);
+      set tmparg2 (idx input elidx);
+      SPLICE;
+        setidx cache cacheid tmprslt
+      ]
+  ] in
+  let spliced1 = codegen#splice
+    payload [|tmparg1;tmparg2|] [|tmprslt|] template1 in
+  let template2 = [                            
+      ifTrue (lt (add firstvec (int 1)) (len input)) [
+      set tmparg1 (idx cache cacheid);
+      set tmparg2 (idx input (add elidx vec_len));
+      SPLICE;
+        setidx cache cacheid tmprslt
+      ];
+      syncthreads
+  ] in
+  let spliced2 = codegen#splice
+    payload [|tmparg1;tmparg2|] [|tmprslt|] template2 in 
+  let template3 = [
+      (* TODO: Support right-shift - div is expensive *)
+      set cur_y (div blockDim.y (int 2));
+      
+      while_ (gt cur_y (int 0)) [
+        ifTrue (lt threadIdx.y cur_y) [
+        set tmparg1 (idx cache cacheid);
+        set tmparg2 (idx cache (add cacheid (mul cur_y blockDim.x)));
+        SPLICE;
+          setidx cache cacheid tmprslt
+        ]
+        syncthreads;
+        set cur_y (div cur_y (int 2));
+      ]
+    
+    ifTrue ((threadIdx.y =$ 0) &&$ (threadIdx.x <$ blockDim.x)) [
+      setidx output (add (mul vec_len blockIdx.y) idx) (idx cache threadIdx.x)
+    ]
+  ] in
+  let spliced3 = codegen#splice
+    payload [|tmparg1;tmparg2|] [|tmprslt|] template3 in
+  let bigIfBlock = spliced1 @ spliced2 @ spliced3 in
+  let body = [ifTrue (lt idx vec_len) bigIfBlock] in
+  codegen#emit body;
+  codegen#finalize
+*)

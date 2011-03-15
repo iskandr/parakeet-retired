@@ -1,3 +1,5 @@
+(* pp: -parser o pa_macro.cmo *)
+
 open Base
 open Printf 
 
@@ -42,6 +44,7 @@ let to_str = function
        (Shape.to_str shape) 
        nbytes
        (c_get_int32 ptr 0)
+  | HostBoxedArray _ -> "HostBoxedArray"
 
 
 external c_malloc : int -> Int64.t = "ocaml_malloc"
@@ -73,15 +76,18 @@ let mk_host_vec ?nbytes ?len ty shape =
 let get_type = function 
   | HostArray { host_t = host_t } -> host_t
   | HostScalar n -> PQNum.type_of_num n
-
+  | HostBoxedArray _ -> assert false 
 
 let get_shape = function 
   | HostArray { shape = shape } -> shape
   | HostScalar _ -> Shape.scalar_shape 
-
+  | HostBoxedArray _ -> assert false
+   
 let get_ptr = function 
   | HostArray { ptr = ptr } -> ptr
   | HostScalar _ -> failwith "Can't get pointer of host scalar"
+  | HostBoxedArray _ -> assert false 
+
 
 let set_vec_elt hostVec idx v =
   IFDEF DEBUG THEN assert (DynType.is_vec hostVec.host_t); ENDIF; 
@@ -133,6 +139,8 @@ let get_slice hostVal idx = match hostVal with
         ptr = slicePtr; host_t=sliceType; shape=sliceShape; nbytes=sliceBytes 
       }
       in HostArray sliceArray 
+  | HostBoxedArray _ -> assert false 
+
 
 let set_slice array idx elt = match array, elt with 
   | HostArray arr, HostScalar n -> set_vec_elt arr idx elt
@@ -156,15 +164,9 @@ let set_slice array idx elt = match array, elt with
         (* TODO: fix this, it currently will destroy your memory *)
         set_vec_elt arr1 (i) (get_vec_elt arr2 i)
       done
-        
+  | _ -> assert false         
       
 let sizeof = function 
   | HostArray arr -> arr.nbytes 
   | HostScalar n -> DynType.sizeof (PQNum.type_of_num n)  
-
-       
-            
-      
-       
-     
-
+  | HostBoxedArray _ -> assert false 

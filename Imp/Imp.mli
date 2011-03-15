@@ -27,29 +27,27 @@ and stmt =
   | SPLICE 
 and block = stmt list
    
-and array_annot = 
-  | SharedArray of int list 
-  | PrivateArray of exp_node list 
-  | OutputArray of exp_node list 
-  | InputArray of int  
-  | InputSlice of exp_node list 
+and array_storage = 
+  | Global
+  | Private
+  | Shared
+  | Slice
 and fn = {
   input_ids : ID.t array;
+  input_id_set : ID.t MutableSet.t; 
   input_types : DynType.t array;
           
   output_ids : ID.t array; 
+  output_id_set : ID.t MutableSet.t; 
   output_types : DynType.t array;
-  output_sizes : (ID.t, exp_node list) Hashtbl.t; 
-           
-  (* all IDs which aren't inputs or outputs are locals *)     
-  local_ids : ID.t array;   
-  local_types : DynType.t array;   
-  local_arrays : (ID.t, array_annot) Hashtbl.t;
-                
+  
+  local_id_set : ID.t MutableSet.t; 
+  
+  types : (ID.t, DynType.t) Hashtbl.t; 
+  sizes: (ID.t, exp_node list) Hashtbl.t; 
+  array_storage : (ID.t, array_storage) Hashtbl.t;
+  
   body : block;
-  tenv : (ID.t, DynType.t) Hashtbl.t; 
-  (* doesn't count slices into the same array *) 
-  shared_array_allocations : (ID.t, int list) Hashtbl.t; 
 }
 
 val exp_node_to_str : exp_node -> string 

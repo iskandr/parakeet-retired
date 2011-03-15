@@ -187,7 +187,9 @@ let rec gen_stmt codegen stmt =
       if rank > numIndices  then
         failwith "[imp2ptx] Cannot set an array slice"
       else if rank < numIndices then 
-        failwith "[imp2ptx] Too many indices given to setidx"
+        failwith $ 
+           Printf.sprintf "[imp2ptx] Too many indices given to setidx: %s" 
+           (Imp.stmt_to_str stmt)
       else
        let rhsT = rhs.exp_type in 
        let rhsEltT = DynType.elt_type rhsT in
@@ -241,43 +243,51 @@ let translate_kernel ?input_spaces (impfn : Imp.fn) =
     print_string "\n";
     print_string "\n[imp2ptx] ******************************\n";
   ENDIF;
+  let default_space t = 
+    if DynType.is_scalar t then PtxVal.PARAM else PtxVal.GLOBAL 
+  in 
   let inputSpaces = match input_spaces with
-    (* if we have no preferences about the space our inputs live in, 
-       put all scalars in PARAM and all vectors in GLOBAL 
-    *) 
-    | _ -> 
-       Array.map
-         (fun t -> if DynType.is_scalar t then PtxVal.PARAM else PtxVal.GLOBAL) 
-         impfn.input_types
+    | _ -> Array.map default_space impfn.input_types 
     | Some inputSpaces -> inputSpaces  
   in 
   let codegen = new PtxCodegen.ptx_codegen in
+  Array.iter3 
+    codegen#declare_input 
+    impfn.input_ids 
+    impfn.input_types 
+    inputSpaces
+  ;
+  Array.iter2 codegen#declare_output impfn.output_ids impfn.output_types; 
+  
   (* declare all local variables as:
       1) a scalar register 
       2) a local array for which you receive a pointer 
       3) a shared array 
   *)
-  let register_local id dynT = 
-    (* TODO: this is wrong since we've changed array annotations *)
-    if Hashtbl.mem impfn.shared_array_allocations id then
-      let dims = Hashtbl.find impfn.shared_array_allocations id in
-        ignore $ codegen#declare_shared_vec id (DynType.elt_type dynT) dims
-      else (
-        if Hashtbl.mem impfn.local_arrays id then ( 
+  let register_local id  = 
+    let t = Hashtbl.find impfn.types id in
+    if DynType.is_scalar t then ignore (codegen#declare_local id t)
+    else (
+      let dims = Hashtbl.find impfn.sizes id in  
+      assert (dims <> []); 
+      assert (Hashtbl.mem impfn.array_storage id); 
+      ignore $ match Hashtbl.find impfn.array_storage id with 
+        | Shared ->
+          (* since dims are all constant, evaluate them to ints *) 
+          let intDims = 
+            List.map (ShapeEval.eval_exp_as_int ID.Map.empty) dims 
+          in  
+          codegen#declare_shared_vec id (DynType.elt_type t) intDims
+        | Private -> 
           IFDEF DEBUG THEN
             Printf.printf "[imp2ptx] declaring local array %s : %s\n"
               (ID.to_str id)
-              (DynType.to_str dynT);
+              (DynType.to_str t);
           ENDIF;
-          ignore $ codegen#declare_storage_arg id dynT
-          )
-        else
-          ignore $ codegen#declare_local id dynT
-      )
-  in 
-  Array.iter2 register_local impfn.local_ids impfn.local_types;
-  Array.iter3
-    codegen#declare_input impfn.input_ids impfn.input_types inputSpaces;
-  Array.iter2 codegen#declare_output impfn.output_ids impfn.output_types; 
+          codegen#declare_storage_arg id t   
+        | _ -> codegen#declare_local id t 
+    )     
+  in    
+  MutableSet.iter register_local impfn.local_id_set; 
   gen_block codegen impfn.body; 
   codegen#finalize_kernel

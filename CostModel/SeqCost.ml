@@ -1,3 +1,5 @@
+(* pp: -parser o pa_macro.cmo *)
+
 open Base
 open SSA
 open Printf 
@@ -139,13 +141,21 @@ let rec symbolic_seq_cost fnTable fundef =
     Hashtbl.add symCostCache fundef.SSA.fn_id cost; 
     cost   
 
-let costCache : (FnId.t * Shape.t list, float) Hashtbl.t = Hashtbl.create 127 
+let costCache : (FnId.t * Shape.t list, float) Hashtbl.t = Hashtbl.create 127
+ 
 let seq_cost fnTable fundef shapes =
   let key = fundef.SSA.fn_id, shapes in  
   try Hashtbl.find costCache key 
-  with _ ->  
+  with _ ->
+    IFDEF DEBUG THEN   
+      print_endline "---";
+    ENDIF; 
     let symCost = symbolic_seq_cost fnTable fundef in
-    let shapeEnv = ID.Map.extend ID.Map.empty fundef.SSA.input_ids shapes in  
-    let cost = ShapeEval.eval_exp_as_float shapeEnv symCost in 
+    IFDEF DEBUG THEN 
+      print_endline "---";
+    ENDIF; 
+    
+    let shapeEnv = ID.Map.extend ID.Map.empty fundef.SSA.input_ids shapes in
+    let cost = ShapeEval.eval_exp_as_float shapeEnv symCost in
     Hashtbl.add costCache key cost; 
     cost    

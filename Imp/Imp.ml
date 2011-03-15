@@ -31,31 +31,28 @@ and stmt =
   | SPLICE 
 and block = stmt list
    
-and array_annot = 
-  | SharedArray of int list 
-  | PrivateArray of exp_node list 
-  | OutputArray of exp_node list 
-  | InputArray of int  
-  | InputSlice of exp_node list 
+and array_storage = 
+  | Global
+  | Private
+  | Shared
+  | Slice
 and fn = {
   input_ids : ID.t array;
+  input_id_set : ID.t MutableSet.t; 
   input_types : DynType.t array;
           
   output_ids : ID.t array; 
+  output_id_set : ID.t MutableSet.t; 
   output_types : DynType.t array;
-  output_sizes : (ID.t, exp_node list) Hashtbl.t; 
-           
-  (* all IDs which aren't inputs or outputs are locals *)     
-  local_ids : ID.t array;   
-  local_types : DynType.t array;   
-  local_arrays : (ID.t, array_annot) Hashtbl.t;
-                
+  
+  local_id_set : ID.t MutableSet.t; 
+  
+  types : (ID.t, DynType.t) Hashtbl.t; 
+  sizes: (ID.t, exp_node list) Hashtbl.t; 
+  array_storage : (ID.t, array_storage) Hashtbl.t;
+  
   body : block;
-  tenv : (ID.t, DynType.t) Hashtbl.t; 
-  (* doesn't count slices into the same array *) 
-  shared_array_allocations : (ID.t, int list) Hashtbl.t; 
 }
-
 
 
 
@@ -363,13 +360,29 @@ let mul_simplify d1 d2 = match d1.exp, d2.exp with
   | _, Const n2 when PQNum.is_zero n2 -> zero
   | Const n1, _ when PQNum.is_one n1 -> d2
   | _, Const n2 when PQNum.is_one n2 -> d1
+  | Const (PQNum.Int16 x), Const (PQNum.Int16 y) -> 
+    {d1  with exp =  Const (PQNum.Int16 (x * y)) }
+  | Const (PQNum.Int32 x), (Const PQNum.Int32 y) -> 
+    {d1  with exp =  Const (PQNum.Int32 (Int32.mul x y)) }
+  | Const (PQNum.Float32 x), (Const PQNum.Float32 y) -> 
+    {d1  with exp =  Const (PQNum.Float32 (x *. y)) }
+  | Const (PQNum.Float64 x), (Const PQNum.Float64 y) -> 
+    {d1  with exp =  Const (PQNum.Float64 (x *. y)) }
   | _ -> mul d1 d2 
 
 let add_simplify d1 d2 = match d1.exp, d2.exp with 
   | Const n1, _ when PQNum.is_inf n1 -> infinity
   | _, Const n2 when PQNum.is_inf n2 -> infinity 
   | Const n1, _ when PQNum.is_zero n1 -> d2 
-  | _, Const n2 when PQNum.is_zero n2 -> d1 
+  | _, Const n2 when PQNum.is_zero n2 -> d1
+  | Const (PQNum.Int16 x), Const (PQNum.Int16 y) -> 
+    {d1  with exp = Const (PQNum.Int16 (x + y)) }
+  | Const (PQNum.Int32 x), (Const PQNum.Int32 y) -> 
+    {d1  with exp =  Const (PQNum.Int32 (Int32.add x y)) }
+  | Const (PQNum.Float32 x), (Const PQNum.Float32 y) -> 
+    {d1  with exp = Const (PQNum.Float32 (x +. y)) }
+  | Const (PQNum.Float64 x), (Const PQNum.Float64 y) -> 
+    {d1 with exp = Const (PQNum.Float64 (x +. y)) } 
   | _ -> add d1 d2 
 
 let rec fold_exp_node_list f = function 

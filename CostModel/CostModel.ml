@@ -1,3 +1,5 @@
+(* pp: -parser o pa_macro.cmo *)
+
 open Base  
 open SSA 
 type compute_location = GPU | CPU 
@@ -117,7 +119,7 @@ type cost = float
     let nestedCost = call_cost fnTable fn (closureArgs @ nestedArgs) in   
     let cpuCost = 1. +. (float_of_int maxDim) *. nestedCost in
     IFDEF DEBUG THEN 
-      Printf.printf "Compute MAP cost: GPU - %f, HOST: %f\n" gpuCost cpuCost; 
+      Printf.printf "Computed MAP cost: GPU - %f, HOST: %f\n" gpuCost cpuCost; 
     ENDIF; 
     if cpuCost < gpuCost then CPU, cpuCost 
     else GPU, gpuCost  
@@ -140,17 +142,33 @@ type cost = float
         ~initArgs:(get_shapes initArgs) 
         ~args:(get_shapes args) 
     in
-    let maxDim, nestedArgs = split_args args in   
-    let nestedCost = call_cost fnTable fn (closureArgs @ nestedArgs) in   
+    let maxDim, nestedArgs = split_args args in
+    (* for now only compute call cost to initializer function and assume
+       it has a comparable cost to the actual reducer 
+     *)    
+    let allNestedInputs = initClosureArgs @ initArgs @ nestedArgs in  
+    let nestedCost = call_cost fnTable init allNestedInputs in
     let cpuCost = 1. +. (float_of_int maxDim) *. nestedCost in
     IFDEF DEBUG THEN 
-      Printf.printf "Compute REDUCE cost: GPU - %f, HOST: %f\n" gpuCost cpuCost; 
+      Printf.printf "Computed REDUCE cost: GPU - %f, HOST: %f\n" gpuCost cpuCost; 
     ENDIF; 
     if cpuCost < gpuCost then CPU, cpuCost 
     else GPU, gpuCost  
   
   
   and call_cost fnTable fn argInfo  : cost =
+    IFDEF DEBUG THEN
+      let nArgs = List.length argInfo in 
+      let nFormals = List.length fn.input_ids in    
+      if nArgs  <> nFormals then
+        failwith $
+          Printf.sprintf 
+            "[CostModel] call_cost for %s got %d arguments but %d are required"
+            (FnId.to_str fn.fn_id)
+            nArgs
+            nFormals
+        ;
+    ENDIF; 
     let mkSet gpuSet id (_,_,onGpu) = 
       if onGpu then ID.Set.add id gpuSet else gpuSet 
     in 

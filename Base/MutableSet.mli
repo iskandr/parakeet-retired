@@ -5,4 +5,5 @@ val add : 'a t -> 'a -> unit
 val remove : 'a t -> 'a -> unit
 val enum : 'a t -> 'a Enum.t
 val iter : ('a -> unit) -> 'a t ->   unit 
-val fold : ('a -> 'b -> 'b) -> 'a t -> 'b -> 'b 
+val fold : ('a -> 'b -> 'b) -> 'a t -> 'b -> 'b
+val copy : 'a t -> 'a t  

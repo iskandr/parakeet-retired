@@ -279,8 +279,14 @@ let rec infer_shape_env (fnTable:FnTable.t) (fundef : SSA.fundef) =
     shapeEnv 
     
 and infer_normalized_shape_env (fnTable : FnTable.t) (fundef : SSA.fundef) = 
-  let fnId = fundef.SSA.fn_id in 
-  try Hashtbl.find normalizedShapeEnvCache fnId 
+  let fnId = fundef.SSA.fn_id in
+  try 
+    IFDEF DEBUG THEN
+      Printf.printf "[ShapeInference] cached shape environment for %s: %B\n"
+      (FnId.to_str fnId)
+      (Hashtbl.mem normalizedShapeEnvCache fnId); 
+    ENDIF; 
+    Hashtbl.find normalizedShapeEnvCache fnId 
   with _ ->  begin
     let rawShapeEnv = infer_shape_env fnTable fundef in
     let inputIdSet = ID.Set.of_list fundef.SSA.input_ids in
@@ -295,6 +301,10 @@ and infer_normalized_shape_env (fnTable : FnTable.t) (fundef : SSA.fundef) =
     in   
     let normalizedEnv = ID.Map.fold normalizer rawShapeEnv ID.Map.empty in  
     Hashtbl.add normalizedShapeEnvCache fnId normalizedEnv;
+    IFDEF DEBUG THEN 
+      Printf.printf "[ShapeInference] done computing shape env for %s\n"
+      (FnId.to_str fnId);
+    ENDIF; 
     normalizedEnv 
  end   
 

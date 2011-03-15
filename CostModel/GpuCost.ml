@@ -1,3 +1,5 @@
+(* pp: -parser o pa_macro.cmo *)
+
 open Base
 open SSA 
 
@@ -47,7 +49,7 @@ let reduce
       ~(closureArgs:Shape.t list)
       ~(initArgs:Shape.t list) 
       ~(args:Shape.t list) =
-    (* for now, assume the initFn takes as much time as the normal fn *)  
+    (* for now, assume the initFn takes as much time as the normal fn *)
     let outerDim, nestedArgs = Shape.split_nested_shapes args in
     let nestedShapes = initClosureArgs @ initArgs @ nestedArgs in
     let nestedCost = SeqCost.seq_cost fnTable init nestedShapes in

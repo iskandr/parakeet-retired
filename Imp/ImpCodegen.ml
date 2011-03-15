@@ -6,29 +6,19 @@ open Printf
 
 class imp_codegen = 
   object (self)
-    val types = Hashtbl.create 127
-    val sharedArrayAllocations = Hashtbl.create 127
-    val code : Imp.stmt DynArray.t = DynArray.create ()
+    val types : (ID.t, DynType.t) Hashtbl.t = Hashtbl.create 127
+    val array_storage : (ID.t, Imp.array_storage) Hashtbl.t = Hashtbl.create 127
+    val sizes : (ID.t, Imp.exp_node list) Hashtbl.t = Hashtbl.create 127 
     
-    val inputs = (DynArray.create () : ((ID.t * DynType.t) DynArray.t))
+    val inputs : ID.t DynArray.t = DynArray.create () 
     val inputSet : (ID.t MutableSet.t) = MutableSet.create 17
     
-      
-    val outputs = (DynArray.create () : ((ID.t * DynType.t) DynArray.t))
+    val outputs : ID.t DynArray.t =  DynArray.create ()
     val outputSet : (ID.t MutableSet.t) = MutableSet.create 17  
     
-    val localIds : (ID.t DynArray.t) = DynArray.create ()
-    val localIdSet : ( ID.t MutableSet.t) = MutableSet.create 127
-    (* keep track of localIds in the order they were created *) 
-     
+    val code : Imp.stmt DynArray.t = DynArray.create ()
     
-    (* keep both arrays and hashtbl of sizes to maintain order of size 
-       declarations but also make lookup efficient 
-    *)
-
-    val outputSizes : ((ID.t, Imp.exp_node list) Hashtbl.t) = Hashtbl.create 127
-    
-    val localSizes : ((ID.t, Imp.array_annot) Hashtbl.t) = Hashtbl.create 127
+    val localIdSet : ID.t MutableSet.t = MutableSet.create 127
     
     (* prints last 10 stmts before throwing exceptions *) 
     method private fail_with_context msg = 
@@ -42,105 +32,32 @@ class imp_codegen =
       failwith $ Printf.sprintf "ERROR IN IMP CODEGEN: %s" msg  
     
     method get_type id = Hashtbl.find types id 
-    method is_shared id = Hashtbl.mem sharedArrayAllocations id 
-    method shared_size id = Hashtbl.find sharedArrayAllocations id
+    
+    method get_id_shape id = Hashtbl.find sizes id 
+       
+    method get_exp_shape expNode = match expNode.exp with 
+      | Imp.Var id -> self#get_id_shape id 
+      | Imp.Idx (array, idx) -> 
+          let fullShape = self#get_exp_shape array in 
+          SymbolicShape.peel_shape fullShape 
+      | _ -> SymbolicShape.scalar
+    
+    method is_shared id = 
+      Hashtbl.mem array_storage id && Hashtbl.find array_storage id = Imp.Shared
+         
     method is_array id = DynType.is_vec (self#get_type id)  
-
-    method has_array_annot arrId = 
-      Hashtbl.mem localSizes arrId || 
-      Hashtbl.mem outputSizes arrId || 
-      MutableSet.mem inputSet arrId
       
-    method get_array_annot arrId =
-      if MutableSet.mem localIdSet arrId  then (
-        IFDEF DEBUG THEN assert (Hashtbl.mem localSizes arrId); ENDIF; 
-        Hashtbl.find localSizes arrId
-      ) 
-      else if Hashtbl.mem outputSizes arrId then (
-        IFDEF DEBUG THEN assert (Hashtbl.mem outputSizes arrId); ENDIF;   
-        match Hashtbl.find outputSizes arrId with 
-          | [] -> failwith "[imp_codegen] expected array" 
-          | dims -> Imp.OutputArray dims   
-      )
-      (* array must be an input *)
-      else (
-        let arrT =  self#get_type arrId in
-        let rank = DynType.nest_depth arrT in 
-        Imp.InputArray rank 
-      )
-    
-   
-    method private add_static_size_annot id = function 
-      | [] -> ()
-      | sizes -> 
-          IFDEF DEBUG THEN assert (MutableSet.mem localIdSet id); ENDIF; 
-          Hashtbl.add localSizes id (Imp.SharedArray sizes)
-                                      
-    method private add_dynamic_size_annot id = function 
-      | [] -> ()
-      | sizes -> 
-        if MutableSet.mem localIdSet id then 
-          Hashtbl.add localSizes id (Imp.PrivateArray sizes) 
-        else 
-          Hashtbl.add outputSizes id sizes; 
-   
-    method add_array_annot id = function 
-      | Imp.InputArray _ -> () (* these are implicitly attached to any input *)
-      | Imp.PrivateArray exps -> self#add_dynamic_size_annot id exps
-      | Imp.OutputArray exps -> self#add_dynamic_size_annot id exps 
-      | Imp.SharedArray dims -> self#add_static_size_annot id dims 
-      | Imp.InputSlice exps -> 
-        Hashtbl.add localSizes id (Imp.InputSlice exps) 
-        
-    
-    method private add_slice_annot (sliceId : ID.t) (arrId : ID.t) = 
-      IFDEF DEBUG THEN 
-        Printf.printf "add_slice_annot: %s = %s[]\n" (ID.to_str sliceId) (ID.to_str arrId);
-      ENDIF; 
-      match self#get_array_annot arrId with
-        (* the array to be slice should be of at least rank 1 *) 
-        | Imp.InputArray 0 
-        | Imp.InputSlice []
-        | Imp.OutputArray []  
-        | Imp.PrivateArray [] 
-        | Imp.SharedArray [] -> failwith "[imp_codegen] expected array"
-        (* slice is a scalar, no new annotation needed *)
-        | Imp.InputArray 1
-        | Imp.InputSlice [_]
-        | Imp.PrivateArray [_]
-        | Imp.OutputArray [_]   
-        | Imp.SharedArray [_] -> ()  
-        | Imp.SharedArray dims -> 
-            Hashtbl.add localSizes sliceId (Imp.SharedArray (List.tl dims))
-        (* slicing either a private or output array 
-           removes the outermost size expression 
-        *)  
-        | Imp.OutputArray expressions 
-        | Imp.PrivateArray expressions -> 
-          Hashtbl.add localSizes sliceId 
-            (Imp.PrivateArray (List.tl expressions))
-        | Imp.InputSlice expressions -> 
-          Hashtbl.add localSizes sliceId 
-            (Imp.InputSlice (List.tl expressions))
-        | Imp.InputArray rank ->
-            (*Hashtbl.add localSizes sliceId (Imp.InputArray (rank -1))*)
-          
-            IFDEF DEBUG THEN Printf.printf "RANK: %d\n" rank; ENDIF; 
-            let arrT = self#get_type arrId in  
-            let varNode = {Imp.exp=Imp.Var arrId; exp_type=arrT} in 
-            let dims = List.map (fun i -> Imp.dim i varNode) (List.til rank) in 
-            Hashtbl.add localSizes sliceId (Imp.InputSlice (List.tl dims))  
-            
-        
-    (* cache the ID's into which we store BlockDim, ThreadIdx, consts, etc..*)
-    val expCache  = ((Hashtbl.create 127) : (Imp.exp, ID.t) Hashtbl.t)
-    
-    method private add_slice_annotations = function 
+    method get_array_storage arrId = Hashtbl.find array_storage arrId 
+
+    method private register_slice_storage = function 
       | [] -> () 
       | (Set(id, {exp=Idx({exp=Var arrId}, _)}))::rest -> 
-          self#add_slice_annot id arrId; 
-          self#add_slice_annotations rest 
-      | _::rest -> self#add_slice_annotations rest 
+          Hashtbl.replace array_storage id Imp.Slice 
+      | _::rest -> self#register_slice_storage rest 
+    
+            
+    (* cache the ID's into which we store BlockDim, ThreadIdx, consts, etc..*)
+    val expCache  = ((Hashtbl.create 127) : (Imp.exp, ID.t) Hashtbl.t)
     
     (* cache variables which are casts of constant expressions *) 
     val coercionCache 
@@ -158,15 +75,17 @@ class imp_codegen =
           if not $ DynType.is_scalar lhsType then 
             failwith $
               Printf.sprintf 
-                "expected x%d to be a scalar, got: %s"
+                "expected x%d to be a scalar %s, got: %s"
                 id 
+                (DynType.to_str rhsType)
                 (DynType.to_str lhsType)
           ; 
           if not $ DynType.is_scalar rhsType then 
             failwith $ 
               Printf.sprintf 
-                "expected %s to be a scalar, got: %s"
+                "expected %s to be a scalar %s, got: %s"
                 (Imp.exp_node_to_str rhs)
+                (DynType.to_str lhsType)
                 (DynType.to_str rhsType)
           ; 
         ENDIF;
@@ -186,13 +105,13 @@ class imp_codegen =
         )
       )
       (* if renaming an array, need to track its if undeclared bounds *) 
-      else match rhs.exp with 
+      else match rhs.exp with  (*
         | Var rhsId ->
           if self#is_array rhsId && not $ self#has_array_annot id then (
             IFDEF DEBUG THEN assert (self#has_array_annot rhsId); ENDIF;   
             self#add_array_annot id (self#get_array_annot rhsId);
           ); 
-          [Set(id,rhs)]
+          [Set(id,rhs)]  *)
         | _ -> [Set(id,rhs)] 
     
     (* an expression gets flattened into a list of statements and a simple 
@@ -219,7 +138,14 @@ class imp_codegen =
           else 
             (* if flattened arg is itself complex, assign it to a variable *)
             let argType = arg'.exp_type in  
-            let tempId =  self#fresh_local_id argType in
+            let argShape = self#get_exp_shape arg' in 
+            IFDEF DEBUG THEN 
+              Printf.printf "%s : %s; [%s]\n"
+                (Imp.exp_node_to_str arg')
+                (DynType.to_str argType)
+                (SymbolicShape.shape_to_str argShape);
+            ENDIF;     
+            let tempId =  self#fresh_local_id ~dims:argShape argType in
             let setStmts = self#set_or_coerce tempId arg' in 
             let varExp = {exp = Var tempId; exp_type=argType} in 
             argStmts @  setStmts, varExp 
@@ -294,7 +220,7 @@ class imp_codegen =
           let rhsStmts, rhs' = self#flatten_exp rhs in
           let setStmts = self#set_or_coerce id rhs' in  
           let allStmts = rhsStmts @ setStmts in 
-          self#add_slice_annotations allStmts;
+          self#register_slice_storage allStmts;
           allStmts   
          
      | SetIdx (id, indices, rhs) -> 
@@ -318,52 +244,62 @@ class imp_codegen =
       Hashtbl.add types id t;
       id
       
-    method fresh_local_id  ?(dims=[]) t =
+    method fresh_local_id  ?(dims=[]) ?storage t =
       let id = self#fresh_id t in
+      Hashtbl.add sizes id dims; 
       MutableSet.add localIdSet id;
-      DynArray.add localIds id;
-      if (DynType.is_vec t && dims = []) || 
-         (DynType.is_scalar t && dims <> []) then
-        failwith $ Printf.sprintf 
-          "[ImpCodegen] Cannot create local var of type %s and shape %s"
-            (DynType.to_str t)
-            (SymbolicShape.shape_to_str dims)
-      ;
-      if DynType.is_vec t then self#add_dynamic_size_annot id dims;
+      if DynType.is_vec t then (
+        match dims, storage with 
+          | [], _ ->    
+            failwith $ Printf.sprintf 
+              "[ImpCodegen] Local var of type %s can't have scalar shape"
+              (DynType.to_str t)
+          | _, None -> 
+            failwith $ Printf.sprintf 
+               "ImpCodegen] Local var of type %s must have array annotation"
+               (DynType.to_str t)
+          | _, Some s -> Hashtbl.replace array_storage id s     
+      );  
       id
 
-    method fresh_var ?(dims = []) t =
-      let id = self#fresh_local_id ~dims t in 
+    method fresh_var ?(dims = []) ?storage t =
+      let id = self#fresh_local_id ~dims ?storage t in 
       {exp = Var id; exp_type = t}    
       
+    
     method fresh_input_id t =
       let id = self#fresh_id t in
-      MutableSet.add inputSet id; 
-      DynArray.add inputs (id,t);
+      Hashtbl.add sizes id (SymbolicShape.all_dims (Imp.var ~t id));  
+      MutableSet.add inputSet id;
+      if DynType.is_vec t then 
+        Hashtbl.add array_storage id Imp.Global
+      ; 
+      DynArray.add inputs id;    
       id 
     
     method fresh_input t = {exp = Var (self#fresh_input_id t); exp_type=t} 
     
     method fresh_output_id ?(dims=[]) t = 
       let id = self#fresh_id t in
-      DynArray.add outputs (id,t); 
+      Hashtbl.add sizes id dims; 
+      DynArray.add outputs id;  
       MutableSet.add outputSet id;
+     
       if DynType.is_scalar t then (  
-        if dims <> [] then failwith 
-           (Printf.sprintf 
+        if dims <> [] then failwith $ 
+           Printf.sprintf 
              "[ImpCodegen] Cannot create var of type %s and non-scalar shape %s"
              (DynType.to_str t)
-             (SymbolicShape.shape_to_str dims))
-        )
+             (SymbolicShape.shape_to_str dims)
+      )
       else (
-        if dims = [] then failwith 
-          (Printf.sprintf 
+        Hashtbl.add array_storage id Imp.Global; 
+        if dims = [] then failwith $ 
+          Printf.sprintf 
              "[ImpCodegen] 
                  Cannot create var of vector type %s and scalar shape %s"
              (DynType.to_str t)
-             (SymbolicShape.shape_to_str dims))
-            ;   
-        self#add_dynamic_size_annot id dims
+             (SymbolicShape.shape_to_str dims);   
       ); 
       id
       
@@ -375,17 +311,12 @@ class imp_codegen =
     
     method fresh_vars n t = 
       Array.map (fun id -> {exp=Var id;exp_type=t}) $ self#fresh_ids n t   
-    
-    (* TODO: reuse the Imp.exp shapes of non-shared arrays, so we can call
-       the normal local_id method
-    *) 
-    method shared_vec_id t dims =
-      let vecT = DynType.VecT t in
+     
+    method shared_vec_id t intDims =
       let id = self#fresh_id t in
+      Hashtbl.add sizes id (List.map Imp.int intDims); 
       MutableSet.add localIdSet id;
-      DynArray.add localIds id;
-      Hashtbl.add sharedArrayAllocations id dims; 
-      self#add_static_size_annot id dims; 
+      Hashtbl.add array_storage id Imp.Shared; 
       id 
       
     method shared_vec_var t dims = 
@@ -393,23 +324,23 @@ class imp_codegen =
       {exp =Var (self#shared_vec_id t dims); exp_type=DynType.VecT t} 
     
     method finalize = 
-      let localIdsArr = DynArray.to_array localIds in  
+      let inputArray = DynArray.to_array inputs in 
+      let outputArray = DynArray.to_array outputs in 
       ImpSimplify.simplify_function {
-        input_types =  DynArray.to_array $ DynArray.map snd inputs;
-        input_ids = DynArray.to_array $ DynArray.map fst inputs; 
+        input_ids = inputArray;
+        input_id_set = inputSet; 
+        input_types = Array.map self#get_type inputArray; 
+   
+        output_ids = outputArray;
+        output_id_set = outputSet;  
+        output_types = Array.map self#get_type outputArray;    
         
-        output_types = DynArray.to_array $ DynArray.map snd outputs;   
-        output_ids = DynArray.to_array $ DynArray.map fst outputs;
-        output_sizes = Hashtbl.copy outputSizes; 
-          
-        local_ids = localIdsArr; 
-        local_types = Array.map self#get_type localIdsArr;
-        (* TODO: only keep PrivateArray annotations for local_arrays field of
-         final function-- maybe rename this field to "private_arrays"? 
-        *) 
-        local_arrays =  Hashtbl.copy localSizes; 
-        tenv = Hashtbl.copy types;
-        shared_array_allocations = Hashtbl.copy sharedArrayAllocations;
+        local_id_set = localIdSet; 
+
+        types = types;
+        sizes =  sizes; 
+        
+        array_storage = array_storage; 
         body = DynArray.to_list code;
       }
       
@@ -430,54 +361,39 @@ class imp_codegen =
             (Array.length fn.output_ids)
             (Array.length outputs)
         ;   
-      ENDIF; 
-      let oldIds = Array.append fn.input_ids fn.output_ids in
-      (* remove the input/output ids since they will be replaced *)
-      let tenv' = Hashtbl.copy fn.tenv in
-      Array.iter (fun id -> Hashtbl.remove tenv' id) oldIds; 
-      
+      ENDIF;
+       
       (* have to rewrite the input/output variables to the expressions *)
       (* we were given as arguments inputExps/outputVars *)
       let inOutMap = 
         Array.fold_left2 
           (fun accMap id node -> PMap.add (Var id) node.exp accMap)
           PMap.empty 
-          oldIds
+          (Array.append fn.input_ids fn.output_ids)
           (Array.append inputs outputs)
       in 
       (* generate fresh code at every splice site so that temporaries get 
          different names.  
       *)  
       let fresh_code () =  
-        (* rename the local variables so they can be spliced safely into the *)
-        (* targetCode *) 
-        let idMap = 
-          Hashtbl.fold 
-            (fun id t map -> ID.Map.add id (self#fresh_id t) map)
-            tenv' 
-            ID.Map.empty 
-        in 
-        (* make sure new names of shared variables are marked as shared *)
-        Hashtbl.iter  
-          (fun id sz -> 
-            let id' = ID.Map.find id idMap in 
-            Hashtbl.add sharedArrayAllocations id' sz
-          ) 
-          fn.shared_array_allocations
-        ;
-        (* copy over all information about locals *)
-        let add_local (id : ID.t) = 
-          let newId = ID.Map.find id idMap in 
-          DynArray.add localIds newId; 
-          MutableSet.add localIdSet newId;
-          if Hashtbl.mem fn.local_arrays id then 
-            Hashtbl.add localSizes newId (Hashtbl.find fn.local_arrays id )  
-        in 
-        Array.iter add_local fn.local_ids;  
-          (* TODO: Also update output size decls
-    val outputSizes : ((ID.t, Imp.exp list) Hashtbl.t) = Hashtbl.create 127
-           *)
-      (* replace old ids with their new names in body of function *)
+        (* build an ID->ID map, and register types and storage of inlined 
+           vars. Don't yet add size info, since we need to translate
+           variable names in the size expressions 
+        *) 
+        let build_id_map id t map =
+          if MutableSet.mem fn.local_id_set id then (
+            let id' = self#fresh_id t in
+            MutableSet.add localIdSet id'; 
+            if not (DynType.is_scalar t) then (
+              assert (Hashtbl.mem fn.array_storage id);
+              Hashtbl.add array_storage id' (Hashtbl.find fn.array_storage id) 
+            ); 
+            ID.Map.add id id' map
+          )
+          else map       
+        in      
+        let idMap = Hashtbl.fold build_id_map fn.types ID.Map.empty in           
+        (* replace old ids with their new names in body of function *)
         let fnCode = List.map (ImpReplace.apply_id_map_to_stmt idMap) fn.body in
         List.map (ImpReplace.apply_exp_map_to_stmt inOutMap) fnCode   
       in   

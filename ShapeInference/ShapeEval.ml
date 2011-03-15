@@ -16,8 +16,6 @@ type 'a math_ops = {
 } 
 
 let rec eval_exp (m : 'a math_ops) (shapeEnv:Shape.t ID.Map.t) expNode : 'a  =
-  Printf.printf "[ShapeEval] eval_exp: %s\n"
-    (Imp.exp_node_to_str expNode); 
   let recur (e : Imp.exp_node) : 'a  = eval_exp m shapeEnv e in   
   match expNode.exp with  
   | Op (Prim.Add, _, [arg1; arg2]) -> 
@@ -52,8 +50,6 @@ let int_ops : int math_ops = {
   of_pqnum = PQNum.to_int;  
 }
 
-
-
 let float_ops : float math_ops = { 
   safe_div = (/.);  
   log = log; 
@@ -81,11 +77,11 @@ let eval_imp_shape_env (fn:Imp.fn) (inputShapes : Shape.t list) =
   (* shapes of all inputs *) 
   let inputEnv = 
     Array.fold_left2 
-    (fun accEnv id shape -> ID.Map.add id shape accEnv)
-    ID.Map.empty
-    fn.input_ids
-    (Array.of_list inputShapes)
-  in     
+      (fun accEnv id shape -> ID.Map.add id shape accEnv)
+      ID.Map.empty
+      fn.input_ids
+      (Array.of_list inputShapes)
+  in
   let aux id sizeExpressions shapeEnv  =
     let dims = List.map (eval_exp_as_int shapeEnv) sizeExpressions in
     let shape = Shape.of_list dims in   
@@ -95,17 +91,9 @@ let eval_imp_shape_env (fn:Imp.fn) (inputShapes : Shape.t list) =
         (Shape.to_str shape);
     ENDIF; 
     ID.Map.add id shape shapeEnv     
-  in 
-  (* shapes of inputs and outputs *) 
-  let outputEnv = Hashtbl.fold aux fn.output_sizes inputEnv in 
-  let aux2 id annot shapeEnv = match annot with 
-    | Imp.InputSlice sizes 
-    | Imp.PrivateArray sizes -> aux id sizes shapeEnv
-    | Imp.SharedArray _ -> shapeEnv  
-    | _ -> assert false 
-  in         
-  Hashtbl.fold aux2 fn.local_arrays  outputEnv  
-  
+  in
+  Hashtbl.fold aux fn.sizes inputEnv 
+    
 
 let eval_ssa_output_shapes 
       (fnTable:FnTable.t) 

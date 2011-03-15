@@ -89,10 +89,10 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
     let outputMap = DynArray.create() in
     let process_output env id  =
       IFDEF DEBUG THEN 
-        assert (Hashtbl.mem impfn.Imp.tenv id);
+        assert (Hashtbl.mem impfn.Imp.types id);
         assert (ID.Map.mem id shapeEnv); 
       ENDIF;
-      let ty = Hashtbl.find impfn.Imp.tenv id in
+      let ty = Hashtbl.find impfn.Imp.types id in
       let shape = ID.Map.find id shapeEnv in
       IFDEF DEBUG THEN 
         assert (DynType.is_vec ty);
@@ -197,10 +197,22 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
                            REDUCE 
    **********************************************************)
   let compile_reduce payload =
-    let redThreadsPerBlock = 256 in
+    let threadsPerBlock = 256 in
+    (* assuming accumulator and vector element types are the same *) 
+    let inType = List.hd payload.SSA.fn_output_types in
+    (* this is very hackish, but we know that the GPU can compile *)
+    (* a better kernel for maps nested within a reduce, so we extract*)
+    (* the function being mapped and pass it as if it were the *)
+    (* direct argument to reduce. This relies on the code generator for*)
+    (* the kernel doing something smart with 2D arguments. BEWARE! *) 
+            
+    let payload = match SSA.extract_nested_map_fn_id payload with 
+      | Some fnId -> FnTable.find fnId P.fnTable  
+      | None -> payload 
+    in  
     let impPayload = SSA_to_Imp.translate_fundef P.fnTable payload in
     let impfn =
-      ImpReduceTemplate.gen_reduce_2d_capable impPayload redThreadsPerBlock  
+      ImpReduceTemplate.gen_reduce_2d_capable inType impPayload threadsPerBlock  
     in
     IFDEF DEBUG THEN
       Printf.sprintf "[compile_reduce] %s\n" (Imp.fn_to_str impfn);
@@ -215,7 +227,7 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
     let reducePrefix = "reduce_kernel" in
     let name = reducePrefix ^ (string_of_int (ID.gen())) in
     let cudaModule = 
-      LibPQ.cuda_module_from_kernel_list [name,ptx] redThreadsPerBlock
+      LibPQ.cuda_module_from_kernel_list [name,ptx] threadsPerBlock
     in 
     {imp_source=impfn; cc=cc; cuda_module=cudaModule} 
 
