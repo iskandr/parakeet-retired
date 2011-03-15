@@ -10,11 +10,11 @@ type host_array =
     shape: Shape.t;
     nbytes: int; (* cached to avoid recalculating every time *) 
   }
- 
-type host_val = 
-  | HostScalar of PQNum.num 
-  | HostArray of host_array 
-  | HostBoxedArray of host_val array 
+
+type host_val =
+  | HostScalar of PQNum.num
+  | HostArray of host_array
+  | HostBoxedArray of host_val array
 
 external c_get_int32 : Int64.t -> int -> Int32.t = "ocaml_get_int32"
 external c_set_int32 : Int64.t -> int -> Int32.t -> unit = "ocaml_set_int32"

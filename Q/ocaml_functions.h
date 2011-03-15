@@ -12,8 +12,6 @@
 #include <caml/memory.h>
 #include <caml/mlvalues.h>
 
-void parakeet_init(void);
-
 value build_ocaml_host_scalar(value num);
 value build_ocaml_host_array(int num_bytes, value ocaml_dyn_type,
                              int *shape, int shape_len, char *flattened);
@@ -35,3 +33,4 @@ int32_t get_pqnum_int32(value);
 int64_t get_pqnum_int64(value);
 float get_pqnum_float32(value);
 double get_pqnum_float64(value);
+

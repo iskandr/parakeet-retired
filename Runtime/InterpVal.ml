@@ -7,7 +7,6 @@ type t =
   (*| Closure of ID.t * t list*) 
   | Scalar of PQNum.num
   | Array of t array 
-  
 
 let rec to_str = function 
   | Data dataId -> DataId.to_str dataId
@@ -17,6 +16,7 @@ let rec to_str = function
     Printf.sprintf "closure{%d, [%s]}"
       fnId (String.concat ", " (List.map to_str args))
    *)
+
 let to_int = function 
   | Scalar n -> PQNum.to_int n 
   | other -> failwith $ Printf.sprintf  

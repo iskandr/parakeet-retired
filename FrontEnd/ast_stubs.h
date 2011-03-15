@@ -1,11 +1,14 @@
-#include <caml/alloc.h>
-#include <caml/bigarray.h>
-#include <caml/callback.h>
-#include <caml/memory.h>
-#include <caml/mlvalues.h>
-#include <string.h>
+/*
+ *  ast_stubs.c
+ *
+ *  Functions for front ends to create Parakeet ASTs.
+ *
+ * (c) Eric Hielscher and Alex Rubinsteyn, 2009-2011.
+ */
 
-#include "ast_variants.h"
+#ifndef _AST_STUBS_H_
+#define _AST_STUBS_H_
+
 #include "prim_variants.h"
 
 /**
@@ -36,10 +39,10 @@ paranode mk_adverb(adverb_t op, source_info_t *src_info);
 paranode mk_impure_op(impure_op_t op, source_info_t *src_info);
 paranode mk_q_op(q_op_t op, source_info_t *src_info);
 
-paranode mk_int32(int32_t i, source_info_t *src_info);
-paranode mk_int64(int64_t l, source_info_t *src_info);
-paranode mk_float(float f, source_info_t *src_info);
-paranode mk_double(double d, source_info_t *src_info);
+paranode mk_int32_paranode(int32_t i, source_info_t *src_info);
+paranode mk_int64_paranode(int64_t l, source_info_t *src_info);
+paranode mk_float_paranode(float f, source_info_t *src_info);
+paranode mk_double_paranode(double d, source_info_t *src_info);
 
 paranode mk_str(char *str, source_info_t *src_info);
 
@@ -68,3 +71,5 @@ paranode mk_countloop(paranode count, paranode body,
                       source_info_t *src_info);
 
 paranode mk_void(source_info_t *src_info);
+
+#endif

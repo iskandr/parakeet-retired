@@ -107,7 +107,7 @@ let rewrite_global_reads
          (* if the variable is neither local nor globally defined, 
             is it in the standard library? 
           *)
-         else if InterpState.have_untyped_function QStdLib.initState x then
+         else if InterpState.have_untyped_function StdLib.initState x then
             ast
          else failwith $ 
             Printf.sprintf "Couldn't find global variable %s on %s"
@@ -407,7 +407,7 @@ let process_lexbuf ~debug lexbuf =
           *) 
           PSet.filter 
             (fun name -> not $ 
-              InterpState.have_untyped_function QStdLib.initState name)
+              InterpState.have_untyped_function StdLib.initState name)
           (PSet.inter globalDataSet set)
        ) 
        globalReadsMap

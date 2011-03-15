@@ -9,7 +9,7 @@ open SourceInfo
 *)
 open TypeCheck 
 open SSA 
-open QStdLib 
+open StdLib
 
 let _ = Printexc.record_backtrace true 
 

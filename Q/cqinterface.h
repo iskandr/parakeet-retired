@@ -8,7 +8,7 @@
 
 #include <caml/mlvalues.h>
 #include "k.h"
-#include "../OCAMLInterface/variants.h"
+#include "../FrontEnd/variants.h"
 
 
 /** Main interface functions between preprocessed Q and OCaml. **/
