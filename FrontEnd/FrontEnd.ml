@@ -12,7 +12,7 @@ let init() =
 let _ = init () 
   
 (* global interpreter state *) 
-let interpState = QStdLib.initState 
+let interpState = StdLib.initState 
 
 let register_untyped_function ~name ~globals ~args astNode =
   let ssaEnv = 

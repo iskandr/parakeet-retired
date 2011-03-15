@@ -314,9 +314,9 @@ CCFILES		:= \
 ################################################################################
 # Rules and targets
 
-all: ocaml_interface
+all: parakeet
 
-ocaml_interface:
+parakeet:
 	echo $(INCLUDES)
 	gcc -fPIC -c host_stubs.c -I. $(INCLUDES) -o host_stubs.o $(LIB)
 	gcc -fPIC -c ast_stubs.c -I. $(INCLUDES) -o ast_stubs.o $(LIB)

@@ -191,7 +191,7 @@ let transitive_closure infoMap =
         (* if the variable isn't recognized as a user-defined global, 
            check if it's defined in the standard library 
         *) 
-        if InterpState.have_untyped_function QStdLib.initState var then acc 
+        if InterpState.have_untyped_function StdLib.initState var then acc 
         else failwith $ 
           Printf.sprintf "couldn't find info for global var %s" var
       in 
@@ -228,7 +228,7 @@ let find_safe_functions globalFnMap volatileFnSet =
         )
       else 
       (* function is in the standard library  *) 
-      if InterpState.have_untyped_function QStdLib.initState name then 
+      if InterpState.have_untyped_function StdLib.initState name then 
         currSafe, currUnsafe 
       else failwith $ Printf.sprintf "binding for variable %s not found " name
     in

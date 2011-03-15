@@ -5,8 +5,7 @@ import argparse, glob, os, shutil, subprocess, sys
 # For now, I'm setting a -q flag to default to True, but once we move to
 # Python, we can switch that off.
 parser = argparse.ArgumentParser(description='Parakeet Build System')
-parser.add_argument('-q', action='store_true', help='Build Q front end',
-                    default=True)
+parser.add_argument('-q', action='store_true', help='Build Q front end')
 parser.add_argument('-p', '--python', action='store_true',
                     help='Build Python front end')
 parser.add_argument('-d', '--debug', action='store_true',
@@ -79,9 +78,12 @@ os.chdir("..")
 
 # Build FrontEnd
 print "\n\n ****** Building Parakeet Front End Interface ******"
+if subprocess.call(build_command + ["Callbacks.cmx", "-no-hygiene"]):
+  print "Parakeet Front End Callbacks build failed"
+  sys.exit(1)
 os.chdir("FrontEnd")
 if subprocess.call(make_command):
-  print "Parakeet Front End build failed"
+  print "Parakeet Front End C build failed"
   sys.exit(1)
 os.chdir("..")
 
@@ -102,4 +104,18 @@ if args['q']:
   shutil.move("parakeetq.so", "../_build")
   os.chdir("..")
 
-
+# Build Python Front End
+if args['python']:
+  #if subprocess.call(build_command +
+  #                   ["QCallbacks.cmx", "preprocess.native", "-no-hygiene"]):
+  #  print "Q Preprocessor build failed"
+  #  exit(1)
+  os.chdir("Python")
+  print "Building Python Front End"
+  if subprocess.call(make_command):
+    print "Python Front End build failed"
+    sys.exit(1)
+  for f in glob.glob("*.o"):
+    shutil.move(f, "../_build")
+  shutil.move("parakeetpy.so", "../_build")
+  os.chdir("..")

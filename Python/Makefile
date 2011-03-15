@@ -15,7 +15,7 @@ PARAKEET_INCLUDES = -I $(BUILDPATH) \
 	-I $(BUILDPATH)/Common \
 	-I $(BUILDPATH)/Ptx \
 	-I $(BUILDPATH)/GPU \
-	-I $(BUILDPATH)/Q \
+	-I $(BUILDPATH)/Python \
 	-I $(BUILDPATH)/AST   \
 	-I $(BUILDPATH)/Imp \
 	-I $(BUILDPATH)/Imp/KernelTemplates \
@@ -29,7 +29,7 @@ PARAKEET_INCLUDES = -I $(BUILDPATH) \
   -I $(BUILDPATH)/FrontEnd
 OCAMLINCLUDES := $(LIB_INCLUDES) $(PARAKEET_INCLUDES)
 
-OBJS = cqinterface.o ocaml_functions.o
+OBJS =
 COBJS = -ccopt -L/usr/lib/nvidia-current -ccopt $(PQ_PATH)/cuda_stubs.cu_o \
   $(PQ_PATH)/libpq_stubs.o $(PQ_PATH)/../FrontEnd/parakeet.a \
 	-ccopt -lcuda -ccopt -L/usr/local/cuda/lib64 -ccopt -lcudart \
@@ -41,7 +41,7 @@ OCAML_LIB_OBJECTS := bigarray.cmxa unix.cmxa str.cmxa \
                      uint32.cmxa uint64.cmx extLib.cmxa
 
 $(shell ocamlopt ../FrontEnd/depsort.ml -o ../FrontEnd/depsort)
-DEPENDENCY_SORTED_OBJECTS := $(shell ../FrontEnd/depsort -E preprocess.cmx $(PARAKEET_INCLUDES))
+DEPENDENCY_SORTED_OBJECTS := $(shell ../FrontEnd/depsort $(PARAKEET_INCLUDES))
 OCAMLOBJSRAW := $(OCAML_LIB_OBJECTS) $(DEPENDENCY_SORTED_OBJECTS)
 ifneq ($(PROF),)
   OCAMLOBJS = $(patsubst %.cmx,%.p.cmx,$(OCAMLOBJSRAW))
@@ -49,20 +49,17 @@ else
   OCAMLOBJS = $(OCAMLOBJSRAW) 
 endif
 
-all: parakeetq
+all: parakeetpy
 
-parakeetq: $(OBJS) 
+parakeetpy: $(OBJS) 
 	$(OCAMLCC) -linkall -ccopt -shared -ccopt -Wl,-Bsymbolic $(OBJS) \
 	$(OCAMLINCLUDES) $(COBJS) $(DEBUG) -ccopt -Wl,--start-group $(OCAMLOBJS) \
-	-ccopt -Wl,--end-group -o parakeetq.so -verbose -cclib -lstdc++
+	-ccopt -Wl,--end-group -o parakeetpy.so -verbose -cclib -lstdc++
 
-cqinterface.o: cqinterface.c cqinterface.h
-	$(OCAMLCC) $(OCAMLCFLAGS) $(DEBUG) -o cqinterface.o cqinterface.c
-
-ocaml_functions.o: ocaml_functions.c ocaml_functions.h
-	gcc -fPIC -c ocaml_functions.c -I. $(OCAMLINCLUDES) -o ocaml_functions.o \
-	  $(LIB_INCLUDES)
+# The Python C interface will be added here
+# cqinterface.o: cqinterface.c cqinterface.h
+# 	$(OCAMLCC) $(OCAMLCFLAGS) $(DEBUG) -o cqinterface.o cqinterface.c
 
 clean:
-	rm -f cinterface.so *~ *.o QType.cmx QType.mli QType.cmi depsort
+	rm -f *.so *~ *.o
 

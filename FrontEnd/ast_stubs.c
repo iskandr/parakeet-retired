@@ -20,7 +20,7 @@
 
 /** Private members **/
 value *ocaml_mk_ast_info = NULL;
-int init = 0;
+static int init = 0;
 static CAMLprim value mk_src_info(source_info_t *src_info);
 static paranode mk_node(value exp, source_info_t *src_info);
 static paranode mk_prim(prim_t prim_op, int op, source_info_t *src_info);
