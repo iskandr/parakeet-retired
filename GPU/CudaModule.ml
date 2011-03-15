@@ -15,13 +15,11 @@ type gpu_arg = GpuScalarArg of PQNum.num | GpuArrayArg of Int64.t * int
 
 let gpu_arg_to_str = function 
   | GpuScalarArg n -> "Scalar: " ^ (PQNum.num_to_str n)
-  | GpuArrayArg (ptr, n) -> Printf.sprintf "Array: %Lx (%d)" ptr n 
-
-external cuda_init : unit -> unit = "ocaml_pq_init"
+  | GpuArrayArg (ptr, n) -> Printf.sprintf "Array: %Lx (%d)" ptr n
 
 (* arguments: a ptx string and a desired number of threads per block *) 
 external compile_module_impl
-    : string -> int -> CuModulePtr.t = "ocaml_pq_compile_module"
+    : string -> int -> CuModulePtr.t = "ocaml_cuda_compile_module"
 let compile_module ptx threadsPerBlock =
   Timing.start Timing.ptxCompile; 
   let modulePtr = compile_module_impl ptx threadsPerBlock in
@@ -29,23 +27,14 @@ let compile_module ptx threadsPerBlock =
   modulePtr
 
 external destroy_module
-    : CuModulePtr.t -> unit = "ocaml_pq_destroy_module"
+    : CuModulePtr.t -> unit = "ocaml_cuda_destroy_module"
 
 (* bytecode handles arity > 5 differently from natively compiled OCaml, *)
 (* so need two distinct stub functions for bytecode and native *)
 external launch_ptx_impl
   : CuModulePtr.t -> string -> gpu_arg array ->
          int -> int -> int -> int -> int -> unit =
-                "ocaml_pq_launch_ptx_bytecode" "ocaml_pq_launch_ptx"
-
-let inited = ref false
-
-let init () =
-  if !inited = false then begin
-    inited := true;
-    cuda_init ()
-  end;
-  ()
+                "ocaml_cuda_launch_ptx_bytecode" "ocaml_cuda_launch_ptx"
 
 let launch_ptx (cudaModule : CuModulePtr.t) (fnName : string) 
       (args : gpu_arg array)

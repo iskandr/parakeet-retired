@@ -1,38 +1,3 @@
-################################################################################
-#
-# Copyright 1993-2006 NVIDIA Corporation.  All rights reserved.
-#
-# NOTICE TO USER:   
-#
-# This source code is subject to NVIDIA ownership rights under U.S. and 
-# international Copyright laws.  
-#
-# NVIDIA MAKES NO REPRESENTATION ABOUT THE SUITABILITY OF THIS SOURCE 
-# CODE FOR ANY PURPOSE.  IT IS PROVIDED "AS IS" WITHOUT EXPRESS OR 
-# IMPLIED WARRANTY OF ANY KIND.  NVIDIA DISCLAIMS ALL WARRANTIES WITH 
-# REGARD TO THIS SOURCE CODE, INCLUDING ALL IMPLIED WARRANTIES OF 
-# MERCHANTABILITY, NONINFRINGEMENT, AND FITNESS FOR A PARTICULAR PURPOSE.   
-# IN NO EVENT SHALL NVIDIA BE LIABLE FOR ANY SPECIAL, INDIRECT, INCIDENTAL, 
-# OR CONSEQUENTIAL DAMAGES, OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS 
-# OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE 
-# OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE 
-# OR PERFORMANCE OF THIS SOURCE CODE.  
-#
-# U.S. Government End Users.  This source code is a "commercial item" as 
-# that term is defined at 48 C.F.R. 2.101 (OCT 1995), consisting  of 
-# "commercial computer software" and "commercial computer software 
-# documentation" as such terms are used in 48 C.F.R. 12.212 (SEPT 1995) 
-# and is provided to the U.S. Government only as a commercial end item.  
-# Consistent with 48 C.F.R.12.212 and 48 C.F.R. 227.7202-1 through 
-# 227.7202-4 (JUNE 1995), all U.S. Government End Users acquire the 
-# source code with only those rights set forth herein.
-#
-################################################################################
-#
-# Common build script
-#
-################################################################################
-
 .SUFFIXES : .cu .cu_dbg_o .c_dbg_o .cpp_dbg_o .cu_rel_o .c_rel_o .cpp_rel_o .cubin
 
 # Add new SM Versions here as devices with new Compute Capability are released
@@ -62,9 +27,9 @@ COMMONDIR  := $(ROOTDIR)/../common
 
 # Compilers
 NVCC       := $(CUDA_INSTALL_PATH)/bin/nvcc 
-CXX        := g++ -fPIC -ggdb3
-CC         := gcc -fPIC -ggdb3
-LINK       := g++ -fPIC
+CXX        := g++-4.3 -fPIC -ggdb3
+CC         := gcc-4.3 -fPIC -ggdb3
+LINK       := g++-4.3 -fPIC
 
 # Includes
 INCLUDES  += -I. -I$(CUDA_INSTALL_PATH)/include -I$(COMMONDIR)/inc
@@ -97,7 +62,7 @@ CWARN_FLAGS := $(CXXWARN_FLAGS) \
 	-Wmain \
 
 # Compiler-specific flags
-NVCCFLAGS := --compiler-bindir=/usr/bin/gcc
+NVCCFLAGS := --compiler-bindir=/usr/bin/gcc-4.3
 CXXFLAGS  := $(CXXWARN_FLAGS)
 CFLAGS    := $(CWARN_FLAGS)
 
@@ -318,91 +283,14 @@ CCFILES		:= \
 ################################################################################
 # Rules and targets
 
-#all: pqlib stubs 
-all: stubs 
+all: parakeet_cuda
 
-pqlib:
-	nvcc -o libpq.so --compiler-options '-fPIC' --shared \
-	pqlib.cu $(INCLUDES) $(LIB) -lcuda 
-
-module_tester:
-	gcc -o module_tester module_tester.c -I. $(INCLUDES) -lcuda -lrt
-
-tester: pqlib stubs tester.o
-	gcc -g tester.o -I. $(INCLUDES) -o tester $(LIB) -L. -lpq -lpq_stubs
-
-compaction: where.cu_o index.cu_o gen_idx.cu_o scan.cu_o compaction_tester.o \
-		base.o
-	gcc where.cu_o index.cu_o gen_idx.cu_o scan.cu_o compaction_tester.o \
-	base.o -o compaction $(INCLUDES) $(LIB) -L.
-
-each: each.cu_o each_tester.o base.o
-	gcc each.cu_o each_tester.o base.o -I. $(INCLUDES) -o each $(LIB) -L.
-
-boolscan: boolscantester.cu_o
-	gcc boolscantester.cu_o -o boolscan -I. $(INCLUDES) $(LIB) -L.
-
-kmeans: kmeans.cu_o scan.cu_o base.o
-	gcc-4.3 kmeans.cu_o scan.cu_o base.o -o kmeans -I. $(INCLUDES) $(LIB) -L.
-
-cc: cc.cu_o scan.cu_o base.o
-	gcc-4.3 cc.cu_o scan.cu_o base.o -o cc -I. $(INCLUDES) $(LIB) -L.
-
-gen_idx: gen_idx.cu_o gen_idx_tester.o base.o
-	gcc-4.3 gen_idx.cu_o gen_idx_tester.o base.o -o gen_idx $(INCLUDES) $(LIB) -L.
-
-index: index.cu_o index_tester.o base.o
-	gcc-4.3 index.cu_o index_tester.o base.o -o index $(INCLUDES) $(LIB) -L.
-
-reduce2d: reduce2d_tester.cu_o base.o
-	gcc-4.3 reduce2d_tester.cu_o base.o -o reduce2d $(INCLUDES) $(LIB) -L.
-
-scan: scan.cu_o scan_tester.o
-	gcc-4.3 scan.cu_o scan_tester.o -o scan $(INCLUDES) $(LIB) -L.
-
-sort: sort.cu_o sort_tester.o
-	gcc-4.3 sort.cu_o sort_tester.o -o sort $(INCLUDES) $(LIB) -L.
-
-where: where.cu_o where_tester.o base.o
-	gcc-4.3 where.cu_o where_tester.o base.o -o where $(INCLUDES) $(LIB) -L.
-
-naivecpud: naivecpuapdiff.o base.o
-	gcc-4.3 -O3 naivecpuapdiff.o base.o -o naivecpud $(INCLUDES) $(LIB) -L.
-
-ap1d2d: all_pairs_dists_tester.cu_o base.o
-	gcc-4.3 all_pairs_dists_tester.cu_o base.o -o ap1d2d $(INCLUDES) $(LIB) -L.
-
-apnotex: all_pairs_no_tex_tester.cu_o base.o
-	gcc-4.3 all_pairs_no_tex_tester.cu_o base.o -o apnotex $(INCLUDES) $(LIB) -L.
-
-all_pairs: all_pairs_abs_diff.cu_o all_pairs_abs_diff_tester.o
-	gcc-4.3 all_pairs_abs_diff.cu_o all_pairs_abs_diff_tester.o -I. $(INCLUDES) \
-	-o all_pairs $(LIB) -L.
-
-min_idx: min_idx_each.cu_o min_idx_each_tester.o
-	gcc-4.3 min_idx_each.cu_o min_idx_each_tester.o -I. $(INCLUDES) \
-	-o min_idx $(LIB) -L.
-
-reduce: reduce.cu_o reduce_tester.o
-	gcc-4.3 reduce.cu_o reduce_tester.o -I. $(INCLUDES) -o reduce $(LIB) -L.
-
-minall: minall.cu_o minall_tester.o
-	gcc-4.3 minall.cu_o minall_tester.o -I. $(INCLUDES) -o minall $(LIB) -L.
-
-multi: multi_index_reduce.cu_o multi_index_reduce_tester.o
-	gcc-4.3 multi_index_reduce.cu_o multi_index_reduce_tester.o -I. $(INCLUDES) \
-		-o multi $(LIB) -L.
-
-timing: timing.o
-	gcc timing.o  libpq.so -I. $(INCLUDES) -o timing $(LIB) -L. -lpq
-
-stubs: thrust_stubs.cu_o kernel_stubs.cu_o cuda_stubs.cu_o base.o
+parakeet_cuda: cuda_module_stubs.o thrust_stubs.cu_o kernel_stubs.cu_o \
+    cuda_stubs.cu_o base.o
 	echo $(INCLUDES)
-	$(CC) -c libpq_stubs.c -I. $(INCLUDES) -lcuda \
-	      -o libpq_stubs.o $(COMMONFLAGS) $(LIB) -L. 
-	ar rcs libpq_stubs.a libpq_stubs.o cuda_stubs.cu_o thrust_stubs.cu_o \
+	ar rcs parakeet_cuda.a cuda_module_stubs.o cuda_stubs.cu_o thrust_stubs.cu_o \
 		kernel_stubs.cu_o base.o 
-		
 
 clean:
-	rm -f libpq.so libpq_stubs.a *_o *.o tester timing *~
+	rm -f parakeet_cuda.a *_o *.o *~
+

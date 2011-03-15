@@ -6,7 +6,7 @@ let init() =
   let gcParams = Gc.get() in
   Gc.set { gcParams with Gc.minor_heap_size = 128000; space_overhead = 90 };
   HardwareInfo.hw_init ();
-  LibPQ.init ()
+  Cuda.init ()
   
 (* not sure where else to initialize *) 
 let _ = init () 

@@ -1,4 +1,4 @@
-PQPATH ?= ../libpq
+PARAKEET_PATH ?= ..
 BUILDPATH = ../_build
 CFLAGS = -Wall -O3
 LDFLAGS = -lpthread -lm -lrt
@@ -30,11 +30,10 @@ PARAKEET_INCLUDES = -I $(BUILDPATH) \
 OCAMLINCLUDES := $(LIB_INCLUDES) $(PARAKEET_INCLUDES)
 
 OBJS = cqinterface.o ocaml_functions.o
-COBJS = -ccopt -L/usr/lib/nvidia-current -ccopt $(PQ_PATH)/cuda_stubs.cu_o \
-  $(PQ_PATH)/libpq_stubs.o $(PQ_PATH)/../FrontEnd/parakeet.a \
+COBJS = -ccopt -L/usr/lib/nvidia-current \
+  $(PARAKEET_PATH)/cuda/parakeet_cuda.a \
+  $(PARAKEET_PATH)/FrontEnd/parakeet.a \
 	-ccopt -lcuda -ccopt -L/usr/local/cuda/lib64 -ccopt -lcudart \
-	-ccopt $(PQ_PATH)/thrust_stubs.cu_o -ccopt $(PQ_PATH)/kernel_stubs.cu_o \
-	-ccopt $(PQ_PATH)/base.o \
   -ccopt $(UINT_DIR)/libuint32_stubs.a -ccopt $(UINT_DIR)/libuint64_stubs.a
 
 OCAML_LIB_OBJECTS := bigarray.cmxa unix.cmxa str.cmxa \

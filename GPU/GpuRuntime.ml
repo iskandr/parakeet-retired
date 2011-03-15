@@ -31,12 +31,12 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
   *) 
   let create_input_args modulePtr inputVal = function
   | PtxCallingConventions.ScalarInput ->
-      [LibPQ.GpuScalarArg(GpuVal.get_scalar inputVal)]
+      [CudaModule.GpuScalarArg(GpuVal.get_scalar inputVal)]
   | PtxCallingConventions.GlobalInput ->
-        [LibPQ.GpuArrayArg((GpuVal.get_ptr inputVal),
-                           (GpuVal.get_nbytes inputVal));
-         LibPQ.GpuArrayArg((GpuVal.get_shape_ptr inputVal),
-                           (GpuVal.get_shape_nbytes inputVal))]
+        [CudaModule.GpuArrayArg((GpuVal.get_ptr inputVal),
+                                (GpuVal.get_nbytes inputVal));
+         CudaModule.GpuArrayArg((GpuVal.get_shape_ptr inputVal),
+                                (GpuVal.get_shape_nbytes inputVal))]
   | PtxCallingConventions.TextureInput (texName, geom) ->
     let texRef = Cuda.cuda_module_get_tex_ref modulePtr texName in
     let inputShape = GpuVal.get_shape inputVal in
@@ -61,15 +61,15 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
         channelFormat  
     | _ -> failwith "3D textures not yet implemented"
     end;
-    [LibPQ.GpuArrayArg((GpuVal.get_shape_ptr inputVal),
-                       (GpuVal.get_shape_nbytes inputVal))] 
+    [CudaModule.GpuArrayArg((GpuVal.get_shape_ptr inputVal),
+                            (GpuVal.get_shape_nbytes inputVal))] 
   
   let create_args 
         (modulePtr : Cuda.CuModulePtr.t) 
         impfn 
         cc 
         (inputs: GpuVal.gpu_val list) 
-        : LibPQ.gpu_arg array * GpuVal.gpu_val list  =
+        : CudaModule.gpu_arg array * GpuVal.gpu_val list  =
     let inputShapes = List.map GpuVal.get_shape inputs in 
     let shapeEnv = ShapeEval.eval_imp_shape_env impfn inputShapes in 
     let process_input env id gpuVal =
@@ -102,10 +102,10 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
       DynArray.add outputMap outputVal;
       ID.Map.add 
         id
-        [LibPQ.GpuArrayArg(GpuVal.get_ptr outputVal,
-                           GpuVal.get_nbytes outputVal);
-         LibPQ.GpuArrayArg(GpuVal.get_shape_ptr outputVal,
-                           GpuVal.get_shape_nbytes outputVal)]
+        [CudaModule.GpuArrayArg(GpuVal.get_ptr outputVal,
+                                GpuVal.get_nbytes outputVal);
+         CudaModule.GpuArrayArg(GpuVal.get_shape_ptr outputVal,
+                                GpuVal.get_shape_nbytes outputVal)]
         env 
     in    
     let valueEnv = 
@@ -141,8 +141,8 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
     let allInputTypes = Array.of_list (closureTypes @ argTypes) in 
     let kernel, cc = ImpToPtx.translate_kernel impfn in
     let kernelName = "map_kernel" ^ (string_of_int (map_id_gen())) in
-    let cudaModule =
-      LibPQ.cuda_module_from_kernel_list [kernelName, kernel] mapThreadsPerBlock
+    let cudaModule = CudaModule.cuda_module_from_kernel_list
+      [kernelName, kernel] mapThreadsPerBlock
     in
     {imp_source=impfn; cc=cc; cuda_module=cudaModule}
 
@@ -169,7 +169,7 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
   IFDEF DEBUG THEN
     Printf.printf "Gpu args being sent:\n"; 
     Array.iter 
-      (fun arg -> Printf.printf "\t %s\n" (LibPQ.gpu_arg_to_str arg))
+      (fun arg -> Printf.printf "\t %s\n" (CudaModule.gpu_arg_to_str arg))
       paramsArray 
   ENDIF;      
   (* create one CUDA thread per every input element *) 
@@ -189,7 +189,8 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
       | None ->
         failwith (sprintf "Unable to get launch params for %d elts" outputElts)
   in
-  LibPQ.launch_ptx cudaModule.Cuda.module_ptr fnName paramsArray gridParams;
+  CudaModule.launch_ptx
+    cudaModule.Cuda.module_ptr fnName paramsArray gridParams;
   outputVals
 
 
@@ -227,7 +228,7 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
     let reducePrefix = "reduce_kernel" in
     let name = reducePrefix ^ (string_of_int (ID.gen())) in
     let cudaModule = 
-      LibPQ.cuda_module_from_kernel_list [name,ptx] threadsPerBlock
+      CudaModule.cuda_module_from_kernel_list [name,ptx] threadsPerBlock
     in 
     {imp_source=impfn; cc=cc; cuda_module=cudaModule} 
 
@@ -282,11 +283,11 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
       create_args compiledModule.Cuda.module_ptr impKernel cc !inputArgs 
     in
     let gridParams = {
-      LibPQ.threads_x=x_threads; threads_y=256; threads_z=1;
+      CudaModule.threads_x=x_threads; threads_y=256; threads_z=1;
       grid_x=x_grid; grid_y=numOutputElts;
     }
     in
-    LibPQ.launch_ptx compiledModule.Cuda.module_ptr fnName args gridParams;
+    CudaModule.launch_ptx compiledModule.Cuda.module_ptr fnName args gridParams;
     if !currInputElts < numInputElts then GpuVal.free (List.hd !inputArgs); 
     inputArgs := outputsList; 
     currInputElts := numOutputElts; 
@@ -324,7 +325,7 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
       let allPairsPrefix = "all_pairs_kernel" in
       let name = allPairsPrefix ^ (string_of_int (ID.gen())) in
       let compiledModule =
-        LibPQ.cuda_module_from_kernel_list [name, kernel] threadsPerBlock
+        CudaModule.cuda_module_from_kernel_list [name, kernel] threadsPerBlock
       in
       {imp_source=impfn; cc=cc; cuda_module=compiledModule}
     | _ -> failwith "[compile_all_pairs] invalid argument types "
@@ -356,11 +357,11 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
       let paramsArray, outputVals =
         create_args compiledModule.Cuda.module_ptr impKernel cc args in 
       let gridParams = {
-          LibPQ.threads_x=16; threads_y=16; threads_z=1;
+          CudaModule.threads_x=16; threads_y=16; threads_z=1;
           grid_x=safe_div nx 16; grid_y=safe_div ny 16;
       }
       in
-      LibPQ.launch_ptx
+      CudaModule.launch_ptx
         compiledModule.Cuda.module_ptr fnName paramsArray gridParams;
       outputVals
 
@@ -436,7 +437,7 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
 (*
 let init () =
   (* initialize GPU contexts and device info *)
-  LibPQ.cuda_init();
+  CudaModule.cuda_init();
   HardwareInfo.hw_init()
 *)
   

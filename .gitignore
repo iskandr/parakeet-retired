@@ -9,6 +9,7 @@ _build
 *.aux
 *.log
 *.native
+scratch_cuda
 libpq/all_pairs
 libpq/ap1d2d
 libpq/boolscan

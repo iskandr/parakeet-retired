@@ -8,8 +8,8 @@ parser = argparse.ArgumentParser(description='Parakeet Build System')
 parser.add_argument('-q', action='store_true', help='Build Q front end')
 parser.add_argument('-p', '--python', action='store_true',
                     help='Build Python front end')
-parser.add_argument('-o', '--opt', action='store_true',
-                    help='Disable debug mode')
+parser.add_argument('-d', '--debug', action='store_true',
+                    help='Enable debug mode')
 parser.add_argument('-r', '--prof', action='store_true',
                     help='Enable profiling')
 parser.add_argument('-t', '--tests', action='store_true',
@@ -28,7 +28,12 @@ print ""
 make_command = ["make"]
 
 if args['clean']:
-  os.chdir("FrontEnd")
+  os.chdir("cuda")
+  print
+  print "Cleaning Cuda directory"
+  print
+  subprocess.call(make_command + ["clean"])
+  os.chdir("../FrontEnd")
   print
   print "Cleaning FrontEnd directory"
   print
@@ -57,23 +62,22 @@ if args['clean']:
   sys.exit(0)
 
 # Get the path and set up the ocamlbuild command
-pq_path = "../libpq"
-if 'PQ_PATH' in os.environ:
-  pq_path = os.environ['PQ_PATH']
+parakeet_path = ".."
+if 'PARAKEET_PATH' in os.environ:
+  parakeet_path = os.environ['PARAKEET_PATH']
 build_command = ["ocamlbuild", "-lflags",
-                 "-ccopt," + pq_path + "/libpq_stubs.o," +\
-                 "-ccopt," + pq_path + "/cuda_stubs.cu_o," +\
-                 "-ccopt," + pq_path + "/base.o," +\
+                 "-ccopt," + parakeet_path + "/cuda/parakeet_cuda.a," +\
                  "-ccopt,-L/usr/local/cuda/lib64/," +\
                  "-ccopt,-L/usr/lib/nvidia-current," +\
                  "-ccopt,-lcuda,-ccopt,-lcudart," +\
-                 "-ccopt," + pq_path + "/../FrontEnd/parakeet.a",
+                 "-ccopt," + parakeet_path + "/FrontEnd/parakeet.a",
                  "-pp", "camlp4o", "-ppflag", "pa_macro.cmo",
                  "-ocamlyacc", "menhir"]
 
 # Handle debugging
 os.environ['dbg'] = '0'
-if not args['opt']:
+if args['debug']:
+  print "Debug mode"
   build_command.append("-ppflag")
   build_command.append("-DDEBUG")
   make_command.append("DEBUG=-g")
@@ -99,10 +103,10 @@ if args['q']:
   os.chdir("..")
 
 # Build libpq (TODO: Rename libpq)
-print "\n\n ******** Building LibPQ ********* "
-os.chdir("libpq")
+print "\n\n ******** Building Cuda Modules ********* "
+os.chdir("cuda")
 if subprocess.call(["make"]):
-  print "LibPQ build failed"
+  print "Cuda build failed"
   sys.exit(1)
 os.chdir("..")
 

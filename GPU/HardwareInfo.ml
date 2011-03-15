@@ -2,7 +2,7 @@
 
 open Base
 open Cuda
-open LibPQ
+open CudaModule
 open Printf
 
 (*

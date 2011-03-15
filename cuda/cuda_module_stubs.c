@@ -1,4 +1,4 @@
-// OCaml interface to PQ library functions
+// OCaml interface to Cuda module compilation and launching functions
 
 #include <caml/alloc.h>
 #include <caml/bigarray.h>
@@ -19,21 +19,11 @@
 #define ALIGN_UP(offset, alignment) \
   (offset) = ((offset) + (alignment) - 1) & ~((alignment) - 1)
 
-/* unit -> unit */
-CAMLprim
-value ocaml_pq_init(value unit) {
-  CAMLparam1 (unit);
-  if (cuInit(0) != CUDA_SUCCESS) {
-    exit (0);
-  }
-  CAMLreturn (Val_unit);
-}
-
 static const int jitLogBufferSize = 32000;
 
 /* string -> Int64.t */
 CAMLprim
-value ocaml_pq_compile_module(value ptx_string, value threads_per_block)
+value ocaml_cuda_compile_module(value ptx_string, value threads_per_block)
 {
   CAMLparam2(ptx_string, threads_per_block);
   CUmodule *cuModule = (CUmodule*)(malloc(sizeof(CUmodule)));
@@ -93,7 +83,7 @@ value ocaml_pq_compile_module(value ptx_string, value threads_per_block)
 }
 
 /* Int64.t -> unit */
-CAMLprim value ocaml_pq_destroy_module(value module_ptr) {
+CAMLprim value ocaml_cuda_destroy_module(value module_ptr) {
 	CAMLparam1(module_ptr);
 
   CUmodule *cuModule = (CUmodule*)Int64_val(module_ptr);
@@ -108,7 +98,7 @@ CAMLprim value ocaml_pq_destroy_module(value module_ptr) {
 	CAMLreturn(Val_unit);
 }
 
-CAMLprim value ocaml_pq_launch_ptx (
+CAMLprim value ocaml_cuda_launch_ptx (
   value ocaml_module_ptr,
   value ocaml_ptx_fun,
   value ocaml_args,
@@ -237,7 +227,8 @@ CAMLprim value ocaml_pq_launch_ptx (
       ALIGN_UP(offset, arg_size);
       result = cuParamSetv(cuFunc, offset, ptr_arg, arg_size);
       if (result != 0) {
-        printf("Error #%d in cuParamSetv -- GpuScalar of %d bytes", result, arg_size);
+        printf("Error #%d in cuParamSetv -- GpuScalar of %d bytes", result,
+               arg_size);
         exit(1);
       }
       offset += arg_size;
@@ -290,9 +281,9 @@ CAMLprim value ocaml_pq_launch_ptx (
   CAMLreturn(Val_unit);
 }
 
-value ocaml_pq_launch_ptx_bytecode (value *argv, int argn) {
-  return ocaml_pq_launch_ptx(argv[0], argv[1], argv[2], argv[3],
-                             argv[4], argv[5], argv[6], argv[7]);
+value ocaml_cuda_launch_ptx_bytecode (value *argv, int argn) {
+  return ocaml_cuda_launch_ptx(argv[0], argv[1], argv[2], argv[3],
+                               argv[4], argv[5], argv[6], argv[7]);
 }
 
 CAMLprim value ocaml_cuda_memcpy_to_constant(value data, value bytes,

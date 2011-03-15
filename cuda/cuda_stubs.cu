@@ -20,6 +20,16 @@ extern "C" {
 #include "caml/memory.h"
 #include "caml/mlvalues.h"
 
+/* unit -> unit */
+CAMLprim
+value ocaml_cuda_init(value unit) {
+  CAMLparam1 (unit);
+  if (cuInit(0) != CUDA_SUCCESS) {
+    exit (0);
+  }
+  CAMLreturn (Val_unit);
+}
+
 /* int -> Int64.t */
 CAMLprim value ocaml_cuda_malloc(value num_bytes)  {
   CAMLparam1(num_bytes);

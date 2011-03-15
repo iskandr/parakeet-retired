@@ -37,6 +37,8 @@ let infer_channel_format = function
   | t -> failwith $ 
     Printf.sprintf "Cannot infer texture channel format for type %s"
     (DynType.to_str t) 
+ 
+external cuda_init : unit -> unit = "ocaml_cuda_init"
 
 external cuda_malloc' : int -> GpuPtr.t = "ocaml_cuda_malloc"
 let cuda_malloc n = assert (n > 0); cuda_malloc' n 
@@ -123,6 +125,14 @@ let cuda_bind_texture_2d_std_channel (texRef : CuTexRef.t)
   | Float -> cuda_bind_texture_2d_std_channel_impl texRef devPtr width height 2
   | _ -> failwith "[cuda] Unsupported texture type"
 
+let inited = ref false
+
+let init () =
+  if !inited = false then begin
+    inited := true;
+    cuda_init ()
+  end;
+  ()
 
 (** CUDA MODULE **)
    
