@@ -41,7 +41,7 @@ OCAML_LIB_OBJECTS := bigarray.cmxa unix.cmxa str.cmxa \
                      uint32.cmxa uint64.cmx extLib.cmxa
 
 $(shell ocamlopt ../FrontEnd/depsort.ml -o ../FrontEnd/depsort)
-DEPENDENCY_SORTED_OBJECTS := $(shell ../FrontEnd/depsort $(PARAKEET_INCLUDES))
+DEPENDENCY_SORTED_OBJECTS := $(shell ../FrontEnd/depsort -E preprocess.cmx $(PARAKEET_INCLUDES))
 OCAMLOBJSRAW := $(OCAML_LIB_OBJECTS) $(DEPENDENCY_SORTED_OBJECTS)
 ifneq ($(PROF),)
   OCAMLOBJS = $(patsubst %.cmx,%.p.cmx,$(OCAMLOBJSRAW))
@@ -51,7 +51,8 @@ endif
 
 all: parakeetpy
 
-parakeetpy: $(OBJS) 
+parakeetpy: $(OBJS)
+	echo "Building Python Parakeet library"
 	$(OCAMLCC) -linkall -ccopt -shared -ccopt -Wl,-Bsymbolic $(OBJS) \
 	$(OCAMLINCLUDES) $(COBJS) $(DEBUG) -ccopt -Wl,--start-group $(OCAMLOBJS) \
 	-ccopt -Wl,--end-group -o parakeetpy.so -verbose -cclib -lstdc++

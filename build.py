@@ -14,15 +14,47 @@ parser.add_argument('-r', '--prof', action='store_true',
                     help='Enable profiling')
 parser.add_argument('-t', '--tests', action='store_true',
                     help='Build and run unit tests')
+parser.add_argument('-c', '--clean', action='store_true',
+                    help='Clean tree and exit')
 
 args = parser.parse_args().__dict__
-print args
 
 print ""
 print "==================================================="
 print "|                Medium Sized Whale               |"
 print "==================================================="
 print ""
+
+make_command = ["make"]
+
+if args['clean']:
+  os.chdir("FrontEnd")
+  print
+  print "Cleaning FrontEnd directory"
+  print
+  subprocess.call(make_command + ["clean"])
+  os.chdir("../Python")
+  print
+  print "Cleaning Python directory"
+  print
+  subprocess.call(make_command + ["clean"])
+  os.chdir("../Q")
+  print
+  print "Cleaning Q directory"
+  print
+  subprocess.call(make_command + ["clean"])
+  os.chdir("..")
+  print
+  print "Removing build directory"
+  print
+  shutil.rmtree("_build", ignore_errors=True)
+  os.remove("preprocess.native")
+  for f in glob.glob("*~"):
+    os.remove(f)
+  print
+  print "All Clean!"
+  print
+  sys.exit(0)
 
 # Get the path and set up the ocamlbuild command
 pq_path = "../libpq"
@@ -40,7 +72,6 @@ build_command = ["ocamlbuild", "-lflags",
                  "-ocamlyacc", "menhir"]
 
 # Handle debugging
-make_command = ["make"]
 os.environ['dbg'] = '0'
 if args['debug']:
   print "Debug mode"

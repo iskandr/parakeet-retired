@@ -328,5 +328,5 @@ parakeet:
 		ast_stubs.o dyn_type_stubs.o front_end_stubs.o
 
 clean:
-	rm -f *.a *_o *.o t *~
+	rm -f *.a *_o *.o *~
 
