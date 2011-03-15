@@ -130,14 +130,30 @@ and stmt_to_str ?(spaces="") = function
 and block_to_str ?(spaces="") stmts = 
   String.concat "\n" (List.map (stmt_to_str ~spaces) stmts)
 and exp_node_list_to_str exps = 
-  String.concat ", " (List.map exp_node_to_str exps) 
+  String.concat ", " (List.map exp_node_to_str exps)
+and shared_to_str fn = 
+  let s = ref "" in
+  let extend_string id = 
+    if Hashtbl.mem fn.array_storage id then 
+      match Hashtbl.find fn.array_storage id with
+        | Shared ->
+          let currStr = Printf.sprintf "  shared %s :: [%s]\n"
+            (ID.to_str id)
+            (exp_node_list_to_str $ Hashtbl.find fn.sizes id)
+          in  
+          s := !s ^ currStr
+        | _ -> ()
+  in    
+  MutableSet.iter  extend_string fn.local_id_set; 
+  !s 
 let fn_to_str fn =
   let inputs = List.map ID.to_str (Array.to_list fn.input_ids) in 
   let outputs = List.map ID.to_str (Array.to_list fn.output_ids) in 
   let bodyStr = block_to_str  fn.body in 
-  sprintf "fn (%s) -> (%s) = {\n%s\n}" 
+  sprintf "fn (%s) -> (%s) = {\n%s\n%s\n}"
     (String.concat ", " inputs) 
-    (String.concat ", " outputs) 
+    (String.concat ", " outputs)
+    (shared_to_str fn)  
     bodyStr  
            
 let always_const expNode = match expNode.exp with

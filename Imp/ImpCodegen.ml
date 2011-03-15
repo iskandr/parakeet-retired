@@ -144,8 +144,12 @@ class imp_codegen =
                 (Imp.exp_node_to_str arg')
                 (DynType.to_str argType)
                 (SymbolicShape.shape_to_str argShape);
-            ENDIF;     
-            let tempId =  self#fresh_local_id ~dims:argShape argType in
+            ENDIF;
+            let storage = 
+              if DynType.is_vec argType then Some Imp.Slice
+              else None
+            in       
+            let tempId = self#fresh_local_id ~dims:argShape ?storage argType in
             let setStmts = self#set_or_coerce tempId arg' in 
             let varExp = {exp = Var tempId; exp_type=argType} in 
             argStmts @  setStmts, varExp 
@@ -256,7 +260,7 @@ class imp_codegen =
               (DynType.to_str t)
           | _, None -> 
             failwith $ Printf.sprintf 
-               "ImpCodegen] Local var of type %s must have array annotation"
+               "[ImpCodegen] Local var of type %s must have array annotation"
                (DynType.to_str t)
           | _, Some s -> Hashtbl.replace array_storage id s     
       );  

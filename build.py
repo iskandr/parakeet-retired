@@ -1,24 +1,24 @@
-#!/usr/bin/python2.7
+#!/usr/bin/python
 
-import argparse, glob, os, shutil, subprocess, sys
+import optparse, glob, os, shutil, subprocess, sys
 
 # For now, I'm setting a -q flag to default to True, but once we move to
 # Python, we can switch that off.
-parser = argparse.ArgumentParser(description='Parakeet Build System')
-parser.add_argument('-q', action='store_true', help='Build Q front end')
-parser.add_argument('-p', '--python', action='store_true',
+parser = optparse.OptionParser(description='Parakeet Build System')
+parser.add_option('-q', action='store_true', help='Build Q front end')
+parser.add_option('-p', '--python', action='store_true',
                     help='Build Python front end')
-parser.add_argument('-d', '--debug', action='store_true',
-                    help='Enable debug mode')
-parser.add_argument('-r', '--prof', action='store_true',
+parser.add_option('-o', '--opt', action='store_true',
+                    help='Disable debug mode')
+parser.add_option('-r', '--prof', action='store_true',
                     help='Enable profiling')
-parser.add_argument('-t', '--tests', action='store_true',
+parser.add_option('-t', '--tests', action='store_true',
                     help='Build and run unit tests')
-parser.add_argument('-c', '--clean', action='store_true',
+parser.add_option('-c', '--clean', action='store_true',
                     help='Clean tree and exit')
 
-args = parser.parse_args().__dict__
-
+(opts, args ) = parser.parse_args()
+opts = opts.__dict__
 print ""
 print "==================================================="
 print "|                Medium Sized Whale               |"
@@ -27,13 +27,13 @@ print ""
 
 make_command = ["make"]
 
-if args['clean']:
+if opts['clean']:
   os.chdir("cuda")
   print
   print "Cleaning Cuda directory"
   print
   subprocess.call(make_command + ["clean"])
-  os.chdir("../FrontEnd")
+  os.chdir("FrontEnd")
   print
   print "Cleaning FrontEnd directory"
   print
@@ -76,8 +76,7 @@ build_command = ["ocamlbuild", "-lflags",
 
 # Handle debugging
 os.environ['dbg'] = '0'
-if args['debug']:
-  print "Debug mode"
+if not opts['opt']:
   build_command.append("-ppflag")
   build_command.append("-DDEBUG")
   make_command.append("DEBUG=-g")
@@ -97,12 +96,12 @@ subprocess.call(["make", "clean"])
 os.chdir("..")
 
 # Clean Q directory
-if args['q']:
+if opts['q']:
   os.chdir("Q")
   subprocess.call(["make", "clean"])
   os.chdir("..")
 
-# Build libpq (TODO: Rename libpq)
+# Build CUDA stubs 
 print "\n\n ******** Building Cuda Modules ********* "
 os.chdir("cuda")
 if subprocess.call(["make"]):
@@ -122,7 +121,7 @@ if subprocess.call(make_command):
 os.chdir("..")
 
 # Build Q Front End
-if args['q']:
+if opts['q']:
   print "Building Q Preprocessor and Q Callbacks"
   if subprocess.call(build_command +
                      ["QCallbacks.cmx", "preprocess.native", "-no-hygiene"]):
@@ -139,7 +138,7 @@ if args['q']:
   os.chdir("..")
 
 # Build Python Front End
-if args['python']:
+if opts['python']:
   #if subprocess.call(build_command +
   #                   ["QCallbacks.cmx", "preprocess.native", "-no-hygiene"]):
   #  print "Q Preprocessor build failed"
