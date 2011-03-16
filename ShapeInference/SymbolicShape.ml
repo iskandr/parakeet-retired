@@ -59,6 +59,15 @@ let all_dims ( x : exp_node) : exp_node list =
   let ndims = DynType.nest_depth x.exp_type in  
   List.map (fun i -> dim i x) (List.range 0 (ndims-1))
 
+let rec largest_ssa_val = function 
+  | [] -> assert false
+  | [x] -> x
+  | x::xs -> 
+      let restMax = largest_ssa_val xs in 
+      let restRank = DynType.nest_depth restMax.SSA.value_type in 
+      let currRank = DynType.nest_depth x.SSA.value_type in   
+      if  restRank > currRank then restMax else x   
+      
 (* return list of dimsizes for value of largest type in the given array *)
 let largest_val ( exps : exp_node array ) : exp_node = 
   let maxExp = ref exps.(0) in   

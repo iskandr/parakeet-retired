@@ -4,6 +4,11 @@ open DynType
 open Base
 open Imp
 
+let get_ssa_shape (sizeEnv : SymbolicShape.shape ID.Map.t) valNode = 
+  match valNode.SSA.value with 
+  | SSA.Var id -> ID.Map.find id sizeEnv 
+  | _ -> SymbolicShape.scalar
+
 let rec translate_value idEnv valNode = 
   let vExp = match valNode.SSA.value with
     | SSA.Var id -> Imp.Var (ID.Map.find id idEnv)
@@ -15,6 +20,7 @@ let rec translate_value idEnv valNode =
 and translate_exp 
       (codegen : ImpCodegen.imp_codegen) 
       (fnTable : FnTable.t) 
+      (ssaSizeEnv : SymbolicShape.shape ID.Map.t)
       idEnv 
       expectedType 
       expNode = 
@@ -65,19 +71,25 @@ and translate_exp
       let fnId = payload.SSA.closure_fn in 
       let fundef_ssa = FnTable.find fnId fnTable in
       let fundef_imp = translate_fundef fnTable fundef_ssa in
+      
       let arrays_imp = List.map (translate_value idEnv) arrays in
-      let maxInput = SymbolicShape.largest_val (Array.of_list arrays_imp) in 
+      (* array arg of highest rank *)
+      let maxArray_ssa = SymbolicShape.largest_ssa_val arrays in
+      let maxArrayShape = get_ssa_shape ssaSizeEnv maxArray_ssa in  
       let output = 
         codegen#fresh_var 
-          ~dims:(SymbolicShape.all_dims maxInput)  
+          ~dims:maxArrayShape   
           ~storage:Imp.Private
           vecOutType 
       in  
       let i = codegen#fresh_var Int32T in
       let n = codegen#fresh_var Int32T in
+      (* since shapes are imp expressions, we can just take the outermost
+         dim of the symbolic shape and put it as the loop boundary *) 
+      let loopBoundary = List.hd maxArrayShape in 
       let bodyBlock = [
         set i (int 0);
-        set n (len maxInput);
+        set n loopBoundary;
         while_ (i <$ n) [SPLICE; set i (i +$ (int 1))]
       ] in
       let lhs = [|idx output i|] in 
@@ -139,13 +151,14 @@ and translate_exp
 and translate_stmt 
       (fnTable : FnTable.t)
       (codegen : ImpCodegen.imp_codegen) 
+      (ssaSizeEnv : SymbolicShape.shape ID.Map.t)  
       (idEnv : ID.t ID.Map.t)
       (stmtNode : SSA.stmt_node) = match stmtNode.SSA.stmt with
   | SSA.Set([id], expNode) ->
       (match expNode.SSA.exp_types with
         | [t] ->
           let id' = ID.Map.find id idEnv in
-          let exp' = translate_exp codegen fnTable idEnv t expNode in
+          let exp' = translate_exp codegen fnTable ssaSizeEnv idEnv t expNode in
           let varNode = {Imp.exp = Var id'; exp_type = t } in 
           codegen#emit [set varNode exp']
         | _ -> failwith "[ssa->imp] expected only single value on rhs of set"
@@ -178,7 +191,7 @@ and translate_fundef fnTable fn =
   in 
   (* next add all the live locals, along with their size expressions *)
   let liveIds : ID.t MutableSet.t = FindLiveIds.find_live_ids fn in
-  let sizeExps : SymbolicShape.shape ID.Map.t = 
+  let sizeEnv : SymbolicShape.shape ID.Map.t = 
     ShapeInference.infer_shape_env fnTable fn  
   in
   let add_local id env =
@@ -186,7 +199,7 @@ and translate_fundef fnTable fn =
     if List.mem id fn.SSA.input_ids then env
     else 
     let t = ID.Map.find id fn.SSA.tenv in
-    let dims : Imp.exp_node list = ID.Map.find id sizeExps in
+    let dims : Imp.exp_node list = ID.Map.find id sizeEnv in
     (* rename all vars to refer to new Imp IDs, instead of old SSA IDs *)
     let dims' : Imp.exp_node list =
        List.map (ImpReplace.apply_id_map env) dims 
@@ -206,7 +219,7 @@ and translate_fundef fnTable fn =
     ID.Map.add id impId env    
   in  
   let idEnv = MutableSet.fold add_local liveIds inputIdEnv in
-  Block.iter_forward (translate_stmt fnTable codegen idEnv) fn.SSA.body;
+  Block.iter_forward (translate_stmt fnTable codegen sizeEnv idEnv) fn.SSA.body;
   let impFn =  codegen#finalize in 
   IFDEF DEBUG THEN 
     Printf.printf "[ssa2imp] Translated %s into: %s\n"

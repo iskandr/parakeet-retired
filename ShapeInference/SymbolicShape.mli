@@ -29,6 +29,7 @@ val shape_to_str : shape -> string
 val shapes_to_str : shape list -> string 
 val all_dims : Imp.exp_node -> shape 
  
+val largest_ssa_val : SSA.value_node list -> SSA.value_node 
 val largest_val : Imp.exp_node array ->  Imp.exp_node
 val of_int_list : int list -> shape 
  
