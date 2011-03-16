@@ -39,7 +39,7 @@ external launch_ptx_impl
 let launch_ptx (cudaModule : CuModulePtr.t) (fnName : string) 
       (args : gpu_arg array)
       (gridParams : grid_params) =
-    IFDEF DEBUG THEN printf "In launch\n%!"; END;
+    (*IFDEF DEBUG THEN printf "In launch\n%!"; END; *)
     Timing.start Timing.gpuExec; 
     launch_ptx_impl cudaModule fnName args 
     gridParams.threads_x 
@@ -54,9 +54,11 @@ let cuda_module_from_kernel_list
       (threadsPerBlock : int) = 
   let ptxModule = Ptx.module_from_named_kernels kernelList in  
   let ptxStr = Ptx.ptx_module_to_str ptxModule in
+  (*
   IFDEF DEBUG THEN 
     Printf.printf "%s%!\n" ptxStr;
   ENDIF;
+  *)
   let modulePtr = compile_module ptxStr threadsPerBlock in
   (* take an input space and change it from referring to 
      kernel-local symids to module-level names 

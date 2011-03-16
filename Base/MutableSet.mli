@@ -7,3 +7,4 @@ val enum : 'a t -> 'a Enum.t
 val iter : ('a -> unit) -> 'a t ->   unit 
 val fold : ('a -> 'b -> 'b) -> 'a t -> 'b -> 'b
 val copy : 'a t -> 'a t  
+val is_empty : 'a t -> bool 

@@ -63,13 +63,12 @@ let register_use_counts instructions  =
   *) 
 let cleanup_kernel instructions registerAllocs = 
   (* keep pruning instructions until code stabilizes *) 
+  
   let rec loop iter lastLen =
+    (*
     IFDEF DEBUG THEN
       Printf.printf "Running iteration %d of PtxTidy\n" iter;
     ENDIF;
-    (*
-    let constants = find_constants instructions in
-    rename_redundant_registers constants instructions;
     *)
     let counts = register_use_counts instructions in
     DynArray.filter (is_live_stmt counts) instructions; 

@@ -138,7 +138,7 @@ and array_storage_to_str = function
   | Shared -> "shared"
   | Slice -> "slice"
 and shared_to_str fn = 
-  let s = ref "\n" in
+  let s = ref "" in
   let extend_string id = 
     if Hashtbl.mem fn.array_storage id  && 
        not $ MutableSet.mem fn.input_id_set id then
@@ -148,9 +148,10 @@ and shared_to_str fn =
             (ID.to_str id)
             (exp_node_list_to_str $ Hashtbl.find fn.sizes id)
          in s := !s ^"\n" ^ currStr 
-  in    
-  s := !s ^ "\n";
-  MutableSet.iter  extend_string fn.local_id_set; 
+  in
+  if not $ MutableSet.is_empty fn.local_id_set then s := !s ^ "\n"; 
+  MutableSet.iter  extend_string fn.local_id_set;
+  if not $ MutableSet.is_empty fn.local_id_set then s := !s ^ "\n";  
   !s 
 let fn_to_str fn =
   let id_to_str id  = 

@@ -50,14 +50,14 @@ module Mk(P : EVAL_PARAMS) = struct
     
   and eval_block env block = Block.fold_forward eval_stmt env block  
   and eval_stmt (env : env) (stmtNode : SSA.stmt_node) : env = 
-    IFDEF DEBUG THEN
-      Printf.printf "[eval_stmt] %s\n" (SSA.stmt_node_to_str stmtNode);
-    ENDIF;       
+    IFDEF DEBUG THEN 
+      Printf.printf "===> EVAL: %s\n"
+        (SSA.stmt_node_to_str stmtNode); 
+    ENDIF; 
     match stmtNode.stmt with 
     | Set (ids, expNode) ->
       let results =  eval_exp env expNode in
       IFDEF DEBUG THEN
-        debug "[eval_stmt] after eval_exp\n";
         assert (List.length ids = List.length results); 
       ENDIF; 
       ID.Map.extend env ids results 
@@ -224,7 +224,11 @@ and eval_exp (env : env) (expNode : SSA.exp_node) : InterpVal.t list =
           (List.map HostVal.to_str 
             (List.map (MemoryState.get_host P.memState) others))) 
 
-           
+     | op, args  ->  
+        failwith $ Printf.sprintf "CPU operator not implemented: %s for args %s"
+          (Prim.array_op_to_str op)
+          (String.concat ", " (List.map InterpVal.to_str args)) 
+          
   and eval_map env ~payload closureArgs argVals =
     IFDEF DEBUG THEN Printf.printf "Running MAP on host!\n"; ENDIF; 
     let dataShapes = List.map (MemoryState.get_shape P.memState) argVals in

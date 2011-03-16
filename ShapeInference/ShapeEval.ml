@@ -68,6 +68,7 @@ let eval_shape shapeEnv expNodeList : Shape.t =
   Shape.of_list (List.map (eval_exp_as_int shapeEnv) expNodeList)
   
 let eval_imp_shape_env (fn:Imp.fn) (inputShapes : Shape.t list) =
+  (*
   IFDEF DEBUG THEN
     Printf.printf 
       "[ShapeEval] Inferring shapes for fn (%s)->(%s) with input shapes %s\n"
@@ -75,7 +76,8 @@ let eval_imp_shape_env (fn:Imp.fn) (inputShapes : Shape.t list) =
       (String.concat ", " (Array.to_list (Array.map ID.to_str fn.output_ids)))
       (String.concat ", " (List.map Shape.to_str inputShapes)) 
     ;
-  ENDIF; 
+  ENDIF;
+  *) 
   (* shapes of all inputs *) 
   let inputEnv = 
     Array.fold_left2 
@@ -86,12 +88,14 @@ let eval_imp_shape_env (fn:Imp.fn) (inputShapes : Shape.t list) =
   in
   let aux id sizeExpressions shapeEnv  =
     let dims = List.map (eval_exp_as_int shapeEnv) sizeExpressions in
-    let shape = Shape.of_list dims in   
+    let shape = Shape.of_list dims in
+    (*   
     IFDEF DEBUG THEN 
       Printf.printf "[ShapeEval] Inferred shape for %s: %s  \n"
         (ID.to_str id)
         (Shape.to_str shape);
-    ENDIF; 
+    ENDIF;
+    *) 
     ID.Map.add id shape shapeEnv     
   in
   Hashtbl.fold aux fn.sizes inputEnv 

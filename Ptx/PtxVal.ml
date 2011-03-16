@@ -14,15 +14,15 @@ type ptx_space =
   | TEX
  
 let ptx_space_to_str = function 
-    | REG -> "reg"
-    | SREG -> "sreg"
-    | CONST -> "const"
-    | GLOBAL -> "global"
-    | LOCAL -> "local"
-    | PARAM -> "param"
-    | SHARED -> "shared"
-    | SURF -> "surf"
-    | TEX -> "tex"
+  | REG -> "reg"
+  | SREG -> "sreg"
+  | CONST -> "const"
+  | GLOBAL -> "global"
+  | LOCAL -> "local"
+  | PARAM -> "param"
+  | SHARED -> "shared"
+  | SURF -> "surf"
+  | TEX -> "tex"
 
 type symid = int
 and typed_symbol = {id: symid; ptx_type: PtxType.ty; space: ptx_space}

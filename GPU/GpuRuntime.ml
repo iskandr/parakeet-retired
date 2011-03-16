@@ -74,11 +74,13 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
     let shapeEnv = ShapeEval.eval_imp_shape_env impfn inputShapes in 
     let process_input env id gpuVal =
       let location = ID.Map.find id cc.PtxCallingConventions.data_locations in
+      (*
       IFDEF DEBUG THEN 
         Printf.printf "Creating GPU argument for %s at location %s\n"
           (ID.to_str id)
           (PtxCallingConventions.loc_to_str location);
-      ENDIF; 
+      ENDIF;
+      *) 
       let gpuArgs = create_input_args modulePtr gpuVal location in
       ID.Map.add id gpuArgs env
     in  
@@ -115,9 +117,11 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
     
     let paramsArray = DynArray.create() in
     let process_param id =
+      (*
       IFDEF DEBUG THEN 
           Printf.printf "[GpuRuntime] Looking up param for %s\n" (ID.to_str id); 
-      ENDIF; 
+      ENDIF;
+      *) 
       let args = ID.Map.find id valueEnv in
       List.iter (DynArray.add paramsArray) args
     in  
@@ -171,12 +175,14 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
   let paramsArray, outputVals =
     create_args cudaModule.Cuda.module_ptr impKernel cc (closureArgs @ args)
   in  
+  (*
   IFDEF DEBUG THEN
     Printf.printf "Gpu args being sent:\n"; 
     Array.iter 
       (fun arg -> Printf.printf "\t %s\n" (CudaModule.gpu_arg_to_str arg))
       paramsArray 
-  ENDIF;      
+  ENDIF;
+  *)      
   (* create one CUDA thread per every input element *) 
   assert (List.length cudaModule.Cuda.kernel_names = 1); 
   let fnName = List.hd cudaModule.Cuda.kernel_names in
@@ -220,10 +226,12 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
     let impfn =
       ImpReduceTemplate.gen_reduce_2d_capable inType impPayload threadsPerBlock  
     in
+    (*
     IFDEF DEBUG THEN
       Printf.sprintf "[compile_reduce] %s\n" (Imp.fn_to_str impfn);
       flush stdout;
     ENDIF;
+    *)
     let retTypes = impfn.Imp.output_types in 
     let inputSpaces = Array.map (fun t -> PtxVal.TEX) retTypes in
     let ptx, cc = 
@@ -245,9 +253,11 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
       ~(initArgs:values) ~(args:values) : values  =
   let initTypes = List.map GpuVal.get_type initArgs in  
   let vecTypes = List.map GpuVal.get_type args in 
+  (*
   IFDEF DEBUG THEN 
     Printf.printf "Launching Reduce kernel\n";
   ENDIF;
+  *)
   let cacheKey = payload.SSA.fn_id, initTypes @ vecTypes  in 
   let {imp_source=impKernel; cc=cc; cuda_module=compiledModule} =  
     if Hashtbl.mem reduceCache cacheKey then 

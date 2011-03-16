@@ -55,7 +55,7 @@ let reduce
     let nestedCost = SeqCost.seq_cost fnTable init nestedShapes in
     let runCost = (float_of_int outerDim) *. nestedCost /. parallelism in 
     let numLaunches = log (float_of_int outerDim) in  
-    numLaunches *. (launchCost +. runCost)                
+    numLaunches *. launchCost +.  2. *. runCost                
           
 let array_op op argShapes = match op, argShapes with 
   | Prim.Where, [x] -> float_of_int  (Shape.nelts x)

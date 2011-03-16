@@ -147,14 +147,7 @@ let seq_cost fnTable fundef shapes =
   let key = fundef.SSA.fn_id, shapes in  
   try Hashtbl.find costCache key 
   with _ ->
-    IFDEF DEBUG THEN   
-      print_endline "---";
-    ENDIF; 
     let symCost = symbolic_seq_cost fnTable fundef in
-    IFDEF DEBUG THEN 
-      print_endline "---";
-    ENDIF; 
-    
     let shapeEnv = ID.Map.extend ID.Map.empty fundef.SSA.input_ids shapes in
     let cost = ShapeEval.eval_exp_as_float shapeEnv symCost in
     Hashtbl.add costCache key cost; 

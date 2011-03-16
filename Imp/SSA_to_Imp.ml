@@ -219,11 +219,13 @@ and translate_fundef fnTable fn =
         codegen#fresh_local_id ~dims:dims' t
       )
     in  
+    (*
     IFDEF DEBUG THEN 
         Printf.printf "[ssa2imp] Renamed %s to %s\n"
           (ID.to_str id)
           (ID.to_str impId); 
-    ENDIF; 
+    ENDIF;
+    *) 
     ID.Map.add id impId env    
   in  
   let idEnv = MutableSet.fold add_local liveIds inputIdEnv in
@@ -232,9 +234,11 @@ and translate_fundef fnTable fn =
   let impSizeEnv = ID.Map.map rename_shape sizeEnv in    
   Block.iter_forward (translate_stmt fnTable codegen sizeEnv idEnv) fn.SSA.body;
   let impFn =  codegen#finalize in 
+  (*
   IFDEF DEBUG THEN 
     Printf.printf "[ssa2imp] Translated %s into: %s\n"
       (FnId.to_str fn.SSA.fn_id)
       (Imp.fn_to_str impFn);
   ENDIF;
+  *)
   impFn 

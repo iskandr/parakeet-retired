@@ -122,16 +122,25 @@ let _ =
   InterpState.add_untyped 
     initState ~optimize:false "calc_centroids" calcCentroids;;
 
-let dist = mk_fn  2 1 3 $ fun inputs outputs locals -> 
-  [
-    [locals.(0)] := minus @@ [inputs.(0); inputs.(1)]; 
-    [locals.(1)] := mul @@ [locals.(0); locals.(0)]; 
-    [locals.(2)] := reduce @@ [plus; zero; locals.(1)];
-    [outputs.(0)] := (scalar_op Prim.Sqrt) @@ [locals.(2)]
+let dist_helper = mk_fn 3 1 2 $ fun inputs outputs locals -> 
+  [ 
+    [locals.(0)] := minus @@ [inputs.(1); inputs.(2)]; 
+    [locals.(1)] := mul @@ [locals.(0); locals.(0)];
+    [outputs.(0)] := plus @@ [inputs.(0); locals.(1)]
   ] 
 let _ = 
-  InterpState.add_untyped 
-    initState ~optimize:false "dist" dist;;
+  InterpState.add_untyped initState ~optimize:false "dist_helper" dist_helper;;
+     
+
+let dist = mk_fn  2 1 1 $ fun inputs outputs locals -> 
+  let dist_helper = 
+    mk_globalfn (InterpState.get_untyped_id initState "dist_helper") 
+  in
+  [
+    [locals.(0)] := reduce @@ [dist_helper; zero; inputs.(0); inputs.(1)];
+    [outputs.(0)] := (scalar_op Prim.Sqrt) @@ [locals.(0)]
+  ] 
+let _ = InterpState.add_untyped initState ~optimize:false "dist" dist;;
 
 (* minidx[C;x] -> returns idx of whichever row of C is closest to x *) 
 let minidx = mk_fn 2 1 3 $ fun inputs outputs locals ->

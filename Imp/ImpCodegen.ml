@@ -142,12 +142,14 @@ class imp_codegen =
             (* if flattened arg is itself complex, assign it to a variable *)
             let argType = arg'.exp_type in  
             let argShape = self#get_exp_shape arg' in 
+            (*
             IFDEF DEBUG THEN 
               Printf.printf "%s : %s; [%s]\n"
                 (Imp.exp_node_to_str arg')
                 (DynType.to_str argType)
                 (SymbolicShape.shape_to_str argShape);
             ENDIF;
+            *)
             let storage = 
               if DynType.is_vec argType then Some Imp.Slice
               else None
@@ -365,8 +367,10 @@ class imp_codegen =
             (Array.length fn.output_ids)
             (Array.length outputs)
         ;   
+        (*
         Printf.printf "[ImpCodegen] Splicing function: **** %s \n ****\n"
-          (Imp.fn_to_str fn); 
+          (Imp.fn_to_str fn);
+        *) 
       ENDIF;
        
       (* have to rewrite the input/output variables to the expressions *)
