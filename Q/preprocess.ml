@@ -426,8 +426,8 @@ let process_lexbuf ~debug lexbuf =
       flatten_block $
         rewrite_ast safeFnDefs' globalDataReadsMap ast in 
     let astStr = AST.node_to_str ast' in
-    (* temporary: load the dt.so shared library *) 
-    let astStr = "\\l dt.q\n" ^ astStr in 
+    (* temporary: load the parakeetq.so shared library *) 
+    let astStr = "\\l ../Q/parakeet.q\n" ^ astStr in 
     print_endline astStr
     
 let process_file debug filename = 
