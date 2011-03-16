@@ -29,38 +29,39 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
      of explicit args or it might become an implicit argument via a
      global texture
   *) 
-  let create_input_args modulePtr inputVal = function
-  | PtxCallingConventions.ScalarInput ->
-      [CudaModule.GpuScalarArg(GpuVal.get_scalar inputVal)]
-  | PtxCallingConventions.GlobalInput ->
+  let create_input_args modulePtr inputVal : CudaModule.gpu_arg list = 
+    function
+    | PtxCallingConventions.ScalarInput ->
+        [CudaModule.GpuScalarArg(GpuVal.get_scalar inputVal)]
+    | PtxCallingConventions.GlobalInput ->
         [CudaModule.GpuArrayArg((GpuVal.get_ptr inputVal),
                                 (GpuVal.get_nbytes inputVal));
          CudaModule.GpuArrayArg((GpuVal.get_shape_ptr inputVal),
                                 (GpuVal.get_shape_nbytes inputVal))]
-  | PtxCallingConventions.TextureInput (texName, geom) ->
-    let texRef = Cuda.cuda_module_get_tex_ref modulePtr texName in
-    let inputShape = GpuVal.get_shape inputVal in
-    let inputPtr = GpuVal.get_ptr inputVal in
-    let channelFormat = 
-      Cuda.infer_channel_format 
-        (DynType.elt_type $ GpuVal.get_type inputVal)
-    in
-    begin match geom with
-    | Ptx.Tex1D ->
-      assert (Shape.rank inputShape < 3);
-      Cuda.cuda_bind_texture_1d
-        texRef inputPtr (GpuVal.get_nbytes inputVal) channelFormat
-    | Ptx.Tex2D ->
-      (* TODO: Need to set length/width to be in _BYTES_ *)
-      assert (Shape.rank inputShape = 2); 
-      Cuda.cuda_bind_texture_2d_std_channel
-        texRef
-        inputPtr
-        (Shape.get inputShape 1)
-        (Shape.get inputShape 0)
-        channelFormat  
-    | _ -> failwith "3D textures not yet implemented"
-    end;
+    | PtxCallingConventions.TextureInput (texName, geom) ->
+      let texRef = Cuda.cuda_module_get_tex_ref modulePtr texName in
+      let inputShape = GpuVal.get_shape inputVal in
+      let inputPtr = GpuVal.get_ptr inputVal in
+      let channelFormat = 
+        Cuda.infer_channel_format 
+          (DynType.elt_type $ GpuVal.get_type inputVal)
+      in (
+        match geom with
+      | Ptx.Tex1D ->
+        assert (Shape.rank inputShape < 3);
+        Cuda.cuda_bind_texture_1d
+          texRef inputPtr (GpuVal.get_nbytes inputVal) channelFormat
+      | Ptx.Tex2D ->
+        (* TODO: Need to set length/width to be in _BYTES_ *)
+        assert (Shape.rank inputShape = 2); 
+        Cuda.cuda_bind_texture_2d_std_channe
+          texRef
+          inputPtr
+          (Shape.get inputShape 1)
+          (Shape.get inputShape 0)
+          channelFormat  
+      | _ -> failwith "3D textures not yet implemented"
+    );
     [CudaModule.GpuArrayArg((GpuVal.get_shape_ptr inputVal),
                             (GpuVal.get_shape_nbytes inputVal))] 
   
@@ -108,7 +109,7 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
                                 GpuVal.get_shape_nbytes outputVal)]
         env 
     in    
-    let valueEnv = 
+    let valueEnv : CudaModule.gpu_arg list ID.Map.t  = 
       Array.fold_left process_output initEnv impfn.Imp.output_ids 
     in 
     let paramsArray = DynArray.create() in
