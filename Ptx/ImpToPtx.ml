@@ -171,8 +171,13 @@ let gen_exp
   ; 
   destReg 
 
+
 let rec gen_stmt codegen stmt = 
-  codegen#emit [comment (Imp.stmt_to_str stmt)];
+  IFDEF DEBUG THEN
+    codegen#emit [comment (Imp.stmt_to_str stmt)];
+    Printf.printf "[ImpToPtx] translating statement %s\n" 
+      (String.escaped (String.abbrev (Imp.stmt_to_str stmt) 50))
+  ENDIF; 
   match stmt with 
   | Imp.Set (id,rhs) ->
       let dynT = rhs.exp_type in
@@ -266,27 +271,41 @@ let translate_kernel ?input_spaces (impfn : Imp.fn) =
   *)
   let register_local id  = 
     let t = Hashtbl.find impfn.types id in
-    if DynType.is_scalar t then ignore (codegen#declare_local id t)
-    else (
-      let dims = Hashtbl.find impfn.sizes id in  
-      assert (dims <> []); 
-      assert (Hashtbl.mem impfn.array_storage id); 
-      ignore $ match Hashtbl.find impfn.array_storage id with 
+    let dims = Hashtbl.find_default impfn.sizes id [] in  
+    IFDEF DEBUG THEN 
+      let shapeRank = List.length dims in 
+      let typeRank = DynType.nest_depth t in 
+      if shapeRank <> typeRank then 
+        failwith $ 
+          Printf.sprintf 
+            "[ImpToPtx] Incorrect rank for imp variable %s : %s with shape %s"
+            (ID.to_str id)
+            (DynType.to_str t)
+            (SymbolicShape.shape_to_str dims)
+    ENDIF;  
+    let ptxVal = 
+      if DynType.is_scalar t then codegen#declare_local id t
+      else (
+        assert (Hashtbl.mem impfn.array_storage id); 
+        match Hashtbl.find impfn.array_storage id with 
         | Shared ->
           (* since dims are all constant, evaluate them to ints *) 
           let intDims = 
             List.map (ShapeEval.eval_exp_as_int ID.Map.empty) dims 
           in  
           codegen#declare_shared_vec id (DynType.elt_type t) intDims
-        | Private -> 
-          IFDEF DEBUG THEN
-            Printf.printf "[imp2ptx] declaring local array %s : %s\n"
-              (ID.to_str id)
-              (DynType.to_str t);
-          ENDIF;
-          codegen#declare_storage_arg id t   
+        | Private ->  codegen#declare_storage_arg id t   
         | _ -> codegen#declare_local id t 
-    )     
+      )
+    in  
+    IFDEF DEBUG THEN 
+      Printf.printf "[ImpToPtx] declaring imp var %s : %s as %s\n"
+        (ID.to_str id)
+        (DynType.to_str t);
+        (codegen#value_to_str ptxVal)
+    ENDIF;
+    ()
+        
   in    
   MutableSet.iter register_local impfn.local_id_set; 
   gen_block codegen impfn.body; 

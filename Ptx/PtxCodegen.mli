@@ -53,7 +53,9 @@ class ptx_codegen : object
   *)  
   method compute_address :
     PtxVal.value -> int -> PtxVal.value array -> PtxVal.value
-
+  
+  (* assumes that register is in this codegen's symbols table *) 
+  method value_to_str : PtxVal.value -> string  
 end
 
 

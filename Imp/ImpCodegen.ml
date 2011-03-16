@@ -121,11 +121,11 @@ class imp_codegen =
        expression yielding the same value as the original compound expression 
     *) 
     method private flatten_exp expNode : Imp.stmt list * Imp.exp_node =
-      IFDEF DEBUG THEN 
+      (*IFDEF DEBUG THEN 
         Printf.printf "[ImpCodegen] Flattening exp: %s\n"
           (Imp.exp_node_to_str expNode); 
       ENDIF;
-      
+      *)
       let is_simple eNode = 
         match eNode.exp with Var _ | Const _ -> true | _ -> false 
       in   
@@ -251,26 +251,23 @@ class imp_codegen =
       Hashtbl.add types id t;
       id
       
-    method fresh_local_id  ?(dims=[]) ?storage t =
+    method fresh_local_id  ?(dims=[]) ?(storage=Imp.Slice) t =
       let id = self#fresh_id t in
-      Hashtbl.add sizes id dims; 
       MutableSet.add localIdSet id;
       if DynType.is_vec t then (
-        match dims, storage with 
-          | [], _ ->    
+        match dims with 
+          | [] ->    
             failwith $ Printf.sprintf 
               "[ImpCodegen] Local var of type %s can't have scalar shape"
               (DynType.to_str t)
-          | _, None -> 
-            failwith $ Printf.sprintf 
-               "[ImpCodegen] Local var of type %s must have array annotation"
-               (DynType.to_str t)
-          | _, Some s -> Hashtbl.replace array_storage id s     
+          | _ -> 
+            Hashtbl.add sizes id dims;
+            Hashtbl.replace array_storage id storage     
       );  
       id
 
-    method fresh_var ?(dims = []) ?storage t =
-      let id = self#fresh_local_id ~dims ?storage t in 
+    method fresh_var ?(dims = []) ?(storage=Imp.Slice) t =
+      let id = self#fresh_local_id ~dims ~storage t in 
       {exp = Var id; exp_type = t}    
       
     
@@ -327,8 +324,8 @@ class imp_codegen =
       id 
       
     method shared_vec_var t dims = 
-      assert (DynType.is_scalar t); 
-      {exp =Var (self#shared_vec_id t dims); exp_type=DynType.VecT t} 
+      assert (DynType.nest_depth t = 1); 
+      {exp =Var (self#shared_vec_id t dims); exp_type= t} 
     
     method finalize = 
       let inputArray = DynArray.to_array inputs in 
@@ -393,7 +390,10 @@ class imp_codegen =
             MutableSet.add localIdSet id'; 
             if not (DynType.is_scalar t) then (
               assert (Hashtbl.mem fn.array_storage id);
-              Hashtbl.add array_storage id' (Hashtbl.find fn.array_storage id) 
+              Hashtbl.add array_storage id' (Hashtbl.find fn.array_storage id);
+              let oldSize = Hashtbl.find fn.sizes id in
+              let size = List.map (ImpReplace.apply_exp_map inOutMap) oldSize in   
+              Hashtbl.add sizes id' size; 
             ); 
             ID.Map.add id id' map
           )

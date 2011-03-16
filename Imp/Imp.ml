@@ -47,8 +47,10 @@ and fn = {
   
   local_id_set : ID.t MutableSet.t; 
   
-  types : (ID.t, DynType.t) Hashtbl.t; 
-  sizes: (ID.t, exp_node list) Hashtbl.t; 
+  types : (ID.t, DynType.t) Hashtbl.t;
+  
+  (* only stores IDs/sizes belonging to arrays *)  
+  sizes:  (ID.t, exp_node list) Hashtbl.t; 
   array_storage : (ID.t, array_storage) Hashtbl.t;
   
   body : block;

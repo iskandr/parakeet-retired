@@ -17,7 +17,9 @@ type 'a math_ops = {
 
 let rec eval_exp (m : 'a math_ops) (shapeEnv:Shape.t ID.Map.t) expNode : 'a  =
   let recur (e : Imp.exp_node) : 'a  = eval_exp m shapeEnv e in   
-  match expNode.exp with  
+  match expNode.exp with
+  | Op (Prim.Max, _, [arg1; arg2]) -> max (recur arg1) (recur arg2)
+  | Op (Prim.Min, _, [arg1; arg2]) -> min (recur arg1) (recur arg2)
   | Op (Prim.Add, _, [arg1; arg2]) -> 
     m.add (recur arg1) (recur arg2)   
   | Op(Prim.Add, _, _) -> 

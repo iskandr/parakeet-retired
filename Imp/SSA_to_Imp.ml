@@ -68,7 +68,10 @@ and translate_exp
       let arrays_imp = List.map (translate_value idEnv) arrays in
       let maxInput = SymbolicShape.largest_val (Array.of_list arrays_imp) in 
       let output = 
-        codegen#fresh_var ~dims:(SymbolicShape.all_dims maxInput) vecOutType 
+        codegen#fresh_var 
+          ~dims:(SymbolicShape.all_dims maxInput)  
+          ~storage:Imp.Private
+          vecOutType 
       in  
       let i = codegen#fresh_var Int32T in
       let n = codegen#fresh_var Int32T in
@@ -191,8 +194,9 @@ and translate_fundef fnTable fn =
     let impId = 
       (if List.mem id fn.SSA.output_ids then 
         codegen#fresh_output_id ~dims:dims' t 
-      else 
-        codegen#fresh_local_id ~dims:dims' t)
+      else
+        codegen#fresh_local_id ~dims:dims' t
+      )
     in  
     IFDEF DEBUG THEN 
         Printf.printf "[ssa2imp] Renamed %s to %s\n"

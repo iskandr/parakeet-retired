@@ -30,6 +30,8 @@ class ptx_codegen = object (self)
       symCounter
     )
     
+  method value_to_str ptxVal = PtxVal.to_str symbols ptxVal 
+        
   (* GENERATE FRESH NAMES FOR EXTERNAL ARGUMENTS *) 
   val mutable numArgs = 0
   method private fresh_arg_id = 
@@ -166,7 +168,11 @@ class ptx_codegen = object (self)
   method get_array_rank (ptr: PtxVal.value) = 
     if self#is_shared_ptr ptr then Array.length (self#get_shared_dims ptr)
     else if self#is_global_array_ptr ptr then self#get_global_array_rank ptr 
-    else failwith "[ptx_codegen] can't get array rank of non-array register"
+    else 
+      failwith $ 
+        "[ptx_codegen] can't get array rank of non-array register: " ^
+        (PtxVal.to_str symbols ptr)
+        
   
   (* get a register which points to the shape vector attached to the 
      argument "ptrReg" which contains the address of some array's data. 

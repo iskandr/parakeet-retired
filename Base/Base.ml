@@ -48,6 +48,12 @@ module String = struct
   module Map = BaseMap.Make(ExtString.String)
   module Set = BaseSet.Make(ExtString.String)
   module Graph = Graph.Make(ExtString.String) 
+  
+  let abbrev s n = 
+    if length s > n then 
+      let s' = sub s 0 (n-3) in 
+      s' ^ "..."
+    else s 
 end
 
 

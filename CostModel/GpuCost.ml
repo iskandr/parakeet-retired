@@ -39,7 +39,7 @@ let rec sum_transfer_time = function
     let nestedShapes = closureArgs @ nestedArgs in 
     let nestedCost = SeqCost.seq_cost fnTable fn nestedShapes in 
     let runCost = (float_of_int outerDim) *. nestedCost /. parallelism in 
-   launchCost +.  runCost 
+    launchCost +.  runCost 
   
 let reduce 
       ~(fnTable:FnTable.t)

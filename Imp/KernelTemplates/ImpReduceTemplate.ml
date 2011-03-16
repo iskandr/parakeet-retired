@@ -32,7 +32,9 @@ let gen_reduce_2d_capable nestedType payload threadsPerBlock =
       (DynType.type_array_to_str payload.input_types)
       (DynType.type_array_to_str payload.output_types);
   ENDIF;  
-  let cache = codegen#shared_vec_var scalarType [threadsPerBlock] in
+  let cache = 
+    codegen#shared_vec_var (DynType.VecT scalarType) [threadsPerBlock] 
+  in
   let num_vecs = codegen#fresh_var Int32T in
   codegen#emit [set num_vecs (len input)];
   
