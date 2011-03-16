@@ -19,6 +19,22 @@
 #define ALIGN_UP(offset, alignment) \
   (offset) = ((offset) + (alignment) - 1) & ~((alignment) - 1)
 
+CAMLprim
+value ocaml_cuda_compile_module(value ptx_string, value threads_per_block);
+CAMLprim value ocaml_cuda_destroy_module(value module_ptr);
+CAMLprim value ocaml_cuda_launch_ptx(
+  value ocaml_module_ptr,
+  value ocaml_ptx_fun,
+  value ocaml_args,
+  value ocaml_threadsx,
+  value ocaml_threadsy,
+  value ocaml_threadsz,
+  value ocaml_gridwidth,
+  value ocaml_gridheight);
+value ocaml_cuda_launch_ptx_bytecode (value *argv, int argn);
+CAMLprim value ocaml_cuda_memcpy_to_constant(value data, value bytes,
+                                             value module, value symbol);
+
 static const int jitLogBufferSize = 32000;
 
 /* string -> Int64.t */
@@ -46,11 +62,11 @@ value ocaml_cuda_compile_module(value ptx_string, value threads_per_block)
   int nthreads = Int_val(threads_per_block); 
 
   void *jitOptVals[] = {
-      (void*)jitLogBufferSize,
+      (void*)(long)jitLogBufferSize,
       ibuf,
-      (void*)jitLogBufferSize,
+      (void*)(long)jitLogBufferSize,
       ebuf,
-      (void*) nthreads,
+      (void*)(long)nthreads,
       (void*) 0, /* since wall time is an output only variable,
                     don't need anything here */
   };
@@ -73,7 +89,7 @@ value ocaml_cuda_compile_module(value ptx_string, value threads_per_block)
     exit(1);
   } else {
     printf("JIT max threads per block: %d (requested: %d)\n",
-           (int) jitOptVals[4], nthreads);
+           (int)(long)jitOptVals[4], nthreads);
     float jitTime = 0.0; 
     memcpy((void*) &jitTime, &jitOptVals[5], sizeof(float));
     printf("JIT compile time: %f\n", jitTime);
@@ -155,8 +171,6 @@ CAMLprim value ocaml_cuda_launch_ptx (
   int offset = 0;
   int arg_size = 0;
   int i;
-  double e;
-  float wtf;
 
 #ifdef DEBUG
   printf("Setting up %d GPU arguments\n", num_args);
@@ -174,9 +188,6 @@ CAMLprim value ocaml_cuda_launch_ptx (
             result,  i, num_args);
         exit(1);
       }
-#ifdef DEBUG
-  printf("Sent array arg to kernel at ptr %x\n", ptr_arg);
-#endif
       offset += sizeof(void*);
 
     } else if (Tag_val(ocaml_gpu_arg) == PQNUM_GPU_SCALAR_ARG) {
@@ -282,6 +293,10 @@ CAMLprim value ocaml_cuda_launch_ptx (
 }
 
 value ocaml_cuda_launch_ptx_bytecode (value *argv, int argn) {
+  if (argn != 8) {
+    printf("Error: calling bytecode version of launch with != 8 params.\n");
+    exit(1);
+  }
   return ocaml_cuda_launch_ptx(argv[0], argv[1], argv[2], argv[3],
                                argv[4], argv[5], argv[6], argv[7]);
 }

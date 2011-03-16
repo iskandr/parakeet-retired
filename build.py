@@ -33,7 +33,7 @@ if opts['clean']:
   print "Cleaning Cuda directory"
   print
   subprocess.call(make_command + ["clean"])
-  os.chdir("FrontEnd")
+  os.chdir("../FrontEnd")
   print
   print "Cleaning FrontEnd directory"
   print
