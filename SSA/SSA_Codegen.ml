@@ -113,7 +113,6 @@ let lte = scalar_op Prim.Lte
 let eq = scalar_op Prim.Eq 
 
 
-
 let zero = mk_num (PQNum.Int32 0l) 
 let one = mk_num (PQNum.Int32 1l)
 
