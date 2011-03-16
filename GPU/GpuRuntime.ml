@@ -29,8 +29,7 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
      of explicit args or it might become an implicit argument via a
      global texture
   *) 
-  let create_input_args modulePtr inputVal : CudaModule.gpu_arg list = 
-    function
+  let create_input_args modulePtr inputVal = function
     | PtxCallingConventions.ScalarInput ->
         [CudaModule.GpuScalarArg(GpuVal.get_scalar inputVal)]
     | PtxCallingConventions.GlobalInput ->
@@ -54,7 +53,7 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
       | Ptx.Tex2D ->
         (* TODO: Need to set length/width to be in _BYTES_ *)
         assert (Shape.rank inputShape = 2); 
-        Cuda.cuda_bind_texture_2d_std_channe
+        Cuda.cuda_bind_texture_2d_std_channel
           texRef
           inputPtr
           (Shape.get inputShape 1)
@@ -110,8 +109,10 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
         env 
     in    
     let valueEnv : CudaModule.gpu_arg list ID.Map.t  = 
-      Array.fold_left process_output initEnv impfn.Imp.output_ids 
+      (* TODO: take into account local private arrays! *) 
+      Array.fold_left process_output initEnv impfn.Imp.output_ids  
     in 
+    
     let paramsArray = DynArray.create() in
     let process_param id =
       IFDEF DEBUG THEN 

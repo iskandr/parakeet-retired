@@ -115,7 +115,7 @@ module MkEvaluator(A : ANALYSIS) = struct
     | _ -> assert false 
   
   and iter_exp_children env expNode = match expNode.exp with 
-      | App(x, xs) ->  A.value env x; iter_values env xs
+      | App(x, xs) ->  ignore $ A.value env x; iter_values env xs
       | Call(_, xs) 
       | PrimApp(_,xs) 
       | Values xs    
@@ -129,8 +129,7 @@ module MkEvaluator(A : ANALYSIS) = struct
           iter_values env c2.closure_args;
           iter_values env initArgs; 
           iter_values env args 
-     
-      | _ -> failwith ("not implemented: " ^ (SSA.exp_to_str expNode))     
+      | Cast(_, v) -> ignore $ A.value env v  
   and iter_values env = function 
     | [] -> () | v::vs -> let _ = A.value env v in iter_values env vs 
   and eval_values env = function 

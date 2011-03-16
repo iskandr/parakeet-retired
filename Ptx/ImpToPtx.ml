@@ -193,8 +193,11 @@ let rec gen_stmt codegen stmt =
         failwith "[imp2ptx] Cannot set an array slice"
       else if rank < numIndices then 
         failwith $ 
-           Printf.sprintf "[imp2ptx] Too many indices given to setidx: %s" 
-           (Imp.stmt_to_str stmt)
+           Printf.sprintf 
+             "[imp2ptx] setidx expected %d index, received %d: %s"
+             rank
+             numIndices 
+             (Imp.stmt_to_str stmt)
       else
        let rhsT = rhs.exp_type in 
        let rhsEltT = DynType.elt_type rhsT in

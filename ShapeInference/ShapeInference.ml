@@ -60,9 +60,7 @@ module ShapeAnalysis (P: PARAMS) =  struct
     let exp env expNode helpers = 
       let get_shapes args = List.map (value env) args in  
       match expNode.exp with
-      | SSA.Call(fnId, args) -> 
-          raise (ShapeInferenceFailure "unexpected function call")
-
+      | SSA.Call(fnId, args) -> P.output_shapes fnId (get_shapes args) 
       | SSA.PrimApp (Prim.ArrayOp Prim.Index, array::indices) ->
         let arrayShape = value env array in
         let nIndices = List.length indices in 
@@ -91,11 +89,11 @@ module ShapeAnalysis (P: PARAMS) =  struct
          let arrayShape = value env array in
          let n = SymbolicShape.nelts arrayShape in
          [[n]]
-         (*raise (ShapeInferenceFailure "Can't infer output shape of WHERE prim")*)
-         
-      | SSA.PrimApp (Prim.ArrayOp Prim.DimSize, [array; dim]) -> [[]] 
+      | SSA.PrimApp (Prim.ArrayOp Prim.DimSize, [_; _]) 
+      | SSA.PrimApp (Prim.ArrayOp Prim.Find, [_; _]) -> [SymbolicShape.scalar]
       | SSA.PrimApp (Prim.ScalarOp _, args) when 
-        List.for_all (fun arg -> DynType.is_scalar arg.value_type) args -> [[]]
+        List.for_all (fun arg -> DynType.is_scalar arg.value_type) args -> 
+          [SymbolicShape.scalar]
       | SSA.Arr elts ->
         let eltShapes = List.map (value env) elts in
         (* TODO: check that elt shapes actually match each other *) 
