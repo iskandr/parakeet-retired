@@ -33,7 +33,7 @@ OBJS = cqinterface.o ocaml_functions.o
 COBJS = -ccopt -L/usr/lib/nvidia-current \
   $(PARAKEET_PATH)/cuda/parakeet_cuda.a \
   $(PARAKEET_PATH)/FrontEnd/parakeet.a \
-	-ccopt -lcuda -ccopt -L/usr/local/cuda/lib64 -ccopt -lcudart \
+	-ccopt -lcuda -ccopt -L/usr/local/cuda/lib -ccopt -lcudart \
   -ccopt $(UINT_DIR)/libuint32_stubs.a -ccopt $(UINT_DIR)/libuint64_stubs.a
 
 OCAML_LIB_OBJECTS := bigarray.cmxa unix.cmxa str.cmxa \
