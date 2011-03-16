@@ -328,6 +328,5 @@ parakeet:
 		ast_stubs.o dyn_type_stubs.o front_end_stubs.o
 
 clean:
-	rm -f *.a *_o *.o *~ depsort depsort.cmi depsort.cmx
-	rm -rf _build
+	rm -f *.a *_o *.o *~
 

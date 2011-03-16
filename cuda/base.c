@@ -3,12 +3,6 @@
 #include <sys/time.h>
 #include <time.h>
 
-#include "base.h"
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 void check_err(int rslt, char *msg) {
   if (rslt != 0) {
     printf("%s: %d\n", msg, rslt);
@@ -58,7 +52,3 @@ struct timeval *pq_gettime(void) {
   gettimeofday(ret, NULL);
   return ret;
 }
-
-#ifdef __cplusplus
-}
-#endif
