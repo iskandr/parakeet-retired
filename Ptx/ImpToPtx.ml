@@ -17,6 +17,13 @@ let num_to_ptx_const = function
   | PQNum.Float32 f
   | PQNum.Float64 f -> float f
   | PQNum.Bool b -> int64 $ if b then 1L else 0L
+  | PQNum.Inf t when DynType.is_floating t -> float max_float
+  | PQNum.NegInf t when DynType.is_floating t -> float (-. max_float) 
+  | PQNum.Inf _ -> int max_int 
+  | PQNum.NegInf _ -> int min_int    
+  | n -> 
+      failwith $ Printf.sprintf "Can't convert %s to PTX"
+        (PQNum.num_to_str n)
 
 
 let prim_to_ptx_op codegen destReg args op t =

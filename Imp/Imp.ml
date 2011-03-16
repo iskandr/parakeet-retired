@@ -52,7 +52,7 @@ and fn = {
   (* only stores IDs/sizes belonging to arrays *)  
   sizes:  (ID.t, exp_node list) Hashtbl.t; 
   array_storage : (ID.t, array_storage) Hashtbl.t;
-  
+   
   body : block;
 }
 
@@ -298,8 +298,13 @@ let float f = f32_exp $ Const (PQNum.Float32 f)
 let double d = f64_exp $ Const (PQNum.Float64 d) 
 
 let zero = int 0 
-let one = int 1 
-let infinity = typed_exp DynType.Float64T (Const (PQNum.Inf DynType.Float64T))
+let one = int 1
+ 
+let infinity = 
+  typed_exp DynType.Float64T (Const (PQNum.Inf DynType.Float64T))
+  
+let neg_infinity = 
+  typed_exp DynType.Float64T (Const (PQNum.NegInf DynType.Float64T))
 
 let select cond tNode fNode = 
   assert (tNode.exp_type = fNode.exp_type); 
@@ -412,11 +417,11 @@ let add_simplify d1 d2 = match d1.exp, d2.exp with
     {d1 with exp = Const (PQNum.Float64 (x +. y)) } 
   | _ -> add d1 d2 
 
-let rec fold_exp_node_list f = function 
-  | [] -> assert false
+let rec fold_exp_node_list f default = function 
+  | [] -> default
   | [e] -> e 
-  | e::es -> f e (fold_exp_node_list f es)
+  | e::es -> f e (fold_exp_node_list f default es)
 
-let max_exp_node_list es = fold_exp_node_list max_simplify es
-let sum_exp_node_list es = fold_exp_node_list add_simplify es 
-let prod_exp_node_list es = fold_exp_node_list mul_simplify es 
+let max_exp_node_list es = fold_exp_node_list max_simplify neg_infinity es
+let sum_exp_node_list es = fold_exp_node_list add_simplify zero es 
+let prod_exp_node_list es = fold_exp_node_list mul_simplify one es 

@@ -332,7 +332,7 @@ class imp_codegen =
     method finalize = 
       let inputArray = DynArray.to_array inputs in 
       let outputArray = DynArray.to_array outputs in 
-      ImpSimplify.simplify_function {
+      let impFn = ImpSimplify.simplify_function {
         input_ids = inputArray;
         input_id_set = inputSet; 
         input_types = Array.map self#get_type inputArray; 
@@ -346,9 +346,17 @@ class imp_codegen =
         types = types;
         sizes =  sizes; 
         
-        array_storage = array_storage; 
+        array_storage = array_storage;
+
         body = DynArray.to_list code;
+        
+        
       }
+      in 
+      IFDEF DEBUG THEN 
+        Printf.printf "Finalizing Imp function: %s\n " (Imp.fn_to_str impFn); 
+      ENDIF; 
+      impFn  
       
     (* first replaces every instance of the function's input/output vars *)
     (* with those provided. Then removes the input/output vars, splices the *)
@@ -357,7 +365,7 @@ class imp_codegen =
       IFDEF DEBUG THEN 
         if (Array.length fn.input_ids  <> Array.length inputs) then 
           failwith $ Printf.sprintf 
-            "Cannot splice Imp function of arity %d where %d was expected"
+            "Cannot splice Imp function of arity %d where %d was given"
             (Array.length fn.input_ids)
             (Array.length inputs)
         ;

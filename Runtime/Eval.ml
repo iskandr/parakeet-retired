@@ -51,7 +51,7 @@ module Mk(P : EVAL_PARAMS) = struct
   and eval_block env block = Block.fold_forward eval_stmt env block  
   and eval_stmt (env : env) (stmtNode : SSA.stmt_node) : env = 
     IFDEF DEBUG THEN 
-      Printf.printf "===> EVAL: %s\n"
+      Printf.printf "\n===> EVAL: %s\n\n"
         (SSA.stmt_node_to_str stmtNode); 
     ENDIF; 
     match stmtNode.stmt with 
@@ -109,7 +109,7 @@ and eval_exp (env : env) (expNode : SSA.exp_node) : InterpVal.t list =
       in 
       let argVals : InterpVal.t list = List.map (eval_value env) args in
       IFDEF DEBUG THEN
-        Printf.printf "args to map: %s\n"
+        Printf.printf "[Eval] args to interp map: %s\n"
           (String.concat ", " (List.map InterpVal.to_str argVals)); 
       ENDIF;  
       let bestLoc, bestTime = 
@@ -119,16 +119,19 @@ and eval_exp (env : env) (expNode : SSA.exp_node) : InterpVal.t list =
           (describe_args closureArgVals)
           (describe_args argVals) 
       in 
-      begin match bestLoc with  
+      (match bestLoc with  
         | CostModel.GPU ->
+            IFDEF DEBUG THEN Printf.printf "[Eval] running map on GPU\n" ENDIF;
             let gpuResults = 
               GpuEval.map 
                 ~payload:fundef  
                 ~closureArgs:(List.map get_gpu closureArgVals) 
                 ~args:(List.map get_gpu argVals)
             in List.map add_gpu gpuResults
-        | CostModel.CPU -> eval_map env ~payload:fundef closureArgVals argVals   
-      end
+        | CostModel.CPU -> 
+            IFDEF DEBUG THEN Printf.printf "[Eval] running map on CPU\n" ENDIF;
+            eval_map env ~payload:fundef closureArgVals argVals   
+      )
   | Reduce (initClosure, reduceClosure, initArgs, dataArgs)-> 
       let initFundef = get_fundef initClosure.closure_fn in
       (* the current reduce kernel works either for 1d data or 

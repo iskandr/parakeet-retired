@@ -8,7 +8,13 @@ open Imp
 let get_imp_shape 
       (sizeEnv : SymbolicShape.shape ID.Map.t) 
       (expNode : Imp.exp_node) = match expNode.exp with  
-  | Imp.Var id -> ID.Map.find id sizeEnv 
+  | Imp.Var id ->
+      try ID.Map.find id sizeEnv with 
+        | _ -> failwith $ 
+          Printf.sprintf  
+            "Can't find shape for Imp variable %s : %s"
+            (ID.to_str id)
+            (DynType.to_str expNode.exp_type) 
   | _ -> SymbolicShape.scalar
 
 
@@ -83,10 +89,15 @@ and translate_exp
       let fundef_imp = translate_fundef fnTable fundef_ssa in
       let arrays_imp = List.map (translate_value idEnv) arrays in
       let maxArray = SymbolicShape.largest_val (Array.of_list arrays_imp) in 
-      let maxArrayShape = get_imp_shape sizeEnv maxArray in  
+      let maxArrayShape = get_imp_shape sizeEnv maxArray in
+      let maxDim = List.hd maxArrayShape in
+      let nestedOutShape =
+          Hashtbl.find_default fundef_imp.sizes fundef_imp.Imp.output_ids.(0) []
+      in  
+      let outputShape = maxDim :: nestedOutShape in   
       let output = 
         codegen#fresh_var 
-          ~dims:maxArrayShape   
+          ~dims:outputShape    
           ~storage:Imp.Private
           vecOutType 
       in  
@@ -100,8 +111,13 @@ and translate_exp
         set n loopBoundary;
         while_ (i <$ n) [SPLICE; set i (i +$ (int 1))]
       ] in
-      let lhs = [|idx output i|] in 
-      let rhs = Array.of_list (List.map (fun arr -> idx arr i) arrays_imp) in 
+      let lhs = [|idx output i|] in
+      let closureArgs = 
+        List.map (translate_value idEnv) payload.SSA.closure_args 
+      in  
+      let rhs = Array.of_list $ 
+        closureArgs @ (List.map (fun arr -> idx arr i) arrays_imp) 
+      in 
       codegen#splice_emit fundef_imp rhs lhs bodyBlock;
       output
   
@@ -186,12 +202,22 @@ and translate_stmt
   | _ -> failwith "[ssa->imp] stmt not implemented"      
 
 and translate_fundef fnTable fn =
+  IFDEF DEBUG THEN 
+    Printf.printf "[SSA_To_Imp] translating function: %s\n"
+      (SSA.fundef_to_str fn);
+  ENDIF; 
+    
   let codegen  = new ImpCodegen.imp_codegen in
   let inputTypes = fn.SSA.fn_input_types in 
   let outputTypes = fn.SSA.fn_output_types in
   (* first generate imp ids for inputs, to make sure their order is preserved *)
   let add_input env id t = 
     let impId = codegen#fresh_input_id t in 
+    IFDEF DEBUG THEN 
+      Printf.printf "[SSA_To_Imp] Renaming input %s => %s\n"
+        (ID.to_str id)
+        (ID.to_str impId); 
+    ENDIF; 
     ID.Map.add id impId env  
   in 
   let inputIdEnv = 
@@ -219,26 +245,35 @@ and translate_fundef fnTable fn =
         codegen#fresh_local_id ~dims:dims' t
       )
     in  
-    (*
+    
     IFDEF DEBUG THEN 
         Printf.printf "[ssa2imp] Renamed %s to %s\n"
           (ID.to_str id)
           (ID.to_str impId); 
     ENDIF;
-    *) 
     ID.Map.add id impId env    
   in  
   let idEnv = MutableSet.fold add_local liveIds inputIdEnv in
-  let rename_shape shape = List.map (ImpReplace.apply_id_map idEnv) shape in
-  (* TODO: construct this map more efficiently *)  
-  let impSizeEnv = ID.Map.map rename_shape sizeEnv in    
-  Block.iter_forward (translate_stmt fnTable codegen sizeEnv idEnv) fn.SSA.body;
-  let impFn =  codegen#finalize in 
-  (*
+  let rename_shape_env id shape env =
+    let id' = ID.Map.find id idEnv in
+    let shape' = List.map (ImpReplace.apply_id_map idEnv) shape in   
+    ID.Map.add id' shape' env  
+  in
+  let impSizeEnv = ID.Map.fold rename_shape_env sizeEnv ID.Map.empty in 
   IFDEF DEBUG THEN 
-    Printf.printf "[ssa2imp] Translated %s into: %s\n"
-      (FnId.to_str fn.SSA.fn_id)
-      (Imp.fn_to_str impFn);
-  ENDIF;
-  *)
+    Printf.printf "[ssa2imp] Size env\n";
+    let print_size id sz =
+      Printf.printf "[ssa2imp] %s : %s\n"
+        (ID.to_str id)
+        (SymbolicShape.to_str sz)
+    in 
+    ID.Map.iter print_size impSizeEnv
+  ENDIF;  
+  Block.iter_forward 
+    (translate_stmt fnTable codegen impSizeEnv idEnv) 
+    fn.SSA.body;
+  let impFn =  codegen#finalize in 
+  
+ 
+  
   impFn 

@@ -46,41 +46,6 @@ let initState = InterpState.create_from_untyped_list ~optimize:false [
   "avg", avg; 
   "count", count 
 ]
-(*
-(* given a data matrix and an index vector, select out the rows of the 
-   index vector and average them 
-*) 
-let avgRowSubset = mk_fn 2 1 3 $ fun inputs outputs locals -> 
-  let x = inputs.(0) in 
-  let indices =  inputs.(1) in 
-  [ 
-    (* rows: X[idx] *) 
-    [locals.(0)] := index @@ [x; indices]; 
-    (* output: avg rows *) 
-    [locals.(1)] := reduce @@ [plus; zero; locals.(0)];
-    [locals.(2)] := (array_op Prim.DimSize) @@ [indices; mk_int32 0];  
-    [outputs.(0)] := (scalar_op Prim.Div) @@ [locals.(1); locals.(2)]
- ]
-
-let _ = 
-  InterpState.add_untyped 
-    initState ~optimize:false "avg_row_subset" avgRowSubset;;
-
-(* K-means specific functions *)
-let calcCentroid = mk_fn 3 1 2 $ fun inputs outputs locals -> 
-  let avgRowSubset = 
-    SSA.mk_globalfn $ InterpState.get_untyped_id initState "avg_row_subset"
-  in 
-  [
-    (* binVec: a = i *) 
-    [locals.(0)] :=  map @@ [eq; inputs.(1); inputs.(2)]; 
-    (* indices: where binVec *) 
-    [locals.(1)] := where @@ [locals.(0)];
-    (* output: avgCentroid X indices *)
-    [outputs.(0)] := avgRowSubset @@ [inputs.(0); locals.(1)]
-  ]
-*)
-
 
 (* K-means specific functions *)
 let calcCentroid = mk_fn 3 1 5 $ fun inputs outputs locals -> [
