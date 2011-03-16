@@ -365,14 +365,16 @@ class imp_codegen =
             (Array.length fn.output_ids)
             (Array.length outputs)
         ;   
+        Printf.printf "[ImpCodegen] Splicing function: **** %s \n ****\n"
+          (Imp.fn_to_str fn); 
       ENDIF;
        
       (* have to rewrite the input/output variables to the expressions *)
       (* we were given as arguments inputExps/outputVars *)
-      let inOutMap = 
+      let inOutMap : Imp.exp_node ID.Map.t = 
         Array.fold_left2 
-          (fun accMap id node -> PMap.add (Var id) node.exp accMap)
-          PMap.empty 
+          (fun accMap id node -> ID.Map.add id node accMap)
+          ID.Map.empty 
           (Array.append fn.input_ids fn.output_ids)
           (Array.append inputs outputs)
       in 
@@ -392,7 +394,9 @@ class imp_codegen =
               assert (Hashtbl.mem fn.array_storage id);
               Hashtbl.add array_storage id' (Hashtbl.find fn.array_storage id);
               let oldSize = Hashtbl.find fn.sizes id in
-              let size = List.map (ImpReplace.apply_exp_map inOutMap) oldSize in   
+              let size = 
+                List.map (ImpReplace.apply_exp_map inOutMap) oldSize 
+              in   
               Hashtbl.add sizes id' size; 
             ); 
             ID.Map.add id id' map

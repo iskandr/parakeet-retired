@@ -4,7 +4,17 @@ open DynType
 open Base
 open Imp
 
-let get_ssa_shape (sizeEnv : SymbolicShape.shape ID.Map.t) valNode = 
+(* TODO: make this actually work with non-trivial expressions *)
+let get_imp_shape 
+      (sizeEnv : SymbolicShape.shape ID.Map.t) 
+      (expNode : Imp.exp_node) = match expNode.exp with  
+  | Imp.Var id -> ID.Map.find id sizeEnv 
+  | _ -> SymbolicShape.scalar
+
+
+let get_ssa_shape 
+      (sizeEnv : SymbolicShape.shape ID.Map.t) 
+      (valNode : SSA.value_node) = 
   match valNode.SSA.value with 
   | SSA.Var id -> ID.Map.find id sizeEnv 
   | _ -> SymbolicShape.scalar
@@ -20,7 +30,7 @@ let rec translate_value idEnv valNode =
 and translate_exp 
       (codegen : ImpCodegen.imp_codegen) 
       (fnTable : FnTable.t) 
-      (ssaSizeEnv : SymbolicShape.shape ID.Map.t)
+      (sizeEnv : SymbolicShape.shape ID.Map.t)
       idEnv 
       expectedType 
       expNode = 
@@ -71,11 +81,9 @@ and translate_exp
       let fnId = payload.SSA.closure_fn in 
       let fundef_ssa = FnTable.find fnId fnTable in
       let fundef_imp = translate_fundef fnTable fundef_ssa in
-      
       let arrays_imp = List.map (translate_value idEnv) arrays in
-      (* array arg of highest rank *)
-      let maxArray_ssa = SymbolicShape.largest_ssa_val arrays in
-      let maxArrayShape = get_ssa_shape ssaSizeEnv maxArray_ssa in  
+      let maxArray = SymbolicShape.largest_val (Array.of_list arrays_imp) in 
+      let maxArrayShape = get_imp_shape sizeEnv maxArray in  
       let output = 
         codegen#fresh_var 
           ~dims:maxArrayShape   
@@ -151,14 +159,14 @@ and translate_exp
 and translate_stmt 
       (fnTable : FnTable.t)
       (codegen : ImpCodegen.imp_codegen) 
-      (ssaSizeEnv : SymbolicShape.shape ID.Map.t)  
+      (sizeEnv : SymbolicShape.shape ID.Map.t)  
       (idEnv : ID.t ID.Map.t)
       (stmtNode : SSA.stmt_node) = match stmtNode.SSA.stmt with
   | SSA.Set([id], expNode) ->
       (match expNode.SSA.exp_types with
         | [t] ->
           let id' = ID.Map.find id idEnv in
-          let exp' = translate_exp codegen fnTable ssaSizeEnv idEnv t expNode in
+          let exp' = translate_exp codegen fnTable sizeEnv idEnv t expNode in
           let varNode = {Imp.exp = Var id'; exp_type = t } in 
           codegen#emit [set varNode exp']
         | _ -> failwith "[ssa->imp] expected only single value on rhs of set"
@@ -219,6 +227,9 @@ and translate_fundef fnTable fn =
     ID.Map.add id impId env    
   in  
   let idEnv = MutableSet.fold add_local liveIds inputIdEnv in
+  let rename_shape shape = List.map (ImpReplace.apply_id_map idEnv) shape in
+  (* TODO: construct this map more efficiently *)  
+  let impSizeEnv = ID.Map.map rename_shape sizeEnv in    
   Block.iter_forward (translate_stmt fnTable codegen sizeEnv idEnv) fn.SSA.body;
   let impFn =  codegen#finalize in 
   IFDEF DEBUG THEN 
