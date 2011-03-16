@@ -114,8 +114,7 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
     let paramsArray = DynArray.create() in
     let process_param id =
       IFDEF DEBUG THEN 
-        failwith $ Printf.sprintf "[GpuRuntime] Looking up param for %s"
-          (ID.to_str id); 
+          Printf.printf "[GpuRuntime] Looking up param for %s\n" (ID.to_str id); 
       ENDIF; 
       let args = ID.Map.find id valueEnv in
       List.iter (DynArray.add paramsArray) args
