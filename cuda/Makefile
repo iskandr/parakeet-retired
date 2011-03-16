@@ -27,13 +27,13 @@ COMMONDIR  := $(ROOTDIR)/../common
 
 # Compilers
 NVCC       := $(CUDA_INSTALL_PATH)/bin/nvcc 
-CXX        := g++-4.3 -fPIC -ggdb3
-CC         := gcc-4.3 -fPIC -ggdb3
+CXX        := g++-4.3 -fPIC
+CC         := gcc-4.3 -fPIC
 LINK       := g++-4.3 -fPIC
 
 # Includes
 INCLUDES  += -I. -I$(CUDA_INSTALL_PATH)/include -I$(COMMONDIR)/inc
-INCLUDES  += -I/usr/lib/ocaml -I../CQInterface -I$(THRUST_DIR)
+INCLUDES  += -I/usr/lib/ocaml -I$(THRUST_DIR)
 
 # architecture flag for cubin build
 CUBIN_ARCH_FLAG := -m64
