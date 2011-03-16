@@ -142,12 +142,13 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
     in 
     let paramsArray = DynArray.create() in
     let process_param id =
-      
-      IFDEF DEBUG THEN 
-          Printf.printf "[GpuRuntime] Looking up param for %s\n" (ID.to_str id); 
-      ENDIF;
-       
       let args = ID.Map.find id valueEnv' in
+      IFDEF DEBUG THEN 
+          Printf.printf "[GpuRuntime] Registring GPU param for %s = %s\n" 
+            (ID.to_str id)
+            (String.concat ", "  (List.map CudaModule.gpu_arg_to_str args)) 
+          ; 
+      ENDIF;
       List.iter (DynArray.add paramsArray) args
     in  
     Array.iter process_param cc.PtxCallingConventions.param_order;
