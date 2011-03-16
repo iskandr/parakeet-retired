@@ -12,6 +12,7 @@
 open Base
 open Ptx
 open PtxVal
+open PtxType 
 
 let initialNumRegs = 29 
   
@@ -30,6 +31,8 @@ class ptx_codegen = object (self)
       symCounter
     )
     
+  method value_to_str ptxVal = PtxVal.to_str symbols ptxVal 
+        
   (* GENERATE FRESH NAMES FOR EXTERNAL ARGUMENTS *) 
   val mutable numArgs = 0
   method private fresh_arg_id = 
@@ -81,18 +84,18 @@ class ptx_codegen = object (self)
     DynArray.append (DynArray.of_list newInstructions) instructions
   
   (* VARIABLE DECLARATIONS *) 
-  val allocations: (Ptx.symid, Ptx.var_decl) Hashtbl.t = 
+  val allocations: (PtxVal.symid, Ptx.var_decl) Hashtbl.t = 
     Hashtbl.create initialNumRegs
   method private add_alloc id newAlloc = 
     Hashtbl.add allocations id newAlloc 
   
   (* FUNCTION PARAMETERS *) 
-  val parameters: (Ptx.symid * PtxType.ty) DynArray.t = DynArray.create ()
+  val parameters: (PtxVal.symid * PtxType.ty) DynArray.t = DynArray.create ()
   method private add_param_decl id newParam =
     DynArray.add parameters (id, newParam)
   
   (* TEXTURE REFERENCES *)
-  val textures: (Ptx.symid * PtxType.ty) DynArray.t = DynArray.create ()
+  val textures: (PtxVal.symid * PtxType.ty) DynArray.t = DynArray.create ()
   method private add_tex_decl id newTex = DynArray.add textures (id, newTex)
 
   (* number of registers currently allocated for every type *)
@@ -166,7 +169,11 @@ class ptx_codegen = object (self)
   method get_array_rank (ptr: PtxVal.value) = 
     if self#is_shared_ptr ptr then Array.length (self#get_shared_dims ptr)
     else if self#is_global_array_ptr ptr then self#get_global_array_rank ptr 
-    else failwith "[ptx_codegen] can't get array rank of non-array register"
+    else 
+      failwith $ 
+        "[ptx_codegen] can't get array rank of non-array register: " ^
+        (PtxVal.to_str symbols ptr)
+        
   
   (* get a register which points to the shape vector attached to the 
      argument "ptrReg" which contains the address of some array's data. 
@@ -561,9 +568,11 @@ class ptx_codegen = object (self)
         (*       return their element type, not a pointer to a slice *)
         let rank = DynType.nest_depth dynT in
         let elType = DynType.elt_type dynT in
+        (*
         IFDEF DEBUG THEN
           Printf.printf "Tex input type: %s\n" (DynType.to_str dynT);
         ENDIF;
+        *)
         if rank = 1 || rank = 2 then (
           match elType with
             | DynType.UInt32T
@@ -676,7 +685,6 @@ class ptx_codegen = object (self)
   method finalize_kernel 
          : Ptx.kernel * PtxCallingConventions.calling_conventions =
     (*debug "[ptx_codegen] finalizing ptx kernel";*)
-    self#run_rewrite_pass PtxSimplify.simplify;
     PtxTidy.cleanup_kernel instructions allocations;
     let kernel = { 
       params = DynArray.to_array parameters; 
@@ -686,6 +694,11 @@ class ptx_codegen = object (self)
       textures = DynArray.to_array textures;
     } 
     in
+    IFDEF DEBUG THEN 
+      Printf.printf "Finalizing PTX kernel: %s\n" 
+        (Ptx.kernel_to_str kernel "???");
+      Pervasives.flush_all ()
+    ENDIF; 
     let cc = { 
       PtxCallingConventions.data_locations =    
         Hashtbl.fold 

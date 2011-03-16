@@ -47,13 +47,14 @@ and fn = {
   
   local_id_set : ID.t MutableSet.t; 
   
-  types : (ID.t, DynType.t) Hashtbl.t; 
-  sizes: (ID.t, exp_node list) Hashtbl.t; 
-  array_storage : (ID.t, array_storage) Hashtbl.t;
+  types : (ID.t, DynType.t) Hashtbl.t;
   
+  (* only stores IDs/sizes belonging to arrays *)  
+  sizes:  (ID.t, exp_node list) Hashtbl.t; 
+  array_storage : (ID.t, array_storage) Hashtbl.t;
+   
   body : block;
 }
-
 
 
 (* PRETTY PRINTING *) 
@@ -131,26 +132,36 @@ and block_to_str ?(spaces="") stmts =
   String.concat "\n" (List.map (stmt_to_str ~spaces) stmts)
 and exp_node_list_to_str exps = 
   String.concat ", " (List.map exp_node_to_str exps)
+and array_storage_to_str = function 
+  | Global -> "global"
+  | Private -> "private"
+  | Shared -> "shared"
+  | Slice -> "slice"
 and shared_to_str fn = 
   let s = ref "" in
   let extend_string id = 
-    if Hashtbl.mem fn.array_storage id then 
-      match Hashtbl.find fn.array_storage id with
-        | Shared ->
-          let currStr = Printf.sprintf "  shared %s :: [%s]\n"
+    if Hashtbl.mem fn.array_storage id  && 
+       not $ MutableSet.mem fn.input_id_set id then
+        let currStr = 
+          Printf.sprintf "  %s %s :: [%s]"
+            (array_storage_to_str $ Hashtbl.find fn.array_storage id)   
             (ID.to_str id)
             (exp_node_list_to_str $ Hashtbl.find fn.sizes id)
-          in  
-          s := !s ^ currStr
-        | _ -> ()
-  in    
-  MutableSet.iter  extend_string fn.local_id_set; 
+         in s := !s ^"\n" ^ currStr 
+  in
+  if not $ MutableSet.is_empty fn.local_id_set then s := !s ^ "\n"; 
+  MutableSet.iter  extend_string fn.local_id_set;
+  if not $ MutableSet.is_empty fn.local_id_set then s := !s ^ "\n";  
   !s 
 let fn_to_str fn =
-  let inputs = List.map ID.to_str (Array.to_list fn.input_ids) in 
-  let outputs = List.map ID.to_str (Array.to_list fn.output_ids) in 
+  let id_to_str id  = 
+    let t = Hashtbl.find fn.types id in 
+    ID.to_str id ^ " : " ^ (DynType.to_str t)
+  in 
+  let inputs = List.map id_to_str (Array.to_list fn.input_ids)  in 
+  let outputs = List.map id_to_str (Array.to_list fn.output_ids) in 
   let bodyStr = block_to_str  fn.body in 
-  sprintf "fn (%s) -> (%s) = {\n%s\n%s\n}"
+  sprintf "fn (%s) -> (%s) = {%s\n%s\n}"
     (String.concat ", " inputs) 
     (String.concat ", " outputs)
     (shared_to_str fn)  
@@ -287,8 +298,13 @@ let float f = f32_exp $ Const (PQNum.Float32 f)
 let double d = f64_exp $ Const (PQNum.Float64 d) 
 
 let zero = int 0 
-let one = int 1 
-let infinity = typed_exp DynType.Float64T (Const (PQNum.Inf DynType.Float64T))
+let one = int 1
+ 
+let infinity = 
+  typed_exp DynType.Float64T (Const (PQNum.Inf DynType.Float64T))
+  
+let neg_infinity = 
+  typed_exp DynType.Float64T (Const (PQNum.NegInf DynType.Float64T))
 
 let select cond tNode fNode = 
   assert (tNode.exp_type = fNode.exp_type); 
@@ -401,11 +417,11 @@ let add_simplify d1 d2 = match d1.exp, d2.exp with
     {d1 with exp = Const (PQNum.Float64 (x +. y)) } 
   | _ -> add d1 d2 
 
-let rec fold_exp_node_list f = function 
-  | [] -> assert false
+let rec fold_exp_node_list f default = function 
+  | [] -> default
   | [e] -> e 
-  | e::es -> f e (fold_exp_node_list f es)
+  | e::es -> f e (fold_exp_node_list f default es)
 
-let max_exp_node_list es = fold_exp_node_list max_simplify es
-let sum_exp_node_list es = fold_exp_node_list add_simplify es 
-let prod_exp_node_list es = fold_exp_node_list mul_simplify es 
+let max_exp_node_list es = fold_exp_node_list max_simplify neg_infinity es
+let sum_exp_node_list es = fold_exp_node_list add_simplify zero es 
+let prod_exp_node_list es = fold_exp_node_list mul_simplify one es 

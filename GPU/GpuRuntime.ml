@@ -30,64 +30,65 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
      global texture
   *) 
   let create_input_args modulePtr inputVal = function
-  | PtxCallingConventions.ScalarInput ->
-      [CudaModule.GpuScalarArg(GpuVal.get_scalar inputVal)]
-  | PtxCallingConventions.GlobalInput ->
+    | PtxCallingConventions.ScalarInput ->
+        [CudaModule.GpuScalarArg(GpuVal.get_scalar inputVal)]
+    | PtxCallingConventions.GlobalInput ->
         [CudaModule.GpuArrayArg((GpuVal.get_ptr inputVal),
                                 (GpuVal.get_nbytes inputVal));
          CudaModule.GpuArrayArg((GpuVal.get_shape_ptr inputVal),
                                 (GpuVal.get_shape_nbytes inputVal))]
-  | PtxCallingConventions.TextureInput (texName, geom) ->
-    let texRef = Cuda.cuda_module_get_tex_ref modulePtr texName in
-    let inputShape = GpuVal.get_shape inputVal in
-    let inputPtr = GpuVal.get_ptr inputVal in
-    let channelFormat = 
-      Cuda.infer_channel_format 
-        (DynType.elt_type $ GpuVal.get_type inputVal)
-    in
-    begin match geom with
-    | Ptx.Tex1D ->
-      assert (Shape.rank inputShape < 3);
-      Cuda.cuda_bind_texture_1d
-        texRef inputPtr (GpuVal.get_nbytes inputVal) channelFormat
-    | Ptx.Tex2D ->
-      (* TODO: Need to set length/width to be in _BYTES_ *)
-      assert (Shape.rank inputShape = 2); 
-      Cuda.cuda_bind_texture_2d_std_channel
-        texRef
-        inputPtr
-        (Shape.get inputShape 1)
-        (Shape.get inputShape 0)
-        channelFormat  
-    | _ -> failwith "3D textures not yet implemented"
-    end;
+    | PtxCallingConventions.TextureInput (texName, geom) ->
+      let texRef = Cuda.cuda_module_get_tex_ref modulePtr texName in
+      let inputShape = GpuVal.get_shape inputVal in
+      let inputPtr = GpuVal.get_ptr inputVal in
+      let channelFormat = 
+        Cuda.infer_channel_format 
+          (DynType.elt_type $ GpuVal.get_type inputVal)
+      in (
+        match geom with
+      | Ptx.Tex1D ->
+        assert (Shape.rank inputShape < 3);
+        Cuda.cuda_bind_texture_1d
+          texRef inputPtr (GpuVal.get_nbytes inputVal) channelFormat
+      | Ptx.Tex2D ->
+        (* TODO: Need to set length/width to be in _BYTES_ *)
+        assert (Shape.rank inputShape = 2); 
+        Cuda.cuda_bind_texture_2d_std_channel
+          texRef
+          inputPtr
+          (Shape.get inputShape 1)
+          (Shape.get inputShape 0)
+          channelFormat  
+      | _ -> failwith "3D textures not yet implemented"
+    );
     [CudaModule.GpuArrayArg((GpuVal.get_shape_ptr inputVal),
                             (GpuVal.get_shape_nbytes inputVal))] 
   
-  let create_args 
-        (modulePtr : Cuda.CuModulePtr.t) 
-        impfn 
-        cc 
-        (inputs: GpuVal.gpu_val list) 
-        : CudaModule.gpu_arg array * GpuVal.gpu_val list  =
-    let inputShapes = List.map GpuVal.get_shape inputs in 
-    let shapeEnv = ShapeEval.eval_imp_shape_env impfn inputShapes in 
-    let process_input env id gpuVal =
+  
+  let process_private_array nThreads impfn shapeEnv id storage env = 
+    if storage = Imp.Private then
+      let ty = Hashtbl.find impfn.Imp.types id in  
+      let privateShape = ID.Map.find id shapeEnv in
+      let globalShape = Shape.append_dim nThreads privateShape in
+      let gpuVec = GpuVal.mk_gpu_vec ty globalShape in 
+      let gpuPtr = GpuVal.get_ptr gpuVec in
+      let gpuBytes = GpuVal.get_nbytes gpuVec in
+      let gpuShapePtr = GpuVal.get_shape_ptr gpuVec in
+      let gpuShapeBytes = GpuVal.get_shape_nbytes gpuVec in    
+      let gpuArgs =[
+        CudaModule.GpuArrayArg(gpuPtr,gpuBytes);
+        CudaModule.GpuArrayArg(gpuShapePtr, gpuShapeBytes)
+      ]
+      in 
+      ID.Map.add id gpuArgs env
+    else env  
+  
+  let process_input cc modulePtr env id gpuVal =
       let location = ID.Map.find id cc.PtxCallingConventions.data_locations in
-      IFDEF DEBUG THEN 
-        Printf.printf "Creating GPU argument for %s at location %s\n"
-          (ID.to_str id)
-          (PtxCallingConventions.loc_to_str location);
-      ENDIF; 
       let gpuArgs = create_input_args modulePtr gpuVal location in
       ID.Map.add id gpuArgs env
-    in  
-    let inputArray = Array.of_list inputs in
-    let initEnv = 
-      Array.fold_left2 process_input ID.Map.empty impfn.Imp.input_ids inputArray 
-    in   
-    let outputMap = DynArray.create() in
-    let process_output env id  =
+  
+  let process_output impfn shapeEnv outputMap env id  =
       IFDEF DEBUG THEN 
         assert (Hashtbl.mem impfn.Imp.types id);
         assert (ID.Map.mem id shapeEnv); 
@@ -107,13 +108,47 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
          CudaModule.GpuArrayArg(GpuVal.get_shape_ptr outputVal,
                                 GpuVal.get_shape_nbytes outputVal)]
         env 
-    in    
-    let valueEnv = 
-      Array.fold_left process_output initEnv impfn.Imp.output_ids 
+    
+  
+  let create_args 
+        (modulePtr : Cuda.CuModulePtr.t) 
+        (nThreads : int)
+        (impfn : Imp.fn) 
+        (cc : PtxCallingConventions.calling_conventions) 
+        (inputs: GpuVal.gpu_val list) 
+        : CudaModule.gpu_arg array * GpuVal.gpu_val list  =
+    let inputShapes = List.map GpuVal.get_shape inputs in 
+    let shapeEnv = ShapeEval.eval_imp_shape_env impfn inputShapes in 
+    let inputArray = Array.of_list inputs in
+    let initEnv = 
+      Array.fold_left2 
+        (process_input cc modulePtr)
+        ID.Map.empty 
+        impfn.Imp.input_ids
+        inputArray 
+    in
+    let outputMap = DynArray.create() in
+    let valueEnv : CudaModule.gpu_arg list ID.Map.t  = 
+      Array.fold_left
+        (process_output impfn shapeEnv outputMap)
+        initEnv 
+        impfn.Imp.output_ids  
+    in 
+    let valueEnv' : CudaModule.gpu_arg list ID.Map.t = 
+      Hashtbl.fold
+        (process_private_array nThreads impfn shapeEnv)
+        impfn.Imp.array_storage 
+        valueEnv
     in 
     let paramsArray = DynArray.create() in
     let process_param id =
-      let args = ID.Map.find id valueEnv in
+      let args = ID.Map.find id valueEnv' in
+      IFDEF DEBUG THEN 
+          Printf.printf "[GpuRuntime] Registring GPU param for %s = %s\n" 
+            (ID.to_str id)
+            (String.concat ", "  (List.map CudaModule.gpu_arg_to_str args)) 
+          ; 
+      ENDIF;
       List.iter (DynArray.add paramsArray) args
     in  
     Array.iter process_param cc.PtxCallingConventions.param_order;
@@ -163,15 +198,8 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
         entry
     )  
   in
-  let paramsArray, outputVals =
-    create_args cudaModule.Cuda.module_ptr impKernel cc (closureArgs @ args)
-  in  
-  IFDEF DEBUG THEN
-    Printf.printf "Gpu args being sent:\n"; 
-    Array.iter 
-      (fun arg -> Printf.printf "\t %s\n" (CudaModule.gpu_arg_to_str arg))
-      paramsArray 
-  ENDIF;      
+
+      
   (* create one CUDA thread per every input element *) 
   assert (List.length cudaModule.Cuda.kernel_names = 1); 
   let fnName = List.hd cudaModule.Cuda.kernel_names in
@@ -189,6 +217,10 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
       | None ->
         failwith (sprintf "Unable to get launch params for %d elts" outputElts)
   in
+  let modulePtr = cudaModule.Cuda.module_ptr in 
+  let paramsArray, outputVals =
+    create_args modulePtr outputElts impKernel cc (closureArgs @ args)
+  in  
   CudaModule.launch_ptx
     cudaModule.Cuda.module_ptr fnName paramsArray gridParams;
   outputVals
@@ -215,10 +247,12 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
     let impfn =
       ImpReduceTemplate.gen_reduce_2d_capable inType impPayload threadsPerBlock  
     in
+    (*
     IFDEF DEBUG THEN
       Printf.sprintf "[compile_reduce] %s\n" (Imp.fn_to_str impfn);
       flush stdout;
     ENDIF;
+    *)
     let retTypes = impfn.Imp.output_types in 
     let inputSpaces = Array.map (fun t -> PtxVal.TEX) retTypes in
     let ptx, cc = 
@@ -240,9 +274,11 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
       ~(initArgs:values) ~(args:values) : values  =
   let initTypes = List.map GpuVal.get_type initArgs in  
   let vecTypes = List.map GpuVal.get_type args in 
+  (*
   IFDEF DEBUG THEN 
     Printf.printf "Launching Reduce kernel\n";
   ENDIF;
+  *)
   let cacheKey = payload.SSA.fn_id, initTypes @ vecTypes  in 
   let {imp_source=impKernel; cc=cc; cuda_module=compiledModule} =  
     if Hashtbl.mem reduceCache cacheKey then 
@@ -279,8 +315,9 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
   let inputArgs = ref [gpuVal] in 
   while !currInputElts > 1 do 
     let numOutputElts = safe_div !currInputElts (threadsPerBlock * 2) in
+    let modulePtr = compiledModule.Cuda.module_ptr in  
     let args, outputsList =
-      create_args compiledModule.Cuda.module_ptr impKernel cc !inputArgs 
+      create_args modulePtr !currInputElts impKernel cc !inputArgs 
     in
     let gridParams = {
       CudaModule.threads_x=x_threads; threads_y=256; threads_z=1;
@@ -354,8 +391,10 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
       let xShape, yShape = GpuVal.get_shape xGpu, GpuVal.get_shape yGpu in
       let nx = Shape.get xShape 0 in
       let ny = Shape.get yShape 0 in
+      let nthreads = nx * ny in
+      let modulePtr = compiledModule.Cuda.module_ptr in  
       let paramsArray, outputVals =
-        create_args compiledModule.Cuda.module_ptr impKernel cc args in 
+        create_args modulePtr nthreads impKernel cc args in 
       let gridParams = {
           CudaModule.threads_x=16; threads_y=16; threads_z=1;
           grid_x=safe_div nx 16; grid_y=safe_div ny 16;

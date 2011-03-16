@@ -18,13 +18,18 @@ let gen_reduce_2d_capable nestedType payload threadsPerBlock =
         "[ImpReduceTemplate] Function has return values %s, expected only 1"
         (DynType.type_array_to_str payload.output_types);
   ENDIF; 
-  (* assume result of reduction is same as elements of vector *) 
-  let input = codegen#fresh_input (DynType.VecT nestedType) in
+  (* assume result of reduction is same as elements of vector *)
+  let inputVecType = DynType.VecT nestedType in  
+  let input = codegen#fresh_input inputVecType in
   let scalarType = DynType.elt_type nestedType in
   let outerDim::nestedShape = SymbolicShape.all_dims input in
   let reducedDim = safe_div_ outerDim (int $ threadsPerBlock * 2) in 
   let outputShape = reducedDim::nestedShape in 
-  let output = codegen#fresh_output ~dims:outputShape nestedType in
+  (* the GPU kernel doesn't fully reduce its input--- 
+     that only happens after a logarithmic number of invocations, 
+     so the type of the output variable is the same as the input 
+  *) 
+  let output = codegen#fresh_output ~dims:outputShape inputVecType in
   IFDEF DEBUG THEN
     Printf.printf 
       "Creating reduce kernel with output shape {%s} w/ payload (%s) -> (%s)\n"
@@ -32,7 +37,9 @@ let gen_reduce_2d_capable nestedType payload threadsPerBlock =
       (DynType.type_array_to_str payload.input_types)
       (DynType.type_array_to_str payload.output_types);
   ENDIF;  
-  let cache = codegen#shared_vec_var scalarType [threadsPerBlock] in
+  let cache = 
+    codegen#shared_vec_var (DynType.VecT scalarType) [threadsPerBlock] 
+  in
   let num_vecs = codegen#fresh_var Int32T in
   codegen#emit [set num_vecs (len input)];
   

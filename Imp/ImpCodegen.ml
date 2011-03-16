@@ -51,8 +51,11 @@ class imp_codegen =
 
     method private register_slice_storage = function 
       | [] -> () 
-      | (Set(id, {exp=Idx({exp=Var arrId}, _)}))::rest -> 
-          Hashtbl.replace array_storage id Imp.Slice 
+      | (Set(id, {exp=Idx({exp=Var arrId}, _)}))::rest 
+        when DynType.nest_depth (self#get_type arrId) > 1 -> 
+          Hashtbl.replace array_storage id Imp.Slice; 
+          self#register_slice_storage rest 
+             
       | _::rest -> self#register_slice_storage rest 
     
             
@@ -118,11 +121,11 @@ class imp_codegen =
        expression yielding the same value as the original compound expression 
     *) 
     method private flatten_exp expNode : Imp.stmt list * Imp.exp_node =
-      IFDEF DEBUG THEN 
+      (*IFDEF DEBUG THEN 
         Printf.printf "[ImpCodegen] Flattening exp: %s\n"
           (Imp.exp_node_to_str expNode); 
       ENDIF;
-      
+      *)
       let is_simple eNode = 
         match eNode.exp with Var _ | Const _ -> true | _ -> false 
       in   
@@ -139,12 +142,14 @@ class imp_codegen =
             (* if flattened arg is itself complex, assign it to a variable *)
             let argType = arg'.exp_type in  
             let argShape = self#get_exp_shape arg' in 
+            (*
             IFDEF DEBUG THEN 
               Printf.printf "%s : %s; [%s]\n"
                 (Imp.exp_node_to_str arg')
                 (DynType.to_str argType)
                 (SymbolicShape.shape_to_str argShape);
             ENDIF;
+            *)
             let storage = 
               if DynType.is_vec argType then Some Imp.Slice
               else None
@@ -248,26 +253,23 @@ class imp_codegen =
       Hashtbl.add types id t;
       id
       
-    method fresh_local_id  ?(dims=[]) ?storage t =
+    method fresh_local_id  ?(dims=[]) ?(storage=Imp.Slice) t =
       let id = self#fresh_id t in
-      Hashtbl.add sizes id dims; 
       MutableSet.add localIdSet id;
       if DynType.is_vec t then (
-        match dims, storage with 
-          | [], _ ->    
+        match dims with 
+          | [] ->    
             failwith $ Printf.sprintf 
               "[ImpCodegen] Local var of type %s can't have scalar shape"
               (DynType.to_str t)
-          | _, None -> 
-            failwith $ Printf.sprintf 
-               "[ImpCodegen] Local var of type %s must have array annotation"
-               (DynType.to_str t)
-          | _, Some s -> Hashtbl.replace array_storage id s     
+          | _ -> 
+            Hashtbl.add sizes id dims;
+            Hashtbl.replace array_storage id storage     
       );  
       id
 
-    method fresh_var ?(dims = []) ?storage t =
-      let id = self#fresh_local_id ~dims ?storage t in 
+    method fresh_var ?(dims = []) ?(storage=Imp.Slice) t =
+      let id = self#fresh_local_id ~dims ~storage t in 
       {exp = Var id; exp_type = t}    
       
     
@@ -324,13 +326,13 @@ class imp_codegen =
       id 
       
     method shared_vec_var t dims = 
-      assert (DynType.is_scalar t); 
-      {exp =Var (self#shared_vec_id t dims); exp_type=DynType.VecT t} 
+      assert (DynType.nest_depth t = 1); 
+      {exp =Var (self#shared_vec_id t dims); exp_type= t} 
     
     method finalize = 
       let inputArray = DynArray.to_array inputs in 
       let outputArray = DynArray.to_array outputs in 
-      ImpSimplify.simplify_function {
+      let impFn = ImpSimplify.simplify_function {
         input_ids = inputArray;
         input_id_set = inputSet; 
         input_types = Array.map self#get_type inputArray; 
@@ -344,9 +346,17 @@ class imp_codegen =
         types = types;
         sizes =  sizes; 
         
-        array_storage = array_storage; 
+        array_storage = array_storage;
+
         body = DynArray.to_list code;
+        
+        
       }
+      in 
+      IFDEF DEBUG THEN 
+        Printf.printf "Finalizing Imp function: %s\n " (Imp.fn_to_str impFn); 
+      ENDIF; 
+      impFn  
       
     (* first replaces every instance of the function's input/output vars *)
     (* with those provided. Then removes the input/output vars, splices the *)
@@ -355,7 +365,7 @@ class imp_codegen =
       IFDEF DEBUG THEN 
         if (Array.length fn.input_ids  <> Array.length inputs) then 
           failwith $ Printf.sprintf 
-            "Cannot splice Imp function of arity %d where %d was expected"
+            "Cannot splice Imp function of arity %d where %d was given"
             (Array.length fn.input_ids)
             (Array.length inputs)
         ;
@@ -365,14 +375,18 @@ class imp_codegen =
             (Array.length fn.output_ids)
             (Array.length outputs)
         ;   
+        (*
+        Printf.printf "[ImpCodegen] Splicing function: **** %s \n ****\n"
+          (Imp.fn_to_str fn);
+        *) 
       ENDIF;
        
       (* have to rewrite the input/output variables to the expressions *)
       (* we were given as arguments inputExps/outputVars *)
-      let inOutMap = 
+      let inOutMap : Imp.exp_node ID.Map.t = 
         Array.fold_left2 
-          (fun accMap id node -> PMap.add (Var id) node.exp accMap)
-          PMap.empty 
+          (fun accMap id node -> ID.Map.add id node accMap)
+          ID.Map.empty 
           (Array.append fn.input_ids fn.output_ids)
           (Array.append inputs outputs)
       in 
@@ -390,7 +404,12 @@ class imp_codegen =
             MutableSet.add localIdSet id'; 
             if not (DynType.is_scalar t) then (
               assert (Hashtbl.mem fn.array_storage id);
-              Hashtbl.add array_storage id' (Hashtbl.find fn.array_storage id) 
+              Hashtbl.add array_storage id' (Hashtbl.find fn.array_storage id);
+              let oldSize = Hashtbl.find fn.sizes id in
+              let size = 
+                List.map (ImpReplace.apply_exp_map inOutMap) oldSize 
+              in   
+              Hashtbl.add sizes id' size; 
             ); 
             ID.Map.add id id' map
           )

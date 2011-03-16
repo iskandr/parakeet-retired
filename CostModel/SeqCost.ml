@@ -59,6 +59,14 @@ module CostAnalysis(P:COST_ANALYSIS_PARAMS) = struct
     | Call (fnId, args) -> P.call_cost fnId  (get_shapes args)   
     | Cast _
     | PrimApp (Prim.ScalarOp _, _) -> Imp.one
+    | PrimApp (Prim.ArrayOp Prim.Find, args) -> 
+        (match args with 
+          | [array; _] -> 
+              let arrayShape = value env array in
+              Imp.prod_exp_node_list arrayShape  
+          | _ -> assert false
+        )
+    | PrimApp (Prim.ArrayOp Prim.DimSize, _) -> Imp.one  
     | PrimApp _ -> Imp.infinity 
     | Arr elts -> Imp.int (List.length elts) 
     | Map (closure, args) -> 
@@ -147,14 +155,7 @@ let seq_cost fnTable fundef shapes =
   let key = fundef.SSA.fn_id, shapes in  
   try Hashtbl.find costCache key 
   with _ ->
-    IFDEF DEBUG THEN   
-      print_endline "---";
-    ENDIF; 
     let symCost = symbolic_seq_cost fnTable fundef in
-    IFDEF DEBUG THEN 
-      print_endline "---";
-    ENDIF; 
-    
     let shapeEnv = ID.Map.extend ID.Map.empty fundef.SSA.input_ids shapes in
     let cost = ShapeEval.eval_exp_as_float shapeEnv symCost in
     Hashtbl.add costCache key cost; 

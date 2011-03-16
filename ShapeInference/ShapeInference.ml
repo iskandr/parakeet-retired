@@ -60,9 +60,7 @@ module ShapeAnalysis (P: PARAMS) =  struct
     let exp env expNode helpers = 
       let get_shapes args = List.map (value env) args in  
       match expNode.exp with
-      | SSA.Call(fnId, args) -> 
-          raise (ShapeInferenceFailure "unexpected function call")
-
+      | SSA.Call(fnId, args) -> P.output_shapes fnId (get_shapes args) 
       | SSA.PrimApp (Prim.ArrayOp Prim.Index, array::indices) ->
         let arrayShape = value env array in
         let nIndices = List.length indices in 
@@ -91,11 +89,11 @@ module ShapeAnalysis (P: PARAMS) =  struct
          let arrayShape = value env array in
          let n = SymbolicShape.nelts arrayShape in
          [[n]]
-         (*raise (ShapeInferenceFailure "Can't infer output shape of WHERE prim")*)
-         
-      | SSA.PrimApp (Prim.ArrayOp Prim.DimSize, [array; dim]) -> [[]] 
+      | SSA.PrimApp (Prim.ArrayOp Prim.DimSize, [_; _]) 
+      | SSA.PrimApp (Prim.ArrayOp Prim.Find, [_; _]) -> [SymbolicShape.scalar]
       | SSA.PrimApp (Prim.ScalarOp _, args) when 
-        List.for_all (fun arg -> DynType.is_scalar arg.value_type) args -> [[]]
+        List.for_all (fun arg -> DynType.is_scalar arg.value_type) args -> 
+          [SymbolicShape.scalar]
       | SSA.Arr elts ->
         let eltShapes = List.map (value env) elts in
         (* TODO: check that elt shapes actually match each other *) 
@@ -246,11 +244,13 @@ let normalizedShapeEnvCache : (FnId.t, SymbolicShape.env) Hashtbl.t =
   
 let rec infer_shape_env (fnTable:FnTable.t) (fundef : SSA.fundef) =
   let fnId = fundef.SSA.fn_id in
+  (*
   IFDEF DEBUG THEN 
     Printf.printf 
       "[ShapeInference::infer_shape_env] Looking up shape env for %s\n" 
       (FnId.to_str fnId);
-  ENDIF;  
+  ENDIF;
+  *)  
   try Hashtbl.find shapeEnvCache fnId  
   with _ -> 
     let module Params : PARAMS = struct 
@@ -261,6 +261,7 @@ let rec infer_shape_env (fnTable:FnTable.t) (fundef : SSA.fundef) =
     in 
     let module ShapeEval = SSA_Analysis.MkEvaluator(ShapeAnalysis(Params)) in 
     let shapeEnv = ShapeEval.eval_fundef fundef in
+    
     IFDEF DEBUG THEN
       Printf.printf "[ShapeInference::infer_shape_env]  %s : %s -> %s:\n"
         (FnId.to_str fnId)
@@ -275,17 +276,20 @@ let rec infer_shape_env (fnTable:FnTable.t) (fundef : SSA.fundef) =
         )
         shapeEnv;
     ENDIF;
+    
     Hashtbl.add shapeEnvCache fnId shapeEnv;   
     shapeEnv 
     
 and infer_normalized_shape_env (fnTable : FnTable.t) (fundef : SSA.fundef) = 
   let fnId = fundef.SSA.fn_id in
   try 
+    (*
     IFDEF DEBUG THEN
       Printf.printf "[ShapeInference] cached shape environment for %s: %B\n"
       (FnId.to_str fnId)
       (Hashtbl.mem normalizedShapeEnvCache fnId); 
-    ENDIF; 
+    ENDIF;
+    *) 
     Hashtbl.find normalizedShapeEnvCache fnId 
   with _ ->  begin
     let rawShapeEnv = infer_shape_env fnTable fundef in
@@ -301,10 +305,12 @@ and infer_normalized_shape_env (fnTable : FnTable.t) (fundef : SSA.fundef) =
     in   
     let normalizedEnv = ID.Map.fold normalizer rawShapeEnv ID.Map.empty in  
     Hashtbl.add normalizedShapeEnvCache fnId normalizedEnv;
+    (*
     IFDEF DEBUG THEN 
       Printf.printf "[ShapeInference] done computing shape env for %s\n"
       (FnId.to_str fnId);
-    ENDIF; 
+    ENDIF;
+    *) 
     normalizedEnv 
  end   
 
@@ -345,11 +351,13 @@ and infer_call_result_shapes fnTable fundef argShapes =
   let resultShapes = 
     List.map (SymbolicShape.rewrite_shape argEnv) normalizedOutputShapes
   in 
+  (*
   IFDEF DEBUG THEN 
     Printf.printf "[ShapeInference] %s returned: %s\n"
       (FnId.to_str fundef.SSA.fn_id)
       (SymbolicShape.shapes_to_str resultShapes);
-  ENDIF; 
+  ENDIF;
+  *) 
   resultShapes 
        
    

@@ -24,7 +24,10 @@ and ptx_float_mode =
   | Full
   | RN (* same as RoundNearest, but used for DIV operator *)
 and ptx_unop =
-  Abs | Cnot   | Neg | Not
+  | Abs 
+  | Cnot 
+  | Neg 
+  | Not
   | Rsqrt of ptx_float_mode
   | Cos of ptx_float_mode
   | Ex2 of ptx_float_mode
@@ -34,22 +37,29 @@ and ptx_unop =
   | Rcp of ptx_float_mode
 (*   Tex | Vote | Trap |   Atom  | Bar | Brkpt  | Call *)
 and ptx_binop =
-      Add | And | Max | Min | Or
-    | Rem | Ret | Sad | Set | Shl | Shr | Sub | Xor
-    | Setp of ptx_comp
-    | FloatDiv of ptx_float_mode
-    | FloatMul
-    | IntDiv
-    | IntMul of ptx_bits
-    | Mul24 of ptx_bits
-and ptx_virtual_unop = Exp | Ln
-and ptx_virtual_binop =  Pow
+  | Add 
+  | And 
+  | Max 
+  | Min 
+  | Or
+  | Rem 
+  | Ret 
+  | Sad 
+  | Set 
+  | Shl 
+  | Shr 
+  | Sub 
+  | Xor
+  | Setp of ptx_comp
+  | FloatDiv of ptx_float_mode
+  | FloatMul
+  | IntDiv
+  | IntMul of ptx_bits
+  | Mul24 of ptx_bits
 and geom = Tex1D | Tex2D | Tex3D
 and ptx_op =
   | Unop of ptx_unop * PtxType.ty
   | Binop of ptx_binop * PtxType.ty
-  | VirtualUnop of ptx_virtual_unop * PtxType.ty
-  | VirtualBinop of ptx_virtual_binop * PtxType.ty
   | Mad of ptx_bits * PtxType.ty  
   | Mad24 of ptx_bits * PtxType.ty
   | FloatMad of PtxType.ty   
@@ -227,9 +237,6 @@ and add_instruction_to_buffer b symbols instr =
 and ptx_op_name = function 
   | Unop (unop, _) ->  ptx_unop_to_str unop 
   | Binop (binop, _) -> ptx_binop_to_str binop
-  | VirtualUnop (unop, _) -> sprintf "virtual.%s" $ ptx_virtual_unop_to_str unop
-  | VirtualBinop (binop, t) ->
-     sprintf "virtual.%s" $ ptx_virtual_binop_to_str binop
   | Mad(bits,_) -> sprintf "mad.%s" $ ptx_bits_to_str bits
   | Mad24(bits,_) -> sprintf "mad24.%s" $ ptx_bits_to_str bits
   | FloatMad t -> sprintf "mad"
@@ -294,14 +301,13 @@ and ptx_op_args_to_buffer b symbols op args = match op with
         (PtxVal.to_str symbols args.(0))
         offset 
         (PtxVal.to_str symbols args.(1))
-  | VirtualUnop (_, t) 
   | Unop (_, t) -> 
       bprintf b ".%s\t %s, %s;" 
         (PtxType.to_str t)
         (PtxVal.to_str symbols args.(0))
         (PtxVal.to_str symbols args.(1))
                 
-  | VirtualBinop (_, t)
+  
   | Binop (_, t) -> 
       bprintf b ".%s\t %s, %s, %s;" 
         (PtxType.to_str t)
@@ -410,11 +416,7 @@ and ptx_binop_to_str = function
         | Vote -> "vote"
   | Trap -> "trap"
 	*)
-and ptx_virtual_binop_to_str = function 
-  | Pow -> "pow"
-and ptx_virtual_unop_to_str = function 
-  | Ln -> "ln"
-  | Exp -> "exp"
+
 and ptx_label_to_str label = label
 and ptx_rounding_mode_to_str = function 
   | RoundNearest_Int -> "rni"
@@ -446,66 +448,9 @@ and ptx_geom_to_str = function
 (****************************************************************
                     HELPER/SHORTCUT FUNCTIONS 
  ****************************************************************)
-
-let prim_to_ptx_binop op t = match op,t with
-  | Prim.Add,_ -> Binop(Add,t)
-  | Prim.Sub,_ -> Binop(Sub,t)
-  | Prim.Mult, F32
-  | Prim.Mult, F64 -> Binop(FloatMul, t)
-  | Prim.Mult, _ -> Binop(IntMul Low, t)
-  | Prim.Div, F32 -> Binop (FloatDiv Approx, F32)
-  | Prim.Div, F64 -> Binop (FloatDiv RN, F64)
-  | Prim.Div, _ -> Binop (IntDiv, t)
-  | Prim.Lt, t when PtxType.is_unsigned t ->  Binop(Setp LO,t)
-  | Prim.Lt, _ ->  Binop(Setp LT,t)
-  | Prim.Gt, t when PtxType.is_unsigned t -> Binop(Setp HI,t)
-  | Prim.Gt, _ -> Binop(Setp GT,t)
-  | Prim.Gte, t when PtxType.is_unsigned t -> Binop(Setp HS,t)
-  | Prim.Gte, _ -> Binop(Setp GE,t)
-  | Prim.Lte, t when PtxType.is_unsigned t-> Binop(Setp LS,t)
-  | Prim.Lte, _ -> Binop(Setp LE,t)
-  | Prim.Eq, _ -> Binop(Setp EQ,t)
-  | Prim.Neq, _ -> Binop(Setp NE,t)
-  | Prim.And, Pred -> Binop(And,Pred)
-  | Prim.Or, Pred -> Binop(Or,Pred)
-  | p, _-> failwith $
-    Printf.sprintf "[prim->ptx] binop %s not implemented for type %s: "
-     (Prim.scalar_op_to_str p)
-     (PtxType.to_str t)
-
-let prim_to_ptx_unop  unop t = match unop,t with 
-  | Prim.Abs, _ -> Unop(Abs,t)
-  | Prim.Neg,_ -> Unop(Neg,t) 
-  | Prim.Not, Pred -> Unop(Not,Pred) 
-  | Prim.Sqrt,F64 ->  Unop(Sqrt RN,F64)
-  | Prim.Sqrt, F32 -> Unop(Sqrt Approx,F32) 
-  | Prim.Reciprocal, F32 -> Unop(Rcp Approx,F32)
-  | Prim.Reciprocal, F64 -> Unop(Rcp RN,F64)
-  | Prim.Exp2,F32 -> Unop(Ex2 Approx,F32)
-  | Prim.Lg2,F32 -> Unop(Lg2 Approx,F32) 
-  | Prim.Exp,_ -> VirtualUnop(Exp,t) 
-  | Prim.Ln,_ -> VirtualUnop(Ln,t)
-  | u,_ -> failwith $
-    Printf.sprintf "[prim->ptx] unop %s not implemented for type %s: "
-     (Prim.scalar_op_to_str u) (PtxType.to_str t)
-
-(* translate op without knowing its arity *) 
-let prim_to_ptx_op op t = 
-  if Prim.is_unop op then prim_to_ptx_unop op t 
-  else if Prim.is_binop op then prim_to_ptx_binop op t 
-  else failwith "[ptx_helpers] dont't know how to translate op"
-
 let int64 x = IntConst x 
 let int x = IntConst (Int64.of_int x)
 let float x = FloatConst x 
-
-let num_to_ptx_const = function 
-  | PQNum.Char c -> int $  Char.code c
-  | PQNum.Int32 i -> int64 (Int64.of_int32 i)
-  | PQNum.Int64 i -> int64 i
-  | PQNum.Float32 f
-  | PQNum.Float64 f -> float f
-  | PQNum.Bool b -> int64 $ if b then 1L else 0L
 
 let mkop op args = {
    op=op; args=Array.of_list args;  label=None; pred=NoGuard;
@@ -525,10 +470,7 @@ let op3 op x y z = mkop op [x;y;z]
 let op4 op x y z w = mkop op [x;y;z;w]
 
 let unop op ty ~dest ~src = mkop (Unop (op,ty)) [dest; src]
-let virtual_unop op ty ~dest ~src = mkop (VirtualUnop (op,ty)) [dest; src]
 let binop op ty ~dest ~src1 ~src2 = mkop (Binop (op,ty)) [dest; src1; src2]
-let virtual_binop op ty dest src1 src2 = 
-  mkop (VirtualBinop(op,ty)) [dest; src1; src2]
 
 
 let comment ~txt = op0 $ Comment txt
@@ -536,9 +478,20 @@ let comment ~txt = op0 $ Comment txt
 (* different ways to multiply depending on type, so check the *)
 (* big case function above *)
 let mul ty ~dest ~src1 ~src2 =
-  mkop (prim_to_ptx_binop Prim.Mult ty) [dest; src1; src2]
+  let op = match ty with 
+    | F32 -> Binop (FloatDiv Approx, F32)
+    | F64 -> Binop (FloatDiv RN, F64)
+    | _ -> Binop (IntDiv, ty)
+  in 
+  mkop op [dest; src1; src2]
+  
 let div ty ~dest ~src1 ~src2 =
-  mkop (prim_to_ptx_binop Prim.Div ty) [dest; src1; src2]
+  let op = match ty with 
+    | F32 -> Binop (FloatDiv Approx, F32)
+    | F64 -> Binop (FloatDiv RN, F64)
+    | _ -> Binop (IntDiv, ty)
+  in 
+  mkop op [dest; src1; src2]
 
 let mul_wide = binop (IntMul Wide)
 let mul_lo = binop (IntMul Low)

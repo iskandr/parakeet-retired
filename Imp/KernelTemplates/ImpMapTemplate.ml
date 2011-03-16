@@ -8,7 +8,7 @@ open ImpCodegen
 (* assume all threadblocks are 1d row of size threadsPerBlock *) 
 let gen_map payload threadsPerBlock closureTypes inTypes outTypes =
   IFDEF DEBUG THEN 
-    Printf.printf "Generating map template for %s%s -> %s\n"
+    Printf.printf "\n\nGenerating map template for %s%s -> %s\n"
       (if Array.length closureTypes = 0 then "" 
        else DynType.type_array_to_str closureTypes ^ " => ")
       (DynType.type_array_to_str inTypes)
@@ -38,9 +38,24 @@ let gen_map payload threadsPerBlock closureTypes inTypes outTypes =
     set num (len outputArgs.(0))
   ];
   (* setup input and output variables for the payload fn *)
-  let inputEltTypes = Array.map DynType.elt_type inTypes in 
+  let inputEltTypes = Array.map DynType.peel_vec inTypes in
+  let inputEltShapes = 
+    Array.map 
+      (fun varNode -> SymbolicShape.peel_shape (SymbolicShape.all_dims varNode))
+    inputArgs 
+  in   
+  let mk_payload_input kernelInput = 
+    let t = DynType.peel_vec kernelInput.exp_type in 
+    let dims = SymbolicShape.peel_shape (SymbolicShape.all_dims kernelInput) in
+    IFDEF DEBUG THEN 
+      Printf.printf "Registering payload input of type %s and shape [%s]\n"
+      (DynType.to_str t)
+      (SymbolicShape.to_str dims)
+    ENDIF; 
+    codegen#fresh_var t ~dims ~storage:Imp.Slice   
+  in 
   let payloadInputVars = 
-    Array.append closureArgs (Array.map codegen#fresh_var inputEltTypes)
+    Array.append closureArgs (Array.map mk_payload_input inputArgs)
   in 
   let buffer = DynArray.create () in
   (* put each input in payloadInputVars *) 

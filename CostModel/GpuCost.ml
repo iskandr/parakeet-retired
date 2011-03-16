@@ -38,8 +38,19 @@ let rec sum_transfer_time = function
     let outerDim, nestedArgs = Shape.split_nested_shapes args in
     let nestedShapes = closureArgs @ nestedArgs in 
     let nestedCost = SeqCost.seq_cost fnTable fn nestedShapes in 
-    let runCost = (float_of_int outerDim) *. nestedCost /. parallelism in 
-   launchCost +.  runCost 
+    let runCost = (float_of_int outerDim) *. nestedCost /. parallelism in
+    IFDEF DEBUG THEN 
+      Printf.printf "[GpuCost] Computing GPU map cost for %s, %s\n"
+        (String.concat ", " (List.map Shape.to_str closureArgs))
+        (String.concat ", " (List.map Shape.to_str args))
+      ;
+      Printf.printf "[GpuCost] nestedArgs: {%s}, nestedCost: %f, runCost: %f\n"
+        (String.concat ", " (List.map Shape.to_str nestedShapes))
+        nestedCost
+        runCost
+      ; 
+    ENDIF; 
+    launchCost +.  runCost 
   
 let reduce 
       ~(fnTable:FnTable.t)
@@ -55,7 +66,7 @@ let reduce
     let nestedCost = SeqCost.seq_cost fnTable init nestedShapes in
     let runCost = (float_of_int outerDim) *. nestedCost /. parallelism in 
     let numLaunches = log (float_of_int outerDim) in  
-    numLaunches *. (launchCost +. runCost)                
+    numLaunches *. launchCost +.  2. *. runCost                
           
 let array_op op argShapes = match op, argShapes with 
   | Prim.Where, [x] -> float_of_int  (Shape.nelts x)
@@ -63,5 +74,12 @@ let array_op op argShapes = match op, argShapes with
     (* assume x is 1D *) 
     let numIndices = Shape.nelts idx in
     float_of_int numIndices   
-  | _ -> infinity 
+  | Prim.Find, [x; elt] -> float_of_int $ (Shape.nelts x) * (Shape.nelts elt) 
+  | arrayOp, shapes -> 
+      IFDEF DEBUG THEN
+        Printf.printf "[GpuCost] Infinite cost for operator: %s with args %s\n" 
+          (Prim.array_op_to_str arrayOp)  
+          (String.concat ", " (List.map Shape.to_str shapes))  
+      ENDIF; 
+      infinity 
 

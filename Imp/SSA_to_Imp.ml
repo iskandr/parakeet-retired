@@ -4,6 +4,27 @@ open DynType
 open Base
 open Imp
 
+(* TODO: make this actually work with non-trivial expressions *)
+let get_imp_shape 
+      (sizeEnv : SymbolicShape.shape ID.Map.t) 
+      (expNode : Imp.exp_node) = match expNode.exp with  
+  | Imp.Var id ->
+      try ID.Map.find id sizeEnv with 
+        | _ -> failwith $ 
+          Printf.sprintf  
+            "Can't find shape for Imp variable %s : %s"
+            (ID.to_str id)
+            (DynType.to_str expNode.exp_type) 
+  | _ -> SymbolicShape.scalar
+
+
+let get_ssa_shape 
+      (sizeEnv : SymbolicShape.shape ID.Map.t) 
+      (valNode : SSA.value_node) = 
+  match valNode.SSA.value with 
+  | SSA.Var id -> ID.Map.find id sizeEnv 
+  | _ -> SymbolicShape.scalar
+
 let rec translate_value idEnv valNode = 
   let vExp = match valNode.SSA.value with
     | SSA.Var id -> Imp.Var (ID.Map.find id idEnv)
@@ -15,6 +36,7 @@ let rec translate_value idEnv valNode =
 and translate_exp 
       (codegen : ImpCodegen.imp_codegen) 
       (fnTable : FnTable.t) 
+      (sizeEnv : SymbolicShape.shape ID.Map.t)
       idEnv 
       expectedType 
       expNode = 
@@ -66,19 +88,36 @@ and translate_exp
       let fundef_ssa = FnTable.find fnId fnTable in
       let fundef_imp = translate_fundef fnTable fundef_ssa in
       let arrays_imp = List.map (translate_value idEnv) arrays in
-      let maxInput = SymbolicShape.largest_val (Array.of_list arrays_imp) in 
+      let maxArray = SymbolicShape.largest_val (Array.of_list arrays_imp) in 
+      let maxArrayShape = get_imp_shape sizeEnv maxArray in
+      let maxDim = List.hd maxArrayShape in
+      let nestedOutShape =
+          Hashtbl.find_default fundef_imp.sizes fundef_imp.Imp.output_ids.(0) []
+      in  
+      let outputShape = maxDim :: nestedOutShape in   
       let output = 
-        codegen#fresh_var ~dims:(SymbolicShape.all_dims maxInput) vecOutType 
+        codegen#fresh_var 
+          ~dims:outputShape    
+          ~storage:Imp.Private
+          vecOutType 
       in  
       let i = codegen#fresh_var Int32T in
       let n = codegen#fresh_var Int32T in
+      (* since shapes are imp expressions, we can just take the outermost
+         dim of the symbolic shape and put it as the loop boundary *) 
+      let loopBoundary = List.hd maxArrayShape in 
       let bodyBlock = [
         set i (int 0);
-        set n (len maxInput);
+        set n loopBoundary;
         while_ (i <$ n) [SPLICE; set i (i +$ (int 1))]
       ] in
-      let lhs = [|idx output i|] in 
-      let rhs = Array.of_list (List.map (fun arr -> idx arr i) arrays_imp) in 
+      let lhs = [|idx output i|] in
+      let closureArgs = 
+        List.map (translate_value idEnv) payload.SSA.closure_args 
+      in  
+      let rhs = Array.of_list $ 
+        closureArgs @ (List.map (fun arr -> idx arr i) arrays_imp) 
+      in 
       codegen#splice_emit fundef_imp rhs lhs bodyBlock;
       output
   
@@ -136,13 +175,14 @@ and translate_exp
 and translate_stmt 
       (fnTable : FnTable.t)
       (codegen : ImpCodegen.imp_codegen) 
+      (sizeEnv : SymbolicShape.shape ID.Map.t)  
       (idEnv : ID.t ID.Map.t)
       (stmtNode : SSA.stmt_node) = match stmtNode.SSA.stmt with
   | SSA.Set([id], expNode) ->
       (match expNode.SSA.exp_types with
         | [t] ->
           let id' = ID.Map.find id idEnv in
-          let exp' = translate_exp codegen fnTable idEnv t expNode in
+          let exp' = translate_exp codegen fnTable sizeEnv idEnv t expNode in
           let varNode = {Imp.exp = Var id'; exp_type = t } in 
           codegen#emit [set varNode exp']
         | _ -> failwith "[ssa->imp] expected only single value on rhs of set"
@@ -162,12 +202,22 @@ and translate_stmt
   | _ -> failwith "[ssa->imp] stmt not implemented"      
 
 and translate_fundef fnTable fn =
+  IFDEF DEBUG THEN 
+    Printf.printf "[SSA_To_Imp] translating function: %s\n"
+      (SSA.fundef_to_str fn);
+  ENDIF; 
+    
   let codegen  = new ImpCodegen.imp_codegen in
   let inputTypes = fn.SSA.fn_input_types in 
   let outputTypes = fn.SSA.fn_output_types in
   (* first generate imp ids for inputs, to make sure their order is preserved *)
   let add_input env id t = 
     let impId = codegen#fresh_input_id t in 
+    IFDEF DEBUG THEN 
+      Printf.printf "[SSA_To_Imp] Renaming input %s => %s\n"
+        (ID.to_str id)
+        (ID.to_str impId); 
+    ENDIF; 
     ID.Map.add id impId env  
   in 
   let inputIdEnv = 
@@ -175,7 +225,7 @@ and translate_fundef fnTable fn =
   in 
   (* next add all the live locals, along with their size expressions *)
   let liveIds : ID.t MutableSet.t = FindLiveIds.find_live_ids fn in
-  let sizeExps : SymbolicShape.shape ID.Map.t = 
+  let sizeEnv : SymbolicShape.shape ID.Map.t = 
     ShapeInference.infer_shape_env fnTable fn  
   in
   let add_local id env =
@@ -183,7 +233,7 @@ and translate_fundef fnTable fn =
     if List.mem id fn.SSA.input_ids then env
     else 
     let t = ID.Map.find id fn.SSA.tenv in
-    let dims : Imp.exp_node list = ID.Map.find id sizeExps in
+    let dims : Imp.exp_node list = ID.Map.find id sizeEnv in
     (* rename all vars to refer to new Imp IDs, instead of old SSA IDs *)
     let dims' : Imp.exp_node list =
        List.map (ImpReplace.apply_id_map env) dims 
@@ -191,22 +241,39 @@ and translate_fundef fnTable fn =
     let impId = 
       (if List.mem id fn.SSA.output_ids then 
         codegen#fresh_output_id ~dims:dims' t 
-      else 
-        codegen#fresh_local_id ~dims:dims' t)
+      else
+        codegen#fresh_local_id ~dims:dims' t
+      )
     in  
+    
     IFDEF DEBUG THEN 
         Printf.printf "[ssa2imp] Renamed %s to %s\n"
           (ID.to_str id)
           (ID.to_str impId); 
-    ENDIF; 
+    ENDIF;
     ID.Map.add id impId env    
   in  
   let idEnv = MutableSet.fold add_local liveIds inputIdEnv in
-  Block.iter_forward (translate_stmt fnTable codegen idEnv) fn.SSA.body;
-  let impFn =  codegen#finalize in 
+  let rename_shape_env id shape env =
+    let id' = ID.Map.find id idEnv in
+    let shape' = List.map (ImpReplace.apply_id_map idEnv) shape in   
+    ID.Map.add id' shape' env  
+  in
+  let impSizeEnv = ID.Map.fold rename_shape_env sizeEnv ID.Map.empty in 
   IFDEF DEBUG THEN 
-    Printf.printf "[ssa2imp] Translated %s into: %s\n"
-      (FnId.to_str fn.SSA.fn_id)
-      (Imp.fn_to_str impFn);
-  ENDIF;
+    Printf.printf "[ssa2imp] Size env\n";
+    let print_size id sz =
+      Printf.printf "[ssa2imp] %s : %s\n"
+        (ID.to_str id)
+        (SymbolicShape.to_str sz)
+    in 
+    ID.Map.iter print_size impSizeEnv
+  ENDIF;  
+  Block.iter_forward 
+    (translate_stmt fnTable codegen impSizeEnv idEnv) 
+    fn.SSA.body;
+  let impFn =  codegen#finalize in 
+  
+ 
+  
   impFn 

@@ -198,9 +198,6 @@ CAMLprim value ocaml_cuda_launch_ptx (
       int64_t int64_val;
       float f;
       double d;
-#ifdef DEBUG
-  printf("Sending scalar arg to kernel\n");
-#endif
       switch (pqnum_tag) {
 
       case PQNUM_INT32:

@@ -3,9 +3,138 @@
 open Base 
 open Imp
 open Ptx
+open PtxVal 
 open PtxType
 open PtxCodegen
 open Printf 
+
+
+  
+let num_to_ptx_const = function 
+  | PQNum.Char c -> int $  Char.code c
+  | PQNum.Int32 i -> int64 (Int64.of_int32 i)
+  | PQNum.Int64 i -> int64 i
+  | PQNum.Float32 f
+  | PQNum.Float64 f -> float f
+  | PQNum.Bool b -> int64 $ if b then 1L else 0L
+  | PQNum.Inf t when DynType.is_floating t -> float max_float
+  | PQNum.NegInf t when DynType.is_floating t -> float (-. max_float) 
+  | PQNum.Inf _ -> int max_int 
+  | PQNum.NegInf _ -> int min_int    
+  | n -> 
+      failwith $ Printf.sprintf "Can't convert %s to PTX"
+        (PQNum.num_to_str n)
+
+
+let prim_to_ptx_op codegen destReg args op t =
+  match op, t with 
+    | Prim.Abs, _ -> 
+        codegen#emit [mkop (Unop(Abs,t)) (destReg::args)] 
+    | Prim.Neg,_ -> 
+        codegen#emit [mkop (Unop(Neg,t)) (destReg::args)] 
+    | Prim.Not, Pred -> 
+        codegen#emit [mkop (Unop(Not,Pred)) (destReg::args)] 
+    | Prim.Sqrt,F64 ->  
+        codegen#emit [mkop (Unop(Sqrt RN,F64)) (destReg::args)]
+    | Prim.Sqrt, F32 -> 
+        codegen#emit [mkop (Unop(Sqrt Approx,F32)) (destReg::args)]
+    | Prim.Reciprocal, F32 -> 
+        codegen#emit [mkop (Unop(Rcp Approx,F32)) (destReg::args)]
+    | Prim.Reciprocal, F64 -> 
+        codegen#emit [mkop (Unop(Rcp RN,F64)) (destReg::args)]
+    | Prim.Exp2,F32 -> 
+        codegen#emit [mkop (Unop(Ex2 Approx,F32)) (destReg::args)]
+    | Prim.Lg2, F32 -> 
+        codegen#emit [mkop (Unop(Lg2 Approx,F32)) (destReg::args)]
+    | Prim.Ln, F32  ->
+        let tmp1 : PtxVal.value  = codegen#fresh_reg F32 in
+        let tmp2 : PtxVal.value = codegen#fresh_reg F32 in
+        codegen#emit [
+          mov tmp1 (FloatConst 0.693147181);
+          mkop (Unop (Lg2 Approx, F32)) [tmp2; (List.hd args)];
+          mul F32 destReg tmp2 tmp1;
+        ]  
+    | Prim.Ln, _ -> 
+        let downCvt = codegen#fresh_reg F32 in 
+        let tmp1 = codegen#fresh_reg F32 in 
+        let tmp2 = codegen#fresh_reg F32 in
+        let f32Result = codegen#fresh_reg F32 in
+        codegen#emit [  
+          cvt ~t1:F32 ~t2:t ~dest:downCvt ~src:(List.hd args);  
+          mov tmp1 (FloatConst 0.693147181);
+          mkop (Unop (Lg2 Approx, F32)) [tmp2; downCvt];
+          mul F32 f32Result tmp2 tmp1;
+          cvt ~t1:t ~t2:F32 ~dest:destReg ~src:f32Result
+        ]
+    | Prim.Exp, F32 ->
+        let tmp1 = codegen#fresh_reg F32 in
+        let tmp2 = codegen#fresh_reg F32 in
+        codegen#emit [
+          mov tmp1 (FloatConst 1.44269504);
+          mul F32 tmp2 (List.hd args) tmp1;
+          mkop  (Unop (Ex2 Approx,F32)) [destReg; tmp2]
+        ]
+    | Prim.Exp, _ -> 
+        let downCvt = codegen#fresh_reg F32 in 
+        let tmp1 = codegen#fresh_reg F32 in 
+        let tmp2 = codegen#fresh_reg F32 in
+        let f32Result = codegen#fresh_reg F32 in
+        codegen#emit [
+          cvt ~t1:F32 ~t2:t ~dest:downCvt ~src:(List.hd args);  
+          mov tmp1 (FloatConst 1.44269504); 
+          mul t tmp2 downCvt tmp1;
+          mkop (Unop (Ex2 Approx,F32)) [f32Result; tmp2]; 
+          cvt ~t1:t ~t2:F32 ~dest:destReg ~src:f32Result
+        ]
+    | Prim.Add, _ -> 
+        codegen#emit [mkop (Binop(Add,t)) (destReg::args)]
+    | Prim.Sub,_ -> 
+        codegen#emit [mkop (Binop(Sub,t)) (destReg::args)]
+    | Prim.Mult, F32
+    | Prim.Mult, F64 -> 
+        codegen#emit [mkop (Binop(FloatMul, t)) (destReg::args)]
+    | Prim.Mult, _ -> 
+        codegen#emit [mkop (Binop(IntMul Low, t)) (destReg::args)]
+    | Prim.Div, F32 -> 
+        codegen#emit [mkop (Binop (FloatDiv Approx, F32)) (destReg::args)]
+    | Prim.Div, F64 -> 
+        codegen#emit [mkop (Binop (FloatDiv RN, F64)) (destReg::args)]
+    | Prim.Div, _ -> 
+        codegen#emit [mkop (Binop (IntDiv, t)) (destReg::args)]
+    | Prim.Lt, t when PtxType.is_unsigned t ->  
+        codegen#emit [mkop (Binop(Setp LO,t)) (destReg::args)]
+    | Prim.Lt, _ ->  
+        codegen#emit [mkop (Binop(Setp LT,t)) (destReg::args)]
+    | Prim.Gt, t when PtxType.is_unsigned t -> 
+        codegen#emit [mkop (Binop(Setp HI,t)) (destReg::args)]
+    | Prim.Gt, _ -> 
+        codegen#emit [mkop (Binop(Setp GT,t)) (destReg::args)]
+    | Prim.Gte, t when PtxType.is_unsigned t -> 
+        codegen#emit [mkop (Binop(Setp HS,t)) (destReg::args)]
+    | Prim.Gte, _ -> 
+        codegen#emit [mkop (Binop(Setp GE,t)) (destReg::args)]
+    | Prim.Lte, t when PtxType.is_unsigned t-> 
+        codegen#emit [mkop (Binop(Setp LS,t)) (destReg::args)]
+    | Prim.Lte, _ -> 
+        codegen#emit [mkop (Binop(Setp LE,t)) (destReg::args)]
+    | Prim.Eq, _ -> 
+        codegen#emit [mkop (Binop(Setp EQ,t)) (destReg::args)]
+    | Prim.Neq, _ -> 
+        codegen#emit [mkop (Binop(Setp NE,t)) (destReg::args)]
+    | Prim.And, Pred ->
+        codegen#emit [mkop (Binop(And,Pred)) (destReg::args)]
+    | Prim.Or, Pred -> 
+        codegen#emit [mkop (Binop(Or,Pred)) (destReg::args)]
+    | Prim.Min, _ -> 
+        codegen#emit [mkop (Binop(Min,t)) (destReg::args)]      
+    | Prim.Max, _ -> 
+        codegen#emit [mkop (Binop(Max,t)) (destReg::args)]    
+    | _ ->
+      failwith $  
+        Printf.sprintf "[ImpToPtx] operator %s not implemented for type %s: "
+          (Prim.scalar_op_to_str op)
+          (PtxType.to_str t)
+
 
 let same_type t1 t2 = 
   if t1 <> t2 then  debug $ Printf.sprintf "Expected same types, got %s and %s "
@@ -48,15 +177,19 @@ let gen_exp
   let exp = expNode.Imp.exp in 
   begin match exp with
   | Imp.Op(op,dynArgType, args) -> 
-      same_type ptxResultT destType;
-      assert (ptxResultT = destType);
+      IFDEF DEBUG THEN 
+        same_type ptxResultT destType;
+        assert (ptxResultT = destType);
+      ENDIF; 
       let ptxArgT = PtxType.of_dyn_type dynArgType in
       let args' = List.map (fun x -> translate_arg x ptxArgT) args in
-      let ptxop = prim_to_ptx_op op ptxArgT in 
-      codegen#emit [mkop ptxop (destReg::args')]
+      prim_to_ptx_op codegen destReg args' op ptxArgT 
+      
    | Imp.Select(t, cond, trueExp, falseExp) -> 
       let t' = PtxType.of_dyn_type t in
-      assert (t' = destType);  
+      IFDEF DEBUG THEN 
+        assert (t' = destType);
+      ENDIF;   
       let cond' = translate_arg cond Pred in
       let trueExp' = translate_arg trueExp t' in 
       let falseExp' = translate_arg falseExp t' in
@@ -72,7 +205,7 @@ let gen_exp
 	    let idxPtxT = PtxType.of_dyn_type idxDynT in
       if (PtxType.nbytes idxPtxT <> 4) then
         failwith $
-          sprintf "[imp2ptx] array index expected to be 32-bit, received: %s"
+          sprintf "[ImpToPtx] array index expected to be 32-bit, received: %s"
           (PtxType.to_str idxPtxT);
       let idxReg = translate_arg idx idxPtxT in
       let eltBytes =
@@ -82,7 +215,7 @@ let gen_exp
       let isShared = codegen#is_shared_ptr baseReg in
       if not isShared && not (codegen#is_global_array_ptr baseReg) &&
          not (codegen#is_tex baseReg) then
-        failwith "[imp2ptx] cannot generate indexing code: \"
+        failwith "[ImpToPtx] cannot generate indexing code: \"
                  base address register is not global, texture, or shared ptr"
       else
       let rank = codegen#get_array_rank baseReg in
@@ -125,7 +258,7 @@ let gen_exp
         codegen#convert ~destReg ~srcVal:address;
         codegen#declare_slice baseReg destReg
      )
-  | Imp.Idx(_, _) -> failwith "[imp2ptx] attempted to index into non-array"
+  | Imp.Idx(_, _) -> failwith "[ImpToPtx] attempted to index into non-array"
   | Imp.Cast(tNew, x) ->
       let tNewPtx = PtxType.of_dyn_type tNew in 
       assert (tNewPtx = PtxVal.type_of_var destReg);
@@ -146,7 +279,7 @@ let gen_exp
         assert (dim <= rank);
         let shapeReg = codegen#get_shape_reg arrayReg in
         codegen#emit [ld_global ~offset:((dim-1)*4) S32 destReg shapeReg] 
-     else failwith "[imp2ptx] attempting to get DimSize of a scalar"
+     else failwith "[ImpToPtx] attempting to get DimSize of a scalar"
   
   (* when dealing with a constant or simple variable reference, just
      allocate a new register and move the value into it. 
@@ -171,8 +304,15 @@ let gen_exp
   ; 
   destReg 
 
+
 let rec gen_stmt codegen stmt = 
-  codegen#emit [comment (Imp.stmt_to_str stmt)];
+  (*
+  IFDEF DEBUG THEN
+    codegen#emit [comment (Imp.stmt_to_str stmt)];
+    Printf.printf "[ImpToPtx] translating statement %s\n" 
+      (String.escaped (String.abbrev (Imp.stmt_to_str stmt) 50))
+  ENDIF;
+  *) 
   match stmt with 
   | Imp.Set (id,rhs) ->
       let dynT = rhs.exp_type in
@@ -185,11 +325,14 @@ let rec gen_stmt codegen stmt =
       let rank = codegen#get_array_rank base in
       let numIndices = Array.length idxRegs in   
       if rank > numIndices  then
-        failwith "[imp2ptx] Cannot set an array slice"
+        failwith "[ImpToPtx] Cannot set an array slice"
       else if rank < numIndices then 
         failwith $ 
-           Printf.sprintf "[imp2ptx] Too many indices given to setidx: %s" 
-           (Imp.stmt_to_str stmt)
+           Printf.sprintf 
+             "[ImpToPtx] setidx expected %d index, received %d: %s"
+             rank
+             numIndices 
+             (Imp.stmt_to_str stmt)
       else
        let rhsT = rhs.exp_type in 
        let rhsEltT = DynType.elt_type rhsT in
@@ -237,12 +380,14 @@ and gen_block codegen block =
   List.iter (gen_stmt codegen) block
    
 let translate_kernel ?input_spaces (impfn : Imp.fn) =
+  (*
   IFDEF DEBUG THEN 
-    print_string "\n[imp2ptx] ***** started translation ****\n";
+    print_string "\n[ImpToPtx] ***** started translation ****\n";
     print_string (Imp.fn_to_str impfn);
     print_string "\n";
-    print_string "\n[imp2ptx] ******************************\n";
+    print_string "\n[ImpToPtx] ******************************\n";
   ENDIF;
+  *)
   let default_space t = 
     if DynType.is_scalar t then PtxVal.PARAM else PtxVal.GLOBAL 
   in 
@@ -266,27 +411,43 @@ let translate_kernel ?input_spaces (impfn : Imp.fn) =
   *)
   let register_local id  = 
     let t = Hashtbl.find impfn.types id in
-    if DynType.is_scalar t then ignore (codegen#declare_local id t)
-    else (
-      let dims = Hashtbl.find impfn.sizes id in  
-      assert (dims <> []); 
-      assert (Hashtbl.mem impfn.array_storage id); 
-      ignore $ match Hashtbl.find impfn.array_storage id with 
+    let dims = Hashtbl.find_default impfn.sizes id [] in  
+    IFDEF DEBUG THEN 
+      let shapeRank = List.length dims in 
+      let typeRank = DynType.nest_depth t in 
+      if shapeRank <> typeRank then 
+        failwith $ 
+          Printf.sprintf 
+            "[ImpToPtx] Incorrect rank for imp variable %s : %s with shape %s"
+            (ID.to_str id)
+            (DynType.to_str t)
+            (SymbolicShape.shape_to_str dims)
+    ENDIF;  
+    let ptxVal = 
+      if DynType.is_scalar t then codegen#declare_local id t
+      else (
+        assert (Hashtbl.mem impfn.array_storage id); 
+        match Hashtbl.find impfn.array_storage id with 
         | Shared ->
           (* since dims are all constant, evaluate them to ints *) 
           let intDims = 
             List.map (ShapeEval.eval_exp_as_int ID.Map.empty) dims 
           in  
           codegen#declare_shared_vec id (DynType.elt_type t) intDims
-        | Private -> 
-          IFDEF DEBUG THEN
-            Printf.printf "[imp2ptx] declaring local array %s : %s\n"
-              (ID.to_str id)
-              (DynType.to_str t);
-          ENDIF;
-          codegen#declare_storage_arg id t   
+        | Private ->  codegen#declare_storage_arg id t   
         | _ -> codegen#declare_local id t 
-    )     
+      )
+    in  
+    (*
+    IFDEF DEBUG THEN 
+      Printf.printf "[ImpToPtx] declaring imp var %s : %s as %s\n"
+        (ID.to_str id)
+        (DynType.to_str t);
+        (codegen#value_to_str ptxVal);
+    ENDIF;
+    *)
+    ()
+        
   in    
   MutableSet.iter register_local impfn.local_id_set; 
   gen_block codegen impfn.body; 

@@ -64,6 +64,7 @@ module Inline_Rules (P:INLINE_PARAMS) = struct
          
   let stmt envRef stmtNode = NoChange     
   let exp envRef expNode = match expNode.exp with 
+    | Call (fnId, args)
     | App ({value=GlobalFn fnId}, args) -> 
       (match P.lookup fnId with 
         | None -> NoChange  
