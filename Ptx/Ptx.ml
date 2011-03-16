@@ -479,9 +479,9 @@ let comment ~txt = op0 $ Comment txt
 (* big case function above *)
 let mul ty ~dest ~src1 ~src2 =
   let op = match ty with 
-    | F32 -> Binop (FloatDiv Approx, F32)
-    | F64 -> Binop (FloatDiv RN, F64)
-    | _ -> Binop (IntDiv, ty)
+    | F32 -> Binop (FloatMul, F32)
+    | F64 -> Binop (FloatMul, F64)
+    | _ -> Binop (IntMul Low, ty)
   in 
   mkop op [dest; src1; src2]
   

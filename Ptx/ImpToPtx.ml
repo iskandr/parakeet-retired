@@ -62,8 +62,8 @@ let prim_to_ptx_op codegen destReg args op t =
         codegen#emit [  
           cvt ~t1:F32 ~t2:t ~dest:downCvt ~src:(List.hd args);  
           mov tmp1 (FloatConst 0.693147181);
-          mkop (Unop (Lg2 Approx, F32)) [tmp2; downCvt];
           mul F32 f32Result tmp2 tmp1;
+          mkop (Unop (Lg2 Approx, F32)) [tmp2; downCvt];
           cvt ~t1:t ~t2:F32 ~dest:destReg ~src:f32Result
         ]
     | Prim.Exp, F32 ->
@@ -72,7 +72,7 @@ let prim_to_ptx_op codegen destReg args op t =
         codegen#emit [
           mov tmp1 (FloatConst 1.44269504);
           mul F32 tmp2 (List.hd args) tmp1;
-          mkop  (Unop (Ex2 Approx,F32)) [destReg; tmp2]
+          mkop  (Unop (Ex2 Approx, F32)) [destReg; tmp2]
         ]
     | Prim.Exp, _ -> 
         let downCvt = codegen#fresh_reg F32 in 
@@ -81,7 +81,7 @@ let prim_to_ptx_op codegen destReg args op t =
         let f32Result = codegen#fresh_reg F32 in
         codegen#emit [
           cvt ~t1:F32 ~t2:t ~dest:downCvt ~src:(List.hd args);  
-          mov tmp1 (FloatConst 1.44269504); 
+          mov tmp1 (FloatConst 1.44269504);
           mul t tmp2 downCvt tmp1;
           mkop (Unop (Ex2 Approx,F32)) [f32Result; tmp2]; 
           cvt ~t1:t ~t2:F32 ~dest:destReg ~src:f32Result
