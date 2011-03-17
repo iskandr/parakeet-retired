@@ -63,7 +63,7 @@ let rec check_stmt
       (* TODO: check phi nodes check_block errorLog tenv defined merge*)
       defined 
       
-  | WhileLoop _ -> failwith "type checking of loops not yet implemented"
+  | WhileLoop _ -> defined
 and check_exp errorLog tenv (defined : ID.Set.t) (expNode : exp_node) : unit = 
   let err msg = Queue.add (expNode.exp_src, msg) errorLog in
   match expNode.exp with 

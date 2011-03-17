@@ -91,19 +91,6 @@ let (@@) fn args = mk_app fn args
 let scalar_op op = mk_op (Prim.ScalarOp op)
 let array_op op = mk_op (Prim.ArrayOp op)
 
-let reduce = mk_op  (Prim.Adverb Prim.Reduce) 
-let map = mk_op (Prim.Adverb Prim.Map)
-let allPairs = mk_op (Prim.Adverb Prim.AllPairs) 
-
-let where = mk_op (Prim.ArrayOp Prim.Where) 
-let index = mk_op (Prim.ArrayOp Prim.Index) 
-let til = mk_op (Prim.ArrayOp Prim.Til) 
-let find = mk_op (Prim.ArrayOp Prim.Find)
-
-let inf = mk_num (PQNum.Inf DynType.Float32T)
-let neginf = mk_num (PQNum.NegInf DynType.Float32T)
-
-
 let plus = scalar_op Prim.Add 
 let minus = scalar_op Prim.Sub 
 let mul = scalar_op Prim.Mult  
@@ -112,10 +99,26 @@ let lt = scalar_op Prim.Lt
 let lte = scalar_op Prim.Lte
 let eq = scalar_op Prim.Eq 
 
-
 let zero = mk_num (PQNum.Int32 0l) 
 let one = mk_num (PQNum.Int32 1l)
 
+let inf = mk_num (PQNum.Inf DynType.Float32T)
+let neginf = mk_num (PQNum.NegInf DynType.Float32T)
+
+let reduce = mk_op  (Prim.Adverb Prim.Reduce) 
+let map = mk_op (Prim.Adverb Prim.Map)
+let allPairs = mk_op (Prim.Adverb Prim.AllPairs) 
+
+let where = mk_op (Prim.ArrayOp Prim.Where) 
+let index = mk_op (Prim.ArrayOp Prim.Index) 
+let til = mk_op (Prim.ArrayOp Prim.Til) 
+let find = mk_op (Prim.ArrayOp Prim.Find)
+let dimsize = mk_op (Prim.ArrayOp Prim.DimSize) 
+
+let value x = SSA.mk_exp $ SSA.Values [x]
+let values xs = SSA.mk_exp $ SSA.Values xs
+
+let len x = dimsize @@ [x; zero]
 let incr (x:ID.t) (y:value_node) = SSA.mk_set [x] (plus @@ [y;one])    
 let set_int (x:ID.t) (y:Int32.t) = 
   SSA.mk_set [x] (SSA.mk_vals_exp [SSA.Num (PQNum.Int32 y)])

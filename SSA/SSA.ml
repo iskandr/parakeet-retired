@@ -194,11 +194,25 @@ and stmt_node_to_str ?(space="") ?(tenv=ID.Map.empty) stmtNode =
   | Set (ids, rhs) -> 
     sprintf "%s = %s " (typed_id_list_to_str tenv ids) (exp_to_str rhs)
   | SetIdx _ -> "<set-idx>" 
-  | If (cond,tBlock,fBlock, phiNodes) ->      
-    Printf.sprintf "if %s \nthen %s \nelse %s"
-      (value_node_to_str cond)
-      (block_to_str ~space:("\t"^space) ~tenv tBlock)
-      (block_to_str ~space:("\t"^space) ~tenv fBlock)
+  | If (cond,tBlock,fBlock, phiNodes) ->
+      let space' =  "\t"^space in    
+      let tStr = 
+        Printf.sprintf "%s  <Then>:\n%s"
+          space
+          (block_to_str ~space:space' ~tenv tBlock)
+      in 
+      let fStr =   
+        Printf.sprintf "%s  <Else>:\n%s"
+          space
+          (block_to_str ~space:space' ~tenv fBlock)
+      in 
+      let mergeStr = 
+        Printf.sprintf "%s  <Merge>:\n%s"
+          space
+          (phi_nodes_to_str ~space:space' phiNodes)
+      in
+      Printf.sprintf "If (%s)\n%s\n%s\n%s" 
+         (value_node_to_str cond) tStr fStr mergeStr 
       
   | WhileLoop (testBlock, testVal, body, header,exit) ->
       let space' =  "\t"^space in 
@@ -272,6 +286,13 @@ let mk_fundef  ?(tenv=ID.Map.empty) ~input_ids ~output_ids ~body =
   }  
 
   
+(* get the id of a variable value node *) 
+let get_id valNode = match valNode.value with 
+  | Var id -> id 
+  | other -> failwith $ Printf.sprintf 
+     "[SSA->get_id] expected variable, received %s"
+     (value_to_str other)
+
 
 
 (***
@@ -401,6 +422,7 @@ let mk_set ?src ids rhs =
     stmt_src = src; 
     stmt_id = StmtId.gen() 
   }
+ 
 
 (***
    helpers for phi-nodes 
@@ -431,7 +453,12 @@ let rec mk_phi_nodes outIds leftIds rightIds =
     | [], _, _ | _,[],_ | _,_,[] -> []  
     | x::xs, y::ys, z::zs -> 
       (mk_phi x (mk_var y) (mk_var z)) :: (mk_phi_nodes xs ys zs) 
-      
+
+let rec mk_phi_nodes_from_values outVals leftVals rightVals =
+  match (outVals, leftVals, rightVals) with 
+    | [], _, _ | _, [], _ | _, _, [] -> []
+    | x::xs, y::ys, z::zs -> 
+      (mk_phi (get_id x) y z) :: (mk_phi_nodes_from_values xs ys zs)    
 
 (* assume a block contains only phi, collect the IDs and 
    either the left or right values 
@@ -443,13 +470,6 @@ let rec collect_phi_values chooseLeft = function
     let currVal = if chooseLeft then p.phi_left else p.phi_right in 
     p.phi_id :: ids, currVal :: valNodes 
     
-
-(* get the id of a variable value node *) 
-let get_id valNode = match valNode.value with 
-  | Var id -> id 
-  | other -> failwith $ Printf.sprintf 
-     "[SSA->get_id] expected variable, received %s"
-     (value_to_str other)
 
 (* get the ids from a list of variable value nodes *) 
 let get_ids vars = List.map get_id vars 

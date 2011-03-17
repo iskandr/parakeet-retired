@@ -107,22 +107,84 @@ let dist = mk_fn  2 1 1 $ fun inputs outputs locals ->
   ] 
 let _ = InterpState.add_untyped initState ~optimize:false "dist" dist;;
 
-(* minidx[C;x] -> returns idx of whichever row of C is closest to x *) 
-let minidx = mk_fn 2 1 3 $ fun inputs outputs locals ->
-  let dist = mk_globalfn $ InterpState.get_untyped_id initState "dist" in  
-  let min = mk_globalfn $ InterpState.get_untyped_id initState "min" in  
-  [ 
-    (* ds: map dist[x] C *) 
-    [locals.(0)] := dist @@ [inputs.(1)];
-    [locals.(1)] := map @@ [locals.(0); inputs.(0)];
-    (* m: min ds *)  
-    [locals.(2)] := min @@ [locals.(1)];
-    (* midx: find m ds *) 
-    [outputs.(0)] := find @@ [locals.(1); locals.(2)]
+(* minidx[C;x] -> returns idx of whichever row of C is closest to x *)
+(* 
+     i = 0
+     minIdx = 0
+     minDist = inf 
+     n = len(C)
+     while i < n 
+       c = c[i] 
+       d = dist(c,x)
+       if d < minDist
+         minIdx = i 
+         minDist = d
+       i = i + 1 
+     return minIdx
+*) 
+let minidx = mk_fn 2 1 15 $ fun inputs outputs locals ->
+  let dist = mk_globalfn $ InterpState.get_untyped_id initState "dist" in
+  let c = inputs.(0) in 
+  let x = inputs.(1) in
+  
+  let n = locals.(0) in
+  let test = locals.(1) in   
+  
+  let i_init = locals.(2) in 
+  let i_bottom = locals.(3) in
+  let i_top = locals.(4) in
+
+  let minDist_init = locals.(5) in
+  let minDist_update = locals.(6) in 
+  let minDist_bottom = locals.(7) in
+  let minDist_top = locals.(8) in
+ 
+  let minIdx_init = locals.(9) in
+  let minIdx_update = locals.(10) in 
+  let minIdx_bottom = locals.(11) in
+  let minIdx_top = outputs.(0) in
+   
+  let currRow = locals.(12) in 
+  let currDist = locals.(13) in 
+  let foundNewMin = locals.(14) in 
+  let header = 
+    SSA.mk_phi_nodes_from_values 
+      [i_top; minDist_top; minIdx_top]
+      [i_init; minDist_init; minIdx_init]
+      [i_bottom; minDist_bottom; minIdx_bottom]
+  in 
+  let testBlock = Block.of_list [[test] := lt @@ [i_top; n]] in
+  let newMinBlock = Block.of_list [ 
+      [minDist_update] := value currDist;  
+      [minIdx_update] := value i_top;
+  ]
+  in 
+  let newMinPhi = 
+    SSA.mk_phi_nodes_from_values
+      [minDist_bottom; minIdx_bottom] 
+      [minDist_update; minIdx_update]
+      [minDist_top; minIdx_top]      
+  in 
+  let body = Block.of_list [
+    [currRow] := index @@ [c; i_top]; 
+    [currDist] := dist @@ [currRow; x];
+    [foundNewMin] := lt @@ [currDist; minDist_top];
+    SSA.mk_stmt $ SSA.If (foundNewMin, newMinBlock, Block.empty, newMinPhi); 
+    [i_bottom] := plus @@ [i_top; one]
+  ]
+  in 
+  [
+    [i_init] := value zero; 
+    [minDist_init] := value inf; 
+    [minIdx_init] := value zero;
+    [n] := len c;
+    SSA.mk_stmt $ SSA.WhileLoop(testBlock, test, body, header, [])
   ]    
+      
+      
 let _ = 
   InterpState.add_untyped 
-    initState ~optimize:false "minidx" minidx;;
+    initState ~optimize:true "minidx" minidx;;
 
 (* takes as inputs X, number of clusters, and initial assignment *) 
 let kmeans = mk_fn 3 1 2 $ fun inputs outputs locals ->

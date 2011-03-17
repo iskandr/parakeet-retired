@@ -84,34 +84,48 @@ module MkEvaluator(A : ANALYSIS) = struct
         let _  = A.exp env rhs helpers in 
         None 
     | If(cond, tBlock, fBlock,  merge) ->
-        let cond' = A.value env cond in  
-        let tEnv, tChanged = eval_block env tBlock in 
-        let fEnv, fChanged = eval_block env fBlock in
+        let _ = A.value env cond in  
+        let tEnv, _ = eval_block env tBlock in 
+        let fEnv, _ = eval_block env fBlock in
         eval_phi_nodes env tEnv fEnv merge 
-    | WhileLoop(condBlock, condVal, body, header, exit) -> 
-        let maxIters = 100 in
-        let iter = ref 0 in
-        let loopEnv = ref env in
-        let changed = ref true in  
-        while !changed do
-          iter := !iter + 1;  
-          if !iter > maxIters then 
-            failwith $ "loop analysis failed to terminate"
-          else (  
-            let headerEnv, headerChanged =  
-              if !iter = 1 then eval_loop_header !loopEnv env header
-              else match eval_phi_nodes !loopEnv env !loopEnv header with 
-                | None -> !loopEnv, false
-                | Some newEnv -> newEnv, true 
-            in  
-            let condEnv, condChanged = eval_block headerEnv condBlock in
-            ignore (A.value condEnv condVal);
-            let bodyEnv, bodyChanged = eval_block condEnv body in 
-            loopEnv := bodyEnv; 
-            changed := headerChanged || condChanged || bodyChanged
-          )    
-        done;
-        eval_phi_nodes ~changed:(!iter > 1) !loopEnv env !loopEnv exit
+    | WhileLoop(condBlock, condVal, body, header, exit) ->
+        if A.iterative then  (
+          let maxIters = 100 in
+          let iter = ref 0 in
+          let loopEnv = ref env in
+          let changed = ref true in  
+          while !changed do
+            iter := !iter + 1;  
+            if !iter > maxIters then 
+              failwith $ "loop analysis failed to terminate"
+            else (  
+              let headerEnv, headerChanged =  
+                if !iter = 1 then eval_loop_header !loopEnv env header
+                else match eval_phi_nodes !loopEnv env !loopEnv header with 
+                  | None -> !loopEnv, false
+                  | Some newEnv -> newEnv, true 
+              in  
+              let condEnv, condChanged = eval_block headerEnv condBlock in
+              ignore (A.value condEnv condVal);
+              let bodyEnv, bodyChanged = eval_block condEnv body in 
+              loopEnv := bodyEnv; 
+              changed := headerChanged || condChanged || bodyChanged
+            )    
+          done;
+          eval_phi_nodes ~changed:(!iter > 1) !loopEnv env !loopEnv exit
+        )
+        else (
+          let headerEnv, headerChanged = 
+            match eval_phi_nodes env env env header with
+              | None -> env, false
+              | Some env' -> env', true
+          in  
+          let condEnv, condChanged = eval_block headerEnv condBlock in
+          ignore (A.value condEnv condVal);
+          let bodyEnv, bodyChanged = eval_block condEnv body in
+          let changed = headerChanged || condChanged || bodyChanged in 
+          eval_phi_nodes ~changed bodyEnv env bodyEnv exit
+        )
     | _ -> assert false 
   
   and iter_exp_children env expNode = match expNode.exp with 

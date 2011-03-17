@@ -50,11 +50,21 @@ and translate_exp
       let tVal' = translate_value idEnv tVal in 
       let fVal' = translate_value idEnv fVal in 
       select cond' tVal' fVal' 
+  
   | SSA.PrimApp (Prim.ScalarOp op, vs) -> 
       let vs' = List.map (translate_value idEnv) vs in 
       let argT = (List.hd vs').exp_type in  
       if Prim.is_comparison op then cmp_op op ~t:argT vs' 
       else typed_op op vs'
+      
+  | SSA.PrimApp (Prim.ArrayOp Prim.DimSize, [array; {SSA.value = SSA.Num n}]) -> 
+      let array' = translate_value idEnv array in 
+      let i = PQNum.to_int n in 
+      Imp.dim i array' 
+      
+  | SSA.PrimApp (Prim.ArrayOp Prim.DimSize, [array; _]) ->
+      failwith "DimSize with non-constant index not yet implemented"     
+       
   | SSA.PrimApp (Prim.ArrayOp Prim.Find, [inArray; elToFind]) -> 
     let arrT = inArray.SSA.value_type in 
     let valT = elToFind.SSA.value_type in 
@@ -225,6 +235,7 @@ and translate_fundef fnTable fn =
   in 
   (* next add all the live locals, along with their size expressions *)
   let liveIds : ID.t MutableSet.t = FindLiveIds.find_live_ids fn in
+  MutableSet.iter (fun i -> Printf.printf "Live %d\n" i) liveIds; 
   let sizeEnv : SymbolicShape.shape ID.Map.t = 
     ShapeInference.infer_shape_env fnTable fn  
   in
@@ -233,7 +244,9 @@ and translate_fundef fnTable fn =
     if List.mem id fn.SSA.input_ids then env
     else 
     let t = ID.Map.find id fn.SSA.tenv in
-    let dims : Imp.exp_node list = ID.Map.find id sizeEnv in
+    (* WARNING: Hack! Assume that a shape that's not in the env is a scalar *) 
+    let dims : Imp.exp_node list = 
+      ID.Map.find_default id sizeEnv SymbolicShape.scalar in
     (* rename all vars to refer to new Imp IDs, instead of old SSA IDs *)
     let dims' : Imp.exp_node list =
        List.map (ImpReplace.apply_id_map env) dims 

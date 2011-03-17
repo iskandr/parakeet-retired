@@ -144,20 +144,26 @@ module ShapeAnalysis (P: PARAMS) =  struct
       
       let stmt env stmtNode helpers = match stmtNode.stmt with
       | Set(ids, rhs) ->
-          let rhsShapes = exp env rhs helpers in
+          let newShapes = exp env rhs helpers in
           IFDEF DEBUG THEN 
-            if List.length ids <> List.length rhsShapes then 
+            if List.length ids <> List.length newShapes then 
               failwith ("Shape inference error in stmt '" ^
                         (SSA.stmt_node_to_str stmtNode) ^ 
                         "': number of IDs must match number of rhs shapes");
-          ENDIF;  
+          ENDIF;
+          let prevDefined = List.for_all (fun id ->ID.Map.mem id env) ids in 
+          let changed = 
+            not prevDefined ||
+            let oldShapes = List.map (fun id -> ID.Map.find id env) ids in 
+            List.exists2 (<>) oldShapes newShapes
+          in
+          if not changed then None
+          else 
           let env' =
             List.fold_left2 
               (fun env id shape -> ID.Map.add id shape env)
-              env
-              ids
-              rhsShapes 
-          in Some env' 
+              env ids newShapes 
+          in Some env'   
       | _ -> helpers.eval_stmt env stmtNode  
    
 end

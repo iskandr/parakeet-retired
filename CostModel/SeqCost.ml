@@ -66,6 +66,7 @@ module CostAnalysis(P:COST_ANALYSIS_PARAMS) = struct
               Imp.prod_exp_node_list arrayShape  
           | _ -> assert false
         )
+    | PrimApp (Prim.ArrayOp Prim.Index, _) -> Imp.one 
     | PrimApp (Prim.ArrayOp Prim.DimSize, _) -> Imp.one  
     | PrimApp _ -> Imp.infinity 
     | Arr elts -> Imp.int (List.length elts) 
@@ -114,8 +115,11 @@ module CostAnalysis(P:COST_ANALYSIS_PARAMS) = struct
         Some { env with cost = Imp.max_simplify tEnv.cost fEnv.cost } 
         
      (* testBlock, testVal, body, loop header, loop exit *)  
-    | WhileLoop (testBlock, testVal, body, header, exit) -> 
-      assert false     
+    | WhileLoop (testBlock, testVal, body, header, exit) ->
+        (* for now assume only one loop iteration occurs *)  
+        let testEnv, _ = helpers.eval_block env testBlock in 
+        let bodyEnv, _ = helpers.eval_block env body in 
+        Some bodyEnv 
 end
 
 
