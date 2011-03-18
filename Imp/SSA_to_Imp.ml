@@ -260,7 +260,7 @@ module MkTranslator(P : PARAMS) = struct
           translate_block codeBuffer testBlock; 
           let bodyBuffer = P.fnState#fresh_code_buffer in 
           translate_block bodyBuffer body; 
-          translate_phi_nodes bodyBuffer (Imp.bool false); header; 
+          translate_phi_nodes bodyBuffer (Imp.bool false) header; 
           translate_block bodyBuffer testBlock;
           let block = bodyBuffer#to_block in 
           codeBuffer#emit [Imp.While(testExp, block)] 
