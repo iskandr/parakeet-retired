@@ -113,7 +113,7 @@ class code_buffer (fnState: fn_state_interface) = object(self)
       if not $ DynType.is_scalar lhsType then 
         failwith $
           Printf.sprintf 
-            "expected x%d to be a scalar %s, got: %s"
+            "expected x%d to be a scalar of type %s, got: %s"
             id 
             (DynType.to_str rhsType)
             (DynType.to_str lhsType)
@@ -474,7 +474,7 @@ and fn_state = object (self)
     method finalize = 
       let inputArray = DynArray.to_array inputs in 
       let outputArray = DynArray.to_array outputs in 
-      let impFn = ImpSimplify.simplify_function {
+      let impFn = ImpSimplify.simplify_function  {
         input_ids = inputArray;
         input_id_set = inputSet; 
         input_types = Array.map self#get_type inputArray; 

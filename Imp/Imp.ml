@@ -96,7 +96,7 @@ and stmt_to_str ?(spaces="") = function
   | If (cond, tBlock, fBlock) ->
       let tStr =
         if List.length tBlock > 1 then 
-          Printf.sprintf " then {\n%s\n%s}\n%s" 
+          Printf.sprintf " then {\n%s\n%s }\n%s" 
             (block_to_str ~spaces:(spaces ^ "  ") tBlock)
             spaces
             spaces
@@ -104,7 +104,7 @@ and stmt_to_str ?(spaces="") = function
       in    
       let fStr =
         if List.length fBlock > 1 then 
-          Printf.sprintf "\n%selse {\n%s\n%s}"
+          Printf.sprintf "\n%selse {\n%s\n%s }"
             spaces 
             (block_to_str ~spaces:(spaces ^ "  ") fBlock) 
             spaces

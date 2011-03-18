@@ -13,7 +13,6 @@ let gen_map payload threadsPerBlock closureTypes inTypes outTypes =
       (DynType.type_array_to_str outTypes)
     ; 
   ENDIF; 
-  let nClosureArgs = Array.length closureTypes in
   let nInputs = Array.length inTypes in 
   let nOutputs = Array.length outTypes in 
   assert (nInputs > 0 && nOutputs > 0);
@@ -35,13 +34,8 @@ let gen_map payload threadsPerBlock closureTypes inTypes outTypes =
       )
       inputArgs 
   in
+  let inputEltTypes = Array.map DynType.peel_vec inTypes in 
   let payloadInputShapes = Array.append closureArgShapes inputEltShapes in   
-  let payloadInputs = 
-    Array.map2
-      (fun t dims -> fnState#fresh_var t ~dims ~storage:Imp.Slice)
-      payload.input_types     
-      payloadInputShapes 
-  in 
   let payloadOutputShapes = 
     Array.of_list $ SymbolicShape.get_call_output_shapes 
       payload 
@@ -73,20 +67,25 @@ let gen_map payload threadsPerBlock closureTypes inTypes outTypes =
   ];
 
   let nestedBuffer = fnState#fresh_code_buffer in 
-  (* put each input in payloadInputVars *) 
-  for i = nClosureArgs to nClosureArgs + nInputs - 1 do 
-    let inputIdx = i - nClosureArgs in 
-    if DynType.is_scalar inTypes.(inputIdx) then 
+  (* same number of payload inputs as total inputs, but 
+     change everything but the closure args to be elements 
+     rather than full vectors 
+   *)   
+  let inputEltArgs = 
+    Array.map2 
+      (fun t dims -> fnState#fresh_var ~dims t)
+      inputEltTypes 
+      inputEltShapes
+  in 
+  for i = 0 to  nInputs - 1 do
+    if DynType.is_scalar inTypes.(i) then 
       (* assign elt to be the scalar input *)
-      nestedBuffer#emit [
-        set payloadInputs.(i) inputArgs.(inputIdx)
-      ]
+      nestedBuffer#emit [set inputEltArgs.(i) inputArgs.(i)]
     else 
-      nestedBuffer#emit [ 
-        set payloadInputs.(i) (idx inputArgs.(inputIdx) mapIdx)
-      ]
+      nestedBuffer#emit [set inputEltArgs.(i) (idx inputArgs.(i) mapIdx)]
   done;
-   
+  let payloadInputs = Array.append closureArgs inputEltArgs in 
+     
   (* this is where the payload gets inserted *) 
   nestedBuffer#emit [SPLICE];
   for i = 0 to nOutputs - 1 do  

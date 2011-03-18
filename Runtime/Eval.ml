@@ -122,11 +122,13 @@ and eval_exp (env : env) (expNode : SSA.exp_node) : InterpVal.t list =
       (match bestLoc with  
         | CostModel.GPU ->
             IFDEF DEBUG THEN Printf.printf "[Eval] running map on GPU\n" ENDIF;
+            let gpuClosureVals = List.map get_gpu closureArgVals in 
+            let gpuInputVals = List.map get_gpu argVals in   
             let gpuResults = 
               GpuEval.map 
                 ~payload:fundef  
-                ~closureArgs:(List.map get_gpu closureArgVals) 
-                ~args:(List.map get_gpu argVals)
+                ~closureArgs:gpuClosureVals  
+                ~args:gpuInputVals 
             in List.map add_gpu gpuResults
         | CostModel.CPU -> 
             IFDEF DEBUG THEN Printf.printf "[Eval] running map on CPU\n" ENDIF;
