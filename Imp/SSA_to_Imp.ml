@@ -203,11 +203,18 @@ module MkTranslator(P : PARAMS) = struct
       let t = rhsVal.SSA.value_type in 
       codeBuffer#emit [set (var ~t impId) rhs]
     
-    let translate_phi_node codeBuffer pred phiNode  = match pred.exp with 
+    let translate_phi_node codeBuffer pred phiNode  = 
+      let id = phiNode.SSA.phi_id in 
+      match pred.exp with 
       | Imp.Const (PQNum.Bool true) ->
-        translate_set_val codeBuffer phiNode.SSA.phi_id phiNode.SSA.phi_left
+        translate_set_val codeBuffer id phiNode.SSA.phi_left
       | Imp.Const (PQNum.Bool false) -> 
-        translate_set_val codeBuffer phiNode.SSA.phi_id phiNode.SSA.phi_right
+        IFDEF DEBUG THEN 
+          Printf.printf "Generating right side of phi node: %s <- %s\n"
+            (ID.to_str id)
+            (SSA.value_node_to_str phiNode.SSA.phi_right);
+        ENDIF; 
+        translate_set_val codeBuffer id phiNode.SSA.phi_right
       | _ -> 
         let impId = get_id phiNode.SSA.phi_id in 
         let impLeft = translate_value phiNode.SSA.phi_left in 
