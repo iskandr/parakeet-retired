@@ -59,8 +59,8 @@ cqinterface.o: cqinterface.c cqinterface.h
 	$(OCAMLCC) $(OCAMLCFLAGS) $(DEBUG) -o cqinterface.o cqinterface.c
 
 ocaml_functions.o: ocaml_functions.c ocaml_functions.h
-	gcc -fPIC -c ocaml_functions.c -I. $(OCAMLINCLUDES) -o ocaml_functions.o \
-	  $(LIB_INCLUDES)
+	gcc -fPIC $(DEBUG) -c ocaml_functions.c -I. $(OCAMLINCLUDES) \
+  -o ocaml_functions.o $(LIB_INCLUDES)
 
 clean:
 	rm -f cinterface.so *~ *.o QType.cmx QType.mli QType.cmi depsort
