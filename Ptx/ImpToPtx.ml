@@ -267,18 +267,19 @@ let gen_exp
       let x' = translate_arg x tOldPtx in
       codegen#convert ~destReg ~srcVal:x' 
   
+  (* Remember: Indexing is base 0!!! *) 
   | DimSize(dim, {Imp.exp=Var id}) ->
       let arrayReg = codegen#imp_reg id in 
       if codegen#is_shared_ptr arrayReg then 
         let dims = codegen#get_shared_dims arrayReg in 
-        assert (dim <= Array.length dims);
-        let size = dims.(dim - 1) in 
+        assert (dim < Array.length dims);
+        let size = dims.(dim) in 
         codegen#emit [mov destReg (int size)]
      else if codegen#is_global_array_ptr arrayReg then 
         let rank = codegen#get_global_array_rank arrayReg in 
         assert (dim <= rank);
         let shapeReg = codegen#get_shape_reg arrayReg in
-        codegen#emit [ld_global ~offset:((dim-1)*4) S32 destReg shapeReg] 
+        codegen#emit [ld_global ~offset:(dim*4) S32 destReg shapeReg] 
      else failwith "[ImpToPtx] attempting to get DimSize of a scalar"
   
   (* when dealing with a constant or simple variable reference, just
