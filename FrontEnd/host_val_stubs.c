@@ -172,7 +172,7 @@ void free_host_val_data(host_val_data_t data) {
   if (data.shape) free(data.shape);
 }
 
-int is_scalar(host_val val) {
+int host_val_is_scalar(host_val val) {
   CAMLparam0();
   CAMLlocal1(ocaml_host_val);
 

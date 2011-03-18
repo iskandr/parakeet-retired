@@ -29,9 +29,10 @@ PARAKEET_INCLUDES = -I $(BUILDPATH) \
         -I $(BUILDPATH)/FrontEnd
 OCAMLINCLUDES := $(LIB_INCLUDES) $(PARAKEET_INCLUDES)
 
+FRONTEND = `ls $(PARAKEET_PATH)/FrontEnd/*.o`
 OBJS =
 COBJS = -ccopt -L/usr/lib/nvidia-current \
-  $(PARAKEET_PATH)/cuda/parakeet_cuda.a $(PARAKEET_PATH)/FrontEnd/parakeet.a \
+  $(PARAKEET_PATH)/cuda/parakeet_cuda.a $(FRONTEND) \
 	-ccopt -lcuda -ccopt -L/usr/local/cuda/lib -ccopt -lcudart \
   -ccopt $(UINT_DIR)/libuint32_stubs.a -ccopt $(UINT_DIR)/libuint64_stubs.a
 
