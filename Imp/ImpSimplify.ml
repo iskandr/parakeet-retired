@@ -93,8 +93,12 @@ let rec remove_unused liveSet = function
         | If(cond, tBlock, fBlock) ->
           let tBlock', tChanged = remove_unused liveSet tBlock in
           let fBlock', fChanged = remove_unused liveSet fBlock in
-          let anyChanged = restChanged || tChanged || fChanged in    
-          If(cond, tBlock', fBlock')::rest', anyChanged 
+          let anyChanged = restChanged || tChanged || fChanged in
+          (* if both branches are empty, then get rid of this statement *)     
+          if tBlock' = [] && fBlock' = [] then 
+            rest', true
+          else 
+            If(cond, tBlock', fBlock')::rest', anyChanged 
         | other -> other::rest', restChanged  
       end
 

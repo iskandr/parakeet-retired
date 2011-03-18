@@ -166,7 +166,7 @@ and float_vec elts = parse
       let elts' = (float_of_string num) :: elts in 
       FLOAT_VEC (List.rev elts') 
     } 
-  | (float as num) 'r' 
+  | (float as num) 'e' 
     { 
       let elts' = (float_of_string num) :: elts in 
       REAL_VEC (List.rev elts') 
