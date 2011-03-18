@@ -4,5 +4,5 @@ n: 2048;
 k: 3; 
 a: n ? k;
 X: { d ? 100.0e } each til n; 
-C: f[X;k;a]
+C: f[X;a;k]
 

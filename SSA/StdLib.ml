@@ -48,13 +48,18 @@ let initState = InterpState.create_from_untyped_list ~optimize:false [
 ]
 
 (* K-means specific functions *)
-let calcCentroid = mk_fn 3 1 5 $ fun inputs outputs locals -> [
+(* calcCentroid [X;a;i] *) 
+let calcCentroid = mk_fn 3 1 5 $ fun inputs outputs locals -> 
+  let x = inputs.(0) in 
+  let a = inputs.(1) in 
+  let i = inputs.(2) in 
+  [
     (* binVec: a = i *) 
-    [locals.(0)] :=  map @@ [eq; inputs.(1); inputs.(2)]; 
+    [locals.(0)] :=  map @@ [eq; a; i]; 
     (* idx: where binVec *) 
     [locals.(1)] := where @@ [locals.(0)]; 
     (* rows: X[idx] *) 
-    [locals.(2)] := index @@ [inputs.(0); locals.(1)]; 
+    [locals.(2)] := index @@ [x; locals.(1)]; 
     (* output: avg rows *) 
     [locals.(3)] := reduce @@ [plus; zero; locals.(2)];
     [locals.(4)] := (array_op Prim.DimSize) @@ [locals.(2); mk_int32 0];  
@@ -64,11 +69,7 @@ let _ =
   InterpState.add_untyped 
     initState ~optimize:false "calc_centroid" calcCentroid;;
 
-let _ = 
-  InterpState.add_untyped 
-    initState ~optimize:false "calc_centroid" calcCentroid;;
-
-
+(* calcCentroids[X;a;k] *) 
 let calcCentroids = mk_fn 3 1 2 $ fun inputs outputs locals -> 
   let cc = mk_globalfn (InterpState.get_untyped_id initState "calc_centroid") in
   let x = inputs.(0) in 
@@ -187,19 +188,25 @@ let _ =
     initState ~optimize:true "minidx" minidx;;
 
 (* takes as inputs X, number of clusters, and initial assignment *) 
-let kmeans = mk_fn 3 1 2 $ fun inputs outputs locals ->
+let kmeans = mk_fn 3 1 3 $ fun inputs outputs locals ->
   let minIdx = 
     SSA.mk_globalfn (InterpState.get_untyped_id initState "minidx") 
   in
   let calcCentroids = 
     SSA.mk_globalfn $ InterpState.get_untyped_id initState "calc_centroids"
   in 
+  let x = inputs.(0) in 
+  let a = inputs.(1) in 
+  let k = inputs.(2) in  
+  let c = locals.(0) in
+  let newA = locals.(2) in  
   [
     (* C: calc_centroids[X;a;k]*)
-    [locals.(0)] := calcCentroids @@ [inputs.(0); inputs.(2); inputs.(1)];
+    [c] := calcCentroids @@ [x;a;k];
     (* a: minidx[C] each X *)  
-    [locals.(1)] := minIdx @@ [locals.(0)]; 
-    [outputs.(0)] := map @@ [locals.(1); inputs.(0)]   
+    [locals.(1)] := minIdx @@ [c]; 
+    [newA] := map @@ [locals.(1); x]; 
+    [outputs.(0)] := calcCentroids @@ [x;newA;k];    
   ]
 let _ = 
   InterpState.add_untyped 

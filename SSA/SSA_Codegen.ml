@@ -90,6 +90,9 @@ let (:=) xs y = mk_set (List.map SSA.get_id xs) y
 let (@@) fn args = mk_app fn args  
 let scalar_op op = mk_op (Prim.ScalarOp op)
 let array_op op = mk_op (Prim.ArrayOp op)
+let impure_op op = mk_op (Prim.ImpureOp op)
+
+let print = impure_op Prim.Print 
 
 let plus = scalar_op Prim.Add 
 let minus = scalar_op Prim.Sub 

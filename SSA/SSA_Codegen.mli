@@ -32,6 +32,9 @@ val (:=) : value_node list -> exp_node -> stmt_node
 val (@@) : value_node -> value_node list -> exp_node   
 val scalar_op : Prim.scalar_op -> value_node
 val array_op : Prim.array_op -> value_node 
+val impure_op : Prim.impure_op -> value_node 
+
+val print : value_node 
 
 val inf : value_node 
 val neginf : value_node 
