@@ -98,8 +98,19 @@ let rewrite_dim env d =
   ImpSimplify.simplify_arith d' 
 
 let rewrite_shape env shape = List.map (rewrite_dim env) shape   
+let rewrite_shapes env shapes = List.map (rewrite_shape env) shapes 
 
 let concat s1 s2 = s1 @ s2 
 let nelts = Imp.prod_exp_node_list 
 let to_str shape = Imp.exp_node_list_to_str shape
         
+
+let get_call_output_shapes fn (inputs : shape list) =  
+  let replaceMap = 
+    ID.Map.extend ID.Map.empty (Array.to_list fn.input_ids) inputs 
+  in
+  let rawOutputShapes = 
+    List.map (Hashtbl.find fn.sizes) (Array.to_list fn.output_ids)
+  in
+  rewrite_shapes replaceMap rawOutputShapes
+                

@@ -3,7 +3,6 @@ open Base
 open DynType 
 open Imp
 
-
 (* assume all threadblocks are 1d row of size threadsPerBlock *) 
 let gen_map payload threadsPerBlock closureTypes inTypes outTypes =
   IFDEF DEBUG THEN 
@@ -22,11 +21,46 @@ let gen_map payload threadsPerBlock closureTypes inTypes outTypes =
   (* setup params for closure args, inputs, outputs *) 
   let closureArgs = Array.map fnState#fresh_input closureTypes in 
   let inputArgs = Array.map fnState#fresh_input inTypes in
-  let outputSizes = 
-    SymbolicShape.all_dims (SymbolicShape.largest_val inputArgs) 
+  (* setup input and output variables for the payload fn *)
+  let maxInput : Imp.exp_node = SymbolicShape.largest_val inputArgs in
+  let maxShape = SymbolicShape.all_dims maxInput in 
+  let maxDim : SymbolicShape.dim = SymbolicShape.outer_dim maxShape in       
+  let closureArgShapes = 
+    Array.map (fun c -> SymbolicShape.all_dims c) closureArgs
+  in 
+  let inputEltShapes = 
+    Array.map 
+      (fun inputVec -> 
+        SymbolicShape.peel_shape (SymbolicShape.all_dims inputVec) 
+      )
+      inputArgs 
   in
-  let outputArgs = 
-    Array.map (fun t -> fnState#fresh_output ~dims:outputSizes t) outTypes 
+  let payloadInputShapes = Array.append closureArgShapes inputEltShapes in   
+  let payloadInputs = 
+    Array.map2
+      (fun t dims -> fnState#fresh_var t ~dims ~storage:Imp.Slice)
+      payload.input_types     
+      payloadInputShapes 
+  in 
+  let payloadOutputShapes = 
+    Array.of_list $ SymbolicShape.get_call_output_shapes 
+      payload 
+      (Array.to_list payloadInputShapes)
+  in
+  let outEltTypes = Array.map DynType.peel_vec outTypes in 
+  (* outputs of payload function *) 
+  let outVars = 
+    Array.map2 
+      (fun dims t -> fnState#fresh_var ~dims t) payloadOutputShapes outEltTypes 
+  in
+  let globalOutputShapes = 
+    Array.map (fun shape -> maxDim::shape) payloadOutputShapes
+  in
+  let globalOutputArgs =
+    Array.map2 
+      (fun t dims -> fnState#fresh_output ~dims t) 
+      outTypes 
+      globalOutputShapes 
   in 
   let num = fnState#fresh_var Int32T in
   let mapIdx = fnState#fresh_var Int32T in
@@ -35,51 +69,29 @@ let gen_map payload threadsPerBlock closureTypes inTypes outTypes =
     set mapIdx 
       (((blockIdx.x +$ (blockIdx.y *$  gridDim.x)) *$  (int threadsPerBlock))
        +$ threadIdx.x);
-    set num (len outputArgs.(0))
+    set num (len globalOutputArgs.(0))
   ];
-  (* setup input and output variables for the payload fn *)
-  let inputEltTypes = Array.map DynType.peel_vec inTypes in
-  let inputEltShapes = 
-    Array.map 
-      (fun varNode -> SymbolicShape.peel_shape (SymbolicShape.all_dims varNode))
-    inputArgs 
-  in   
-  let mk_payload_input kernelInput = 
-    let t = DynType.peel_vec kernelInput.exp_type in 
-    let dims = SymbolicShape.peel_shape (SymbolicShape.all_dims kernelInput) in
-    IFDEF DEBUG THEN 
-      Printf.printf "Registering payload input of type %s and shape [%s]\n"
-      (DynType.to_str t)
-      (SymbolicShape.to_str dims)
-    ENDIF; 
-    fnState#fresh_var t ~dims ~storage:Imp.Slice   
-  in 
-  let payloadInputVars = 
-    Array.append closureArgs (Array.map mk_payload_input inputArgs)
-  in 
-  let buffer = DynArray.create () in
+
+  let nestedBuffer = fnState#fresh_code_buffer in 
   (* put each input in payloadInputVars *) 
   for i = nClosureArgs to nClosureArgs + nInputs - 1 do 
     let inputIdx = i - nClosureArgs in 
     if DynType.is_scalar inTypes.(inputIdx) then 
       (* assign elt to be the scalar input *)
-      DynArray.add buffer 
-        (set payloadInputVars.(i) inputArgs.(inputIdx))
+      nestedBuffer#emit [
+        set payloadInputs.(i) inputArgs.(inputIdx)
+      ]
     else 
-      DynArray.add buffer 
-        (set payloadInputVars.(i) (idx inputArgs.(inputIdx) mapIdx))
+      nestedBuffer#emit [ 
+        set payloadInputs.(i) (idx inputArgs.(inputIdx) mapIdx)
+      ]
   done;
    
   (* this is where the payload gets inserted *) 
-  DynArray.add buffer (SPLICE);
-  
-  let outEltTypes = Array.map DynType.peel_vec outTypes in 
-  let outVars = Array.map fnState#fresh_var outEltTypes in
+  nestedBuffer#emit [SPLICE];
   for i = 0 to nOutputs - 1 do  
-     DynArray.add buffer (set (idx outputArgs.(i) mapIdx) outVars.(i))
+     nestedBuffer#emit [set (idx globalOutputArgs.(i) mapIdx) outVars.(i)]
   done; 
-  
-  codeBuffer#splice_emit payload payloadInputVars outVars
-    [ifTrue (mapIdx <$ num) (DynArray.to_list buffer)];
+  codeBuffer#splice_emit payload payloadInputs outVars
+    [ifTrue (mapIdx <$ num) (nestedBuffer#to_block)];
   fnState#finalize
-  

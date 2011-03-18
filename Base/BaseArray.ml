@@ -47,33 +47,38 @@
   let max_elt arr = reduce max arr
   
   let map2 f x y =     
-    let lenx, leny  = length x, length y in
-    let minlen =  min lenx leny in
-    if minlen = 0 then [||] 
+    let lenx  = length x in
+    let leny = length y in
+    assert (lenx = leny); 
+    if lenx = 0 then [||] 
     else 
     let firstElt = f x.(0) y.(0) in 
-    let results = create minlen firstElt in 
-    for i = 1 to minlen - 1 do 
+    let results = create lenx firstElt in 
+    for i = 1 to lenx - 1 do 
       results.(i) <- f x.(i) y.(i)
     done; 
     results 
   
   let iter2 f x y =     
-    let lenx, leny  = length x, length y in
+    let lenx = length x in 
+    let leny = length y in
     assert (lenx = leny);
     for i = 0 to lenx - 1 do 
       f x.(i) y.(i)
     done 
   
   let iter3 f x y z =     
-    let lenx, leny, lenz  = length x, length y, length z in
+    let lenx = length x in 
+    let leny = length y in 
+    let lenz = length z in 
     assert (lenx = leny && leny = lenz);
     for i = 0 to lenx - 1 do 
       f x.(i) y.(i) z.(i)
     done 
   
   let fold_left2 f init x y = 
-    let lenx, leny  = length x, length y in
+    let lenx = length x in 
+    let leny = length y in 
     assert (lenx = leny);
     if lenx = 0 then init 
     else 

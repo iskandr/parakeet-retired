@@ -332,7 +332,7 @@ let rec translate_fundef fnTable fn =
     ID.Map.add id' shape' env  
   in
   let impSizeEnv = ID.Map.fold rename_shape_env sizeEnv ID.Map.empty in 
-  (*IFDEF DEBUG THEN 
+  IFDEF DEBUG THEN 
     Printf.printf "[ssa2imp] Size env\n";
     let print_size id sz =
       Printf.printf "[ssa2imp] %s : %s\n"
@@ -341,7 +341,6 @@ let rec translate_fundef fnTable fn =
     in 
     ID.Map.iter print_size impSizeEnv
   ENDIF;
-  *)  
   let module Translator = MkTranslator(struct
     let fnTable = fnTable 
     let idEnv = idEnv
