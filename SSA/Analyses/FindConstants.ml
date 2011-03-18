@@ -50,13 +50,6 @@ module ConstEval = SSA_Analysis.MkEvaluator(struct
     
   let phi_merge env id leftConst rightConst =
     let combined = ConstantLattice.join leftConst rightConst in 
-    IFDEF DEBUG THEN 
-      Printf.printf "[FindConstants] %s <- phi(%s, %s) = %s\n"
-        (ID.to_str id)
-        (ConstantLattice.const_to_str leftConst)
-        (ConstantLattice.const_to_str rightConst)
-        (ConstantLattice.const_to_str combined) 
-    ENDIF;
     phi_set env id (ConstantLattice.join leftConst rightConst)  
      
   let stmt env stmtNode helpers  = match stmtNode.stmt with 

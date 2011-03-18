@@ -1,3 +1,5 @@
+(* pp: -parser o pa_macro.cmo *)
+
 open Base
 open DynType 
 open SSA
@@ -106,7 +108,7 @@ module SimplifyRules = struct
     | _ -> NoChange  
 end
 
-module Simplifer = SSA_Transform.MkSimpleTransform(SimplifyRules)
+module Simplifer = SSA_Transform.Mk(SimplifyRules)
 
 let simplify_fundef (_ : FnTable.t) = Simplifer.transform_fundef 
   

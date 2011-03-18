@@ -57,14 +57,22 @@ module MkTranslator(P : PARAMS) = struct
 		      if Prim.is_comparison op then cmp_op op ~t:argT vs' 
 		      else typed_op op vs'
 		      
-		  | SSA.PrimApp (Prim.ArrayOp Prim.DimSize, [array; {SSA.value = SSA.Num n}]) -> 
-		      let array' = translate_value array in 
-		      let i = PQNum.to_int n in 
-		      Imp.dim i array' 
-		      
-		  | SSA.PrimApp (Prim.ArrayOp Prim.DimSize, [array; _]) ->
-		      failwith "DimSize with non-constant index not yet implemented"     
-		       
+		  | SSA.PrimApp (Prim.ArrayOp Prim.DimSize, [array; idx]) -> 
+          (match idx.SSA.value with 
+            | SSA.Num n ->  
+		          let array' = translate_value array in 
+		          let i = PQNum.to_int n in 
+		          Imp.dim i array'
+            | _ -> 
+              failwith $
+                "[ssa->imp] DimSize with non-constant index not yet implemented"
+          ) 
+		  | SSA.PrimApp (Prim.ArrayOp Prim.Index, [inArray; idx]) -> 
+          if DynType.is_scalar $ idx.SSA.value_type then 
+            Imp.idx (translate_value inArray) (translate_value idx)
+          else 
+            failwith "[ssa->imp] Vector indexing not implement" 
+               
 		  | SSA.PrimApp (Prim.ArrayOp Prim.Find, [inArray; elToFind]) -> 
 		    let arrT = inArray.SSA.value_type in 
 		    let valT = elToFind.SSA.value_type in 

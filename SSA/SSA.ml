@@ -143,7 +143,7 @@ let exp_to_str expNode =
   match expNode.exp with  
   | Values vs -> value_nodes_to_str vs 
   | App ({value=Prim op}, args) ->    
-    sprintf "%s(%s)" (Prim.prim_to_str op) (value_node_list_to_str args)
+    sprintf "%s(%s) {{untyped}}" (Prim.prim_to_str op) (value_node_list_to_str args)
   | App (fn, args) -> 
     sprintf "%s(%s)" (value_node_to_str fn)  (value_node_list_to_str args)
   | Arr elts -> "[" ^ (value_node_list_to_str ~sep:";" elts) ^ "]" 
@@ -178,9 +178,10 @@ let exp_to_str expNode =
         (value_nodes_to_str args)    
 
 let phi_node_to_str ?(space="") phiNode = 
-  Printf.sprintf "%s%s <- phi(%s, %s)"
+  Printf.sprintf "%s%s : %s <- phi(%s, %s)"
     space 
     (ID.to_str phiNode.phi_id)
+    (DynType.to_str phiNode.phi_type)
     (value_node_to_str phiNode.phi_left)
     (value_node_to_str phiNode.phi_right)
 

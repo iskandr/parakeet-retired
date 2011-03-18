@@ -1,3 +1,5 @@
+(* pp: -parser o pa_macro.cmo *)
+
 open Base
 open SSA 
 open SSA_Transform 
@@ -59,5 +61,5 @@ end
 let replace_fundef idMap fundef = 
  
   let module Params = struct let idMap = idMap end in 
-  let module Replacer = MkSimpleTransform(Replace_Rules(Params)) in  
+  let module Replacer = Mk(Replace_Rules(Params)) in  
   Replacer.transform_fundef fundef 

@@ -1,3 +1,5 @@
+(* pp: -parser o pa_macro.cmo *)
+
 open Base
 open SSA
 open SSA_Transform
@@ -65,7 +67,7 @@ end
 
 let collect_partial_apps interpState fundef = 
  let module Collector = 
-    MkSimpleTransform(CollectRules(struct let interpState = interpState end))
+  Mk(CollectRules(struct let interpState = interpState end))
  in
 
  IFDEF DEBUG THEN 

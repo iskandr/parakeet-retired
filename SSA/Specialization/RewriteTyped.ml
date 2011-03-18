@@ -13,26 +13,6 @@ module type REWRITE_PARAMS = sig
 end  
  
 module Rewrite_Rules (P: REWRITE_PARAMS) = struct 
-  let dir = Forward
-  type context = unit
-  let init _ = ()
- (* convert the types hashtbl to a ID.Map.t, store it as the function's 
-    type environment 
-  *)  
-  let finalize _ f =
-    (* create a new fundef with a fresh ID, 
-       since any untyped function can map to 
-       multipe typed variants 
-     *) 
-    let f' = 
-      SSA.mk_fundef 
-        ~tenv:(Hashtbl.fold ID.Map.add P.tenv ID.Map.empty) 
-        ~input_ids:f.input_ids
-        ~output_ids:f.output_ids
-        ~body:f.body
-    in Update f' 
-
-
   let get_type id = Hashtbl.find P.tenv id 
      
   let set_type id t = Hashtbl.replace P.tenv id t 
@@ -92,44 +72,72 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
                                                                                          
   let annotate_value valNode = 
     let t = infer_value_node_type valNode in  
-    if t <> valNode.value_type then Update { valNode with value_type = t} 
-    else NoChange  
-
-  let coerce_value t valNode =
-    (*IFDEF DEBUG THEN 
-      Printf.printf "RewriteTyped::Coerce Value %s\n"
-        (SSA.value_node_to_str valNode); 
-    ENDIF;
-    *) 
-    if valNode.value_type = t then NoChange 
+    if t <> valNode.value_type then { valNode with value_type = t} 
+    else valNode 
+  
+  let annotate_values vs = List.map annotate_value vs
+  
+  (* rewrite a value to have type t, but can't create coercion statements
+     for variables of the wrong type 
+   *)  
+  let rewrite_value t valNode = 
+    if valNode.value_type = t then valNode    
     else match valNode.value with 
       | Num n ->
         let n' = PQNum.coerce_num n t in 
-        Update (SSA.mk_num ?src:valNode.value_src ~ty:t n')
+        SSA.mk_num ?src:valNode.value_src ~ty:t n' 
       | Var id ->   
         let t' = get_type id in
-        if t = t' then Update {valNode with value_type = t }
-        else  
-        let coerceExp = SSA.mk_cast t valNode in    
-        let id' =  ID.gen() in 
-        set_type id' t;  
-        UpdateWithStmts(SSA.mk_var ~ty:t id', [SSA.mk_set [id'] coerceExp])
+        if t = t' then {valNode with value_type = t } 
+        else failwith $ 
+          Printf.sprintf 
+            "Cannot rewrite %s : %s to become %s"
+            (ID.to_str id)
+            (DynType.to_str t')
+            (DynType.to_str t)
       | Str _ -> 
         if t = DynType.StrT then 
-          Update {valNode with value_type = DynType.StrT}
+          {valNode with value_type = DynType.StrT} 
         else assert false
       | Sym _ -> 
         if t = DynType.SymT then 
-          Update {valNode with value_type = DynType.SymT}
+          {valNode with value_type = DynType.SymT} 
         else assert false 
       | Unit ->
         if t = DynType.UnitT then 
-          Update{valNode with value_type = DynType.UnitT}
+          {valNode with value_type = DynType.UnitT} 
         else assert false    
       | _ ->   
         failwith  $ Printf.sprintf "Can't coerce value %s to type %s"
           (SSA.value_node_to_str valNode) (DynType.to_str t)
   
+  
+  (* if a value needs to be coerced, then it gets added to this list. 
+     It's the job of any caller to check and clear this list 
+   *)
+  let coercions = ref []
+   
+  let collect_coercions stmtNode = 
+    let stmts = List.rev $ stmtNode :: !coercions in 
+    coercions := []; 
+    stmts 
+  
+  let coerce_value t valNode =
+    if valNode.value_type = t then valNode
+    else match valNode.value with 
+      | Var id -> 
+        let t' = get_type id in
+        if t = t' then {valNode with value_type = t } 
+        else 
+        let coerceExp = SSA.mk_cast t valNode in    
+        let id' =  ID.gen() in 
+        set_type id' t;
+        coercions :=  (SSA.mk_set [id'] coerceExp) :: !coercions;   
+        SSA.mk_var ~ty:t id'
+      | _ -> rewrite_value t valNode 
+
+  let coerce_values t vs = List.map (coerce_value t) vs  
+
   let rewrite_adverb src adverb fnVal argNodes argTypes = 
     match adverb with 
       | Prim.Map ->
@@ -165,7 +173,6 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
     match fnVal with
     | Prim ((Prim.ScalarOp op) as p) -> 
       let outT = TypeInfer.infer_scalar_op op argTypes in
-      let commonT = DynType.fold_type_list argTypes in 
       if DynType.is_scalar outT then  
         SSA.mk_primapp p [outT] argNodes
       else 
@@ -209,7 +216,6 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
           fundef.fn_output_types 
           (closureArgs @ argNodes)   
       else 
-        let nIndices = List.length argNodes in 
         let arrType = infer_value_node_type fn in 
         let outTypes = [DynType.slice_type arrType argTypes] in
         let arrNode = {fn with value_type = arrType} in 
@@ -218,53 +224,75 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
           (Prim.ArrayOp Prim.Index)
           outTypes 
           (arrNode::argNodes)
-        
       
-      
-  let rewrite_exp 
-        (processVal 
-          : (value_node -> value_node update) -> value_node -> value_node) 
-        types 
-        expNode =
-    let annotate_values = List.map (processVal annotate_value) in 
+  let rewrite_exp types expNode =
     match expNode.exp, types with 
       | Arr elts, [DynType.VecT eltT] ->
-        let elts' = 
-          List.map (fun elt -> processVal (coerce_value eltT) elt) elts
-        in  
-        Update {expNode with exp = Arr elts'; exp_types = types }    
+          let elts' = coerce_values eltT elts in 
+          {expNode with exp = Arr elts'; exp_types = types}
       | Values vs, _ ->
-        let vs' = 
-          List.map2 (fun v t -> processVal (coerce_value t) v) vs types
-        in 
-        Update {expNode with exp = Values vs'; exp_types = types } 
+          let vs' = List.map2 coerce_value types vs in 
+          {expNode with exp = Values vs'; exp_types = types }  
       | App (fn, args), _ -> 
-        Update (rewrite_app expNode.exp_src fn (annotate_values args))       
-    
-  let rec stmt context helpers stmtNode =
+          rewrite_app expNode.exp_src fn (annotate_values args)   
+      | _ -> failwith $ 
+               Printf.sprintf 
+                 "[RewriteTyped] Type specialization for %s not implemented"
+                 (SSA.exp_to_str expNode)  
+
+  let rewrite_phi phiNode = 
+    let t = Hashtbl.find P.tenv phiNode.phi_id in 
+    let left = rewrite_value t phiNode.phi_left in  
+    let right = rewrite_value t phiNode.phi_right in  
+    {phiNode with phi_type = t; phi_left = left; phi_right = right }
+
+  let rewrite_phi_nodes phiNodes = 
+    List.map rewrite_phi phiNodes 
+
+  let rec stmt stmtNode : stmt_node list =
     match stmtNode.stmt with
     | Set(ids, rhs) -> 
         let rhsTypes = List.map (Hashtbl.find P.tenv) ids in
-        let rhs' = 
-          helpers.transform_exp (rewrite_exp helpers.transform_value rhsTypes) rhs 
-        in 
-        Update {stmtNode with stmt = Set(ids, rhs')}
+        let rhs' = rewrite_exp rhsTypes rhs in
+        let stmtNode' = {stmtNode with stmt = Set(ids, rhs')} in 
+        collect_coercions stmtNode' 
+
     | SetIdx (arrayId, indices, rhs) -> failwith "setidx not implemented"
-    (* TODO: Deal properly with phi nodes *) 
-    | If(cond, tBlock, fBlock, merge) -> 
-        let cond' = helpers.transform_value (coerce_value DynType.BoolT) cond in
-        let tBlock' = helpers.transform_block (stmt context) tBlock in 
-        let fBlock' = helpers.transform_block (stmt context) fBlock in
-        Update {stmtNode with stmt = If(cond', tBlock', fBlock', merge)}
+ 
+    | If(cond, tBlock, fBlock, phiNodes) -> 
+        let cond' = coerce_value DynType.BoolT cond in
+        let tBlock' = transform_block tBlock in 
+        let fBlock' = transform_block fBlock in
+        let phiNodes' = rewrite_phi_nodes phiNodes in 
+        let stmtNode' =
+          {stmtNode with stmt = If(cond', tBlock', fBlock', phiNodes')}
+        in 
+        collect_coercions stmtNode' 
+
     | WhileLoop(testBlock, testVal, body, header, exit) -> 
-        let body' = helpers.transform_block (stmt context) body in
-        let testBlock' = helpers.transform_block (stmt context) testBlock in
-        let testVal' = 
-          helpers.transform_value (coerce_value DynType.BoolT) testVal
-        in  
-        Update { stmtNode with 
-          stmt =WhileLoop(testBlock', testVal', body', header, exit)
-        } 
+        let body' = transform_block body in
+        let testBlock' = transform_block testBlock in
+        let testVal' = coerce_value DynType.BoolT testVal in  
+        let header' = rewrite_phi_nodes header in 
+        let exit' = rewrite_phi_nodes exit in
+        let stmtNode' =  { stmtNode with 
+            stmt =WhileLoop(testBlock', testVal', body', header', exit')
+        }
+        in collect_coercions stmtNode' 
+        
+  and transform_block block =
+    let buffer = ref [] in  
+    let process_stmt stmtNode = 
+      let newStmts = stmt stmtNode in 
+      buffer := newStmts @ !buffer
+    in 
+    Block.iter_forward process_stmt block; 
+    Block.of_list (List.rev !buffer) 
+  
+  and transform_fundef f =
+    let body = transform_block f.body in 
+    let tenv = Hashtbl.fold ID.Map.add P.tenv ID.Map.empty in 
+    SSA.mk_fundef ~tenv ~input_ids:f.input_ids ~output_ids:f.output_ids ~body 
 end 
 
 let rewrite_typed ~tenv ~closureEnv ~specializer ~output_arity ~fundef =
@@ -275,6 +303,5 @@ let rewrite_typed ~tenv ~closureEnv ~specializer ~output_arity ~fundef =
     let output_arity = output_arity 
   end
   in    
-  let module Transform = SSA_Transform.MkCustomTransform(Rewrite_Rules(Params))
-  in 
-  let fundef, _ = Transform.transform_fundef fundef in fundef   
+  let module Transform = Rewrite_Rules(Params) in 
+  Transform.transform_fundef fundef   

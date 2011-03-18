@@ -12,13 +12,13 @@ let rec fold_optimizations ?(type_check=false) fnTable fundef lastChanged =
       IFDEF DEBUG THEN Printf.printf "Running %s...\n%! " name; ENDIF; 
       let optimized, changed = opt fnTable fundef in
       IFDEF DEBUG THEN
-      (*
+      
         if changed then 
           Printf.printf "Changes caused by %s: %s\n%!"
             name
             (SSA.fundef_to_str optimized)
-        ;
-        *)  
+        else Printf.printf "No changes by %s\n" name 
+        ; 
         if type_check then  
           let errorLog = TypeCheck.check_fundef optimized in 
           if not $ Queue.is_empty errorLog then ( 

@@ -1,3 +1,5 @@
+(* pp: -parser o pa_macro.cmo *)
+
 open DynType 
 open Base
 open SSA 
@@ -53,6 +55,6 @@ module CSE_Rules = struct
   let value env valNode = NoChange   
 end
 
-module CSE_Rewrite = SSA_Transform.MkSimpleTransform(CSE_Rules)
+module CSE_Rewrite = SSA_Transform.Mk(CSE_Rules)
 
 let cse _ = CSE_Rewrite.transform_fundef  

@@ -63,6 +63,7 @@ module Inline_Rules (P:INLINE_PARAMS) = struct
         
          
   let stmt envRef stmtNode = NoChange     
+  
   let exp envRef expNode = match expNode.exp with 
     | Call (fnId, args)
     | App ({value=GlobalFn fnId}, args) -> 
@@ -78,11 +79,11 @@ module Inline_Rules (P:INLINE_PARAMS) = struct
             assert (outputExp.exp_types = expNode.exp_types);
           ENDIF;  
           let expNode' = {outputExp with exp_src=expNode.exp_src } in
-          (*Printf.printf "Inline updated exp: %s => %s \n"
-             (SSA.exp_to_str expNode)
-             (SSA.exp_to_str expNode')
-            ; 
-          *)
+          IFDEF DEBUG THEN 
+            Printf.printf "Inline updated exp: %s => %s \n"
+              (SSA.exp_to_str expNode)
+              (SSA.exp_to_str expNode');
+          ENDIF;  
           UpdateWithBlock(expNode', inlineBlock)
        )
     | _ -> NoChange 
@@ -96,7 +97,7 @@ let run_fundef_inliner (functions : FnTable.t) fundef =
   let module Params = 
     struct let lookup id  = FnTable.find_option id functions end
   in  
-  let module Inliner = SSA_Transform.MkSimpleTransform(Inline_Rules(Params)) in
+  let module Inliner = SSA_Transform.Mk(Inline_Rules(Params)) in
   let fundef', changed = Inliner.transform_fundef fundef in 
   let tenv' = !(Inliner.get_context ()) in
   {fundef' with tenv = tenv' }, changed    
