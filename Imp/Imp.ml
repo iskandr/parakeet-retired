@@ -94,17 +94,23 @@ and exp_to_str = function
 
 and stmt_to_str ?(spaces="") = function 
   | If (cond, tBlock, fBlock) ->
-      let tStr = 
-        if tBlock <> [] then 
-           "\n" ^ (block_to_str ~spaces:(spaces ^ "  ") tBlock)
-        else "" 
-      in 
+      let tStr =
+        if List.length tBlock > 1 then 
+          Printf.sprintf " then {\n%s\n%s}\n%s" 
+            (block_to_str ~spaces:(spaces ^ "  ") tBlock)
+            spaces
+            spaces
+        else Printf.sprintf " then { %s } " (block_to_str tBlock)
+      in    
       let fStr =
-        if fBlock <> [] then 
-           "\n" ^ (block_to_str ~spaces:(spaces ^ "  ") fBlock)
-        else ""
+        if List.length fBlock > 1 then 
+          Printf.sprintf "\n%selse {\n%s\n%s}"
+            spaces 
+            (block_to_str ~spaces:(spaces ^ "  ") fBlock) 
+            spaces
+        else Printf.sprintf " else { %s }" (block_to_str fBlock) 
       in       
-      sprintf "%s if (%s) then { %s } \n else { %s }"
+      sprintf "%s if (%s)%s%s "
         spaces 
         (exp_node_to_str cond)
         tStr 
