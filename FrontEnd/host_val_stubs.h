@@ -43,7 +43,7 @@ host_val mk_host_array(char *data, dyn_type t, int *shape, int shape_len,
 /** IMPORTANT: Must call to free OCaml host_val **/
 void free_host_val(host_val val);
 void free_host_val_data(host_val_data_t data);
-int is_scalar(host_val val);
+int host_val_is_scalar(host_val val);
 
 /** Scalar accessor functions **/
 int      get_bool(host_val val);

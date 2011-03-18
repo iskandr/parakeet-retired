@@ -41,7 +41,7 @@ void free_dyn_type(dyn_type t) {
   CAMLreturn0;
 }
 
-int is_scalar(dyn_type t) {
+int dyn_type_is_scalar(dyn_type t) {
   CAMLparam0();
   CAMLlocal1(ocaml_dyn_type);
 
