@@ -224,6 +224,9 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
           (Prim.ArrayOp Prim.Index)
           outTypes 
           (arrNode::argNodes)
+    | _ -> failwith $ 
+             Printf.sprintf "[RewriteTyped] Unexpected function: %s"
+              (SSA.value_node_to_str fn)
       
   let rewrite_exp types expNode =
     match expNode.exp, types with 

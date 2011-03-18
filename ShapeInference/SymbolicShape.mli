@@ -37,6 +37,12 @@ val concat : shape -> shape -> shape
 
 val rewrite_dim : shape ID.Map.t -> dim -> dim
 val rewrite_shape : shape ID.Map.t -> shape -> shape
-
+val rewrite_shapes : shape ID.Map.t -> shape list -> shape list 
     
 val to_str : shape -> string 
+
+val get_call_output_shapes : Imp.fn -> shape list -> shape list  
+   
+
+
+  

@@ -111,7 +111,6 @@ let cuda_bind_texture_1d
   | Signed -> cuda_bind_texture_1d_impl texRef devPtr length 0
   | Unsigned -> cuda_bind_texture_1d_impl texRef devPtr length 1
   | Float -> cuda_bind_texture_1d_impl texRef devPtr length 2
-  | _ -> failwith "[cuda] Unsupported 1D texture type"
 
 external cuda_bind_texture_2d_std_channel_impl
   : CuTexRef.t -> GpuPtr.t -> int -> int -> int -> unit =
@@ -123,7 +122,6 @@ let cuda_bind_texture_2d_std_channel (texRef : CuTexRef.t)
   | Unsigned ->
       cuda_bind_texture_2d_std_channel_impl texRef devPtr width height 1
   | Float -> cuda_bind_texture_2d_std_channel_impl texRef devPtr width height 2
-  | _ -> failwith "[cuda] Unsupported texture type"
 
 let inited = ref false
 

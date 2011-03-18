@@ -49,7 +49,6 @@ module ConstEval = SSA_Analysis.MkEvaluator(struct
     else Some (ID.Map.add id const env) 
     
   let phi_merge env id leftConst rightConst =
-    let combined = ConstantLattice.join leftConst rightConst in 
     phi_set env id (ConstantLattice.join leftConst rightConst)  
      
   let stmt env stmtNode helpers  = match stmtNode.stmt with 
