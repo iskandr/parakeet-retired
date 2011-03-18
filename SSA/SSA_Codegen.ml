@@ -101,6 +101,8 @@ let eq = scalar_op Prim.Eq
 
 let zero = mk_num (PQNum.Int32 0l) 
 let one = mk_num (PQNum.Int32 1l)
+let trueVal = mk_num (PQNum.Bool true)
+let falseVal = mk_num (PQNum.Bool false) 
 
 let inf = mk_num (PQNum.Inf DynType.Float32T)
 let neginf = mk_num (PQNum.NegInf DynType.Float32T)

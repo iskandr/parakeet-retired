@@ -297,6 +297,8 @@ let int i =  int_exp $ Const (PQNum.Int32 (Int32.of_int i))
 let float f = f32_exp $ Const (PQNum.Float32 f)  
 let double d = f64_exp $ Const (PQNum.Float64 d) 
 
+let bool b = bool_exp $ Const (PQNum.Bool b) 
+
 let zero = int 0 
 let one = int 1
  

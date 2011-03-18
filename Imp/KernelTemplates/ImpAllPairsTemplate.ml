@@ -1,6 +1,5 @@
 open Base
 open Imp
-open ImpCodegen
 open DynType
 
 (* Assumes that inputs are 2D and that the payload is a function that takes *)
@@ -8,20 +7,21 @@ open DynType
 (* with the result of the function applied to the two inputs. *)
 let gen_all_pairs_2d_naive payload t1 t2 outTypes =
   let outType = List.hd outTypes in
-  let codegen = new imp_codegen in
-  let input1 = codegen#fresh_input t1 in 
-  let input2 = codegen#fresh_input t2 in
+  let fnState = new ImpCodegen.fn_state in
+  let input1 = fnState#fresh_input t1 in 
+  let input2 = fnState#fresh_input t2 in
   let output = 
-    codegen#fresh_output ~dims:[dim 0 input1; dim 0 input2] outType 
+    fnState#fresh_output ~dims:[dim 0 input1; dim 0 input2] outType 
   in
-  let left_id = codegen#fresh_var Int32T in
-  let right_id = codegen#fresh_var Int32T in
+  let left_id = fnState#fresh_var Int32T in
+  let right_id = fnState#fresh_var Int32T in
   let threadsPerDim = 16 in
-  codegen#emit [
+  let codeBuffer = fnState#main_code_buffer in 
+  codeBuffer#emit [
     set left_id (threadIdx.x +$ (blockIdx.x *$ (int threadsPerDim)));
     set right_id (threadIdx.y +$ (blockIdx.y *$ (int threadsPerDim)))
   ];
-  codegen#splice_emit payload
+  codeBuffer#splice_emit payload
     [|(idx input1 left_id);(idx input2 right_id)|]
     [|idx (idx output left_id) right_id|]
     [
@@ -29,7 +29,7 @@ let gen_all_pairs_2d_naive payload t1 t2 outTypes =
         SPLICE;
       ]
     ];
-  codegen#finalize
+  fnState#finalize
 
 (* Eric: Every thread is responsible for a single output element, the element
    being of dimensionality equal to that of the elements of the inputs.
@@ -46,26 +46,28 @@ let gen_all_pairs_2d payload t1 t2 outTypes =
      "[imp] generating all_pairs kernel with signature (%s,%s)->%s\n"
      (DynType.to_str t1) (DynType.to_str t2) (DynType.to_str outType)
   ;
-  let codegen = new imp_codegen in  
+  let fnState = new ImpCodegen.fn_state in  
   let output_elt_t = DynType.peel_vec outType in 
-  let input1, input2 = codegen#fresh_input t1, codegen#fresh_input t2 in
-  let output = codegen#fresh_output outType in
-  let left_id = codegen#fresh_var UInt32T in 
-  let right_id = codegen#fresh_var UInt32T in
-  let left_idx = codegen#fresh_var UInt32T in 
-  let right_idx = codegen#fresh_var UInt32T in 
+  let input1 = fnState#fresh_input t1 in 
+  let input2 =  fnState#fresh_input t2 in
+  let output = fnState#fresh_output outType in
+  let left_id = fnState#fresh_var UInt32T in 
+  let right_id = fnState#fresh_var UInt32T in
+  let left_idx = fnState#fresh_var UInt32T in 
+  let right_idx = fnState#fresh_var UInt32T in 
   (* Is there some way to get this to be an input param? *)
-  let vec_len = codegen#fresh_var UInt32T in
-  let result = codegen#fresh_var output_elt_t in
+  let vec_len = fnState#fresh_var UInt32T in
+  let result = fnState#fresh_var output_elt_t in
   let threads_per_dim = 16 in
-  codegen#emit [
+  let codeBuffer = fnState#main_code_buffer in 
+  codeBuffer#emit [
     set left_id (threadIdx.y +$ (int threads_per_dim *$ blockIdx.y));
     set right_id (threadIdx.x +$  (int threads_per_dim *$ blockIdx.x));
     set vec_len (len input1);
   ];
   let payloadInputs = [|left_idx; right_idx; input1; input2|] in
   let trueBranch =
-    codegen#splice payload payloadInputs [|result|]   
+    codeBuffer#splice payload payloadInputs [|result|]   
     [
       set left_idx (vec_len *$ left_id);
       set right_idx (vec_len *$ right_id);
@@ -76,29 +78,32 @@ let gen_all_pairs_2d payload t1 t2 outTypes =
   let mainCond = 
     (left_id <$ len input1) &&$ (right_id <$ len input2) 
   in
-  codegen#emit [ifTrue mainCond trueBranch];
-  codegen#finalize
+  codeBuffer#emit [ifTrue mainCond trueBranch];
+  fnState#finalize
 
 let gen_all_pairs_2d_tiled payload t1 t2 outType =
-  let codegen = new imp_codegen in
+  let fnState = new ImpCodegen.fn_state in 
   let elt_t1, elt_t2 = DynType.peel_vec t1, DynType.peel_vec t2 in
   let output_elt_t = DynType.peel_vec outType in
-  let input1, input2 = codegen#fresh_input t1, codegen#fresh_input t2 in
-  let output = codegen#fresh_output outType in
-  let i, j = codegen#fresh_var Int32T, codegen#fresh_var Int32T in
-  let result = codegen#fresh_var output_elt_t in
-  let interm = codegen#fresh_var output_elt_t in
-  let left_start_idx, right_start_idx =
-    codegen#fresh_var Int32T, codegen#fresh_var Int32T in
+  let input1 = fnState#fresh_input t1 in 
+  let input2 = fnState#fresh_input t2 in
+  let output = fnState#fresh_output outType in
+  let i = fnState#fresh_var Int32T in 
+  let j =  fnState#fresh_var Int32T in
+  let result = fnState#fresh_var output_elt_t in
+  let interm = fnState#fresh_var output_elt_t in
+  let left_start_idx = fnState#fresh_var Int32T in 
+  let right_start_idx = fnState#fresh_var Int32T in
   let threads_per_dim = 16 in
-  let vec_len = codegen#fresh_var Int32T in
+  let vec_len = fnState#fresh_var Int32T in
   let leftS = 
-    codegen#shared_vec_var elt_t1 [threads_per_dim; threads_per_dim] 
+    fnState#shared_vec_var elt_t1 [threads_per_dim; threads_per_dim] 
   in
   let rightS = 
-    codegen#shared_vec_var elt_t2 [threads_per_dim; threads_per_dim] 
+    fnState#shared_vec_var elt_t2 [threads_per_dim; threads_per_dim] 
   in
-  codegen#emit [
+  let codeBuffer = fnState#fresh_code_buffer in 
+  codeBuffer#emit [
     set vec_len (len (idx input1 (int 0)));
     set left_start_idx 
       (threadIdx.x +$ 
@@ -107,8 +112,8 @@ let gen_all_pairs_2d_tiled payload t1 t2 outType =
       (threadIdx.x +$  
         (vec_len *$  (threadIdx.y +$ blockIdx.x *$ int threads_per_dim)));
     set i (int 0)];
-  let offset = codegen#fresh_var Int32T in
-  codegen#emit [
+  let offset = fnState#fresh_var Int32T in
+  codeBuffer#emit [
     while_ (i +$ (int threads_per_dim) <=$ vec_len) [
       setidx leftS[threadIdx.x; threadIdx.y] (idx input1 (i +$ left_start_idx));
 	    setidx rightS[threadIdx.x; threadIdx.y]
@@ -153,4 +158,4 @@ let gen_all_pairs_2d_tiled payload t1 t2 outType =
        threadIdx.x +$ blockIdx.x *$ blockDim.x]
       (sqrt32 result)
   ];
-  codegen#finalize 
+  fnState#finalize 

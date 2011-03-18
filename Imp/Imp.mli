@@ -125,6 +125,7 @@ val infinity : exp_node
     
 val float : float -> exp_node   
 val double : float -> exp_node  
+val bool : bool -> exp_node 
 
 val select :exp_node -> exp_node ->exp_node -> exp_node 
 

@@ -2,7 +2,6 @@
 open Base 
 open DynType 
 open Imp
-open ImpCodegen
 
 
 (* assume all threadblocks are 1d row of size threadsPerBlock *) 
@@ -19,19 +18,20 @@ let gen_map payload threadsPerBlock closureTypes inTypes outTypes =
   let nInputs = Array.length inTypes in 
   let nOutputs = Array.length outTypes in 
   assert (nInputs > 0 && nOutputs > 0);
-  let codegen = new imp_codegen in 
+  let fnState = new ImpCodegen.fn_state in 
   (* setup params for closure args, inputs, outputs *) 
-  let closureArgs = Array.map codegen#fresh_input closureTypes in 
-  let inputArgs = Array.map codegen#fresh_input inTypes in
+  let closureArgs = Array.map fnState#fresh_input closureTypes in 
+  let inputArgs = Array.map fnState#fresh_input inTypes in
   let outputSizes = 
     SymbolicShape.all_dims (SymbolicShape.largest_val inputArgs) 
   in
   let outputArgs = 
-    Array.map (fun t -> codegen#fresh_output ~dims:outputSizes t) outTypes 
+    Array.map (fun t -> fnState#fresh_output ~dims:outputSizes t) outTypes 
   in 
-  let num = codegen#fresh_var Int32T in
-  let mapIdx = codegen#fresh_var Int32T in
-  codegen#emit [
+  let num = fnState#fresh_var Int32T in
+  let mapIdx = fnState#fresh_var Int32T in
+  let codeBuffer = fnState#main_code_buffer in 
+  codeBuffer#emit [
     set mapIdx 
       (((blockIdx.x +$ (blockIdx.y *$  gridDim.x)) *$  (int threadsPerBlock))
        +$ threadIdx.x);
@@ -52,7 +52,7 @@ let gen_map payload threadsPerBlock closureTypes inTypes outTypes =
       (DynType.to_str t)
       (SymbolicShape.to_str dims)
     ENDIF; 
-    codegen#fresh_var t ~dims ~storage:Imp.Slice   
+    fnState#fresh_var t ~dims ~storage:Imp.Slice   
   in 
   let payloadInputVars = 
     Array.append closureArgs (Array.map mk_payload_input inputArgs)
@@ -74,12 +74,12 @@ let gen_map payload threadsPerBlock closureTypes inTypes outTypes =
   DynArray.add buffer (SPLICE);
   
   let outEltTypes = Array.map DynType.peel_vec outTypes in 
-  let outVars = Array.map codegen#fresh_var outEltTypes in
+  let outVars = Array.map fnState#fresh_var outEltTypes in
   for i = 0 to nOutputs - 1 do  
      DynArray.add buffer (set (idx outputArgs.(i) mapIdx) outVars.(i))
   done; 
   
-  codegen#splice_emit payload payloadInputVars outVars
+  codeBuffer#splice_emit payload payloadInputVars outVars
     [ifTrue (mapIdx <$ num) (DynArray.to_list buffer)];
-  codegen#finalize
+  fnState#finalize
   
