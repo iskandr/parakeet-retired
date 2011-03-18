@@ -247,17 +247,16 @@ module MkTranslator(P : PARAMS) = struct
 		  | SSA.WhileLoop(testBlock, testVal, body, header, exit) ->
           (* first translate only the lhs assignments of the phi nodes, 
              since we are entering the loop 
-          *) 
-          translate_phi_nodes codeBuffer (Imp.bool true) header; 
+          *)
+          translate_phi_nodes codeBuffer (Imp.bool true) header;
+          let testExp = translate_value testVal in 
           translate_block codeBuffer testBlock; 
           let bodyBuffer = P.fnState#fresh_code_buffer in 
           translate_block bodyBuffer body; 
           translate_phi_nodes bodyBuffer (Imp.bool false); header; 
           translate_block bodyBuffer testBlock;
-          let testExp = translate_value testVal in  
-          codeBuffer#emit [ 
-            Imp.While(translate_value testVal, bodyBuffer#to_block)
-          ] 
+          let block = bodyBuffer#to_block in 
+          codeBuffer#emit [Imp.While(testExp, block)] 
           
 		     
     and translate_block codeBuffer block =
@@ -312,12 +311,11 @@ let rec translate_fundef fnTable fn =
       )
     in  
     
-    (*IFDEF DEBUG THEN 
+    IFDEF DEBUG THEN 
         Printf.printf "[ssa2imp] Renamed %s to %s\n"
           (ID.to_str id)
           (ID.to_str impId); 
     ENDIF;
-    *)
     ID.Map.add id impId env    
   in  
   let idEnv = MutableSet.fold add_local liveIds inputIdEnv in
