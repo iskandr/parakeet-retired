@@ -86,8 +86,8 @@ module MkEvaluator(A : ANALYSIS) = struct
     | If(cond, tBlock, fBlock,  merge) ->
         let _ = A.value env cond in  
         let tEnv, _ = eval_block env tBlock in 
-        let fEnv, _ = eval_block env fBlock in
-        eval_phi_nodes env tEnv fEnv merge 
+        let fEnv, _ = eval_block tEnv fBlock in
+        eval_phi_nodes fEnv tEnv fEnv merge 
     | WhileLoop(condBlock, condVal, body, header, exit) ->
         if A.iterative then  (
           let maxIters = 100 in

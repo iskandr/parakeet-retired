@@ -1,6 +1,6 @@
 f:{[X;a;k] kmeans[X;a;k]}
 d: 10; 
-n: 200000; 
+n: 200; 
 k: 3; 
 a: n ? k;
 X: { d ? 100.0e } each til n; 

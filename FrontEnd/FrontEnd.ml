@@ -64,8 +64,8 @@ let run_function untypedId ~globals ~args =
   let signature = Signature.from_input_types argTypes in
   IFDEF DEBUG THEN 
     printf
-      "[run_function] calling specializer for argument types: %s \n"
-      (DynType.type_list_to_str argTypes);
+      "[run_function] calling specializer for argument types: %s\n"
+      (DynType.type_list_to_str argTypes);      
   ENDIF;
   
   let typedFundef = 

@@ -288,8 +288,7 @@ let rec translate_fundef fnTable fn =
     List.fold_left2 add_input ID.Map.empty fn.SSA.input_ids inputTypes   
   in 
   (* next add all the live locals, along with their size expressions *)
-  let liveIds : ID.t MutableSet.t = FindLiveIds.find_live_ids fn in
-  MutableSet.iter (fun i -> Printf.printf "Live %d\n" i) liveIds; 
+  let liveIds : ID.t MutableSet.t = FindLiveIds.find_live_ids fn in 
   let sizeEnv : SymbolicShape.shape ID.Map.t = 
     ShapeInference.infer_shape_env fnTable fn  
   in
@@ -313,11 +312,12 @@ let rec translate_fundef fnTable fn =
       )
     in  
     
-    IFDEF DEBUG THEN 
+    (*IFDEF DEBUG THEN 
         Printf.printf "[ssa2imp] Renamed %s to %s\n"
           (ID.to_str id)
           (ID.to_str impId); 
     ENDIF;
+    *)
     ID.Map.add id impId env    
   in  
   let idEnv = MutableSet.fold add_local liveIds inputIdEnv in
@@ -327,7 +327,7 @@ let rec translate_fundef fnTable fn =
     ID.Map.add id' shape' env  
   in
   let impSizeEnv = ID.Map.fold rename_shape_env sizeEnv ID.Map.empty in 
-  IFDEF DEBUG THEN 
+  (*IFDEF DEBUG THEN 
     Printf.printf "[ssa2imp] Size env\n";
     let print_size id sz =
       Printf.printf "[ssa2imp] %s : %s\n"
@@ -335,7 +335,8 @@ let rec translate_fundef fnTable fn =
         (SymbolicShape.to_str sz)
     in 
     ID.Map.iter print_size impSizeEnv
-  ENDIF;  
+  ENDIF;
+  *)  
   let module Translator = MkTranslator(struct
     let fnTable = fnTable 
     let idEnv = idEnv

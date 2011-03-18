@@ -14,10 +14,10 @@ let rec fold_optimizations ?(type_check=false) fnTable fundef lastChanged =
       IFDEF DEBUG THEN
       
         if changed then 
-          Printf.printf "Changes caused by %s: %s\n%!"
+          Printf.printf "Changes caused by %s:\n Old: %s\n New: %s\n%!"
             name
+            (SSA.fundef_to_str fundef)
             (SSA.fundef_to_str optimized)
-        else Printf.printf "No changes by %s\n" name 
         ; 
         if type_check then  
           let errorLog = TypeCheck.check_fundef optimized in 

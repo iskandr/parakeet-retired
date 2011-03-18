@@ -474,7 +474,8 @@ and fn_state = object (self)
     method finalize = 
       let inputArray = DynArray.to_array inputs in 
       let outputArray = DynArray.to_array outputs in 
-      let impFn = ImpSimplify.simplify_function {
+      (*  ImpSimplify.simplify_function *)
+      let impFn = {
         input_ids = inputArray;
         input_id_set = inputSet; 
         input_types = Array.map self#get_type inputArray; 

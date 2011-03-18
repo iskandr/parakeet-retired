@@ -11,5 +11,5 @@ module DefLattice : sig
   val combine : t -> t -> t 
 end
 
-val find_defs : SSA.fundef -> (ID.t, DefLattice.t) Hashtbl.t 
+val find_defs : SSA.fundef -> DefLattice.t ID.Map.t  
  

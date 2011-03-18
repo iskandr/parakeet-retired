@@ -20,7 +20,9 @@ module CSE_Rules = struct
   let finalize _ _ = NoChange 
   let dir = Forward
   
-  let stmt env stmtNode =  match stmtNode.stmt with 
+  let stmt env stmtNode =  match stmtNode.stmt with
+    (* leave simple constants alone *)  
+    | Set ([id], {exp=Values [{value = Num _}]}) -> NoChange 
     | Set ([id], expNode) when is_safe_exp expNode -> 
       if Hashtbl.mem env expNode.exp then ( 
         let rhsVal = Hashtbl.find env expNode.exp in

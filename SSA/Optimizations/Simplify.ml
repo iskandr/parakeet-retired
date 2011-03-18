@@ -5,14 +5,14 @@ open DynType
 open SSA
 open SSA_Transform
 open FindUseCounts
-open FindDefs
+
  
 module SimplifyRules = struct
   let dir = Forward
    
   type context = {
     constants: SSA.value ConstantLattice.t ID.Map.t;
-    defs : (ID.t, DefLattice.t) Hashtbl.t;  
+    copies : FindCopies.CopyLattice.t ID.Map.t;   
     use_counts : (ID.t, int) Hashtbl.t; 
     types : DynType.t ID.Map.t; 
   } 
@@ -20,7 +20,7 @@ module SimplifyRules = struct
   let init fundef = 
     {
       constants = FindConstants.find_constants fundef;
-      defs = FindDefs.find_defs fundef;  
+      copies = FindCopies.find_copies fundef;   
       use_counts = FindUseCounts.find_fundef_use_counts fundef;
       types = fundef.tenv;   
     }
@@ -32,8 +32,8 @@ module SimplifyRules = struct
     let inputIdSet = ID.Set.of_list fundef.input_ids in 
     let outputIds = 
       List.map 
-      (fun id -> match Hashtbl.find cxt.defs id with 
-        | FindDefs.DefLattice.Val (Var prevId) -> 
+      (fun id -> match ID.Map.find id cxt.copies with 
+        | FindCopies.CopyLattice.Copy prevId ->  
             (* an ID can't be both input and output *) 
             if ID.Set.mem prevId inputIdSet then id else prevId   
         | _ -> id)
@@ -97,18 +97,31 @@ module SimplifyRules = struct
   let value cxt valNode = match valNode.value with
     | Var id -> 
       begin match ID.Map.find_option id cxt.constants with 
-        | Some ConstantLattice.Const v -> Update {valNode with value = v }
+        | Some ConstantLattice.Const v -> 
+          Printf.printf "Simplifying %s to CONSTANT %s\n"
+            (SSA.value_node_to_str valNode)
+            (SSA.value_to_str v)
+          ; 
+          Update {valNode with value = v }
         | Some _ 
-        | None -> 
-          (match Hashtbl.find cxt.defs id with 
-            | FindDefs.DefLattice.Val v -> Update {valNode with value = v }
+        | None ->  
+          (match ID.Map.find id cxt.copies with 
+            | FindCopies.CopyLattice.Copy prevId ->
+              let valNode' = {valNode with value = Var prevId} in  
+              Printf.printf "Simplifying %s to COPIED %s\n"
+                (SSA.value_node_to_str valNode)
+                (SSA.value_node_to_str valNode')
+              ; 
+              Update valNode' 
             | _ -> NoChange
-          )   
+          )
       end
     | _ -> NoChange  
 end
 
 module Simplifer = SSA_Transform.Mk(SimplifyRules)
 
-let simplify_fundef (_ : FnTable.t) = Simplifer.transform_fundef 
+let simplify_fundef (_ : FnTable.t) fundef = 
+  Printf.printf "Simplifying %s\n" (SSA.fundef_to_str fundef); 
+  Simplifer.transform_fundef fundef 
   

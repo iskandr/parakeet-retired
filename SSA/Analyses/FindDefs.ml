@@ -33,21 +33,19 @@ end
 
    
 module DefEval = MkEvaluator(struct 
-  type env = (ID.t, DefLattice.t) Hashtbl.t
+  type env =  DefLattice.t ID.Map.t 
   type value_info = DefLattice.t
   type exp_info = DefLattice.t list 
   
-  let iterative = false
+  let iterative = true
   let dir = Forward
   
   let init fundef = 
-    let env = Hashtbl.create 127 in  
-    List.iter  
-      (fun id -> Hashtbl.add env id DefLattice.Top) 
+    List.fold_left 
+      (fun env id -> ID.Map.add id DefLattice.Top env)
+      ID.Map.empty 
       fundef.input_ids
-    ; 
-    env
-  
+    
   let value _ valNode = DefLattice.Val (valNode.SSA.value)
   
   let exp env expNode helpers = match expNode.exp with 
@@ -60,28 +58,46 @@ module DefEval = MkEvaluator(struct
   
   let phi_set env id defVal = 
     try 
-      let oldVal = Hashtbl.find env id in 
+      let oldVal = ID.Map.find id env in 
       if  oldVal <> defVal then 
-        (Hashtbl.replace env id (DefLattice.combine oldVal defVal); Some env) 
+        let combined = DefLattice.combine oldVal defVal in 
+        Some (ID.Map.add id combined env) 
       else None
-    with _ -> Hashtbl.replace env id defVal; Some env    
+    with _ -> Some (ID.Map.add id defVal env)    
        
   let phi_merge env id leftVal rightVal =
     phi_set env id (DefLattice.combine leftVal rightVal)
      
   let stmt env stmtNode helpers = match stmtNode.stmt with 
     | Set(ids, rhs) ->
-        let rhsInfo = exp env rhs helpers in  
+        let rhsDefs = exp env rhs helpers in  
         IFDEF DEBUG THEN
-          let nDefs = List.length rhsInfo in 
+          let nDefs = List.length rhsDefs in 
           let nIds = List.length ids in 
           if nDefs <> nIds then 
             failwith $ Printf.sprintf 
               "[FindDefs] error in \"%s\", %d ids for %d expressions" 
               (SSA.stmt_node_to_str stmtNode) nIds nDefs 
         ENDIF; 
-        List.iter2 (Hashtbl.add env) ids rhsInfo;  
-        None
+        let changed = ref false in
+        let update_def (env:env) (id:ID.t) (newDef:DefLattice.t) = 
+          if ID.Map.mem id env then 
+            let oldDef = ID.Map.find id env in (
+            if oldDef <> newDef then (
+              changed := true;
+              let combined = DefLattice.combine oldDef newDef in 
+              ID.Map.add id combined env
+            )
+            else env
+          ) 
+          else ( 
+            changed := true; 
+            ID.Map.add id newDef env
+          )
+        in  
+        let env' = List.fold_left2 update_def env ids rhsDefs in 
+        if !changed then Some env' else None 
+         
    | _ -> helpers.eval_stmt env stmtNode     
 end)
 
