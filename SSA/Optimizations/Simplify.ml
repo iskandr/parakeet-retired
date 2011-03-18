@@ -98,20 +98,12 @@ module SimplifyRules = struct
     | Var id -> 
       begin match ID.Map.find_option id cxt.constants with 
         | Some ConstantLattice.Const v -> 
-          Printf.printf "Simplifying %s to CONSTANT %s\n"
-            (SSA.value_node_to_str valNode)
-            (SSA.value_to_str v)
-          ; 
           Update {valNode with value = v }
         | Some _ 
         | None ->  
           (match ID.Map.find id cxt.copies with 
             | FindCopies.CopyLattice.Copy prevId ->
               let valNode' = {valNode with value = Var prevId} in  
-              Printf.printf "Simplifying %s to COPIED %s\n"
-                (SSA.value_node_to_str valNode)
-                (SSA.value_node_to_str valNode')
-              ; 
               Update valNode' 
             | _ -> NoChange
           )
@@ -122,6 +114,5 @@ end
 module Simplifer = SSA_Transform.Mk(SimplifyRules)
 
 let simplify_fundef (_ : FnTable.t) fundef = 
-  Printf.printf "Simplifying %s\n" (SSA.fundef_to_str fundef); 
   Simplifer.transform_fundef fundef 
   
