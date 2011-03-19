@@ -185,7 +185,7 @@ let minidx = mk_fn 2 1 15 $ fun inputs outputs locals ->
       
 let _ = 
   InterpState.add_untyped 
-    initState ~optimize:true "minidx" minidx;;
+    initState ~optimize:false "minidx" minidx;;
 
 (* takes as inputs X, number of clusters, and initial assignment *) 
 let kmeans = mk_fn 3 1 3 $ fun inputs outputs locals ->

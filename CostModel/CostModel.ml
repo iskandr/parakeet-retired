@@ -148,6 +148,7 @@ type cost = float
      *)    
     let allNestedInputs = initClosureArgs @ initArgs @ nestedArgs in  
     let nestedCost = call_cost fnTable init allNestedInputs in
+    
     let cpuCost = 1. +. (float_of_int maxDim) *. nestedCost in
     IFDEF DEBUG THEN 
       Printf.printf "Computed REDUCE cost: GPU - %f, HOST: %f\n" gpuCost cpuCost; 
