@@ -203,27 +203,29 @@ module MkTranslator(P : PARAMS) = struct
       let t = rhsVal.SSA.value_type in 
       codeBuffer#emit [set (var ~t impId) rhs]
     
-    let translate_phi_node codeBuffer pred phiNode  = 
+    let translate_phi_branch codeBuffer chooseLeft phiNode = 
       let id = phiNode.SSA.phi_id in 
+      let impId = get_id phiNode.SSA.phi_id in
+      let impVal = 
+        if chooseLeft then 
+          translate_value phiNode.SSA.phi_left
+        else 
+          translate_value phiNode.SSA.phi_right
+      in 
+      codeBuffer#emit[Imp.Set(impId, impVal)]
+         
+    let translate_phi_nodes codeBuffer pred phiNodes =
       match pred.exp with 
       | Imp.Const (PQNum.Bool true) ->
-        translate_set_val codeBuffer id phiNode.SSA.phi_left
+        List.iter (translate_phi_branch codeBuffer true) phiNodes 
       | Imp.Const (PQNum.Bool false) -> 
-        IFDEF DEBUG THEN 
-          Printf.printf "Generating right side of phi node: %s <- %s\n"
-            (ID.to_str id)
-            (SSA.value_node_to_str phiNode.SSA.phi_right);
-        ENDIF; 
-        translate_set_val codeBuffer id phiNode.SSA.phi_right
+        List.iter (translate_phi_branch codeBuffer false) phiNodes
       | _ -> 
-        let impId = get_id phiNode.SSA.phi_id in 
-        let impLeft = translate_value phiNode.SSA.phi_left in 
-        let impRight = translate_value phiNode.SSA.phi_right in
-        codeBuffer#emit [ 
-          Imp.If(pred, [Imp.Set(impId, impLeft)], [Imp.Set(impId, impRight)])
-        ] 
-    let translate_phi_nodes codeBuffer pred phiNodes = 
-      List.iter (translate_phi_node codeBuffer pred) phiNodes 
+        let trueBuffer = P.fnState#fresh_code_buffer in
+        List.iter (translate_phi_branch trueBuffer true) phiNodes; 
+        let falseBuffer = P.fnState#fresh_code_buffer in 
+        List.iter (translate_phi_branch falseBuffer false) phiNodes;
+        codeBuffer#emit[Imp.If(pred, trueBuffer#to_block, falseBuffer#to_block)] 
     
 		let rec translate_stmt 
               (codeBuffer : ImpCodegen.code_buffer) 

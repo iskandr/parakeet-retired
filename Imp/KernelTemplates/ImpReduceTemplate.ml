@@ -49,7 +49,7 @@ let gen_reduce_2d_capable nestedType payload threadsPerBlock =
   if ndims = 1 then
     codeBuffer#emit [set vec_len (int 1)]
   else if ndims = 2 then
-    codeBuffer#emit [set vec_len (dim 2 input)]
+    codeBuffer#emit [set vec_len (dim 1 input)]
   else
     failwith "Reduce only supported on 1D or 2D inputs for now";
   

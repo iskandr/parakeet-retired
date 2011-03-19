@@ -185,10 +185,10 @@ let minidx = mk_fn 2 1 15 $ fun inputs outputs locals ->
       
 let _ = 
   InterpState.add_untyped 
-    initState ~optimize:true "minidx" minidx;;
+    initState ~optimize:false "minidx" minidx;;
 
 (* takes as inputs X, number of clusters, and initial assignment *) 
-let kmeans = mk_fn 3 1 3 $ fun inputs outputs locals ->
+let kmeans = mk_fn 3 1 2 $ fun inputs outputs locals ->
   let minIdx = 
     SSA.mk_globalfn (InterpState.get_untyped_id initState "minidx") 
   in
@@ -199,14 +199,14 @@ let kmeans = mk_fn 3 1 3 $ fun inputs outputs locals ->
   let a = inputs.(1) in 
   let k = inputs.(2) in  
   let c = locals.(0) in
-  let newA = locals.(2) in  
+  (*let newA = locals.(2) in*)  
   [
     (* C: calc_centroids[X;a;k]*)
     [c] := calcCentroids @@ [x;a;k];
     (* a: minidx[C] each X *)  
     [locals.(1)] := minIdx @@ [c]; 
-    [newA] := map @@ [locals.(1); x]; 
-    [outputs.(0)] := calcCentroids @@ [x;newA;k];    
+    [outputs.(0)] := map @@ [locals.(1); x]; 
+    (*[outputs.(0)] := calcCentroids @@ [x;newA;k];*)    
   ]
 let _ = 
   InterpState.add_untyped 
