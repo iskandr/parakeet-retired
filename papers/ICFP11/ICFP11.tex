@@ -7,17 +7,19 @@
 
 
 \begin{document}
-\conferenceinfo{ICFP 2011}{June 4--8, 2011, San Jose, CA, USA.}
+\conferenceinfo{ICFP 2011}{September 19--21, 2011, Tokyo, Japan.}
 \copyrightyear{2011}
 
-\preprintfooter{PLDI 2011}
+\preprintfooter{ICFP 2011}
 \titlebanner{DRAFT---Do not distribute}
 
 \title{Parakeet: Fast GPU Programming with Array Languages} 
 % EDIT: old title was a bit wordy, looked gross, and "high level" is redundant if someone even glances at our abstract. 
 %  --- General Purpose GPU Programming with High Level ArrayLanguages}
 
-\authorinfo{Anonymous}{Anonymous}{Anonymous}
+\authorinfo{Alex Rubinsteyn}{alexr@cs.nyu.edu}{New York University}
+\authorinfo{Eric Hielscher}{hielscher@cs.nyu.edu}{New York University}
+\authorinfo{Dennis Shasha}{shasha@cs.nyu.edu}{New York University}
 \lstset{ 
 basicstyle=\small\footnotesize\ttfamily, % Standardschrift
 numbers=left,                   % where to put the line-numbers
@@ -138,13 +140,12 @@ functions via a typed intermediate language.  The Parakeet interpreter then
 transparently executes array operations on the GPU by synthesizing and launching
 GPU kernels as needed.
 
-
 % Q front-end, agnosticism
 We have implemented our first Parakeet front end for Q \cite{Borr08}, a
 descendant of APL that is widely used in financial computing. 
 Q is a nearly ``pure'' array language--its idiomatic style makes sparser use of
 loops than even Matlab or NumPy--and is thus a natural first choice.
-We are also currently working on front ends for both Matlab and Python.
+We are also currently finishing work on a front end for Python's NumPy extensions.
 
 % Bullet-point, drive-home contributions
 The main contributions of this paper are the following:
@@ -155,10 +156,6 @@ that is automatically parallelized into efficient GPU programs.
 
 \item A dynamic specialization algorithm that translates a significant subset of
 higher-order programs into efficient (unboxed, function-free) GPU code.
-
-\item A low-level intermediate language called \textit{Imp} that captures the
-notion of shapely computation \cite{Jay97} necessary in the absence of dynamic
-memory allocation.
 \end{itemize}
 
 \begin{figure*}[t!bh]
@@ -202,7 +199,7 @@ efficient use of GPU memory bandwidth.
 
 Next, the Parakeet interpreter interprets the typed IL function.  When
 Parakeet reaches an array operator node in the code tree, it employs a simple
-cost-based heuristic (which includes things such as data size and memory
+cost-based heuristic (which includes things such as data size and memorfy
 transfer costs) to decide whether to execute that array operator on the GPU or
 CPU.  Some code simply cannot be efficiently translated into GPU programs
 (such as that which performs I/O or modifies global state), and such code is
@@ -405,19 +402,10 @@ modifier keywords, which in Q are called \emph{adverbs}.  For example, the
 argument.  In the \texttt{calc\_centroids} function, we calculate each cluster's
 new centroid
 by using \texttt{each} to apply the \texttt{calc\_centroid} function to a
-list of integers from \texttt{0} to \texttt{k-1}.  The other adverb used in
-K-Means is what we call \emph{all-pairs}, written `\texttt{/:\char`\\:}'.
-(Technically all-pairs is a combination of two adverbs in Q: each-left and
-each-right.) All-pairs modifies a binary function and applies it to each
-pairs of elements from two input arrays.  We use all-pairs to apply the
-\texttt{dist} function to each pair of data point and centroid to calculate all
-the needed distances for reassigning the centroids.
+list of integers from \texttt{0} to \texttt{k-1}.  The other adverbs used in
+K-Means are the directional each variants, \texttt{each-left} and \texttt{each-right}. These adverbs modify a binary function and apply it to each element of the respective input argument.  By combining both, we are able to apply the \texttt{dist} function to each pair of rows from the two input arrays--here to each data point and centroid to calculate all the needed distances for reassigning the centroids.
 
-We see that array programming languages are both expressive and compact.  While
-the CUDA implementation of K-Means in the Rodinia benchmark suite is hundreds of
-lines of code long, our Q version is only 17 and could be 
-made more compact.
-And, of course, the Q program is sequential.
+We see that array programming languages are both expressive and compact.  While the CUDA implementation of K-Means in the Rodinia benchmark suite is hundreds of lines of code long, our Q version is only 17 and could be made more compact. And, of course, the Q program is sequential.
 
 \section{Typed Intermediate Language}
 Now we turn to the problem
@@ -764,7 +752,7 @@ computation of all three original higher-order operators.
     & t$_2  = t_1 * t_1 $       \\
     & z $ = $ acc $+$ t$_2$     \\
     &  \\ 
-  \multicolumn{2}{l}{$\mathrm{dist} ($ x $ : vec \; float $, y : $ vec \; float
+  \multicolumn{2}{l}{$\mathrm{dist} ($~x $ : vec \; float $, y : $ vec \; float
 $) $ \rightarrow  ($ z $ : float ) =$} \\
   & t$_3 = \REDUCE (\mathrm{f}_1, 0.0, \mathrm{x}, \mathrm{y})$   \\
   & z $ = \mathrm{sqrt}(\mathrm{t}_3)$  \\
@@ -773,6 +761,16 @@ $) $ \rightarrow  ($ z $ : float ) =$} \\
 \caption{Distance Function After Fusion Optimization}
 \label{DistFuse}
 \end{figure}
+
+\section{The Parakeet Runtime}
+\label{runtime}
+
+
+
+\subsection{Runtime Cost Model}
+\label{costmodel}
+
+
 
 \section{GPU Back End}
 Before we discuss our GPU code generation, we first walk through the CUDA
