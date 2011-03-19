@@ -223,7 +223,7 @@ and eval_exp (env : env) (expNode : SSA.exp_node) : InterpVal.t list =
     | Prim.Til, others -> 
       (* always run on host *) 
       failwith $ Printf.sprintf 
-        "You ain't no scalar. Where's my scalar? I ordered a scalar: %s (host: %s)"
+        "Where's my scalar? I ordered a scalar: %s (host: %s)"
         (String.concat ", " (List.map InterpVal.to_str others))
         (String.concat ", " 
           (List.map HostVal.to_str 

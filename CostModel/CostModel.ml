@@ -28,7 +28,10 @@ type cost = float
   
   (* split args into max dim, and peeled inner args *) 
   let split_args args =
-    let maxShape = Option.get (Shape.max_shape_list (get_shapes args)) in
+    let maxShape = match Shape.max_shape_list (get_shapes args) with 
+      | Some maxShape -> maxShape
+      | None -> failwith "[CostModel] Argument shape error"
+    in 
     assert (Shape.rank maxShape > 0);
     let peeler (ty,shape,gpuSet) =
       if Shape.eq shape maxShape then 

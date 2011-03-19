@@ -328,7 +328,7 @@ let idx arr idx =
 let dim n x = int_exp $ (DimSize(n, x))
  
      
-let len x = uint_exp $ DimSize(0, x)
+let len x = dim 0 x 
 
 let max_ ?t x y = typed_op Prim.Max ?t [x;y]
 let min_ ?t x y = typed_op Prim.Min ?t [x;y]  

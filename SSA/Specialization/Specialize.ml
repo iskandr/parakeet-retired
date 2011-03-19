@@ -87,15 +87,18 @@ let rec output_arity interpState closures = function
 
     
 let rec specialize_fundef interpState fundef signature = 
-  IFDEF DEBUG THEN
-    Printf.printf "Specialize_Fundef...\n%!";
-  ENDIF;
   (* first check to see whether we're mapping a function of scalar operators*)
   (* over vector data. if so, rather than creating a large number of Map nodes *)
-  (* and then merging them we directly create a single Map *) 
-  let inTypes = Signature.input_types signature in 
+  (* and then merging them we directly create a single Map. *) 
+  (* NOTE: scalarizing the function is only done if all the inputs are either
+     vectors of the same rank or scalars. 
+   *) 
+  let inTypes = Signature.input_types signature in
+  let ranks = List.map DynType.nest_depth inTypes in 
+  let maxRank = List.fold_left max 0 ranks in 
   if not (Signature.has_output_types signature) && 
-     List.exists DynType.is_vec inTypes &&  
+     maxRank > 0 && 
+     List.for_all (fun r -> r = 0 || r = maxRank) ranks &&    
      is_scalar_block fundef.body 
   then scalarize_fundef interpState fundef signature 
   else 
