@@ -14,17 +14,20 @@ tests = glob.glob("test_*.q")
 for test in tests:
   name = test[5:-2]
   print "Running " + name
-  subprocess.check_call(["q", test])
-  f = open("tmp/" + name + "_rslt")
-  rslt = f.read(1)
-  f.close()
-  os.remove("tmp/" + name + "_rslt")
-  if (rslt == "1"):
-    num_passed += 1
-    print "Test " + name + " PASSED!"
-  else:
-    num_failed += 1
+  if subprocess.call(["q", test]) != 0:
     print "Test " + name + " FAILED!"
+    num_failed += 1
+  else:
+    f = open("tmp/" + name + "_rslt")
+    rslt = f.read(1)
+    f.close()
+    os.remove("tmp/" + name + "_rslt")
+    if (rslt == "1"):
+      num_passed += 1
+      print "Test " + name + " PASSED!"
+    else:
+      num_failed += 1
+      print "Test " + name + " FAILED!"
 
 print "\n\nTests Summary:"
 print "________________"

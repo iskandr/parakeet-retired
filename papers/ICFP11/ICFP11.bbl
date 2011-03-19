@@ -1,0 +1,161 @@
+\begin{thebibliography}{10}
+
+\bibitem{Ald01}
+{\sc Aldinucci, M., Gorlatch, S., Lengauer, C., and Pelagatti, S.}
+\newblock Towards parallel programming by transformation: the {FAN} skeleton
+  framework.
+\newblock {\em Parallel Algorithms Appl. 16}, 2-3 (2001), 87--121.
+
+\bibitem{Bien08}
+{\sc Bienia, C., Kumar, S., Singh, J.~P., and Li, K.}
+\newblock The {PARSEC} benchmark suite: Characterization and architectural
+  implications.
+\newblock In {\em PACT '08: Proceedings of the 17th International Conference on
+  Processors, Architectures, and Compilation Techniques\/} (October 2008).
+
+\bibitem{Blac73}
+{\sc Black, F., and Scholes, M.}
+\newblock The pricing of options and corporate liabilities.
+\newblock {\em The Journal of Political Economy 81}, 3 (1973), 637--654.
+
+\bibitem{Bol09}
+{\sc Bolingbroke, M.~C., and Jones, S. L.~P.}
+\newblock Types are calling conventions.
+\newblock In {\em Proceedings of the 2009 Haskell Workshop\/} (September 2009).
+
+\bibitem{Borr08}
+{\sc Borror, J.~A.}
+\newblock {\em Q For Mortals: A Tutorial In Q Programming}.
+\newblock CreateSpace, 2008.
+
+\bibitem{Buck04}
+{\sc Buck, I., Foley, T., Horn, D., Sugerman, J., Fatahalian, K., Houston, M.,
+  and Hanrahan, P.}
+\newblock Brook for {GPU}s: stream computing on graphics hardware.
+\newblock In {\em ACM SIGGRAPH 2004 Papers\/} (New York, NY, USA, 2004),
+  SIGGRAPH '04, ACM, pp.~777--786.
+
+\bibitem{Cata10}
+{\sc Catanzaro, B., Garland, M., and Keutzer, K.}
+\newblock Copperhead: Compiling an embedded data parallel language.
+\newblock Tech. Rep. UCB/EECS-2010-124, EECS Department, University of
+  California, Berkeley, Sep 2010.
+
+\bibitem{ChakAcc}
+{\sc Chakravarty, M.~M., Keller, G., Lee, S., McDonnel, T.~L., and Grover, V.}
+\newblock Accelerating haskell array codes with multicore gpus.
+
+\bibitem{Che09}
+{\sc Che, S., Boyer, M., Meng, J., Tarjan, D., Sheaffer, J., Lee, S.-h., and
+  Skadron, K.}
+\newblock Rodinia: A benchmark suite for heterogeneous computing.
+\newblock In {\em Proceedings of the IEEE International Symposium on Workload
+  Characterization (IISWC)\/} (October 2009), pp.~44--54.
+
+\bibitem{Cole04}
+{\sc Cole, M.}
+\newblock Bringing skeletons out of the closet: A pragmatic manifesto for
+  skeletal parallel programming.
+\newblock {\em Parallel Computing 30}, 3 (2004), 389--406.
+
+\bibitem{feng10}
+{\sc Feng, W.-c., and Xiao, S.}
+\newblock {To GPU Synchronize or Not GPU Synchronize?}
+\newblock In {\em IEEE International Symposium on Circuits and Systems
+  (ISCAS)\/} (Paris, France, May 2010).
+
+\bibitem{Hobe10}
+{\sc Hoberock, J., and Bell, N.}
+\newblock Thrust: A parallel template library, 2010.
+\newblock Version 1.3.0.
+
+\bibitem{Iverson62}
+{\sc Iverson, K.~E.}
+\newblock A programming language.
+\newblock In {\em Proceedings of the May 1-3, 1962, spring joint computer
+  conference\/} (New York, NY, USA, 1962), AIEE-IRE '62 (Spring), ACM,
+  pp.~345--351.
+
+\bibitem{Jones01}
+{\sc Jones, S.~P., Tolmach, A., and Hoare, T.}
+\newblock Playing by the rules: rewriting as a practical optimisation technique
+  in {GHC}.
+\newblock In {\em Proceedings of the 2004 Haskell Workshop\/} (2001).
+
+\bibitem{Ju94}
+{\sc Ju, D. C.~R., Wu, C.~L., and Carini, P.}
+\newblock The classification, fusion, and parallelization of array language
+  primitives.
+\newblock {\em IEEE Trans. Parallel Distrib. Syst. 5\/} (October 1994),
+  1113--1120.
+
+\bibitem{Latt02}
+{\sc Lattner, C.}
+\newblock {LLVM}: An infrastructure for multi-stage optimization.
+\newblock Master's thesis, Computer Science Dept., University of Illinois at
+  Urbana-Champaign, Urbana, IL, Dec 2002.
+\newblock {\em See {\tt http://llvm.cs.uiuc.edu}.}
+
+\bibitem{Lengyel90}
+{\sc Lengyel, J., Reicher, M., Donald, B.~R., and Greenberg, D.~P.}
+\newblock Real-time robot motion planning using rasterizing computer graphics
+  hardware.
+\newblock In {\em In Proc. SIGGRAPH\/} (1990), pp.~327--335.
+
+\bibitem{Main10}
+{\sc Mainland, G., and Morrisett, G.}
+\newblock Nikola: Embedding compiled {GPU} functions in haskell.
+\newblock In {\em Proceedings of the 2010 Haskell Workshop\/} (September 2010).
+
+\bibitem{Moler80}
+{\sc Moler, C.~B.}
+\newblock {MATLAB} --- an interactive matrix laboratory.
+\newblock Technical Report 369, University of New Mexico. Dept. of Computer
+  Science, 1980.
+
+\bibitem{Muns10}
+{\sc Munshi, A.}
+\newblock The {O}pen{CL} specification version 1.1, September 2010.
+
+\bibitem{NvidCU}
+{\sc {NVIDIA}}.
+\newblock {CUDA ZONE}.
+\newblock {\tt http://www.nvidia.com/cuda}.
+
+\bibitem{NvidSD}
+{\sc {NVIDIA}}.
+\newblock {NVIDIA} {CUDA} {SDK} 3.2.
+\newblock {\tt http://www.nvidia.com/cuda}.
+
+\bibitem{Oliphant07}
+{\sc Oliphant, O.}
+\newblock Python for scientific computing.
+\newblock {\em Computing in Science and Engineering 9\/} (2007), 10--20.
+
+\bibitem{Ott90}
+{\sc Ottenstein, K.~J., Ballance, R.~A., and MacCabe, A.~B.}
+\newblock The program dependence web: a representation supporting control-,
+  data-, and demand-driven interpretation of imperative languages.
+\newblock {\em SIGPLAN Not. 25\/} (June 1990), 257--271.
+
+\bibitem{Sip91}
+{\sc Sipelstein, J., and Blelloch, G.~E.}
+\newblock {C}ollection-{O}riented languages.
+\newblock In {\em Proceedings of the IEEE\/} (1991), pp.~504--523.
+
+\bibitem{Sven08}
+{\sc Svensson, J., Sheeran, M., and Claessen, K.}
+\newblock Obsidian: A domain specific embedded language for parallel
+  programming of graphics processors.
+\newblock In {\em Implementation and Application of Functional Languages, 20th
+  International Symposium, IFL 2008\/} (2008).
+
+\bibitem{Tard06}
+{\sc Tarditi, D., Puri, S., and Oglesby, J.}
+\newblock Accelerator: Using data parallelism to program {GPU}s for
+  general-purpose uses.
+\newblock In {\em ASPLOS '06: Proceedings of the 12th International Conference
+  on Architectural Support for Programming Languages and Operating Systems\/}
+  (November 2006).
+
+\end{thebibliography}
