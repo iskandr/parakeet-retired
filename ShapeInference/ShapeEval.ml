@@ -2,35 +2,14 @@
 
 open Base
 open Imp 
-
+open MathEval 
 
 let _ = Printexc.record_backtrace true 
-
-type 'a math_ops = {   
-  safe_div : 'a -> 'a -> 'a;  
-  log : 'a -> 'a; 
-  mul : 'a -> 'a -> 'a;  
-  add : 'a -> 'a -> 'a; 
-  of_int : int -> 'a; 
-  of_pqnum : PQNum.num -> 'a; 
-} 
 
 let rec eval_exp (m : 'a math_ops) (shapeEnv:Shape.t ID.Map.t) expNode : 'a  =
   let recur (e : Imp.exp_node) : 'a  = eval_exp m shapeEnv e in   
   match expNode.exp with
-  | Op (Prim.Max, _, [arg1; arg2]) -> max (recur arg1) (recur arg2)
-  | Op (Prim.Min, _, [arg1; arg2]) -> min (recur arg1) (recur arg2)
-  | Op (Prim.Add, _, [arg1; arg2]) -> 
-    m.add (recur arg1) (recur arg2)   
-  | Op(Prim.Add, _, _) -> 
-    failwith "[ShapeEval] wrong number of args for addition"
-  | Op(Prim.SafeDiv, _, [arg1; arg2]) -> 
-    m.safe_div (recur arg1) (recur arg2) 
-  | Op (Prim.Mult, _, [arg1; arg2]) ->
-    m.mul (recur arg1) (recur arg2) 
-  | Op (Prim.Mult, _, _) ->
-    failwith "[ShapeEval] wrong number of args for multiplication"
-  | Op(Prim.Log, _, [arg]) -> m.log (recur arg) 
+  | Op (scalarOp, _, args) -> MathEval.eval m scalarOp (List.map recur args)  
   | Const n -> m.of_pqnum n
   | DimSize(dim, {exp=Var id}) -> 
     if ID.Map.mem id shapeEnv then 
@@ -43,26 +22,9 @@ let rec eval_exp (m : 'a math_ops) (shapeEnv:Shape.t ID.Map.t) expNode : 'a  =
       Printf.sprintf "[ShapeEval] Unexpected expression: %s"
         (Imp.exp_to_str other)
 
-let int_ops : int math_ops = {  
-  safe_div = safe_div; 
-  log =  (fun x -> int_of_float (ceil (log (float_of_int x))));
-  mul = Int.mul;  
-  add = ( + );
-  of_int = (fun x -> x); 
-  of_pqnum = PQNum.to_int;  
-}
 
-let float_ops : float math_ops = { 
-  safe_div = (/.);  
-  log = log; 
-  mul = ( *. );
-  add = ( +. ); 
-  of_int = float_of_int; 
-  of_pqnum = PQNum.to_float;   
-} 
-
-let eval_exp_as_int = (eval_exp int_ops)
-let eval_exp_as_float = (eval_exp float_ops)   
+let eval_exp_as_int = (eval_exp MathEval.int_ops)
+let eval_exp_as_float = (eval_exp MathEval.float_ops)   
 
 let eval_shape shapeEnv expNodeList : Shape.t = 
   Shape.of_list (List.map (eval_exp_as_int shapeEnv) expNodeList)

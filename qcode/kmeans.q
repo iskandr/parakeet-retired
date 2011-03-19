@@ -1,14 +1,14 @@
-sqr: {x*x};
-dist: { sqrt  sum sqr x-y };
+/sqr: {x*x};
+/ dist: { sqrt  sum sqr x-y };
+/ findmin: { x ? min x};
+
 calc_centroid: {[X;a;i] avg X where a = i }; 
 calc_centroids: {[X;a;k] calc_centroid[X;a] each til k};
-findmin: { x ? min x};
 kmeans: { [X;a;k;niters] 
   C: calc_centroids[X;a;k]; 
   do[niters; 
-    D: X dist/:\: C;
-    a: findmin each D; 
-    C: calc_centroids[X;a;k]];
+    b: parakeet_minidx[C] each X; 
+    C: calc_centroids[X;b;k]];
   C }
 
 X: (100 20 30; 40 50 10; 110 30 33; 44 55 11); 

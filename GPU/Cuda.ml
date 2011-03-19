@@ -41,7 +41,10 @@ let infer_channel_format = function
 external cuda_init : unit -> unit = "ocaml_cuda_init"
 
 external cuda_malloc' : int -> GpuPtr.t = "ocaml_cuda_malloc"
-let cuda_malloc n = assert (n > 0); cuda_malloc' n 
+let cuda_malloc n = 
+  if n = 0 then 
+    failwith "[cuda_malloc] Cannot allocate empty GPU vector" 
+  else cuda_malloc' n 
  
 external cuda_free : GpuPtr.t -> unit = "ocaml_cuda_free"
 

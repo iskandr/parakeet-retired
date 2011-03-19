@@ -37,7 +37,7 @@ module Mk(P : EVAL_PARAMS) = struct
     typeof interpVal, shapeof interpVal, is_on_gpu interpVal 
   let describe_args interpVals = List.map describe_arg interpVals
        
-  let rec eval_value (env : env) (valNode : SSA.value_node) : InterpVal.t = 
+  let eval_value (env : env) (valNode : SSA.value_node) : InterpVal.t = 
     match valNode.value with 
     | Var id -> 
       if ID.Map.mem id env then ID.Map.find id env
@@ -47,8 +47,16 @@ module Mk(P : EVAL_PARAMS) = struct
     | _ -> 
       let valStr = SSA.value_to_str valNode.value in 
       failwith ("[eval_value] values of this type not implemented: " ^ valStr)
-    
-  and eval_block env block = Block.fold_forward eval_stmt env block  
+  
+  let eval_phi_node cond env phiNode : env = 
+    let id = phiNode.phi_id in 
+    let rhs = if cond then phiNode.phi_left else phiNode.phi_right in 
+    ID.Map.add id (eval_value env rhs) env  
+
+  let eval_phi_nodes cond env phiNodes =
+    List.fold_left (eval_phi_node cond) env phiNodes 
+                        
+  let rec eval_block env block = Block.fold_forward eval_stmt env block  
   and eval_stmt (env : env) (stmtNode : SSA.stmt_node) : env = 
     IFDEF DEBUG THEN 
       Printf.printf "\n===> EVAL: %s\n\n"
@@ -62,19 +70,25 @@ module Mk(P : EVAL_PARAMS) = struct
       ENDIF; 
       ID.Map.extend env ids results 
     | SetIdx (id, indices, rhs) -> assert false    
-    | If (boolVal, tBlock, fBlock, ifGate) -> 
-        assert false 
-    | WhileLoop (testBlock, testVal, body, header, exit) -> assert false
-       (*
-      let env' = eval_block env  in 
-      (match eval_value env condVal with 
-        | InterpVal.Scalar (PQNum.Bool true) -> 
-            let env' = eval_block env body in 
-            eval_stmt env' stmtNode (* loop implemented via recursive call *)    
-        | InterpVal.Scalar (PQNum.Bool false) -> 
-            env (* not handling SSA gate properly *)  
-        | _ -> failwith "expected boolean value for loop condition" 
-      ) *)
+    | If (boolVal, tBlock, fBlock, phiNodes) ->
+      let cond = InterpVal.to_bool (eval_value env boolVal) in 
+      let env' = eval_block env (if cond then tBlock else fBlock) in 
+      eval_phi_nodes cond env'  phiNodes
+      
+    | WhileLoop (testBlock, testVal, body, header, exit) ->
+      let headerEnv = eval_phi_nodes true env header in 
+      let testEnv = eval_block headerEnv testBlock in 
+      let cond = ref (eval_value testEnv testVal) in
+      let loopEnv = ref testEnv in
+      let niters = ref 0 in   
+      while InterpVal.to_bool !cond do        
+        niters := !niters + 1; 
+        loopEnv := eval_block !loopEnv body; 
+        loopEnv := eval_phi_nodes false !loopEnv header; 
+        loopEnv := eval_block !loopEnv testBlock; 
+        cond := eval_value !loopEnv testVal
+      done; 
+      eval_phi_nodes (!niters = 0) !loopEnv exit  
          
 and eval_exp (env : env) (expNode : SSA.exp_node) : InterpVal.t list = 
   match expNode.exp with 
@@ -95,7 +109,7 @@ and eval_exp (env : env) (expNode : SSA.exp_node) : InterpVal.t list =
         
   | PrimApp (Prim.ScalarOp op, args) -> 
       let argVals = List.map (eval_value env) args in 
-      eval_scalar_op op argVals
+      [eval_scalar_op op argVals]
       
   | Call (fnId, args) -> 
       let argVals = List.map (eval_value env) args in
@@ -187,7 +201,27 @@ and eval_exp (env : env) (expNode : SSA.exp_node) : InterpVal.t list =
     let env2 = ID.Map.extend env fundef.input_ids args in  
     let env3 = eval_block env2 fundef.body in
     List.map (fun id -> ID.Map.find id env3) fundef.output_ids
-  and eval_scalar_op args = failwith "scalar op not implemented"
+  and eval_scalar_op (op : Prim.scalar_op) (args : InterpVal.t list) =
+    (* whether the scalar is a GpuVal, a HostVal or an interpreter scalar, 
+       put them all into hostvals 
+    *)
+    let nums = List.map (MemoryState.get_scalar P.memState) args in    
+    match op, nums  with 
+    | Prim.Eq, [x;y] -> InterpVal.of_bool (x = y) 
+    | Prim.Neq, [x;y] -> InterpVal.of_bool (x <> y) 
+    | Prim.Lt,  [x;y] ->
+        InterpVal.of_bool (PQNum.to_float x <= PQNum.to_float y)  
+    | Prim.Lte, [x;y] -> 
+        InterpVal.of_bool (PQNum.to_float x <= PQNum.to_float y)  
+    | Prim.Gt, [x;y] -> 
+        InterpVal.of_bool (PQNum.to_float x > PQNum.to_float y)
+    | Prim.Gte,  [x;y] -> 
+        InterpVal.of_bool (PQNum.to_float x >= PQNum.to_float y)
+    (* other math operations should return the same type as their inputs, 
+       so use the generic meth eval function
+     *) 
+    | op, _  -> 
+        InterpVal.Scalar (MathEval.eval_pqnum_op op nums)
   and eval_array_op env op argVals outTypes : InterpVal.t list =
     let bestLoc, bestCost = CostModel.array_op op (describe_args argVals) in 
     match op, argVals with

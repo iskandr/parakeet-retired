@@ -20,7 +20,22 @@ let rec to_str = function
 let to_int = function 
   | Scalar n -> PQNum.to_int n 
   | other -> failwith $ Printf.sprintf  
-           "Can't get integer from non-scalar value: %s"
+           "Can't get integer from non-scalar interpreter value: %s"
            (to_str other) 
 
+let to_bool = function 
+  | Scalar (PQNum.Bool b) -> b 
+  | other -> failwith $ Printf.sprintf
+           "Can't get boolean from interpreter value: %s"
+           (to_str other) 
+
+let to_num = function 
+  | Scalar n -> n 
+  | other -> failwith $ Printf.sprintf
+           "Can't get scalar from interpreter value: %s"
+           (to_str other)
+
+let of_bool b = Scalar (PQNum.Bool b) 
 let of_int i = Scalar (PQNum.Int32 (Int32.of_int i))
+
+
