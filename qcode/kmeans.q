@@ -11,7 +11,7 @@ kmeans: { [X;a;k;niters]
     C: calc_centroids[X;a;k]];
   C }
 
-n: 10000;
+n: 1000000;
 d: 10; 
 k: 1;  
 a: n ? k;
