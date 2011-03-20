@@ -144,7 +144,7 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
     let process_param id =
       let args = ID.Map.find id valueEnv' in
       IFDEF DEBUG THEN 
-          Printf.printf "[GpuRuntime] Registring GPU param for %s = %s\n" 
+          Printf.printf "[GpuRuntime] Registering GPU param for %s = %s\n" 
             (ID.to_str id)
             (String.concat ", "  (List.map CudaModule.gpu_arg_to_str args)) 
           ; 
@@ -453,7 +453,17 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
     let nelts = GpuVal.nelts binVec in
     IFDEF DEBUG THEN 
       Printf.printf "Running WHERE on %d elements\n" nelts;
-    ENDIF; 
+      let hostBinVec = match GpuVal.from_gpu binVec with
+        | HostVal.HostArray n -> n
+        | _ -> assert false
+      in
+      Printf.printf "binVec[0-3] = %s\n%s\n%s\n%s\n"
+      (HostVal.to_str (HostVal.get_vec_elt hostBinVec 0))
+      (HostVal.to_str (HostVal.get_vec_elt hostBinVec 1))
+      (HostVal.to_str (HostVal.get_vec_elt hostBinVec 2))
+      (HostVal.to_str (HostVal.get_vec_elt hostBinVec 3));
+      HostVal.free hostBinVec;        
+    ENDIF;
     let scanShape = GpuVal.get_shape binVec in
     let scanInterm = 
       GpuVal.mk_gpu_vec (DynType.VecT DynType.Int32T) scanShape 

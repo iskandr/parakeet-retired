@@ -112,7 +112,8 @@ CAMLprim value ocaml_cuda_ctx_create(value dev_num) {
   CUcontext ctx = 0;
   CUresult result = cuCtxCreate(&ctx, 0, Int_val(dev_num));
   if (result != 0) {
-    printf ("Error creating context on dev %d: %d \n", Int_val(dev_num), result);
+    printf ("Error creating context on dev %d: %d \n",
+            Int_val(dev_num), result);
     exit(1);
   }
   CAMLreturn(caml_copy_int64((int64_t)ctx));

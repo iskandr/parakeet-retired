@@ -132,10 +132,10 @@ let _ = InterpState.add_untyped initState ~optimize:false "parakeet_dist" dist;;
 (* minidx[C;x] -> returns idx of whichever row of C is closest to x *)
 (* 
      i = 0
-     minIdx = 0
+     minIdx = -9999
      minDist = inf 
      n = len(C)
-     while i < n 
+     while i < n
        c = c[i] 
        d = dist(c,x)
        if d < minDist
@@ -177,17 +177,17 @@ let minidx = mk_fn 2 1 15 $ fun inputs outputs locals ->
       [i_bottom; minDist_bottom; minIdx_bottom]
   in 
   let testBlock = Block.of_list [[test] := lt @@ [i_top; n]] in
-  let newMinBlock = Block.of_list [ 
-      [minDist_update] := value currDist;  
+  let newMinBlock = Block.of_list [
+      [minDist_update] := value currDist;
       [minIdx_update] := value i_top;
   ]
-  in 
-  let newMinPhi = 
+  in
+  let newMinPhi =
     SSA.mk_phi_nodes_from_values
-      [minDist_bottom; minIdx_bottom] 
+      [minDist_bottom; minIdx_bottom]
       [minDist_update; minIdx_update]
-      [minDist_top; minIdx_top]      
-  in 
+      [minDist_top; minIdx_top]
+  in
   let body = Block.of_list [
     [currRow] := index @@ [c; i_top]; 
     [currDist] := dist @@ [currRow; x];
@@ -203,8 +203,7 @@ let minidx = mk_fn 2 1 15 $ fun inputs outputs locals ->
     [n] := len c;
     SSA.mk_stmt $ SSA.WhileLoop(testBlock, test, body, header)
   ]    
-      
-      
+
 let _ = 
   InterpState.add_untyped 
     initState ~optimize:false "parakeet_minidx" minidx;;

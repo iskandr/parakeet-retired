@@ -98,9 +98,17 @@ let mk_gpu_vec ?nbytes ?len ty shape =
     | Some n -> n 
   in
   IFDEF DEBUG THEN Printf.printf "Making GPU vec of %d bytes\n" nbytes; ENDIF;
+  IFDEF DEBUG THEN
+    let free, tot = cuda_device_get_free_and_total_mem () in
+    Printf.printf "Free and total GPU mem before alloc: %d, %d\n" free tot;
+  ENDIF;
   let outputPtr = cuda_malloc nbytes in
 
   let shapePtr, shapeSize = shape_to_gpu shape in
+  IFDEF DEBUG THEN
+    let free, tot = cuda_device_get_free_and_total_mem () in
+    Printf.printf "Free and total GPU mem after alloc: %d, %d\n" free tot;
+  ENDIF;
   GpuArray {
     vec_ptr = outputPtr;
     vec_nbytes = nbytes;
@@ -159,8 +167,6 @@ let from_gpu ?prealloc = function
           host_t = v.vec_t; 
           shape = v.vec_shape; 
         }
-
-  
 
 let index arr idx =
   match DynType.elt_type arr.vec_t with 
