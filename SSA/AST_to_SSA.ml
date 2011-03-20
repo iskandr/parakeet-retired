@@ -1,3 +1,5 @@
+(* pp: -parser o pa_macro.cmo *)
+
 open Base
 open AST
 open AST_Info
@@ -75,11 +77,7 @@ module Env = struct
 end 
 
 open Env 
-(* FIX: use a better AST_Info without all this local/global nonsense *) 
-let defs node = 
-    PSet.union node.ast_info.defs_local node.ast_info.defs_global
-let uses node = 
-    PSet.union node.ast_info.reads_local node.ast_info.reads_global 
+
 
 (* value_id is an optional parameter, if it's provided then the generated 
    statements must set retId to the last value 
@@ -150,7 +148,26 @@ let rec translate_stmt
   
   | AST.Block nodes  -> translate_block env codegen ?value_id nodes  
   | AST.SetIdx(name, indices, rhs) -> failwith "setidx not implemented"
-  | AST.WhileLoop(cond,code) -> failwith "while loop not implemented"
+  | AST.WhileLoop(cond,body) ->
+        (* FIX: I don't think this properly handles SSA gates for variables 
+           modified in the cond block 
+        *)
+      let bodyCodegen = new SSA_Codegen.ssa_codegen in 
+      (* update the body codegen and generate a loop gate *)
+      let header, exitEnv = translate_loop_body env bodyCodegen body  in
+      let ssaBody = bodyCodegen#finalize in  
+      let condId = ID.gen() in  
+      let condCodegen = new SSA_Codegen.ssa_codegen in
+      let condEnv = translate_stmt exitEnv condCodegen ~value_id:condId cond in
+      let condVal = SSA.mk_var condId in
+      let condBlock = condCodegen#finalize in 
+      codegen#emit [
+        SSA.mk_stmt $ WhileLoop(condBlock, condVal, ssaBody, header)
+        
+      ];
+      condEnv 
+
+         
   | AST.CountLoop(upper,body) ->
     (* store the upper loop limit in a fresh ID *)  
       let upperId = ID.gen() in 

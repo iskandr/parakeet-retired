@@ -63,6 +63,9 @@ module CopyEval = MkEvaluator(struct
             else (changed := true; ID.Map.add id combined env)
           )
         in  
+        IFDEF DEBUG THEN 
+          assert (List.length ids = List.length rhsCopies); 
+        ENDIF; 
         let env' = List.fold_left2 update_copy env ids rhsCopies in 
         if !changed then Some env' else None 
    | _ -> helpers.eval_stmt env stmtNode     

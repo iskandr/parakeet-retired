@@ -11,12 +11,9 @@ type t =
 let rec to_str = function 
   | Data dataId -> DataId.to_str dataId
   | Scalar n -> PQNum.num_to_str n
-  | Array a -> Printf.sprintf "<array of %d elts>" (Array.length a)
-  (*| Closure (fnId, args) -> 
-    Printf.sprintf "closure{%d, [%s]}"
-      fnId (String.concat ", " (List.map to_str args))
-   *)
-
+  | Array a -> Printf.sprintf "[%s]" 
+    (String.concat ", " (List.map to_str (Array.to_list a)))
+  
 let to_int = function 
   | Scalar n -> PQNum.to_int n 
   | other -> failwith $ Printf.sprintf  

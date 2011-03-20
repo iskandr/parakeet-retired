@@ -316,7 +316,6 @@ let rec gen_stmt codegen stmt =
   *) 
   match stmt with 
   | Imp.Set (id,rhs) ->
-      let dynT = rhs.exp_type in
       let reg = codegen#imp_reg id in   
       ignore (gen_exp codegen ~destReg:reg rhs)
       
@@ -336,7 +335,6 @@ let rec gen_stmt codegen stmt =
              (Imp.stmt_to_str stmt)
       else
        let rhsT = rhs.exp_type in 
-       let rhsEltT = DynType.elt_type rhsT in
        let rhsStorageT = PtxType.storage_of_dyn_type rhsT in
        let eltSize = PtxType.nbytes rhsStorageT in   
        let address = codegen#compute_address base eltSize idxRegs in 
@@ -424,31 +422,18 @@ let translate_kernel ?input_spaces (impfn : Imp.fn) =
             (DynType.to_str t)
             (SymbolicShape.shape_to_str dims)
     ENDIF;  
-    let ptxVal = 
+    ignore $
       if DynType.is_scalar t then codegen#declare_local id t
       else (
         assert (Hashtbl.mem impfn.array_storage id); 
         match Hashtbl.find impfn.array_storage id with 
         | Shared ->
-          (* since dims are all constant, evaluate them to ints *) 
-          let intDims = 
-            List.map (ShapeEval.eval_exp_as_int ID.Map.empty) dims 
-          in  
-          codegen#declare_shared_vec id (DynType.elt_type t) intDims
+        (* since dims are all constant, evaluate them to ints *) 
+        let intDims = List.map (ShapeEval.eval_exp_as_int ID.Map.empty) dims in  
+        codegen#declare_shared_vec id (DynType.elt_type t) intDims
         | Private ->  codegen#declare_storage_arg id t   
         | _ -> codegen#declare_local id t 
       )
-    in  
-    (*
-    IFDEF DEBUG THEN 
-      Printf.printf "[ImpToPtx] declaring imp var %s : %s as %s\n"
-        (ID.to_str id)
-        (DynType.to_str t);
-        (codegen#value_to_str ptxVal);
-    ENDIF;
-    *)
-    ()
-        
   in    
   MutableSet.iter register_local impfn.local_id_set; 
   gen_block codegen impfn.body; 

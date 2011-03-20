@@ -7,13 +7,14 @@ calc_centroids: {[X;a;k] calc_centroid[X;a] each til k};
 kmeans: { [X;a;k;niters] 
   C: calc_centroids[X;a;k]; 
   do[niters; 
-    b: parakeet_minidx[C] each X; 
-    C: calc_centroids[X;b;k]];
+    a: parakeet_minidx[C] each X; 
+    C: calc_centroids[X;a;k]];
   C }
 
-X: (100 20 30; 40 50 10; 110 30 33; 44 55 11); 
-n: count X;
-k: 2;  
+n: 10000;
+d: 10; 
+k: 1;  
 a: n ? k;
-niters: 4; 
+X: { d ? 100e } each til n; 
+niters: 100; 
 C: kmeans[X;a;k;niters] 

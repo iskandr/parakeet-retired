@@ -694,11 +694,13 @@ class ptx_codegen = object (self)
       textures = DynArray.to_array textures;
     } 
     in
+    (*
     IFDEF DEBUG THEN 
-      Printf.printf "Finalizing PTX kernel: %s\n" 
+      Printf.printf "[ptx_codegen] Finalizing PTX kernel: %s\n" 
         (Ptx.kernel_to_str kernel "???");
       Pervasives.flush_all ()
-    ENDIF; 
+    ENDIF;
+    *) 
     let cc = { 
       PtxCallingConventions.data_locations =    
         Hashtbl.fold 

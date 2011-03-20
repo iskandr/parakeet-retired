@@ -31,6 +31,13 @@ and node = {
     mutable ast_info : ast_info; 
 }
 
+(* FIX: use a better AST_Info without all this local/global nonsense *) 
+let defs node = 
+    PSet.union node.ast_info.defs_local node.ast_info.defs_global
+let uses node = 
+    PSet.union node.ast_info.reads_local node.ast_info.reads_global 
+
+
 let mk_node ?(astInfo=mk_ast_info()) ?(src=SourceInfo.empty) data =
   {data=data; src=src; ast_info = astInfo}
 
@@ -144,6 +151,12 @@ let rec flatten_block ast = match ast.data with
   | _ -> ast   
 
 
+let rec is_void_recursive astNode = match astNode.data with 
+  | Void  
+  | Block [] -> true
+  | Block nodes -> List.for_all is_void_recursive nodes 
+  | _ -> false 
+
 let rec node_to_str ?(inBlock=false) node = 
   match node.data with
   (*| Lam(ids, {data=Block nodes}) -> 
@@ -183,23 +196,26 @@ let rec node_to_str ?(inBlock=false) node =
     let left = if inBlock then "[" else "" in 
     let right = if inBlock then "]" else "" in    
 	  left ^ (args_to_str ~delim:";\n  "  nodes) ^  right 
-    (* special case for if statements which only do something
-       on the true branch 
-    *) 
+     
   | If(test, tNode, fNode) ->
       let testStr = node_to_str test  in 
-      let tStr = node_to_str ~inBlock:true tNode in 
-      let fStr = node_to_str ~inBlock:true fNode in 
-      sprintf "$[%s;%s;%s]" testStr tStr fStr 
+      if is_void_recursive fNode then  
+        (* special case for if statements which only do something
+           on the true branch 
+         *)
+        sprintf "if[%s;%s]" testStr (node_to_str ~inBlock:false tNode)
+      else
+        let tStr = node_to_str ~inBlock:true tNode in
+        let fStr = node_to_str ~inBlock:true fNode in 
+        sprintf "$[%s;%s;%s]" testStr tStr fStr 
   | Void -> "::"
   | WhileLoop (test,body) -> 
       sprintf "while[%s; %s]" 
         (node_to_str ~inBlock:true test) 
-        (node_to_str ~inBlock:true body)
+        (node_to_str ~inBlock:false body)
   | CountLoop (count, body) -> 
       sprintf "do[%s; %s]"
         (node_to_str ~inBlock:true count)
         (node_to_str ~inBlock:true body)
-  | _ -> failwith "no representation for ast node"
 and args_to_str ?(delim="; ") args = 
     String.concat delim (List.map (node_to_str ~inBlock:true) args)
