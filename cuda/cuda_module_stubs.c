@@ -286,7 +286,7 @@ CAMLprim value ocaml_cuda_launch_ptx (
   cudaEventSynchronize(end);
   float td;
   cudaEventElapsedTime(&td, start, end);
-  printf("GPU time for kernel: %f\n", td / 1000.0f);
+  // printf("GPU time for kernel: %f\n", td / 1000.0f);
   cudaEventDestroy(start);
   cudaEventDestroy(end);
 
