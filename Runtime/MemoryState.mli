@@ -18,19 +18,11 @@ val get_gpu : t -> InterpVal.t -> GpuVal.gpu_val
 val get_host : t -> InterpVal.t -> HostVal.host_val 
 val get_scalar : t -> InterpVal.t -> PQNum.num 
 
-val free_gpu : t -> InterpVal.DataId.t -> unit 
-val free_host : t -> InterpVal.DataId.t -> unit 
-
 val slice : t -> InterpVal.t -> int -> InterpVal.t 
 
-(* free identifier on both host and gpu *) 
-val free : t -> InterpVal.DataId.t -> unit 
+val free_gpu : t -> InterpVal.DataId.t -> unit 
+val free_host : t -> InterpVal.DataId.t -> unit  
+val free_all_gpu : t -> unit
+val free : t -> InterpVal.DataId.t -> unit
 
-val free_all_gpu : t -> unit 
-
-val sizeof : t -> InterpVal.t -> int 
-
-(*
-val gpu_transfer_time : t -> InterpVal.t -> int 
-val host_transfer_time : t -> InterpVal.t -> int
-*) 
+val sizeof : t -> InterpVal.t -> int

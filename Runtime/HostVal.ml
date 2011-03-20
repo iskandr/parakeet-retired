@@ -47,31 +47,10 @@ let to_str = function
   | HostBoxedArray _ -> "HostBoxedArray"
 
 
-external c_malloc : int -> Int64.t = "ocaml_malloc"
-external c_free : Int64.t -> unit = "ocaml_free"
-external c_memcpy : Int64.t -> Int64.t -> int -> unit = "ocaml_memcpy"
-
-
-let free h = if DynType.is_vec h.host_t then c_free h.ptr
        
 let mk_host_scalar n = HostScalar n
   
-let mk_host_vec ?nbytes ?len ty shape =
-  let len = match len with None -> Shape.nelts shape | Some len -> len in 
-  let nbytes = match nbytes with 
-    | None ->
-       let eltT = DynType.elt_type ty in 
-       let eltSize = DynType.sizeof eltT in
-       len * eltSize 
-    | Some n -> n 
-  in  
-  let ptr = c_malloc nbytes in
-  {
-    ptr = ptr; 
-    nbytes = nbytes; 
-    host_t = ty; 
-    shape = shape; 
-  }
+
 
 let get_type = function 
   | HostArray { host_t = host_t } -> host_t
@@ -120,26 +99,6 @@ let get_vec_elt hostVec idx =
     | _ -> failwith $ 
        Printf.sprintf "[HostVal->get_vec_elt] cannot get elements of %s"
         (DynType.to_str hostVec.host_t)    
-
-(* slice a host array along its outermost dimension, 
-   assuming everything is stored in row-major 
- *) 
-let get_slice hostVal idx = match hostVal with 
-  | HostScalar _ -> failwith "can't slice a host scalar"
-  | HostArray ({ ptr = ptr; host_t = host_t; shape=shape } as hostArray) -> 
-    let sliceShape = Shape.slice_shape shape [0] in
-    let sliceType = DynType.peel_vec host_t in
-    if DynType.is_scalar sliceType then 
-      get_vec_elt hostArray idx
-    else 
-      let bytesPerElt = DynType.sizeof (DynType.elt_type sliceType) in 
-      let sliceBytes = bytesPerElt * Shape.nelts sliceShape in
-      let slicePtr = Int64.add ptr (Int64.of_int (sliceBytes * idx)) in 
-      let sliceArray =  { 
-        ptr = slicePtr; host_t=sliceType; shape=sliceShape; nbytes=sliceBytes 
-      }
-      in HostArray sliceArray 
-  | HostBoxedArray _ -> assert false 
 
 
 let set_slice array idx elt = match array, elt with 

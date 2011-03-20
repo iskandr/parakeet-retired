@@ -7,7 +7,7 @@ kmeans: { [X;a;k;niters]
     C: ccs[X;a;k]];
   C }
 
-n: 100000;
+n: 1000;
 d: 10;
 k: 2;  
 a: n ? k;
