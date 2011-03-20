@@ -15,6 +15,18 @@ let _ = init ()
 let interpState = StdLib.initState 
 
 let register_untyped_function ~name ~globals ~args astNode =
+  (* FIX: for now, we're reusing the Analyze_AST module used by 
+     the Q preprocessor, 
+     Problems: 
+        - it uses linear-time PSet instead of log-time String.Set
+        - it's slow and poorly implemented
+        - it wastes a lot of time computing sets of volatile 
+          variables which aren't relevant outside the Q preprocessor
+        
+     It does, however, populate the AST info fields with info about 
+     uses and defs later used by AST_to_SSA
+    *) 
+  let _ = Analyze_AST.analyze_ast astNode in  
   let ssaEnv = 
     AST_to_SSA.Env.GlobalScope (InterpState.get_untyped_id interpState)  
   in

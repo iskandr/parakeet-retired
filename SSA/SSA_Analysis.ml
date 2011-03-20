@@ -88,7 +88,7 @@ module MkEvaluator(A : ANALYSIS) = struct
         let tEnv, _ = eval_block env tBlock in 
         let fEnv, _ = eval_block tEnv fBlock in
         eval_phi_nodes fEnv tEnv fEnv merge 
-    | WhileLoop(condBlock, condVal, body, header, exit) ->
+    | WhileLoop(condBlock, condVal, body, header) ->
         if A.iterative then  (
           let maxIters = 100 in
           let iter = ref 0 in
@@ -112,7 +112,7 @@ module MkEvaluator(A : ANALYSIS) = struct
               changed := headerChanged || condChanged || bodyChanged
             )    
           done;
-          eval_phi_nodes ~changed:(!iter > 1) !loopEnv env !loopEnv exit
+          if !iter > 1 then Some !loopEnv  else None 
         )
         else (
           let headerEnv, headerChanged = 
@@ -124,7 +124,7 @@ module MkEvaluator(A : ANALYSIS) = struct
           ignore (A.value condEnv condVal);
           let bodyEnv, bodyChanged = eval_block condEnv body in
           let changed = headerChanged || condChanged || bodyChanged in 
-          eval_phi_nodes ~changed bodyEnv env bodyEnv exit
+          if changed then Some bodyEnv else None 
         )
     | _ -> assert false 
   

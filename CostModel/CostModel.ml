@@ -82,7 +82,7 @@ type cost = float
     | Set(_, rhs) -> 
         let _, cost  = exp_cost fnTable shapeEnv gpuSet rhs in cost, gpuSet
     | SetIdx(_, indices, _) -> float_of_int (List.length indices), gpuSet   
-    | WhileLoop (condBlock, _, body, header, exit) -> 
+    | WhileLoop (condBlock, _, body, header) -> 
         let gpuSet' = phi_nodes gpuSet header in 
         let condCost, condGpuSet = 
           block_cost fnTable shapeEnv gpuSet' condBlock 
@@ -90,9 +90,8 @@ type cost = float
         let bodyCost, bodyGpuSet = 
           block_cost fnTable shapeEnv condGpuSet body 
         in
-        let exitGpuSet = phi_nodes bodyGpuSet exit in 
         let totalCost = condCost +. bodyCost in 
-        totalCost, exitGpuSet  
+        totalCost, bodyGpuSet 
     | If(_, tBlock, fBlock, merge) -> 
         let tCost, tGpuSet = block_cost fnTable shapeEnv gpuSet tBlock in 
         let fCost, fGpuSet = block_cost fnTable shapeEnv tGpuSet fBlock in 

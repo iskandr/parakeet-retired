@@ -19,6 +19,12 @@ module Env = struct
   | LocalScope of (ID.t String.Map.t) * t
   
 
+  let rec mem env name = match env with 
+  | GlobalScope fnLookup -> 
+    (try let _ = fnLookup name in true with _ -> false)
+  | LocalScope (dataMap, parent) -> 
+    String.Map.mem name dataMap || mem parent name 
+
   let add env name id = match env with 
   | GlobalScope _ -> failwith "can't add data binding at global scope"
   | LocalScope (dataMap, parent) -> 
@@ -69,6 +75,11 @@ module Env = struct
 end 
 
 open Env 
+(* FIX: use a better AST_Info without all this local/global nonsense *) 
+let defs node = 
+    PSet.union node.ast_info.defs_local node.ast_info.defs_global
+let uses node = 
+    PSet.union node.ast_info.reads_local node.ast_info.reads_global 
 
 (* value_id is an optional parameter, if it's provided then the generated 
    statements must set retId to the last value 
@@ -82,8 +93,8 @@ let rec translate_stmt
   match node.AST.data with
   | AST.If(cond, trueNode, falseNode) ->
       let condEnv, condVal = translate_value env codegen cond in
-      let tNames = trueNode.ast_info.defs_local in 
-      let fNames = falseNode.ast_info.defs_local in 
+      let tNames =  defs trueNode in 
+      let fNames = defs falseNode in 
       let mergeNames = PSet.to_list $ PSet.union tNames fNames in  
       let mergeIds = ID.gen_fresh_list (List.length mergeNames) in
       let trueCodegen = new SSA_Codegen.ssa_codegen in 
@@ -165,7 +176,7 @@ let rec translate_stmt
       in 
       let bodyCodegen = new SSA_Codegen.ssa_codegen in 
       (* update the body codegen and generate a loop gate *)
-      let header, exit, exitEnv = translate_loop_body env' bodyCodegen body  in
+      let header, exitEnv = translate_loop_body env' bodyCodegen body  in
       (* incremenet counter and add SSA gate for counter to loopGate *)
       bodyCodegen#emit [SSA_Codegen.incr endCounterId startCounterVar];
       
@@ -173,9 +184,9 @@ let rec translate_stmt
         (SSA.mk_phi startCounterId initCounterVar endCounterVar) :: header
       in 
       let condVal = SSA.mk_var condId in 
-      let body = bodyCodegen#finalize in  
+      let ssaBody = bodyCodegen#finalize in  
       codegen#emit [
-        SSA.mk_stmt $ WhileLoop(condBlock, condVal,  body, header', exit)
+        SSA.mk_stmt $ WhileLoop(condBlock, condVal,  ssaBody, header')
         
       ];
       exitEnv 
@@ -188,14 +199,20 @@ let rec translate_stmt
       );
       env'
 and translate_loop_body envBefore codegen body 
-      : SSA.phi_nodes * SSA.phi_nodes * Env.t = 
-  let bodyDefs = body.ast_info.defs_local in
-  let bodyUses = body.ast_info.reads_local in
+      : SSA.phi_nodes * Env.t = 
+  (* FIX: use a better AST_Info without all this local/global junk *) 
+  let bodyDefs = defs body in 
+  let bodyUses = uses body in 
+  
   (* At the end of the loop, 
      what are the IDs of variables which are both read and written to?
   *)
   let overlap : string PSet.t  = PSet.inter bodyDefs bodyUses in
   let overlapList : string list = PSet.to_list overlap in 
+  IFDEF DEBUG THEN 
+        Printf.printf "[AST->SSA] Loop vars: %s\n"
+            (String.concat ", " overlapList)
+  ENDIF; 
   let overlapIds = ID.gen_fresh_list (List.length overlapList) in
   (* give a unique ID to every variable which is both 
      read and modified in the loop body 
@@ -207,34 +224,14 @@ and translate_loop_body envBefore codegen body
   *)  
   let envEnd : Env.t = translate_stmt envOverlap codegen body in
   let mk_header_phi name = 
-    let prevId = lookup_id envBefore name in
+    let prevId = lookup_id envBefore name in 
     let loopStartId = lookup_id envOverlap name in
     let loopEndId = lookup_id envEnd name in
     SSA.mk_phi loopStartId (SSA.mk_var prevId) (SSA.mk_var loopEndId)  
   in      
-  let loopHeader = List.map mk_header_phi overlapList in
-  (* create the final environment after the loop exit block has executed *)
-  let loopExitBuffer = DynArray.create () in       
-  let loop_exit_folder exitEnv name = 
-      (* what ID does this var have at the end of the loop? *) 
-      let loopId = lookup_id envEnd name in 
-      (* if ID wasn't defined , then have to merge outputs *) 
-      let prevId = 
-        match lookup_id_opt envBefore name with 
-        | None -> assert false (*ID.undefined*)   
-        | Some prevId -> prevId
-      in 
-      let freshId = ID.gen() in
-      DynArray.add 
-        loopExitBuffer 
-        (SSA.mk_phi freshId (SSA.mk_var loopId) (SSA.mk_var prevId))
-      ;
-      Env.add exitEnv name freshId  
-  in   
-  let envExit = 
-    List.fold_left loop_exit_folder envBefore (PSet.to_list bodyDefs) 
-  in
-  loopHeader, DynArray.to_list loopExitBuffer, envExit 
+  let needsPhi = List.filter (mem envBefore) overlapList in     
+  let loopHeader = List.map mk_header_phi needsPhi in
+  loopHeader , envOverlap
   
 and translate_block env codegen ?value_id = function 
   | [] -> env

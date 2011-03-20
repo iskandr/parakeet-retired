@@ -3,160 +3,166 @@ open AST
 open Prim
 open Printf
 
+(* analysis used with preprocess *) 
+
 let _ = Printexc.record_backtrace true 
 
 type scope_info = { 
-  volatile_local : string PSet.t; 	 
-	volatile_global : string PSet.t;
-	locals : string PSet.t; 
-  maybe_locals : string PSet.t; 
+    volatile_local : string PSet.t; 	 
+    volatile_global : string PSet.t;
+    locals : string PSet.t; 
 }
 
 let combine_scope_info s1 s2 = { 
-			volatile_local = PSet.union s1.volatile_local s2.volatile_local; 
-		  volatile_global = PSet.union s1.volatile_global s2.volatile_global; 
-			locals = PSet.union s1.locals s2.locals;
-      maybe_locals = PSet.union s1.maybe_locals s2.maybe_locals; 
+    volatile_local = PSet.union s1.volatile_local s2.volatile_local; 
+	volatile_global = PSet.union s1.volatile_global s2.volatile_global; 
+	locals = PSet.union s1.locals s2.locals;
 }
 
 let emptyScopeInfo = {
-   volatile_local = PSet.empty; 
-   volatile_global = PSet.empty; 
-   locals = PSet.empty;
-   maybe_locals = PSet.empty
+    volatile_local = PSet.empty; 
+    volatile_global = PSet.empty; 
+    locals = PSet.empty;
 }
 
 let (++) = PSet.union 
 let (<+>) = combine_ast_info 
 
 
-(* annotates ast_info fields of all ast nodes, and returns a *)
-(* set of volatile var names from the outermost scope *)
-let analyze_ast ast = 
-	let rec fold_block ~inFunction scopeInfo blockInfo = function  
-		| [] -> scopeInfo, blockInfo 
-		| node::nodes -> 
-				let scopeInfo' = aux ~inFunction scopeInfo node in
-				let blockInfo' = node.ast_info <+> blockInfo in  
-				fold_block ~inFunction scopeInfo' blockInfo' nodes 				 
-  and aux ~inFunction scopeInfo node =
-    let analyze_block nodes = 
-      let emptyBlockInfo = mk_ast_info () in 
-      let scopeInfo', blockInfo =
-        fold_block ~inFunction scopeInfo emptyBlockInfo nodes 
-      in 
-      node.ast_info <- blockInfo; 
-      scopeInfo'          
-    in      
-		match node.data with  
-		| Lam (ids, body) ->
-       node.ast_info.is_function <- true; 
-       node.ast_info.defs_local <- PSet.from_list ids; 
-       if inFunction then 
-         node.ast_info.nested_functions <- true;
-       let fnScopeInfo = 
-          { emptyScopeInfo with locals = PSet.from_list ids; } in 
-        let fnScopeInfo' = aux fnScopeInfo ~inFunction:true body in
+let rec fold_block ~inFunction scopeInfo blockInfo = function  
+    | [] -> scopeInfo, blockInfo 
+	| node::nodes -> 
+		let scopeInfo' = analyze_node ~inFunction scopeInfo node in
+		let blockInfo' = node.ast_info <+> blockInfo in  
+		fold_block ~inFunction scopeInfo' blockInfo' nodes 
+
+and analyze_block ~inFunction scopeInfo nodes = 
+    let emptyBlockInfo = mk_ast_info () in 
+    fold_block ~inFunction scopeInfo emptyBlockInfo nodes 
+
+and analyze_node ~inFunction scopeInfo node = match node.data with  
+    | Lam (ids, body) ->
+        node.ast_info.is_function <- true; 
+        node.ast_info.defs_local <- PSet.from_list ids; 
+        if inFunction then 
+            node.ast_info.nested_functions <- true
+        ;
+        let initScopeInfo = 
+            { emptyScopeInfo with locals = PSet.from_list ids} 
+        in 
+        let bodyScopeInfo = analyze_node initScopeInfo ~inFunction:true body in
         node.ast_info <- node.ast_info <+> body.ast_info;
-        { scopeInfo with volatile_global = 
-            PSet.union scopeInfo.volatile_global fnScopeInfo'.volatile_global 
+        let bodyVolatile = bodyScopeInfo.volatile_global in             
+        { scopeInfo with 
+            volatile_global = PSet.union scopeInfo.volatile_global bodyVolatile
         }
     
     | CountLoop (a,b) 
-    | WhileLoop (a,b) -> analyze_block [a;b]  
-            
- 		| Arr nodes  
-		| Block nodes -> analyze_block nodes 
-        
+    | WhileLoop (a,b) ->
+        let bodyScopeInfo, bodyAstInfo = 
+            analyze_block ~inFunction scopeInfo [a;b]
+        in 
+        node.ast_info <- bodyAstInfo; 
+        bodyScopeInfo 
+
+    | Arr nodes  
+	| Block nodes -> 
+        let scopeInfo', astInfo' = analyze_block ~inFunction scopeInfo nodes in 
+        node.ast_info <- astInfo';
+        scopeInfo' 
+
     | If(test, tNode, fNode) ->
-				let testInfo = aux ~inFunction scopeInfo test in
-				let tScopeInfo = aux ~inFunction testInfo tNode in
-				let fScopeInfo = aux ~inFunction testInfo fNode in 
-				node.ast_info <- test.ast_info <+> tNode.ast_info <+> fNode.ast_info;
-        { volatile_local = 
-            PSet.union tScopeInfo.volatile_local fScopeInfo.volatile_local;
-          volatile_global = 
-            PSet.union tScopeInfo.volatile_global fScopeInfo.volatile_global;
-          locals = PSet.inter tScopeInfo.locals fScopeInfo.locals;
-          maybe_locals = PSet.empty       
-		    }
-		| App (fn,args) -> 
-     
+        let testInfo = analyze_node ~inFunction scopeInfo test in
+        let tScopeInfo = analyze_node ~inFunction testInfo tNode in
+    	let fScopeInfo = analyze_node ~inFunction testInfo fNode in 
+        let combinedAstInfo = 
+            test.ast_info <+> tNode.ast_info <+> fNode.ast_info
+        in 
+    	node.ast_info <- combinedAstInfo; 
+        { 
+            volatile_local = 
+                PSet.union tScopeInfo.volatile_local fScopeInfo.volatile_local;
+            volatile_global = 
+                PSet.union tScopeInfo.volatile_global fScopeInfo.volatile_global;
+            locals = PSet.inter tScopeInfo.locals fScopeInfo.locals;      
+        }
+    | App (fn,args) -> 
         let emptyArgsInfo = mk_ast_info () in
-				let scopeInfo', argsInfo = 
-          fold_block ~inFunction scopeInfo emptyArgsInfo (List.rev args) in
-        
-        let scopeInfo'' = aux ~inFunction scopeInfo' fn in
+        let scopeInfo', argsInfo = 
+            fold_block ~inFunction scopeInfo emptyArgsInfo (List.rev args) 
+        in
+        let scopeInfo'' = analyze_node ~inFunction scopeInfo' fn in
         node.ast_info <- fn.ast_info <+> argsInfo;
         (* 
-          HACK: 
+          IMPORTANT!!! 
           for now assume function calls don't produce functions 
-        *)
+         *)
         node.ast_info.is_function <- false; 
-        
-        
-				scopeInfo'' 
-				
-    | SetIdx (name, indices, rhs) -> 
-        let scopeInfo2 = aux ~inFunction scopeInfo rhs in 
-        let emptyIdxInfo = mk_ast_info () in
-        let scopeInfo3, idxInfo = 
-          fold_block ~inFunction scopeInfo2 emptyIdxInfo indices in
-        
-        node.ast_info <- idxInfo <+> rhs.ast_info;
-        if PSet.mem name scopeInfo3.locals then
-          begin 
-            node.ast_info.writes_local <- PSet.add name 
-                                            node.ast_info.writes_local;
-            { scopeInfo3 with 
-              volatile_local = PSet.add name scopeInfo3.volatile_local 
-            } 
-          end    
-        else begin 
-          node.ast_info.writes_global <- PSet.add name 
-                                           node.ast_info.writes_global;
-          { scopeInfo3 with 
-              volatile_global = PSet.add name scopeInfo3.volatile_global } 
-        end
+        scopeInfo'' 
+
+    (* SetIdx is deprecated, will soon be phased out of SSA*) 				
+    | SetIdx (name, indices, rhs) -> assert false
+(*            let scopeInfo2 = aux ~inFunction scopeInfo rhs in 
+            let emptyIdxInfo = mk_ast_info () in
+            let scopeInfo3, idxInfo = 
+            fold_block ~inFunction scopeInfo2 emptyIdxInfo indices in
+            node.ast_info <- idxInfo <+> rhs.ast_info;
+            if PSet.mem name scopeInfo3.locals then
+                let locals' = PSet.add name node.ast_info.writes_local in 
+                ( 
+                    node.ast_info.writes_local <- locals'; 
+                    { scopeInfo3 with 
+                        volatile_local = PSet.add name scopeInfo3.volatile_local 
+                    }
+                ) 
+            else
+               let locals' = PSet.add name node.ast_info.writes_global in  
+               (
+                  node.ast_info.writes_global <- locals';
+                  { scopeInfo3 with 
+                    volatile_global = PSet.add name scopeInfo3.volatile_global 
+                  } 
+               )
+*)
     | Var name ->
-      let isLocal = PSet.mem name scopeInfo.locals in 
-      (* printf "Analyze_AST: [var] %s, local? %B \n" name isLocal; *)  
-       if inFunction &&  isLocal then 
-        node.ast_info.reads_local <- PSet.add name node.ast_info.reads_local
-      else 
-        node.ast_info.reads_global <- PSet.add name node.ast_info.reads_global
-      ;
-      scopeInfo
+        let isLocal = PSet.mem name scopeInfo.locals in 
+        if inFunction &&  isLocal then 
+          node.ast_info.reads_local <- PSet.add name node.ast_info.reads_local
+        else 
+          node.ast_info.reads_global <- PSet.add name node.ast_info.reads_global
+        ;
+        scopeInfo
                     
     | Def (name, rhs) ->      
-      let scopeInfo' = aux ~inFunction scopeInfo rhs in 
-      node.ast_info <- rhs.ast_info;
-      begin if inFunction then 
-        node.ast_info.defs_local <-  PSet.add name node.ast_info.defs_local
-      else 
-        node.ast_info.defs_global <- PSet.add name node.ast_info.defs_global
-      end;
-      if PSet.mem name scopeInfo'.locals then (  
+        let scopeInfo' = analyze_node ~inFunction scopeInfo rhs in 
+        node.ast_info <- rhs.ast_info;
+        begin if inFunction then 
+            node.ast_info.defs_local <-  PSet.add name node.ast_info.defs_local
+        else 
+            node.ast_info.defs_global <- PSet.add name node.ast_info.defs_global
+        end;
+        if PSet.mem name scopeInfo'.locals then (  
         node.ast_info.writes_local <- PSet.add name node.ast_info.writes_local;
         { scopeInfo' with 
-            volatile_local = PSet.add name scopeInfo'.volatile_local }
-      ) 
-			else 
-        { scopeInfo' with locals = PSet.add name scopeInfo'.locals } 
-    
-   
+            volatile_local = PSet.add name scopeInfo'.volatile_local 
+        }
+        ) 
+      else { scopeInfo' with locals = PSet.add name scopeInfo'.locals }    
     | Prim op ->
-         (if not $ is_pure_op op then 
-           node.ast_info.io <- true); 
-         scopeInfo 
-
+        if not $ is_pure_op op then node.ast_info.io <- true; scopeInfo 
     | Sym _ 
     | Str _ 
     | Num _ 
-    | Void -> scopeInfo 
-	in 
-  let finalScopeInfo = aux ~inFunction:false emptyScopeInfo ast in 
+    | Void -> scopeInfo  
+
+
+
+(* annotates ast_info fields of all ast nodes, and returns a *)
+(* set of volatile var names from the outermost scope *)
+let analyze_ast ast = 
+  let finalScopeInfo = analyze_node ~inFunction:false emptyScopeInfo ast in 
   PSet.union finalScopeInfo.volatile_local finalScopeInfo.volatile_global
+	
   
 let collect_defs ast = 
   let rec fold_block lastNode defs  = function 
@@ -245,14 +251,11 @@ let find_safe_functions globalFnMap volatileFnSet =
       else iterate safe' unsafe' 
     in 
     (* a function is very obviously unsafe if it performs I/O or writes to 
-       a global variable, or FOR NOW, writes to a local variable 
+       a global variable
     *) 
     let simple_filt info = 
       info.io || 
       not (PSet.is_empty info.writes_global) 
-      (*|| 
-      not (PSet.is_empty info.writes_local)
-      *)
     in
     let simpleUnsafe, simpleSafe = 
       Tuple.map2 (fun set ->PSet.of_enum (PMap.keys set)) 

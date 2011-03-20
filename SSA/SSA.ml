@@ -51,7 +51,7 @@ type stmt =
   | SetIdx of ID.t * value_nodes * value_node
   | If of value_node * block * block * phi_nodes
   (* testBlock, testVal, body, loop header, loop exit *)  
-  | WhileLoop of block * value_node * block * phi_nodes * phi_nodes 
+  | WhileLoop of block * value_node * block * phi_nodes 
 and stmt_node = { 
     stmt: stmt;
     stmt_src: SourceInfo.t option;
@@ -215,7 +215,7 @@ and stmt_node_to_str ?(space="") ?(tenv=ID.Map.empty) stmtNode =
       Printf.sprintf "If (%s)\n%s\n%s\n%s" 
          (value_node_to_str cond) tStr fStr mergeStr 
       
-  | WhileLoop (testBlock, testVal, body, header,exit) ->
+  | WhileLoop (testBlock, testVal, body, header) ->
       let space' =  "\t"^space in 
       let headerStr =
         Printf.sprintf "%s  <Header>:\n%s"
@@ -230,23 +230,16 @@ and stmt_node_to_str ?(space="") ?(tenv=ID.Map.empty) stmtNode =
           space
           (value_node_to_str testVal)
       in 
-      let exitStr =
-        Printf.sprintf "%s  <Exit>:\n%s"
-          space 
-          (phi_nodes_to_str ~space:space' exit)
-      in  
       let bodyStr = 
         Printf.sprintf "%s  <Body>:%s" 
           space 
           (block_to_str ~space:space' ~tenv body)
       in 
           
-      Printf.sprintf "while\n%s\n%s\n%s\n%s"
+      Printf.sprintf "while\n%s\n%s\n%s\n"
         headerStr
         loopTestStr
         bodyStr 
-        exitStr
-       
   in space ^ str
 
 let fundef_to_str (fundef:fundef) = 

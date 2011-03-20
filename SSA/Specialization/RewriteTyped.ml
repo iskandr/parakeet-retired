@@ -272,14 +272,13 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
         in 
         collect_coercions stmtNode' 
 
-    | WhileLoop(testBlock, testVal, body, header, exit) -> 
+    | WhileLoop(testBlock, testVal, body, header) -> 
         let body' = transform_block body in
         let testBlock' = transform_block testBlock in
         let testVal' = coerce_value DynType.BoolT testVal in  
         let header' = rewrite_phi_nodes header in 
-        let exit' = rewrite_phi_nodes exit in
         let stmtNode' =  { stmtNode with 
-            stmt =WhileLoop(testBlock', testVal', body', header', exit')
+            stmt =WhileLoop(testBlock', testVal', body', header')
         }
         in collect_coercions stmtNode' 
         

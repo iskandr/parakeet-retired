@@ -78,16 +78,7 @@ module SimplifyRules = struct
             Update (SSA.mk_set ?src:stmtNode.stmt_src ids expNode)
         | _ -> NoChange  
       end
-    | SSA.WhileLoop (testBlock, testVal, body, header, exit) -> NoChange  
-      
-    (* 
-      begin match test.test_value.value with 
-        | Num PQNum.Bool false -> 
-            (* leave the condBlock for potential side effects, *)
-            (* get rid of loop *) 
-            UpdateWithBlock (SSA.empty_stmt, test.test_block)
-        | _ -> NoChange
-      end*)     
+    | WhileLoop (testBlock, testVal, body, header) -> NoChange  
     | _ -> NoChange 
   
   let exp cxt expNode = NoChange 

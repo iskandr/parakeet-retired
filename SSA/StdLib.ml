@@ -183,7 +183,7 @@ let minidx = mk_fn 2 1 15 $ fun inputs outputs locals ->
     [minDist_init] := value inf; 
     [minIdx_init] := value zero;
     [n] := len c;
-    SSA.mk_stmt $ SSA.WhileLoop(testBlock, test, body, header, [])
+    SSA.mk_stmt $ SSA.WhileLoop(testBlock, test, body, header)
   ]    
       
       

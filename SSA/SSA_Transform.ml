@@ -246,17 +246,16 @@ module Mk(R: SIMPLE_TRANSFORM_RULES) = struct
       if changed() then 
         { stmtNode with stmt = If(cond', tBlock', fBlock', merge')  }
       else stmtNode  
-    | WhileLoop (testBlock, testVal, body, header, exit) ->
+    | WhileLoop (testBlock, testVal, body, header) ->
       let testBlock', testChanged = transform_block cxt testBlock in
       if testChanged then sub_block_changed ();
       let testVal' = transform_value blockState cxt testVal in  
       let bodyBlock', bodyChanged = transform_block cxt body in
       if bodyChanged then sub_block_changed ();
       let header' = transform_phi_list blockState cxt header in 
-      let exit' = transform_phi_list blockState cxt exit in 
       if changed() then
         { stmtNode with 
-            stmt= WhileLoop(testBlock', testVal', bodyBlock', header', exit')
+            stmt= WhileLoop(testBlock', testVal', bodyBlock', header')
         }
       else stmtNode 
     in

@@ -75,7 +75,7 @@ module Mk(P : EVAL_PARAMS) = struct
       let env' = eval_block env (if cond then tBlock else fBlock) in 
       eval_phi_nodes cond env'  phiNodes
       
-    | WhileLoop (testBlock, testVal, body, header, exit) ->
+    | WhileLoop (testBlock, testVal, body, header) ->
       let headerEnv = eval_phi_nodes true env header in 
       let testEnv = eval_block headerEnv testBlock in 
       let cond = ref (eval_value testEnv testVal) in
@@ -88,7 +88,7 @@ module Mk(P : EVAL_PARAMS) = struct
         loopEnv := eval_block !loopEnv testBlock; 
         cond := eval_value !loopEnv testVal
       done; 
-      eval_phi_nodes (!niters = 0) !loopEnv exit  
+      !loopEnv
          
 and eval_exp (env : env) (expNode : SSA.exp_node) : InterpVal.t list = 
   match expNode.exp with 

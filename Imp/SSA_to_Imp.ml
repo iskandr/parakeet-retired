@@ -18,12 +18,14 @@ module MkTranslator(P : PARAMS) = struct
     (* TODO: make this actually work with non-trivial expressions *)
 		let get_shape (expNode : Imp.exp_node) = match expNode.exp with  
 		  | Imp.Var id ->
-		      try ID.Map.find id P.sizeEnv with 
-		        | _ -> failwith $ 
+            (
+		      try ID.Map.find id P.sizeEnv 
+              with  _ -> failwith $ 
 		          Printf.sprintf  
 		            "Can't find shape for Imp variable %s : %s"
 		            (ID.to_str id)
 		            (DynType.to_str expNode.exp_type) 
+             )
 		  | _ -> SymbolicShape.scalar
 		
 		let translate_value valNode = 
@@ -74,8 +76,6 @@ module MkTranslator(P : PARAMS) = struct
             failwith "[ssa->imp] Vector indexing not implement" 
                
 		  | SSA.PrimApp (Prim.ArrayOp Prim.Find, [inArray; elToFind]) -> 
-		    let arrT = inArray.SSA.value_type in 
-		    let valT = elToFind.SSA.value_type in 
 		    let inArray' = translate_value inArray in
 		    let elToFind' = translate_value elToFind in
 		    let i = P.fnState#fresh_var Int32T in
@@ -204,7 +204,6 @@ module MkTranslator(P : PARAMS) = struct
       codeBuffer#emit [set (var ~t impId) rhs]
     
     let translate_phi_branch codeBuffer chooseLeft phiNode = 
-      let id = phiNode.SSA.phi_id in 
       let impId = get_id phiNode.SSA.phi_id in
       let impVal = 
         if chooseLeft then 
@@ -253,7 +252,7 @@ module MkTranslator(P : PARAMS) = struct
             (Imp.If(testVal', tBuffer#to_block, fBuffer#to_block)) 
           ]; 
           translate_phi_nodes codeBuffer testVal' phiNodes
-		  | SSA.WhileLoop(testBlock, testVal, body, header, exit) ->
+      | SSA.WhileLoop(testBlock, testVal, body, header) ->
           (* first translate only the lhs assignments of the phi nodes, 
              since we are entering the loop 
           *)
@@ -281,7 +280,6 @@ let rec translate_fundef fnTable fn =
     
   let fnState = new ImpCodegen.fn_state in
   let inputTypes = fn.SSA.fn_input_types in 
-  let outputTypes = fn.SSA.fn_output_types in
   (* first generate imp ids for inputs, to make sure their order is preserved *)
   let add_input env id t = 
     let impId = fnState#fresh_input_id t in 

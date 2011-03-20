@@ -115,10 +115,10 @@ module CostAnalysis(P:COST_ANALYSIS_PARAMS) = struct
         Some { env with cost = Imp.max_simplify tEnv.cost fEnv.cost } 
         
      (* testBlock, testVal, body, loop header, loop exit *)  
-    | WhileLoop (testBlock, testVal, body, header, exit) ->
+    | WhileLoop (testBlock, testVal, body, header) ->
         (* for now assume only one loop iteration occurs *)  
         let testEnv, _ = helpers.eval_block env testBlock in 
-        let bodyEnv, _ = helpers.eval_block env body in 
+        let bodyEnv, _ = helpers.eval_block testEnv body in 
         Some bodyEnv 
 end
 
