@@ -1,4 +1,4 @@
-f:{[X;a;k] kmeans[X;a;k]}
+f:{[X;a;k] parakeet_kmeans[X;a;k]}
 d: 10; 
 n: 12048; 
 k: 3; 
