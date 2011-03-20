@@ -32,14 +32,22 @@
 {\sc Buck, I., Foley, T., Horn, D., Sugerman, J., Fatahalian, K., Houston, M.,
   and Hanrahan, P.}
 \newblock Brook for {GPU}s: stream computing on graphics hardware.
-\newblock In {\em ACM SIGGRAPH 2004 Papers\/} (New York, NY, USA, 2004),
-  SIGGRAPH '04, ACM, pp.~777--786.
+\newblock In {\em ACM SIGGRAPH 2004 Papers\/} (New York, NY, USA, 2004), ACM,
+  pp.~777--786.
 
 \bibitem{Cata10}
 {\sc Catanzaro, B., Garland, M., and Keutzer, K.}
 \newblock Copperhead: Compiling an embedded data parallel language.
 \newblock Tech. Rep. UCB/EECS-2010-124, EECS Department, University of
   California, Berkeley, Sep 2010.
+
+\bibitem{Chaf11}
+{\sc Chafi, H., Sujeeth, A.~K., Brown, K.~J., Lee, H., Atreya, A.~R., and
+  Olukotun, K.}
+\newblock A domain-specific approach to heterogeneous parallelism.
+\newblock In {\em Proceedings of the 16th ACM Symposium on Principles and
+  Practice of Parallel Programming\/} (New York, NY, USA, 2011), ACM,
+  pp.~35--46.
 
 \bibitem{ChakAcc}
 {\sc Chakravarty, M.~M., Keller, G., Lee, S., McDonnel, T.~L., and Grover, V.}

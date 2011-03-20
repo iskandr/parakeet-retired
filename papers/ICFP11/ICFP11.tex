@@ -13,9 +13,7 @@
 \preprintfooter{ICFP 2011}
 \titlebanner{DRAFT---Do not distribute}
 
-\title{Parakeet: Fast GPU Programming with Array Languages} 
-% EDIT: old title was a bit wordy, looked gross, and "high level" is redundant if someone even glances at our abstract. 
-%  --- General Purpose GPU Programming with High Level ArrayLanguages}
+\title{Parakeet: Automatic GPU Acceleration of Dynamic Array Languages}
 
 \authorinfo{Alex Rubinsteyn}{alexr@cs.nyu.edu}{New York University}
 \authorinfo{Eric Hielscher}{hielscher@cs.nyu.edu}{New York University}
@@ -67,25 +65,24 @@ xleftmargin=20pt,
 \begin{abstract}
 Contemporary GPUs offer staggering performance potential, which has led to an explosion in recent work on enabling the execution of general-purpose programs on GPUs. Despite various advances in making general-purpose GPU programming easier, the two commonly used frameworks (OpenCL and NVIDIA's CUDA) are cumbersome and require detailed architectural knowledge on the part of the programmer to fully harness this performance potential.
 
-We aim to enable more widespread general purpose use of GPUs via the following observation. GPUs have been optimized for data parallel workloads. Array-oriented programming encourages the use of data parallel array operators (e.g.\ map, reduce, and scan) and discourages the use of explicit loops. Thus, array-oriented programming languages constitute a natural model for high level programming of GPUs.
+We aim to enable general purpose use of GPUs by observing that GPUs have been optimized for data parallel workloads. Array-oriented programming encourages the use of data parallel array operators (e.g.\ map, reduce, and scan) and discourages the use of explicit loops. Thus, array-oriented programming languages constitute a natural model for high level GPU programming.
 
-We present Parakeet, an intelligent runtime for executing high level array-oriented programs on GPUs.  The heart of Parakeet is an interpreter, which upon reaching an array operator synthesizes and executes a GPU program to implement that operator. Parakeet takes advantage of runtime information both to choose between different possible implementations of a GPU program and to set execution parameters which greatly impact performance. Data is moved transparently to and from the GPU, and garbage collected when no longer needed.
+We present Parakeet, an intelligent runtime and JIT compiler for high level array-oriented programs that transparently takes advantage of GPUs as accelerators.  The heart of Parakeet is an interpreter, which upon reaching an array operator can automatically synthesize and execute a GPU program to implement that operator. Parakeet uses runtime information to: (1) decide where (CPU or GPU) to execute an array operator; (2) choose between different possible implementations of a GPU program; and (3) set execution parameters that greatly impact performance.
 
-We evaluate our system on two standard benchmarks: Black-Scholes option pricing, and K-Means clustering.  We compare high level array-oriented implementations to hand-written tuned GPU versions from the CUDA SDK and the Rodinia GPU benchmark suite. Despite having orders of magnitude less code, the high level versions perform competitively when executed by Parakeet.
+We evaluate Parakeet on two standard benchmarks: Black-Scholes option pricing, and K-Means clustering.  We compare high level array-oriented implementations to hand-written, tuned GPU versions from the CUDA SDK and the Rodinia GPU benchmark suite. Despite having orders of magnitude less code, the high level versions perform competitively when executed by Parakeet.
 \end{abstract}
 
 \section{Introduction}
 \label{Intro}
 
-Contemporary GPUs boast massive performance potential -- in some cases orders of magnitude higher performance per dollar than that of CPUs -- and most desktop systems today come with graphics processors.  This has led to excellent recent work on enabling the execution of general-purpose programs on GPUs (GPGPU)~\cite{Cata10,Main10,Muns10,NvidCU,Sven08,Tard06}. Unfortunately, the two widely used GPGPU frameworks -- NVIDIA's CUDA \cite{NvidCU} and OpenCL \cite{Muns10} -- require the programmer to have extensive knowledge of low level architectural details in order to fully harness the performance potential.
+Contemporary GPUs boast massive performance potential -- in some cases orders of magnitude higher performance per dollar than that of CPUs -- and most desktop systems today come with graphics processors.  This has led to much interesting work on enabling the execution of general-purpose programs on GPUs (GPGPU)~\cite{Cata10,Main10,Muns10,NvidCU,Sven08,Tard06}. Unfortunately, the two widely used GPGPU frameworks -- NVIDIA's CUDA \cite{NvidCU} and OpenCL \cite{Muns10} -- require the programmer to have extensive knowledge of low level architectural details in order to fully harness the performance potential.
 
 % Enable programmers to write GPGPU programs in productivity language
 Our goal is to lower the barrier to GPGPU programming by allowing programmers to write in high level array languages that are transparently compiled into efficient GPU programs. By ``array language'' we mean any language equipped with:
 \begin{enumerate}
 \item First-class array values.
 \item Succinct syntax for array creation/transformation.
-\item Idiomatic preference for bulk array operations instead of explicit loops
-(``collection-oriented''~\cite{Sip91} programming).
+\item Idiomatic preference for bulk array operations over explicit loops (``collection-oriented''~\cite{Sip91} programming).
 \end{enumerate}
 
 % Existing Array languages
@@ -95,10 +92,10 @@ Array operations are higher level than explicit loops and thus tend to be easier
 In this paper, we present Parakeet, an intelligent runtime for executing high level array programs on GPUs. Parakeet dynamically compiles and specializes user functions via a typed intermediate language.  The Parakeet interpreter then executes the program, using a simple cost model to decide whether to run operations on the CPU or GPU.  For the GPU case, it transparently executes array operations by synthesizing and launching GPU kernels as needed.
 
 % Dynamic, interactive languages used by scientific programmers = our target audience
-A key target audience of Parakeet is scientific programmers.  Scientists often use computers as tools, with their focus not being computer science per se. It is common for them to run computational experiments that are extrememly time consuming and operate on huge data inputs -- codes which are natural candidates for GPU acceleration. However, it is highly preferable for them not to have to learn specialized tools like CUDA in order to take advantage of new hardware.  In addition, dynamic and interactive languages such as Matlab are very popular as they allow for rapid prototyping of algorithms.  Our goal is to enable the use of such languages not only for prototyping, but production execution as well.
+A key target audience of Parakeet is scientific programmers. It is common for them to run computational experiments that are extrememely time consuming and operate on huge data inputs -- codes which are natural candidates for GPU acceleration. However, it is highly preferable for them not to have to learn specialized tools like CUDA in order to take advantage of new hardware.  In addition, dynamic and interactive languages such as Matlab are very popular as they allow for rapid prototyping of algorithms.  Our main goal is to enable the use of such languages not only for prototyping, but production execution as well.
 
 % Q front-end, agnosticism
-We have implemented our first Parakeet front end for Q \cite{Borr08}, a descendant of APL that is widely used in financial computing. Q is a nearly ``pure'' array language -- its idiomatic style makes sparser use of loops than even Matlab or NumPy -- and is thus a natural first choice. We are also finishing work on a front end for Python's NumPy extensions.
+We have implemented our first Parakeet front end for Q \cite{Borr08}, a descendant of APL that is widely used in financial computing. Q is a nearly ``pure'' array language -- its idiomatic style makes sparser use of loops than even Matlab or NumPy -- and is thus a natural first choice. Parakeet is designed to be front end language agnostic, and we are nearly finished with a front end for Python's NumPy.
 
 % Bullet-point, drive-home contributions
 The main contributions of this paper are the following:
@@ -118,25 +115,33 @@ The main contributions of this paper are the following:
 \label{fig:overview}
 \end{figure*}
 \section{Overview}
+\label{overview}
 
+As mentioned, a key target audience for Parakeet is scientific programmers. In general, the target audience includes the large majority of programmers who aren't specialists in tuning low level code to get peak performance.  The goal for Parakeet is to enable these programmers nonetheless to take advantage of the acceleration potential of GPUs by automating some the steps of the process that require highly specialized knowledge.
 
-%Overview
-The pipeline of the execution of a program (shown in Figure \ref{fig:overview}) begins in the standard interpreter of the source array language.  The Parakeet framework is attached to the source language's
-interpreter as a module, allowing the user to exploit all of the language's normal tools and support libraries.  The core of the Parakeet framework is its internal typed intermediate langauge and an interpreter provided for that language. This IL includes data parallel array operators such as \textbf{map}, \textbf{reduce}, and \textbf{scan} that translate well into efficient data parallel GPU programs (a full table of the supported operators can be found in Figure \ref{ArrayOps}).
+At present, a typical usage pattern in scientific computing is to prototype an algorithm in a high level interactive language such as Matlab due to the ease of rapid exploration of the problem domain in such an environment.  Then, since run times for these programs are often on the order of hours or days, it is often necessary for performance performance reasons to port them to a high performance language such as C or CUDA.  Beyond the need for specialized high performance programming skills, a problem with this procedure  lies in the disconnect between the environment for domain exploration and the environment in which real results can be derived as it greatly hinders productivity.
 
-Execution of a program proceeds as normal in the source language's interpreter, with Parakeet intercepting function calls.  The source of these functions is then translated into an untyped intermediate representation using the Parakeet front end interface and the source language's facilities for introspection. At this step, various standard compiler optimizations are applied to the Parakeet IL representation such as common subexpression elimination.
+Our thesis is that if we can JIT compile and transparently accelerate the critical paths algorithms written in array-oriented languages, the best of both worlds can be brought together -- viz., the ease of exploration of the dynamic, interactive environment and the speed of the optimized program versions. A key constraint in such a setup is keeping JIT compilation overheads low enough so as not to impair the interactivity of the source language environment.  It has been shown in the pioneering JIT work by Chambers~\cite{Cham92} that in such scenarios the key psychological barrier for compilation overhead is roughly on the order of less than half a second: if overheads are kept below this threshold, the programmer doesn't notice them.  Since our JIT costs are negligible in comparison with the run times of the large scientific codes, we feel it is reasonable to expect programmers to pay them in return for the resultant large runtime speedups so long as the JIT costs don't slow down their workflow.
 
-When a call is made to such an intercepted function, the untyped function body is type specialized according to its argument types.  Further standard optimizations are performed at this stage, as well as an optimization we call \emph{array operator fusion}.  Here, nested array operators are fused according to various rewriting rules into fewer operators. This fusion step can be extremely beneficial to the final GPU program's performance, because it eliminates temporaries and therefore achieves more efficient use of GPU memory bandwidth.
+\subsection{Execution Pipeline}
+\label{executionpipeline}
 
-Next, the Parakeet interpreter interprets the typed IL version of the function.  When Parakeet reaches an array operator node in the code tree, it employs a simple cost-based heuristic (which includes things such as data size and memory transfer costs) to decide whether to execute that array operator on the GPU or CPU (more about the specifics of the cost model can be found in Section \ref{costmodel}).  Some code simply cannot be efficiently translated into GPU programs (such as that which performs I/O or modifies global state), and such code is kept on the CPU. In the case where Parakeet executes the operator on the CPU, the operator is either (1) translated into an IL implementation and then further interpreted by Parakeet; or (2) executed by the source language's interpreter. In this way, we are able to support the entire source language by simply deferring to its interpreter all computation we don't wish to perform or don't yet support. The Parakeet interpreter's execution of IL code hasn't been heavily optimized as of yet -- our effort has been focused on the generation of efficient GPU kernels.  This is reasonable for now, as its IL is very dense since array operators express large computations very concisely.
+The program execution pipeline for our system (shown in Figure \ref{fig:overview}) begins in the standard interpreter of the source array language.  Parakeet is designed as an accelerator library for dynamic, interpreted array languages, and is attached to the source language's interpreter via the interpreter's plugin interface. This allows the user to continue to use all of the language's normal tools and support libraries.
 
-If an array operator's computation is deemed a good candidate for GPU execution, Parakeet flattens all computations nested within that operator into sequential loops.  This payload is then inlined into a GPU
-program skeleton that implements that operator.  For example, in the case of a \textbf{map}, Parakeet provides an efficient GPU skeleton that implements the pattern of applying the same function to each element of an array.  The flattened payload computation of the \textbf{map} is inlined into this skeleton, and a complete GPU program is synthesized and JIT compiled.
+The core of the Parakeet framework is its internal typed intermediate language and an interpreter provided for that language. This IL includes data parallel array operators such as \textbf{map}, \textbf{reduce}, and \textbf{scan} that translate well into efficient data parallel GPU programs (a full table of the supported operators can be found in Figure \ref{ArrayOps}).
 
-To execute the GPU program, Parakeet first copies any of its inputs that aren't already present on the graphics card to the GPU's memory, which Parakeet treats as a managed cache of data from the CPU's RAM.  The GPU program is then executed, with its output lazily brought back to the CPU either when it is needed or when Parakeet's GPU garbage collector reclaims its space. If a kernel's data doesn't fit on the GPU, we default to CPU execution (for now).  We are currently implementing an approach to divide an array operator's execution into pieces to allow execution of kernels on arbitrarily large inputs.
+Execution of a program proceeds as normal in the source language's interpreter, with Parakeet intercepting function calls.  The source of these functions is then translated into an untyped intermediate representation using the Parakeet front end interface and the source language's facilities for introspection. At this step, various standard compiler optimizations are applied to the untyped IL representation such as common subexpression elimination.
+
+When a call is made to such an intercepted function, the untyped function body is type specialized according to its argument types.  Further standard optimizations are performed at this stage, as well as an optimization we call \emph{array operator fusion}.  Here, nested array operators are fused according to various rewriting rules into fewer operators. This fusion step can be extremely beneficial to the final GPU program's performance, as it eliminates temporaries and therefore achieves more efficient use of GPU memory bandwidth.
+
+Next, the Parakeet interpreter interprets the typed IL version of the function.  When Parakeet reaches an array operator node in the code tree, it employs a simple cost-based heuristic (which includes things such as data size and memory transfer costs) to decide whether to execute that array operator on the GPU or CPU (for more details see Section \ref{costmodel}).  Some code simply cannot be efficiently translated into GPU programs (such as that which performs I/O or modifies global state), and such code is kept on the CPU. In the case where Parakeet executes the operator on the CPU, the operator is either (1) translated into an IL implementation and then executed by the Parakeet interpreter; or (2) passed back to the source language's interpreter for execution. In this way, we are able to support the entire source language by simply deferring to its interpreter all computation we don't wish to perform or don't yet support. The Parakeet interpreter's execution of IL code hasn't been heavily optimized as of yet -- our effort has been focused on the generation of efficient GPU kernels.  This is reasonable for now, as its IL is very dense since array operators express large computations extremely concisely.
+
+If an array operator's computation is deemed a good candidate for GPU execution, Parakeet flattens all nested array computations within that operator into sequential loops.  This payload is then inlined into a GPU program skeleton that implements that operator.  For example, in the case of a \textbf{map} operation, Parakeet provides an efficient GPU skeleton that implements the pattern of applying the same function to each element of an array.  The flattened payload function argument to the \textbf{map} is inlined into this skeleton, and a complete GPU program is synthesized and JIT compiled.
+
+To execute the GPU program, Parakeet first copies any of its inputs that aren't already present on the graphics card to the GPU's memory, which Parakeet treats as a managed cache of data present in the CPU's RAM.  The GPU program is then executed, with its output lazily brought back to the CPU either when it is needed or when Parakeet's GPU garbage collector reclaims its space. If a kernel's data doesn't fit on the GPU, we default to CPU execution (for now).  We are currently implementing an approach to divide an array operator's execution into pieces to allow execution of kernels on arbitrarily large inputs.
 
 \section{GPU Hardware}
-To set the stage and motivate the design choices of Parakeet, we first discuss some important features of modern GPU hardware.  A GPU consists of an array of tens of multiprocessors.  Within these multiprocessors are various resources such as local memories and instruction issue units that are shared among its simple cores. Since the issue units are shared, the threads running on a single multiprocessor execute instructions in lockstep -- hence the name Single Instruction Multiple Thread (SIMT) for the execution model.  The typical pattern is to issue a short program to be executed in parallel by thousands of lightweight threads that run on these hundreds of simple cores, each operating on different subsets of some input data.  With all these cores, a typical graphics card has a peak throughput of many hundreds of GLOP/s -- an order of magnitude more than typical high end CPUs at a fraction of the cost.
+To set the stage and motivate the design choices of Parakeet, we first discuss some important features of modern GPU hardware.  A GPU consists of an array of tens of multiprocessors.  Within these multiprocessors are various resources such as local memories and instruction issue units that are shared among its simple cores. Since the issue units are shared, the threads running on a single multiprocessor execute instructions in lockstep -- hence the name Single Instruction Multiple Thread (SIMT) for the execution model.  The typical pattern is to issue a short program to be executed in parallel by thousands of lightweight threads that run on these hundreds of simple cores, each operating on different subsets of some input data.  With all these cores, a typical graphics card has a peak throughput of many hundreds of GFLOP/s -- an order of magnitude more than typical high end CPUs at a fraction of the cost.
 
 SIMT differs from the more common Single Instruction Multiple Data (SIMD) model in that branching instructions are allowed whose branch conditions aren't uniformly met among threads within a single multiprocessor, allowing colocated threads to execute divergent code paths.  This improves the ease of programming a GPU, but divergent branching incurs a very expensive performance penalty as each thread effectively execute no-ops along the irrelevent code paths.  This illustrates a common point in GPGPU programming: the hardware allows for somewhat expressive programming styles, but failure to match what the hardware actually does well results in very inefficient execution.
 
@@ -197,7 +202,7 @@ We illustrate the relevant features of array programming in Q with an example: a
 current assignment vector, and the scalar index of the centroid to calculate, respectively), and calculates that cluster's centroid.
 
 This function illustrates some of the array-oriented features of Q. First, Q allows implicit mappings of functions elementwise across vectors -- for example, to test elementwise equality between the assignment
-vector \texttt{a} and the scalar index \texttt{i}, we simply write \texttt{a = i}.  In addition, this showcases Q's support for \emph{scalar promotion}.  Semantically, Q implicitly promotes \texttt{i} to be a vector of the value of \texttt{i} repeated a number of times equal to the length of \texttt{a} and performs the elementwise equality between these two vectors.
+vector \texttt{a} and the scalar index \texttt{i}, we simply write \texttt{a = i}.  In addition, this showcases Q's support for \emph{scalar promotion}.  Semantically, Q implicitly promotes \texttt{i} to be a vector of the value of \texttt{i} repeated a number of times equal to the length of \texttt{a} and computes the elementwise equality of these two vectors.
 
 We then generate the list of indices we want by applying the built-in \texttt{where} operator to the result of this test, and index into the data matrix \texttt{X} to get the list of data points in the centroid. The result of this indexing is itself a 2-D matrix which contains the list of data points belonging to the \texttt{i}-th cluster. Finally, the built-in \texttt{avg} function -- a reduction operator -- gets applied to this 2-D list. Thus we see that reductions and other built-in array operators can be applied to arrays of any arity.  Further array built-ins used in K-Means include \texttt{sum}, \texttt{min}, and the find operator (denoted by `\texttt{?}').
 
@@ -207,8 +212,7 @@ new centroid by using \texttt{each} to apply the \texttt{calc\_centroid} functio
 We see that array programming languages are both expressive and compact.  While the CUDA implementation of K-Means in the Rodinia benchmark suite is hundreds of lines of code long, our Q version is only 17 even though we wrote in a verbose style in the interest of clarity. Importantly, the Q program is sequential as well.
 
 \section{Typed Intermediate Language}
-Now we turn to the problem
-of compiling an array language program into an efficient GPU program. At first glance, there is a significant mismatch between the highly dynamic expressiveness of an array language like Q and the limitations imposed by GPU hardware discussed in Section \ref{GPULimitations}. Indeed, the Parakeet intermediate language must serve as a compromise between two competing tensions. First, in order to translate array programs into efficient GPU code it is necessary for the compiler to eliminate as much abstraction as possible. On the other hand, we must be careful not to make our program representation overly concrete with regard to evaluation order (which would eliminate opportunities for parallelism provided by the array operators).
+Now we turn to the problem of compiling an array language program into an efficient GPU program. At first glance, there seems to be a significant mismatch between the highly dynamic expressiveness of an array language like Q and the limitations imposed by GPU hardware discussed in Section \ref{GPULimitations}. Indeed, the Parakeet intermediate language must serve as a compromise between two competing tensions. First, in order to translate array programs into efficient GPU code it is necessary for the compiler to eliminate as much abstraction as possible. On the other hand, we must be careful not to make our program representation overly concrete with regard to evaluation order (which would eliminate opportunities for parallelism provided by the array operators).
 
 In deference to the above-mentioned GPU hardware restrictions we disallow from our intermediate language:
 
@@ -268,7 +272,7 @@ Scalar operators include the usual boolean operations as well as scalar and floa
 Salient features of our intermediate language include:
 \begin{itemize}
 \item In order for higher-order functions to be translated into the Parakeet IL, it must be possible to specialize away all higher-order arguments. There are situations where exhaustive specialization is not possible (e.g., combinator libraries); in these cases, we revert to the source language's interpreter for
-execution. This illustrates an important point: since Parakeet augments (but does not replace) the interpreter of the source language, we are free to disallow problematic language constructs from Parakeet.
+execution. This highlights an important point: since Parakeet augments (but does not replace) the interpreter of the source language, we are free to disallow problematic language constructs from Parakeet.
 
 \item It is important to note that we can still represent function values within our intermediate language (which are created by partial application of top-level functions). However, since user functions cannot themselves accept other functions as arguments, the only purpose of function values is to parameterize the $\MAP$, $\SCAN$, and $\REDUCE$ higher-order primitives.
 
@@ -321,7 +325,7 @@ To help elucidate the different program transformations performed by Parakeet, w
     \label{QDist}
 \end{figure}
 
-\subsection{Lambda Lifting and SSA Conversion }
+\subsection{Lambda Lifting and SSA Conversion}
 After a function call has been intercepted by the Parakeet runtime, Parakeet performs a syntax-directed translation from a language-specific abstract syntax tree (AST) into Parakeet's IL. Since type information is not yet available to specialize user functions, the functions must be translated into an untyped
 form (by setting all type assignments to $\bot$). The translation into Parakeet's IL maintains a closure environment and a name environment so that simultaneous lambda lifting and SSA conversion can be performed.
 % What does SSA conversion mean? We should define.
@@ -440,6 +444,8 @@ $) $ \rightarrow  ($ z $ : float ) =$} \\
 \section{The Parakeet Runtime}
 \label{runtime}
 
+In this section, we discuss the internals of the Parakeet runtime in more detail. We implemented the Parakeet runtime and intepreter in OCaml due to its amenability to compiler programming patterns.  We spent considerable effort on tuning the OCaml code to be efficient and to prevent OCaml's garbage collector from becoming a source of large overheads. We extend the intepreter via an interface written in C to allow it to interact with CUDA and with NVIDIA's GPU JIT compiler.  Parakeet also exposes a front end interface written in C that the source language uses to translate functions into Parakeet ASTs and to pass data to and from the Parakeet runtime.
+
 
 
 \subsection{Runtime Cost Model}
@@ -554,14 +560,13 @@ In Figure \ref{BSResults}, we see the total run times of the various systems. Th
 K-Means illustrates a key aspect of our approach: the ability to exploit dynamic information to tailor code generation and execution.  In the \texttt{calc\_centroids} function, we have a $\MAP$ operator applied to a
 nested function that in turns contains array operators.  Our interpreter is able to make the most efficient choice regarding where to execute things: the outer $\MAP$, since it's applied to a small array of integers and involves little computation of its own, gets executed on the CPU as a loop.  The inner function, which since it has dense computation applied to large inputs, gets synthesized into a kernel that is repeatedly launched.  This type of dynamic decision based on data size would not be possible in a static environment.
 
-\subsection{Compilation Overheads}
-It has been shown in the pioneering JIT work by Chambers~\cite{Cham92} that in an interactive programming environment, the key psychological barrier for compilation overhead is roughly on the order of less than a second.
-
 \section{Related Work}
 \label{RelatedWork}
 The use of graphics hardware for non-graphical computation has a  long history~\cite{Lengyel90}, though convenient frameworks for general purpose GPU programming have only recently emerged. The first prominent GPU backend for a general purpose language was ``Brook for GPUs'' \cite{Buck04}. The Brook language extended C with ``kernels'' and ``streams'', exposing a programming model similar to what is now found in CUDA and OpenCL.
 
 Microsoft's Accelerator~\cite{Tard06} was the first project to use high level (collection-oriented) language constructs as a basis for GPU execution. Accelerator is a declarative GPU language embedded in C\# which creates a directed acyclic graph of LINQ operations -- such as filtering, grouping, and joining -- and compiles them to (pre-CUDA) shader programs. Accelerator's programming model does not support function abstractions (only expression trees) and its only underlying parallelism construct is limited to the production of $\MAP$-like kernels.
+
+Should talk about the recent Stanford DSML PPoPP paper~\cite{Chaf11}.
 
 Three more recent projects all translate domain specific embedded array languages to CUDA backends:
 \begin{itemize}
