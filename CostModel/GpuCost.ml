@@ -27,7 +27,7 @@ let rec sum_transfer_time = function
       else transfer_time shape t +. sum_transfer_time rest 
   
   (* constants useful for computing adverb costs on the GPU *) 
-  let parallelism = 100. 
+  let parallelism = 240. 
   let launchCost = 3. 
     
   let map 

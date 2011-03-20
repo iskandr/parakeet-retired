@@ -61,11 +61,15 @@ module ConstEval = SSA_Analysis.MkEvaluator(struct
       in
       let combined = List.map2 ConstantLattice.join rhsVals oldVals in
       if List.eq_elts oldVals combined then None 
-      else 
-      let env' = 
-        List.fold_left2 (fun acc id v -> ID.Map.add id v acc) env ids combined
-      in  
-      Some env'
+      else (
+        IFDEF DEBUG THEN 
+            assert (List.length ids = List.length combined); 
+        ENDIF; 
+        let env' = 
+          List.fold_left2 (fun acc id v -> ID.Map.add id v acc) env ids combined
+        in  
+        Some env'
+      )
    | _ -> helpers.eval_stmt env stmtNode    
 end)
 

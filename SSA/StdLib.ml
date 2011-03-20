@@ -98,8 +98,26 @@ let dist_helper = mk_fn 3 1 2 $ fun inputs outputs locals ->
     [outputs.(0)] := plus @@ [inputs.(0); locals.(1)]
   ] 
 let _ = 
-  InterpState.add_untyped initState ~optimize:false "parakeet_dist_helper" dist_helper;;
-     
+  InterpState.add_untyped 
+    initState 
+    ~optimize:false 
+    "parakeet_dist_helper" 
+    dist_helper;;
+
+let sqr_dist = mk_fn 2 1 0 $ fun inputs outputs _ -> 
+  let dist_helper = 
+    mk_globalfn (InterpState.get_untyped_id initState "parakeet_dist_helper") 
+  in
+  [
+    [outputs.(0)] := reduce @@ [dist_helper; zero; inputs.(0); inputs.(1)];
+  ] 
+let _ = 
+  InterpState.add_untyped 
+    initState 
+    ~optimize:false 
+    "parakeet_sqr_dist" 
+    sqr_dist;;
+       
 
 let dist = mk_fn  2 1 1 $ fun inputs outputs locals -> 
   let dist_helper = 
@@ -128,7 +146,7 @@ let _ = InterpState.add_untyped initState ~optimize:false "parakeet_dist" dist;;
 *) 
 let minidx = mk_fn 2 1 15 $ fun inputs outputs locals ->
   let dist = mk_globalfn $ 
-    InterpState.get_untyped_id initState "parakeet_dist" in
+    InterpState.get_untyped_id initState "parakeet_sqr_dist" in
   let c = inputs.(0) in 
   let x = inputs.(1) in
   
@@ -179,9 +197,9 @@ let minidx = mk_fn 2 1 15 $ fun inputs outputs locals ->
   ]
   in 
   [
-    [i_init] := value zero; 
+    [i_init] := value zero;   
     [minDist_init] := value inf; 
-    [minIdx_init] := value zero;
+    [minIdx_init] := value (SSA.mk_int32 (-9999));
     [n] := len c;
     SSA.mk_stmt $ SSA.WhileLoop(testBlock, test, body, header)
   ]    

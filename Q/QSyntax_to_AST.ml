@@ -58,7 +58,7 @@ let rec syntax_to_ast  (syntax, src) =
 		  | "if" -> 
         begin match args' with 
 			  | condition::rest -> 
-			    let void = mk Void  in 
+			    let void = mk (Block [])  in 
           let block = mk (Block rest) in If(condition, block, void)
         | _ -> raise (SourcedError("too few arguments for if statement", src))
         end

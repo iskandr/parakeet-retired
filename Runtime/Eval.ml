@@ -51,7 +51,13 @@ module Mk(P : EVAL_PARAMS) = struct
   let eval_phi_node cond env phiNode : env = 
     let id = phiNode.phi_id in 
     let rhs = if cond then phiNode.phi_left else phiNode.phi_right in 
-    ID.Map.add id (eval_value env rhs) env  
+    let rhsVal = eval_value env rhs in
+    IFDEF DEBUG THEN 
+       Printf.printf "\n===> [Eval] Phi assignment %s <- %s\n"
+        (ID.to_str id)
+        (InterpVal.to_str rhsVal)
+    ENDIF;  
+    ID.Map.add id rhsVal env  
 
   let eval_phi_nodes cond env phiNodes =
     List.fold_left (eval_phi_node cond) env phiNodes 

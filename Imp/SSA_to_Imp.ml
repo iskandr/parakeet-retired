@@ -265,7 +265,8 @@ module MkTranslator(P : PARAMS) = struct
           translate_block bodyBuffer testBlock;
           let block = bodyBuffer#to_block in 
           codeBuffer#emit [Imp.While(testExp, block)] 
-          
+
+       | SSA.SetIdx _ -> failwith "setidx not implemented"   
 		     
     and translate_block codeBuffer block =
       Block.iter_forward (translate_stmt codeBuffer) block 

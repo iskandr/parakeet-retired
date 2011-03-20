@@ -132,13 +132,14 @@ CAMLprim value ocaml_cuda_launch_ptx (
   int threadsx = Int_val(ocaml_threadsx);
   int threadsy = Int_val(ocaml_threadsy);
   int threadsz = Int_val(ocaml_threadsz);
-
+/*
 #ifdef DEBUG
   printf("Block dimensions: x: %d y: %d z: %d\n",threadsx, threadsy, threadsz);
 
   printf("Grid dimensions: x: %d, y: %d \n", Int_val(ocaml_gridwidth),
            Int_val(ocaml_gridheight));
 #endif
+*/
 
   // Have to take the args array and pull out a list of the arguments,
   // including inserting shape vectors for those arguments which need them.
@@ -157,10 +158,11 @@ CAMLprim value ocaml_cuda_launch_ptx (
     printf("cuModuleGetFunction failed for %s with error %d", fnName, result);
     exit(1);
   }
+  /*
 #ifdef DEBUG
   else { printf("Got function %s from module\n", fnName); }
 #endif
-
+  */
   result = cuFuncSetBlockShape(cuFunc, threadsx, threadsy, threadsz); 
   if (result != 0) {
     printf("Error in cuFuncSetBlockShape: %d\n", result);
@@ -172,9 +174,11 @@ CAMLprim value ocaml_cuda_launch_ptx (
   int arg_size = 0;
   int i;
 
+  /*
 #ifdef DEBUG
   printf("Setting up %d GPU arguments\n", num_args);
 #endif
+  */
   for (i = 0; i < num_args; ++i) {
     ocaml_gpu_arg = Field(ocaml_args, i);
 
@@ -188,9 +192,11 @@ CAMLprim value ocaml_cuda_launch_ptx (
             result,  i, num_args);
         exit(1);
       }
+  /*
 #ifdef DEBUG
   printf("Sent array arg to kernel at ptr %p\n", ptr_arg);
 #endif
+  */
       offset += sizeof(void*);
 
     } else if (Tag_val(ocaml_gpu_arg) == PQNUM_GPU_SCALAR_ARG) {
@@ -258,12 +264,12 @@ CAMLprim value ocaml_cuda_launch_ptx (
   }
   int width = Int_val(ocaml_gridwidth);
   int height = Int_val(ocaml_gridheight);
-
+/*
 #ifdef DEBUG
   printf("Grid width, height: %d, %d\n", width, height);
   fflush(stdout);
 #endif
-
+*/
   cudaEvent_t start, end;
   cudaEventCreate(&start);
   cudaEventCreate(&end);
@@ -280,7 +286,7 @@ CAMLprim value ocaml_cuda_launch_ptx (
   cudaEventSynchronize(end);
   float td;
   cudaEventElapsedTime(&td, start, end);
-  printf("GPU time for kernel: %f\n", td / 1000.0f);
+  // printf("GPU time for kernel: %f\n", td / 1000.0f);
   cudaEventDestroy(start);
   cudaEventDestroy(end);
 

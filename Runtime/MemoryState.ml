@@ -84,7 +84,10 @@ let get_gpu memState = function
         Hashtbl.replace memState.gpu_vals id gpuVal; 
         gpuVal
    )
-  | InterpVal.Scalar n -> GpuVal.GpuScalar n  
+  | InterpVal.Scalar n -> GpuVal.GpuScalar n
+  (* WARNING: This is essentially a memory leak, since we leave 
+     no data id associated with the gpu memory allocated here 
+   *)   
   | InterpVal.Array arr ->
       (* for now, assume all rows are of uniform type/size *)
       let nrows = Array.length arr in   
@@ -92,10 +95,30 @@ let get_gpu memState = function
       let eltSize = sizeof memState elt in
       let eltType = get_type memState elt in 
       let eltShape = get_shape memState elt in  
+      
       let nbytes = nrows * eltSize in
+      let finalType = DynType.VecT eltType in 
       let finalShape = Shape.append_dim nrows eltShape in 
-      let destVal = GpuVal.mk_gpu_vec (DynType.VecT eltType) finalShape in
+      let destVal = GpuVal.mk_gpu_vec finalType finalShape in
       let destPtr = GpuVal.get_ptr destVal in 
+      IFDEF DEBUG THEN 
+        Printf.printf "[MemoryState] Transferring interpreter array to GPU\n";
+        Printf.printf "[MemoryState] -- elts = %s \n" 
+            (String.concat ", " (List.map InterpVal.to_str (Array.to_list arr)))
+        ;  
+        Printf.printf 
+          "[MemoryState] -- elt size: %d, elt type: %s, elt shape: %s\n" 
+            eltSize
+            (DynType.to_str eltType)
+            (Shape.to_str eltShape)
+        ;
+        Printf.printf 
+          "[MemoryState] -- total size: %d, final type : %s,  final shape: %s\n"
+          nbytes
+          (DynType.to_str finalType)
+          (Shape.to_str finalShape)
+        ;  
+      ENDIF; 
       for i = 0 to nrows - 1 do 
         let currPtr = Int64.add destPtr (Int64.of_int $ i * eltSize) in 
         match arr.(i) with 
@@ -112,7 +135,7 @@ let get_gpu memState = function
                 let eltHostVal = Hashtbl.find memState.host_vals id in 
                 let eltHostPtr = HostVal.get_ptr eltHostVal in 
                 Cuda.cuda_memcpy_to_device eltHostPtr currPtr eltSize  
-          | _ -> assert false
+          | _ -> assert false 
        done; 
        destVal 
 

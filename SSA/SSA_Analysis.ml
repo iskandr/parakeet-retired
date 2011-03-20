@@ -84,34 +84,39 @@ module MkEvaluator(A : ANALYSIS) = struct
         let _  = A.exp env rhs helpers in 
         None 
     | If(cond, tBlock, fBlock,  merge) ->
-        let _ = A.value env cond in  
-        let tEnv, _ = eval_block env tBlock in 
-        let fEnv, _ = eval_block tEnv fBlock in
-        eval_phi_nodes fEnv tEnv fEnv merge 
+        ignore (A.value env cond);   
+        let tEnv, tChanged = eval_block env tBlock in 
+        let fEnv, fChanged = eval_block tEnv fBlock in
+        eval_phi_nodes ~changed:(tChanged|| fChanged) fEnv tEnv fEnv merge 
     | WhileLoop(condBlock, condVal, body, header) ->
         if A.iterative then  (
           let maxIters = 100 in
           let iter = ref 0 in
-          let loopEnv = ref env in
+          let headerEnv, headerChanged = eval_loop_header env env header in
+          let condEnv, condChanged = eval_block headerEnv condBlock in
+          (* evaluate for side effects *) 
+          ignore (A.value condEnv condVal); 
+          let loopEnv = ref condEnv  in
           let changed = ref true in  
           while !changed do
             iter := !iter + 1;  
-            if !iter > maxIters then 
+            if !iter > maxIters then  
               failwith $ "loop analysis failed to terminate"
-            else (  
-              let headerEnv, headerChanged =  
-                if !iter = 1 then eval_loop_header !loopEnv env header
-                else match eval_phi_nodes !loopEnv env !loopEnv header with 
-                  | None -> !loopEnv, false
-                  | Some newEnv -> newEnv, true 
-              in  
-              let condEnv, condChanged = eval_block headerEnv condBlock in
-              ignore (A.value condEnv condVal);
-              let bodyEnv, bodyChanged = eval_block condEnv body in 
-              loopEnv := bodyEnv; 
-              changed := headerChanged || condChanged || bodyChanged
-            )    
+            ; 
+            let bodyEnv, bodyChanged = eval_block !loopEnv body in 
+            let phiEnv, phiChanged = 
+              match eval_phi_nodes bodyEnv headerEnv bodyEnv header with 
+                | Some env -> env, true 
+                | None -> bodyEnv, false
+            in  
+            let condEnv, condChanged = eval_block phiEnv condBlock in 
+            loopEnv := condEnv; 
+            changed := bodyChanged || phiChanged || condChanged
           done;
+          IFDEF DEBUG THEN 
+            Printf.printf "[SSA_Analysis] WhileLoop converged after %d iters\n"
+              !iter; 
+          ENDIF; 
           if !iter > 1 then Some !loopEnv  else None 
         )
         else (

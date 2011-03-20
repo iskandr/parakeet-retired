@@ -69,15 +69,18 @@ let collect_partial_apps interpState fundef =
  let module Collector = 
   Mk(CollectRules(struct let interpState = interpState end))
  in
-
+(*
  IFDEF DEBUG THEN 
    Printf.printf "Collect Partial Apps (before): %s\n%!"
      (SSA.fundef_to_str fundef);
  ENDIF;
+*)
  let fundef', _ = Collector.transform_fundef fundef in
  let closureEnv = Collector.get_context () in
+(*
  IFDEF DEBUG THEN 
    Printf.printf "Collect Partial Apps (after): %s\n%!"
      (SSA.fundef_to_str fundef');
  ENDIF;
+*)
  fundef', closureEnv 

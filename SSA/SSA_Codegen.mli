@@ -48,6 +48,7 @@ val lte : value_node
 val eq : value_node  
 
 val one : value_node 
+val neg_one : value_node 
 val zero : value_node  
 
 val reduce : value_node  
