@@ -91,11 +91,11 @@ Our goal is to lower the barrier to GPGPU programming by allowing programmers to
 % Existing Array languages
 Array operations are higher level than explicit loops and thus tend to be easier for programmers to use. At the same time, array operations encode rich information about their access patterns that we can exploit to translate them into efficient parallel programs \cite{Ju94}. The prototypical array language is APL~\cite{Iverson62}, which allows for extremely terse loop-free specification of algorithms. More commonly used array languages include Matlab~\cite{Moler80} (the lingua franca of signal processing and machine learning research) as well as Python's NumPy~\cite{Oliphant07} extensions.
 
-% Dynamic, interactive languages used by scientific programmers = our target audience
-Blah~\cite{Cham92}
-
 % Heart of Parakeet - an interpreter for our high level IL w/ array ops
 In this paper, we present Parakeet, an intelligent runtime for executing high level array programs on GPUs. Parakeet dynamically compiles and specializes user functions via a typed intermediate language.  The Parakeet interpreter then executes the program, using a simple cost model to decide whether to run operations on the CPU or GPU.  For the GPU case, it transparently executes array operations by synthesizing and launching GPU kernels as needed.
+
+% Dynamic, interactive languages used by scientific programmers = our target audience
+A key target audience of Parakeet is scientific programmers.  Scientists often use computers as tools, with their focus not being computer science per se. It is common for them to run computational experiments that are extrememly time consuming and operate on huge data inputs -- codes which are natural candidates for GPU acceleration. However, it is highly preferable for them not to have to learn specialized tools like CUDA in order to take advantage of new hardware.  In addition, dynamic and interactive languages such as Matlab are very popular as they allow for rapid prototyping of algorithms.  Our goal is to enable the use of such languages not only for prototyping, but production execution as well.
 
 % Q front-end, agnosticism
 We have implemented our first Parakeet front end for Q \cite{Borr08}, a descendant of APL that is widely used in financial computing. Q is a nearly ``pure'' array language -- its idiomatic style makes sparser use of loops than even Matlab or NumPy -- and is thus a natural first choice. We are also finishing work on a front end for Python's NumPy extensions.
@@ -208,19 +208,9 @@ We see that array programming languages are both expressive and compact.  While 
 
 \section{Typed Intermediate Language}
 Now we turn to the problem
-of compiling an array language program into an efficient GPU program.
-At first glance, there is a significant mismatch between the highly dynamic
-expressiveness of an array language like Q and the limitations imposed by GPU
-hardware discussed in Section \ref{GPULimitations}. Indeed, the Parakeet
-intermediate language must serve as a compromise between two competing tensions.
-First, in order to translate array programs into efficient GPU code it is
-necessary for the compiler to eliminate as much abstraction as possible. On the
-other hand, we must be careful not to make our program representation overly
-concrete with regard to evaluation order (which would eliminate opportunities
-for parallelism provided by the array operators).
+of compiling an array language program into an efficient GPU program. At first glance, there is a significant mismatch between the highly dynamic expressiveness of an array language like Q and the limitations imposed by GPU hardware discussed in Section \ref{GPULimitations}. Indeed, the Parakeet intermediate language must serve as a compromise between two competing tensions. First, in order to translate array programs into efficient GPU code it is necessary for the compiler to eliminate as much abstraction as possible. On the other hand, we must be careful not to make our program representation overly concrete with regard to evaluation order (which would eliminate opportunities for parallelism provided by the array operators).
 
-In deference to the above-mentioned GPU hardware restrictions we disallow from
-our intermediate language:
+In deference to the above-mentioned GPU hardware restrictions we disallow from our intermediate language:
 
 \begin{itemize}
 \item Polymorphism of all kinds
@@ -229,34 +219,13 @@ our intermediate language:
 \item Compound data types other than arrays
 \end{itemize}
 
-These restrictions are not necessarily as severe as they initially seem, since
-the programmer needn't know about them.
-This is simply the internal format Parakeet uses in
-order to generate efficient GPU back end code. We explain the
-specialization algorithm later on in this paper.
+These restrictions are not necessarily as severe as they initially seem, since the programmer needn't know about them. This is simply the internal format Parakeet uses in order to generate efficient GPU back end code. We explain the specialization algorithm later on in this paper.
 
-Our intermediate language is shown in Figure \ref{ILandType}. The parallelism
-abstraction we prefer to maintain is the use of the higher-order array operators
-$\MAP$, $\REDUCE$, and $\SCAN$. The higher-order array operators
-form a carefully confined higher-order subset of our otherwise first-order
-language and thus we elevate them to primitive syntax. These operators are
-important since they are the only constructs in our language that we attempt to
-parallelize automatically through GPU code synthesis.
+Our intermediate language is shown in Figure \ref{ILandType}. The parallelism abstraction we prefer to maintain is the use of the higher-order array operators $\MAP$, $\REDUCE$, and $\SCAN$. The higher-order array operators form a carefully confined higher-order subset of our otherwise first-order language and thus we elevate them to primitive syntax. These operators are important since they are the only constructs in our language that we attempt to parallelize automatically through GPU code synthesis.
 
-This isn't to say these are the only constructs executed in parallel on the
-GPU. The simple array operators such as \textbf{sort} (a full list can be found
-in Figure \ref{ArrayOps}) are executed in parallel on the GPU as well. They
-simply aren't higher-order, and thus are implemented via a fixed parallel
-standard library.
+This isn't to say these are the only constructs executed in parallel on the GPU. The simple array operators such as \textbf{sort} (a full list can be found in Figure \ref{ArrayOps}) are executed in parallel on the GPU as well. They simply aren't higher-order, and thus are implemented via a fixed parallel standard library.
 
-We take inspiration from \cite{Bol09} and allow functions to both accept and
-return multiple values. This feature simplifies the specification of certain
-optimizations and naturally models the simultaneous creation of multiple values
-on the GPU. By convention we will write $\overline{\tau_m}$ to denote a sequence
-of $m$ simple types, $\overline{v_n}$ for a sequence  of $n$ values, etc. A
-single element is equivalent to a sequence of length 1 and sequences may be
-concatenated via juxtaposition, such that $\tau, \overline{\tau_n} =
-\overline{\tau_{m+1}}$.
+We take inspiration from \cite{Bol09} and allow functions to both accept and return multiple values. This feature simplifies the specification of certain optimizations and naturally models the simultaneous creation of multiple values on the GPU. By convention we will write $\overline{\tau_m}$ to denote a sequence of $m$ simple types, $\overline{v_n}$ for a sequence  of $n$ values, etc. A single element is equivalent to a sequence of length 1 and sequences may be concatenated via juxtaposition, such that $\tau, \overline{\tau_n} = \overline{\tau_{m+1}}$.
 
 \begin{figure}
   \begin{tabular}{| m{0.01cm}m{1.5cm}m{0.1cm}m{0.2cm}p{4.5cm} |}
@@ -294,39 +263,18 @@ concatenated via juxtaposition, such that $\tau, \overline{\tau_n} =
 \label{ILandType}
 \end{figure}
 
-Scalar operators include the usual boolean operations as well as scalar and
-floating point arithmetic operators and functions. Examples of simple array
-operators include indexing, replication, and inspecting an array's shape.
+Scalar operators include the usual boolean operations as well as scalar and floating point arithmetic operators and functions. Examples of simple array operators include indexing, replication, and inspecting an array's shape.
 
 Salient features of our intermediate language include:
 \begin{itemize}
-\item In order for higher-order functions to be translated into the Parakeet IL,
-it must be possible to specialize away all higher-order arguments. There
-are situations where exhaustive specialization is not possible (e.g., combinator
-libraries); in these cases, we revert to the source language's interpreter for
-execution. This illustrates an important point: since Parakeet augments (but
-does not replace) the interpreter of the source language, we are free to
-disallow problematic language constructs from Parakeet.
+\item In order for higher-order functions to be translated into the Parakeet IL, it must be possible to specialize away all higher-order arguments. There are situations where exhaustive specialization is not possible (e.g., combinator libraries); in these cases, we revert to the source language's interpreter for
+execution. This illustrates an important point: since Parakeet augments (but does not replace) the interpreter of the source language, we are free to disallow problematic language constructs from Parakeet.
 
-\item It is important to note that we can still represent function values
-within our intermediate language (which are created by partial application of
-top-level functions). However, since user functions cannot themselves accept
-other functions as arguments, the only purpose of function values is to
-parameterize the $\MAP$, $\SCAN$, and $\REDUCE$ higher-order primitives.
+\item It is important to note that we can still represent function values within our intermediate language (which are created by partial application of top-level functions). However, since user functions cannot themselves accept other functions as arguments, the only purpose of function values is to parameterize the $\MAP$, $\SCAN$, and $\REDUCE$ higher-order primitives.
 
-\item It is also worth highlighting the curious nature of the type we assign to
-function values:
-$ \{ f_i, \overline{\tau_{c}} \} \Rightarrow \overline{\tau_m} \rightarrow
-\overline{\tau_n}$.  The terms occurring before the double arrow ($\{f_i,
-\overline{\tau_{c}} \}$) represent both the function label of a closure and the
-types of partially applied function arguments. We attach this information to a
-closure's type to facilitate efficient passing of closure arguments to the GPU
-and avoid any actual indirection which might otherwise be associated with
-function invocation. The need to statically determine a function label for any
-closure restricts which programs Parakeet can compile. We
-must reject any code where the function
-that executes at a particular
-program point depends on some dynamic condition.
+\item It is also worth highlighting the curious nature of the type we assign to function values:
+$ \{ f_i, \overline{\tau_{c}} \} \Rightarrow \overline{\tau_m} \rightarrow \overline{\tau_n}$.  The terms occurring before the double arrow ($\{f_i, \overline{\tau_{c}} \}$) represent both the function label of a closure and the types of partially applied function arguments. We attach this information to a closure's type to facilitate efficient passing of closure arguments to the GPU and avoid any actual indirection which might otherwise be associated with function invocation. The need to statically determine a function label for any closure restricts which programs Parakeet can compile. We must reject any code where the function
+that executes at a particular program point depends on some dynamic condition.
 \end{itemize}
 
 \begin{figure}
@@ -361,19 +309,9 @@ $x$\\[4pt] \hline
 
 \section{Translation, Specialization, and Optimization}
 \label{Compilation}
-In this section we describe the various program transformations we perform
-before executing a user's function. Some of these transformations (such as
-lambda lifting and specialization) are necessary in order to bridge the
-abstraction gap between an expressive dynamically typed language and the GPU
-hardware. We also demonstrate several optimizations which, while beneficial in
-any compiler, are particularly important when targetting a graphics processor.
-Seemingly small residual inefficiencies in our intermediate form can later
-manifest themselves as the creation of large arrays, needless memory transfers,
-or wasteful GPU computations.
+In this section we describe the various program transformations we perform before executing a user's function. Some of these transformations (such as lambda lifting and specialization) are necessary in order to bridge the abstraction gap between an expressive dynamically typed language and the GPU hardware. We also demonstrate several optimizations which, while beneficial in any compiler, are particularly important when targetting a graphics processor. Seemingly small residual inefficiencies in our intermediate form can later manifest themselves as the creation of large arrays, needless memory transfers, or wasteful GPU computations.
 
-To help elucidate the different program transformations performed by Parakeet,
-we will show the effect of each stage on a distance function defined in Q,
-shown in Figure \ref{QDist}.
+To help elucidate the different program transformations performed by Parakeet, we will show the effect of each stage on a distance function defined in Q, shown in Figure \ref{QDist}.
 
 \begin{figure}[h!]
     \begin{lstlisting}[numbers=none]
@@ -383,27 +321,12 @@ shown in Figure \ref{QDist}.
     \label{QDist}
 \end{figure}
 
-\subsection{Lambda Lifting and SSA Conversion } 
-After a function call has been
-intercepted by the Parakeet runtime, Parakeet
-performs a syntax-directed translation from a
-language-specific abstract syntax tree (AST) into Parakeet's IL. 
-Since type information is not yet
-available to specialize user functions, the
-functions must be translated into an untyped
-form (by setting all type assignments to $\bot$). The translation into
-Parakeet's IL maintains a closure environment and a name environment so that
-simultaneous lambda lifting and SSA conversion can be performed.
+\subsection{Lambda Lifting and SSA Conversion }
+After a function call has been intercepted by the Parakeet runtime, Parakeet performs a syntax-directed translation from a language-specific abstract syntax tree (AST) into Parakeet's IL. Since type information is not yet available to specialize user functions, the functions must be translated into an untyped
+form (by setting all type assignments to $\bot$). The translation into Parakeet's IL maintains a closure environment and a name environment so that simultaneous lambda lifting and SSA conversion can be performed.
 % What does SSA conversion mean? We should define.
 
-Since we would like to interpret our intermediate language we use a gated SSA
-form based on the GSA sub-language of the Program Dependence Web \cite{Ott90}.
-Classical SSA cannot be directly executed since the $\phi$-nodes lack
-deterministic semantics. Gated SSA overcomes this limitation by using "gates"
-which not only merge data flow but also associate predicates with each data flow
-branch. Aside from simplifying certain optimizations, these gates also enable us
-to execute our code without converting out of SSA.  Figure \ref{UntypedSSADist}
-shows the \texttt{dist} function after it has been translated to Untyped SSA.
+Since we would like to interpret our intermediate language we use a gated SSA form based on the GSA sub-language of the Program Dependence Web \cite{Ott90}. Classical SSA cannot be directly executed since the $\phi$-nodes lack deterministic semantics. Gated SSA overcomes this limitation by using "gates" which not only merge data flow but also associate predicates with each data flow branch. Aside from simplifying certain optimizations, these gates also enable us to execute our code without converting out of SSA.  Figure \ref{UntypedSSADist} shows the \texttt{dist} function after it has been translated to Untyped SSA.
 
 \begin{figure}[h!]
 \fbox{
@@ -422,19 +345,9 @@ shows the \texttt{dist} function after it has been translated to Untyped SSA.
 
 
 \subsection{Untyped Optimizations}
-Parakeet performs optimizations both before and after type specialization. We
-subject the untyped representation to inlining, common subexpression elimination
-and simplification (which consists of simultaneous constant propagation and dead
-code elimination). This step occurs once for each function, upon its first
-interception by Parakeet. It is preferable to eliminate as much code as possible
-at this early stage since an untyped function body serves as a template for a
-potentially large number of future specializations. The only optimizations we do
-not perform on the untyped representation are array fusion rewrites, since these
-rely on type annotations to ensure correctness.
+Parakeet performs optimizations both before and after type specialization. We subject the untyped representation to inlining, common subexpression elimination and simplification (which consists of simultaneous constant propagation and dead code elimination). This step occurs once for each function, upon its first interception by Parakeet. It is preferable to eliminate as much code as possible at this early stage since an untyped function body serves as a template for a potentially large number of future specializations. The only optimizations we do not perform on the untyped representation are array fusion rewrites, since these rely on type annotations to ensure correctness.
 
-In our distance example, untyped optimizations will both remove a redundant
-subtraction and inline the definition of the $sum$ function, which expands to a
-$\REDUCE$ of addition.
+In our distance example, untyped optimizations will both remove a redundant subtraction and inline the definition of the $sum$ function, which expands to a $\REDUCE$ of addition.
 \begin{figure}[h!]
 \fbox{
 \begin{tabular}{ m{0.1cm} m{6.7cm} }
@@ -449,31 +362,14 @@ $\REDUCE$ of addition.
 \end{figure}
 
 \subsection{Specialization}
-The purpose of specialization is to eliminate polymorphism, to make manifest
-all implicit behavior (such as coercion and scalar promotion), and to assign
-simple unboxed types to all data used within a function body. Beyond the
-fact that the GPU requires its programs to be statically typed, these goals are
-all essential for the efficient execution of user code on the GPU.
-Thus, the specializer generates a different specialized version
-of a function for each distinct call string, with all of the function's
-variables receiving the appropriate types.  
+The purpose of specialization is to eliminate polymorphism, to make manifest all implicit behavior (such as coercion and scalar promotion), and to assign simple unboxed types to all data used within a function body. Beyond the fact that the GPU requires its programs to be statically typed, these goals are all essential for the efficient execution of user code on the GPU. Thus, the specializer generates a different specialized version of a function for each distinct call string, with all of the function's
+variables receiving the appropriate types.
 
-The signature of data is one of our
-built-in dynamic value types such as $float$ or $vec~vec~int$.  The signature of
-functions is a closure that includes a function tag and a list of data
-signatures.  It is important to note that specialization is thus not just on
-types, but also on function tags and the types of their associated closure
-arguments. This is equivalent to performing defunctionalization (Reynolds) and
-then specializing exhaustively on the constant values of closure records. One
-caveat here is that non-constant closure values are disallowed.  This prevents
-us from having to implement them as large switch statements on the GPU, which
-would be very inefficient due to branch divergence.  Finally, only data is
-allowed to cross the boundary from our system to the source
-language--specialized Parakeet functions remain enclosed in our runtime.
+The signature of data is one of our built-in dynamic value types such as $float$ or $vec~vec~int$.  The signature of functions is a closure that includes a function tag and a list of data signatures.  It is important to note that specialization is thus not just on types, but also on function tags and the types of their associated closure arguments. This is equivalent to performing defunctionalization (Reynolds) and
+then specializing exhaustively on the constant values of closure records. One caveat here is that non-constant closure values are disallowed.  This prevents us from having to implement them as large switch statements on the GPU, which would be very inefficient due to branch divergence.  Finally, only data is
+allowed to cross the boundary from our system to the source language -- specialized Parakeet functions remain enclosed in our runtime.
 
-To continue the example, if the \textit{dist} function is called with arguments
-of type $vec~ float$ the specializer will then generate the code shown in Figure
-\ref{SpecDist}.
+To continue the example, if the \textit{dist} function is called with arguments of type $vec~ float$ the specializer will then generate the code shown in Figure \ref{SpecDist}.
 
 \begin{figure}[h!]
 \fbox{
@@ -490,24 +386,13 @@ of type $vec~ float$ the specializer will then generate the code shown in Figure
 \label{SpecDist}
 \end{figure}
 
-The actual intermediate language associates type annotations with every binding,
-which we elide here for clarity. Note that the polymorphism inherent in math
-operations between dynamically typed values has been removed through the use of
-statically typed math operators, and implicit \textbf{map}s on vectors (such
-as the subtraction between $x$ and $y$) have been expanded and made explicit.
+The actual intermediate language associates type annotations with every binding, which we elide here for clarity. Note that the polymorphism inherent in math operations between dynamically typed values has been removed through the use of statically typed math operators, and implicit \textbf{map}s on vectors (such as the subtraction between $x$ and $y$) have been expanded and made explicit.
 
 
 \subsection{Array Operator Fusion}
-In addition to standard compiler optimizations (such as constant folding,
-function inlining, and common sub-expression elimination), we employ fusion
-rules~\cite{Jones01} to combine array operators. Fusion enables us to minimize
-kernel launches, boost the computational density of generated kernels, and
-avoid the generation of unnecessary array temporaries.
+In addition to standard compiler optimizations (such as constant folding, function inlining, and common sub-expression elimination), we employ fusion rules~\cite{Jones01} to combine array operators. Fusion enables us to minimize kernel launches, boost the computational density of generated kernels, and avoid the generation of unnecessary array temporaries.
 
-We present the fusion rules used by Parakeet in simplified form, such that
-array operators only consume and produce a single value. Our rewrite engine
-actually generalizes these rules to accept functions of arbitrary input and
-output arities.
+We present the fusion rules used by Parakeet in simplified form, such that array operators only consume and produce a single value. Our rewrite engine actually generalizes these rules to accept functions of arbitrary input and output arities.
 \\[5pt]
 \begin{tabular}{|m{0.001cm} m{0.05cm} p{6.75cm} p{0.05cm} |}
   \hline 
@@ -520,7 +405,7 @@ output arities.
   & & & \\
   \hline
 \end{tabular}\\[4pt]
-These transformations are safe if the following conditions hold: 
+These transformations are safe if the following conditions hold:
 \begin{enumerate}
 \item All the functions involved are referentially transparent.
 
@@ -529,18 +414,9 @@ These transformations are safe if the following conditions hold:
 
 \item The outputs of the predecessor are used \textit{only} by the successor.
 \end{enumerate}
-The last two conditions restrict our optimizer from
-rewriting anything but linear chains of produced/consumed temporaries. A large
-body of previous work~\cite{Ald01} has demonstrated both the existence of
-richer fusion rules and cost-directed strategies for applying those rules in
-more general scenarios. Still, despite the simplicity of our approach, we have
-observed that many wasteful temporaries in idiomatic array code are removed
-by using only the above rules.
+The last two conditions restrict our optimizer from rewriting anything but linear chains of produced/consumed temporaries. A large body of previous work~\cite{Ald01} has demonstrated both the existence of richer fusion rules and cost-directed strategies for applying those rules in more general scenarios. Still, despite the simplicity of our approach, we have observed that many wasteful temporaries in idiomatic array code are removed by using only the above rules.
 
-In Figure \ref{DistFuse}, we see the resulting optimized and specialized
-\texttt{dist} function. The two \textbf{map}s have been fused into the
-\textbf{reduce} operator, with a new function $f_1$ generated to perform the
-computation of all three original higher-order operators.
+In Figure \ref{DistFuse}, we see the resulting optimized and specialized \texttt{dist} function. The two \textbf{map}s have been fused into the \textbf{reduce} operator, with a new function $f_1$ generated to perform the computation of all three original higher-order operators.
 
 \begin{figure}[h!]
 
@@ -572,83 +448,30 @@ $) $ \rightarrow  ($ z $ : float ) =$} \\
 
 
 \section{GPU Back End}
-Before we discuss our GPU code generation, we first walk through the CUDA
-programming model in some detail.  Our GPU back end targets NVIDIA GPUs by
-emitting PTX--NVIDIA's GPU pseudoassembly language.  NVIDIA GPUs are typically
-programmed using CUDA, a higher level C-like wrapper around PTX.  As we will
-see in section \ref{Imp}, we have one additional level of intermediate language
-in Parakeet before we emit PTX code.  This PTX is then finally JIT compiled by
-the NVIDIA driver before being launched.
+Before we discuss our GPU code generation, we first walk through the CUDA programming model in some detail.  Our GPU back end targets NVIDIA GPUs by emitting PTX -- NVIDIA's GPU pseudoassembly language.  NVIDIA GPUs are typically programmed using CUDA, a higher level C-like wrapper around PTX.  As we will see in section \ref{Imp}, we have one additional level of intermediate language in Parakeet before we emit PTX code.  This PTX is then finally JIT compiled by the NVIDIA driver before being launched.
 
 \subsection{CUDA Programming Model}
 
-In CUDA, a program is organized into {\it kernels} and {\it host} code.
-Kernels typically run by many thousands of
-lightweight threads on the GPU.  Host code is the code run on the CPU.
-Typically, a host thread on the CPU launches a kernel onto the GPU via a C
-function call to the CUDA API.  The host thread waits for results and
-potentially launches futher kernels.
+In CUDA, a program is organized into {\it kernels} and {\it host} code. Kernels typically run by many thousands of lightweight threads on the GPU.  Host code is the code run on the CPU. Typically, a host thread on the CPU launches a kernel onto the GPU via a C function call to the CUDA API.  The host thread waits for results and potentially launches futher kernels.
 
 \subsubsection{CUDA Kernel Organization}
 
-As is typical for data parallel models, all threads in a CUDA kernel execute
-the same program code.  This code is specified in a C function using the CUDA C
-API. The kernel's threads are organized into {\it thread blocks}, which are
-groups of at most a few hundred threads that can communicate and share local
-resources. Threads within a given block are all scheduled to run on a single GPU
-multiprocessor throughput their lifetime.  Threads within a block can
-perform barrier synchronizations with each other, but threads from different
-blocks have no efficient way to perform synchronization other than termination.
-Thus algorithms that require global synchronization (such as parallel reduction)
-must be broken up into multiple kernel launches, each of which incurs a small
-fixed performance overhead.
+As is typical for data parallel models, all threads in a CUDA kernel execute the same program code.  This code is specified in a C function using the CUDA C API. The kernel's threads are organized into {\it thread blocks}, which are groups of at most a few hundred threads that can communicate and share local resources. Threads within a given block are all scheduled to run on a single GPU multiprocessor throughput their lifetime.  Threads within a block can perform barrier synchronizations with each other, but threads from different blocks have no efficient way to perform synchronization other than termination. Thus algorithms that require global synchronization (such as parallel reduction) must be broken up into multiple kernel launches, each of which incurs a small fixed performance overhead.
 
-The body of a kernel can be written so as to be generic to the number of
-threads and blocks with which it is launched, with the programmer specifying at
-runtime how many thread blocks are required and how many threads to launch per
-block. This allows the kernel programs to be scalable to different data sizes
-without requiring rewrites. The standard idiom is for each thread to
-be assigned a small computation to be performed on a small subset of some large
-input data set.  The threads are each assigned a unique index in the kernel's
-{\it grid} of threads, which is used to determine the data for which they are
-responsible.
+The body of a kernel can be written so as to be generic to the number of threads and blocks with which it is launched, with the programmer specifying at runtime how many thread blocks are required and how many threads to launch per block. This allows the kernel programs to be scalable to different data sizes
+without requiring rewrites. The standard idiom is for each thread to be assigned a small computation to be performed on a small subset of some large input data set.  The threads are each assigned a unique index in the kernel's {\it grid} of threads, which is used to determine the data for which they are responsible.
 
-In order to be efficient, CUDA kernels must be dense.  The kernel is executed
-by thousands of threads, and any small inefficiencies are greatly magnified.
-Manual loop unrolling and rewriting algorithms to have more work per thread are
-usually necessary to obtain performance near the GPU's peak potential.
+In order to be efficient, CUDA kernels must be dense.  The kernel is executed by thousands of threads, and any small inefficiencies are greatly magnified. Manual loop unrolling and rewriting algorithms to have more work per thread are usually necessary to obtain performance near the GPU's peak potential.
 
 \subsubsection{CUDA Memory Management}
 
-The graphics card has its own memory and GPU kernels cannot access data stored
-in the CPU's RAM.  In typical use, data must be manually copied back and forth
-between the CPU and GPU memory spaces by the CUDA programmer.  This data
-transfer is roughly two orders of magnitude slower than memory accesses
-performed by kernels to the GPU's memory, and so it is critical for performance
-that these data transfers are minimized.  It is also possible and beneficial to
-overlap memory transfers with computation.
+The graphics card has its own memory and GPU kernels cannot access data stored in the CPU's RAM.  In typical use, data must be manually copied back and forth between the CPU and GPU memory spaces by the CUDA programmer.  This data transfer is roughly two orders of magnitude slower than memory accesses performed by kernels to the GPU's memory, and so it is critical for performance that these data transfers are minimized.  It is also possible and beneficial to overlap memory transfers with computation.
 
-The main memory space on GPUs is called \emph{global memory} in CUDA.  GPUs have
-very high peak memory bandwidth between their processors and global
-memory--usually over 100GB/s. This is made possible because the hardware groups
-adjacent memory accesses by adjacent threads in a block into single \emph{memory
-transactions}. If adjacent threads access misaligned or scattered memory
-addresses in a single cycle, these accesses all get serialized, greatly reducing
-memory bandwidth for the kernel. Thus the programmer must be very careful
-regarding access patterns.  Global memory may or may not be cached depending on
-the particular card.
+The main memory space on GPUs is called \emph{global memory} in CUDA.  GPUs have very high peak memory bandwidth between their processors and global memory -- usually over 100GB/s. This is made possible because the hardware groups adjacent memory accesses by adjacent threads in a block into single \emph{memory
+transactions}. If adjacent threads access misaligned or scattered memory addresses in a single cycle, these accesses all get serialized, greatly reducing memory bandwidth for the kernel. Thus the programmer must be very careful regarding access patterns.  Global memory may or may not be cached depending on the particular card.
 
-Further, the GPU includes various other memory spaces with different
-performance characteristics.  There is \emph{constant memory}, which is
-read-only and cached, with the cache optimized for 2D spatial locality.  Each
-multiprocessor has a small amount of \emph{shared memory} which all threads
-running on that multiprocessor can access and use to synchronize.  Shared
-memory is much faster to access than global memory, and is often used as a
-programmer-managed cache.  Tiling across input data by placing tiles into
-shared memory is a typical trick for reducing global memory traffic.  Register
-usage must also be managed, as each multiprocessor's cores shares a common
-register pool.  Overallocation of registers causes spillover into global
-memory, greatly reducing performance.
+Further, the GPU includes various other memory spaces with different performance characteristics.  There is \emph{constant memory}, which is read-only and cached, with the cache optimized for 2D spatial locality.  Each multiprocessor has a small amount of \emph{shared memory} which all threads running on that multiprocessor can access and use to synchronize.  Shared memory is much faster to access than global memory, and is often used as a programmer-managed cache.  Tiling across input data by placing tiles into
+shared memory is a typical trick for reducing global memory traffic.  Register usage must also be managed, as each multiprocessor's cores shares a common register pool.  Overallocation of registers causes spillover into global memory, greatly reducing performance.
 
 %\subsection{GPU Memory Management}
 %
@@ -667,90 +490,21 @@ memory, greatly reducing performance.
 \subsection{Imp}
 \label{Imp}
 
-As mentioned above, we implement our higher-order array operators as skeletons
-of code with splice points where the functions they modify get inlined.  Rather
-than implement these skeletons directly in PTX/CUDA, Parakeet
-provides a second intermediate language that we call Imp (for imperative).  In
-order to inline a function into a higher-order skeleton, we first translate the
-function body from the higher level IL into Imp before splicing.
+As mentioned above, we implement our higher-order array operators as skeletons of code with splice points where the functions they modify get inlined.  Rather than implement these skeletons directly in PTX/CUDA, Parakeet provides a second intermediate language that we call Imp (for imperative).  In order to inline a function into a higher-order skeleton, we first translate the function body from the higher level IL into Imp before splicing.
 
-Imp plays the role of a syntactic sugar wrapper around
-PTX/CUDA--including, e.g.,~aspects of CUDA such as the special index
-registers--that simplifies our job of implementing efficient GPU versions of
-these operator skeletons. However, Imp does differ from CUDA in some important
-respects:
+Imp plays the role of a syntactic sugar wrapper around PTX/CUDA -- including, e.g.,~aspects of CUDA such as the special index registers -- that simplifies our job of implementing efficient GPU versions of these operator skeletons. However, Imp does differ from CUDA in some important respects:
 
 \begin{enumerate}
-\item  Arrays are not associated with a particular GPU memory space (global,
-texture, constant, etc..), allowing us to compile variants of an Imp kernel
-where inputs reside in different memory spaces.
+\item  Arrays are not associated with a particular GPU memory space (global, texture, constant, etc..), allowing us to compile variants of an Imp kernel where inputs reside in different memory spaces.
 
-\item Local temporaries can be arrays in addition to scalars. This generalizes
-CUDA's use of ``local'' memory for spilled scalar variables.
+\item Local temporaries can be arrays in addition to scalars. This generalizes CUDA's use of ``local'' memory for spilled scalar variables.
 
-\item Space requirements of a function call (all outputs and local arrays it
-must allocate) can be determined as a function of input sizes. This is necessary
-as GPU computations have access only to memory which is allocated before their
-launch and cannot ``dynamically'' allocate more memory.  The shape-related
+\item Space requirements of a function call (all outputs and local arrays it must allocate) can be determined as a function of input sizes. This is necessary as GPU computations have access only to memory which is allocated before their launch and cannot ``dynamically'' allocate more memory.  The shape-related
 aspects of Imp's syntax are shown in Figure \ref{ImpSyntax}.
 \end{enumerate}
-Imp kernels are ``shapely'' by construction, meaning they specify their memory
-requirements as deterministic functions of input size. This obviates the
-need for ad-hoc allocation logic (the bulk of most CUDA host code) or for
-auxilliary size inference on higher level code. If a function can be translated
-to Imp then we can always determine its memory requirements.
+Imp kernels are ``shapely'' by construction, meaning they specify their memory requirements as deterministic functions of input size. This obviates the need for ad-hoc allocation logic (the bulk of most CUDA host code) or for auxilliary size inference on higher level code. If a function can be translated to Imp then we can always determine its memory requirements.
 
-We perform staged synthesis of Imp kernels by parameterizing them with payload
-functions. An Imp kernel can be seen as a ``skeleton'' \cite{Cole04} for a
-particular implementation strategy of some array operator.  An example of a
-simplified Imp skeleton for \textbf{map} is shown in Figure \ref{ImpMap}.  The
-lines with the \texttt{SPLICE} keyword are the points at which the payload
-function gets added to the skeleton to form a complete kernel.
-
-\begin{figure}
-\begin{tabular}{| m{0.1cm}m{1.2cm}m{0.1cm}m{0.2cm}p{2cm}p{2.4cm} |}
-\hline
-& & & & &\\
- \multicolumn{6}{|l|}{\textbf{Imp Shape-Related Language Syntax}} \\[4pt]
-& definition        & $d$      & $\bnfdef$ & 
-      \multicolumn{2}{l|}{$f(\overline{x_m} : \overline{\tau_m}) \rightarrow
-(\overline{y_n} : \overline{\tau_n}, \overline{\sigma_n}) = s^{\small{+}}$}
-\\[4pt]
-& shape             & $\sigma$ & $\bnfdef$ & $ [] $                                            &  \quad \small{(shape of scalar)}      \\[2pt]
-&                   &          & $\sep$    & $ \sigma \concat \sigma $                         &  \quad \small{(concatenate)}      \\[2pt]
-&                   &          & $\sep$    & $ [z] $                                           &  \quad \small{(singleton)}   \\[2pt]
-&                   &          & $\sep$    & $ \sigma[\mathrm{const} \ldots  \mathrm{const}] $ &  \quad \small{(slice)}       \\[4pt]
-& size              & $z$      & $\bnfdef$ & $ \mathrm{dimsize}(x_i, \mathrm{const}) $         &  \quad \small{(input dimension)}   \\[2pt]
-&                   &          & $\sep$    & $ \mathrm{rank}(x_i) $                            &  \quad \small{(input rank)}  \\[2pt]
-&                   &          & $\sep$    & $ \oplus(\overline{z_m})$
-              &  \quad \small{(scalar primitive)}    \\[2pt]
-%& statement         & $s$      & $\bnfdef$ & $x : \tau, \sigma = e $ &
-%\\[2pt]
-%&                   &          & $\sep$    & $\IF \;v\; \THEN \;s^*\; \ELSE
-%\;s^*$ &\\[2pt]
-%&                   &          & $\sep$    & $\WHILE \;e\; \DO \;s^+\;  $
-%&\\[4pt]
-%& expression        & $e$      & $\bnfdef$ & $\oplus(\overline{v_m})$ & \\[2pt]
-%&                   &          & $\sep$    & $v_{array}[\overline{v_m}]$
-%&\\[2pt]
-%&                   &          & $\sep$    & $\textrm{cast} \; (v, \tau)$ &
-%\\[2pt] 
-%&                   &          & $\sep$    & $\textrm{dimsize}(v_{array},
-%v_{int}) $ & \\[2pt]
-%&                   &          & $\sep$    & $v$ & \\[4pt]
-%& value      & $v$ & $\bnfdef$ &  $x$ & \\[2pt]
-%&            &     & $\sep$    &   \multicolumn{2}{l|}{numeric constant}
-%\\[2pt]
-%&            &     & $\sep$    &  $\mathrm{threadIdx.\{x|y|z\}} $ &\\[2pt]
-%&            &     & $\sep$    &  $\mathrm{blockIdx.\{x|y|z\}} $ &\\[2pt]
-%&            &     & $\sep$    &  $\mathrm{blockDim.\{x|y|z\}} $ &\\[2pt]
-%&            &     & $\sep$    &  $\mathrm{gridDim.\{x|y\}}    $ &\\[2pt]
-& & & & &\\
-\hline
-\end{tabular}
-\caption{Imp Language Shape-Related Syntax}
-\label{ImpSyntax}
-\end{figure}
+We perform staged synthesis of Imp kernels by parameterizing them with payload functions. An Imp kernel can be seen as a ``skeleton'' \cite{Cole04} for a particular implementation strategy of some array operator.  An example of a simplified Imp skeleton for \textbf{map} is shown in Figure \ref{ImpMap}.  The lines with the \texttt{SPLICE} keyword are the points at which the payload function gets added to the skeleton to form a complete kernel.
 
 \begin{figure}[h!]
   \begin{lstlisting}[numbers=none]
@@ -762,53 +516,24 @@ function gets added to the skeleton to form a complete kernel.
 
 \subsection{Parallel Library}
 
-In addition to these skeletons, we provide a library of precompiled parallel
-implementations of our simple (first-order) array operators, which are listed
-in Figure \ref{ArrayOps}.  Since these operators don't require synthesis with
-embedded payload functions, we needn't dynamically generate them.  We use the
-Thrust library \cite{Hobe10} for some of these operators such as \textbf{sort},
-while providing our own hand-tuned implementations of others such as
-\textbf{where}.
+In addition to these skeletons, we provide a library of precompiled parallel implementations of our simple (first-order) array operators, which are listed in Figure \ref{ArrayOps}.  Since these operators don't require synthesis with embedded payload functions, we needn't dynamically generate them.  We use the Thrust library \cite{Hobe10} for some of these operators such as \textbf{sort}, while providing our own hand-tuned implementations of others such as \textbf{where}.
 
 \section{Evaluation}
 \label{Evaluation}
 
-We evaluated Parakeet on two standard benchmark programs: Black-Scholes option
-pricing, and K-Means Clustering.  We compare Parakeet against both hand-tuned
-CPU and GPU implementations.  For Black-Scholes, the CPU implementation is
-taken from the PARSEC \cite{Bien08} benchmark suite--which we used as the basis
-of our Q implementation--and the GPU implementation is taken from the CUDA SDK
-\cite{NvidSD}.  For K-Means Clustering, we wrote our own Q version in 17 lines
-of code.  Both the CPU and GPU benchmark version come from the Rodinia
-benchmark suite \cite{Che09}.
+We evaluated Parakeet on two standard benchmark programs: Black-Scholes option pricing, and K-Means Clustering.  We compare Parakeet against both hand-tuned CPU and GPU implementations.  For Black-Scholes, the CPU implementation is taken from the PARSEC \cite{Bien08} benchmark suite -- which we used as the basis
+of our Q implementation -- and the GPU implementation is taken from the CUDA SDK \cite{NvidSD}.  For K-Means Clustering, we wrote our own Q version in 17 lines of code.  Both the CPU and GPU benchmark version come from the Rodinia benchmark suite \cite{Che09}.
 
-Our experimental setup is as follows.  We ran the CPU benchmarks on a machine
-with an Intel Nehalem 2.67GHz X5550 4-core CPU with 24GB of RAM.  The
-theoretical peak throughput of this machine is 85.12 GFLOP/s, and it has a
-theoretical peak memory bandwidth of 32GB/s.  One important metric for comparing
-CPUs to GPUs is also performance per dollar.  At a current market rate of
-roughly \$983, the Nehalem has a peak of 0.087 GFLOP/s per dollar.
+Our experimental setup is as follows.  We ran the CPU benchmarks on a machine with an Intel Nehalem 2.67GHz X5550 4-core CPU with 24GB of RAM.  The theoretical peak throughput of this machine is 85.12 GFLOP/s, and it has a theoretical peak memory bandwidth of 32GB/s.  One important metric for comparing CPUs to GPUs is also performance per dollar.  At a current market rate of roughly \$983, the Nehalem has a peak of 0.087 GFLOP/s per dollar.
 
-For all GPU benchmarks, we ran the programs on an NVIDIA GTX260. This card
-has 216 processor cores with clock speeds of 1.3 GHz and 896MB of memory, with
-peak execution throughput of 805 GFLOP/s and peak memory bandwidth of 112 GB/s.
-At a current market price of around \$160, the GTX260 has a peak of over 5
-GFLOP/s per dollar--over 55 times that of the Nehalem.
+For all GPU benchmarks, we ran the programs on an NVIDIA GTX260. This card has 216 processor cores with clock speeds of 1.3 GHz and 896MB of memory, with peak execution throughput of 805 GFLOP/s and peak memory bandwidth of 112 GB/s. At a current market price of around \$160, the GTX260 has a peak of over 5 GFLOP/s per dollar -- over 55 times that of the Nehalem.
 
-For all of our Parakeet benchmarks, the desktop system we used for running the
-interpreter  had an Intel Core 2 6600 2.4GHz processor with 2 cores and
-4GB of RAM.
+For all of our Parakeet benchmarks, the desktop system we used for running the interpreter  had an Intel Core 2 6600 2.4GHz processor with 2 cores and 4GB of RAM.
 
 \subsection{Black-Scholes}
-Black-Scholes option pricing \cite{Blac73} is a standard benchmark for data
-parallel workloads, since it is embarrassingly parallel--the calculation of the
-price of a given option doesn't impact that of any other, and the benchmark
-consists of simply running thousands of independent threads in parallel for
-computing the prices of thousands of options.
+Black-Scholes option pricing \cite{Blac73} is a standard benchmark for data parallel workloads, since it is embarrassingly parallel -- the calculation of the price of a given option doesn't impact that of any other, and the benchmark consists of simply running thousands of independent threads in parallel for computing the prices of thousands of options.
 
-We compare our system against the multithreaded OpenMP CPU implementation
-from the PARSEC \cite{Bien08} benchmark suite with 4 threads and the CUDA
-version in the NVIDIA CUDA SDK \cite{NvidSD}.
+We compare our system against the multithreaded OpenMP CPU implementation from the PARSEC \cite{Bien08} benchmark suite with 4 threads and the CUDA version in the NVIDIA CUDA SDK \cite{NvidSD}.
 
 \begin{figure}
 \includegraphics[scale=0.45]{BSTotal.pdf}
@@ -816,9 +541,7 @@ version in the NVIDIA CUDA SDK \cite{NvidSD}.
 \label{BSResults}
 \end{figure}
 
-In Figure \ref{BSResults}, we see the total run times of the various systems.
-These times include the time it takes to transfer data to and from the GPU in
-the GPU benchmarks.  
+In Figure \ref{BSResults}, we see the total run times of the various systems. These times include the time it takes to transfer data to and from the GPU in the GPU benchmarks.  
 
 \begin{figure}
 \includegraphics[scale=0.45]{BSGPU.pdf}
@@ -828,106 +551,39 @@ the GPU benchmarks.
 
 \subsection{K-Means Clustering}
 
-K-Means illustrates a key aspect of our approach: the ability to exploit
-dynamic information to tailor code generation and execution.  In the
-\texttt{calc\_centroids} function, we have a $\MAP$ operator applied to a
-nested function that in turns contains array operators.  Our interpreter is
-able to make the most efficient choice regarding where to execute things: the
-outer $\MAP$, since it's applied to a small array of integers and involves
-little computation of its own, gets executed on the CPU as a loop.  The inner
-function, which since it has dense computation applied to large inputs, gets
-synthesized into a kernel that is repeatedly launched.  This type of dynamic
-decision based on data size would not be possible in a static environment.
+K-Means illustrates a key aspect of our approach: the ability to exploit dynamic information to tailor code generation and execution.  In the \texttt{calc\_centroids} function, we have a $\MAP$ operator applied to a
+nested function that in turns contains array operators.  Our interpreter is able to make the most efficient choice regarding where to execute things: the outer $\MAP$, since it's applied to a small array of integers and involves little computation of its own, gets executed on the CPU as a loop.  The inner function, which since it has dense computation applied to large inputs, gets synthesized into a kernel that is repeatedly launched.  This type of dynamic decision based on data size would not be possible in a static environment.
+
+\subsection{Compilation Overheads}
+It has been shown in the pioneering JIT work by Chambers~\cite{Cham92} that in an interactive programming environment, the key psychological barrier for compilation overhead is roughly on the order of less than a second.
 
 \section{Related Work}
 \label{RelatedWork}
-The use of graphics hardware for non-graphical computation has a  long
-history~\cite{Lengyel90}, though convenient frameworks for general purpose GPU
-programming have only recently emerged. The first prominent GPU backend for a
-general purpose language was ``Brook for GPUs'' \cite{Buck04}. The Brook
-language extended C with ``kernels'' and
-``streams'', exposing a programming model similar to what is now found in CUDA
-and OpenCL.
+The use of graphics hardware for non-graphical computation has a  long history~\cite{Lengyel90}, though convenient frameworks for general purpose GPU programming have only recently emerged. The first prominent GPU backend for a general purpose language was ``Brook for GPUs'' \cite{Buck04}. The Brook language extended C with ``kernels'' and ``streams'', exposing a programming model similar to what is now found in CUDA and OpenCL.
 
-Microsoft's Accelerator~\cite{Tard06} was the first project to use high level
-(collection-oriented) language constructs as a basis for GPU execution.
-Accelerator is a declarative GPU language embedded in C\# which creates a
-directed acyclic graph of LINQ operations--such as filtering, grouping, and
-joining--and compiles them to
-(pre-CUDA) shader programs. Accelerator's programming model does not support
-function abstractions (only expression trees) and its only underlying
-parallelism construct is limited to the production of $\MAP$-like kernels. 
+Microsoft's Accelerator~\cite{Tard06} was the first project to use high level (collection-oriented) language constructs as a basis for GPU execution. Accelerator is a declarative GPU language embedded in C\# which creates a directed acyclic graph of LINQ operations -- such as filtering, grouping, and joining -- and compiles them to (pre-CUDA) shader programs. Accelerator's programming model does not support function abstractions (only expression trees) and its only underlying parallelism construct is limited to the production of $\MAP$-like kernels.
 
-Three more recent projects all translate domain specific embedded array
-languages to CUDA backends:
+Three more recent projects all translate domain specific embedded array languages to CUDA backends:
 \begin{itemize}
-\item \textbf{Nikola}~\cite{Main10} is a first-order array-oriented language
-embedded within Haskell. Nikola provides a convenient syntax for expressing
-single-kernel computations, but requires the programmer to manually coordinate
-computations which require multiple kernel launches. Nikola also does not
-support partially applied functions and its parallelization scheme, which first
-serializes array operators into loops and then parallelizes loop iterations,
-seems ill-suited for complex array operations. 
+\item \textbf{Nikola}~\cite{Main10} is a first-order array-oriented language embedded within Haskell. Nikola provides a convenient syntax for expressing single-kernel computations, but requires the programmer to manually coordinate computations which require multiple kernel launches. Nikola also does not support partially applied functions and its parallelization scheme, which first serializes array operators into loops and then parallelizes loop iterations, seems ill-suited for complex array operations.
 
-\item \textbf{Accelerate}~\cite{ChakAcc} is also an embedded array language
-within Haskell. Unlike Nikola, Accelerate does allow the expression of
-computations which span multiple kernel launches. Accelerate also has a much
-richer set of array operators (including the higher-order trio $\MAP$,
-$\REDUCE$, $\SCAN$). Accelerate, however, does not seem to support closures or
-the nesting of array operators. Accelerate's backend is similar to ours in that
-they use a simple interpreter whose job is to initiate skeleton-based kernel
-compilation, transfer data to and from the GPU, and to perform simple CPU-side
-computations.
+\item \textbf{Accelerate}~\cite{ChakAcc} is also an embedded array language within Haskell. Unlike Nikola, Accelerate does allow the expression of computations which span multiple kernel launches. Accelerate also has a much richer set of array operators (including the higher-order trio $\MAP$, $\REDUCE$, $\SCAN$). Accelerate, however, does not seem to support closures or the nesting of array operators. Accelerate's backend is similar to ours in that they use a simple interpreter whose job is to initiate skeleton-based kernel compilation, transfer data to and from the GPU, and to perform simple CPU-side computations.
 
-\item \textbf{Copperhead}~\cite{Cata10} parallelizes a statically typed purely
-functional array subset of Python through the dynamic compilation/execution of
-CUDA kernels. Copperhead supports nested array computations, and even has a
-sophisticated notion of where these computations can be scheduled. In addition
-to sequentializing nested array operators within CUDA kernels (as done in
-Parakeet), Copperhead can also share the work of a nested computation between
-all the threads in CUDA block. Unfortunately, Copperhead does not utilize any
-dynamic information (such as size) when making these scheduling decisions and
-thus must rely on user annotations. Copperhead's compiler generates kernels
-through parameterization of operator-specific C++ template classes. By using C++
-as their backend target, Copperhead has been able to easily integrate the Thrust
-~\cite{Hobe10} GPGPU library and to offload the bulk of their
-code optimizations onto a C++ compiler. Runtime generation of templated C++ can,
-however, be a double-edged sword. Copperhead experiences the longest compile
-times of any project mentioned here (orders of magnitude longer than the
-compiler overhead of Parakeet).
+\item \textbf{Copperhead}~\cite{Cata10} parallelizes a statically typed purely functional array subset of Python through the dynamic compilation/execution of CUDA kernels. Copperhead supports nested array computations, and even has a sophisticated notion of where these computations can be scheduled. In addition
+to sequentializing nested array operators within CUDA kernels (as done in Parakeet), Copperhead can also share the work of a nested computation between all the threads in CUDA block. Unfortunately, Copperhead does not utilize any dynamic information (such as size) when making these scheduling decisions and
+thus must rely on user annotations. Copperhead's compiler generates kernels through parameterization of operator-specific C++ template classes. By using C++ as their backend target, Copperhead has been able to easily integrate the Thrust ~\cite{Hobe10} GPGPU library and to offload the bulk of their code optimizations onto a C++ compiler. Runtime generation of templated C++ can, however, be a double-edged sword. Copperhead experiences the longest compile times of any project mentioned here (orders of magnitude longer than the compiler overhead of Parakeet).
 \end{itemize}
-Unlike the three approaches mentioned above, Parakeet does not require its
-source language to be purely functional nor statically typed. Being able to
-program in a dynamically typed language seems particularly important for array
-computations, since static type systems are generally unable to support the
-syntactic conveniences which make array programming appealing in the first
-place.
+Unlike the three approaches mentioned above, Parakeet does not require its source language to be purely functional nor statically typed. Being able to program in a dynamically typed language seems particularly important for array computations, since static type systems are generally unable to support the syntactic conveniences which make array programming appealing in the first place.
 
 \section{Conclusion}
 \label{Conclusion}
 
-Parakeet allows the programmer
-to write in a high level sequential array language.
-Parakeet automatically synthesizes GPU programs from the resulting 
-program and executes by
-transparently moving data back and
-forth to the GPU's memory and performing GPU memory garbage collection.
-Parakeet includes a series of optimizations to generate more efficient GPU
-programs, including array operator fusion and the use of shared and texture
-memory on the GPU.  Parakeet is system in which complex programs can
-be written and executed efficiently.  On two benchmark programs, Parakeet
-delivers performance competitive with even hand-tuned CPU and GPU
-implementations.
+Parakeet allows the programmer to write in a high level sequential array language. Parakeet automatically synthesizes GPU programs from the resulting program and executes by transparently moving data back and
+forth to the GPU's memory and performing GPU memory garbage collection. Parakeet includes a series of optimizations to generate more efficient GPU programs, including array operator fusion and the use of shared and texture memory on the GPU.  Parakeet is system in which complex programs can be written and executed efficiently.  On two benchmark programs, Parakeet delivers performance competitive with even hand-tuned CPU and GPU implementations.
 
-In future work, we hope to support more front ends and back ends.  At the
-moment, we are building front ends for both Matlab and Python.  We envision
-building a back end for multicore CPUs as well, likely targeting LLVM
-\cite{Latt02}.
+In future work, we hope to support more front ends and back ends.  At the moment, we are building front ends for both Matlab and Python.  We envision building a back end for multicore CPUs as well, likely targeting LLVM~\cite{Latt02}.
 
-In addition, we plan to increase efficiency by
-iteratively tuning components of hierarchical algorithms, splitting
-data inputs to take advantage of more of the texturing hardware, and overlapping
-computation with data transfer.  
+In addition, we plan to increase efficiency by iteratively tuning components of hierarchical algorithms, splitting data inputs to take advantage of more of the texturing hardware, and overlapping computation with data transfer.
 
 \bibliographystyle{acm}
 \bibliography{../Parallelism}{}
