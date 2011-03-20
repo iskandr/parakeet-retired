@@ -1,6 +1,6 @@
 Parallelism Bibliography
 
-Please keep tidy!
+Please keep tidy!!!
 
 Macros:
 -------
@@ -18,6 +18,8 @@ Conferences/Workshops/Journals:
 @STRING{PC      = "Parallel Computing"}
 @STRING{PLDI    = "ACM SIGPLAN conference on Programming Languages Design and
                    Implementation"}
+@STRING{PPOPP   = "ACM Symposium on Principles and Practice of Parallel
+                   Programming"}
 
 Conference Years:
 -----------------
@@ -44,6 +46,9 @@ PACT
 
 PLDI
 @STRING{PLDI91 = "PLDI '91: Proceedings of the 1991 " # PLDI}
+
+PPOPP
+@STRING{PPOPP11 = "Proceedings of the 16th " # PPOPP}
 
 Entry Templates:
 ----------------
@@ -216,13 +221,12 @@ BBBB
 
 
 @INPROCEEDINGS{Bol09,
-    Title = {Types are Calling Conventions},
-    Author = {Bolingbroke, Maximilian C. and Jones, Simon L. Peyton},
-    Booktitle  = Haskell09,
-    Year = {2009}, 
-    Month = {September},
+  Title       = {Types are Calling Conventions},
+  Author      = {Bolingbroke, Maximilian C. and Jones, Simon L. Peyton},
+  Booktitle   = Haskell09,
+  Year        = {2009}, 
+  Month       = {September}
 }
-
 
 @BOOK{Borr08,
   Author      = {Borror, Jeffrey A.},
@@ -232,20 +236,14 @@ BBBB
 }
 
 @inproceedings{Buck04,
- author = {Buck, Ian and Foley, Tim and Horn, Daniel and Sugerman, Jeremy and Fatahalian, Kayvon and Houston, Mike and Hanrahan, Pat},
- title = {Brook for {GPU}s: stream computing on graphics hardware},
- booktitle = {ACM SIGGRAPH 2004 Papers},
- series = {SIGGRAPH '04},
- year = {2004},
- location = {Los Angeles, California},
- pages = {777--786},
- numpages = {10},
- url = {http://doi.acm.org/10.1145/1186562.1015800},
- doi = {http://doi.acm.org/10.1145/1186562.1015800},
- acmid = {1015800},
- publisher = {ACM},
- address = {New York, NY, USA},
- keywords = {Data Parallel Computing, GPU Computing, Brook, Programmable Graphics Hardware, Stream Computing},
+  Author      = {Buck, Ian and Foley, Tim and Horn, Daniel and Sugerman, Jeremy
+                 and Fatahalian, Kayvon and Houston, Mike and Hanrahan, Pat},
+  Title       = {Brook for {GPU}s: stream computing on graphics hardware},
+  Booktitle   = {ACM SIGGRAPH 2004 Papers},
+  Year        = {2004},
+  Pages       = {777--786},
+  Publisher   = {ACM},
+  Address     = {New York, NY, USA},
 }
 
 
@@ -262,8 +260,20 @@ CCCC
                  EECS-2010-124.html}}
 }
 
+@INPROCEEDINGS{Chaf11,
+  Author      = {Chafi, Hassan and Sujeeth, Arvind K. and Brown, Kevin J. and
+                 Lee, HyoukJoong and Atreya, Anand R. and Olukotun, Kunle},
+  Title       = {A Domain-Specific Approach to Heterogeneous Parallelism},
+  Booktitle   = PPOPP11,
+  Year        = {2011},
+  Pages       = {35--46},
+  Publisher   = {ACM},
+  Address     = {New York, NY, USA}
+}
+
 @ARTICLE{ChakAcc,
-  Author      = {Chakravarty, Manuel M.T. and Keller, Gabrielle and Lee, Sean and McDonnel, Trevor L. and Grover, Vinod},
+  Author      = {Chakravarty, Manuel M.T. and Keller, Gabrielle and Lee, Sean
+                 and McDonnel, Trevor L. and Grover, Vinod},
   Title       = {Accelerating Haskell Array Codes with Multicore GPUs},
   Journal     = pre-print,
   Volume      = {},
