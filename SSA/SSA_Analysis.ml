@@ -41,7 +41,6 @@ end
 module MkEvaluator(A : ANALYSIS) = struct
   
   let rec eval_block initEnv block =
-    let n = Block.length block in
     let changed = ref false in 
     let fold_stmts env stmtNode = 
       match A.stmt env stmtNode helpers with 

@@ -26,22 +26,35 @@ type gpu_vec = {
 type gpu_val = GpuScalar of PQNum.num | GpuArray of gpu_vec
 
 
-let elt_to_str gpuVec idx = match gpuVec.vec_t with 
-  | DynType.Int32T -> 
+let elt_to_str gpuVec idx = 
+  match gpuVec.vec_t with 
+  | DynType.VecT DynType.Int32T -> 
     let i32 = Cuda.cuda_get_gpu_int32_vec_elt gpuVec.vec_ptr idx in
     Int32.to_string i32         
-  | DynType.Float32T ->
+  | DynType.VecT DynType.Float32T ->
     let f = Cuda.cuda_get_gpu_float32_vec_elt gpuVec.vec_ptr idx in  
     string_of_float f 
+  | DynType.VecT DynType.BoolT ->
+    let i =  Cuda.cuda_get_gpu_char_vec_elt gpuVec.vec_ptr idx in
+    string_of_int i 
   | _ -> "?" 
 
 let elts_summary gpuVec = 
-  String.concat ", " $ List.map (elt_to_str gpuVec) (List.til 6) 
+  String.concat ", " $ List.map (elt_to_str gpuVec) (List.til 10) 
+
+let gpu_vec_to_str gpuVec = 
+  Printf.sprintf 
+    "GpuVec(%stype=%s, shape=%s, address=%Ld): [%s ...]"
+      (if gpuVec.vec_slice_start = None then "" else "SLICE, ") 
+      (DynType.to_str gpuVec.vec_t)
+      (Shape.to_str gpuVec.vec_shape)
+      gpuVec.vec_ptr
+      (elts_summary gpuVec)
 
 let to_str = function 
   | GpuScalar n -> Printf.sprintf "GpuScalar(%s)" (PQNum.num_to_str n)
-  | GpuArray gpuVec -> 
-      Printf.sprintf "GpuVec(len=%d): [%s]" gpuVec.vec_len (elts_summary gpuVec) 
+  | GpuArray gpuVec -> gpu_vec_to_str gpuVec
+       
 
 let nelts = function
   | GpuScalar _-> 1
@@ -96,4 +109,30 @@ let index arr idx =
                "Indexing into GPU vectors not implemented for type %s"
                (DynType.to_str $  DynType.elt_type arr.vec_t)
 
+(* returns a gpu_val, not a gpu_vec since the elements might be scalars *)
+let slice_vec gpuVec idx : gpu_val = 
+  let sliceShape = Shape.slice_shape gpuVec.vec_shape [0] in
+  let sliceType = DynType.peel_vec gpuVec.vec_t in
+  if DynType.is_scalar sliceType then index gpuVec idx else 
+  let bytesPerElt = DynType.sizeof (DynType.elt_type sliceType) in
+  let nelts =  Shape.nelts sliceShape in 
+  let sliceBytes = bytesPerElt * nelts in
+  GpuArray { 
+    vec_ptr = Int64.add gpuVec.vec_ptr (Int64.of_int (sliceBytes * idx));  
+    vec_nbytes = sliceBytes; 
+    vec_len = nelts; 
+    vec_shape_ptr = Int64.add gpuVec.vec_shape_ptr (Int64.of_int 4); 
+    vec_shape_nbytes = gpuVec.vec_shape_nbytes - 4; 
+    vec_shape = sliceShape; 
+    vec_t = sliceType;
+    vec_slice_start = Some gpuVec.vec_ptr; 
+  }
+   
 
+let slice gpuVal idx : gpu_val = 
+  IFDEF DEBUG THEN  
+    Printf.printf "[GpuVal->slice] %s @ %d\n%!" (to_str gpuVal) idx
+  ENDIF; 
+  match gpuVal with   
+  | GpuScalar _ -> failwith "can't slice a GPU scalar"
+  | GpuArray gpuVec -> slice_vec gpuVec idx

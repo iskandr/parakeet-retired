@@ -6,7 +6,6 @@ SSA
 Q
 Ptx
 Imp
-GPU
 Dump
 Base
 AST
@@ -81,7 +80,6 @@ papers/WIR11
 AST
 Base
 Dump
-GPU
 Imp
 Ptx
 Q
@@ -145,7 +143,6 @@ Common
 CostModel
 Dump
 FrontEnd
-GPU
 Imp
 Imp/KernelTemplates
 OCAMLInterface

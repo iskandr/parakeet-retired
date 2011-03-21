@@ -5,7 +5,6 @@
 "Dump" : include
 "Ptx": include
 "Tests" : include
-"GPU" : include
 "Q" : include
 "SSA" : include
 "SSA/Analyses" : include

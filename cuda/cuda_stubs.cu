@@ -195,7 +195,23 @@ value ocaml_cuda_memcpy_to_host (value array,
 
 /* EEK:  
    Access a GPU array element 
-*/ 
+*/
+
+CAMLprim
+value ocaml_cuda_get_gpu_char_vec_elt(value ocaml_gpu_vec, value ocaml_id) {
+  CAMLparam2(ocaml_gpu_vec, ocaml_id);
+  int *gpu_vec = (int*)Int64_val(ocaml_gpu_vec);
+  char val = 0;
+  cudaError_t rslt = cudaMemcpy(&val, gpu_vec + Int_val(ocaml_id),
+                                sizeof(char), cudaMemcpyDeviceToHost);
+  if (rslt) {
+    printf("Error getting element of gpu int vec: %d\n", rslt);
+    exit(1);
+  }
+  CAMLreturn(Val_int(val));
+}
+
+ 
 CAMLprim
 value ocaml_cuda_get_gpu_int_vec_elt(value ocaml_gpu_vec, value ocaml_id) {
   CAMLparam2(ocaml_gpu_vec, ocaml_id);

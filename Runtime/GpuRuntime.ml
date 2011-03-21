@@ -4,6 +4,8 @@ open Base
 open Bigarray
 open HostVal
 open Printf 
+open GpuVal 
+
 module type GPU_RUNTIME_PARAMS = sig 
   val fnTable : FnTable.t
   val memState : MemoryState.t 
@@ -70,13 +72,11 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
       let ty = Hashtbl.find impfn.Imp.types id in  
       let privateShape = ID.Map.find id shapeEnv in
       let globalShape = Shape.append_dim nThreads privateShape in
-      let gpuVec = GpuVal.mk_gpu_vec ty globalShape in 
-      let gpuPtr = GpuVal.get_ptr gpuVec in
-      let gpuBytes = GpuVal.get_nbytes gpuVec in
-      let gpuShapePtr = GpuVal.get_shape_ptr gpuVec in
-      let gpuShapeBytes = GpuVal.get_shape_nbytes gpuVec in    
+      let vec = MemoryState.mk_gpu_vec P.memState ty globalShape in  
+      let gpuShapePtr = vec.GpuVal.vec_shape_ptr in 
+      let gpuShapeBytes = vec.GpuVal.vec_shape_nbytes in    
       let gpuArgs =[
-        CudaModule.GpuArrayArg(gpuPtr,gpuBytes);
+        CudaModule.GpuArrayArg(vec.GpuVal.vec_ptr, vec.GpuVal.vec_nbytes);
         CudaModule.GpuArrayArg(gpuShapePtr, gpuShapeBytes)
       ]
       in 
@@ -99,16 +99,16 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
         assert (DynType.is_vec ty);
         assert (Shape.rank shape > 0);
       ENDIF; 
-      let outputVal = GpuVal.mk_gpu_vec ty shape in
-      DynArray.add outputMap outputVal;
-      ID.Map.add 
-        id
-        [CudaModule.GpuArrayArg(GpuVal.get_ptr outputVal,
-                                GpuVal.get_nbytes outputVal);
-         CudaModule.GpuArrayArg(GpuVal.get_shape_ptr outputVal,
-                                GpuVal.get_shape_nbytes outputVal)]
-        env 
-    
+      let vec = MemoryState.mk_gpu_vec P.memState ty shape in 
+      DynArray.add outputMap (GpuVal.GpuArray vec);
+      let gpuShapePtr = vec.GpuVal.vec_shape_ptr in 
+      let gpuShapeBytes = vec.GpuVal.vec_shape_nbytes in  
+      let args = [
+        CudaModule.GpuArrayArg(vec.GpuVal.vec_ptr, vec.GpuVal.vec_nbytes);
+        CudaModule.GpuArrayArg(gpuShapePtr, gpuShapeBytes)
+      ] 
+      in 
+      ID.Map.add id args env 
   
   let create_args 
         (modulePtr : Cuda.CuModulePtr.t) 
@@ -144,7 +144,7 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
     let process_param id =
       let args = ID.Map.find id valueEnv' in
       IFDEF DEBUG THEN 
-          Printf.printf "[GpuRuntime] Registring GPU param for %s = %s\n" 
+          Printf.printf "[GpuRuntime] Registering GPU param for %s = %s\n" 
             (ID.to_str id)
             (String.concat ", "  (List.map CudaModule.gpu_arg_to_str args)) 
           ; 
@@ -173,7 +173,6 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
         (Array.of_list argTypes)
         (Array.of_list retTypes)
     in
-    let allInputTypes = Array.of_list (closureTypes @ argTypes) in 
     let kernel, cc = ImpToPtx.translate_kernel impfn in
     let kernelName = "map_kernel" ^ (string_of_int (map_id_gen())) in
     let cudaModule = CudaModule.cuda_module_from_kernel_list
@@ -222,7 +221,11 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
     create_args modulePtr outputElts impKernel cc (closureArgs @ args)
   in  
   CudaModule.launch_ptx
-    cudaModule.Cuda.module_ptr fnName paramsArray gridParams;
+    cudaModule.Cuda.module_ptr 
+    fnName 
+    paramsArray 
+    gridParams
+  ;
   outputVals
 
 
@@ -292,7 +295,7 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
   let threadsPerBlock = compiledModule.Cuda.threads_per_block in
   let outputTypes = payload.SSA.fn_output_types in 
   assert (List.length outputTypes = 1); 
-  let outputType = List.hd outputTypes in
+  
   let fnName = match compiledModule.Cuda.kernel_names with 
     | [fnName] -> fnName
     | _ -> failwith "expect one reduce kernel" 
@@ -325,11 +328,10 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
     }
     in
     CudaModule.launch_ptx compiledModule.Cuda.module_ptr fnName args gridParams;
-    if !currInputElts < numInputElts then GpuVal.free (List.hd !inputArgs); 
     inputArgs := outputsList; 
     currInputElts := numOutputElts; 
   done; 
-  let result = GpuVal.get_slice (List.hd !inputArgs) 0 in
+  let result = GpuVal.slice (List.hd !inputArgs) 0 in
   IFDEF DEBUG THEN
     Printf.printf "Final reduction result of shape %s, type %s\n"
     (Shape.to_str (GpuVal.get_shape result))
@@ -408,7 +410,7 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
                           INDEX 
    **********************************************************)
   
-  let index (inputVec : value) (indexVec : value) =
+  let index (inputVec : gpu_val) (indexVec : gpu_val) =
     let inputShape = GpuVal.get_shape inputVec in
     let ninputels = Shape.nelts inputShape in
     let nidxs = GpuVal.nelts indexVec in
@@ -425,8 +427,10 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
       len
     end
     in
-    let elType = DynType.elt_type (GpuVal.get_type inputVec) in
-    let output = GpuVal.mk_gpu_vec (GpuVal.get_type inputVec) outputShape in
+    let inputType = GpuVal.get_type inputVec in 
+    let elType = DynType.elt_type inputType in
+    let outputVec = MemoryState.mk_gpu_vec P.memState inputType outputShape in
+    let output = GpuVal.GpuArray outputVec in 
     let inputPtr = GpuVal.get_ptr inputVec in
     let indexPtr = GpuVal.get_ptr indexVec in
     let outputPtr = GpuVal.get_ptr output in
@@ -449,28 +453,27 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
   (**********************************************************
                           WHERE 
    **********************************************************)
-    let where (binVec : value) =
+    let where (binVec : gpu_val) =
+      let binPtr = GpuVal.get_ptr binVec in
       let nelts = GpuVal.nelts binVec in
       IFDEF DEBUG THEN 
         Printf.printf "Running WHERE on %d elements\n" nelts;
       ENDIF; 
       let scanShape = GpuVal.get_shape binVec in
+      let int32_vec_type = DynType.VecT DynType.Int32T in  
       let scanInterm = 
-        GpuVal.mk_gpu_vec (DynType.VecT DynType.Int32T) scanShape 
-      in
-      let binPtr = GpuVal.get_ptr binVec in
+        MemoryState.mk_gpu_val P.memState int32_vec_type scanShape 
+      in 
       let scanPtr = GpuVal.get_ptr scanInterm in
       Thrust.thrust_prefix_sum_bool_to_int binPtr nelts scanPtr;
-      let resultLength = 
-        Cuda.cuda_get_gpu_int_vec_element scanPtr (nelts - 1) 
-      in
+      let resultLength = Cuda.cuda_get_gpu_int_vec_elt scanPtr (nelts - 1) in
       IFDEF DEBUG THEN 
         Printf.printf "WHERE returned %d elements\n" resultLength;
       ENDIF; 
       let outputShape = Shape.create 1 in
       Shape.set outputShape 0 resultLength;
       let output = 
-        GpuVal.mk_gpu_vec (DynType.VecT DynType.Int32T) outputShape 
+        MemoryState.mk_gpu_val P.memState int32_vec_type outputShape 
       in
       Kernels.bind_where_tex scanPtr nelts;
       Kernels.where_tex nelts (GpuVal.get_ptr output);

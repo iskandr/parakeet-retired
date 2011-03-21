@@ -9,6 +9,11 @@ type host_array =
     host_t : DynType.t;
     shape: Shape.t;
     nbytes: int; (* cached to avoid recalculating every time *) 
+    (* if this is a slice into some other array, 
+       then note the start pointer to avoid calling
+       free twice and assist garbage collection 
+    *)  
+    slice_start: Int64.t option; 
   }
 
 type host_val =
@@ -47,10 +52,7 @@ let to_str = function
   | HostBoxedArray _ -> "HostBoxedArray"
 
 
-       
 let mk_host_scalar n = HostScalar n
-  
-
 
 let get_type = function 
   | HostArray { host_t = host_t } -> host_t
@@ -84,6 +86,9 @@ let set_vec_elt hostVec idx v =
        Printf.sprintf "[HostVal->set_vec_elt] cannot set elements of %s to %s"
         (DynType.to_str hostVec.host_t)
         (DynType.to_str (PQNum.type_of_num n))
+  | _, HostBoxedArray _ -> 
+       failwith "[HostVal] boxed array elt set not implemented" 
+
 
 let get_vec_elt hostVec idx = 
   assert (DynType.is_vec hostVec.host_t);    
@@ -100,7 +105,7 @@ let get_vec_elt hostVec idx =
        Printf.sprintf "[HostVal->get_vec_elt] cannot get elements of %s"
         (DynType.to_str hostVec.host_t)    
 
-
+(*
 let set_slice array idx elt = match array, elt with 
   | HostArray arr, HostScalar n -> set_vec_elt arr idx elt
   | HostArray arr1, HostArray arr2 -> 
@@ -124,8 +129,30 @@ let set_slice array idx elt = match array, elt with
         set_vec_elt arr1 (i) (get_vec_elt arr2 i)
       done
   | _ -> assert false         
+*)
       
 let sizeof = function 
   | HostArray arr -> arr.nbytes 
   | HostScalar n -> DynType.sizeof (PQNum.type_of_num n)  
+  | HostBoxedArray _ -> assert false 
+
+(* slice a host array along its outermost dimension, 
+   assuming everything is stored in row-major 
+ *) 
+let slice hostVal idx = match hostVal with 
+  | HostScalar _ -> failwith "can't slice a host scalar"
+  | HostArray ({ ptr = ptr; host_t = host_t; shape=shape } as hostArray) -> 
+    let sliceShape = Shape.slice_shape shape [0] in
+    let sliceType = DynType.peel_vec host_t in
+    if DynType.is_scalar sliceType then 
+      get_vec_elt hostArray idx
+    else 
+      let bytesPerElt = DynType.sizeof (DynType.elt_type sliceType) in 
+      let sliceBytes = bytesPerElt * Shape.nelts sliceShape in
+      let slicePtr = Int64.add ptr (Int64.of_int (sliceBytes * idx)) in 
+      let sliceArray =  { 
+        ptr = slicePtr; host_t=sliceType; shape=sliceShape; nbytes=sliceBytes;
+        slice_start = Some ptr; 
+      }
+      in HostArray sliceArray 
   | HostBoxedArray _ -> assert false 

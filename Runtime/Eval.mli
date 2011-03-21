@@ -1,5 +1,4 @@
 
-type env = InterpVal.t ID.Map.t 
 
 (* evaluates a function applied to a set of arguments on the host *) 
 val eval

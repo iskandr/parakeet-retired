@@ -7,8 +7,6 @@ open SSA
 open InterpVal 
  
 
-type env = InterpVal.t ID.Map.t 
-
 let _ = Printexc.record_backtrace true 
 
 module type EVAL_PARAMS = sig 
@@ -37,72 +35,66 @@ module Mk(P : EVAL_PARAMS) = struct
     typeof interpVal, shapeof interpVal, is_on_gpu interpVal 
   let describe_args interpVals = List.map describe_arg interpVals
        
-  let eval_value (env : env) (valNode : SSA.value_node) : InterpVal.t = 
+  let eval_value  (valNode : SSA.value_node) : InterpVal.t = 
     match valNode.value with 
-    | Var id -> 
-      if ID.Map.mem id env then ID.Map.find id env
-      else failwith $ 
-        Printf.sprintf "[eval_value] variable %s not found!" (ID.to_str id)
+    | Var id -> MemoryState.env_lookup P.memState id 
     | Num n -> InterpVal.Scalar n 
     | _ -> 
       let valStr = SSA.value_to_str valNode.value in 
       failwith ("[eval_value] values of this type not implemented: " ^ valStr)
   
-  let eval_phi_node cond env phiNode : env = 
+  let eval_phi_node cond phiNode : unit = 
     let id = phiNode.phi_id in 
     let rhs = if cond then phiNode.phi_left else phiNode.phi_right in 
-    let rhsVal = eval_value env rhs in
+    let rhsVal = eval_value rhs in
     IFDEF DEBUG THEN 
        Printf.printf "\n===> [Eval] Phi assignment %s <- %s\n"
         (ID.to_str id)
         (InterpVal.to_str rhsVal)
     ENDIF;  
-    ID.Map.add id rhsVal env  
-
-  let eval_phi_nodes cond env phiNodes =
-    List.fold_left (eval_phi_node cond) env phiNodes 
+    MemoryState.env_set P.memState id rhsVal 
+    
+  let eval_phi_nodes cond phiNodes : unit =
+    List.iter (eval_phi_node cond) phiNodes 
                         
-  let rec eval_block env block = Block.fold_forward eval_stmt env block  
-  and eval_stmt (env : env) (stmtNode : SSA.stmt_node) : env = 
+  let rec eval_block block = Block.iter_forward eval_stmt block 
+    
+  and eval_stmt (stmtNode : SSA.stmt_node) : unit = 
     IFDEF DEBUG THEN 
       Printf.printf "\n===> EVAL: %s\n\n"
         (SSA.stmt_node_to_str stmtNode); 
     ENDIF; 
     match stmtNode.stmt with 
-    | Set (ids, expNode) ->
-      let results =  eval_exp env expNode in
-      IFDEF DEBUG THEN
-        assert (List.length ids = List.length results); 
-      ENDIF; 
-      ID.Map.extend env ids results 
+    | Set (ids, expNode) -> 
+        let rhsVals = eval_exp expNode in 
+        MemoryState.env_set_multiple P.memState ids rhsVals 
     | SetIdx (id, indices, rhs) -> assert false    
     | If (boolVal, tBlock, fBlock, phiNodes) ->
-      let cond = InterpVal.to_bool (eval_value env boolVal) in 
-      let env' = eval_block env (if cond then tBlock else fBlock) in 
-      eval_phi_nodes cond env'  phiNodes
+      let cond = InterpVal.to_bool (eval_value boolVal) in 
+      eval_block (if cond then tBlock else fBlock);  
+      eval_phi_nodes cond phiNodes
       
     | WhileLoop (testBlock, testVal, body, header) ->
-      let headerEnv = eval_phi_nodes true env header in 
-      let testEnv = eval_block headerEnv testBlock in 
-      let cond = ref (eval_value testEnv testVal) in
-      let loopEnv = ref testEnv in
+      
+      eval_phi_nodes true header;  
+      eval_block testBlock;  
+      let cond = ref (eval_value testVal) in
       let niters = ref 0 in   
       while InterpVal.to_bool !cond do        
         niters := !niters + 1; 
-        loopEnv := eval_block !loopEnv body; 
-        loopEnv := eval_phi_nodes false !loopEnv header; 
-        loopEnv := eval_block !loopEnv testBlock; 
-        cond := eval_value !loopEnv testVal
-      done; 
-      !loopEnv
+        eval_block body; 
+        eval_phi_nodes false header; 
+        eval_block testBlock; 
+        cond := eval_value testVal
+      done
          
-and eval_exp (env : env) (expNode : SSA.exp_node) : InterpVal.t list = 
+and eval_exp (expNode : SSA.exp_node) : InterpVal.t list = 
   match expNode.exp with 
-  | Values valNodes -> List.map (eval_value env) valNodes
+  | Values valNodes -> List.map eval_value valNodes
   | Arr elts -> 
-      [InterpVal.Array (Array.of_list (List.map (eval_value env) elts))]
+      [InterpVal.Array (Array.of_list (List.map eval_value elts))]
   | Cast (t, valNode) when DynType.is_scalar t -> 
-      (match eval_value  env valNode with 
+      (match eval_value valNode with 
         | InterpVal.Scalar n -> [InterpVal.Scalar (PQNum.coerce_num n t)]
         | _ -> failwith "[eval] expected scalar"
       )  
@@ -110,24 +102,24 @@ and eval_exp (env : env) (expNode : SSA.exp_node) : InterpVal.t list =
   
   (* first order array operators only *)          
   | PrimApp (Prim.ArrayOp op, args) -> 
-     let argVals = List.map (eval_value env) args in
-     eval_array_op env op argVals expNode.exp_types 
+     let argVals = List.map eval_value args in
+     eval_array_op op argVals expNode.exp_types 
         
   | PrimApp (Prim.ScalarOp op, args) -> 
-      let argVals = List.map (eval_value env) args in 
+      let argVals = List.map eval_value args in 
       [eval_scalar_op op argVals]
       
-  | Call (fnId, args) -> 
-      let argVals = List.map (eval_value env) args in
+  | Call (fnId, args) ->  
+      let argVals = List.map eval_value args in
       let fundef = get_fundef fnId in 
-      eval_app env fundef argVals
+      eval_app fundef argVals
   
   | Map ({closure_fn=fnId; closure_args=closureArgs}, args) ->
       let fundef = get_fundef fnId in
       let closureArgVals : InterpVal.t list = 
-        List.map (eval_value env) closureArgs 
+        List.map eval_value closureArgs 
       in 
-      let argVals : InterpVal.t list = List.map (eval_value env) args in
+      let argVals : InterpVal.t list = List.map eval_value args in
       IFDEF DEBUG THEN
         Printf.printf "[Eval] args to interp map: %s\n"
           (String.concat ", " (List.map InterpVal.to_str argVals)); 
@@ -149,10 +141,11 @@ and eval_exp (env : env) (expNode : SSA.exp_node) : InterpVal.t list =
                 ~payload:fundef  
                 ~closureArgs:gpuClosureVals  
                 ~args:gpuInputVals 
-            in List.map add_gpu gpuResults
+            in 
+            List.map add_gpu gpuResults
         | CostModel.CPU -> 
             IFDEF DEBUG THEN Printf.printf "[Eval] running map on CPU\n" ENDIF;
-            eval_map env ~payload:fundef closureArgVals argVals   
+            eval_map ~payload:fundef closureArgVals argVals   
       )
   | Reduce (initClosure, reduceClosure, initArgs, dataArgs)-> 
       let initFundef = get_fundef initClosure.closure_fn in
@@ -161,14 +154,14 @@ and eval_exp (env : env) (expNode : SSA.exp_node) : InterpVal.t list =
       *) 
        
       let initClosureArgs = 
-        List.map (eval_value env) initClosure.closure_args 
+        List.map eval_value initClosure.closure_args 
       in
       let reduceFundef = get_fundef reduceClosure.closure_fn in
       let reduceClosureArgs = 
-        List.map (eval_value env) reduceClosure.closure_args 
+        List.map eval_value reduceClosure.closure_args 
       in 
-      let initArgVals = List.map (eval_value env) initArgs in 
-      let argVals  = List.map (eval_value env) dataArgs in
+      let initArgVals = List.map eval_value initArgs in 
+      let argVals  = List.map eval_value dataArgs in
       (match 
         CostModel.reduce_cost 
             ~fnTable:P.fnTable 
@@ -201,12 +194,19 @@ and eval_exp (env : env) (expNode : SSA.exp_node) : InterpVal.t list =
         "[eval_exp] no implementation for: %s\n"
         (SSA.exp_to_str expNode)
              
-  and eval_app env fundef args = 
-  (* create an augmented memory state where input ids are bound to the *)
-  (* argument values on the gpu *) 
-    let env2 = ID.Map.extend env fundef.input_ids args in  
-    let env3 = eval_block env2 fundef.body in
-    List.map (fun id -> ID.Map.find id env3) fundef.output_ids
+  and eval_app fundef args =
+    IFDEF DEBUG THEN 
+      assert (List.length fundef.input_ids = List.length args); 
+    ENDIF;
+    MemoryState.push_env P.memState; 
+    MemoryState.env_set_multiple P.memState fundef.input_ids args;
+    eval_block fundef.body;
+    let outputs = 
+      List.map (MemoryState.env_lookup P.memState) fundef.output_ids
+    in 
+    MemoryState.pop_env P.memState; 
+    outputs
+    
   and eval_scalar_op (op : Prim.scalar_op) (args : InterpVal.t list) =
     (* whether the scalar is a GpuVal, a HostVal or an interpreter scalar, 
        put them all into hostvals 
@@ -228,8 +228,11 @@ and eval_exp (env : env) (expNode : SSA.exp_node) : InterpVal.t list =
      *) 
     | op, _  -> 
         InterpVal.Scalar (MathEval.eval_pqnum_op op nums)
-  and eval_array_op env op argVals outTypes : InterpVal.t list =
-    let bestLoc, bestCost = CostModel.array_op op (describe_args argVals) in 
+  and eval_array_op op argVals outTypes : InterpVal.t list =
+    (*
+      let bestLoc, bestCost = 
+        CostModel.array_op op (describe_args argVals) in
+    *) 
     match op, argVals with
     | Prim.Index, [array; idx] -> 
       (* always run on GPU *)
@@ -274,7 +277,7 @@ and eval_exp (env : env) (expNode : SSA.exp_node) : InterpVal.t list =
           (Prim.array_op_to_str op)
           (String.concat ", " (List.map InterpVal.to_str args)) 
           
-  and eval_map env ~payload closureArgs argVals =
+  and eval_map ~payload closureArgs argVals =
     IFDEF DEBUG THEN Printf.printf "Running MAP on host!\n"; ENDIF; 
     let dataShapes = List.map (MemoryState.get_shape P.memState) argVals in
     let maxShape = match Shape.max_shape_list dataShapes with 
@@ -283,7 +286,7 @@ and eval_exp (env : env) (expNode : SSA.exp_node) : InterpVal.t list =
       failwith "Incompatible array shapes encountered while evaluating Map"
     in 
     (* if trying to map over scalars, just evaluate this function directly *)  
-    if Shape.rank maxShape = 0 then eval_app env payload argVals    
+    if Shape.rank maxShape = 0 then eval_app payload argVals    
     else 
     let n = Shape.get maxShape 0 in
     let outputIds = Array.of_list (payload.output_ids) in
@@ -300,9 +303,7 @@ and eval_exp (env : env) (expNode : SSA.exp_node) : InterpVal.t list =
     for elt = 0 to n - 1 do
       let slices = List.map (get_slice elt) argVals in
       let inputs = (closureArgs @ slices) in
-      let currResults = 
-        Array.of_list (eval_app env payload inputs)
-      in 
+      let currResults = Array.of_list (eval_app payload inputs) in 
       for i = 0 to nOutputs - 1 do 
         DynArray.add allResults.(i) currResults.(i)
       done;    
@@ -314,21 +315,17 @@ end
  
 let eval globalFns fundef hostVals =
   let memState = MemoryState.create 127 (* arbitrary *) in  
-  (* create unique identifiers for data items *) 
   let vals = List.map (fun h -> MemoryState.add_host memState h) hostVals in
-  IFDEF DEBUG THEN 
-    assert (List.length fundef.input_ids = List.length vals); 
-  ENDIF;  
-  let (env : env) = ID.Map.extend ID.Map.empty fundef.input_ids vals in
+   
   (* parameterize the evaluator by mutable global function table and memory *)
   let module E = 
     Mk(struct let fnTable = globalFns let memState = memState end) 
   in  
-  let env' = E.eval_block env fundef.body in
-  let outputVals = 
-    List.map (fun id -> ID.Map.find id env') fundef.output_ids
-  in
+  MemoryState.push_env memState; 
+  let outputVals = E.eval_app fundef vals in 
   let hostVals = List.map (MemoryState.get_host memState) outputVals in
-  MemoryState.free_all_gpu memState;
+  MemoryState.pop_env memState;
+  (* MemoryState.full_collect memState *)  
+  (* MemoryState.free_all_gpu memState;*)
   hostVals
 
