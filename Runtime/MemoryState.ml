@@ -320,7 +320,7 @@ let rec get_gpu memState = function
       let finalType = DynType.VecT eltType in 
       let finalShape = Shape.append_dim nrows eltShape in 
       let destVec = mk_gpu_vec memState finalType finalShape in
-      let destPtr = destVec.GpuVal.vec_ptr in 
+      let destPtr = destVec.vec_ptr in 
       IFDEF DEBUG THEN 
         Printf.printf "[MemoryState] Transferring interpreter array to GPU\n";
         Printf.printf "[MemoryState] -- elts = %s \n" 
@@ -349,9 +349,21 @@ let rec get_gpu memState = function
           | InterpVal.Data id -> 
               if Hashtbl.mem memState.gpu_data id then 
                 let eltVec = Hashtbl.find memState.gpu_data id in 
-                Cuda.cuda_memcpy_device_to_device currPtr eltVec.vec_ptr eltSize 
+                IFDEF DEBUG THEN 
+                  Printf.printf 
+                    "[MemoryState] copying array elt to gpu address %Ld: %s\n"
+                    currPtr
+                    (GpuVal.gpu_vec_to_str eltVec)
+                ENDIF; 
+                Cuda.cuda_memcpy_device_to_device eltVec.vec_ptr currPtr eltSize 
               else
-                let eltHostVec = Hashtbl.find memState.host_data id in 
+                let eltHostVec = Hashtbl.find memState.host_data id in
+                IFDEF DEBUG THEN 
+                  Printf.printf 
+                    "[MemoryState] copying array elt to gpu address %Ld: %s\n"
+                    currPtr
+                    (HostVal.host_vec_to_str eltHostVec)
+                ENDIF;  
                 Cuda.cuda_memcpy_to_device eltHostVec.ptr currPtr eltSize  
           | _ -> assert false 
        done; 
@@ -388,7 +400,7 @@ let slice memState arr idx = match arr with
   | InterpVal.Array arr -> arr.(idx)
   | InterpVal.Data id -> 
       if Hashtbl.mem memState.gpu_data id then 
-        let gpuVec = Hashtbl.find memState.gpu_data id in
+        let gpuVec = Hashtbl.find memState.gpu_data id in        
         add_gpu memState (GpuVal.slice_vec gpuVec idx) 
       else 
         let hostVec = Hashtbl.find memState.host_data id in 

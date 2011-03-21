@@ -141,9 +141,9 @@ let sizeof = function
 let slice_vec ({ ptr = ptr; host_t = host_t; shape=shape } as hostArray) idx = 
   let sliceShape = Shape.slice_shape shape [0] in
   let sliceType = DynType.peel_vec host_t in
-  if DynType.is_scalar sliceType then 
-    get_vec_elt hostArray idx
-  else 
+  let sliceVal = 
+    if DynType.is_scalar sliceType then get_vec_elt hostArray idx
+    else 
     let bytesPerElt = DynType.sizeof (DynType.elt_type sliceType) in 
     let sliceBytes = bytesPerElt * Shape.nelts sliceShape in
     let slicePtr = Int64.add ptr (Int64.of_int (sliceBytes * idx)) in 
@@ -151,7 +151,18 @@ let slice_vec ({ ptr = ptr; host_t = host_t; shape=shape } as hostArray) idx =
       ptr = slicePtr; host_t=sliceType; shape=sliceShape; nbytes=sliceBytes;
       slice_start = Some ptr; 
     }
-    in HostArray sliceArray 
+    in 
+    HostArray sliceArray
+  in 
+  IFDEF DEBUG THEN 
+    Printf.printf 
+      "[HostVal] Got slice index %d of %s\n" 
+      idx
+      (host_vec_to_str hostArray)
+    ; 
+    Printf.printf "[HostVal] Slice result: %s\n" (to_str sliceVal); 
+  ENDIF;
+  sliceVal   
 
 
 (* slice a host array along its outermost dimension, 

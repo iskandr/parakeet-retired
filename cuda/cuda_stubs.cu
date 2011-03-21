@@ -162,9 +162,8 @@ value ocaml_cuda_memcpy_to_device (value array,
 
 
 CAMLprim
-value ocaml_cuda_memcpy_device_to_device (value src,
-                    value dst,
-                    value num_bytes) {
+value 
+ocaml_cuda_memcpy_device_to_device (value src, value dst, value num_bytes) {
   CAMLparam3(src, dst, num_bytes);
   CUdeviceptr source = Int64_val(src);
   CUdeviceptr dest = Int64_val(dst);

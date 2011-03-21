@@ -61,7 +61,7 @@ module Mk(P : EVAL_PARAMS) = struct
     
   and eval_stmt (stmtNode : SSA.stmt_node) : unit = 
     IFDEF DEBUG THEN 
-      Printf.printf "\n===> EVAL: %s\n\n"
+      Printf.printf "\n===> EVAL: %s\n"
         (SSA.stmt_node_to_str stmtNode); 
     ENDIF; 
     match stmtNode.stmt with 
@@ -116,12 +116,11 @@ and eval_exp (expNode : SSA.exp_node) : InterpVal.t list =
   
   | Map ({closure_fn=fnId; closure_args=closureArgs}, args) ->
       let fundef = get_fundef fnId in
-      let closureArgVals : InterpVal.t list = 
-        List.map eval_value closureArgs 
-      in 
+      let closureArgVals : InterpVal.t list = List.map eval_value closureArgs in 
       let argVals : InterpVal.t list = List.map eval_value args in
       IFDEF DEBUG THEN
-        Printf.printf "[Eval] args to interp map: %s\n"
+        Printf.printf "[Eval] args to interp map: %s %s\n"
+          (String.concat ", " (List.map InterpVal.to_str closureArgVals))
           (String.concat ", " (List.map InterpVal.to_str argVals)); 
       ENDIF;  
       let bestLoc, bestTime = 
@@ -294,7 +293,10 @@ and eval_exp (expNode : SSA.exp_node) : InterpVal.t list =
     let allResults = Array.init nOutputs  (fun _ -> DynArray.create ()) in
     let get_slice idx v =
       IFDEF DEBUG THEN 
-        Printf.printf "Getting slice %d\n%!" idx;
+        Printf.printf "[Eval] Getting slice %d of %s\n%!"
+          idx
+          (InterpVal.to_str v) 
+          ;
       ENDIF;   
       let t = MemoryState.get_type P.memState v in 
       if DynType.is_vec t then MemoryState.slice P.memState v idx

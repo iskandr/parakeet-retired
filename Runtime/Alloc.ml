@@ -62,10 +62,7 @@ let alloc_gpu_vec ?nbytes ?len ty shape =
 
   } in 
   IFDEF DEBUG THEN
-    Printf.printf 
-      "[Alloc] Created %s\n" 
-      (GpuVal.to_str ~show_contents:false (GpuArray gpuVec))
-    ;
+    Printf.printf "[Alloc] Created %s\n"  (GpuVal.gpu_vec_to_str gpuVec);
     Pervasives.flush_all(); 
   ENDIF;  
   gpuVec 

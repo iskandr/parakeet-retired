@@ -197,8 +197,6 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
         entry
     )  
   in
-
-      
   (* create one CUDA thread per every input element *) 
   assert (List.length cudaModule.Cuda.kernel_names = 1); 
   let fnName = List.hd cudaModule.Cuda.kernel_names in
@@ -226,6 +224,22 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
     paramsArray 
     gridParams
   ;
+  IFDEF DEBUG THEN
+    print_string "\n --- MAP ---\n";
+    let sep = ";   " in 
+    let closureArgString = 
+      String.concat sep (List.map GpuVal.to_str closureArgs) 
+    in  
+    let inputArgString = 
+      String.concat sep (List.map GpuVal.to_str args)
+    in
+    let outputString = 
+      String.concat sep (List.map GpuVal.to_str outputVals)
+    in
+    Printf.printf "[GpuRuntime] MAP closureArgs: %s\n" closureArgString;      
+    Printf.printf "[GpuRuntime] MAP inputs: %s\n" inputArgString;  
+    Printf.printf "[GpuRuntime] MAP outputs: %s\n" outputString 
+  ENDIF;
   outputVals
 
 
@@ -305,6 +319,7 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
        - we are ignoring the initial value
        - we are only allowing reductions over a single array
        - in the 2D case, we only support embedded maps
+       - DOESN'T SEND CLOSURE ARGS TO THE GPU! 
     *)
   
   let inShape = GpuVal.get_shape gpuVal in
@@ -313,7 +328,6 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
   let x_grid = 
     if Shape.rank inShape = 1 then 1 else (Shape.get inShape 1) / x_threads
   in
-  IFDEF DEBUG THEN Printf.printf "Launching x grid: %d\n" x_grid; ENDIF;
   let currInputElts = ref numInputElts in 
   let inputArgs = ref [gpuVal] in 
   while !currInputElts > 1 do 
@@ -333,9 +347,9 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
   done; 
   let result = GpuVal.slice (List.hd !inputArgs) 0 in
   IFDEF DEBUG THEN
-    Printf.printf "Final reduction result: %s\n"
-      (GpuVal.to_str result)
-    ; 
+    print_string "\n --- REDUCE ---\n";
+    Printf.printf "[GpuRuntime] REDUCE input: %s\n" (GpuVal.to_str gpuVal); 
+    Printf.printf "[GpuRuntime] REDUCE output: %s\n" (GpuVal.to_str result); 
   ENDIF;
   [result]
     
@@ -446,9 +460,20 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
         Kernels.index_float ninputs vec_len nidxs output.vec_ptr;
         Kernels.unbind_index_float_vecs_tex ()
       end
-    | _ -> failwith "[run_index] unsupported type for indexing"
+    | _ -> 
+        failwith $ 
+          Printf.sprintf  
+            "[GpuRuntime] unsupported element type for indexing (%s)"
+            (DynType.to_str elType)
     end;
-    GpuVal.GpuArray output
+    let gpuVal = GpuVal.GpuArray output in 
+    IFDEF DEBUG THEN 
+      print_string "\n --- INDEX ---\n";
+      Printf.printf "[GpuRuntime] INDEX input 1: %s\n" (GpuVal.to_str inputVec); 
+      Printf.printf "[GpuRuntime] INDEX input 2: %s\n" (GpuVal.to_str indexVec);
+      Printf.printf "[GpuRuntime] INDEX output: %s\n" (GpuVal.to_str gpuVal); 
+    ENDIF; 
+    gpuVal 
 
   (**********************************************************
                           WHERE 
@@ -456,9 +481,6 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
     let where (binVec : gpu_val) =
       let binPtr = GpuVal.get_ptr binVec in
       let nelts = GpuVal.nelts binVec in
-      IFDEF DEBUG THEN 
-        Printf.printf "Running WHERE on %d elements\n" nelts;
-      ENDIF; 
       let scanShape = GpuVal.get_shape binVec in
       let int32_vec_type = DynType.VecT DynType.Int32T in  
       let scanInterm = 
@@ -468,11 +490,15 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
       let resultLength = 
         Cuda.cuda_get_gpu_int_vec_elt scanInterm.vec_ptr (nelts - 1) 
       in
-      IFDEF DEBUG THEN 
-        Printf.printf "WHERE returned %d elements\n" resultLength;
-      ENDIF; 
       let outputShape = Shape.create 1 in
       Shape.set outputShape 0 resultLength;
+      IFDEF DEBUG THEN
+        print_string "\n --- WHERE --- \n";
+        Printf.printf "[GpuRuntime] WHERE input: %s\n" (GpuVal.to_str binVec);
+        Printf.printf "[GpuRuntime] WHERE prefix scan: %s\n"
+          (GpuVal.gpu_vec_to_str scanInterm);
+        Printf.printf "[GpuRuntime] WHERE returned %d elements\n" resultLength;
+      ENDIF; 
       let output = 
         MemoryState.mk_gpu_vec P.memState int32_vec_type outputShape 
       in

@@ -113,6 +113,7 @@ module ShapeAnalysis (P: PARAMS) =  struct
           let vecOutShapes = 
             List.map (fun outShape -> maxDim :: outShape) eltOutShapes
           in  
+          (*
           IFDEF DEBUG THEN 
             Printf.printf "\t [ShapeInference] MAP (%s)(%s)\n"
               (SSA.closure_to_str closure)
@@ -128,7 +129,8 @@ module ShapeAnalysis (P: PARAMS) =  struct
             Printf.printf "\t\t maxDim: %s\n" (Imp.exp_node_to_str maxDim);
             Printf.printf "\t\t final output shapes: %s\n"
               (shapes_to_str vecOutShapes); 
-          ENDIF;  
+          ENDIF;
+          *)  
           vecOutShapes
           
       | SSA.Reduce(initClos, clos, initArgs, args) -> 
