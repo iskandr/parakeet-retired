@@ -103,7 +103,7 @@ The main contributions of this paper are the following:
 \begin{itemize}
 \item A system in which programmers can write complex, high level code that is automatically parallelized into efficient GPU programs.
 
-\item A dynamic specialization algorithm that translates a significant subset of higher-order programs into efficient (unboxed, function-free) GPU code.
+\item A detailed case study of the dynamic specialization of higher order, dynamically typed programs into efficient (unboxed, function-free) GPU code.
 \end{itemize}
 
 \begin{figure*}[t!bh]
@@ -486,7 +486,9 @@ Imp is largely a syntactic sugar wrapper around PTX that simplifies our job of i
 \end{enumerate}
 Imp kernels are ``shapely'' by construction, meaning they specify their memory requirements as deterministic functions of input size. This obviates the need for ad-hoc allocation logic (the bulk of most CUDA host code in practice) or for auxiliary size inference on higher level code. If a function can be translated to Imp then we can always determine its memory requirements.
 
-We perform staged synthesis of Imp kernels by parameterizing them with payload functions. An Imp kernel can be seen as a ``skeleton'' \cite{Cole04} for a particular implementation strategy of some array operator.  An example of a simplified Imp skeleton for \textbf{map} is shown in Figure \ref{ImpMap}.  The lines with the \texttt{SPLICE} keyword are the points at which the payload function gets added to the skeleton to form a complete kernel.
+We perform staged synthesis of Imp kernels by parameterizing them with payload functions. An Imp kernel can be seen as a ``skeleton'' \cite{Cole04} for a particular implementation strategy of some array operator. In reality, we don't actually program directly in Imp.  Rather, we use Imp as an embedded DSL in our OCaml Parakeet code.  We then use OCaml as a meta-language that programmatically constructs an Imp version of the array operator with the payload function inlined.
+
+An example of a simplified Imp skeleton for \textbf{map} is shown in Figure \ref{ImpMap}.  The lines with the \texttt{SPLICE} keyword are the points at which the payload function gets added to the skeleton to form a complete kernel.
 
 \begin{figure}[h!]
   \begin{lstlisting}[numbers=none]
@@ -498,6 +500,8 @@ We perform staged synthesis of Imp kernels by parameterizing them with payload f
 
 \subsection{Shape Inference}
 \label{shapeinference}
+
+Alex should write a couple paragraphs about how he does shape inference here.
 
 \subsection{Parallel Library}
 
@@ -557,7 +561,7 @@ Four more recent projects all translate domain specific embedded array languages
 to sequentializing nested array operators within CUDA kernels (as done in Parakeet), Copperhead can also share the work of a nested computation between all the threads in CUDA block. Unfortunately, Copperhead does not utilize any dynamic information (such as size) when making these scheduling decisions and
 thus must rely on user annotations. Copperhead's compiler generates kernels through parameterization of operator-specific C++ template classes. By using C++ as their backend target, Copperhead has been able to easily integrate the Thrust ~\cite{Hobe10} GPGPU library and to offload the bulk of their code optimizations onto a C++ compiler. Runtime generation of templated C++ can, however, be a double-edged sword. Copperhead experiences the longest compile times of any project mentioned here (orders of magnitude longer than the compiler overhead of Parakeet).
 \end{itemize}
-Unlike the three approaches mentioned above, Parakeet does not require its source language to be purely functional nor statically typed. Being able to program in a dynamically typed language seems particularly important for array computations, since static type systems are generally unable to support the syntactic conveniences which make array programming appealing in the first place.
+Unlike the four approaches mentioned above, Parakeet does not require its source language to be purely functional nor statically typed. Being able to program in a dynamically typed language seems particularly important for array computations, since static type systems are generally unable to support the syntactic conveniences which make array programming appealing in the first place.
 
 \section{Conclusion}
 \label{Conclusion}
