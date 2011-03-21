@@ -181,7 +181,7 @@ module Mk(R: SIMPLE_TRANSFORM_RULES) = struct
           let reduceClos' = 
             { reduceClos with closure_args = reduceClosureArgs' }
           in 
-          { expNode with exp = Reduce(initClos', reduceClos', initArgs, args')} 
+          { expNode with exp = Reduce(initClos', reduceClos', initArgs', args')} 
         else expNode      
     | Scan (initClos, scanClos, initArgs, args) -> 
         let initClosureArgs' = 
@@ -199,7 +199,6 @@ module Mk(R: SIMPLE_TRANSFORM_RULES) = struct
           in 
           { expNode with exp = Scan(initClos', scanClos', initArgs', args')} 
         else expNode  
-    | _ -> failwith ("not implemented: " ^ (SSA.exp_to_str expNode))  
     in
     BlockState.process_update blockState expNode' (R.exp cxt expNode') 
   
