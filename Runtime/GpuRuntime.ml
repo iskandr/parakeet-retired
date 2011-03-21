@@ -457,7 +457,6 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
   (**********************************************************
                           WHERE 
    **********************************************************)
-<<<<<<< HEAD:Runtime/GpuRuntime.ml
     let where (binVec : gpu_val) =
       let binPtr = GpuVal.get_ptr binVec in
       let nelts = GpuVal.nelts binVec in
@@ -484,35 +483,6 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
       Kernels.where_tex nelts (GpuVal.get_ptr output);
       Kernels.unbind_where_tex ();
       output
-=======
-	let where (binVec : value) =
-	  let nelts = GpuVal.nelts binVec in
-	  IFDEF DEBUG THEN 
-	    Printf.printf "Running WHERE on %d elements\n" nelts;
-	  ENDIF; 
-	  let scanShape = GpuVal.get_shape binVec in
-	  let scanInterm = 
-	    GpuVal.mk_gpu_vec (DynType.VecT DynType.Int32T) scanShape 
-	  in
-	  let binPtr = GpuVal.get_ptr binVec in
-	  let scanPtr = GpuVal.get_ptr scanInterm in
-	  Thrust.thrust_prefix_sum_bool_to_int binPtr nelts scanPtr;
-	  let resultLength = 
-	    Cuda.cuda_get_gpu_int_vec_element scanPtr (nelts - 1) 
-	  in
-	  IFDEF DEBUG THEN 
-	    Printf.printf "WHERE returned %d elements\n" resultLength;
-	  ENDIF; 
-	  let outputShape = Shape.create 1 in
-	  Shape.set outputShape 0 resultLength;
-	  let output = 
-	    GpuVal.mk_gpu_vec (DynType.VecT DynType.Int32T) outputShape 
-	  in
-	  Kernels.bind_where_tex scanPtr nelts;
-	  Kernels.where_tex nelts (GpuVal.get_ptr output);
-	  Kernels.unbind_where_tex ();
-	  output
->>>>>>> 8e76b6cf7288dc1faafc95d2680dc5d85bd75c9b:GPU/GpuRuntime.ml
 
 (*
 let init () =
