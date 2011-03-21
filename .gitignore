@@ -14,5 +14,6 @@ FrontEnd/depsort
 FrontEnd/depsort.cmi
 FrontEnd/depsort.cmx
 papers/PLDI11/PLDI11.pdf
+papers/ICFP11/ICFP11.pdf
 *.blg
 *.backup

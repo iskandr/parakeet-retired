@@ -121,7 +121,7 @@ As mentioned, a key target audience for Parakeet is scientific programmers. In g
 
 At present, a typical usage pattern in scientific computing is to prototype an algorithm in a high level interactive language such as Matlab due to the ease of rapid exploration of the problem domain in such an environment.  Then, since run times for these programs are often on the order of hours or days, it is often necessary for performance performance reasons to port them to a high performance language such as C or CUDA.  Beyond the need for specialized high performance programming skills, a problem with this procedure  lies in the disconnect between the environment for domain exploration and the environment in which real results can be derived as it greatly hinders productivity.
 
-Our thesis is that if we can JIT compile and transparently accelerate the critical paths algorithms written in array-oriented languages, the best of both worlds can be brought together -- viz., the ease of exploration of the dynamic, interactive environment and the speed of the optimized program versions. A key constraint in such a setup is keeping JIT compilation overheads low enough so as not to impair the interactivity of the source language environment.  It has been shown in the pioneering JIT work by Chambers~\cite{Cham92} that in such scenarios the key psychological barrier for compilation overhead is roughly on the order of less than half a second: if overheads are kept below this threshold, the programmer doesn't notice them.  Since our JIT costs are negligible in comparison with the run times of the large scientific codes, we feel it is reasonable to expect programmers to pay them in return for the resultant large runtime speedups so long as the JIT costs don't slow down their workflow.
+Our thesis is that if we can JIT compile and transparently accelerate the critical paths of algorithms written in array-oriented languages, we can bring the best of both worlds together -- viz., the ease of exploration of the dynamic, interactive environment and the speed of the hand optimized versions. A key constraint in such a setup is keeping JIT compilation overheads low enough so as not to impair the interactivity of the source language environment.  It has been shown in the pioneering JIT work by Chambers~\cite{Cham92} that in such scenarios the key psychological barrier for compilation overhead is roughly on the order of less than half a second: if overheads are kept below this threshold, the programmer doesn't notice them.  Since our JIT costs are negligible in comparison with the run times of the large scientific codes, we feel it is reasonable to expect programmers to pay them in return for the resultant large runtime speedups so long as the JIT costs don't slow down their workflow.
 
 \subsection{Execution Pipeline}
 \label{executionpipeline}
@@ -441,74 +441,50 @@ $) $ \rightarrow  ($ z $ : float ) =$} \\
 \label{DistFuse}
 \end{figure}
 
-\section{The Parakeet Runtime}
+\section{The Parakeet Runtime and Implementation}
 \label{runtime}
 
-In this section, we discuss the internals of the Parakeet runtime in more detail. We implemented the Parakeet runtime and intepreter in OCaml due to its amenability to compiler programming patterns.  We spent considerable effort on tuning the OCaml code to be efficient and to prevent OCaml's garbage collector from becoming a source of large overheads. We extend the intepreter via an interface written in C to allow it to interact with CUDA and with NVIDIA's GPU JIT compiler.  Parakeet also exposes a front end interface written in C that the source language uses to translate functions into Parakeet ASTs and to pass data to and from the Parakeet runtime.
+In this section, we discuss the internals of the Parakeet runtime in more detail. We implemented the Parakeet runtime and intepreter in OCaml due to its amenability to compiler writing.  We spent considerable effort tuning the OCaml code to be efficient and to prevent OCaml's garbage collector from becoming a source of large overheads. The intepreter uses an interface written in C to allow it to interact with CUDA and with NVIDIA's GPU JIT compiler.  Parakeet also exposes a front end interface written in C for translating functions from the source language into Parakeet ASTs and to pass data between the source language's interpreter and the Parakeet runtime.
 
+When a function call is made to a function registered with Parakeet, the Parakeet interpreter intercepts the call and type specializes the function for the argument types passed in. The interpreter then walks this typed IL version of the function.  When it encounters a simple scalar math operation, the standard behavior is simply to execute that operation itself.  Any I/O or other operations that aren't supported by Parakeet's IL are simply executed by the source language's interpreter.
 
-
-\subsection{Runtime Cost Model}
+\subsection{Cost Model}
 \label{costmodel}
 
+When the Parakeet interpreter encounters an array operator, it uses a simple cost model to decide on the best place to execute the operator.  The cost model employs a recursive function that estimates the relative cost of executing that operator on the CPU versus the GPU.  This function is not meant to measure the precise expected run time of the operator; rather, the goal is to make the correct decision when the use of one or the other processor should result in much higher performance.  We use the clock frequency of each processor to roughly estimate the cost of a single operation.  For a \textbf{map} operation, for example, we multiply the estimated cost of performing the sequentialized version of the mapped function by the number of input elements. We estimated the time needed to transfer data to and from the GPU as a function of data size and add this cost to the total if the data is not already present in the respective processor's memory.
 
+In the case of nested operators -- e.g.~a \textbf{map} whose payload function is itself a \textbf{reduce} (as is present in the \texttt{calc\_centroids} function in the K-Means benchmark) -- the interpreter needs to choose which operator, if any, will form the parallelization point for a GPU kernel while sequentializing all nested operators within the kernel.  The choices here are:
 
-\section{GPU Back End}
-Before we discuss our GPU code generation, we first walk through the CUDA programming model in some detail.  Our GPU back end targets NVIDIA GPUs by emitting PTX -- NVIDIA's GPU pseudoassembly language.  NVIDIA GPUs are typically programmed using CUDA, a higher level C-like wrapper around PTX.  As we will see in section \ref{Imp}, we have one additional level of intermediate language in Parakeet before we emit PTX code.  This PTX is then finally JIT compiled by the NVIDIA driver before being launched.
+\begin{enumerate}
+\item Running the \textbf{map} as a GPU kernel, with an embedded sequential \texttt{for} loop for the \textbf{reduce}.
+\item Running the \textbf{map} as a \texttt{for} loop in the Parakeet interpreter, with each iteration of the loop calling a GPU kernel that implements the \textbf{reduce}.
+\item Running everything in the interpreter as two nested \texttt{for} loops.
+\end{enumerate}
 
-\subsection{CUDA Programming Model}
+In cases (1) and (3), the operator is executed entirely on a single processor.  In case (2), however, the \textbf{map} runs as a loop on the CPU, generating each element of the result vector with a separate GPU program invocation.  In this case, the interpreter creates an interpreter array object on the CPU whose elements are references to the values generated on the GPU.  The final linear CPU array is only constructed lazily as needed or when the GPU garbage collector needs the space.  At that point, a lineary CPU array is allocated and filled in with the computed values.  This is precisely what happens in our implementation of K-Means clustering.
 
-In CUDA, a program is organized into {\it kernels} and {\it host} code. Kernels typically run by many thousands of lightweight threads on the GPU.  Host code is the code run on the CPU. Typically, a host thread on the CPU launches a kernel onto the GPU via a C function call to the CUDA API.  The host thread waits for results and potentially launches futher kernels.
+\subsection{GPU Back End}
+Our GPU back end only supports NVIDIA GPUs at the moment. NVIDIA GPUs are typically programmed using CUDA, a C API for writing and executing GPU programs. In CUDA, a program is organized into {\it kernels} and {\it host} code. Kernels are typically executed by many thousands of lightweight threads on the GPU.  Host code is the name for the code run on the CPU. Typically, a host thread acts as a master that asynchronously launches worker kernels onto the GPU via function calls to the CUDA API.  The host thread in our case is simply the Parakeet interpreter itself.
 
-\subsubsection{CUDA Kernel Organization}
+Unlike many other systems similar to Parakeet, our back end doesn't emit CUDA code to be compiled by the NVIDIA CUDA compiler.  Instead, we emit PTX, NVIDIA's GPU pseudoassembly language.  (As we will see in the following section, we also have one additional level of intermediate language in Parakeet between the typed IL discussed in Section \ref{Compilation} and our emission of PTX code.)  This PTX code is JIT compiled by the NVIDIA graphics driver before being launched.  We keep these compiled binary versions of functions in a code cache so that when they are invoked multiple times with the same argument types we needn't incur the code generation and JIT compilation costs more than once.
 
-As is typical for data parallel models, all threads in a CUDA kernel execute the same program code.  This code is specified in a C function using the CUDA C API. The kernel's threads are organized into {\it thread blocks}, which are groups of at most a few hundred threads that can communicate and share local resources. Threads within a given block are all scheduled to run on a single GPU multiprocessor throughput their lifetime.  Threads within a block can perform barrier synchronizations with each other, but threads from different blocks have no efficient way to perform synchronization other than termination. Thus algorithms that require global synchronization (such as parallel reduction) must be broken up into multiple kernel launches, each of which incurs a small fixed performance overhead.
-
-The body of a kernel can be written so as to be generic to the number of threads and blocks with which it is launched, with the programmer specifying at runtime how many thread blocks are required and how many threads to launch per block. This allows the kernel programs to be scalable to different data sizes
-without requiring rewrites. The standard idiom is for each thread to be assigned a small computation to be performed on a small subset of some large input data set.  The threads are each assigned a unique index in the kernel's {\it grid} of threads, which is used to determine the data for which they are responsible.
-
-In order to be efficient, CUDA kernels must be dense.  The kernel is executed by thousands of threads, and any small inefficiencies are greatly magnified. Manual loop unrolling and rewriting algorithms to have more work per thread are usually necessary to obtain performance near the GPU's peak potential.
-
-\subsubsection{CUDA Memory Management}
-
-The graphics card has its own memory and GPU kernels cannot access data stored in the CPU's RAM.  In typical use, data must be manually copied back and forth between the CPU and GPU memory spaces by the CUDA programmer.  This data transfer is roughly two orders of magnitude slower than memory accesses performed by kernels to the GPU's memory, and so it is critical for performance that these data transfers are minimized.  It is also possible and beneficial to overlap memory transfers with computation.
-
-The main memory space on GPUs is called \emph{global memory} in CUDA.  GPUs have very high peak memory bandwidth between their processors and global memory -- usually over 100GB/s. This is made possible because the hardware groups adjacent memory accesses by adjacent threads in a block into single \emph{memory
-transactions}. If adjacent threads access misaligned or scattered memory addresses in a single cycle, these accesses all get serialized, greatly reducing memory bandwidth for the kernel. Thus the programmer must be very careful regarding access patterns.  Global memory may or may not be cached depending on the particular card.
-
-Further, the GPU includes various other memory spaces with different performance characteristics.  There is \emph{constant memory}, which is read-only and cached, with the cache optimized for 2D spatial locality.  Each multiprocessor has a small amount of \emph{shared memory} which all threads running on that multiprocessor can access and use to synchronize.  Shared memory is much faster to access than global memory, and is often used as a programmer-managed cache.  Tiling across input data by placing tiles into
-shared memory is a typical trick for reducing global memory traffic.  Register usage must also be managed, as each multiprocessor's cores shares a common register pool.  Overallocation of registers causes spillover into global memory, greatly reducing performance.
-
-%\subsection{GPU Memory Management}
-%
-%When
-%Parakeet synthesizes a GPU program, it first determines whether the input and
-%output arguments for that program will fit in their entirety in the available
-%GPU memory.  Typically, GPUs have around 500MB to 2GB of RAM, and a significant
-%portion of this can be taken up by a user's windowing system.  (In our
-%experiments, on a card with 896MB of memory, X Windows can consume well over
-%600MB on its own during simple office usage.)  If the data does fit, Parakeet
-%copies whatever inputs are not already on the GPU to it and allocates storage
-%for the output.  If not, Parakeet chunks the data up into manageable portions,
-%copying down one section at a time to the GPU, and then transfering the
-%partial result back to the CPU to build the complete result.
+The reason that we emit PTX instead of CUDA code is largely our latency requirements, as our goal is to provide a framework for transparent acceleration of interactive languages. The NVIDIA CUDA compiler is a wrapper around the GCC C++ compiler, and CUDA supports all of C++ in the host code and a large subset (including C++ templates) in the GPU code.  Thus, the compile times for even simple kernels can be on the order of a 5--10 seconds.  There are, of course, advantages to using the NVIDIA compiler. The main ones are that we would be able to take advantage of all of the NVIDIA and GCC compiler optimizations and that it would simplify our implementation effort.  However, the strict latency requirements meant that we needed to emit PTX directly.
 
 \subsection{Imp}
 \label{Imp}
 
-As mentioned above, we implement our higher-order array operators as skeletons of code with splice points where the functions they modify get inlined.  Rather than implement these skeletons directly in PTX/CUDA, Parakeet provides a second intermediate language that we call Imp (for imperative).  In order to inline a function into a higher-order skeleton, we first translate the function body from the higher level IL into Imp before splicing.
+As mentioned above, we implement the higher-order array operators as skeletons of code with splice points where their payload functions get inlined.  Rather than implement these skeletons directly in CUDA or PTX, Parakeet includes a second intermediate language that we call Imp (short for imperative) which we use for this purpose.  This means in addition that in order to inline a function into a higher-order Imp skeleton we must first translate the function's body from the higher level Parakeet IL into Imp.
 
-Imp plays the role of a syntactic sugar wrapper around PTX/CUDA -- including, e.g.,~aspects of CUDA such as the special index registers -- that simplifies our job of implementing efficient GPU versions of these operator skeletons. However, Imp does differ from CUDA in some important respects:
+Imp is largely a syntactic sugar wrapper around PTX that simplifies our job of implementing efficient GPU versions of these operator skeletons by hiding some of the architectural details PTX exposes. However, Imp does differ from PTX in some important respects:
 
 \begin{enumerate}
 \item  Arrays are not associated with a particular GPU memory space (global, texture, constant, etc..), allowing us to compile variants of an Imp kernel where inputs reside in different memory spaces.
 
-\item Local temporaries can be arrays in addition to scalars. This generalizes CUDA's use of ``local'' memory for spilled scalar variables.
+\item Space requirements of a function call (all outputs and local arrays it must allocate) can be determined as a function of input sizes. This is necessary as GPU computations have access only to memory which is allocated before their launch and cannot ``dynamically'' allocate more memory.
 
-\item Space requirements of a function call (all outputs and local arrays it must allocate) can be determined as a function of input sizes. This is necessary as GPU computations have access only to memory which is allocated before their launch and cannot ``dynamically'' allocate more memory.  The shape-related
-aspects of Imp's syntax are shown in Figure \ref{ImpSyntax}.
+\item Local temporaries can be arrays in addition to scalars. This generalizes CUDA's use of ``local'' memory for spilled scalar variables.
 \end{enumerate}
-Imp kernels are ``shapely'' by construction, meaning they specify their memory requirements as deterministic functions of input size. This obviates the need for ad-hoc allocation logic (the bulk of most CUDA host code) or for auxilliary size inference on higher level code. If a function can be translated to Imp then we can always determine its memory requirements.
+Imp kernels are ``shapely'' by construction, meaning they specify their memory requirements as deterministic functions of input size. This obviates the need for ad-hoc allocation logic (the bulk of most CUDA host code in practice) or for auxiliary size inference on higher level code. If a function can be translated to Imp then we can always determine its memory requirements.
 
 We perform staged synthesis of Imp kernels by parameterizing them with payload functions. An Imp kernel can be seen as a ``skeleton'' \cite{Cole04} for a particular implementation strategy of some array operator.  An example of a simplified Imp skeleton for \textbf{map} is shown in Figure \ref{ImpMap}.  The lines with the \texttt{SPLICE} keyword are the points at which the payload function gets added to the skeleton to form a complete kernel.
 
@@ -520,6 +496,9 @@ We perform staged synthesis of Imp kernels by parameterizing them with payload f
   \label{ImpMap}
 \end{figure}
 
+\subsection{Shape Inference}
+\label{shapeinference}
+
 \subsection{Parallel Library}
 
 In addition to these skeletons, we provide a library of precompiled parallel implementations of our simple (first-order) array operators, which are listed in Figure \ref{ArrayOps}.  Since these operators don't require synthesis with embedded payload functions, we needn't dynamically generate them.  We use the Thrust library \cite{Hobe10} for some of these operators such as \textbf{sort}, while providing our own hand-tuned implementations of others such as \textbf{where}.
@@ -530,11 +509,11 @@ In addition to these skeletons, we provide a library of precompiled parallel imp
 We evaluated Parakeet on two standard benchmark programs: Black-Scholes option pricing, and K-Means Clustering.  We compare Parakeet against both hand-tuned CPU and GPU implementations.  For Black-Scholes, the CPU implementation is taken from the PARSEC \cite{Bien08} benchmark suite -- which we used as the basis
 of our Q implementation -- and the GPU implementation is taken from the CUDA SDK \cite{NvidSD}.  For K-Means Clustering, we wrote our own Q version in 17 lines of code.  Both the CPU and GPU benchmark version come from the Rodinia benchmark suite \cite{Che09}.
 
-Our experimental setup is as follows.  We ran the CPU benchmarks on a machine with an Intel Nehalem 2.67GHz X5550 4-core CPU with 24GB of RAM.  The theoretical peak throughput of this machine is 85.12 GFLOP/s, and it has a theoretical peak memory bandwidth of 32GB/s.  One important metric for comparing CPUs to GPUs is also performance per dollar.  At a current market rate of roughly \$983, the Nehalem has a peak of 0.087 GFLOP/s per dollar.
+Our experimental setup is as follows.  We ran the CPU benchmarks on a machine with an Intel Nehalem 2.67GHz X5550 4-core CPU with 24GB of RAM.  The theoretical peak throughput of this machine is 85.12 GFLOP/s, and it has a theoretical peak memory bandwidth of 32GB/s.
 
-For all GPU benchmarks, we ran the programs on an NVIDIA GTX260. This card has 216 processor cores with clock speeds of 1.3 GHz and 896MB of memory, with peak execution throughput of 805 GFLOP/s and peak memory bandwidth of 112 GB/s. At a current market price of around \$160, the GTX260 has a peak of over 5 GFLOP/s per dollar -- over 55 times that of the Nehalem.
+For all GPU benchmarks, we ran the programs on an NVIDIA GTX260. This card has 216 processor cores with clock speeds of 1.3 GHz and 896MB of memory, with peak execution throughput of 805 GFLOP/s and peak memory bandwidth of 112 GB/s.
 
-For all of our Parakeet benchmarks, the desktop system we used for running the interpreter  had an Intel Core 2 6600 2.4GHz processor with 2 cores and 4GB of RAM.
+For all of our Parakeet benchmarks, the desktop system we used for running the interpreter had an Intel Core 2 6600 2.4GHz processor with 2 cores and 4GB of RAM.
 
 \subsection{Black-Scholes}
 Black-Scholes option pricing \cite{Blac73} is a standard benchmark for data parallel workloads, since it is embarrassingly parallel -- the calculation of the price of a given option doesn't impact that of any other, and the benchmark consists of simply running thousands of independent threads in parallel for computing the prices of thousands of options.
@@ -566,13 +545,13 @@ The use of graphics hardware for non-graphical computation has a  long history~\
 
 Microsoft's Accelerator~\cite{Tard06} was the first project to use high level (collection-oriented) language constructs as a basis for GPU execution. Accelerator is a declarative GPU language embedded in C\# which creates a directed acyclic graph of LINQ operations -- such as filtering, grouping, and joining -- and compiles them to (pre-CUDA) shader programs. Accelerator's programming model does not support function abstractions (only expression trees) and its only underlying parallelism construct is limited to the production of $\MAP$-like kernels.
 
-Should talk about the recent Stanford DSML PPoPP paper~\cite{Chaf11}.
-
-Three more recent projects all translate domain specific embedded array languages to CUDA backends:
+Four more recent projects all translate domain specific embedded array languages to CUDA backends:
 \begin{itemize}
 \item \textbf{Nikola}~\cite{Main10} is a first-order array-oriented language embedded within Haskell. Nikola provides a convenient syntax for expressing single-kernel computations, but requires the programmer to manually coordinate computations which require multiple kernel launches. Nikola also does not support partially applied functions and its parallelization scheme, which first serializes array operators into loops and then parallelizes loop iterations, seems ill-suited for complex array operations.
 
 \item \textbf{Accelerate}~\cite{ChakAcc} is also an embedded array language within Haskell. Unlike Nikola, Accelerate does allow the expression of computations which span multiple kernel launches. Accelerate also has a much richer set of array operators (including the higher-order trio $\MAP$, $\REDUCE$, $\SCAN$). Accelerate, however, does not seem to support closures or the nesting of array operators. Accelerate's backend is similar to ours in that they use a simple interpreter whose job is to initiate skeleton-based kernel compilation, transfer data to and from the GPU, and to perform simple CPU-side computations.
+
+\item \textbf{OptiML and Delite}~\cite{Chaf11} are a domain-specific language and runtime framework designed to 
 
 \item \textbf{Copperhead}~\cite{Cata10} parallelizes a statically typed purely functional array subset of Python through the dynamic compilation/execution of CUDA kernels. Copperhead supports nested array computations, and even has a sophisticated notion of where these computations can be scheduled. In addition
 to sequentializing nested array operators within CUDA kernels (as done in Parakeet), Copperhead can also share the work of a nested computation between all the threads in CUDA block. Unfortunately, Copperhead does not utilize any dynamic information (such as size) when making these scheduling decisions and
