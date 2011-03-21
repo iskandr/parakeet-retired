@@ -409,12 +409,8 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
   (**********************************************************
                           INDEX 
    **********************************************************)
-<<<<<<< HEAD:Runtime/GpuRuntime.ml
   
   let index (inputVec : gpu_val) (indexVec : gpu_val) =
-=======
-  let index (inputVec : value) (indexVec : value) =
->>>>>>> 8e76b6cf7288dc1faafc95d2680dc5d85bd75c9b:GPU/GpuRuntime.ml
     let inputShape = GpuVal.get_shape inputVec in
     let ninputels = Shape.nelts inputShape in
     let nidxs = GpuVal.nelts indexVec in
