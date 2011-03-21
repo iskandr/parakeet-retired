@@ -95,7 +95,7 @@ In this paper, we present Parakeet, an intelligent runtime for executing high le
 A key target audience of Parakeet is scientific programmers. It is common for them to run computational experiments that are extrememely time consuming and operate on huge data inputs -- codes which are natural candidates for GPU acceleration. However, it is highly preferable for them not to have to learn specialized tools like CUDA in order to take advantage of new hardware.  In addition, dynamic and interactive languages such as Matlab are very popular as they allow for rapid prototyping of algorithms.  Our main goal is to enable the use of such languages not only for prototyping, but production execution as well.
 
 % Q front-end, agnosticism
-We have implemented our first Parakeet front end for Q \cite{Borr08}, a descendant of APL that is widely used in financial computing. Q is a nearly ``pure'' array language -- its idiomatic style makes sparser use of loops than even Matlab or NumPy -- and is thus a natural first choice. Parakeet is designed to be front end language agnostic, and we are nearly finished with a front end for Python's NumPy.
+We have implemented our first Parakeet front end for Q \cite{Borr08}, a descendant of APL that is widely used in financial computing. Q is a nearly ``pure'' array language -- its idiomatic style makes sparser use of loops than even Matlab or NumPy -- and is thus a natural first choice. Nonetheless, Parakeet is designed to be front end language agnostic, and we are nearly finished with a front end for NumPy.
 
 % Bullet-point, drive-home contributions
 The main contributions of this paper are the following:
