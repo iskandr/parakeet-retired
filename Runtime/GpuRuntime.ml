@@ -333,9 +333,9 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
   done; 
   let result = GpuVal.slice (List.hd !inputArgs) 0 in
   IFDEF DEBUG THEN
-    Printf.printf "Final reduction result of shape %s, type %s\n"
-    (Shape.to_str (GpuVal.get_shape result))
-    (DynType.to_str (GpuVal.get_type result));
+    Printf.printf "Final reduction result: %s\n"
+      (GpuVal.to_str result)
+    ; 
   ENDIF;
   [result]
     
@@ -429,26 +429,26 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
     in
     let inputType = GpuVal.get_type inputVec in 
     let elType = DynType.elt_type inputType in
-    let outputVec = MemoryState.mk_gpu_vec P.memState inputType outputShape in
-    let output = GpuVal.GpuArray outputVec in 
+    let output = 
+        MemoryState.mk_gpu_vec P.memState inputType outputShape 
+    in
     let inputPtr = GpuVal.get_ptr inputVec in
     let indexPtr = GpuVal.get_ptr indexVec in
-    let outputPtr = GpuVal.get_ptr output in
     Kernels.bind_index_idxs_tex indexPtr nidxs;
     begin match elType with
     | DynType.Int32T -> begin
         Kernels.bind_index_int_vecs_tex inputPtr ninputels;
-        Kernels.index_int ninputs vec_len nidxs outputPtr;
+        Kernels.index_int ninputs vec_len nidxs output.vec_ptr;
         Kernels.unbind_index_int_vecs_tex ()
       end
     | DynType.Float32T -> begin
         Kernels.bind_index_float_vecs_tex inputPtr ninputels;
-        Kernels.index_float ninputs vec_len nidxs outputPtr;
+        Kernels.index_float ninputs vec_len nidxs output.vec_ptr;
         Kernels.unbind_index_float_vecs_tex ()
       end
     | _ -> failwith "[run_index] unsupported type for indexing"
     end;
-    output
+    GpuVal.GpuArray output
 
   (**********************************************************
                           WHERE 
@@ -462,23 +462,24 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
       let scanShape = GpuVal.get_shape binVec in
       let int32_vec_type = DynType.VecT DynType.Int32T in  
       let scanInterm = 
-        MemoryState.mk_gpu_val P.memState int32_vec_type scanShape 
+        MemoryState.mk_gpu_vec P.memState int32_vec_type scanShape 
       in 
-      let scanPtr = GpuVal.get_ptr scanInterm in
-      Thrust.thrust_prefix_sum_bool_to_int binPtr nelts scanPtr;
-      let resultLength = Cuda.cuda_get_gpu_int_vec_elt scanPtr (nelts - 1) in
+      Thrust.thrust_prefix_sum_bool_to_int binPtr nelts scanInterm.vec_ptr;
+      let resultLength = 
+        Cuda.cuda_get_gpu_int_vec_elt scanInterm.vec_ptr (nelts - 1) 
+      in
       IFDEF DEBUG THEN 
         Printf.printf "WHERE returned %d elements\n" resultLength;
       ENDIF; 
       let outputShape = Shape.create 1 in
       Shape.set outputShape 0 resultLength;
       let output = 
-        MemoryState.mk_gpu_val P.memState int32_vec_type outputShape 
+        MemoryState.mk_gpu_vec P.memState int32_vec_type outputShape 
       in
-      Kernels.bind_where_tex scanPtr nelts;
-      Kernels.where_tex nelts (GpuVal.get_ptr output);
+      Kernels.bind_where_tex scanInterm.vec_ptr nelts;
+      Kernels.where_tex nelts output.vec_ptr; 
       Kernels.unbind_where_tex ();
-      output
+      GpuVal.GpuArray output
 
 (*
 let init () =

@@ -190,8 +190,7 @@ let rec normalize_dim inputSet rawShapeEnv normalizedEnv expNode
       else  
         let shape, normalizedEnv' = 
           if ID.Map.mem id normalizedEnv then 
-            (debug $ (ID.to_str id) ^ " already normalized"; 
-            ID.Map.find id normalizedEnv, normalizedEnv)  
+            ID.Map.find id normalizedEnv, normalizedEnv  
           else   
             (* if some local variable's shape has not yet been normalized,
                do so recursively 
@@ -337,12 +336,13 @@ and infer_normalized_output_shapes (fnTable : FnTable.t) (fundef : SSA.fundef) =
  end
 
 and infer_call_result_shapes fnTable fundef argShapes = 
+  (*
   IFDEF DEBUG THEN 
     Printf.printf "[ShapeInference] Calling %s with %s\n"
       (FnId.to_str fundef.SSA.fn_id)
       (SymbolicShape.shapes_to_str argShapes);
   ENDIF; 
-  
+  *)
   let normalizedOutputShapes = infer_normalized_output_shapes fnTable fundef in   
   (* once the shape expressions only refer to input IDs, 
      remap those input IDs argument expressions 

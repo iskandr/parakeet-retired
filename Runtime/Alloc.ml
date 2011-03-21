@@ -46,7 +46,6 @@ let alloc_gpu_vec ?nbytes ?len ty shape =
        len * eltSize 
     | Some n -> n 
   in
-  IFDEF DEBUG THEN Printf.printf "Making GPU vec of %d bytes\n" nbytes; ENDIF;
   let outputPtr = Cuda.cuda_malloc nbytes in
   let shapePtr, shapeSize = shape_to_gpu shape in
   let gpuVec = {
@@ -63,7 +62,10 @@ let alloc_gpu_vec ?nbytes ?len ty shape =
 
   } in 
   IFDEF DEBUG THEN
-    Printf.printf "[Alloc] Created %s\n" (GpuVal.to_str (GpuArray gpuVec));
+    Printf.printf 
+      "[Alloc] Created %s\n" 
+      (GpuVal.to_str ~show_contents:false (GpuArray gpuVec))
+    ;
     Pervasives.flush_all(); 
   ENDIF;  
   gpuVec 

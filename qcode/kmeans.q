@@ -8,10 +8,10 @@ kmeans: { [X;a;k;niters]
   C }
 
 n: 1000;
-d: 10;
+d: 200;
 k: 2;  
 a: n ? k;
-X: { d ? 100e } each til n; 
+X: { d ? 10e } each til n; 
 niters: 1;
 C: kmeans[X;a;k;niters]
 

@@ -46,21 +46,26 @@ let elts_summary gpuVec =
   let eltStr = 
     String.concat ", " $ List.map (elt_to_str gpuVec) (List.til n)
   in 
-  if nelts > maxElts then eltStr ^ " ..." else eltStr  
+  if nelts > maxElts then "[" ^ eltStr ^ " ...]" 
+  else "[" ^ eltStr ^ "]"  
    
 
-let gpu_vec_to_str gpuVec = 
-  Printf.sprintf 
-    "GpuVec(%stype=%s, shape=%s, address=%Ld): [%s]"
-      (if gpuVec.vec_slice_start = None then "" else "SLICE, ") 
-      (DynType.to_str gpuVec.vec_t)
-      (Shape.to_str gpuVec.vec_shape)
-      gpuVec.vec_ptr
-      (elts_summary gpuVec)
+let gpu_vec_to_str ?(show_contents=true) gpuVec =
+  let basicInfo =  
+    Printf.sprintf 
+      "GpuVec(%stype=%s, shape=%s, address=%Ld)"
+        (if gpuVec.vec_slice_start = None then "" else "SLICE, ") 
+        (DynType.to_str gpuVec.vec_t)
+        (Shape.to_str gpuVec.vec_shape)
+        gpuVec.vec_ptr
+  in 
+  if show_contents then basicInfo ^ ": " ^ (elts_summary gpuVec)
+  else basicInfo 
+      
 
-let to_str = function 
+let to_str ?(show_contents=true) = function 
   | GpuScalar n -> Printf.sprintf "GpuScalar(%s)" (PQNum.num_to_str n)
-  | GpuArray gpuVec -> gpu_vec_to_str gpuVec
+  | GpuArray gpuVec -> gpu_vec_to_str ~show_contents gpuVec
        
 
 let nelts = function
