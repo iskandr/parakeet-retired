@@ -230,6 +230,8 @@ module MkTranslator(P : PARAMS) = struct
               (codeBuffer : ImpCodegen.code_buffer) 
               (stmtNode : SSA.stmt_node) = 
       match stmtNode.SSA.stmt with
+      | SSA.Set([], _) -> 
+          failwith "[ssa->imp] Set without any variables not implemented"
 		  | SSA.Set([id], expNode) ->
 		      if List.length expNode.SSA.exp_types <> 1 then 
             failwith "[ssa->imp] expected only single value on rhs of set"
@@ -274,21 +276,24 @@ end
 
 
 let rec translate_fundef fnTable fn =
+  (*
   IFDEF DEBUG THEN 
     Printf.printf "[SSA_To_Imp] translating function: %s\n"
       (SSA.fundef_to_str fn);
   ENDIF; 
-    
+  *) 
   let fnState = new ImpCodegen.fn_state in
   let inputTypes = fn.SSA.fn_input_types in 
   (* first generate imp ids for inputs, to make sure their order is preserved *)
   let add_input env id t = 
-    let impId = fnState#fresh_input_id t in 
+    let impId = fnState#fresh_input_id t in
+    (* 
     IFDEF DEBUG THEN 
       Printf.printf "[SSA_To_Imp] Renaming input %s => %s\n"
         (ID.to_str id)
         (ID.to_str impId); 
-    ENDIF; 
+    ENDIF;
+    *) 
     ID.Map.add id impId env  
   in 
   let inputIdEnv = 
@@ -318,12 +323,13 @@ let rec translate_fundef fnTable fn =
         fnState#fresh_local_id ~dims:dims' t
       )
     in  
-    
+    (*
     IFDEF DEBUG THEN 
         Printf.printf "[ssa2imp] Renamed %s to %s\n"
           (ID.to_str id)
           (ID.to_str impId); 
     ENDIF;
+    *)
     ID.Map.add id impId env    
   in  
   let idEnv = MutableSet.fold add_local liveIds inputIdEnv in
@@ -332,7 +338,8 @@ let rec translate_fundef fnTable fn =
     let shape' = List.map (ImpReplace.apply_id_map idEnv) shape in   
     ID.Map.add id' shape' env  
   in
-  let impSizeEnv = ID.Map.fold rename_shape_env sizeEnv ID.Map.empty in 
+  let impSizeEnv = ID.Map.fold rename_shape_env sizeEnv ID.Map.empty in
+  (* 
   IFDEF DEBUG THEN 
     Printf.printf "[ssa2imp] Size env\n";
     let print_size id sz =
@@ -342,6 +349,7 @@ let rec translate_fundef fnTable fn =
     in 
     ID.Map.iter print_size impSizeEnv
   ENDIF;
+  *)
   let module Translator = MkTranslator(struct
     let fnTable = fnTable 
     let idEnv = idEnv

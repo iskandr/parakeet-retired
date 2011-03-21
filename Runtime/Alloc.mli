@@ -21,8 +21,11 @@ val delete_host_val : HostVal.host_val -> unit
 val delete_gpu_vec : GpuVal.gpu_vec -> unit    
 val delete_gpu_val : GpuVal.gpu_val -> unit
 
-val to_gpu :  HostVal.host_val -> GpuVal.gpu_val 
-val from_gpu :?prealloc:Cuda.HostPtr.t -> GpuVal.gpu_val -> HostVal.host_val
+val vec_to_gpu : HostVal.host_array -> GpuVal.gpu_vec 
+val to_gpu :  HostVal.host_val -> GpuVal.gpu_val
+
+val vec_from_gpu : GpuVal.gpu_vec -> HostVal.host_array  
+val from_gpu : GpuVal.gpu_val -> HostVal.host_val
 
 
     

@@ -27,24 +27,31 @@ type gpu_val = GpuScalar of PQNum.num | GpuArray of gpu_vec
 
 
 let elt_to_str gpuVec idx = 
-  match gpuVec.vec_t with 
-  | DynType.VecT DynType.Int32T -> 
+  match DynType.elt_type gpuVec.vec_t with 
+  | DynType.Int32T -> 
     let i32 = Cuda.cuda_get_gpu_int32_vec_elt gpuVec.vec_ptr idx in
     Int32.to_string i32         
-  | DynType.VecT DynType.Float32T ->
-    let f = Cuda.cuda_get_gpu_float32_vec_elt gpuVec.vec_ptr idx in  
+  | DynType.Float32T ->
+      let f = Cuda.cuda_get_gpu_float32_vec_elt gpuVec.vec_ptr idx in  
     string_of_float f 
-  | DynType.VecT DynType.BoolT ->
+  | DynType.BoolT ->
     let i =  Cuda.cuda_get_gpu_char_vec_elt gpuVec.vec_ptr idx in
     string_of_int i 
   | _ -> "?" 
 
-let elts_summary gpuVec = 
-  String.concat ", " $ List.map (elt_to_str gpuVec) (List.til 10) 
+let elts_summary gpuVec =
+  let maxElts = 20 in 
+  let nelts = Shape.nelts gpuVec.vec_shape in 
+  let n = min maxElts nelts in 
+  let eltStr = 
+    String.concat ", " $ List.map (elt_to_str gpuVec) (List.til n)
+  in 
+  if nelts > maxElts then eltStr ^ " ..." else eltStr  
+   
 
 let gpu_vec_to_str gpuVec = 
   Printf.sprintf 
-    "GpuVec(%stype=%s, shape=%s, address=%Ld): [%s ...]"
+    "GpuVec(%stype=%s, shape=%s, address=%Ld): [%s]"
       (if gpuVec.vec_slice_start = None then "" else "SLICE, ") 
       (DynType.to_str gpuVec.vec_t)
       (Shape.to_str gpuVec.vec_shape)

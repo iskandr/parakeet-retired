@@ -32,11 +32,6 @@ val get_scalar : t -> InterpVal.t -> PQNum.num
 
 val slice : t -> InterpVal.t -> int -> InterpVal.t 
 
-val free_gpu : t -> InterpVal.DataId.t -> unit 
-val free_host : t -> InterpVal.DataId.t -> unit  
-val free_all_gpu : t -> unit
-val free : t -> InterpVal.DataId.t -> unit
-
 val sizeof : t -> InterpVal.t -> int
 
 val mk_gpu_vec 
@@ -44,6 +39,23 @@ val mk_gpu_vec
 
 val mk_gpu_val : t -> ?freeze:bool -> DynType.t -> Shape.t -> GpuVal.gpu_val 
 
+
+(* A frozen pointer can never be deleted, 
+   it must be manually unfrozen first
+*)
+val freeze_gpu_vec : t -> GpuVal.gpu_vec -> unit 
+val freeze_gpu_vecs : t -> GpuVal.gpu_vec list -> unit 
+ 
 val unfreeze_gpu_vec : t -> GpuVal.gpu_vec -> unit 
 val unfreeze_gpu_vecs : t -> GpuVal.gpu_vec list -> unit  
-  
+
+val freeze_host_vec : t -> HostVal.host_array -> unit 
+val unfreeze_host_vec : t -> HostVal.host_array -> unit 
+
+val freeze : t -> InterpVal.t -> unit 
+val freeze_list : t -> InterpVal.t list -> unit 
+
+val unfreeze : t -> InterpVal.t -> unit
+val unfreeze_list : t -> InterpVal.t list -> unit 
+
+   

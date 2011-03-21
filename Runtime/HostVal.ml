@@ -41,14 +41,16 @@ let c_set_bool ptr idx b =
   let ch = if b then 1 else 0 in 
   c_set_char ptr idx ch 
 
+let host_vec_to_str hostVec = 
+  Printf.sprintf "HostArray { host_t=%s, shape=%s; nbytes=%d; first_word=%ld }"
+    (DynType.to_str hostVec.host_t) 
+    (Shape.to_str hostVec.shape) 
+    hostVec.nbytes
+    (c_get_int32 hostVec.ptr 0)
+
 let to_str = function 
   | HostScalar n -> sprintf "HostScalar %s" (PQNum.num_to_str n)
-  | HostArray {ptr=ptr; host_t=host_t; shape=shape; nbytes=nbytes} -> 
-     sprintf "HostArray { host_t=%s, shape=%s; nbytes=%d; first_word=%ld }"
-       (DynType.to_str host_t) 
-       (Shape.to_str shape) 
-       nbytes
-       (c_get_int32 ptr 0)
+  | HostArray hostVec -> host_vec_to_str hostVec
   | HostBoxedArray _ -> "HostBoxedArray"
 
 
@@ -136,23 +138,26 @@ let sizeof = function
   | HostScalar n -> DynType.sizeof (PQNum.type_of_num n)  
   | HostBoxedArray _ -> assert false 
 
+let slice_vec ({ ptr = ptr; host_t = host_t; shape=shape } as hostArray) idx = 
+  let sliceShape = Shape.slice_shape shape [0] in
+  let sliceType = DynType.peel_vec host_t in
+  if DynType.is_scalar sliceType then 
+    get_vec_elt hostArray idx
+  else 
+    let bytesPerElt = DynType.sizeof (DynType.elt_type sliceType) in 
+    let sliceBytes = bytesPerElt * Shape.nelts sliceShape in
+    let slicePtr = Int64.add ptr (Int64.of_int (sliceBytes * idx)) in 
+    let sliceArray =  { 
+      ptr = slicePtr; host_t=sliceType; shape=sliceShape; nbytes=sliceBytes;
+      slice_start = Some ptr; 
+    }
+    in HostArray sliceArray 
+
+
 (* slice a host array along its outermost dimension, 
    assuming everything is stored in row-major 
  *) 
 let slice hostVal idx = match hostVal with 
   | HostScalar _ -> failwith "can't slice a host scalar"
-  | HostArray ({ ptr = ptr; host_t = host_t; shape=shape } as hostArray) -> 
-    let sliceShape = Shape.slice_shape shape [0] in
-    let sliceType = DynType.peel_vec host_t in
-    if DynType.is_scalar sliceType then 
-      get_vec_elt hostArray idx
-    else 
-      let bytesPerElt = DynType.sizeof (DynType.elt_type sliceType) in 
-      let sliceBytes = bytesPerElt * Shape.nelts sliceShape in
-      let slicePtr = Int64.add ptr (Int64.of_int (sliceBytes * idx)) in 
-      let sliceArray =  { 
-        ptr = slicePtr; host_t=sliceType; shape=sliceShape; nbytes=sliceBytes;
-        slice_start = Some ptr; 
-      }
-      in HostArray sliceArray 
+  | HostArray hostVec -> slice_vec hostVec idx 
   | HostBoxedArray _ -> assert false 

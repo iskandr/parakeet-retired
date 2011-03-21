@@ -112,45 +112,56 @@ let rec delete_host_val = function
   | HostVal.HostArray unboxed -> delete_host_vec unboxed
   
 
-  
-let to_gpu  = function 
-  | HostScalar n -> GpuScalar n
-  | HostArray { ptr=ptr; host_t=host_t; shape=shape; nbytes=nbytes } ->
-    let gpuPtr = Cuda.cuda_malloc nbytes in 
-    Cuda.cuda_memcpy_to_device ptr gpuPtr nbytes;
-    let shapeDevPtr, shapeBytes = shape_to_gpu shape in
-    let gpuVec =  {
+let vec_to_gpu hostVec = 
+  let gpuPtr = Cuda.cuda_malloc hostVec.nbytes in 
+  Cuda.cuda_memcpy_to_device hostVec.ptr gpuPtr hostVec.nbytes;
+  let shapeDevPtr, shapeBytes = shape_to_gpu hostVec.shape in
+  let gpuVec =  {
       vec_ptr = gpuPtr; 
-      vec_nbytes = nbytes;
-      vec_len= Shape.nelts shape; 
-
+      vec_nbytes = hostVec.nbytes;
+      vec_len= Shape.nelts hostVec.shape; 
+      
       vec_shape_ptr = shapeDevPtr;
       vec_shape_nbytes = shapeBytes; 
-
-      vec_shape = shape;
-      vec_t = host_t; 
+      
+      vec_shape = hostVec.shape;
+      vec_t = hostVec.host_t; 
       vec_slice_start=None; 
-    }
-    in 
-    IFDEF DEBUG THEN 
-      Printf.printf "[Alloc] vector sent to GPU: %s\n"
-        (GpuVal.gpu_vec_to_str gpuVec)
-      ; 
-    ENDIF; 
-    GpuVal.GpuArray gpuVec 
-    
-let from_gpu ?prealloc = function 
+  }
+  in 
+  IFDEF DEBUG THEN 
+    Printf.printf "[Alloc] vector sent to GPU: %s\n"
+      (GpuVal.gpu_vec_to_str gpuVec); 
+  ENDIF;
+  gpuVec  
+
+let to_gpu  = function 
+  | HostScalar n -> GpuScalar n
+  | HostArray hostVec -> 
+    let gpuVec = vec_to_gpu hostVec in  
+    GpuVal.GpuArray gpuVec
+  | HostBoxedArray _ -> 
+      failwith "[Alloc] shipping non-uniform host data to GPU not implemented"     
+ 
+
+let vec_from_gpu gpuVec = 
+  let dataHostPtr = c_malloc gpuVec.vec_nbytes in  
+  Cuda.cuda_memcpy_to_host dataHostPtr gpuVec.vec_ptr gpuVec.vec_nbytes; 
+  let hostVec = { 
+    ptr = dataHostPtr; 
+    nbytes = gpuVec.vec_nbytes;
+    host_t = gpuVec.vec_t; 
+    shape = gpuVec.vec_shape; 
+    slice_start = None; 
+  }
+  in 
+  IFDEF DEBUG THEN 
+    Printf.printf "[Alloc] vector returned from GPU: %s\n"
+      (HostVal.host_vec_to_str hostVec); 
+  ENDIF;
+  hostVec 
+  
+let from_gpu = function 
     | GpuScalar n -> HostScalar n
-    | GpuArray v ->
-        let dataHostPtr =  match prealloc with 
-          | None -> c_malloc v.vec_nbytes 
-          | Some ptr -> ptr 
-        in 
-        Cuda.cuda_memcpy_to_host dataHostPtr v.vec_ptr v.vec_nbytes; 
-        HostArray { 
-          ptr = dataHostPtr; 
-          nbytes = v.vec_nbytes;
-          host_t = v.vec_t; 
-          shape = v.vec_shape; 
-          slice_start = None; 
-        }
+    | GpuArray v -> HostArray (vec_from_gpu v) 
+        

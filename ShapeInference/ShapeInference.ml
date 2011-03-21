@@ -267,7 +267,7 @@ let rec infer_shape_env (fnTable:FnTable.t) (fundef : SSA.fundef) =
     in 
     let module ShapeEval = SSA_Analysis.MkEvaluator(ShapeAnalysis(Params)) in 
     let shapeEnv = ShapeEval.eval_fundef fundef in
-    
+    (*
     IFDEF DEBUG THEN
       Printf.printf "[ShapeInference::infer_shape_env]  %s : %s -> %s:\n"
         (FnId.to_str fnId)
@@ -282,7 +282,7 @@ let rec infer_shape_env (fnTable:FnTable.t) (fundef : SSA.fundef) =
         )
         shapeEnv;
     ENDIF;
-    
+    *)
     Hashtbl.add shapeEnvCache fnId shapeEnv;   
     shapeEnv 
     

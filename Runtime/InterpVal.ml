@@ -1,10 +1,8 @@
 open Base 
 
-module DataId = UID.Make(struct let to_str x = "data" ^ (string_of_int x) end)
 
 type t = 
   | Data of DataId.t
-  (*| Closure of ID.t * t list*) 
   | Scalar of PQNum.num
   | Array of t array 
 

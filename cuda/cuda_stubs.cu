@@ -203,10 +203,13 @@ value ocaml_cuda_get_gpu_char_vec_elt(value ocaml_gpu_vec, value ocaml_id) {
   CAMLparam2(ocaml_gpu_vec, ocaml_id);
   int *gpu_vec = (int*)Int64_val(ocaml_gpu_vec);
   char val = 0;
-  cudaError_t rslt = cudaMemcpy(&val, gpu_vec + Int_val(ocaml_id),
+  int idx = Int_val(ocaml_id); 
+  cudaError_t rslt = cudaMemcpy(&val, gpu_vec + idx,
                                 sizeof(char), cudaMemcpyDeviceToHost);
   if (rslt) {
-    printf("Error getting element of gpu int vec: %d\n", rslt);
+    printf (
+      "Error %d while attempting to access element %d of char vec at %p\n", 
+      rslt, idx, gpu_vec);  
     exit(1);
   }
   CAMLreturn(Val_int(val));
@@ -217,11 +220,14 @@ CAMLprim
 value ocaml_cuda_get_gpu_int_vec_elt(value ocaml_gpu_vec, value ocaml_id) {
   CAMLparam2(ocaml_gpu_vec, ocaml_id);
   int *gpu_vec = (int*)Int64_val(ocaml_gpu_vec);
+  int idx = Int_val(ocaml_id); 
   int32_t val = 0;
-  cudaError_t rslt = cudaMemcpy(&val, gpu_vec + Int_val(ocaml_id),
+  cudaError_t rslt = cudaMemcpy(&val, gpu_vec + idx,
                                 sizeof(int32_t), cudaMemcpyDeviceToHost);
   if (rslt) {
-    printf("Error getting element of gpu int vec: %d\n", rslt);
+     printf (
+      "Error %d while attempting to access element %d of int vec at %p\n", 
+      rslt, idx, gpu_vec);  
     exit(1);
   }
   CAMLreturn(Val_int(val));
@@ -235,11 +241,14 @@ value
 ocaml_cuda_get_gpu_int32_vec_elt(value ocaml_gpu_vec, value ocaml_id) {
   CAMLparam2(ocaml_gpu_vec, ocaml_id);
   int32_t *gpu_vec = (int*)Int64_val(ocaml_gpu_vec);
+  int idx = Int_val(ocaml_id); 
   int32_t val = 0;
-  cudaError_t rslt = cudaMemcpy(&val, gpu_vec + Int_val(ocaml_id),
+  cudaError_t rslt = cudaMemcpy(&val, gpu_vec + idx,
                                 sizeof(int32_t), cudaMemcpyDeviceToHost);
   if (rslt) {
-    printf("Error getting element of gpu int vec: %d\n", rslt);
+   printf (
+      "Error %d while attempting to access element %d of int32 vec @ %p\n", 
+      rslt, idx, gpu_vec);  
     exit(1);
   }
   CAMLreturn(copy_int32(val));
@@ -255,11 +264,14 @@ value
 ocaml_cuda_get_gpu_float32_vec_elt(value ocaml_gpu_vec, value ocaml_id) {
   CAMLparam2(ocaml_gpu_vec, ocaml_id);
   float *gpu_vec = (float*)Int64_val(ocaml_gpu_vec);
+  int idx = Int_val(ocaml_id); 
   float val = 0.0;
-  cudaError_t rslt = cudaMemcpy(&val, gpu_vec + Int_val(ocaml_id),
+  cudaError_t rslt = cudaMemcpy(&val, gpu_vec + idx,
                                 sizeof(float), cudaMemcpyDeviceToHost);
   if (rslt) {
-    printf("Error getting element of gpu int vec: %d\n", rslt);
+    printf (
+      "Error %d while attempting to access element %d of float vec at %p\n", 
+      rslt, idx, gpu_vec);  
     exit(1);
   }
   CAMLreturn(copy_double(val));

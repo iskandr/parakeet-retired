@@ -326,6 +326,6 @@ let eval globalFns fundef hostVals =
   let hostVals = List.map (MemoryState.get_host memState) outputVals in
   MemoryState.pop_env memState;
   (* MemoryState.full_collect memState *)  
-  (* MemoryState.free_all_gpu memState;*)
+  (*MemoryState.free_all_gpu memState;*)
   hostVals
 
