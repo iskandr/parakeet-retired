@@ -1,12 +1,12 @@
 open Base
 open HostVal
 
-module HostPtr = Int64 
-module GpuPtr = Int64
-module CuCtxPtr = Int64
 module CuChanFormatDesc = Int64
 module CuModulePtr = Int64
+module CuCtxPtr = Int64
 module CuTexRef = Int64
+module GpuPtr = Int64
+module HostPtr = Int64 
 
 type device_info = {
   max_threads_per_block : int;
@@ -37,8 +37,20 @@ let infer_channel_format = function
   | t -> failwith $ 
     Printf.sprintf "Cannot infer texture channel format for type %s"
     (DynType.to_str t) 
- 
+
+(** Trying to keep things manageable by keeping these in the same order as they
+    are in cuda_stubs.cu **) 
 external cuda_init : unit -> unit = "ocaml_cuda_init"
+external cuda_init_runtime : unit -> unit = "ocaml_cuda_init_runtime"
+
+external cuda_device_get_count : unit -> int = "ocaml_cuda_device_get_count"
+external cuda_device_get_properties : int -> device_info
+  = "ocaml_cuda_device_get_properties"
+external cuda_device_get_free_and_total_mem : unit -> (int * int)
+  = "ocaml_cuda_device_get_free_and_total_mem"
+
+external cuda_ctx_create : int -> CuCtxPtr.t = "ocaml_cuda_ctx_create"
+external cuda_ctx_destroy : CuCtxPtr.t -> unit = "ocaml_cuda_ctx_destroy" 
 
 external cuda_malloc' : int -> GpuPtr.t = "ocaml_cuda_malloc"
 let cuda_malloc n =
@@ -52,18 +64,6 @@ let cuda_malloc n =
   end
  
 external cuda_free : GpuPtr.t -> unit = "ocaml_cuda_free"
-
-external cuda_device_get_count : unit -> int = "ocaml_cuda_device_get_count"
-external cuda_device_get_properties : int -> device_info
-  = "ocaml_cuda_device_get_properties"
-
-external cuda_device_get_free_and_total_mem : unit -> (int * int)
-  = "ocaml_cuda_device_get_free_and_total_mem"
-
-external cuda_ctx_create : int -> CuCtxPtr.t = "ocaml_cuda_ctx_create"
-external cuda_ctx_destroy : CuCtxPtr.t -> unit = "ocaml_cuda_ctx_destroy"
-
-external cuda_init_runtime : unit -> unit = "ocaml_cuda_init_runtime"
 
 external cuda_memcpy_to_device_impl  : HostPtr.t -> GpuPtr.t -> int -> unit
   = "ocaml_cuda_memcpy_to_device"
@@ -84,10 +84,9 @@ let cuda_memcpy_to_host hostPtr gpuPtr bytes =
 external cuda_memcpy_device_to_device : GpuPtr.t -> GpuPtr.t -> int -> unit 
   = "ocaml_cuda_memcpy_device_to_device"
 
-
 (** READ ARRAY ELEMENTS **) 
 external cuda_get_gpu_char_vec_elt : GpuPtr.t -> int -> int 
-  = "ocaml_cuda_get_gpu_char_vec_elt" 
+  = "ocaml_cuda_get_gpu_char_vec_elt"
 
 external cuda_get_gpu_int_vec_elt : GpuPtr.t -> int -> int
   = "ocaml_cuda_get_gpu_int_vec_elt"
@@ -152,5 +151,3 @@ type cuda_module = {
   kernel_names : string list; 
   threads_per_block : int; (* useless param *) 
 }
-
-  

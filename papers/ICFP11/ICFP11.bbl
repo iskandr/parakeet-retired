@@ -1,5 +1,10 @@
 \begin{thebibliography}{10}
 
+\bibitem{AcceJa}
+{\sc Accelereyes}.
+\newblock Jacket.
+\newblock {\tt http://www.accelereyes.com}.
+
 \bibitem{Ald01}
 {\sc Aldinucci, M., Gorlatch, S., Lengauer, C., and Pelagatti, S.}
 \newblock Towards parallel programming by transformation: the {FAN} skeleton
@@ -35,11 +40,11 @@
 \newblock In {\em ACM SIGGRAPH 2004 Papers\/} (New York, NY, USA, 2004), ACM,
   pp.~777--786.
 
-\bibitem{Cata10}
+\bibitem{Cata11}
 {\sc Catanzaro, B., Garland, M., and Keutzer, K.}
 \newblock Copperhead: Compiling an embedded data parallel language.
-\newblock Tech. Rep. UCB/EECS-2010-124, EECS Department, University of
-  California, Berkeley, Sep 2010.
+\newblock In {\em Proceedings of the 16th ACM Symposium on Principles and
+  Practice of Parallel Programming\/} (2011), pp.~47--56.
 
 \bibitem{Chaf11}
 {\sc Chafi, H., Sujeeth, A.~K., Brown, K.~J., Lee, H., Atreya, A.~R., and
@@ -49,9 +54,11 @@
   Practice of Parallel Programming\/} (New York, NY, USA, 2011), ACM,
   pp.~35--46.
 
-\bibitem{ChakAcc}
+\bibitem{Chak11}
 {\sc Chakravarty, M.~M., Keller, G., Lee, S., McDonnel, T.~L., and Grover, V.}
 \newblock Accelerating haskell array codes with multicore gpus.
+\newblock In {\em Proceedings of the Sixth Workshop on Declarative Aspects of
+  Multicore Programming\/} (2011), pp.~3--14.
 
 \bibitem{Cham92}
 {\sc Chambers, C.}
@@ -110,7 +117,16 @@
   Urbana-Champaign, Urbana, IL, Dec 2002.
 \newblock {\em See {\tt http://llvm.cs.uiuc.edu}.}
 
-\bibitem{Lengyel90}
+\bibitem{Lee10}
+{\sc Lee, V.~W., Kim, C., Chhugani, J., Deisher, M., Kim, D., Nguyen, A.~D.,
+  Satish, N., Smelyanskiy, M., Chennupaty, S., Hammarlund, P., Singhal, R., and
+  Dubey, P.}
+\newblock Debunking the 100x {GPU} vs. {CPU} myth: An evaluation of throughput
+  computing on {CPU} and {GPU}.
+\newblock In {\em Proceedings of the 37th annual International Symposium on
+  Computer Architecture\/} (2010), pp.~451--460.
+
+\bibitem{Leng90}
 {\sc Lengyel, J., Reicher, M., Donald, B.~R., and Greenberg, D.~P.}
 \newblock Real-time robot motion planning using rasterizing computer graphics
   hardware.

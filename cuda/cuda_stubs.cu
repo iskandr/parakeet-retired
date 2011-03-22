@@ -30,28 +30,15 @@ value ocaml_cuda_init(value unit) {
   CAMLreturn (Val_unit);
 }
 
-/* int -> Int64.t */
-CAMLprim value ocaml_cuda_malloc(value num_bytes)  {
-  CAMLparam1(num_bytes);
-  CUdeviceptr devPtr;
-  int n = Int_val(num_bytes);
-  CUresult result = cuMemAlloc(&devPtr, n);
-  if (result != 0) {
-    printf ("cuMemAlloc failed for %d bytes with error code: %d\n", n, result);
-    exit(1);
-  }
-  CAMLreturn (copy_int64(devPtr));
-}
+CAMLprim
+value ocaml_cuda_init_runtime(void) {
+  CAMLparam0();
 
-/* Int64.t -> unit */
-CAMLprim value ocaml_cuda_free(value gpu_ptr)  {
-  CAMLparam1(gpu_ptr);
-  CUresult result = cuMemFree(Int64_val(gpu_ptr));
-  if (result != 0) {
-    printf ("cuMemFree failed with error code: %d\n", result);
-    exit(1);
-  }
-  CAMLreturn (Val_unit);
+  cudaEvent_t dummy;
+  cudaEventCreate(&dummy);
+  cudaEventDestroy(dummy);
+
+  CAMLreturn(Val_unit);
 }
 
 /* unit -> int32 */
@@ -131,14 +118,78 @@ CAMLprim value ocaml_cuda_ctx_destroy(value ctx) {
 }
 
 CAMLprim
-value ocaml_cuda_init_runtime(void) {
+value ocaml_cuda_create_event(void) {
   CAMLparam0();
 
-  cudaEvent_t dummy;
-  cudaEventCreate(&dummy);
-  cudaEventDestroy(dummy);
+  cudaEvent_t event;
+  cudaEventCreate(&event);
+
+  CAMLreturn(caml_copy_int64((int64_t)event));
+}
+
+CAMLprim
+value ocaml_cuda_destroy_event(value ocaml_event) {
+  CAMLparam1(ocaml_event);
+
+  cudaEvent_t event = (cudaEvent_t)Int64_val(ocaml_event);
+  cudaEventDestroy(event);
 
   CAMLreturn(Val_unit);
+}
+
+CAMLprim
+value ocaml_cuda_record_event(value ocaml_event) {
+  CAMLparam1(ocaml_event);
+
+  cudaEvent_t event = (cudaEvent_t)Int64_val(ocaml_event);
+  // TODO: For now, only using stream 0
+  cudaEventRecord(event, 0);
+
+  CAMLreturn(Val_unit);
+}
+
+CAMLprim
+value ocaml_cuda_stop_event_and_get_elapsed_time(value ocaml_start_event,
+                                                 value ocaml_end_event) {
+  CAMLparam2(ocaml_start_event, ocaml_end_event);
+
+  cudaEvent_t start_event = (cudaEvent_t)Int64_val(ocaml_start_event);
+  cudaEvent_t end_event = (cudaEvent_t)Int64_val(ocaml_end_event);
+
+  // TODO: For now, only using stream 0
+  cudaEventRecord(end_event, 0);
+  cudaEventSynchronize(end_event);
+
+  float t;
+  cudaEventElapsedTime(&t, start_event, end_event);
+
+  CAMLreturn(caml_copy_double((double)t));
+}
+
+/** Memory-related functions **/
+
+/* int -> Int64.t */
+CAMLprim value ocaml_cuda_malloc(value num_bytes)  {
+  CAMLparam1(num_bytes);
+  CUdeviceptr devPtr;
+  int n = Int_val(num_bytes);
+  CUresult result = cuMemAlloc(&devPtr, n);
+  if (result != 0) {
+    printf ("cuMemAlloc failed for %d bytes with error code: %d\n", n, result);
+    exit(1);
+  }
+  CAMLreturn (copy_int64(devPtr));
+}
+
+/* Int64.t -> unit */
+CAMLprim value ocaml_cuda_free(value gpu_ptr)  {
+  CAMLparam1(gpu_ptr);
+  CUresult result = cuMemFree(Int64_val(gpu_ptr));
+  if (result != 0) {
+    printf ("cuMemFree failed with error code: %d\n", result);
+    exit(1);
+  }
+  CAMLreturn (Val_unit);
 }
 
 /* Int64.t -> Int64.t -> int -> unit */
@@ -159,11 +210,10 @@ value ocaml_cuda_memcpy_to_device (value array,
 
 /* Int64.t -> Int64.t -> int -> unit */
 
-
-
 CAMLprim
-value 
-ocaml_cuda_memcpy_device_to_device (value src, value dst, value num_bytes) {
+value ocaml_cuda_memcpy_device_to_device (value src,
+                    value dst,
+                    value num_bytes) {
   CAMLparam3(src, dst, num_bytes);
   CUdeviceptr source = Int64_val(src);
   CUdeviceptr dest = Int64_val(dst);
@@ -196,37 +246,31 @@ value ocaml_cuda_memcpy_to_host (value array,
 /* EEK:  
    Access a GPU array element 
 */
-
 CAMLprim
 value ocaml_cuda_get_gpu_char_vec_elt(value ocaml_gpu_vec, value ocaml_id) {
   CAMLparam2(ocaml_gpu_vec, ocaml_id);
   int *gpu_vec = (int*)Int64_val(ocaml_gpu_vec);
-  char val = 0;
-  int idx = Int_val(ocaml_id); 
-  cudaError_t rslt = cudaMemcpy(&val, gpu_vec + idx,
+  char cval = 0;
+  int val = 0;
+  cudaError_t rslt = cudaMemcpy(&cval, gpu_vec + Int_val(ocaml_id),
                                 sizeof(char), cudaMemcpyDeviceToHost);
   if (rslt) {
-    printf (
-      "Error %d while attempting to access element %d of char vec at %p\n", 
-      rslt, idx, gpu_vec);  
+    printf("Error getting element of gpu int vec: %d\n", rslt);
     exit(1);
   }
+  val = (int)cval;
   CAMLreturn(Val_int(val));
 }
 
- 
 CAMLprim
 value ocaml_cuda_get_gpu_int_vec_elt(value ocaml_gpu_vec, value ocaml_id) {
   CAMLparam2(ocaml_gpu_vec, ocaml_id);
   int *gpu_vec = (int*)Int64_val(ocaml_gpu_vec);
-  int idx = Int_val(ocaml_id); 
   int32_t val = 0;
-  cudaError_t rslt = cudaMemcpy(&val, gpu_vec + idx,
+  cudaError_t rslt = cudaMemcpy(&val, gpu_vec + Int_val(ocaml_id),
                                 sizeof(int32_t), cudaMemcpyDeviceToHost);
   if (rslt) {
-     printf (
-      "Error %d while attempting to access element %d of int vec at %p\n", 
-      rslt, idx, gpu_vec);  
+    printf("Error getting element of gpu int vec: %d\n", rslt);
     exit(1);
   }
   CAMLreturn(Val_int(val));
@@ -240,14 +284,11 @@ value
 ocaml_cuda_get_gpu_int32_vec_elt(value ocaml_gpu_vec, value ocaml_id) {
   CAMLparam2(ocaml_gpu_vec, ocaml_id);
   int32_t *gpu_vec = (int*)Int64_val(ocaml_gpu_vec);
-  int idx = Int_val(ocaml_id); 
   int32_t val = 0;
-  cudaError_t rslt = cudaMemcpy(&val, gpu_vec + idx,
+  cudaError_t rslt = cudaMemcpy(&val, gpu_vec + Int_val(ocaml_id),
                                 sizeof(int32_t), cudaMemcpyDeviceToHost);
   if (rslt) {
-   printf (
-      "Error %d while attempting to access element %d of int32 vec @ %p\n", 
-      rslt, idx, gpu_vec);  
+    printf("Error getting element of gpu int vec: %d\n", rslt);
     exit(1);
   }
   CAMLreturn(copy_int32(val));
@@ -263,14 +304,11 @@ value
 ocaml_cuda_get_gpu_float32_vec_elt(value ocaml_gpu_vec, value ocaml_id) {
   CAMLparam2(ocaml_gpu_vec, ocaml_id);
   float *gpu_vec = (float*)Int64_val(ocaml_gpu_vec);
-  int idx = Int_val(ocaml_id); 
   float val = 0.0;
-  cudaError_t rslt = cudaMemcpy(&val, gpu_vec + idx,
+  cudaError_t rslt = cudaMemcpy(&val, gpu_vec + Int_val(ocaml_id),
                                 sizeof(float), cudaMemcpyDeviceToHost);
   if (rslt) {
-    printf (
-      "Error %d while attempting to access element %d of float vec at %p\n", 
-      rslt, idx, gpu_vec);  
+    printf("Error getting element of gpu int vec: %d\n", rslt);
     exit(1);
   }
   CAMLreturn(copy_double(val));

@@ -9,8 +9,10 @@ Conferences/Workshops/Journals:
 ------------
 @STRING{ASPLOS  = "International Conference on Architectural Support for
                    Programming Languages and Operating Systems"}
+@STRING{DAMP    = "Workshop on Declarative Aspects of Multicore Programming"}
 @STRING{Haskell = "Haskell Workshop"}
 @STRING{IFL     = "Implementation and Application of Functional Languages"}
+@STRING{ISCA    = "International Symposium on Computer Architecture"}
 @STRING{OOPSLA  = "ACM SIGPLAN conference on Object-Oriented Programming,
                    Systems, Languages, and Applications"}
 @STRING{PACT    = "International Conference on Processors, Architectures, and
@@ -26,6 +28,9 @@ Conference Years:
 ASPLOS
 @STRING{ASPLOS06 = "ASPLOS '06: Proceedings of the 12th " # ASPLOS}
 
+DAMP
+@STRING{DAMP11 = "Proceedings of the Sixth " # DAMP}
+
 Haskell
 @STRING{Haskell01 = "Proceedings of the 2004 " # Haskell}
 @STRING{Haskell04 = "Proceedings of the 2004 " # Haskell}
@@ -34,6 +39,9 @@ Haskell
 
 IFL
 @STRING{IFL08 = IFL # ", 20th International Symposium, IFL 2008"}
+
+ISCA
+@STRING{ISCA10 = "Proceedings of the 37th annual " # ISCA}
 
 OOPSLA
 @STRING{OOPSLA05 = "OOPSLA '05: Proceedings of the 20th annual " # OOPSLA}
@@ -249,15 +257,12 @@ BBBB
 
 CCCC
 ----
-@TECHREPORT{Cata10,
+@INPROCEEDINGS{Cata11,
   Author      = {Catanzaro, Bryan and Garland, Michael and Keutzer, Kurt},
   Title       = {Copperhead: Compiling an Embedded Data Parallel Language},
-  Institution = {EECS Department, University of California, Berkeley},
-  Number      = {UCB/EECS-2010-124},
-  Month       = {Sep},
-  Year        = {2010},
-  URL         = {{\tt http://www.eecs.berkeley.edu/Pubs/TechRpts/2010/
-                 EECS-2010-124.html}}
+  Booktitle   = PPOPP11,
+  Pages       = {47--56},
+  Year        = {2011}
 }
 
 @INPROCEEDINGS{Chaf11,
@@ -271,20 +276,13 @@ CCCC
   Address     = {New York, NY, USA}
 }
 
-@ARTICLE{ChakAcc,
+@INPROCEEDINGS{Chak11,
   Author      = {Chakravarty, Manuel M.T. and Keller, Gabrielle and Lee, Sean
                  and McDonnel, Trevor L. and Grover, Vinod},
   Title       = {Accelerating Haskell Array Codes with Multicore GPUs},
-  Journal     = pre-print,
-  Volume      = {},
-  Number      = {},
-  Year        = {},
-  Issn        = {},
-  Pages       = {},
-  Doi         = {},
-  Publisher   = {},
-  Address     = {},
-  URL = {http://www.cse.unsw.edu.au/~chak/papers/acc-cuda.pdf},
+  Booktitle   = DAMP11,
+  Year        = {2011},
+  Pages       = {3--14}
 }
 
 @PHDTHESIS{Cham92,
@@ -475,12 +473,27 @@ LLLL
   Note        = {{\em See {\tt http://llvm.cs.uiuc.edu}.}}
 }
 
-@INPROCEEDINGS{Lengyel90,
-    author = {Lengyel, Jed and Reicher, Mark and Donald, Bruce R. and Greenberg, Donald P.},
-    title = {Real-Time Robot Motion Planning Using Rasterizing Computer Graphics Hardware},
-    booktitle = {In Proc. SIGGRAPH},
-    year = {1990},
-    pages = {327--335}
+@INPROCEEDINGS{Lee10,
+  Author      = {Lee, Victor W. and Kim, Changkyu and Chhugani, Jatin and
+                 Deisher, Michael and Kim, Daehyun and Nguyen, Anthony D. and
+                 Satish, Nadathur and Smelyanskiy, Mikhail and
+                 Chennupaty, Srinivas and Hammarlund, Per and Singhal, Ronak and
+                 Dubey, Pradeep},
+  Title       = {Debunking the 100X {GPU} vs. {CPU} myth: An Evaluation of
+                 Throughput Computing on {CPU} and {GPU}},
+  Booktitle   = ISCA10,
+  Year        = {2010},
+  Pages       = {451--460}
+}
+
+@INPROCEEDINGS{Leng90,
+  Author      = {Lengyel, Jed and Reicher, Mark and Donald, Bruce R. and
+                 Greenberg, Donald P.},
+  Title       = {Real-Time Robot Motion Planning Using Rasterizing Computer
+                 Graphics Hardware},
+  Booktitle   = {In Proc. SIGGRAPH},
+  Year        = {1990},
+  Pages       = {327--335}
 }
 
 MMMM

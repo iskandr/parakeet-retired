@@ -63,11 +63,20 @@ xleftmargin=20pt,
 \maketitle
 
 \begin{abstract}
-Contemporary GPUs offer staggering performance potential, which has led to much recent work on enabling the execution of general-purpose programs on GPUs. Despite various advances in making general-purpose GPU programming easier, the two commonly used frameworks (OpenCL and NVIDIA's CUDA) remain cumbersome and require highly specialized architectural knowledge on the part of the programmer to fully harness this performance potential.
+% The following is the old abstract - my new attempt follows
+%Contemporary GPUs offer staggering performance potential, which has led to much recent work on enabling the execution of general-purpose programs on GPUs. Despite various advances in making general-purpose GPU programming easier, the two commonly used frameworks (OpenCL and NVIDIA's CUDA) remain cumbersome and require highly specialized architectural knowledge on the part of the programmer to fully harness this performance potential.
 
-We aim to enable general purpose use of GPUs by observing that GPUs have been optimized for data parallel workloads. Array-oriented programming encourages the use of data parallel array operators (e.g.\ map, reduce, and scan) and discourages the use of explicit loops. Thus, array-oriented programming languages constitute a natural model for high level GPU programming.
+%We aim to enable general purpose use of GPUs by observing that GPUs have been optimized for data parallel workloads. Array-oriented programming encourages the use of data parallel array operators (e.g.\ map, reduce, and scan) and discourages the use of explicit loops. Thus, array-oriented programming languages constitute a natural model for high level GPU programming.
 
-We present Parakeet, an intelligent runtime and JIT compiler for high level array-oriented programs that transparently takes advantage of GPUs as accelerators.  The heart of Parakeet is an interpreter, which upon reaching an array operator can automatically synthesize and execute a GPU program to implement that operator. Parakeet uses runtime information to: (1) decide where (CPU or GPU) to execute an array operator; (2) choose between different possible implementations of a GPU program; and (3) set execution parameters that greatly impact performance.
+%We present Parakeet, an intelligent runtime and JIT compiler for high level array-oriented programs that transparently takes advantage of GPUs as accelerators.  The heart of Parakeet is an interpreter, which upon reaching an array operator can automatically synthesize and execute a GPU program to implement that operator. Parakeet uses runtime information to: (1) decide where (CPU or GPU) to execute an array operator; (2) choose between different possible implementations of a GPU program; and (3) set execution parameters that greatly impact performance.
+
+%We evaluate Parakeet on two standard benchmarks: Black-Scholes option pricing, and K-Means clustering.  We compare high level array-oriented implementations to hand-written, tuned GPU versions from the CUDA SDK and the Rodinia GPU benchmark suite. Despite having orders of magnitude less code, the high level versions perform competitively when executed by Parakeet.
+
+Contemporary GPUs offer staggering performance potential for general purpose computation -- from 2.5X speedup over CPUs on average for a set of 14 standard ``throughput computing'' benchmarks \cite{Lee10} to 80X on data parallel workloads such as the Leukocyte Tracking medical imaging benchmark \cite{Che09}.  Further, most desktop machines today include underutilized graphics accelerators.  However, the widespread frameworks for general purpose GPU (GPGPU) programming, OpenCL \cite{Muns10} and NVIDIA's CUDA \cite{NvidCU}, require highly specialized low level programming and performance tuning knowledge to tap into this potential.
+
+There has been much recent work on enabling GPU acceleration of higher level languages to ease GPGPU programming and to bring this performance potential to a wider audience.  However, each of these systems: (1) requires the programmer to learn and use a new domain-specific language \cite{Cata11,Chaf11}; (2) is insufficiently expressive for efficiently executing standard nested data parallel programs such as K-Means clustering that are highly amenable to GPU acceleration \cite{Chak11,Main10}; or (3) exposes details of the GPU that the programmer must manage manually \cite{AcceJa}.
+
+We present Parakeet, the first system that transparently uses GPUs to accelerate existing high level programming languages.  Parakeet is an intelligent runtime library and JIT compiler for array-oriented subsets of high level languages.  Parakeet defines an array-oriented intermediate language and includes a front end for translating programs from source languages to this IL.  The heart of Parakeet is an IL interpreter, which upon reaching an array operator can automatically synthesize and execute a data parallel GPU program to implement that operator.  Parakeet is attached as a library to the source language's interpreter, allowing all of the source language's standard features and tools to be used.
 
 We evaluate Parakeet on two standard benchmarks: Black-Scholes option pricing, and K-Means clustering.  We compare high level array-oriented implementations to hand-written, tuned GPU versions from the CUDA SDK and the Rodinia GPU benchmark suite. Despite having orders of magnitude less code, the high level versions perform competitively when executed by Parakeet.
 \end{abstract}
@@ -75,7 +84,8 @@ We evaluate Parakeet on two standard benchmarks: Black-Scholes option pricing, a
 \section{Introduction}
 \label{Intro}
 
-Contemporary GPUs boast massive performance potential -- in some cases orders of magnitude higher performance per dollar than that of CPUs -- and most desktop systems today come with graphics processors.  This has led to much interesting work on enabling the execution of general-purpose programs on GPUs (GPGPU)~\cite{Cata10,Main10,Muns10,NvidCU,Sven08,Tard06}. Unfortunately, the two widely used GPGPU frameworks -- NVIDIA's CUDA \cite{NvidCU} and OpenCL \cite{Muns10} -- require the programmer to have extensive knowledge of low level architectural details in order to fully harness the performance potential.
+% Again, the following is the old Intro.  My new version follows
+Contemporary GPUs boast massive performance potential -- in some cases orders of magnitude higher performance per dollar than that of CPUs -- and most desktop systems today come with graphics processors.  This has led to much interesting work on enabling the execution of general-purpose programs on GPUs (GPGPU)~\cite{Cata11,Main10,Muns10,NvidCU,Sven08,Tard06}. Unfortunately, the two widely used GPGPU frameworks -- NVIDIA's CUDA \cite{NvidCU} and OpenCL \cite{Muns10} -- require the programmer to have extensive knowledge of low level architectural details in order to fully harness the performance potential.
 
 % Enable programmers to write GPGPU programs in productivity language
 Our goal is to lower the barrier of entry for GPGPU programming by allowing programmers to write in high level array languages that are transparently compiled into efficient GPU programs. By ``array language'' we mean any language equipped with:
@@ -101,7 +111,9 @@ We have implemented our first Parakeet front end for Q \cite{Borr08}, a descenda
 The main contributions of this paper are the following:
 
 \begin{itemize}
-\item A system in which programmers can write complex, high level code that is automatically parallelized into efficient GPU programs.
+\item A system in which programmers can write complex algorithms in existing high level languages that is automatically parallelized into efficient GPU programs.
+
+\item An intermediate language specification that captures the key aspects of data parallel programming that make it particularly well-suited to GPU execution.
 
 \item A detailed case study of the dynamic specialization of higher order, dynamically typed programs into efficient (unboxed, function-free) GPU code.
 \end{itemize}
@@ -517,13 +529,9 @@ In addition to these skeletons, we provide a library of precompiled parallel imp
 \label{Evaluation}
 
 We evaluated Parakeet on two standard benchmark programs: Black-Scholes option pricing, and K-Means Clustering.  We compare Parakeet against both hand-tuned CPU and GPU implementations.  For Black-Scholes, the CPU implementation is taken from the PARSEC \cite{Bien08} benchmark suite -- which we used as the basis
-of our Q implementation -- and the GPU implementation is taken from the CUDA SDK \cite{NvidSD}.  For K-Means Clustering, we wrote our own Q version in 17 lines of code.  Both the CPU and GPU benchmark version come from the Rodinia benchmark suite \cite{Che09}.
+of our Q implementation -- and the GPU implementation is taken from the CUDA SDK \cite{NvidSD}.  For K-Means Clustering, we wrote our own Q version in 15 lines of code.  Both the CPU and GPU benchmark version come from the Rodinia benchmark suite \cite{Che09}.
 
-Our experimental setup is as follows.  We ran the CPU benchmarks on a machine with an Intel Nehalem 2.67GHz X5550 4-core CPU with 24GB of RAM.  The theoretical peak throughput of this machine is 85.12 GFLOP/s, and it has a theoretical peak memory bandwidth of 32GB/s.
-
-For all GPU benchmarks, we ran the programs on an NVIDIA GTX260. This card has 216 processor cores with clock speeds of 1.3 GHz and 896MB of memory, with peak execution throughput of 805 GFLOP/s and peak memory bandwidth of 112 GB/s.
-
-For all of our Parakeet benchmarks, the desktop system we used for running the interpreter had an Intel Core 2 6600 2.4GHz processor with 2 cores and 4GB of RAM.
+Our experimental setup is as follows.  We ran all of our benchmarks on a machine with an Intel Core i7 3.2GHz 960 4-core CPU, each core with 2 thread contexts for a total of 8, and with 16GB of RAM.  The theoretical peak scalar throughput of this CPU is 25.6 GFLOP/s, and it has a theoretical peak memory bandwidth of 32GB/s \cite{Lee10}.  The GPU used in our system was an NVIDIA GTX460. This card has 336 processor cores with clock speeds of 1.35 GHz and 1GB of memory, with peak theoretical execution throughput of 907.2 GFLOP/s and peak memory bandwidth of 115.2 GB/s.
 
 \subsection{Black-Scholes}
 \label{results-bs}
@@ -554,7 +562,7 @@ nested function that in turns contains array operators.  Our interpreter is able
 
 \section{Related Work}
 \label{RelatedWork}
-The use of graphics hardware for non-graphical computation has a  long history~\cite{Lengyel90}, though convenient frameworks for general purpose GPU programming have only recently emerged. The first prominent GPU backend for a general purpose language was ``Brook for GPUs'' \cite{Buck04}. The Brook language extended C with ``kernels'' and ``streams'', exposing a programming model similar to what is now found in CUDA and OpenCL.
+The use of graphics hardware for non-graphical computation has a  long history~\cite{Leng90}, though convenient frameworks for general purpose GPU programming have only recently emerged. The first prominent GPU backend for a general purpose language was ``Brook for GPUs'' \cite{Buck04}. The Brook language extended C with ``kernels'' and ``streams'', exposing a programming model similar to what is now found in CUDA and OpenCL.
 
 Microsoft's Accelerator~\cite{Tard06} was the first project to use high level (collection-oriented) language constructs as a basis for GPU execution. Accelerator is a declarative GPU language embedded in C\# which creates a directed acyclic graph of LINQ operations -- such as filtering, grouping, and joining -- and compiles them to (pre-CUDA) shader programs. Accelerator's programming model does not support function abstractions (only expression trees) and its only underlying parallelism construct is limited to the production of $\MAP$-like kernels.
 
@@ -562,11 +570,11 @@ Four more recent projects all translate domain specific embedded array languages
 \begin{itemize}
 \item \textbf{Nikola}~\cite{Main10} is a first-order array-oriented language embedded within Haskell. Nikola provides a convenient syntax for expressing single-kernel computations, but requires the programmer to manually coordinate computations which require multiple kernel launches. Nikola also does not support partially applied functions and its parallelization scheme, which first serializes array operators into loops and then parallelizes loop iterations, seems ill-suited for complex array operations.
 
-\item \textbf{Accelerate}~\cite{ChakAcc} is also an embedded array language within Haskell. Unlike Nikola, Accelerate does allow the expression of computations which span multiple kernel launches. Accelerate also has a much richer set of array operators (including the higher-order trio $\MAP$, $\REDUCE$, $\SCAN$). Accelerate, however, does not seem to support closures or the nesting of array operators. Accelerate's backend is similar to ours in that they use a simple interpreter whose job is to initiate skeleton-based kernel compilation, transfer data to and from the GPU, and to perform simple CPU-side computations.
+\item \textbf{Accelerate}~\cite{Chak11} is also an embedded array language within Haskell. Unlike Nikola, Accelerate does allow the expression of computations which span multiple kernel launches. Accelerate also has a much richer set of array operators (including the higher-order trio $\MAP$, $\REDUCE$, $\SCAN$). Accelerate, however, does not seem to support closures or the nesting of array operators. Accelerate's backend is similar to ours in that they use a simple interpreter whose job is to initiate skeleton-based kernel compilation, transfer data to and from the GPU, and to perform simple CPU-side computations.
 
 \item \textbf{OptiML and Delite}~\cite{Chaf11} are a domain-specific language and runtime framework designed to 
 
-\item \textbf{Copperhead}~\cite{Cata10} parallelizes a statically typed purely functional array subset of Python through the dynamic compilation/execution of CUDA kernels. Copperhead supports nested array computations, and even has a sophisticated notion of where these computations can be scheduled. In addition
+\item \textbf{Copperhead}~\cite{Cata11} parallelizes a statically typed purely functional array subset of Python through the dynamic compilation/execution of CUDA kernels. Copperhead supports nested array computations, and even has a sophisticated notion of where these computations can be scheduled. In addition
 to sequentializing nested array operators within CUDA kernels (as done in Parakeet), Copperhead can also share the work of a nested computation between all the threads in CUDA block. Unfortunately, Copperhead does not utilize any dynamic information (such as size) when making these scheduling decisions and
 thus must rely on user annotations. Copperhead's compiler generates kernels through parameterization of operator-specific C++ template classes. By using C++ as their backend target, Copperhead has been able to easily integrate the Thrust ~\cite{Hobe10} GPGPU library and to offload the bulk of their code optimizations onto a C++ compiler. Runtime generation of templated C++ can, however, be a double-edged sword. Copperhead experiences the longest compile times of any project mentioned here (orders of magnitude longer than the compiler overhead of Parakeet).
 \end{itemize}
