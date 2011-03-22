@@ -78,7 +78,7 @@ There has been much recent work on enabling GPU acceleration of higher level lan
 
 We present Parakeet, the first system that transparently uses GPUs to accelerate existing high level programming languages.  Parakeet is an intelligent runtime library and JIT compiler for array-oriented subsets of high level languages.  Parakeet defines an array-oriented intermediate language and includes a front end for translating programs from source languages to this IL.  The heart of Parakeet is an IL interpreter, which upon reaching an array operator can automatically synthesize and execute a data parallel GPU program to implement that operator.  Parakeet is attached as a library to the source language's interpreter, allowing all of the source language's standard features and tools to be used.
 
-We evaluate Parakeet on two standard benchmarks: Black-Scholes option pricing, and K-Means clustering.  We compare high level array-oriented implementations to hand-written, tuned GPU versions from the CUDA SDK and the Rodinia GPU benchmark suite. Despite having orders of magnitude less code, the high level versions perform competitively when executed by Parakeet.
+We evaluate Parakeet on two standard benchmarks: Black-Scholes option pricing, and K-Means clustering.  We compare high level array-oriented implementations to hand-written, tuned GPU versions from the CUDA SDK~\cite{NvidSD} and the Rodinia GPU benchmark suite~\cite{Che09}. Despite having orders of magnitude less code, the high level versions perform competitively when executed by Parakeet.
 \end{abstract}
 
 \section{Introduction}

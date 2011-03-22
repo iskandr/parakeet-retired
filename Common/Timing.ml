@@ -104,8 +104,8 @@ let print_timers () =
     Printf.printf "%s: %f\n" name (get_total timer) 
   in 
   Hashtbl.iter print timers; 
-  Pervasives.flush_all()  
-  
+  Pervasives.flush_all()
+
 let runTemplate = mk_cpu_timer "RunTemplate"
 let untypedOpt = mk_cpu_timer "Untyped Optimizations"
 let typedOpt = mk_cpu_timer "Typed Optimizations"

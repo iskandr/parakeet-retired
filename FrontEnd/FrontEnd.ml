@@ -46,7 +46,8 @@ let print_all_timers () =
   let gpuTimes =
     Timing.get_total Timing.gpuTransfer +.
     Timing.get_total Timing.gpuExec +.
-    Timing.get_total Timing.ptxCompile
+    Timing.get_total Timing.ptxCompile +.
+    Timing.get_total Timing.gpuMalloc
   in
   Printf.printf "Compiler overhead: %f\n"
     (Timing.get_total Timing.runTemplate -. gpuTimes)
