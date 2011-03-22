@@ -22,10 +22,10 @@ PARAKEET_INCLUDES = -I $(BUILDPATH) \
 	-I $(BUILDPATH)/SSA/Optimizations \
  	-I $(BUILDPATH)/SSA/Analyses \
 	-I $(BUILDPATH)/SSA/Specialization \
-  -I $(BUILDPATH)/ShapeInference \
+        -I $(BUILDPATH)/ShapeInference \
 	-I $(BUILDPATH)/CostModel \
 	-I $(BUILDPATH)/Runtime \
-  -I $(BUILDPATH)/FrontEnd
+        -I $(BUILDPATH)/FrontEnd
 OCAMLINCLUDES := $(LIB_INCLUDES) $(PARAKEET_INCLUDES)
 
 OBJS = cqinterface.o ocaml_functions.o
