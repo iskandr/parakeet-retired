@@ -46,8 +46,9 @@ let cuda_malloc n =
     failwith "[cuda_malloc] Cannot allocate empty GPU vector"
   else begin
     Timing.start Timing.gpuMalloc;
-    cuda_malloc' n;
-    Timing.stop Timing.gpuMalloc
+    let gpuvec = cuda_malloc' n in
+    Timing.stop Timing.gpuMalloc;
+    gpuvec
   end
  
 external cuda_free : GpuPtr.t -> unit = "ocaml_cuda_free"
