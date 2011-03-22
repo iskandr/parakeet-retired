@@ -95,7 +95,7 @@ let get_total = function
       else
         0.0
     in
-    0.001 *. (timer.gpu_time +. extra)
+    (timer.gpu_time +. extra) / 1000.0
     end
 
 let print_timers () =
