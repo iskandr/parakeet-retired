@@ -97,7 +97,7 @@ let get_total = function
     in
     timer.gpu_time +. extra
     end   
-  
+
 let print_timers () =
   stop_all (); 
   let print name timer = 

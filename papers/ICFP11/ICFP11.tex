@@ -560,6 +560,20 @@ In Figure \ref{BSResults}, we see the total run times of the various systems. Th
 K-Means illustrates a key aspect of our approach: the ability to exploit dynamic information to tailor code generation and execution.  In the \texttt{calc\_centroids} function, we have a $\MAP$ operator applied to a
 nested function that in turns contains array operators.  Our interpreter is able to make the most efficient choice regarding where to execute things: the outer $\MAP$, since it's applied to a small array of integers and involves little computation of its own, gets executed on the CPU as a loop.  The inner function, which since it has dense computation applied to large inputs, gets synthesized into a kernel that is repeatedly launched.  This type of dynamic decision based on data size would not be possible in a static environment.
 
+\begin{figure}
+\includegraphics[scale=0.45]{BSTotal.pdf}
+\caption{Placeholder K-Means Total Times}
+\label{BSResults}
+\end{figure}
+
+In Figure \ref{BSResults}, we see the total run times of the various systems. These times include the time it takes to transfer data to and from the GPU in the GPU benchmarks.
+
+\begin{figure}
+\includegraphics[scale=0.45]{BSGPU.pdf}
+\caption{Placeholder K-Means GPU Execution Times}
+\label{BSResults}
+\end{figure}
+
 \section{Related Work}
 \label{RelatedWork}
 The use of graphics hardware for non-graphical computation has a  long history~\cite{Leng90}, though convenient frameworks for general purpose GPU programming have only recently emerged. The first prominent GPU backend for a general purpose language was ``Brook for GPUs'' \cite{Buck04}. The Brook language extended C with ``kernels'' and ``streams'', exposing a programming model similar to what is now found in CUDA and OpenCL.

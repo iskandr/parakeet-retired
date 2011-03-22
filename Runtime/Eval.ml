@@ -312,9 +312,8 @@ and eval_exp (expNode : SSA.exp_node) : InterpVal.t list =
     done;   
     let mk_array dynArray = InterpVal.Array (DynArray.to_array dynArray) in  
     Array.to_list $ Array.map mk_array  allResults  
-end 
+end
 
- 
 let eval globalFns fundef hostVals =
   let memState = MemoryState.create 127 (* arbitrary *) in  
   let vals = List.map (fun h -> MemoryState.add_host memState h) hostVals in
@@ -330,4 +329,3 @@ let eval globalFns fundef hostVals =
   (* MemoryState.full_collect memState *)  
   (*MemoryState.free_all_gpu memState;*)
   hostVals
-
