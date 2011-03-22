@@ -36,7 +36,7 @@ let stop timer =
 
 let stop_all () = Hashtbl.iter (fun _ timer -> stop timer) timers
 
-let clear_all () = Hasttbl.iter (fun _ timer -> clear timer) timers 
+let clear_all () = Hashtbl.iter (fun _ timer -> clear timer) timers 
   
 let get_total timer =
   let extra = 

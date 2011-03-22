@@ -258,6 +258,7 @@ $(OBJDIR)/%.cpp_o : $(SRCDIR)%.cpp $(C_DEPS)
 	$(VERBOSE)$(CXX) $(CXXFLAGS) -o $@ -c $<
 
 $(SRCDIR)%.cu_o : $(SRCDIR)%.cu $(CU_DEPS)
+	echo $(NVCC) $(NVCCFLAGS) -o $@ -c $<
 	$(VERBOSE)$(NVCC) $(NVCCFLAGS) $(SMVERSIONFLAGS) -o $@ -c $<
 
 $(CUBINDIR)/%.cubin : $(SRCDIR)%.cu cubindirectory

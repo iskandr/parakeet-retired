@@ -12,6 +12,6 @@ d: 40;
 k: 20;  
 a: n ? k;
 X: { d ? 10e } each til n; 
-niters: 10;
+niters: 2;
 C: kmeans[X;a;k;niters]
 
