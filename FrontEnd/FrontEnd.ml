@@ -41,18 +41,18 @@ let rec register_untyped_functions = function
     register_untyped_functions rest
   | [] -> () 
 
-let print_all_timers ()  = 
+let print_all_timers () =
   Timing.print_timers();
-  let gpuTimes = 
-    Timing.get_total Timing.gpuTransfer +.  
-    Timing.get_total Timing.gpuExec +. 
-    Timing.get_total Timing.ptxCompile 
-  in    
-  Printf.printf "Compiler overhead: %f\n" 
+  let gpuTimes =
+    Timing.get_total Timing.gpuTransfer +.
+    Timing.get_total Timing.gpuExec +.
+    Timing.get_total Timing.ptxCompile
+  in
+  Printf.printf "Compiler overhead: %f\n"
     (Timing.get_total Timing.runTemplate -. gpuTimes)
-  ;   
-  Pervasives.flush_all() 
- 
+  ;
+  Pervasives.flush_all()
+
 type ret_val = Success of HostVal.host_val | Pass | Error of string
 
 let run_function untypedId ~globals ~args =
