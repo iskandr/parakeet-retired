@@ -12,31 +12,170 @@ type t = {
   host_data : (DataId.t, HostVal.host_array) Hashtbl.t; 
   
   envs :  InterpVal.t ID.Map.t Stack.t; 
+  data_scopes : DataId.Set.t Stack.t; 
   
   free_gpu_ptrs : (int, Cuda.GpuPtr.t) Hashtbl.t; 
   free_host_ptrs : (int, Cuda.HostPtr.t) Hashtbl.t;
   
-  mutable frozen_gpu_ptrs :  Cuda.GpuPtr.Set.t;  
-  mutable frozen_host_ptrs : Cuda.HostPtr.Set.t;   
+  refcounts : (DataId.t, int) Hashtbl.t; 
+
+  gpu_data_ids : (Cuda.GpuPtr.t, DataId.t) Hashtbl.t; 
+  host_data_ids : (Cuda.HostPtr.t, DataId.t) Hashtbl.t; 
 }
 
 let create size = 
-  let n = 3*size + 1 in 
   {
     gpu_data = Hashtbl.create n; 
     host_data = Hashtbl.create n; 
        
     envs = Stack.create();
-    
+    data_scopes = Stack.create (); 
+
     free_gpu_ptrs = Hashtbl.create n; 
     free_host_ptrs = Hashtbl.create n;
-    
-    frozen_gpu_ptrs = Cuda.GpuPtr.Set.empty;
-    frozen_host_ptrs = Cuda.HostPtr.Set.empty; 
-  
+
+    gpu_data_ids = Hashtbl.create n; 
+    host_data_ids = Hashtbl.create n;
   }
 
-module Env = struct 
+
+module RefCounting = struct
+  let inc_data_ref memState (dataId: DataId.t) = 
+    let nrefs = Hashtbl.find_default memState.refs dataId 0 in 
+    Hashtbl.replace memState.refs dataId nrefs + 1
+
+  let dec_data_ref memState (dataId: DataId.t) = 
+    let nrefs = Hashtbl.find memState.refs dataId in 
+    if nrefs <= 0 then  
+      (* delete any vectors associated with dataId *) 
+      Hashtbl.remove memState.refs dataId 
+    else
+      Hashtbl.replace memState.refs dataId nrefs - 1
+
+  let incMemoryState.dec_ref_gpu_vals P.memState !inputArgs; 
+
+  let rec inc_ref memState = function 
+    | InterpVal.Data id -> inc_data_ref memState id
+    | InterpVal.Scalar _ -> ()
+    | InterpVal.Array arr -> Array.iter (inc_ref memState) arr
+
+  let rec dec_ref memState = function 
+    | InterpVal.Data id -> dec_data_ref memState id
+    | InterpVal.Scalar _ -> ()
+    | InterpVal.Array arr -> Array.iter (dec_ref memState) arr
+
+  let 
+end 
+include RefCounting 
+
+module ManagedAlloc = struct 
+
+  let calc_nbytes len ty shape =
+    let eltT = DynType.elt_type ty in
+    let eltSize = DynType.sizeof eltT in
+    len * eltSize 
+
+  let find_free_ptr (freePtrs:(int, 'a) Hashtbl.t) (nbytes:int) = 
+    try 
+      (
+        match Hashtbl.find freePtrs nbytes with 
+        | p::ps -> Some p 
+        | [] -> assert false 
+      )
+    with _ -> None 
+
+  let alloc_gpu memState nbytes = 
+    match find_free_ptr memState.free_host_ptrs nbytes with 
+    | Some ptr -> ptr 
+    | None -> 
+      try Cuda.malloc nbytes 
+      with _ -> 
+        (*  delete all free pointers *) 
+        Cuda.malloc nbytes  
+
+  let alloc_host memState nbytes = 
+    alloc memState.free_gpu_ptrs c_malloc nbytes 
+
+  let mk_gpu_vec memState ?(freeze=false) ?nbytes t shape =
+    let nelts = Shape.nelts shape in 
+    let dataBytes = 
+      match nbytes with None -> calc_nbytes nelts t shape | Some sz -> sz 
+    in
+    let dataPtr = alloc_gpu dataBytes in 
+    let shapeBytes = Shape.nbytes shape in 
+    let shapePtr = alloc shapeBytes in 
+    let shapePtr = match get_free_ptr memState.free_gpu_ptrs sz with 
+
+    | Some ptr -> ptr 
+    | None -> 
+       let free, _ = Cuda.cuda_device_get_free_and_total_mem () in 
+       if sz < free then 
+         Alloc.alloc_gpu_vec sz t shape 
+       in        
+       let destVec = Alloc.alloc_gpu_vec sz t shape in
+    if freeze then freeze_gpu_vec memState destVec; 
+    (* data id is never returned, only used to 
+       track this array for garbage collection 
+     *)
+    let id = DataId.gen() in 
+    Hashtbl.add memState.gpu_data id destVec;
+    destVec  
+
+let alloc_gpu_vec ~nbytes ~len ty shape =
+  let outputPtr = Cuda.cuda_malloc nbytes in
+  let shapePtr, shapeSize = shape_to_gpu shape in
+  let gpuVec = {
+    vec_ptr = outputPtr;
+    vec_nbytes = nbytes;
+    vec_len = len;
+
+    vec_shape_ptr = shapePtr;
+    vec_shape_nbytes = shapeSize;
+
+    vec_shape = shape;
+    vec_t = ty;
+    vec_slice_start = None; 
+
+  } in 
+  IFDEF DEBUG THEN
+    Printf.printf "[Alloc] Created %s\n"  (GpuVal.gpu_vec_to_str gpuVec);
+    Pervasives.flush_all(); 
+  ENDIF;  
+  gpuVec 
+  
+
+  
+  let mk_gpu_val memState ?(freeze=false) t shape = 
+    IFDEF DEBUG THEN 
+      assert (DynType.is_vec t); 
+    ENDIF; 
+    let gpuVec = mk_gpu_vec memState ~freeze t shape in 
+    GpuVal.GpuArray gpuVec   
+
+  let mk_host_vec memState ?(freeze=false) t shape = 
+     
+     
+  let vec_from_gpu gpuVec = 
+    let dataHostPtr = c_malloc gpuVec.vec_nbytes in  
+    Cuda.cuda_memcpy_to_host dataHostPtr gpuVec.vec_ptr gpuVec.vec_nbytes; 
+    let hostVec = { 
+      ptr = dataHostPtr; 
+      nbytes = gpuVec.vec_nbytes;
+      host_t = gpuVec.vec_t; 
+      shape = gpuVec.vec_shape; 
+      slice_start = None; 
+    }
+    in 
+    IFDEF DEBUG THEN 
+      Printf.printf "[Alloc] vector returned from GPU: %s\n"
+        (HostVal.host_vec_to_str hostVec); 
+    ENDIF;
+    hostVec 
+end 
+include ManagedAlloc   
+
+
+module Scope = struct 
   let get_curr_env memState = 
     assert (not $ Stack.is_empty memState.envs); 
     Stack.top memState.envs  
@@ -54,14 +193,14 @@ module Env = struct
     ENDIF;   
     ignore (Stack.pop memState.envs) 
    
-  let env_lookup memState id =
+  let lookup memState id =
     let env = get_curr_env memState in 
      if ID.Map.mem id env then ID.Map.find id env
      else 
        failwith $ 
          Printf.sprintf "[eval_value] variable %s not found!" (ID.to_str id) 
 
-  let env_set_multiple memState  ids vals = 
+  let set_bindings memState ids vals = 
     let env = Stack.pop memState.envs in  
     IFDEF DEBUG THEN 
       assert (List.length ids = List.length vals); 
@@ -69,15 +208,46 @@ module Env = struct
     let env' = ID.Map.extend env ids vals in 
     Stack.push env' memState.envs  
   
-  let env_set memState id rhs =
+  let set_binding memState id rhs =
     let env = Stack.pop memState.envs in  
     let env' = ID.Map.add id rhs env in 
     Stack.push env' memState.envs 
+
+  let push_data_scope memState = 
+    Stack.push DataId.Set memState.data_scopes
+  
+  let rec get_value_ids = function 
+    | InterpVal.Data id -> [id]
+    | InterpVal.Scalar _ -> []
+    | InterpVal.Array arr ->
+        List.concat (Array.to_list (Array.map get_value_ids arr))
+
+  let rec id_set_from_values memState = function 
+    | [] -> DataId.Set.empty 
+    | v::vs -> 
+        let restSet = id_set_from_values memState vs in 
+        let dataIds = get_value_ids v in 
+        List.fold_left (fun acc id -> DataId.Set.add id acc) restSet dataIds
+
+  let pop_data_scope ?(escaping_value=[]) memState = 
+    let dataScope = Stack.pop memState.data_scopes in 
+    let excludeSet = id_set_from_values memState escaping_values in  
+    (* remove the escaping IDs from the scope before freeing its contents *)
+    let prunedScope = DataId.Set.diff dataScope escapingDataIds in 
+    DataId.Set.iter (dec_data_ref memState) prunedScope 
+
+  let pop_scope ?(escaping_values=[]) memState = 
+    pop_data_scope ~escaping_values memState; 
+    pop_env memState
+ 
+  let push_scope memState = 
+    push_data_scope memState;
+    push_env memState
 end
-include Env 
+include Scope 
 
 
-
+(*
 module GcHelpers = struct
   let rec extend_set dataIdSet = function 
     | Data id -> DataId.Set.add id dataIdSet
@@ -129,7 +299,7 @@ module GcHelpers = struct
     Hashtbl.iter host_helper memState.host_data 
 
 end
-  
+*)  
   
 
 let rec add_host memState = function 
@@ -214,82 +384,6 @@ let rec sizeof memState interpVal =
       Shape.nelts s * (DynType.sizeof (DynType.elt_type t))
   | InterpVal.Array arr ->  
       Array.fold_left (fun sum elt -> sum + sizeof memState elt) 0 arr 
-
-module Freeze = struct 
-  let freeze_gpu_vec memState gpuVec =
-    let vecPtr = gpuVec.GpuVal.vec_ptr in
-    let shapePtr = gpuVec.GpuVal.vec_shape_ptr in 
-    let oldSet = memState.frozen_gpu_ptrs in  
-    memState.frozen_gpu_ptrs <- 
-      Cuda.GpuPtr.Set.add vecPtr (Cuda.GpuPtr.Set.add shapePtr oldSet)
-  
-  let freeze_gpu_vecs memState gpuVecs = 
-    List.iter (freeze_gpu_vec memState) gpuVecs 
-      
-  let unfreeze_gpu_vec memState gpuVec =
-    let oldSet = memState.frozen_gpu_ptrs in 
-    let vecPtr = gpuVec.GpuVal.vec_ptr in 
-    let shapePtr = gpuVec.GpuVal.vec_shape_ptr in
-    memState.frozen_gpu_ptrs <- 
-      Cuda.GpuPtr.Set.remove vecPtr (Cuda.GpuPtr.Set.remove shapePtr oldSet)
-     
-    
-  let unfreeze_gpu_vecs memState gpuVecs = 
-    List.iter (unfreeze_gpu_vec memState) gpuVecs 
-
-  let freeze_host_vec memState hostVec = 
-    memState.frozen_host_ptrs <- 
-      Cuda.HostPtr.Set.add hostVec.ptr memState.frozen_host_ptrs
-
-  let unfreeze_host_vec memState hostVec = 
-    memState.frozen_host_ptrs <- 
-      Cuda.HostPtr.Set.remove hostVec.ptr memState.frozen_host_ptrs
-
-
-  let rec freeze memState = function 
-    | InterpVal.Data id ->
-      if Hashtbl.mem memState.host_data id then 
-        freeze_host_vec memState (Hashtbl.find memState.host_data id)
-      ;
-      if Hashtbl.mem memState.gpu_data id then 
-        freeze_gpu_vec memState (Hashtbl.find memState.gpu_data id)
-    | InterpVal.Scalar _ -> () 
-    | InterpVal.Array arr -> Array.iter (freeze memState) arr 
-
-  let freeze_list memState vals = List.iter (freeze memState) vals 
-
-  let rec unfreeze memState = function 
-    | InterpVal.Data id ->
-      if Hashtbl.mem memState.host_data id then 
-        unfreeze_host_vec memState (Hashtbl.find memState.host_data id)
-      ;
-      if Hashtbl.mem memState.gpu_data id then 
-        unfreeze_gpu_vec memState (Hashtbl.find memState.gpu_data id)
-    | InterpVal.Scalar _ -> () 
-    | InterpVal.Array arr -> Array.iter (unfreeze memState) arr 
-
-  let unfreeze_list memState vals = List.iter (unfreeze memState) vals 
-end 
-include Freeze 
-
-(* TODO: put a garbage collector around these! *) 
-let mk_gpu_vec  memState ?(freeze=false) t shape =
-  let destVec = Alloc.alloc_gpu_vec t shape in
-  if freeze then freeze_gpu_vec memState destVec; 
-  (* data id is never returned, only used to 
-     track this array for garbage collection 
-   *)
-  let id = DataId.gen() in 
-  Hashtbl.add memState.gpu_data id destVec;
-  destVec  
-  
-let mk_gpu_val memState ?(freeze=false) t shape = 
-  IFDEF DEBUG THEN 
-    assert (DynType.is_vec t); 
-  ENDIF; 
-  let gpuVec = mk_gpu_vec memState ~freeze t shape in 
-  GpuVal.GpuArray gpuVec   
-  
 
 let rec get_gpu memState = function 
   | InterpVal.Data id -> 

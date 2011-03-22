@@ -329,6 +329,9 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
   in
   let currInputElts = ref numInputElts in 
   let inputArgs = ref [gpuVal] in 
+  (* inc refcount on initial input arguments so they don't get 
+     deleted in the loop body on dec_ref 
+   *)
   while !currInputElts > 1 do 
     let numOutputElts = safe_div !currInputElts (threadsPerBlock * 2) in
     let modulePtr = compiledModule.Cuda.module_ptr in  
@@ -341,6 +344,7 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
     }
     in
     CudaModule.launch_ptx compiledModule.Cuda.module_ptr fnName args gridParams;
+    List.iter (MemoryState.dec_gpu_val_ref P.memState) !inputArgs; 
     inputArgs := outputsList; 
     currInputElts := numOutputElts; 
   done; 
@@ -442,9 +446,7 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
     in
     let inputType = GpuVal.get_type inputVec in 
     let elType = DynType.elt_type inputType in
-    let output = 
-        MemoryState.mk_gpu_vec P.memState inputType outputShape 
-    in
+    let output = MemoryState.mk_gpu_vec P.memState inputType outputShape in
     let inputPtr = GpuVal.get_ptr inputVec in
     let indexPtr = GpuVal.get_ptr indexVec in
     Kernels.bind_index_idxs_tex indexPtr nidxs;
@@ -478,6 +480,7 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
                           WHERE 
    **********************************************************)
     let where (binVec : gpu_val) =
+      MemoryState.enter_scope P.memState (); 
       let binPtr = GpuVal.get_ptr binVec in
       let nelts = GpuVal.nelts binVec in
       let scanShape = GpuVal.get_shape binVec in
@@ -489,6 +492,7 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
       let resultLength = 
         Cuda.cuda_get_gpu_int_vec_elt scanInterm.vec_ptr (nelts - 1) 
       in
+      MemoryState.free_gpu_vec P.memState scanInterm; 
       let outputShape = Shape.create 1 in
       Shape.set outputShape 0 resultLength;
       IFDEF DEBUG THEN

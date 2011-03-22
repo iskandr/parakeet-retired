@@ -34,8 +34,11 @@ val slice : t -> InterpVal.t -> int -> InterpVal.t
 
 val sizeof : t -> InterpVal.t -> int
 
-val mk_gpu_vec 
-    : t -> ?freeze:bool -> DynType.t -> Shape.t -> GpuVal.gpu_vec
+val mk_gpu_vec : 
+  t -> ?freeze:bool -> nbytes:int -> DynType.t -> Shape.t -> GpuVal.gpu_vec
+
+val mk_host_vec : 
+  t -> ?freeze:bool -> nbytes:int -> DynType.t -> Shape.t -> HostVal.host_array 
 
 val mk_gpu_val : t -> ?freeze:bool -> DynType.t -> Shape.t -> GpuVal.gpu_val 
 
