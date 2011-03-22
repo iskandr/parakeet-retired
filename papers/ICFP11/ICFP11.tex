@@ -63,7 +63,7 @@ xleftmargin=20pt,
 \maketitle
 
 \begin{abstract}
-Contemporary GPUs offer staggering performance potential, which has led to much recent work on enabling the execution of general-purpose programs on GPUs. Despite various advances in making general-purpose GPU programming easier, the two commonly used frameworks (OpenCL and NVIDIA's CUDA) remain somewhat cumbersome and require detailed architectural knowledge on the part of the programmer to fully harness this performance potential.
+Contemporary GPUs offer staggering performance potential, which has led to much recent work on enabling the execution of general-purpose programs on GPUs. Despite various advances in making general-purpose GPU programming easier, the two commonly used frameworks (OpenCL and NVIDIA's CUDA) remain cumbersome and require highly specialized architectural knowledge on the part of the programmer to fully harness this performance potential.
 
 We aim to enable general purpose use of GPUs by observing that GPUs have been optimized for data parallel workloads. Array-oriented programming encourages the use of data parallel array operators (e.g.\ map, reduce, and scan) and discourages the use of explicit loops. Thus, array-oriented programming languages constitute a natural model for high level GPU programming.
 
@@ -472,7 +472,7 @@ Unlike many other systems similar to Parakeet \cite{Cata10,Chaf11}, our back end
 
 The reason that we emit PTX instead of CUDA code is largely our latency requirements, as our goal is to provide a framework for transparent acceleration of interactive languages. The NVIDIA CUDA compiler is a wrapper around the GCC C++ compiler, and CUDA supports all of C++ in the host code and a large subset (including C++ templates) in the GPU code.  Thus, the compile times for even simple kernels can be on the order of 5--10 seconds.  There are, of course, advantages to using the NVIDIA compiler. The main ones are that we would be able to take advantage of all of the NVIDIA and GCC compiler optimizations and that it would simplify our implementation effort.  However, the strict latency requirements meant that we needed to emit PTX directly.
 
-We perform a handful of optimizations to the GPU code we generate that are of interest.  
+We perform a handful of optimizations to the GPU code we generate that are of interest.  In our 
 
 \subsection{Imp}
 \label{Imp}

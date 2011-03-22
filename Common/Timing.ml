@@ -9,7 +9,6 @@ type timer = {
 
 let timers : (string, timer) Hashtbl.t = Hashtbl.create 13 
 
-
 let get_time () = Unix.gettimeofday ()
 
 let mk_timer name = 
@@ -17,7 +16,15 @@ let mk_timer name =
   Hashtbl.replace timers name timer; 
   timer 
 
-let start timer = timer.start_time <- get_time(); timer.running <- true
+let clear timer =
+  timer.running <- false;
+  timer.start_time <- 0.0;
+  timer.acc_time <- 0.0
+
+let start timer =
+  clear timer;
+  timer.start_time <- get_time();
+  timer.running <- true
   
 let stop timer =
   if timer.running then (
@@ -27,7 +34,9 @@ let stop timer =
     timer.acc_time <- timer.acc_time +. extra
   )
 
-let stop_all () = Hashtbl.iter (fun _ timer -> stop timer) timers   
+let stop_all () = Hashtbl.iter (fun _ timer -> stop timer) timers
+
+let clear_all () = Hasttbl.iter (fun _ timer -> clear timer) timers 
   
 let get_total timer =
   let extra = 

@@ -64,8 +64,7 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
       | _ -> failwith "3D textures not yet implemented"
     );
     [CudaModule.GpuArrayArg((GpuVal.get_shape_ptr inputVal),
-                            (GpuVal.get_shape_nbytes inputVal))] 
-  
+                            (GpuVal.get_shape_nbytes inputVal))]
   
   let process_private_array nThreads impfn shapeEnv id storage env = 
     if storage = Imp.Private then
@@ -82,12 +81,12 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
       in 
       ID.Map.add id gpuArgs env
     else env  
-  
+
   let process_input cc modulePtr env id gpuVal =
       let location = ID.Map.find id cc.PtxCallingConventions.data_locations in
       let gpuArgs = create_input_args modulePtr gpuVal location in
       ID.Map.add id gpuArgs env
-  
+
   let process_output impfn shapeEnv outputMap env id  =
       IFDEF DEBUG THEN 
         assert (Hashtbl.mem impfn.Imp.types id);
