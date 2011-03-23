@@ -139,6 +139,7 @@ let inited = ref false
 let init () =
   if !inited = false then begin
     inited := true;
+    cuda_init_runtime();
     cuda_init ()
   end;
   ()
