@@ -11,23 +11,23 @@
 
 open Base
 open Ptx
-open PtxVal
 open PtxType 
+open PtxVal
 
-let initialNumRegs = 29 
-  
-class ptx_codegen = object (self)  
-  
-  (* SYMBOL TABLE *) 
-  val symbols : (int, string) Hashtbl.t = Hashtbl.create 31 
+let initialNumRegs = 29
+
+class ptx_codegen = object (self)
+
+  (* SYMBOL TABLE *)
+  val symbols : (int, string) Hashtbl.t = Hashtbl.create 31
   val revSymbols : (string, int) Hashtbl.t = Hashtbl.create 31
   val mutable symCounter = 0
-  method private get_sym_id name = 
-    if Hashtbl.mem revSymbols name then Hashtbl.find revSymbols name 
+  method private get_sym_id name =
+    if Hashtbl.mem revSymbols name then Hashtbl.find revSymbols name
     else (
-      symCounter <- symCounter + 1; 
+      symCounter <- symCounter + 1;
       Hashtbl.add symbols symCounter name;
-      Hashtbl.add revSymbols name symCounter;  
+      Hashtbl.add revSymbols name symCounter;
       symCounter
     )
     
@@ -73,21 +73,21 @@ class ptx_codegen = object (self)
 
   (* GENERATE FRESH LABELS *) 
   val mutable labelCounter = 0
-  method fresh_label = 
-    labelCounter <- labelCounter + 1; 
+  method fresh_label =
+    labelCounter <- labelCounter + 1;
     let name = "$Label" ^ (Int.to_string labelCounter) in 
     self#get_sym_id name 
 
-  (* PTX CODE *) 
+  (* PTX CODE *)
   val instructions : instruction DynArray.t = DynArray.create ()
-  method emit newInstructions = 
+  method emit newInstructions =
     DynArray.append (DynArray.of_list newInstructions) instructions
-  
-  (* VARIABLE DECLARATIONS *) 
-  val allocations: (PtxVal.symid, Ptx.var_decl) Hashtbl.t = 
+
+  (* VARIABLE DECLARATIONS *)
+  val allocations: (PtxVal.symid, Ptx.var_decl) Hashtbl.t =
     Hashtbl.create initialNumRegs
-  method private add_alloc id newAlloc = 
-    Hashtbl.add allocations id newAlloc 
+  method private add_alloc id newAlloc =
+    Hashtbl.add allocations id newAlloc
   
   (* FUNCTION PARAMETERS *) 
   val parameters: (PtxVal.symid * PtxType.ty) DynArray.t = DynArray.create ()
@@ -113,8 +113,8 @@ class ptx_codegen = object (self)
     | Some t -> t 
     | None -> failwith $ "[PtxCodegen] No type registered for " ^ (ID.to_str id) 
   
-  (* Any register pointing to a global array should also have an accompanying 
-     register pointing to a shape vector.  
+  (* Any register pointing to a global array should also have an accompanying
+     register pointing to a shape vector.
   *)
   val shapeRegs : (PtxVal.symid, PtxVal.value) Hashtbl.t = 
     Hashtbl.create initialNumRegs
@@ -135,7 +135,7 @@ class ptx_codegen = object (self)
   method get_global_array_rank ( arrayPtr : PtxVal.value ) = 
     match Hashtbl.find_option globalArrayRanks (PtxVal.get_id arrayPtr) with
       | Some r -> r
-      | None -> failwith $ 
+      | None -> failwith $
           "[PtxCodegen] Unable to find rank: PTX value " ^ 
           (PtxVal.to_str symbols arrayPtr) ^ " not registered as a global array"
   
@@ -169,8 +169,8 @@ class ptx_codegen = object (self)
   method get_array_rank (ptr: PtxVal.value) = 
     if self#is_shared_ptr ptr then Array.length (self#get_shared_dims ptr)
     else if self#is_global_array_ptr ptr then self#get_global_array_rank ptr 
-    else 
-      failwith $ 
+    else
+      failwith $
         "[ptx_codegen] can't get array rank of non-array register: " ^
         (PtxVal.to_str symbols ptr)
         
@@ -223,9 +223,9 @@ class ptx_codegen = object (self)
     let sharedReg = self#fresh_reg PtxType.ptrT in
     self#emit [mov sharedReg sharedVal];
     Hashtbl.add dataRegs id sharedReg;
-    (* associate the register storing the shared address with the dims *) 
-    Hashtbl.add sharedDims (PtxVal.get_id sharedReg) dimsArray;  
-    sharedReg  
+    (* associate the register storing the shared address with the dims *)
+    Hashtbl.add sharedDims (PtxVal.get_id sharedReg) dimsArray;
+    sharedReg
  
   (* we've already declared the array, have a pointer into it and 
      have even allocated the slice destination. We just need to track the 
@@ -233,19 +233,19 @@ class ptx_codegen = object (self)
      value of sliceReg. 
   *)  
   method declare_slice ptrReg sliceReg =
-    if self#is_shared_ptr ptrReg then  
+    if self#is_shared_ptr ptrReg then
       let dims = self#get_shared_dims ptrReg in
-      let rank = Array.length dims in 
-      if rank < 2 then 
+      let rank = Array.length dims in
+      if rank < 2 then
         failwith "[ptx_codegen->declared_shared_slice] insufficient rank"
-      else begin   
+      else begin
         let sliceDims = Array.init (rank - 1) (fun idx -> dims.(idx+1)) in
-        (* the value of sliceReg needs to get computed by the caller *)  
+        (* the value of sliceReg needs to get computed by the caller *)
         Hashtbl.add sharedDims (PtxVal.get_id sliceReg) sliceDims
       end
     else
       let rank = self#get_array_rank ptrReg in
-      if rank < 2 then 
+      if rank < 2 then
         failwith "[ptx_codegen->declare_global_slice] insufficient rank" 
       else begin
         let shapeReg = self#get_shape_reg ptrReg in
@@ -254,7 +254,7 @@ class ptx_codegen = object (self)
         self#emit [add PtxType.ptrT sliceShapeReg shapeReg (int 4)];
         if self#is_tex ptrReg then
           let texRef = Hashtbl.find texRefs (PtxVal.get_id ptrReg) in
-          Hashtbl.add texRefs (PtxVal.get_id sliceReg) texRef 
+          Hashtbl.add texRefs (PtxVal.get_id sliceReg) texRef
       end
 
   (***************************************************
@@ -375,12 +375,12 @@ class ptx_codegen = object (self)
       self#emit [mov reg ptxVal];
       Hashtbl.add registerCache key reg; 
       reg
-    )   
+    )
   method private is_cached ptxVal ty = Hashtbl.mem registerCache (ptxVal,ty)
     
-  method private tid_x = self#cached tid.x     
-  method private tid_y = self#cached tid.y 
-  method private tid_z = self#cached tid.z 
+  method private tid_x = self#cached tid.x
+  method private tid_y = self#cached tid.y
+  method private tid_z = self#cached tid.z
  
   method private ntid_x = self#cached ntid.x 
   method private ntid_y = self#cached ntid.y
@@ -436,7 +436,7 @@ class ptx_codegen = object (self)
           add U32 regs.(4) (self#cached ~ty:U32 tid.z) regs.(3) 
         ];
         linearBlockOffset <- Some regs.(4); 
-        regs.(4)    
+        regs.(4)
            
   (* which thread are you in the entire computational grid? *) 
   val mutable linearThreadIndex : PtxVal.value option =  None
@@ -526,25 +526,25 @@ class ptx_codegen = object (self)
     address
 
   (* storage args are those that supply private heap space to each thread *)
-  val storageArgs : ID.t DynArray.t = DynArray.create () 
-  method  declare_storage_arg impId dynT = 
+  val storageArgs : ID.t DynArray.t = DynArray.create ()
+  method  declare_storage_arg impId dynT =
     Hashtbl.add dataLocations impId PtxCallingConventions.GlobalInput;
-    DynArray.add storageArgs impId; 
-    (* storage is a giant vector in memory, where each 
+    DynArray.add storageArgs impId;
+    (* storage is a giant vector in memory, where each
        element of this vector corresponds to a single thread's
        storage requirements
     *)
     let giantVectorReg = self#declare_param impId (DynType.VecT dynT) in
     (* don't map impId to the huge global vector, we expect that
-       declare_local will instead later associate impId with 
-       this thread's local slice into the storage vector 
-    *) 
-    Hashtbl.remove dataRegs impId;  
+       declare_local will instead later associate impId with
+       this thread's local slice into the storage vector
+    *)
+    Hashtbl.remove dataRegs impId;
     let linearIndexReg = self#compute_linear_thread_index in
-    let eltBytes = 
-      PtxType.nbytes  
+    let eltBytes =
+      PtxType.nbytes
         (PtxType.storage_of_dyn_type (DynType.elt_type dynT))
-    in 
+    in
     (* the starting address of a thread's private slice into the 
        global storage vector
     *) 
@@ -553,7 +553,7 @@ class ptx_codegen = object (self)
     in 
     self#declare_slice giantVectorReg address;
     let myStorageSlice = self#declare_local impId dynT in
-    self#emit [mov myStorageSlice address];  
+    self#emit [mov myStorageSlice address];
     myStorageSlice
 
   method declare_input impId dynT = function 
@@ -610,7 +610,7 @@ class ptx_codegen = object (self)
      and lastly return the register. Might also just return the srcVal 
      if no conversion is necessary. 
   *) 
-  method convert_fresh 
+  method convert_fresh
       ~(destType: PtxType.ty) 
       ~(srcVal: PtxVal.value) : PtxVal.value  =
     let srcType = type_of_conversion_source destType srcVal in 

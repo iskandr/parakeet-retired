@@ -18,7 +18,7 @@ let get shape idx = shape.(idx)
   
 let set shape idx v = shape.(idx) <- v
 
-let rank shape = Array.length shape 
+let rank shape = Array.length shape
 
 
 let scalar_shape = create 0

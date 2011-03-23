@@ -599,6 +599,36 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
       Timing.stop Timing.gpuWhere; 
       GpuVal.GpuArray output
 
+  (**********************************************************
+                          FLIP 
+   **********************************************************)
+    let flip (inputVec : gpu_val) =
+      (* TODO: For now, this _only_ supports flipping 2D stuff *)
+      let inputShape = GpuVal.get_shape inputVec in
+      let height = Shape.get inputShape 0 in
+      let width  = Shape.get inputShape 1 in
+      let inputType = GpuVal.get_type inputVec in
+      let outputShape = Shape.create 2 in
+      Shape.set outputShape 0 (Shape.get inputShape 1);
+      Shape.set outputShape 1 (Shape.get inputShape 0);
+      Timing.start Timing.gpuFlipAlloc;
+      let output =
+        MemoryState.mk_gpu_vec ~refcount:1 P.memState inputType outputShape
+      in
+      let input_ptr = GpuVal.get_ptr inputVec in
+      let elType = DynType.elt_type inputType in
+      Timing.stop Timing.gpuFlipAlloc;
+      Timing.start Timing.gpuFlip;
+      begin match elType with
+        | DynType.Int32T ->
+            Kernels.flip_int_2D input_ptr height width output.vec_ptr
+        | DynType.Float32T ->
+            Kernels.flip_float_2D input_ptr height width output.vec_ptr
+        | _ -> failwith "Flip only supported for 2D int and float"
+      end;
+      Timing.stop Timing.gpuFlip;
+      GpuVal.GpuArray output
+
 (*
 let init () =
   (* initialize GPU contexts and device info *)

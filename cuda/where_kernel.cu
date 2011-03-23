@@ -1,9 +1,9 @@
 /*
  * Parallel Q Library
  *
- * (c) 2009-2010 Eric Hielscher
+ * (c) 2009-2011 Eric Hielscher
  *
- * Each-left each-right implementations.
+ * Where implementation.
  */
 
 #include <cuda.h>
