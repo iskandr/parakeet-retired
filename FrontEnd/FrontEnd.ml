@@ -57,7 +57,12 @@ let print_all_timers () =
 type ret_val = Success of HostVal.host_val | Pass | Error of string
 
 let run_function untypedId ~globals ~args =
-  (*Timing.clear_all();*)
+  Timing.clear Timing.runTemplate;
+  Timing.clear Timing.typedOpt;
+  Timing.clear Timing.ptxCompile;
+  Timing.clear Timing.gpuTransfer;
+  Timing.clear Timing.gpuExec;
+  Timing.clear Timing.gpuMalloc;
   Timing.start Timing.runTemplate; 
   let args = globals @ args in
   let argTypes = List.map HostVal.get_type args in
