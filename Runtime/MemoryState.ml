@@ -102,10 +102,12 @@ module RefCounting = struct
   let rec free_gpu_data memState gpuVec = 
     match gpuVec.vec_slice_start with 
       | None ->
+        (*
         IFDEF DEBUG THEN 
           Printf.printf "[RefCount] Adding to free list: %s\n" 
           (GpuVal.gpu_vec_to_str gpuVec); 
         ENDIF;
+        *)
         let nbytes = gpuVec.vec_nbytes in 
         let shapeBytes = gpuVec.vec_shape_nbytes in 
         let ptr = gpuVec.vec_ptr in 
@@ -117,19 +119,23 @@ module RefCounting = struct
         )
       | Some parentPtr ->
         let parentDataId = Hashtbl.find memState.gpu_rev_lookup parentPtr in
+        (*
         IFDEF DEBUG THEN 
           Printf.printf "[RefCount] Decrementing count on slice %s @ %Lx\n" 
             (DataId.to_str parentDataId)
             parentPtr
           ;  
         ENDIF;
+        *)
         dec_data_ref memState parentDataId
         
-  and free_host_data memState hostVec = 
+  and free_host_data memState hostVec =
+    (* 
     IFDEF DEBUG THEN 
       Printf.printf "[RefCount] Adding to free list: %s\n" 
         (HostVal.host_vec_to_str hostVec);  
     ENDIF;
+    *)
     match hostVec.slice_start with 
       | None -> 
         if hostVec.nbytes > 0 then 
@@ -160,11 +166,6 @@ module RefCounting = struct
   and dec_data_ref memState (dataId: DataId.t) = 
     let nrefs = get_refcount memState dataId in  
     if nrefs <= 1 then (
-      IFDEF DEBUG THEN 
-        Printf.printf "[RefCount] %s has count %d, freeing\n"
-          (DataId.to_str dataId)
-          (nrefs-1)
-      ENDIF; 
       free_data memState dataId;                
       clear_refcount memState dataId
     ) 
@@ -353,11 +354,7 @@ module Scope = struct
 
 
   let dec_old_binding_value memState env id = 
-    if ID.Map.mem id env then (
-      IFDEF DEBUG THEN 
-        Printf.printf "[RefCount] Decrementing reference count for %s"
-          (ID.to_str id)
-      ENDIF;   
+    if ID.Map.mem id env then (   
       dec_ref memState (ID.Map.find id env)
     )
     
@@ -403,7 +400,8 @@ module Scope = struct
     let dataScope = Stack.pop memState.data_scopes in 
     let excludeSet = id_set_from_values memState escaping_values in
     (* remove the escaping IDs from the scope before freeing its contents *)
-    let prunedScope = DataId.Set.diff dataScope excludeSet in 
+    let prunedScope = DataId.Set.diff dataScope excludeSet in
+    (* 
     IFDEF DEBUG THEN 
       Printf.printf "[Scope] Leaving data scope w/ escaping values: %s\n"
         (String.concat ", " (List.map InterpVal.to_str escaping_values)); 
@@ -413,7 +411,8 @@ module Scope = struct
       Printf.printf "[Scope] Decrementing references on: %s\n"
         (String.concat ", " 
           (List.map DataId.to_str (DataId.Set.elements prunedScope)));
-    ENDIF; 
+    ENDIF;
+    *) 
     DataId.Set.iter (dec_data_ref memState) prunedScope;
     (* we still decrement the counts on the exclude set, we 
        just expect them to be incremented again by an assignment 
