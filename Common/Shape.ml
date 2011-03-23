@@ -142,9 +142,7 @@ let append_dim dim shape =
   shape'  
   
 let append_dims dims shape = 
-  let n = rank shape in
-  let extra = of_list dims in 
-  append extra shape 
+  append (of_list dims) shape 
   
 let slice_shape inputShape dimsList = 
   let n = rank inputShape in 

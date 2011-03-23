@@ -1,5 +1,5 @@
 
 
 val translate_kernel 
-  : ?input_spaces:PtxVal.ptx_space array -> Imp.fn -> 
+  :  Imp.fn -> PtxVal.ptx_space array  -> 
      Ptx.kernel * PtxCallingConventions.calling_conventions 
