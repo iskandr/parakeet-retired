@@ -4,6 +4,7 @@ type data_location =
   | ScalarInput
   | GlobalInput
   | TextureInput of string * Ptx.geom
+  | ConstantInput of int (* offset into constant buffer *) 
 
 (* map Imp identifiers to their realization within a Ptx kernel *)
 type calling_conventions = {
@@ -16,4 +17,7 @@ let loc_to_str = function
   | ScalarInput -> "scalar"
   | GlobalInput -> "global"
   | TextureInput (str, geom) -> 
-      Printf.sprintf "%s texture: %s" (Ptx.ptx_geom_to_str geom) str  
+      Printf.sprintf "%s texture: %s" (Ptx.ptx_geom_to_str geom) str
+  | ConstantInput offset -> Printf.sprintf "constant[%d]" offset
+
+

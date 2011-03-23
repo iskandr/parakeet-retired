@@ -404,22 +404,7 @@ let rec gen_stmt codegen stmt =
 and gen_block codegen  block = 
   List.iter (gen_stmt codegen) block
    
-let translate_kernel ?input_spaces (impfn : Imp.fn) =
-  (*
-  IFDEF DEBUG THEN 
-    print_string "\n[ImpToPtx] ***** started translation ****\n";
-    print_string (Imp.fn_to_str impfn);
-    print_string "\n";
-    print_string "\n[ImpToPtx] ******************************\n";
-  ENDIF;
-  *)
-  let default_space t = 
-    if DynType.is_scalar t then PtxVal.PARAM else PtxVal.GLOBAL 
-  in 
-  let inputSpaces = match input_spaces with
-    | _ -> Array.map default_space impfn.input_types 
-    | Some inputSpaces -> inputSpaces  
-  in 
+let translate_kernel (impfn : Imp.fn) inputSpaces =
   let codegen = new PtxCodegen.ptx_codegen in
   Array.iter3 
     codegen#declare_input 
