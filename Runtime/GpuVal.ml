@@ -5,6 +5,8 @@ open DynType
 open HostVal
 open Cuda 
 
+type data_layout = RowMajor | ColumnMajor
+
 type gpu_vec = {
   vec_ptr: Int64.t;
   vec_nbytes : int;
@@ -21,11 +23,11 @@ type gpu_vec = {
      free twice and assist garbage collection
   *)
   vec_slice_start: Int64.t option;
+  
+  vec_data_layout : data_layout;
 }
 
 type gpu_val = GpuScalar of PQNum.num | GpuArray of gpu_vec
-
-type data_layout = RowMajor | ColumnMajor
 
 let elt_to_str gpuVec idx = 
   match DynType.elt_type gpuVec.vec_t with 
@@ -110,6 +112,10 @@ let get_scalar = function
 let get_nbytes = function
   | GpuArray v -> v.vec_nbytes
   | GpuScalar s -> DynType.sizeof (PQNum.type_of_num s)
+
+let get_data_layout = function
+  | GpuArray v -> v.vec_data_layout
+  | GpuScalar s -> failwith "Can't get data layout for GPU scalar"
 
 let mk_scalar n = GpuScalar n
       

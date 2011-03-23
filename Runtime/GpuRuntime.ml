@@ -626,6 +626,9 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
             Kernels.flip_float_2D input_ptr height width output.vec_ptr
         | _ -> failwith "Flip only supported for 2D int and float"
       end;
+      output.vec_data_layout = (match GpuVal.get_data_layout inputVec with
+        | GpuVal.RowMajor -> GpuVal.ColumnMajor
+        | GpuVal.ColumnMajor -> GpuVal.RowMajor);
       Timing.stop Timing.gpuFlip;
       GpuVal.GpuArray output
 
