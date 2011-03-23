@@ -131,44 +131,4 @@ let index arr idx =
                "Indexing into GPU vectors not implemented for type %s"
                (DynType.to_str $  DynType.elt_type arr.vec_t)
 
-(* returns a gpu_val, not a gpu_vec since the elements might be scalars *)
-let slice_vec gpuVec idx : gpu_val = 
-  let sliceShape = Shape.slice_shape gpuVec.vec_shape [0] in
-  let sliceType = DynType.peel_vec gpuVec.vec_t in
-  let sliceVal = 
-    if DynType.is_scalar sliceType then index gpuVec idx 
-    else 
-    let bytesPerElt = DynType.sizeof (DynType.elt_type sliceType) in
-    let nelts =  Shape.nelts sliceShape in 
-    let sliceBytes = bytesPerElt * nelts in
-    let sliceVec = { 
-      vec_ptr = Int64.add gpuVec.vec_ptr (Int64.of_int (sliceBytes * idx));  
-      vec_nbytes = sliceBytes; 
-      vec_len = nelts; 
-      vec_shape_ptr = Int64.add gpuVec.vec_shape_ptr (Int64.of_int 4); 
-      vec_shape_nbytes = gpuVec.vec_shape_nbytes - 4; 
-      vec_shape = sliceShape; 
-      vec_t = sliceType;
-      vec_slice_start = Some gpuVec.vec_ptr; 
-    }
-    in 
-    GpuArray sliceVec
-  in  
-  IFDEF DEBUG THEN 
-    Printf.printf 
-      "[GpuVal] Got slice index %d of %s\n" 
-      idx
-      (gpu_vec_to_str gpuVec)
-    ; 
-    Printf.printf "[GpuVal] Slice result: %s\n" (to_str sliceVal); 
-  ENDIF; 
-  sliceVal   
-   
 
-let slice gpuVal idx : gpu_val = 
-  IFDEF DEBUG THEN  
-    Printf.printf "[GpuVal->slice] %s @ %d\n%!" (to_str gpuVal) idx
-  ENDIF; 
-  match gpuVal with   
-  | GpuScalar _ -> failwith "can't slice a GPU scalar"
-  | GpuArray gpuVec -> slice_vec gpuVec idx

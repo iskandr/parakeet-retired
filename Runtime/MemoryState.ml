@@ -6,33 +6,6 @@ open InterpVal
 open HostVal  
 open GpuVal 
 
-type 'a memspace = { 
-  alloc : int -> 'a; 
-  delete : 'a -> unit; 
-  free_ptrs : (int, 'a list) Hashtbl.t; 
-  name : string; 
-} 
-
-exception HostOutOfMemory 
-external c_malloc_impl : int -> Int64.t = "ocaml_malloc"
-let c_malloc nbytes = 
-  let ptr = c_malloc_impl nbytes in 
-  if ptr = Int64.zero then raise HostOutOfMemory 
-  else ptr 
-   
-external c_free : Int64.t -> unit = "ocaml_free"
-external c_memcpy : Int64.t -> Int64.t -> int -> unit = "ocaml_memcpy"    
-    
-external get_array1_ptr 
-  : ('a,'b,'c) Bigarray.Array1.t -> Int64.t = "get_bigarray_ptr"
-
-external get_array2_ptr 
-  : ('a,'b,'c) Bigarray.Array2.t -> Int64.t = "get_bigarray_ptr"
-
-external get_array3_ptr 
-  : ('a,'b,'c) Bigarray.Array3.t -> Int64.t = "get_bigarray_ptr"
-
-
 type t = {
   envs :  InterpVal.t ID.Map.t Stack.t; 
   data_scopes : DataId.Set.t Stack.t; 
@@ -41,8 +14,14 @@ type t = {
   gpu_data : (DataId.t, GpuVal.gpu_vec) Hashtbl.t;
   host_data : (DataId.t, HostVal.host_array) Hashtbl.t; 
   
-  gpu_mem : Cuda.GpuPtr.t memspace; 
-  host_mem : Cuda.HostPtr.t memspace; 
+  gpu_mem : Cuda.GpuPtr.t Alloc.memspace; 
+  host_mem : Cuda.HostPtr.t Alloc.memspace; 
+  
+  (* slices requires reference counting directly on the pointers, 
+     rather than the DataId.t 
+   *)  
+  gpu_rev_lookup : (Cuda.GpuPtr.t, DataId.t) Hashtbl.t; 
+  host_rev_lookup : (Cuda.HostPtr.t, DataId.t) Hashtbl.t;  
 }
 
 let create () = 
@@ -52,135 +31,179 @@ let create () =
     refcounts = Hashtbl.create 1001; 
     gpu_data = Hashtbl.create 1001; 
     host_data = Hashtbl.create 1001; 
+    gpu_rev_lookup = Hashtbl.create 1001; 
+    host_rev_lookup = Hashtbl.create 1001; 
     
-    gpu_mem = { 
-      free_ptrs = Hashtbl.create 1001;
-      alloc = Cuda.cuda_malloc; 
-      delete = Cuda.cuda_free; 
-      name = "GPU";
-    }; 
-    
-    host_mem = { 
-      free_ptrs = Hashtbl.create 1001; 
-      alloc = c_malloc; 
-      delete = c_free;
-      name = "Host";  
-    }
+    gpu_mem = Alloc.create_memspace "GPU" Cuda.cuda_malloc Cuda.cuda_free;   
+    host_mem = Alloc.create_memspace "Host"Alloc.c_malloc Alloc.c_free;   
   }
   in 
   (* push an initial dataScope so that we can add data *)  
   Stack.push DataId.Set.empty memState.data_scopes; 
   memState  
 
-let _ = Printexc.record_backtrace true 
 
-let fresh_data_id memState =
+
+let associate_id_with_gpu_data 
+        (memState:t) 
+        (gpuVec:GpuVal.gpu_vec) 
+        (dataId:DataId.t) = 
+  IFDEF DEBUG THEN 
+    assert (not $ Hashtbl.mem memState.gpu_data dataId); 
+  ENDIF; 
+  Hashtbl.replace memState.gpu_data dataId gpuVec; 
+  if gpuVec.vec_slice_start = None then 
+    Hashtbl.replace memState.gpu_rev_lookup gpuVec.vec_ptr dataId  
+
+let dissociate_id_from_gpu_data 
+        (memState:t) 
+        (gpuVec:GpuVal.gpu_vec) 
+        (dataId:DataId.t) = 
+  IFDEF DEBUG THEN 
+    assert (Hashtbl.mem memState.gpu_data dataId); 
+  ENDIF; 
+  Hashtbl.remove memState.gpu_data dataId; 
+  Hashtbl.remove memState.gpu_rev_lookup gpuVec.vec_ptr
+
+  
+let associate_id_with_host_data 
+        (memState:t) 
+        (hostVec:HostVal.host_array) 
+        (dataId:DataId.t) =
+  IFDEF DEBUG THEN 
+    assert (not $ Hashtbl.mem memState.host_data dataId); 
+  ENDIF; 
+  Hashtbl.replace memState.host_data dataId hostVec; 
+  if hostVec.slice_start = None then 
+    Hashtbl.replace memState.host_rev_lookup hostVec.ptr dataId  
+
+let dissociate_id_from_host_data 
+        (memState:t) 
+        (hostVec:HostVal.host_array) 
+        (dataId:DataId.t) =
+  IFDEF DEBUG THEN 
+    assert (Hashtbl.mem memState.host_data dataId); 
+  ENDIF;  
+  Hashtbl.remove memState.host_data dataId; 
+  Hashtbl.remove memState.host_rev_lookup hostVec.ptr
+
+
+module RefCounting = struct
+  
+  let get_refcount memState dataId =
+     Hashtbl.find memState.refcounts dataId  
+    
+  let set_refcount memState dataId count =
+     Hashtbl.replace memState.refcounts dataId count 
+  
+  let clear_refcount memState dataId = 
+    Hashtbl.remove memState.refcounts dataId
+  
+  let rec free_gpu_data memState gpuVec = 
+    match gpuVec.vec_slice_start with 
+      | None ->
+        IFDEF DEBUG THEN 
+          Printf.printf "[RefCount] Adding to free list: %s\n" 
+          (GpuVal.gpu_vec_to_str gpuVec); 
+        ENDIF;
+        let nbytes = gpuVec.vec_nbytes in 
+        let shapeBytes = gpuVec.vec_shape_nbytes in 
+        let ptr = gpuVec.vec_ptr in 
+        let shapePtr = gpuVec.vec_shape_ptr in 
+        if nbytes > 0 then (
+          Alloc.add_to_free_ptrs memState.gpu_mem nbytes ptr; 
+          if shapeBytes > 0 then 
+            Alloc.add_to_free_ptrs memState.gpu_mem shapeBytes shapePtr 
+        )
+      | Some parentPtr ->
+        let parentDataId = Hashtbl.find memState.gpu_rev_lookup parentPtr in
+        IFDEF DEBUG THEN 
+          Printf.printf "[RefCount] Decrementing count on slice %s @ %Lx\n" 
+            (DataId.to_str parentDataId)
+            parentPtr
+          ;  
+        ENDIF;
+        dec_data_ref memState parentDataId
+        
+  and free_host_data memState hostVec = 
+    IFDEF DEBUG THEN 
+      Printf.printf "[RefCount] Adding to free list: %s\n" 
+        (HostVal.host_vec_to_str hostVec);  
+    ENDIF;
+    match hostVec.slice_start with 
+      | None -> 
+        if hostVec.nbytes > 0 then 
+          Alloc.add_to_free_ptrs memState.host_mem hostVec.nbytes hostVec.ptr
+      | Some parentPtr ->  
+        let parentDataId = Hashtbl.find memState.host_rev_lookup parentPtr in 
+        dec_data_ref memState parentDataId
+  and free_data memState dataId =
+    if Hashtbl.mem memState.gpu_data dataId then (  
+      let gpuVec = Hashtbl.find memState.gpu_data dataId in 
+      free_gpu_data memState gpuVec; 
+      dissociate_id_from_gpu_data memState gpuVec dataId 
+      
+    );
+    if Hashtbl.mem memState.host_data dataId then ( 
+      let hostVec = Hashtbl.find memState.host_data dataId in 
+      free_host_data memState hostVec;
+      dissociate_id_from_host_data memState hostVec dataId
+    ); 
+    let currDataScope = Stack.pop memState.data_scopes in 
+    Stack.push (DataId.Set.remove dataId currDataScope) memState.data_scopes
+  
+  and inc_data_ref memState (dataId: DataId.t) : unit = 
+    let nrefs = get_refcount memState dataId in 
+    set_refcount memState dataId (nrefs+1)
+        
+
+  and dec_data_ref memState (dataId: DataId.t) = 
+    let nrefs = get_refcount memState dataId in  
+    if nrefs <= 1 then (
+      IFDEF DEBUG THEN 
+        Printf.printf "[RefCount] %s has count %d, freeing\n"
+          (DataId.to_str dataId)
+          (nrefs-1)
+      ENDIF; 
+      free_data memState dataId;                
+      clear_refcount memState dataId
+    ) 
+    else set_refcount memState dataId (nrefs - 1)
+
+  let rec inc_ref memState = function 
+    | InterpVal.Data id -> inc_data_ref memState id
+    | InterpVal.Scalar _ -> ()
+    | InterpVal.Array arr -> Array.iter (inc_ref memState) arr
+
+  let rec dec_ref memState = function 
+    | InterpVal.Data id -> dec_data_ref memState id
+    | InterpVal.Scalar _ -> ()
+    | InterpVal.Array arr -> Array.iter (dec_ref memState) arr
+
+end 
+include RefCounting 
+
+
+let fresh_data_id ?(refcount=0) memState =
   IFDEF DEBUG THEN 
     assert (not $ Stack.is_empty memState.data_scopes); 
   ENDIF; 
   let currDataScope = Stack.pop memState.data_scopes in 
   let id = DataId.gen() in 
-  Stack.push (DataId.Set.add id currDataScope) memState.data_scopes; 
-  Hashtbl.add memState.refcounts id 0; 
+  Stack.push (DataId.Set.add id currDataScope) memState.data_scopes;
+  set_refcount memState id refcount;  
   id 
-  
-module Alloc = struct
-   
-  let find_free_ptr (freePtrs:(int, 'a list) Hashtbl.t) (nbytes:int) = 
-  try (match Hashtbl.find freePtrs nbytes with 
-        | p::ps -> 
-           Hashtbl.replace freePtrs nbytes ps;  Some p 
-        | [] -> assert false 
-      )
-  with _ -> None 
 
- let free_ptr_list memspace nbytes ptrs = 
-      IFDEF DEBUG THEN 
-        Printf.printf "[Alloc] Deallocating %d blocks of size %d: %s\n%!"
-        (List.length ptrs)
-        nbytes 
-        (String.concat ", " (List.map (Printf.sprintf "%Lx")  ptrs))
-      ENDIF; 
-      List.iter memspace.delete ptrs
-
-  let dealloc_free_ptrs memspace = 
-    IFDEF DEBUG THEN 
-       Printf.printf
-         "[Alloc] Deallocating all free vectors in %s memspace\n" 
-         memspace.name;
-       Pervasives.flush_all(); 
-    ENDIF; 
-    Hashtbl.iter (free_ptr_list memspace) memspace.free_ptrs;   
-    Hashtbl.clear memspace.free_ptrs    
-          
-
-  (* try to use a free pointer before allocating new space *) 
-  let smart_alloc (memspace : 'a memspace) (nbytes : int) : 'a =
-    match find_free_ptr memspace.free_ptrs nbytes with 
-    | None -> 
-      (try memspace.alloc nbytes 
-        with _ -> 
-          dealloc_free_ptrs memspace; 
-          memspace.alloc nbytes
-      )
-    | Some ptr -> 
-        IFDEF DEBUG THEN
-          Printf.printf "[Alloc] Reusing %d bytes of %s memory at %Lx\n"
-            nbytes
-            memspace.name
-            ptr
-        ENDIF; 
-        ptr 
-
-   
-  let delete_gpu_vec memState gpuVec = 
-    if gpuVec.vec_slice_start = None && gpuVec.vec_nbytes > 0 then (
-      IFDEF DEBUG THEN 
-        Printf.printf "[Alloc] Flushing gpu vec of size %d, shape %s @ %Lx\n%!" 
-          gpuVec.vec_nbytes
-          (Shape.to_str gpuVec.vec_shape)
-          gpuVec.vec_ptr
-        ; 
-        Printf.printf "[Alloc] -- %s\n%!" (GpuVal.gpu_vec_to_str gpuVec); 
-      ENDIF; 
-      memState.gpu_mem.delete gpuVec.vec_ptr; 
-      if gpuVec.vec_shape_nbytes > 0 then 
-        memState.gpu_mem.delete gpuVec.vec_shape_ptr
-    )
-    
+module ManagedAlloc = struct 
   let flush_gpu memState = 
     Hashtbl.iter 
-      (fun _ gpuVec -> delete_gpu_vec memState gpuVec) 
+      (fun _ gpuVec -> Alloc.delete_gpu_vec memState.gpu_mem gpuVec) 
       memState.gpu_data; 
-    Hashtbl.clear memState.gpu_data
+    Hashtbl.clear memState.gpu_data; 
+    Hashtbl.clear memState.gpu_rev_lookup
 
-  (* careful! have to 
-      (1) not delete slices (since the underlying data may referenced elsewhere
-      (2) make sure these pointers are also removed from free_ptrs 
-   *) 
-  (*
-  let delete_data memState dataId = 
-    if Hashtbl.mem memState.gpu_data dataId then (
-      let gpuVec = Hashtbl.find memState.gpu_data dataId in
-      memState.gpu_mem.delete gpuVec.vec_ptr; 
-      memState.gpu_mem.delete gpuVec.vec_shape_ptr;
-      Hashtbl.remove memState.gpu_data dataId
-    );
-    if Hashtbl.mem memState.host_data dataId then (
-      let hostVec = Hashtbl.find memState.host_data dataId in  
-      memState.host_mem.delete hostVec.ptr;
-      Hashtbl.remove memState.host_data dataId
-    )
-  *) 
-  (* 
-    TODO: 
-      if gpu alloc still fails after ordinary garbage collection,
-      bring some data back to the CPU. This is tricky since we have to 
-      make sure to not bring back anything being used in the current 
-      operation. Still not sure of the best way to do this.  
-  *)        
-  let alloc_gpu memState nbytes = smart_alloc memState.gpu_mem nbytes  
-  let alloc_host memState nbytes = smart_alloc memState.host_mem nbytes 
+  let alloc_gpu memState nbytes = Alloc.smart_alloc memState.gpu_mem nbytes  
+  let alloc_host memState nbytes = Alloc.smart_alloc memState.host_mem nbytes 
 
   let calc_nbytes len ty shape =
     let eltT = DynType.elt_type ty in
@@ -196,11 +219,11 @@ module Alloc = struct
         shapeBytes
     ENDIF;
     let shapeDevPtr = alloc_gpu memState shapeBytes in
-    let shapeHostPtr = get_array1_ptr $ Shape.to_c_array shape in
+    let shapeHostPtr = Alloc.get_array1_ptr $ Shape.to_c_array shape in
     Cuda.cuda_memcpy_to_device shapeHostPtr shapeDevPtr shapeBytes;
     shapeDevPtr, shapeBytes
 
-  let mk_gpu_vec memState ?nbytes t shape =
+  let mk_gpu_vec memState ?refcount ?nbytes t shape =
     let nelts = Shape.nelts shape in 
     let dataBytes = 
       match nbytes with None -> calc_nbytes nelts t shape | Some sz -> sz 
@@ -220,11 +243,10 @@ module Alloc = struct
       vec_slice_start = None; 
     }
     in 
-    let id = fresh_data_id memState in 
-    Hashtbl.add memState.gpu_data id gpuVec;
+    let id = fresh_data_id ?refcount memState in 
+    associate_id_with_gpu_data memState gpuVec id;  
     IFDEF DEBUG THEN
-      Printf.printf "[Alloc] Created %s\n"  (GpuVal.gpu_vec_to_str gpuVec);
-      Pervasives.flush_all(); 
+      Printf.printf "[Alloc] Created %s\n%!"  (GpuVal.gpu_vec_to_str gpuVec);
     ENDIF;  
     gpuVec   
 
@@ -233,7 +255,7 @@ module Alloc = struct
     let gpuVec = mk_gpu_vec memState t shape in 
     GpuVal.GpuArray gpuVec   
 
-  let mk_host_vec memState ?nbytes ty shape =
+  let mk_host_vec memState ?refcount ?nbytes ty shape =
     let len = Shape.nelts shape in  
     let nbytes = match nbytes with 
       | None ->
@@ -250,10 +272,11 @@ module Alloc = struct
       shape = shape;
       slice_start = None  
     } 
-    in 
+    in
+    let id = fresh_data_id ?refcount memState in 
+    associate_id_with_host_data memState hostVec id; 
     IFDEF DEBUG THEN
-      Printf.printf "[Alloc] Created %s\n"  (HostVal.host_vec_to_str hostVec); 
-      Pervasives.flush_all(); 
+      Printf.printf "[Alloc] Created %s\n%!"  (HostVal.host_vec_to_str hostVec); 
     ENDIF;  
     hostVec
     
@@ -299,83 +322,7 @@ module Alloc = struct
     ENDIF;
     gpuVec    
 end 
-include Alloc   
-
-
-
-module RefCounting = struct
-  let add_to_free_ptrs memSpace size ptr =
-    let freeList = Hashtbl.find_default memSpace.free_ptrs size [] in 
-    Hashtbl.replace memSpace.free_ptrs size (ptr::freeList)  
- 
-  let free_gpu_data memState gpuVec = 
-    IFDEF DEBUG THEN 
-      Printf.printf "[RefCount] Adding to free list: %s\n" 
-        (GpuVal.gpu_vec_to_str gpuVec); 
-    ENDIF; 
-    let nbytes = gpuVec.vec_nbytes in 
-    if gpuVec.vec_slice_start = None && nbytes > 0 then (
-      add_to_free_ptrs memState.gpu_mem nbytes gpuVec.vec_ptr;
-      let shapeBytes = gpuVec.vec_shape_nbytes in  
-      if shapeBytes > 0 then
-        add_to_free_ptrs memState.gpu_mem shapeBytes gpuVec.vec_shape_ptr
-    ) 
-  let free_host_data memState hostVec = 
-    IFDEF DEBUG THEN 
-      Printf.printf "[RefCount] Adding to free list: %s\n" 
-        (HostVal.host_vec_to_str hostVec);  
-    ENDIF; 
-    let nbytes = hostVec.nbytes in
-    if hostVec.slice_start = None && nbytes > 0 then (
-      add_to_free_ptrs memState.host_mem nbytes hostVec.ptr; 
-    )
-    
-  (* add pointers associated with this data into free dicts *)
-  (* TODO: what to do about data which other slices point into? 
-         Currently it will get deleted, leaving slices dangling 
-   *) 
-  let free_data memState dataId =
-    if Hashtbl.mem memState.gpu_data dataId then (  
-      let gpuVec = Hashtbl.find memState.gpu_data dataId in 
-      free_gpu_data memState gpuVec; 
-      Hashtbl.remove memState.gpu_data dataId 
-    );
-    if Hashtbl.mem memState.host_data dataId then ( 
-      let hostVec = Hashtbl.find memState.host_data dataId in 
-      free_host_data memState hostVec;
-      Hashtbl.remove memState.host_data dataId    
-    )
-
-  let inc_data_ref memState (dataId: DataId.t) : unit = 
-    let nrefs = Hashtbl.find_default memState.refcounts dataId 0 in 
-    Hashtbl.replace memState.refcounts dataId (nrefs + 1)
-
-  let dec_data_ref memState (dataId: DataId.t) = 
-    let nrefs = Hashtbl.find memState.refcounts dataId in 
-    if nrefs <= 0 then (
-      IFDEF DEBUG THEN 
-        Printf.printf "[RefCount] %s has count %d, freeing\n"
-          (DataId.to_str dataId)
-          nrefs
-      ENDIF; 
-      free_data memState dataId;                
-      Hashtbl.remove memState.refcounts dataId
-    ) 
-    else
-      Hashtbl.replace memState.refcounts dataId (nrefs - 1)
-
-  let rec inc_ref memState = function 
-    | InterpVal.Data id -> inc_data_ref memState id
-    | InterpVal.Scalar _ -> ()
-    | InterpVal.Array arr -> Array.iter (inc_ref memState) arr
-
-  let rec dec_ref memState = function 
-    | InterpVal.Data id -> dec_data_ref memState id
-    | InterpVal.Scalar _ -> ()
-    | InterpVal.Array arr -> Array.iter (dec_ref memState) arr
-
-end 
-include RefCounting 
+include ManagedAlloc   
 
 module Scope = struct 
   let get_curr_env memState = 
@@ -402,7 +349,7 @@ module Scope = struct
      if ID.Map.mem id env then ID.Map.find id env
      else 
        failwith $ 
-         Printf.sprintf "[eval_value] variable %s not found!" (ID.to_str id) 
+         Printf.sprintf "[MemoryState] variable %s not found!" (ID.to_str id) 
 
 
   let dec_old_binding_value memState env id = 
@@ -437,56 +384,95 @@ module Scope = struct
     List.iter (dec_old_binding_value memState env) ids;   
     let env' = ID.Map.extend env ids vals in
     Stack.push env' memState.envs  
-  
-  let push_data_scope memState = 
-    Stack.push DataId.Set.empty memState.data_scopes
-
-  let rec get_value_ids = function 
-    | InterpVal.Data id -> [id]
-    | InterpVal.Scalar _ -> []
-    | InterpVal.Array arr ->
-      Array.fold_left (fun acc x -> get_value_ids x @ acc) [] arr 
-
 
   let rec id_set_from_values memState = function 
-    | [] -> DataId.Set.empty 
-    | v::vs -> 
-        let restSet = id_set_from_values memState vs in 
-        let dataIds = get_value_ids v in 
-        List.fold_left (fun acc id -> DataId.Set.add id acc) restSet dataIds
+    | [] -> DataId.Set.empty  
+    | (InterpVal.Data id)::vs -> 
+        DataId.Set.add id (id_set_from_values memState vs)
+    | (InterpVal.Scalar _ )::vs -> id_set_from_values memState vs
+    | (InterpVal.Array arr)::vs -> 
+        ID.Set.union 
+          (id_set_from_values memState (Array.to_list arr))
+          (id_set_from_values memState vs)
+    
+  let enter_data_scope memState =
+    Stack.push DataId.Set.empty memState.data_scopes
 
-  let pop_data_scope ?(escaping_values=[]) memState = 
+
+  let exit_data_scope ?(escaping_values=[]) memState = 
     let dataScope = Stack.pop memState.data_scopes in 
-    let excludeSet = id_set_from_values memState escaping_values in  
+    let excludeSet = id_set_from_values memState escaping_values in
     (* remove the escaping IDs from the scope before freeing its contents *)
     let prunedScope = DataId.Set.diff dataScope excludeSet in 
-    DataId.Set.iter (dec_data_ref memState) prunedScope 
+    IFDEF DEBUG THEN 
+      Printf.printf "[Scope] Leaving data scope w/ escaping values: %s\n"
+        (String.concat ", " (List.map InterpVal.to_str escaping_values)); 
+      Printf.printf "[Scope] Excluded from deletion by dec_ref: %s\n"
+        (String.concat ", " 
+          (List.map DataId.to_str (DataId.Set.elements excludeSet)));
+      Printf.printf "[Scope] Decrementing references on: %s\n"
+        (String.concat ", " 
+          (List.map DataId.to_str (DataId.Set.elements prunedScope)));
+    ENDIF; 
+    DataId.Set.iter (dec_data_ref memState) prunedScope;
+    (* we still decrement the counts on the exclude set, we 
+       just expect them to be incremented again by an assignment 
+    *) 
+    DataId.Set.iter 
+      (fun id -> set_refcount memState id (get_refcount memState id - 1))
+      excludeSet
+    ; 
+    (* dump the excluded ids into the older data scope *)
+    if Stack.is_empty memState.data_scopes then 
+      Stack.push excludeSet memState.data_scopes 
+    else   
+      let olderScope = Stack.pop memState.data_scopes in
+      Stack.push (DataId.Set.union excludeSet olderScope) memState.data_scopes 
 
-  let pop_scope ?(escaping_values=[]) memState = 
-    pop_data_scope ~escaping_values memState; 
+
+  let enter_scope memState = 
+    enter_data_scope memState;
+    push_env memState
+
+  let exit_scope ?(escaping_values=[]) memState = 
+    exit_data_scope ~escaping_values memState; 
     pop_env memState
  
-  let push_scope memState = 
-    push_data_scope memState;
-    push_env memState
 end
 include Scope 
 
+let get_host_vec_id memState hostVec = 
+  (* make sure we're not already tracking this pointer *)  
+  if hostVec.slice_start = None && 
+     Hashtbl.mem memState.host_rev_lookup hostVec.ptr then 
+       Hashtbl.find memState.host_rev_lookup hostVec.ptr
+  else (  
+    let id = fresh_data_id memState in 
+    associate_id_with_host_data memState hostVec id; 
+    id 
+  )
+  
 let rec add_host memState = function 
   | HostVal.HostScalar n -> InterpVal.Scalar n 
   | HostVal.HostArray  hostVec -> 
-      let id = fresh_data_id memState in 
-      Hashtbl.add memState.host_data id hostVec;
-      InterpVal.Data id 
+      InterpVal.Data (get_host_vec_id memState hostVec)
   | HostVal.HostBoxedArray boxedArray -> 
       let interpValArray = Array.map (add_host memState) boxedArray in 
       InterpVal.Array interpValArray 
   
+let get_gpu_vec_id memState gpuVec : DataId.t =
+  (* check whether we're already tracking this memory address *) 
+  if gpuVec.vec_slice_start = None && 
+     Hashtbl.mem memState.gpu_rev_lookup gpuVec.vec_ptr then 
+      Hashtbl.find memState.gpu_rev_lookup gpuVec.vec_ptr  
+  else (
+    let id = fresh_data_id memState in 
+    associate_id_with_gpu_data memState gpuVec id; 
+    id  
+  )
+  
 let add_gpu memState = function 
-  | GpuVal.GpuArray gpuVec ->  
-      let id = fresh_data_id memState in 
-      Hashtbl.add memState.gpu_data id gpuVec;
-      InterpVal.Data id
+  | GpuVal.GpuArray gpuVec -> InterpVal.Data (get_gpu_vec_id memState gpuVec)   
   | GpuVal.GpuScalar n -> InterpVal.Scalar n  
 
 
@@ -566,7 +552,7 @@ let rec get_gpu memState = function
           (HostVal.host_vec_to_str hostVec);
        ENDIF; 
       let gpuVec = vec_to_gpu memState hostVec in 
-      Hashtbl.replace memState.gpu_data id gpuVec; 
+      associate_id_with_gpu_data memState gpuVec id;  
       GpuVal.GpuArray gpuVec
    )
   | InterpVal.Scalar n -> GpuVal.GpuScalar n
@@ -646,7 +632,7 @@ let rec get_host memState interpVal =
       ENDIF; 
       let gpuVec = Hashtbl.find memState.gpu_data id in
       let hostVec = vec_from_gpu memState gpuVec in
-      Hashtbl.replace memState.host_data id hostVec;
+      associate_id_with_host_data memState hostVec id; 
       IFDEF DEBUG THEN
         Printf.printf "[MemoryState->get_host] Got %s \n"
           (HostVal.host_vec_to_str hostVec);  
@@ -657,15 +643,67 @@ let rec get_host memState interpVal =
   | InterpVal.Array arr ->
       HostVal.HostBoxedArray (Array.map (get_host memState) arr)
 
+module Slicing = struct 
+
+  (* returns a gpu_val, not a gpu_vec since the elements might be scalars, 
+     also increment the ref count of the thing we're slicing into 
+   *)
+  let slice_gpu_vec memState gpuVec idx : gpu_val = 
+    let sliceShape = Shape.slice_shape gpuVec.vec_shape [0] in
+    let sliceType = DynType.peel_vec gpuVec.vec_t in
+    let sliceVal = 
+      if DynType.is_scalar sliceType then index gpuVec idx 
+      else (
+        (* if the slice result is not a scalar, we have to increment 
+           the reference count of the original data so we don't 
+           leave this slice dangling by deleting its parent 
+         *) 
+        inc_data_ref memState (get_gpu_vec_id memState gpuVec); 
+        let bytesPerElt = DynType.sizeof (DynType.elt_type sliceType) in
+        let nelts =  Shape.nelts sliceShape in 
+        let sliceBytes = bytesPerElt * nelts in
+        GpuVal.GpuArray { 
+          vec_ptr = Int64.add gpuVec.vec_ptr (Int64.of_int (sliceBytes * idx));  
+          vec_nbytes = sliceBytes; 
+          vec_len = nelts; 
+          vec_shape_ptr = Int64.add gpuVec.vec_shape_ptr (Int64.of_int 4); 
+          vec_shape_nbytes = gpuVec.vec_shape_nbytes - 4; 
+          vec_shape = sliceShape; 
+          vec_t = sliceType;
+          vec_slice_start = Some gpuVec.vec_ptr; 
+        }
+      )
+    in  
+    IFDEF DEBUG THEN 
+    Printf.printf 
+      "[MemoryState] Got GPU slice index %d of %s\n" 
+      idx
+      (gpu_vec_to_str gpuVec)
+    ; 
+    Printf.printf "[MemoryState] GPU slice result: %s\n" (to_str sliceVal); 
+    ENDIF; 
+    sliceVal   
+
+let slice_gpu_val memState gpuVal idx : gpu_val = 
+  match gpuVal with   
+  | GpuScalar _ -> failwith "can't slice a GPU scalar"
+  | GpuArray gpuVec -> slice_gpu_vec memState gpuVec idx
+
 
   (* slice on the GPU or CPU? *) 
-let slice memState arr idx = match arr with 
-  | InterpVal.Scalar _ -> failwith "[MemoryState] Can't slice a scalar"
-  | InterpVal.Array arr -> arr.(idx)
-  | InterpVal.Data id -> 
+  let slice memState arr idx = match arr with 
+    | InterpVal.Scalar _ -> failwith "[MemoryState] Can't slice a scalar"
+    | InterpVal.Array arr -> arr.(idx)
+    | InterpVal.Data id -> 
       if Hashtbl.mem memState.gpu_data id then 
-        let gpuVec = Hashtbl.find memState.gpu_data id in        
-        add_gpu memState (GpuVal.slice_vec gpuVec idx) 
+        let gpuVec = Hashtbl.find memState.gpu_data id in
+        add_gpu memState (slice_gpu_vec memState gpuVec idx)
       else 
+        assert false
+        (*
         let hostVec = Hashtbl.find memState.host_data id in 
-        add_host memState (HostVal.slice_vec hostVec idx)   
+        let sliceVec = host_slice hostVec idx in 
+        add_host memState sliceVec
+        *)   
+end
+include Slicing 

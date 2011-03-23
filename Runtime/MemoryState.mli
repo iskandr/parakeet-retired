@@ -8,11 +8,11 @@ val create : unit -> t
    create/destory environments 
    when entering/exiting functions 
 *)
-val push_scope : t -> unit 
-val pop_scope : ?escaping_values:InterpVal.t list -> t -> unit  
+val enter_scope : t -> unit 
+val exit_scope : ?escaping_values:InterpVal.t list -> t -> unit  
 
-val push_data_scope : t -> unit 
-val pop_data_scope : ?escaping_values:InterpVal.t list -> t -> unit  
+val enter_data_scope : t -> unit 
+val exit_data_scope : ?escaping_values:InterpVal.t list -> t -> unit  
  
 val lookup : t -> ID.t -> InterpVal.t
 
@@ -32,12 +32,17 @@ val get_gpu : t -> InterpVal.t -> GpuVal.gpu_val
 val get_host : t -> InterpVal.t -> HostVal.host_val 
 val get_scalar : t -> InterpVal.t -> PQNum.num 
 
+val slice_gpu_val : t -> GpuVal.gpu_val -> int -> GpuVal.gpu_val
 val slice : t -> InterpVal.t -> int -> InterpVal.t 
 
 val sizeof : t -> InterpVal.t -> int
 
-val mk_gpu_vec : t -> ?nbytes:int -> DynType.t -> Shape.t -> GpuVal.gpu_vec
-val mk_host_vec : t -> ?nbytes:int -> DynType.t -> Shape.t -> HostVal.host_array 
+val mk_gpu_vec : 
+  t -> ?refcount:int -> ?nbytes:int -> DynType.t -> Shape.t -> GpuVal.gpu_vec
+  
+val mk_host_vec : 
+  t -> ?refcount:int-> ?nbytes:int -> DynType.t -> Shape.t -> HostVal.host_array
+   
 val mk_gpu_val : t -> DynType.t -> Shape.t -> GpuVal.gpu_val 
 
 val flush_gpu : t -> unit    

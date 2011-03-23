@@ -127,7 +127,9 @@ let coerce_num n t =
   match n with 
     | Int16 i
     | UInt16 i -> coerce_int i t
-    | Int32 i -> coerce_int32 i t 
+    | Int32 i -> coerce_int32 i t
+    | UInt32 unsigned
+    | UInt64 unsigned -> coerce_int64 (Uint64.to_int64 unsigned) t  
     | Int64 i -> coerce_int64 i t 
     | Float32 f 
     | Float64 f -> coerce_float f t  

@@ -7,11 +7,11 @@ kmeans: { [X;a;k;niters]
     C: ccs[X;b;k]];
   C }
 
-n: 65536;
+n: 32000;
 d: 300;
-k: 3;  
+k: 30;  
 a: n ? k;
 X: { d ? 10e } each til n; 
-niters: 73;
+niters: 50;
 C: kmeans[X;a;k;niters]
 
