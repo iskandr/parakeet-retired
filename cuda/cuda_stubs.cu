@@ -87,8 +87,8 @@ value ocaml_cuda_device_get_free_and_total_mem(void) {
   size_t free, total;
   cudaMemGetInfo(&free, &total);
   ocaml_mem_info = caml_alloc_tuple(2);
-  Store_field(ocaml_mem_info, 0, Int_val(free));
-  Store_field(ocaml_mem_info, 1, Int_val(total));
+  Store_field(ocaml_mem_info, 0, Val_int(free / 1048576));
+  Store_field(ocaml_mem_info, 1, Val_int(total / 1048576));
 
   CAMLreturn(ocaml_mem_info);
 }

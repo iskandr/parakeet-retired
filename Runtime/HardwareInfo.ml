@@ -25,6 +25,10 @@ let hw_init () =
   if !inited = false then begin
     inited := true;
     cuda_init_runtime ();
+    let free, total = cuda_device_get_free_and_total_mem() in
+    IFDEF DEBUG THEN
+	    printf "Free and total memory: %d, %d\n" free total;
+    ENDIF;
     (* TODO: For now, we'll just handle a single device, and handle *)
     (* contexts by using the one created by the runtime API *)
     let ndevices = cuda_device_get_count () in
