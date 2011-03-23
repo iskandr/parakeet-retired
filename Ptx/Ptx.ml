@@ -460,6 +460,8 @@ let mkop op args = {
 (* add label or predicate to instruction *)
 let pred p instr = {instr with pred = IfTrue p}
 let pred_not p instr = {instr with pred = IfFalse p} 
+let guard g instr = { instr with pred = g } 
+ 
 let label l instr = {instr with label = Some l}
 let round mode instr = { instr with rounding = Some mode } 
 

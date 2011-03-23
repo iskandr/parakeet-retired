@@ -67,8 +67,10 @@ let stop = function
       ))
   | GpuTimer timer -> (
       if timer.gpu_running then (
-        let elapsedTime = CudaEvent.cuda_stop_event_and_get_elapsed_time
-          timer.gpu_start timer.gpu_end
+        let elapsedTime = 
+          CudaEvent.cuda_stop_event_and_get_elapsed_time
+            timer.gpu_start 
+            timer.gpu_end
         in
         timer.gpu_running <- false;
         timer.gpu_time <- timer.gpu_time +. elapsedTime
@@ -111,3 +113,15 @@ let ptxCompile = mk_cpu_timer "PTX Compile"
 let gpuTransfer = mk_cpu_timer "GPU Transfer"
 let gpuExec = mk_gpu_timer "GPU Execution"
 let gpuMalloc = mk_gpu_timer "GPU Memory Allocation"
+
+let gpuMap = mk_gpu_timer "GPU Array Op - Map"
+let gpuMapAlloc = mk_gpu_timer "GPU Array Op - Map (Alloc)"
+
+let gpuReduce = mk_gpu_timer "GPU Array Op - Reduce"
+let gpuReduceAlloc = mk_gpu_timer "GPU Array Op - Reduce (Alloc)"
+
+let gpuIndex = mk_gpu_timer "GPU Array Op - Index"
+let gpuIndexAlloc = mk_gpu_timer "GPU Array Op - Index (Alloc)"
+
+let gpuWhere = mk_gpu_timer "GPU Array Op - Where"
+let gpuWhereAlloc = mk_gpu_timer "GPU Array Op - Where"
