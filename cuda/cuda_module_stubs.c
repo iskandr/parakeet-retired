@@ -80,20 +80,19 @@ value ocaml_cuda_compile_module(value ptx_string, value threads_per_block)
 #endif
 
   if (result != 0) {
-    printf("Error #%d compiling module %p \n", result, cuModule);
-
-#ifndef DEBUG
-    exit(1);
-#else
-	  printf("JIT error log: %s\n", ebuf);
+    char* msg = cudaGetErrorString(result);
+    printf("Error #%d compiling module %p: %s\n", result, cuModule, msg);
+    printf("JIT error log: %s\n", ebuf);
     exit(1);
   } else {
+  #ifdef DEBUG
+
     printf("JIT max threads per block: %ld (requested: %d)\n",
            (long)jitOptVals[4], nthreads);
     float jitTime = 0.0; 
     memcpy((void*)&jitTime, &jitOptVals[5], sizeof(float));
     printf("JIT compile time: %f\n", jitTime);
-#endif
+  #endif
   }
   CAMLreturn(caml_copy_int64((int64_t)cuModule));
 }

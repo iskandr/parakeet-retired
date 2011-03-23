@@ -248,6 +248,50 @@ value ocaml_cuda_memcpy_host_to_symbol(value symbol,
   CAMLreturn(Val_unit);
 }
 
+CAMLprim
+value ocaml_cuda_memcpy_device_to_symbol(value modulePtr, 
+                                       value symbol,
+                                       value src,
+                                       value num_bytes,
+                                       value ocaml_offset) {
+  CAMLparam5(modulePtr, symbol, src, num_bytes, ocaml_offset);
+  CUmodule* cuModule = (CUmodule*)  Int64_val(modulePtr); 
+  char *name = String_val(symbol);
+  CUdeviceptr source = (CUdeviceptr) Int64_val(src);
+  
+
+  CUdeviceptr dest; 
+  unsigned int bytes; 
+  CUresult result = cuModuleGetGlobal  (&dest, &bytes, *cuModule, name);  
+
+  int offset = Int_val(ocaml_offset);
+  
+  /*
+    int nbytes = Int_val(num_bytes);
+    cudaError_t result = cudaMemcpyToSymbol(name, source, nbytes, offset,
+                                          cudaMemcpyDeviceToDevice);
+  */
+   
+  if (result == CUDA_ERROR_NOT_FOUND) { 
+    printf("Constant symbol %s not found!\n", name);
+    exit(1);
+  }
+  else if (result) {
+    printf("Error getting constant symbol %s: %d\n", name, result);
+    exit(1);
+  }
+  
+  result = cuMemcpyDtoD(dest+offset, source, Int_val(num_bytes));
+  if (result) {
+    printf("Error copying from device to constant symbol %s: %d\n", 
+            name, result);
+    exit(1);
+  }
+
+  CAMLreturn(Val_unit);
+}
+
+
 /* Int64.t -> Int64.t -> int -> unit */
 CAMLprim
 value ocaml_cuda_memcpy_to_host(value array, value dev_ptr, value num_bytes) {

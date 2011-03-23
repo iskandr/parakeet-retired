@@ -87,6 +87,19 @@ let cuda_memcpy_to_host hostPtr gpuPtr bytes =
 external cuda_memcpy_device_to_device : GpuPtr.t -> GpuPtr.t -> int -> unit 
   = "ocaml_cuda_memcpy_device_to_device"
 
+external 
+cuda_memcpy_host_to_symbol : string -> HostPtr.t -> int -> int -> unit
+  = "ocaml_cuda_memcpy_host_to_symbol"
+
+external cuda_memcpy_device_to_symbol : 
+  CuModulePtr.t -> string -> GpuPtr.t -> int -> int -> unit
+  = "ocaml_cuda_memcpy_device_to_symbol"
+(*
+external 
+cuda_memcpy_device_to_symbol : string -> GpuPtr.t -> int -> int -> unit
+  = "ocaml_cuda_memcpy_device_to_symbol"  
+*)
+
 (** READ ARRAY ELEMENTS **) 
 external cuda_get_gpu_char_vec_elt : GpuPtr.t -> int -> int 
   = "ocaml_cuda_get_gpu_char_vec_elt"

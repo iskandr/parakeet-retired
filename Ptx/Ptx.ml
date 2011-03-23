@@ -97,7 +97,8 @@ and instruction = {
   
 and kernel = {
   params: (symid * PtxType.ty) array;
-  decls: (symid, var_decl) Hashtbl.t; 
+  local_decls: (symid, var_decl) Hashtbl.t;
+  global_decls: (symid, var_decl) Hashtbl.t; 
   symbols : (symid, string) Hashtbl.t; 
 	code: instruction array; 
   textures: (symid * PtxType.ty) array;  
@@ -136,25 +137,19 @@ let num_to_geom = function
  *********************************************************)
 
 let rec ptx_module_to_str ptxModule =
-  let approx_numlines k =  
-    Hashtbl.length k.decls +
-    Array.length k.code + 
-    Array.length k.params  in
-  let kernel_lengths = PMap.map approx_numlines ptxModule.kernels in
-  let numlines = PMap.foldi (fun _ len acc -> len + acc) kernel_lengths 0 in
-  let b = Buffer.create (40 * numlines) in
-  (*let append = Buffer.add_string buffer in *)
+  let b = Buffer.create 1000 in
   Buffer.add_string b ".version 1.4 \n";
   bprintf b ".target %s \n" 
      (compute_capability_to_str ptxModule.compute_capability);  
   PMap.iter (add_kernel_to_buffer b) ptxModule.kernels;
   Buffer.contents b
 and add_kernel_to_buffer b name k =
+  add_kernel_decls_to_buffer b k.symbols k.global_decls;
   add_kernel_textures_to_buffer b k.symbols k.textures;
   bprintf b ".entry %s \n" name;
   add_kernel_params_to_buffer b k.symbols k.params;
   Buffer.add_string b "{\n";
-  add_kernel_decls_to_buffer b k.symbols k.decls; 
+  add_kernel_decls_to_buffer b k.symbols k.local_decls; 
   Buffer.add_string b "\n";
   add_kernel_body_to_buffer b k.symbols k.code;  
   Buffer.add_string b "}\n"
@@ -189,7 +184,6 @@ and param_to_str symbols id ty =
 and add_kernel_decls_to_buffer buffer symbols decls =
     let add_decl id decl =
       let name = Hashtbl.find symbols id in
-      let spaceStr = ptx_space_to_str decl.decl_space in   
       match decl.decl_space, decl.array_size with 
         | SHARED, Some size ->
           let bytesPerElt = PtxType.nbytes decl.t in  
@@ -199,8 +193,15 @@ and add_kernel_decls_to_buffer buffer symbols decls =
             name
             totalBytes 
         | SHARED, None -> failwith "can't declare shared var without size"
+        | CONST, Some len ->
+            let eltBytes = PtxType.nbytes decl.t in 
+            bprintf buffer ".const\t .align 4 .b8  %s[%d];\n"
+              name 
+              (len * eltBytes)
+        | CONST, None -> failwith "constant variables must have size decl"
         | _, Some _ -> failwith "declaring non-shared arrays not implemented"
-        | space, None ->   
+        | space, None ->
+            let spaceStr = ptx_space_to_str decl.decl_space in   
             bprintf buffer ".%s\t .%s %%%s;\n" 
               spaceStr
               (PtxType.to_str decl.t)
