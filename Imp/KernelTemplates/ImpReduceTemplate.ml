@@ -22,12 +22,14 @@ let gen_reduce_2d_capable nestedType payload threadsPerBlock =
   let inputVecType = DynType.VecT nestedType in  
   let input = fnState#fresh_input inputVecType in
   let scalarType = DynType.elt_type nestedType in
-  let outerDim::nestedShape = SymbolicShape.all_dims input in
+  match SymbolicShape.all_dims input with
+  | [] -> failwith "[ImpReduceTemplate] Unexpected scalar input" 
+  | outerDim::nestedShape -> 
   let reducedDim = safe_div_ outerDim (int $ threadsPerBlock * 2) in 
   let outputShape = reducedDim::nestedShape in 
   (* the GPU kernel doesn't fully reduce its input--- 
      that only happens after a logarithmic number of invocations, 
-     so the type of the output variable is the same as the input 
+    so the type of the output variable is the same as the input 
   *) 
   let output = fnState#fresh_output ~dims:outputShape inputVecType in
   IFDEF DEBUG THEN

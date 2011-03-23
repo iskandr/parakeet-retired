@@ -34,6 +34,7 @@ let elt_to_str gpuVec idx =
   | DynType.Float32T ->
       let f = Cuda.cuda_get_gpu_float32_vec_elt gpuVec.vec_ptr idx in  
     string_of_float f 
+  | DynType.CharT 
   | DynType.BoolT ->
     let i =  Cuda.cuda_get_gpu_char_vec_elt gpuVec.vec_ptr idx in
     string_of_int i 
@@ -50,13 +51,22 @@ let elts_summary gpuVec =
   else "[" ^ eltStr ^ "]"  
    
 
+let gpu_shape_to_str gpuVec =
+  let indices = List.til (Shape.rank gpuVec.vec_shape) in 
+  let shapeInts = 
+    List.map 
+      (Cuda.cuda_get_gpu_int32_vec_elt gpuVec.vec_shape_ptr)
+      indices
+  in 
+  "[" ^ (String.concat ", " (List.map Int32.to_string shapeInts)) ^ "]"     
+  
 let gpu_vec_to_str ?(show_contents=true) gpuVec =
   let basicInfo =  
     Printf.sprintf 
-      "GpuVec(%stype=%s, shape=%s, address=%Ld)"
+      "GpuVec(%stype=%s, shape=%s, address=%Lx)"
         (if gpuVec.vec_slice_start = None then "" else "SLICE, ") 
         (DynType.to_str gpuVec.vec_t)
-        (Shape.to_str gpuVec.vec_shape)
+        (gpu_shape_to_str gpuVec)
         gpuVec.vec_ptr
   in 
   if show_contents then basicInfo ^ ": " ^ (elts_summary gpuVec)
@@ -121,44 +131,4 @@ let index arr idx =
                "Indexing into GPU vectors not implemented for type %s"
                (DynType.to_str $  DynType.elt_type arr.vec_t)
 
-(* returns a gpu_val, not a gpu_vec since the elements might be scalars *)
-let slice_vec gpuVec idx : gpu_val = 
-  let sliceShape = Shape.slice_shape gpuVec.vec_shape [0] in
-  let sliceType = DynType.peel_vec gpuVec.vec_t in
-  let sliceVal = 
-    if DynType.is_scalar sliceType then index gpuVec idx 
-    else 
-    let bytesPerElt = DynType.sizeof (DynType.elt_type sliceType) in
-    let nelts =  Shape.nelts sliceShape in 
-    let sliceBytes = bytesPerElt * nelts in
-    let sliceVec = { 
-      vec_ptr = Int64.add gpuVec.vec_ptr (Int64.of_int (sliceBytes * idx));  
-      vec_nbytes = sliceBytes; 
-      vec_len = nelts; 
-      vec_shape_ptr = Int64.add gpuVec.vec_shape_ptr (Int64.of_int 4); 
-      vec_shape_nbytes = gpuVec.vec_shape_nbytes - 4; 
-      vec_shape = sliceShape; 
-      vec_t = sliceType;
-      vec_slice_start = Some gpuVec.vec_ptr; 
-    }
-    in 
-    GpuArray sliceVec
-  in  
-  IFDEF DEBUG THEN 
-    Printf.printf 
-      "[GpuVal] Got slice index %d of %s\n" 
-      idx
-      (gpu_vec_to_str gpuVec)
-    ; 
-    Printf.printf "[GpuVal] Slice result: %s\n" (to_str sliceVal); 
-  ENDIF; 
-  sliceVal   
-   
 
-let slice gpuVal idx : gpu_val = 
-  IFDEF DEBUG THEN  
-    Printf.printf "[GpuVal->slice] %s @ %d\n%!" (to_str gpuVal) idx
-  ENDIF; 
-  match gpuVal with   
-  | GpuScalar _ -> failwith "can't slice a GPU scalar"
-  | GpuArray gpuVec -> slice_vec gpuVec idx

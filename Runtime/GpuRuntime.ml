@@ -71,7 +71,7 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
       let ty = Hashtbl.find impfn.Imp.types id in  
       let privateShape = ID.Map.find id shapeEnv in
       let globalShape = Shape.append_dim nThreads privateShape in
-      let vec = MemoryState.mk_gpu_vec P.memState ty globalShape in  
+      let vec = MemoryState.mk_gpu_vec ~refcount:1 P.memState ty globalShape in  
       let gpuShapePtr = vec.GpuVal.vec_shape_ptr in 
       let gpuShapeBytes = vec.GpuVal.vec_shape_nbytes in    
       let gpuArgs =[
@@ -98,7 +98,7 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
         assert (DynType.is_vec ty);
         assert (Shape.rank shape > 0);
       ENDIF; 
-      let vec = MemoryState.mk_gpu_vec P.memState ty shape in 
+      let vec = MemoryState.mk_gpu_vec ~refcount:1 P.memState ty shape in 
       DynArray.add outputMap (GpuVal.GpuArray vec);
       let gpuShapePtr = vec.GpuVal.vec_shape_ptr in 
       let gpuShapeBytes = vec.GpuVal.vec_shape_nbytes in  
@@ -328,8 +328,20 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
     if Shape.rank inShape = 1 then 1 else (Shape.get inShape 1) / x_threads
   in
   let currInputElts = ref numInputElts in 
+  IFDEF DEBUG THEN 
+    print_string "\n --- REDUCE ---\n";
+  ENDIF; 
   let inputArgs = ref [gpuVal] in 
-  while !currInputElts > 1 do 
+  let iter = ref 0 in 
+  while !currInputElts > 1 do
+    iter := !iter + 1;  
+    IFDEF DEBUG THEN 
+      Printf.printf 
+       "[GpuRuntime] REDUCE input (iter %d): %s\n"
+       !iter 
+       (GpuVal.to_str gpuVal)
+      ;
+    ENDIF;  
     let numOutputElts = safe_div !currInputElts (threadsPerBlock * 2) in
     let modulePtr = compiledModule.Cuda.module_ptr in  
     let args, outputsList =
@@ -344,10 +356,8 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
     inputArgs := outputsList; 
     currInputElts := numOutputElts; 
   done; 
-  let result = GpuVal.slice (List.hd !inputArgs) 0 in
+  let result = MemoryState.slice_gpu_val P.memState (List.hd !inputArgs) 0 in
   IFDEF DEBUG THEN
-    print_string "\n --- REDUCE ---\n";
-    Printf.printf "[GpuRuntime] REDUCE input: %s\n" (GpuVal.to_str gpuVal); 
     Printf.printf "[GpuRuntime] REDUCE output: %s\n" (GpuVal.to_str result); 
   ENDIF;
   [result]
@@ -443,7 +453,7 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
     let inputType = GpuVal.get_type inputVec in 
     let elType = DynType.elt_type inputType in
     let output = 
-        MemoryState.mk_gpu_vec P.memState inputType outputShape 
+      MemoryState.mk_gpu_vec ~refcount:1 P.memState inputType outputShape 
     in
     let inputPtr = GpuVal.get_ptr inputVec in
     let indexPtr = GpuVal.get_ptr indexVec in
@@ -483,7 +493,7 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
       let scanShape = GpuVal.get_shape binVec in
       let int32_vec_type = DynType.VecT DynType.Int32T in  
       let scanInterm = 
-        MemoryState.mk_gpu_vec P.memState int32_vec_type scanShape 
+        MemoryState.mk_gpu_vec ~refcount:1 P.memState int32_vec_type scanShape 
       in 
       Thrust.thrust_prefix_sum_bool_to_int binPtr nelts scanInterm.vec_ptr;
       let resultLength = 
@@ -499,7 +509,7 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
         Printf.printf "[GpuRuntime] WHERE returned %d elements\n" resultLength;
       ENDIF; 
       let output = 
-        MemoryState.mk_gpu_vec P.memState int32_vec_type outputShape 
+        MemoryState.mk_gpu_vec ~refcount:1 P.memState int32_vec_type outputShape 
       in
       Kernels.bind_where_tex scanInterm.vec_ptr nelts;
       Kernels.where_tex nelts output.vec_ptr; 

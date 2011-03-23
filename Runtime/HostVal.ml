@@ -138,6 +138,7 @@ let sizeof = function
   | HostScalar n -> DynType.sizeof (PQNum.type_of_num n)  
   | HostBoxedArray _ -> assert false 
 
+(*
 let slice_vec ({ ptr = ptr; host_t = host_t; shape=shape } as hostArray) idx = 
   let sliceShape = Shape.slice_shape shape [0] in
   let sliceType = DynType.peel_vec host_t in
@@ -172,3 +173,4 @@ let slice hostVal idx = match hostVal with
   | HostScalar _ -> failwith "can't slice a host scalar"
   | HostArray hostVec -> slice_vec hostVec idx 
   | HostBoxedArray _ -> assert false 
+*)

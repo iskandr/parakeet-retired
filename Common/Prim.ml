@@ -175,7 +175,6 @@ let min_prim_arity = function
   | ArrayOp DimSize 
   | ArrayOp Find 
   | ArrayOp Index -> 2
-  | ArrayOp _ -> 3  
   | Adverb Map -> 2 
   | Adverb _ -> 3
   | ImpureOp Print  -> 1
