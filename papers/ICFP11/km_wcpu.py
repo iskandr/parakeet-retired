@@ -4,11 +4,10 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-bscpu1t = [179.69, 351.97, 693.39, 1379.91] # True
-bscpu8t = [35.5, 71.1, 140.7, 287.7] # True
-bscuda = [19.8, 37.5, 72.5, 143.1] # True
-
-bspara = [22.2, 54.0, 88.0, 160.0] # Not true (yet)
+cpu1t = [179.69, 351.97, 693.39, 1379.91]
+cpu8t = [35.5, 71.1, 140.7, 287.7]
+cuda = [19.8, 37.3, 72.5, 143.1]
+para = [22.2, 54.0, 88.0, 160.0]
 
 N = 4
 opts = np.arange(N)
@@ -22,14 +21,14 @@ color4 = 'yellow'
 
 fig = plt.figure()
 ax = fig.add_subplot(111)
-cpu1tRects1 = ax.bar(opts, bscpu1t, width, color=color1)
-cpu8tRects1 = ax.bar(opts+width+space, bscpu8t, width, color=color2)
-cudRects1   = ax.bar(opts+2*(width+space), bscuda, width, color=color3)
-parRects1   = ax.bar(opts+3*(width+space), bspara, width, color=color4)
+cpu1tRects1 = ax.bar(opts, cpu1t, width, color=color1)
+cpu8tRects1 = ax.bar(opts+width+space, cpu8t, width, color=color2)
+cudRects1 = ax.bar(opts+2*(width+space), cuda, width, color=color3)
+parRects1 = ax.bar(opts+3*(width+space), para, width, color=color4)
 
-ax.set_xlabel('Number Of Options')
+ax.set_xlabel('Number Of ')
 ax.set_ylabel('Time In Milliseconds')
-ax.set_title('Black-Scholes Execution Time')
+ax.set_title('K-Means Execution Time')
 ax.set_xticks(opts+(2*width+1.5*space))
 ax.set_xticklabels(('1M', '2M', '4M', '8M'))
 

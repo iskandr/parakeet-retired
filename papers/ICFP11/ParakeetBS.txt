@@ -1,0 +1,13 @@
+# Parakeet Black-Scholes
+#
+#Options  Time(msec)  GPU Time    Mem xfer  Compilation   PTX Compilation
+
+
+
+1048576   
+
+2097152   
+
+4194304   
+
+8388608   

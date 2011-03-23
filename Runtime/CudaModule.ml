@@ -31,34 +31,29 @@ external destroy_module
 
 (* bytecode handles arity > 5 differently from natively compiled OCaml, *)
 (* so need two distinct stub functions for bytecode and native *)
-external launch_ptx_impl
-  : CuModulePtr.t -> string -> gpu_arg array ->
-         int -> int -> int -> int -> int -> unit =
-                "ocaml_cuda_launch_ptx_bytecode" "ocaml_cuda_launch_ptx"
+external launch_ptx_impl : 
+    CuModulePtr.t -> string -> gpu_arg array -> int ->
+                     int -> int -> int -> int -> unit =
+  "ocaml_cuda_launch_ptx_bytecode" "ocaml_cuda_launch_ptx"
 
-let launch_ptx (cudaModule : CuModulePtr.t) (fnName : string) 
+let launch_ptx (cudaModule : CuModulePtr.t) (fnName : string)
       (args : gpu_arg array)
       (gridParams : grid_params) =
-    (*IFDEF DEBUG THEN printf "In launch\n%!"; END; *)
-    Timing.start Timing.gpuExec; 
-    launch_ptx_impl cudaModule fnName args 
-    gridParams.threads_x 
-    gridParams.threads_y
-        gridParams.threads_z
-        gridParams.grid_x
-        gridParams.grid_y;
-    Timing.stop Timing.gpuExec 
+    Timing.start Timing.gpuExec;
+    launch_ptx_impl
+      cudaModule fnName args
+      gridParams.threads_x
+      gridParams.threads_y
+      gridParams.threads_z
+      gridParams.grid_x
+      gridParams.grid_y;
+    Timing.stop Timing.gpuExec
 
 let cuda_module_from_kernel_list  
       (kernelList : (string * Ptx.kernel) list)
       (threadsPerBlock : int) = 
   let ptxModule = Ptx.module_from_named_kernels kernelList in  
   let ptxStr = Ptx.ptx_module_to_str ptxModule in
-  (*
-  IFDEF DEBUG THEN 
-    Printf.printf "%s%!\n" ptxStr;
-  ENDIF;
-  *)
   let modulePtr = compile_module ptxStr threadsPerBlock in
   (* take an input space and change it from referring to 
      kernel-local symids to module-level names 

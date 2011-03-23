@@ -65,7 +65,7 @@ let cuda_malloc n =
  
 external cuda_free : GpuPtr.t -> unit = "ocaml_cuda_free"
 
-external cuda_memcpy_to_device_impl  : HostPtr.t -> GpuPtr.t -> int -> unit
+external cuda_memcpy_to_device_impl : HostPtr.t -> GpuPtr.t -> int -> unit
   = "ocaml_cuda_memcpy_to_device"
   
 let cuda_memcpy_to_device hostPtr gpuPtr bytes =
