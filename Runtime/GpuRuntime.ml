@@ -214,15 +214,19 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
         failwith (sprintf "Unable to get launch params for %d elts" outputElts)
   in
   let modulePtr = cudaModule.Cuda.module_ptr in 
+  Timing.start Timing.gpuMapAlloc; 
   let paramsArray, outputVals =
     create_args modulePtr outputElts impKernel cc (closureArgs @ args)
-  in  
+  in
+  Timing.stop Timing.gpuMapAlloc;
+  Timing.start Timing.gpuMap;    
   CudaModule.launch_ptx
     cudaModule.Cuda.module_ptr 
     fnName 
     paramsArray 
     gridParams
   ;
+  Timing.stop Timing.gpuMap; 
   IFDEF DEBUG THEN
     print_string "\n --- MAP ---\n";
     let sep = ";   " in 
@@ -330,7 +334,8 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
   let currInputElts = ref numInputElts in 
   IFDEF DEBUG THEN 
     print_string "\n --- REDUCE ---\n";
-  ENDIF; 
+  ENDIF;
+  let modulePtr = compiledModule.Cuda.module_ptr in 
   let inputArgs = ref [gpuVal] in 
   let iter = ref 0 in 
   while !currInputElts > 1 do
@@ -343,16 +348,19 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
       ;
     ENDIF;  
     let numOutputElts = safe_div !currInputElts (threadsPerBlock * 2) in
-    let modulePtr = compiledModule.Cuda.module_ptr in  
+    Timing.start Timing.gpuReduceAlloc;   
     let args, outputsList =
       create_args modulePtr !currInputElts impKernel cc !inputArgs 
     in
+    Timing.stop Timing.gpuReduceAlloc;
     let gridParams = {
       CudaModule.threads_x=x_threads; threads_y=256; threads_z=1;
       grid_x=x_grid; grid_y=numOutputElts;
     }
     in
+    Timing.start Timing.gpuReduce; 
     CudaModule.launch_ptx compiledModule.Cuda.module_ptr fnName args gridParams;
+    Timing.stop Timing.gpuReduce; 
     inputArgs := outputsList; 
     currInputElts := numOutputElts; 
   done; 
@@ -452,11 +460,14 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
     in
     let inputType = GpuVal.get_type inputVec in 
     let elType = DynType.elt_type inputType in
+    Timing.start Timing.gpuIndexAlloc; 
     let output = 
       MemoryState.mk_gpu_vec ~refcount:1 P.memState inputType outputShape 
     in
+    Timing.stop Timing.gpuIndexAlloc; 
     let inputPtr = GpuVal.get_ptr inputVec in
     let indexPtr = GpuVal.get_ptr indexVec in
+    Timing.start Timing.gpuIndex;
     Kernels.bind_index_idxs_tex indexPtr nidxs;
     begin match elType with
     | DynType.Int32T -> begin
@@ -475,6 +486,7 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
             "[GpuRuntime] unsupported element type for indexing (%s)"
             (DynType.to_str elType)
     end;
+    Timing.stop Timing.gpuIndex;
     let gpuVal = GpuVal.GpuArray output in 
     IFDEF DEBUG THEN 
       print_string "\n --- INDEX ---\n";
@@ -492,13 +504,18 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
       let nelts = GpuVal.nelts binVec in
       let scanShape = GpuVal.get_shape binVec in
       let int32_vec_type = DynType.VecT DynType.Int32T in  
+      Timing.start Timing.gpuWhereAlloc; 
       let scanInterm = 
         MemoryState.mk_gpu_vec ~refcount:1 P.memState int32_vec_type scanShape 
-      in 
+      in
+      Timing.stop Timing.gpuWhereAlloc;
+      Timing.start Timing.gpuWhere;   
       Thrust.thrust_prefix_sum_bool_to_int binPtr nelts scanInterm.vec_ptr;
+      Timing.stop Timing.gpuWhere; 
       let resultLength = 
         Cuda.cuda_get_gpu_int_vec_elt scanInterm.vec_ptr (nelts - 1) 
       in
+      
       let outputShape = Shape.create 1 in
       Shape.set outputShape 0 resultLength;
       IFDEF DEBUG THEN
@@ -508,12 +525,16 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
           (GpuVal.gpu_vec_to_str scanInterm);
         Printf.printf "[GpuRuntime] WHERE returned %d elements\n" resultLength;
       ENDIF; 
+      Timing.start Timing.gpuWhereAlloc;
       let output = 
         MemoryState.mk_gpu_vec ~refcount:1 P.memState int32_vec_type outputShape 
       in
+      Timing.stop Timing.gpuWhereAlloc;
+      Timing.start Timing.gpuWhere; 
       Kernels.bind_where_tex scanInterm.vec_ptr nelts;
       Kernels.where_tex nelts output.vec_ptr; 
       Kernels.unbind_where_tex ();
+      Timing.stop Timing.gpuWhere; 
       GpuVal.GpuArray output
 
 (*

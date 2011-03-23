@@ -141,7 +141,20 @@ let same_type t1 t2 =
     (PtxType.to_str t1) (PtxType.to_str t2) 
 
 let translate_coord = function | Imp.X -> X | Imp.Y -> Y  | Imp.Z -> Z 
- 
+
+let is_simple_exp = function 
+  | Imp.Var _ 
+  | Imp.Const _ 
+  | Imp.GridDim _ 
+  | Imp.BlockDim _ 
+  | Imp.BlockIdx _ 
+  | Imp.ThreadIdx _ -> true 
+  | _ -> false
+
+let is_simple_assignment = function 
+  | Imp.Set(_, rhs) -> is_simple_exp rhs.exp 
+  | _ -> false 
+
 let translate_simple_exp (codegen:PtxCodegen.ptx_codegen) = function 
   | Imp.Var id -> codegen#imp_reg id 
   | Imp.Const n -> num_to_ptx_const n
@@ -307,13 +320,6 @@ let gen_exp
 
 
 let rec gen_stmt codegen stmt = 
-  (*
-  IFDEF DEBUG THEN
-    codegen#emit [comment (Imp.stmt_to_str stmt)];
-    Printf.printf "[ImpToPtx] translating statement %s\n" 
-      (String.escaped (String.abbrev (Imp.stmt_to_str stmt) 50))
-  ENDIF;
-  *) 
   match stmt with 
   | Imp.Set (id,rhs) ->
       let reg = codegen#imp_reg id in   
@@ -363,7 +369,27 @@ let rec gen_stmt codegen stmt =
       codegen#emit [
         bra testLabel;
         label exitLabel (comment "loop exit")
-      ] 
+      ]
+  (* simple conditionals should be translated to predicates *) 
+  | Imp.If (cond, tBlock, fBlock)
+    when 
+    List.shorter_than tBlock 6 && 
+    List.shorter_than fBlock 6 && 
+    List.for_all is_simple_assignment tBlock && 
+    List.for_all is_simple_assignment fBlock ->
+      codegen#emit [comment "simple conditional"];  
+      let predReg = gen_exp codegen cond in 
+      let emit_simple_assignment guard = function 
+        | Imp.Set(id, rhs) ->
+          let destReg = codegen#imp_reg id in
+          let rhsReg = translate_simple_exp codegen rhs.exp in
+          let movInstr = Ptx.mov destReg rhsReg in 
+          codegen#emit [{ movInstr with Ptx.pred = guard} ]
+        | _ -> assert false
+      in   
+      List.iter (emit_simple_assignment (Ptx.IfTrue predReg)) tBlock; 
+      List.iter (emit_simple_assignment (Ptx.IfFalse predReg)) fBlock 
+        
   | Imp.If (cond, tBlock, fBlock) ->
       let predReg = gen_exp codegen cond in  
       let endLabel = codegen#fresh_label in 
@@ -375,7 +401,7 @@ let rec gen_stmt codegen stmt =
       codegen#emit [label endLabel (comment "branches of if-stmt converge")]
   | Imp.SPLICE -> failwith "unexpected SPLICE stmt in Imp code"
  
-and gen_block codegen block = 
+and gen_block codegen  block = 
   List.iter (gen_stmt codegen) block
    
 let translate_kernel ?input_spaces (impfn : Imp.fn) =

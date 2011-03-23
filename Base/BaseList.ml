@@ -84,3 +84,7 @@ include ExtList.List
     | x::xs -> 
       let xs' = unique xs in 
       if List.mem x xs' then xs' else x::xs'  
+      
+  let rec shorter_than xs n = match xs with 
+    | [] -> n > 0  
+    | _::xs' -> if n > 0 then (shorter_than xs' (n-1)) else false   
