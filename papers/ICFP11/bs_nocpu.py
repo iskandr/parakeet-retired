@@ -42,7 +42,7 @@ parRects2 = ax.bar(opts+width+space, bspara_xfer, width, color=color2,
 
 ax.set_xlabel('Number Of Options')
 ax.set_ylabel('Time In Milliseconds')
-ax.set_title('Black-Scholes Execution Time')
+ax.set_title('GPU Black-Scholes Execution Time')
 ax.set_xticks(opts+(0.5*space+width))
 ax.set_xticklabels(('1M', '2M', '4M', '8M'))
 ax.set_yticks(np.arange(0, 100, 10))

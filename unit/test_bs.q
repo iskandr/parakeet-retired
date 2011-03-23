@@ -36,7 +36,7 @@ pq_report_error: {[msg] 2[,["PQ ERROR: "; ,[msg; "\\n"]]];
   OptionPrice};
   BlkSchlsEqEuroNoDiv: {[pqarg0_xStockPrice; pqarg1_xStrikePrice; pqarg2_xRiskFreeRate; pqarg3_xVolatility; pqarg4_xTime; pqarg5_xCallput] pqvalue: pq_run_template[pq_template1; (pqarg0_xStockPrice; pqarg1_xStrikePrice; pqarg2_xRiskFreeRate; pqarg3_xVolatility; pqarg4_xTime; pqarg5_xCallput; ::); ()];
   $[=[pqvalue[0]; 0];pqvalue[1];$[=[pqvalue[0]; 1];pq_old_BlkSchlsEqEuroNoDiv[pqarg0_xStockPrice; pqarg1_xStrikePrice; pqarg2_xRiskFreeRate; pqarg3_xVolatility; pqarg4_xTime; pqarg5_xCallput; ::];pq_report_error[pqvalue[1]]]]}];
-  options: ReadOptionFile["../unit/bs_2M.txt"];
+  options: ReadOptionFile["../unit/bs_1M.txt"];
   xStockPrice: options[`Stockprice];
   xStrikePrice: options[`Strikeprice];
   xRiskFreeRate: options[`Rate];

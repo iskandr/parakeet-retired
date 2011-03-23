@@ -14,7 +14,6 @@ PARAKEET_INCLUDES = -I $(BUILDPATH) \
 	-I $(BUILDPATH)/Base \
 	-I $(BUILDPATH)/Common \
 	-I $(BUILDPATH)/Ptx \
-	-I $(BUILDPATH)/GPU \
 	-I $(BUILDPATH)/Python \
 	-I $(BUILDPATH)/AST   \
 	-I $(BUILDPATH)/Imp \

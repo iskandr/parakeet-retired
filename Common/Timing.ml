@@ -49,12 +49,10 @@ let clear = function
 
 let start = function
   | CpuTimer timer -> begin
-      clear (CpuTimer timer);
       timer.start_time <- get_time();
       timer.running <- true
     end
   | GpuTimer timer -> begin
-      clear (GpuTimer timer);
       CudaEvent.cuda_record_event timer.gpu_start;
       timer.gpu_running <- true
     end
@@ -95,21 +93,21 @@ let get_total = function
       else
         0.0
     in
-    timer.gpu_time +. extra
-    end   
+    (timer.gpu_time +. extra) /. 1000.0
+    end
 
 let print_timers () =
-  stop_all (); 
-  let print name timer = 
-    Printf.printf "%s: %f\n" name (get_total timer) 
-  in 
-  Hashtbl.iter print timers; 
+  stop_all ();
+  let print name timer =
+    Printf.printf "%s: %f\n" name (get_total timer)
+  in
+  Hashtbl.iter print timers;
   Pervasives.flush_all()
 
 let runTemplate = mk_cpu_timer "RunTemplate"
 let untypedOpt = mk_cpu_timer "Untyped Optimizations"
 let typedOpt = mk_cpu_timer "Typed Optimizations"
 let ptxCompile = mk_cpu_timer "PTX Compile"
-let gpuTransfer = mk_gpu_timer "GPU Transfer"
+let gpuTransfer = mk_cpu_timer "GPU Transfer"
 let gpuExec = mk_gpu_timer "GPU Execution"
 let gpuMalloc = mk_gpu_timer "GPU Memory Allocation"
