@@ -50,7 +50,7 @@ BlkSchlsEqEuroNoDiv:{[xStockPrice; xStrikePrice; xRiskFreeRate; xVolatility; xTi
   
   OptionPrice}
 
-options:ReadOptionFile["../unit/bs_1M.txt"];
+options:ReadOptionFile["../unit/bs_4M.txt"];
 / options:ReadOptionFile["small_bs_data.txt"];
 / options: ReadOptionFile["in_100M.txt"]; 
 xStockPrice:options[`Stockprice];
@@ -60,5 +60,5 @@ xVolatility:options[`Volatility];
 xTime:options[`Time];
 xCallput:options[`Callput]; 
 result: BlkSchlsEqEuroNoDiv[xStockPrice; xStrikePrice; xRiskFreeRate; xVolatility; xTime; xCallput];   
-BlkSchlsEqEuroNoDiv[xStockPrice; xStrikePrice; xRiskFreeRate; xVolatility; xTime; xCallput]
+/BlkSchlsEqEuroNoDiv[xStockPrice; xStrikePrice; xRiskFreeRate; xVolatility; xTime; xCallput]
 

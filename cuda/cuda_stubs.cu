@@ -260,7 +260,7 @@ value ocaml_cuda_get_gpu_char_vec_elt(value ocaml_gpu_vec, value ocaml_id) {
   cudaError_t rslt = cudaMemcpy(&cval, gpu_vec + Int_val(ocaml_id),
                                 sizeof(char), cudaMemcpyDeviceToHost);
   if (rslt) {
-    printf("Error getting element of gpu int vec: %d\n", rslt);
+    printf("Error getting element of gpu char vec: %d\n", rslt);
     exit(1);
   }
   val = (int)cval;
@@ -271,9 +271,9 @@ CAMLprim
 value ocaml_cuda_get_gpu_int_vec_elt(value ocaml_gpu_vec, value ocaml_id) {
   CAMLparam2(ocaml_gpu_vec, ocaml_id);
   int *gpu_vec = (int*)Int64_val(ocaml_gpu_vec);
-  int32_t val = 0;
+  int val = 0;
   cudaError_t rslt = cudaMemcpy(&val, gpu_vec + Int_val(ocaml_id),
-                                sizeof(int32_t), cudaMemcpyDeviceToHost);
+                                sizeof(int), cudaMemcpyDeviceToHost);
   if (rslt) {
     printf("Error getting element of gpu int vec: %d\n", rslt);
     exit(1);
@@ -293,7 +293,7 @@ ocaml_cuda_get_gpu_int32_vec_elt(value ocaml_gpu_vec, value ocaml_id) {
   cudaError_t rslt = cudaMemcpy(&val, gpu_vec + Int_val(ocaml_id),
                                 sizeof(int32_t), cudaMemcpyDeviceToHost);
   if (rslt) {
-    printf("Error getting element of gpu int vec: %d\n", rslt);
+    printf("Error getting element of gpu int32 vec: %d\n", rslt);
     exit(1);
   }
   CAMLreturn(copy_int32(val));
@@ -313,7 +313,7 @@ ocaml_cuda_get_gpu_float32_vec_elt(value ocaml_gpu_vec, value ocaml_id) {
   cudaError_t rslt = cudaMemcpy(&val, gpu_vec + Int_val(ocaml_id),
                                 sizeof(float), cudaMemcpyDeviceToHost);
   if (rslt) {
-    printf("Error getting element of gpu int vec: %d\n", rslt);
+    printf("Error getting element of gpu float32 vec: %d\n", rslt);
     exit(1);
   }
   CAMLreturn(copy_double(val));
@@ -336,7 +336,7 @@ ocaml_cuda_set_gpu_int32_vec_elt(value ocaml_gpu_vec, value ocaml_id,
   arr[0] = Int32_val(ocaml_elt);
   CUresult result = cuMemcpyHtoD(gpu_vec, arr, sizeof(int32_t));
   if (result) {
-    printf("Error setting int32 element of gpu int vec: %d\n", result);
+    printf("Error setting int32 element of gpu int32 vec: %d\n", result);
     exit(1);
   }
   CAMLreturn0;
