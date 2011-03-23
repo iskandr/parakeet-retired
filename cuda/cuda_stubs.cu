@@ -36,11 +36,16 @@ CAMLprim value ocaml_cuda_malloc(value num_bytes)  {
   CUdeviceptr devPtr;
   int n = Int_val(num_bytes);
   CUresult result = cuMemAlloc(&devPtr, n);
-  if (result != 0) {
+  if (result == CUDA_ERROR_OUT_OF_MEMORY) { 
+    CAMLreturn (copy_int64(0));
+  }
+  else if (result != 0) {
     printf ("cuMemAlloc failed for %d bytes with error code: %d\n", n, result);
     exit(1);
   }
-  CAMLreturn (copy_int64(devPtr));
+  else {
+    CAMLreturn (copy_int64(devPtr));
+  }
 }
 
 /* Int64.t -> unit */

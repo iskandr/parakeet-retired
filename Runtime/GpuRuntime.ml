@@ -328,11 +328,18 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
     if Shape.rank inShape = 1 then 1 else (Shape.get inShape 1) / x_threads
   in
   let currInputElts = ref numInputElts in 
+  print_string "\n --- REDUCE ---\n";
   let inputArgs = ref [gpuVal] in 
-  (* inc refcount on initial input arguments so they don't get 
-     deleted in the loop body on dec_ref 
-   *)
-  while !currInputElts > 1 do 
+  let iter = ref 0 in 
+  while !currInputElts > 1 do
+    iter := !iter + 1;  
+    IFDEF DEBUG THEN 
+      Printf.printf 
+       "[GpuRuntime] REDUCE input (iter %d): %s\n"
+       !iter 
+       (GpuVal.to_str gpuVal)
+      ;
+    ENDIF;  
     let numOutputElts = safe_div !currInputElts (threadsPerBlock * 2) in
     let modulePtr = compiledModule.Cuda.module_ptr in  
     let args, outputsList =
@@ -344,14 +351,11 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
     }
     in
     CudaModule.launch_ptx compiledModule.Cuda.module_ptr fnName args gridParams;
-    List.iter (MemoryState.dec_gpu_val_ref P.memState) !inputArgs; 
     inputArgs := outputsList; 
     currInputElts := numOutputElts; 
   done; 
   let result = GpuVal.slice (List.hd !inputArgs) 0 in
   IFDEF DEBUG THEN
-    print_string "\n --- REDUCE ---\n";
-    Printf.printf "[GpuRuntime] REDUCE input: %s\n" (GpuVal.to_str gpuVal); 
     Printf.printf "[GpuRuntime] REDUCE output: %s\n" (GpuVal.to_str result); 
   ENDIF;
   [result]
@@ -480,7 +484,6 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
                           WHERE 
    **********************************************************)
     let where (binVec : gpu_val) =
-      MemoryState.enter_scope P.memState (); 
       let binPtr = GpuVal.get_ptr binVec in
       let nelts = GpuVal.nelts binVec in
       let scanShape = GpuVal.get_shape binVec in
@@ -492,7 +495,6 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
       let resultLength = 
         Cuda.cuda_get_gpu_int_vec_elt scanInterm.vec_ptr (nelts - 1) 
       in
-      MemoryState.free_gpu_vec P.memState scanInterm; 
       let outputShape = Shape.create 1 in
       Shape.set outputShape 0 resultLength;
       IFDEF DEBUG THEN

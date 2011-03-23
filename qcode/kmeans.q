@@ -8,7 +8,7 @@ kmeans: { [X;a;k;niters]
   C }
 
 n: 65536;
-d: 3;
+d: 300;
 k: 3;  
 a: n ? k;
 X: { d ? 10e } each til n; 

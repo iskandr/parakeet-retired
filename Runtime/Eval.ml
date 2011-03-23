@@ -37,7 +37,7 @@ module Mk(P : EVAL_PARAMS) = struct
        
   let eval_value  (valNode : SSA.value_node) : InterpVal.t = 
     match valNode.value with 
-    | Var id -> MemoryState.env_lookup P.memState id 
+    | Var id -> MemoryState.lookup P.memState id 
     | Num n -> InterpVal.Scalar n 
     | _ -> 
       let valStr = SSA.value_to_str valNode.value in 
@@ -52,7 +52,7 @@ module Mk(P : EVAL_PARAMS) = struct
         (ID.to_str id)
         (InterpVal.to_str rhsVal)
     ENDIF;  
-    MemoryState.env_set P.memState id rhsVal 
+    MemoryState.set_binding P.memState id rhsVal 
     
   let eval_phi_nodes cond phiNodes : unit =
     List.iter (eval_phi_node cond) phiNodes 
@@ -67,7 +67,7 @@ module Mk(P : EVAL_PARAMS) = struct
     match stmtNode.stmt with 
     | Set (ids, expNode) -> 
         let rhsVals = eval_exp expNode in 
-        MemoryState.env_set_multiple P.memState ids rhsVals 
+        MemoryState.set_bindings P.memState ids rhsVals 
     | SetIdx (id, indices, rhs) -> assert false    
     | If (boolVal, tBlock, fBlock, phiNodes) ->
       let cond = InterpVal.to_bool (eval_value boolVal) in 
@@ -143,7 +143,10 @@ and eval_exp (expNode : SSA.exp_node) : InterpVal.t list =
                 ~args:gpuInputVals 
             in 
             let interpResults = List.map add_gpu gpuResults in 
-            MemoryState.pop_data_scope ~escape_values:interpResults P.memState;
+            MemoryState.pop_data_scope 
+              ~escaping_values:interpResults 
+              P.memState
+            ;
             interpResults 
 
         | CostModel.CPU -> 
@@ -187,7 +190,7 @@ and eval_exp (expNode : SSA.exp_node) : InterpVal.t list =
               ~args:(List.map get_gpu argVals) 
           in 
           let interpResults = List.map add_gpu gpuResults in 
-          MemoryState.pop_data_scope ~escaping_values interpResults P.memState;
+          MemoryState.pop_data_scope ~escaping_values:interpResults P.memState;
           interpResults 
 
         | CostModel.CPU, _ ->   failwith "CPU reduction not implemented"
@@ -207,10 +210,8 @@ and eval_exp (expNode : SSA.exp_node) : InterpVal.t list =
     MemoryState.push_scope P.memState; 
     MemoryState.set_bindings P.memState fundef.input_ids args;
     eval_block fundef.body;
-    let outputs = 
-      List.map (MemoryState.env_lookup P.memState) fundef.output_ids
-    in 
-    MemoryState.pop_env P.memState; 
+    let outputs = List.map (MemoryState.lookup P.memState) fundef.output_ids in 
+    MemoryState.pop_scope P.memState; 
     outputs
     
   and eval_scalar_op (op : Prim.scalar_op) (args : InterpVal.t list) =
@@ -284,7 +285,7 @@ and eval_exp (expNode : SSA.exp_node) : InterpVal.t list =
           (Prim.array_op_to_str op)
           (String.concat ", " (List.map InterpVal.to_str args)) 
      in 
-     MemoryState.pop_scope ~escaping_values:results  P.memState; 
+     MemoryState.pop_data_scope ~escaping_values:results  P.memState; 
      results 
 
   and eval_map ~payload closureArgs argVals =
@@ -327,12 +328,15 @@ end
 
  
 let eval globalFns fundef hostVals =
-  let memState = MemoryState.create 127 (* arbitrary *) in  
+  let memState = MemoryState.create ()  in  
   let vals = List.map (fun h -> MemoryState.add_host memState h) hostVals in 
   (* parameterize the evaluator by mutable global function table and memory *)
   let module E = 
     Mk(struct let fnTable = globalFns let memState = memState end) 
   in  
-  let outputVals = E.eval_app fundef vals in 
-  List.map (MemoryState.get_host memState) outputVals
+  let outputVals = E.eval_app fundef vals in
+  let results = List.map (MemoryState.get_host memState) outputVals in  
+  MemoryState.flush_gpu memState; 
+  results 
+
   

@@ -113,7 +113,6 @@ _build/Common
 Old
 _build/Common
 _build/CostModel
-_build/GPU
 _build/Imp
 _build/Imp/KernelTemplates
 _build/Ptx

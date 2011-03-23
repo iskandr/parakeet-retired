@@ -1,3 +1,5 @@
+(* pp: -parser o pa_macro.cmo *)
+
 open Printf 
 open Cuda 
 
@@ -16,6 +18,9 @@ type gpu_arg = GpuScalarArg of PQNum.num | GpuArrayArg of Int64.t * int
 let gpu_arg_to_str = function 
   | GpuScalarArg n -> "Scalar: " ^ (PQNum.num_to_str n)
   | GpuArrayArg (ptr, n) -> Printf.sprintf "Array: %Lx (%d)" ptr n
+
+let gpu_args_to_str args = 
+  String.concat ", " (Array.to_list (Array.map gpu_arg_to_str args))
 
 (* arguments: a ptx string and a desired number of threads per block *) 
 external compile_module_impl
@@ -36,11 +41,19 @@ external launch_ptx_impl
          int -> int -> int -> int -> int -> unit =
                 "ocaml_cuda_launch_ptx_bytecode" "ocaml_cuda_launch_ptx"
 
-let launch_ptx (cudaModule : CuModulePtr.t) (fnName : string) 
+let launch_ptx 
+      (cudaModule : CuModulePtr.t) 
+      (fnName : string) 
       (args : gpu_arg array)
       (gridParams : grid_params) =
-    (*IFDEF DEBUG THEN printf "In launch\n%!"; END; *)
+    IFDEF DEBUG THEN 
+      Printf.printf "[CudaModule] Launching %s with args: %s\n%!"
+        fnName
+        (gpu_args_to_str args)
+      ; 
+    END; 
     Timing.start Timing.gpuExec; 
+    
     launch_ptx_impl cudaModule fnName args 
     gridParams.threads_x 
     gridParams.threads_y

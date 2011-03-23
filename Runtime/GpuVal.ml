@@ -34,6 +34,7 @@ let elt_to_str gpuVec idx =
   | DynType.Float32T ->
       let f = Cuda.cuda_get_gpu_float32_vec_elt gpuVec.vec_ptr idx in  
     string_of_float f 
+  | DynType.CharT 
   | DynType.BoolT ->
     let i =  Cuda.cuda_get_gpu_char_vec_elt gpuVec.vec_ptr idx in
     string_of_int i 
@@ -50,13 +51,22 @@ let elts_summary gpuVec =
   else "[" ^ eltStr ^ "]"  
    
 
+let gpu_shape_to_str gpuVec =
+  let indices = List.til (Shape.rank gpuVec.vec_shape) in 
+  let shapeInts = 
+    List.map 
+      (Cuda.cuda_get_gpu_int32_vec_elt gpuVec.vec_shape_ptr)
+      indices
+  in 
+  "[" ^ (String.concat ", " (List.map Int32.to_string shapeInts)) ^ "]"     
+  
 let gpu_vec_to_str ?(show_contents=true) gpuVec =
   let basicInfo =  
     Printf.sprintf 
-      "GpuVec(%stype=%s, shape=%s, address=%Ld)"
+      "GpuVec(%stype=%s, shape=%s, address=%Lx)"
         (if gpuVec.vec_slice_start = None then "" else "SLICE, ") 
         (DynType.to_str gpuVec.vec_t)
-        (Shape.to_str gpuVec.vec_shape)
+        (gpu_shape_to_str gpuVec)
         gpuVec.vec_ptr
   in 
   if show_contents then basicInfo ^ ": " ^ (elts_summary gpuVec)

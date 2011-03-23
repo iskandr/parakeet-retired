@@ -2,20 +2,22 @@
 
 type t
 
-val create : int -> t 
+val create : unit -> t 
 
 (* use these functions to
    create/destory environments 
    when entering/exiting functions 
 *)
-val push_env : t -> unit 
-val pop_env : t -> unit
+val push_scope : t -> unit 
+val pop_scope : ?escaping_values:InterpVal.t list -> t -> unit  
 
-val get_curr_env : t -> InterpVal.t ID.Map.t
-val env_lookup : t -> ID.t -> InterpVal.t
+val push_data_scope : t -> unit 
+val pop_data_scope : ?escaping_values:InterpVal.t list -> t -> unit  
+ 
+val lookup : t -> ID.t -> InterpVal.t
 
-val env_set : t -> ID.t -> InterpVal.t -> unit    
-val env_set_multiple : t -> ID.t list -> InterpVal.t list -> unit 
+val set_binding : t -> ID.t -> InterpVal.t -> unit    
+val set_bindings : t -> ID.t list -> InterpVal.t list -> unit 
 
 val add_host : t -> HostVal.host_val -> InterpVal.t 
 val add_gpu : t -> GpuVal.gpu_val -> InterpVal.t 
@@ -34,31 +36,8 @@ val slice : t -> InterpVal.t -> int -> InterpVal.t
 
 val sizeof : t -> InterpVal.t -> int
 
-val mk_gpu_vec : 
-  t -> ?freeze:bool -> nbytes:int -> DynType.t -> Shape.t -> GpuVal.gpu_vec
+val mk_gpu_vec : t -> ?nbytes:int -> DynType.t -> Shape.t -> GpuVal.gpu_vec
+val mk_host_vec : t -> ?nbytes:int -> DynType.t -> Shape.t -> HostVal.host_array 
+val mk_gpu_val : t -> DynType.t -> Shape.t -> GpuVal.gpu_val 
 
-val mk_host_vec : 
-  t -> ?freeze:bool -> nbytes:int -> DynType.t -> Shape.t -> HostVal.host_array 
-
-val mk_gpu_val : t -> ?freeze:bool -> DynType.t -> Shape.t -> GpuVal.gpu_val 
-
-
-(* A frozen pointer can never be deleted, 
-   it must be manually unfrozen first
-*)
-val freeze_gpu_vec : t -> GpuVal.gpu_vec -> unit 
-val freeze_gpu_vecs : t -> GpuVal.gpu_vec list -> unit 
- 
-val unfreeze_gpu_vec : t -> GpuVal.gpu_vec -> unit 
-val unfreeze_gpu_vecs : t -> GpuVal.gpu_vec list -> unit  
-
-val freeze_host_vec : t -> HostVal.host_array -> unit 
-val unfreeze_host_vec : t -> HostVal.host_array -> unit 
-
-val freeze : t -> InterpVal.t -> unit 
-val freeze_list : t -> InterpVal.t list -> unit 
-
-val unfreeze : t -> InterpVal.t -> unit
-val unfreeze_list : t -> InterpVal.t list -> unit 
-
-   
+val flush_gpu : t -> unit    
