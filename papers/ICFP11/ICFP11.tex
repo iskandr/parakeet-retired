@@ -428,7 +428,7 @@ In addition to these skeletons, we provide a library of precompiled parallel imp
 \section{GPU Back End}
 Several systems similar to Parakeet \cite{Cata11,Chaf11} generate GPU programs by emitting CUDA code which is then compiled by NVIDIA's CUDA nvcc toolchain. Parakeet on the other hand, targets PTX, which is NVIDIA's GPU pseudoassembly language. Parakeet's PTX code is dynamically compiled by the NVIDIA graphics driver before being executed.  Parakeet caches compiled binaries so that when a particular array operator is run multiple times on the GPU with similar arguments it needn't incur the code generation and JIT compilation costs more than once.
 
-We prefer compiling PTX instead of CUDA since this enables us to generate binaries more quickly, achieving a fully dynamic compiler without any noticeable stalls. The NVIDIA CUDA compiler is a wrapper around the GCC C++ compiler, and CUDA supports all of C++ in the host code and a large subset (including C++ templates) in the GPU code.  Thus, the compile times for even simple kernels can be on the order of 5--10 seconds.  There are, of course, advantages to using the NVIDIA compiler. The main ones are that we would be able to take advantage of all of the NVIDIA and GCC compiler optimizations and that it would simplify our implementation effort.  However, the strict latency requirements meant that we needed to emit PTX directly.
+We prefer compiling PTX instead of CUDA since this enables us to generate binaries more quickly, achieving a fully dynamic compiler without any noticeable stalls. The NVIDIA CUDA compiler is a wrapper around the GCC C++ compiler, and CUDA supports all of C++ in the host code and a large subset (including C++ templates) in the GPU code.  Thus, the compile times for even simple kernels can be on the order of 5--10 seconds.  There are, of course, advantages to using the NVIDIA compiler. The main ones are that we would be able to take advantage of all of the NVIDIA and GCC compiler optimizations and that it would simplify our implementation effort.  
 
 \subsection{Imp}
 \label{Imp}
@@ -445,7 +445,7 @@ Imp is largely a syntactic sugar wrapper around PTX that simplifies our job of i
 \end{enumerate}
 Imp kernels are ``shapely'' by construction, meaning they specify their memory requirements as deterministic functions of input size. This obviates the need for ad-hoc allocation logic (the bulk of most CUDA host code in practice) or for auxiliary size inference on higher level code. If a function can be translated to Imp then we can always determine its memory requirements.
 
-We perform staged synthesis of Imp kernels by parameterizing them with payload functions. An Imp kernel can be seen as a ``skeleton'' \cite{Cole04} for a particular implementation strategy of some array operator. In reality, we don't actually program directly in Imp.  Rather, we use Imp as an embedded DSL in the implementation of Parakeet. 
+We perform staged synthesis of Imp kernels by parameterizing them with payload functions. An Imp kernel can be seen as a ``skeleton'' \cite{Cole04} for a particular implementation strategy of some array operator. In reality, we don't actually program directly in Imp but rather use Imp as an embedded DSL within the implementation language of Parakeet. 
 
 \section{Evaluation}
 \label{Evaluation}
