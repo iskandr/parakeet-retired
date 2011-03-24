@@ -14,10 +14,10 @@ open Ptx
 open PtxType 
 open PtxVal
 
-let initialNumRegs = 29
-
-class ptx_codegen = object (self)
-
+let initialNumRegs = 101 
+  
+class ptx_codegen = object (self)  
+ 
   (* SYMBOL TABLE *)
   val symbols : (int, string) Hashtbl.t = Hashtbl.create 31
   val revSymbols : (string, int) Hashtbl.t = Hashtbl.create 31
@@ -82,13 +82,19 @@ class ptx_codegen = object (self)
   val instructions : instruction DynArray.t = DynArray.create ()
   method emit newInstructions =
     DynArray.append (DynArray.of_list newInstructions) instructions
-
-  (* VARIABLE DECLARATIONS *)
-  val allocations: (PtxVal.symid, Ptx.var_decl) Hashtbl.t =
-    Hashtbl.create initialNumRegs
-  method private add_alloc id newAlloc =
-    Hashtbl.add allocations id newAlloc
   
+  (* VARIABLE DECLARATIONS *) 
+  val local_allocations : (PtxVal.symid, Ptx.var_decl) Hashtbl.t =
+     Hashtbl.create initialNumRegs
+  val global_allocations : (PtxVal.symid, Ptx.var_decl) Hashtbl.t = 
+     Hashtbl.create 13 
+  
+  method private add_local_alloc id newAlloc = 
+    Hashtbl.add local_allocations id newAlloc 
+  
+  method private add_global_alloc id newAlloc = 
+    Hashtbl.add global_allocations id newAlloc 
+
   (* FUNCTION PARAMETERS *) 
   val parameters: (PtxVal.symid * PtxType.ty) DynArray.t = DynArray.create ()
   method private add_param_decl id newParam =
@@ -118,7 +124,7 @@ class ptx_codegen = object (self)
   *)
   val shapeRegs : (PtxVal.symid, PtxVal.value) Hashtbl.t = 
     Hashtbl.create initialNumRegs
-    
+      
   (* get the shape register associated with an array register *) 
   method get_shape_reg ( arrayPtr : PtxVal.value) = 
     match Hashtbl.find_option shapeRegs (PtxVal.get_id arrayPtr ) with
@@ -195,6 +201,27 @@ class ptx_codegen = object (self)
     Hashtbl.add globalArrayRanks ptrId rank;
     shapeReg
   
+  val mutable maxShapeOffset = 0
+  
+  method private incr_shape_offset rank = 
+    let currOffset = maxShapeOffset in 
+    maxShapeOffset <- maxShapeOffset + rank * 4; 
+    currOffset  
+  
+  (* shapes are stored in constant memory at a known offset *) 
+  val shapeOffsets : (PtxVal.symid, int) Hashtbl.t = 
+    Hashtbl.create initialNumRegs 
+  
+  (* returns a register holding a pointer to the shape in constant memory *) 
+  method private register_input_shape ptrReg rank =
+    let shapeReg = self#fresh_shape_reg ptrReg rank in 
+    let offset = self#incr_shape_offset rank in   
+    Hashtbl.replace shapeOffsets (PtxVal.get_id ptrReg) offset;
+    let constants = self#get_constants in  
+    self#emit [Ptx.add PtxType.ptrT shapeReg constants (Ptx.int offset)]; 
+    shapeReg, offset 
+    
+  
   method fresh_reg gpuT =
     let reg_name gpuT id = Printf.sprintf "r%s%d" (PtxType.suffix gpuT) id in
     let currMax = match Hashtbl.find_option maxRegs gpuT with
@@ -203,7 +230,7 @@ class ptx_codegen = object (self)
     in
     Hashtbl.replace maxRegs gpuT (currMax + 1);
     let id = self#get_sym_id (reg_name gpuT currMax) in
-    self#add_alloc id {
+    self#add_local_alloc id {
       t = gpuT;
       decl_space = REG;
       array_size = None;
@@ -214,6 +241,8 @@ class ptx_codegen = object (self)
  (** returns a list of register ids for requested type **)
   method fresh_regs gpuT count =
     Array.init count (fun _ -> self#fresh_reg gpuT)
+
+
 
   method declare_shared_vec (id : ID.t) dynEltT (dims : int list) =
     Hashtbl.add dynTypes id dynEltT;
@@ -227,7 +256,7 @@ class ptx_codegen = object (self)
       array_size = Some nelts;
       init_val=None;
     } in
-    self#add_alloc sharedId decl;
+    self#add_local_alloc sharedId decl;
     let sharedVal = Sym { id=sharedId; ptx_type=PtxType.ptrT; space=SHARED } in
     (* access the shared memory via the register that holds its address *)
     let sharedReg = self#fresh_reg PtxType.ptrT in
@@ -267,6 +296,32 @@ class ptx_codegen = object (self)
           Hashtbl.add texRefs (PtxVal.get_id sliceReg) texRef
       end
 
+  
+ 
+  (* CONSTANTS TABLE *) 
+  
+  val mutable constants = None
+  method private get_constants = match constants with 
+    | None ->  
+      let constId = self#get_sym_id "constants" in 
+      let constTableAlloc = { 
+        t = PtxType.B8; 
+        decl_space = PtxVal.CONST; 
+        array_size = Some 10000; 
+        init_val = None; 
+      } 
+      in
+      self#add_global_alloc constId constTableAlloc;
+      let constSym = 
+        {id = constId; ptx_type = PtxType.B8; space=PtxVal.CONST} 
+      in
+      let constVal = PtxVal.Sym constSym in
+      let constPtr = self#fresh_reg PtxType.ptrT in
+      self#emit [Ptx.mov ~ty:PtxType.ptrT constPtr constVal];  
+      constants <- Some constPtr; 
+      constPtr
+    | Some ptr -> ptr  
+
   (***************************************************
                CALLING CONVENTIONS 
    ***************************************************)
@@ -293,23 +348,24 @@ class ptx_codegen = object (self)
         else self#convert_fresh ~destType:gpuT ~srcVal:storageReg
     in
     Hashtbl.add dataRegs id dataReg;
+    dataReg
+    
+    
+  method private declare_input_param (id:ID.t) (dynT:DynType.t) : PtxVal.value =
+    let dataReg = self#declare_param id dynT in  
     (* vectors need an additional param for their shape *)
     if DynType.is_scalar dynT then
       Hashtbl.add dataLocations id PtxCallingConventions.ScalarInput
     else (
-      Hashtbl.add dataLocations id PtxCallingConventions.GlobalInput;
       let rank = DynType.nest_depth dynT in
-      let shapeReg = self#fresh_shape_reg dataReg rank in
-      let shapeParamId = self#get_sym_id ("shape" ^ (string_of_int paramId)) in
-      let shapeParam =
-        Sym {id=shapeParamId; ptx_type=PtxType.ptrT; space=PARAM}
-      in
-      self#add_param_decl shapeParamId PtxType.ptrT;
-      self#emit [ld_param PtxType.ptrT shapeReg shapeParam]
-      
-      
+      let shapeReg, shapeOffset = self#register_input_shape dataReg rank in
+      let loc = PtxCallingConventions.GlobalInput shapeOffset in  
+      Hashtbl.add dataLocations id loc
     );
     dataReg
+  
+  
+    
 
   (*
      if variable is a scalar then allocates one new register and returns
@@ -320,6 +376,8 @@ class ptx_codegen = object (self)
      is registered for the external storage.
   *) 
   method declare_local impId dynT =
+    (* while changing shapes to be stored in constant memory
+       not sure what to do with locals, so disabling for now *) 
     let ptxT = PtxType.of_dyn_type dynT in
     let dataReg = self#fresh_reg ptxT in
     Hashtbl.add dataRegs impId dataReg;
@@ -328,6 +386,7 @@ class ptx_codegen = object (self)
       ignore (self#fresh_shape_reg dataReg (DynType.nest_depth dynT))
     ;
     dataReg
+   
   
   (* Texture inputs *)
   method private declare_tex_param impId dynT =
@@ -350,17 +409,11 @@ class ptx_codegen = object (self)
     (*let geom = num_to_geom rank in*) 
     (* TODO: actually do the right geom thing *)
     let geom = Ptx.Tex1D in
-    let cc = PtxCallingConventions.TextureInput(name, geom) in
-    Hashtbl.add dataLocations impId cc;
     Hashtbl.add texGeoms texParam geom;
     (* still need to pass down shapes of inputs bound to textures *)
-    let shapeReg = self#fresh_shape_reg basePtr rank in
-    let shapeParamId = self#get_sym_id ("texShape" ^ (string_of_int texId)) in
-    let shapeParam =
-      Sym {id=shapeParamId; ptx_type=PtxType.ptrT; space=PARAM}
-    in
-    self#add_param_decl shapeParamId PtxType.ptrT;
-    self#emit [ld_param PtxType.ptrT shapeReg shapeParam];
+    let shapeReg, shapeOffset = self#register_input_shape basePtr rank in
+    let cc = PtxCallingConventions.TextureInput(name, geom, shapeOffset) in
+    Hashtbl.add dataLocations impId cc;
     shapeReg
   
   (*************************************************************
@@ -522,7 +575,7 @@ class ptx_codegen = object (self)
         for j = (i+1) to rank - 1 do
           let shapeEltReg = self#fresh_reg U32 in
           let shapeEltReg64 = self#fresh_reg U64 in
-          self#emit [ld_global U32 shapeEltReg shapeReg ~offset:(4*j)];
+          self#emit [ld_const U32 shapeEltReg shapeReg ~offset:(4*j)];
           self#convert ~destReg:shapeEltReg64 ~srcVal:shapeEltReg;
           self#emit [mul_lo U64 sliceReg sliceReg shapeEltReg64]
         done;
@@ -536,15 +589,17 @@ class ptx_codegen = object (self)
     address
 
   (* storage args are those that supply private heap space to each thread *)
-  val storageArgs : ID.t DynArray.t = DynArray.create ()
-  method  declare_storage_arg impId dynT =
-    Hashtbl.add dataLocations impId PtxCallingConventions.GlobalInput;
-    DynArray.add storageArgs impId;
-    (* storage is a giant vector in memory, where each
+
+  val storageArgs : ID.t DynArray.t = DynArray.create () 
+  method  declare_storage_arg impId dynT =  
+    (* BROKEN!!!! *) 
+    Hashtbl.add dataLocations impId (PtxCallingConventions.GlobalInput 0);
+    DynArray.add storageArgs impId; 
+    (* storage is a giant vector in memory, where each 
        element of this vector corresponds to a single thread's
        storage requirements
     *)
-    let giantVectorReg = self#declare_param impId (DynType.VecT dynT) in
+    let giantVectorReg = self#declare_input_param impId (DynType.VecT dynT) in
     (* don't map impId to the huge global vector, we expect that
        declare_local will instead later associate impId with
        this thread's local slice into the storage vector
@@ -565,10 +620,10 @@ class ptx_codegen = object (self)
     let myStorageSlice = self#declare_local impId dynT in
     self#emit [mov myStorageSlice address];
     myStorageSlice
-
+  
   method declare_input impId dynT = function 
     | PtxVal.PARAM 
-    | PtxVal.GLOBAL -> self#declare_param impId dynT
+    | PtxVal.GLOBAL -> self#declare_input_param impId dynT
     (* For now, assume dumbly that we can surely use textures for all 1D *)
     (* inputs that were requested to use them, and not use textures for*)
     (* anything else *)
@@ -578,24 +633,26 @@ class ptx_codegen = object (self)
         (*       return their element type, not a pointer to a slice *)
         let rank = DynType.nest_depth dynT in
         let elType = DynType.elt_type dynT in
-        (*
-        IFDEF DEBUG THEN
-          Printf.printf "Tex input type: %s\n" (DynType.to_str dynT);
-        ENDIF;
-        *)
         if rank = 1 || rank = 2 then (
           match elType with
             | DynType.UInt32T
             | DynType.Int32T
             | DynType.Float32T -> self#declare_tex_param impId dynT
-            | _ -> self#declare_param impId dynT
+            | _ -> self#declare_input_param impId dynT
         ) else
-          self#declare_param impId dynT
+          self#declare_input_param impId dynT
+    | PtxVal.CONST -> assert false 
     | other -> failwith $ Printf.sprintf
         "kernel inputs via %s space not yet implemented"
         (PtxVal.ptx_space_to_str other)
   
-  method declare_output impId dynT = self#declare_param impId dynT 
+  method declare_output impId dynT = 
+    let dataReg = self#declare_param impId dynT in 
+    let rank = DynType.nest_depth dynT in
+    let shapeReg, shapeOffset = self#register_input_shape dataReg rank in
+    let loc = PtxCallingConventions.GlobalOutput shapeOffset in  
+    Hashtbl.add dataLocations impId loc; 
+    dataReg 
   
  
   (* Need to consider the destination of a conversion when figuring out the
@@ -694,23 +751,20 @@ class ptx_codegen = object (self)
     
   method finalize_kernel 
          : Ptx.kernel * PtxCallingConventions.calling_conventions =
-    (*debug "[ptx_codegen] finalizing ptx kernel";*)
-    PtxTidy.cleanup_kernel instructions allocations;
+    PtxTidy.cleanup_kernel instructions local_allocations;
     let kernel = { 
       params = DynArray.to_array parameters; 
       code = DynArray.to_array instructions; 
-      decls = allocations;
+      local_decls = local_allocations;
+      global_decls = global_allocations; 
       symbols = symbols; 
       textures = DynArray.to_array textures;
     } 
     in
-    (*
     IFDEF DEBUG THEN 
-      Printf.printf "[ptx_codegen] Finalizing PTX kernel: %s\n" 
-        (Ptx.kernel_to_str kernel "???");
-      Pervasives.flush_all ()
-    ENDIF;
-    *) 
+      Printf.printf "Finalized PTX kernel:\n %s\n" 
+        (Ptx.kernel_to_str kernel "???");  
+    ENDIF; 
     let cc = { 
       PtxCallingConventions.data_locations =    
         Hashtbl.fold 

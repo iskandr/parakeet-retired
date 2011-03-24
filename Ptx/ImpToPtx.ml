@@ -260,6 +260,7 @@ let gen_exp
                codegen#emit [tex Ptx.Tex2D gpuStorageT texRef
                               storageReg rsltRegs.(0) rsltRegs.(1) rsltRegs.(2)
                               xCoord yCoord idxRegs.(1) idxRegs.(2)]
+            | Ptx.Tex3D -> failwith "3D textures not implemented"
         end
         else
           codegen#emit [ld_global gpuStorageT storageReg address]
@@ -292,7 +293,7 @@ let gen_exp
         let rank = codegen#get_global_array_rank arrayReg in 
         assert (dim <= rank);
         let shapeReg = codegen#get_shape_reg arrayReg in
-        codegen#emit [ld_global ~offset:(dim*4) S32 destReg shapeReg] 
+        codegen#emit [ld_const ~offset:(dim*4) S32 destReg shapeReg] 
      else failwith "[ImpToPtx] attempting to get DimSize of a scalar"
   
   (* when dealing with a constant or simple variable reference, just

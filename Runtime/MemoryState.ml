@@ -102,12 +102,6 @@ module RefCounting = struct
   let rec free_gpu_data memState gpuVec = 
     match gpuVec.vec_slice_start with 
       | None ->
-        (*
-        IFDEF DEBUG THEN 
-          Printf.printf "[RefCount] Adding to free list: %s\n" 
-          (GpuVal.gpu_vec_to_str gpuVec); 
-        ENDIF;
-        *)
         let nbytes = gpuVec.vec_nbytes in 
         let shapeBytes = gpuVec.vec_shape_nbytes in 
         let ptr = gpuVec.vec_ptr in 
@@ -119,23 +113,9 @@ module RefCounting = struct
         )
       | Some parentPtr ->
         let parentDataId = Hashtbl.find memState.gpu_rev_lookup parentPtr in
-        (*
-        IFDEF DEBUG THEN 
-          Printf.printf "[RefCount] Decrementing count on slice %s @ %Lx\n" 
-            (DataId.to_str parentDataId)
-            parentPtr
-          ;  
-        ENDIF;
-        *)
         dec_data_ref memState parentDataId
         
   and free_host_data memState hostVec =
-    (* 
-    IFDEF DEBUG THEN 
-      Printf.printf "[RefCount] Adding to free list: %s\n" 
-        (HostVal.host_vec_to_str hostVec);  
-    ENDIF;
-    *)
     match hostVec.slice_start with 
       | None -> 
         if hostVec.nbytes > 0 then 
@@ -166,6 +146,9 @@ module RefCounting = struct
   and dec_data_ref memState (dataId: DataId.t) = 
     let nrefs = get_refcount memState dataId in  
     if nrefs <= 1 then (
+      IFDEF DEBUG THEN 
+        Printf.printf "[RefCount] Data %s reclaimed\n" (ID.to_str dataId); 
+      ENDIF; 
       free_data memState dataId;                
       clear_refcount memState dataId
     ) 
@@ -203,7 +186,19 @@ module ManagedAlloc = struct
     Hashtbl.clear memState.gpu_data; 
     Hashtbl.clear memState.gpu_rev_lookup
 
-  let alloc_gpu memState nbytes = Alloc.smart_alloc memState.gpu_mem nbytes  
+    (* TODO: make a version of flush_gpu which moves data to host before 
+       deleting it 
+     *)
+
+  let alloc_gpu memState nbytes = 
+    try Alloc.smart_alloc memState.gpu_mem nbytes 
+    with _ -> (
+      Printf.printf "[Alloc] Can't allocate %d bytes, flushing GPU\n";
+      (* UNSAFE, data will disappear *) 
+      flush_gpu memState;  
+      Alloc.smart_alloc memState.gpu_mem nbytes
+    )
+         
   let alloc_host memState nbytes = Alloc.smart_alloc memState.host_mem nbytes 
 
   let calc_nbytes len ty shape =
@@ -299,8 +294,6 @@ module ManagedAlloc = struct
         (HostVal.host_vec_to_str hostVec); 
     ENDIF;
     hostVec 
-  
-
       
   let vec_to_gpu memState hostVec = 
     let gpuPtr = alloc_gpu memState hostVec.nbytes in  

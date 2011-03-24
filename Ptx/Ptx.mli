@@ -90,7 +90,8 @@ and instruction = {
   
 and kernel = {
   params: (PtxVal.symid * PtxType.ty) array;
-  decls: (PtxVal.symid, var_decl) Hashtbl.t; 
+  local_decls: (PtxVal.symid, var_decl) Hashtbl.t; 
+  global_decls: (PtxVal.symid, var_decl) Hashtbl.t;
   symbols : (PtxVal.symid, string) Hashtbl.t; 
   code: instruction array; 
   textures: (PtxVal.symid * PtxType.ty) array;  

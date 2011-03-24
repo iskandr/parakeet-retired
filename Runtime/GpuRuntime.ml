@@ -35,12 +35,14 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
   let assign_input_spaces inputTypes inputShapes =
     let inputRanks = Array.map Shape.rank inputShapes in 
     let totalRank = Array.fold_left (+) 0 inputRanks in 
-    let usedConstantSpace = ref (totalRank * 4) in
+    let totalConstantMem = 0 in (*HardwareInfo.device_info.(0).total_constant_mem*)
+    let availableConstantMem = totalConstantMem - totalRank * 4  in
     let nInputs = Array.length inputTypes in
     let inputSpaces = Array.create nInputs PtxVal.GLOBAL in   
     (* assume we're always using device 0 *)
-    let totalConstantMemory = 0 in   
-            (*HardwareInfo.device_info.(0).total_constant_mem in*) 
+    (* we're only allowed to assign one variable to constant memory *)
+    let haveConstantInput = ref false in 
+       
     for i = 0 to nInputs - 1 do
       let t = inputTypes.(i) in 
       let eltT = DynType.elt_type t in 
@@ -51,8 +53,11 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
       let currBytes = nelts * eltSize in 
       if DynType.is_scalar t then 
         inputSpaces.(i) <- PtxVal.PARAM
-      else if !usedConstantSpace  + currBytes < totalConstantMemory then 
-        inputSpaces.(i) <- PtxVal.CONST 
+      else if not !haveConstantInput && 
+              currBytes < availableConstantMem then (
+        inputSpaces.(i) <- PtxVal.CONST; 
+        haveConstantInput := true 
+      )
       (* only use 1D textures *) 
       else if (r = 1 || r =2) && eltSize = 4 && nelts < 134217728  then
         inputSpaces.(i) <- PtxVal.TEX 
@@ -69,20 +74,28 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
     done; 
     inputSpaces
   
-
+  
+  let copy_constant modulePtr gpuPtr nbytes offset = 
+    Cuda.cuda_memcpy_device_to_symbol modulePtr "constants" gpuPtr nbytes offset 
+    
+     
   (* any given gpu argument might either get placed into the array 
      of explicit args or it might become an implicit argument via a
      global texture
   *) 
-  let create_input_args modulePtr inputVal = function
+      
+  let arg_helper modulePtr inputVal = function
     | PtxCallingConventions.ScalarInput ->
         [CudaModule.GpuScalarArg(GpuVal.get_scalar inputVal)]
-    | PtxCallingConventions.GlobalInput ->
-        [CudaModule.GpuArrayArg((GpuVal.get_ptr inputVal),
-                                (GpuVal.get_nbytes inputVal));
-         CudaModule.GpuArrayArg((GpuVal.get_shape_ptr inputVal),
-                                (GpuVal.get_shape_nbytes inputVal))]
-    | PtxCallingConventions.TextureInput (texName, geom) ->
+    | PtxCallingConventions.GlobalOutput shapeOffset 
+    | PtxCallingConventions.GlobalInput shapeOffset ->
+        let shapePtr = GpuVal.get_shape_ptr inputVal in 
+        let shapeBytes = GpuVal.get_shape_nbytes inputVal in
+        copy_constant modulePtr shapePtr shapeBytes shapeOffset; 
+        let dataPtr = GpuVal.get_ptr inputVal in 
+        let dataBytes = GpuVal.get_nbytes inputVal in 
+        [CudaModule.GpuArrayArg(dataPtr, dataBytes)]
+    | PtxCallingConventions.TextureInput (texName, geom, shapeOffset) ->
         let texRef = Cuda.cuda_module_get_tex_ref modulePtr texName in
         let inputShape = GpuVal.get_shape inputVal in
         let inputPtr = GpuVal.get_ptr inputVal in
@@ -99,6 +112,9 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
                 (GpuVal.get_nbytes inputVal) 
                 channelFormat
           | Ptx.Tex2D ->
+              (* BROKEN, Imp2Ptx should turn all textured inputs 
+                 into Tex1D for now 
+               *) 
               (* TODO: Need to set length/width to be in _BYTES_ *)
               assert (Shape.rank inputShape = 2); 
               Cuda.cuda_bind_texture_2d_std_channel
@@ -110,10 +126,18 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
           | Ptx.Tex3D -> failwith "3D textures not yet implemented"
         );
         let shapePtr = GpuVal.get_shape_ptr inputVal in 
-        let shapeBytes = GpuVal.get_shape_nbytes inputVal in 
-        [CudaModule.GpuArrayArg (shapePtr, shapeBytes)]    
-    | PtxCallingConventions.ConstantInput offset -> assert false 
-    
+        let shapeBytes = GpuVal.get_shape_nbytes inputVal in
+        copy_constant modulePtr shapePtr shapeBytes shapeOffset; 
+        []    
+    | PtxCallingConventions.ConstantInput (shapeOffset, dataOffset) ->
+        let shapePtr = GpuVal.get_shape_ptr inputVal in 
+        let shapeBytes = GpuVal.get_shape_nbytes inputVal in
+        copy_constant modulePtr shapePtr shapeBytes shapeOffset; 
+        let dataPtr = GpuVal.get_ptr inputVal in 
+        let dataBytes = GpuVal.get_nbytes inputVal in
+        copy_constant modulePtr dataPtr dataBytes dataOffset;
+        []   
+(*
   let process_private_array nThreads impfn shapeEnv id storage env = 
     if storage = Imp.Private then
       let ty = Hashtbl.find impfn.Imp.types id in  
@@ -129,13 +153,16 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
       in 
       ID.Map.add id gpuArgs env
     else env  
-
-  let process_input cc modulePtr env id gpuVal =
+*)
+  let extend_env cc modulePtr env id gpuVal =
       let location = ID.Map.find id cc.PtxCallingConventions.data_locations in
-      let gpuArgs = create_input_args modulePtr gpuVal location in
+      let gpuArgs = arg_helper modulePtr gpuVal location in
       ID.Map.add id gpuArgs env
 
-  let process_output impfn shapeEnv outputMap env id  =
+
+  let rec create_output_vals impfn shapeEnv outputOrder = function 
+    | [] -> [] 
+    | id::ids ->  
       IFDEF DEBUG THEN 
         assert (Hashtbl.mem impfn.Imp.types id);
         assert (ID.Map.mem id shapeEnv); 
@@ -146,17 +173,11 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
         assert (DynType.is_vec ty);
         assert (Shape.rank shape > 0);
       ENDIF; 
-      let vec = MemoryState.mk_gpu_vec ~refcount:1 P.memState ty shape in 
-      DynArray.add outputMap (GpuVal.GpuArray vec);
-      let gpuShapePtr = vec.GpuVal.vec_shape_ptr in 
-      let gpuShapeBytes = vec.GpuVal.vec_shape_nbytes in  
-      let args = [
-        CudaModule.GpuArrayArg(vec.GpuVal.vec_ptr, vec.GpuVal.vec_nbytes);
-        CudaModule.GpuArrayArg(gpuShapePtr, gpuShapeBytes)
-      ] 
-      in 
-      ID.Map.add id args env 
-  
+      let vec = MemoryState.mk_gpu_vec ~refcount:1 P.memState ty shape in
+      let gpuVal = GpuVal.GpuArray vec in  
+      DynArray.add outputOrder gpuVal;
+      gpuVal :: (create_output_vals impfn shapeEnv outputOrder ids) 
+       
   let create_args 
         (modulePtr : Cuda.CuModulePtr.t) 
         (nThreads : int)
@@ -165,33 +186,27 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
         (inputs: GpuVal.gpu_val list) 
         : CudaModule.gpu_arg array * GpuVal.gpu_val list  =
     let inputShapes = List.map GpuVal.get_shape inputs in 
-    let shapeEnv = ShapeEval.eval_imp_shape_env impfn inputShapes in 
-    let inputArray = Array.of_list inputs in
-    let initEnv = 
-      Array.fold_left2 
-        (process_input cc modulePtr)
-        ID.Map.empty 
-        impfn.Imp.input_ids
-        inputArray 
-    in
-    let outputMap = DynArray.create() in
-    let valueEnv : CudaModule.gpu_arg list ID.Map.t  = 
-      Array.fold_left
-        (process_output impfn shapeEnv outputMap)
-        initEnv 
-        impfn.Imp.output_ids  
+    let shapeEnv = ShapeEval.eval_imp_shape_env impfn inputShapes in
+    let outputOrder = DynArray.create() in 
+    let outputIdList = Array.to_list impfn.Imp.output_ids in  
+    let outputs = 
+      create_output_vals impfn shapeEnv outputOrder outputIdList 
     in 
-    let valueEnv' : CudaModule.gpu_arg list ID.Map.t = 
-      Hashtbl.fold
-        (process_private_array nThreads impfn shapeEnv)
-        impfn.Imp.array_storage 
-        valueEnv
+    let combinedIds =  
+      Array.append impfn.Imp.input_ids impfn.Imp.output_ids 
     in 
+    let combinedParams = Array.of_list (inputs @ outputs) in 
+    let argEnv = ref ID.Map.empty in 
+    for i = 0 to Array.length combinedParams - 1 do
+      let gpuVal = combinedParams.(i) in  
+      let id = combinedIds.(i) in 
+      argEnv :=  extend_env cc modulePtr !argEnv id gpuVal 
+    done;  
     let paramsArray = DynArray.create() in
     let process_param id =
-      let args = ID.Map.find id valueEnv' in
+      let args = ID.Map.find id !argEnv in
       IFDEF DEBUG THEN 
-          Printf.printf "[GpuRuntime] Registering GPU param for %s = %s\n" 
+          Printf.printf "[GpuRuntime] Registering GPU params for %s = [%s]\n%!" 
             (ID.to_str id)
             (String.concat ", "  (List.map CudaModule.gpu_arg_to_str args)) 
           ; 
@@ -199,7 +214,7 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
       List.iter (DynArray.add paramsArray) args
     in  
     Array.iter process_param cc.PtxCallingConventions.param_order;
-    (DynArray.to_array paramsArray), (DynArray.to_list outputMap)
+    (DynArray.to_array paramsArray), (DynArray.to_list outputOrder)
 
 
   (**********************************************************
@@ -282,9 +297,10 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
         failwith (sprintf "Unable to get launch params for %d elts" outputElts)
     in
     let modulePtr = cudaModule.Cuda.module_ptr in 
-    Timing.start Timing.gpuMapAlloc; 
+    Timing.start Timing.gpuMapAlloc;
+    let combinedArgs = closureArgs @ args in 
     let paramsArray, outputVals =
-      create_args modulePtr outputElts impKernel cc (closureArgs @ args)
+      create_args modulePtr outputElts impKernel cc combinedArgs
     in
     Timing.stop Timing.gpuMapAlloc;
     Timing.start Timing.gpuMap;    
