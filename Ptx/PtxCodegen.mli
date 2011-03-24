@@ -24,6 +24,8 @@ class ptx_codegen : object
   method is_tex : PtxVal.value -> bool
   method get_tex_geom : PtxVal.value -> Ptx.geom
   
+  method get_stride_reg : PtxVal.value -> PtxVal.value
+  
   method is_global_array_ptr : PtxVal.value -> bool  
   method get_global_array_rank : PtxVal.value -> int
   
