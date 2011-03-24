@@ -405,10 +405,14 @@ In the case of nested array operators -- e.g.~a \textbf{map} whose payload funct
 \item Running the \textbf{map} as a GPU kernel, with an embedded sequential \texttt{for} loop that implements the \textbf{reduce}.
 \item Running the \textbf{map} as a \texttt{for} loop in the Parakeet interpreter, with each iteration of the loop calling a GPU kernel that implements the \textbf{reduce}.
 \item Running everything in the Parakeet interpreter as two nested \texttt{for} loops.
-\item Running everything in the source language's interpreter.
 \end{enumerate}
 
-In cases (1), (3), and (4), the operator is executed entirely on a single processor.  In case (2), however, the \textbf{map} runs as a loop on the CPU, generating each element of the resulting vector with a separate GPU program invocation.  In this case, the interpreter creates an interpreter array object on the CPU whose elements are references to the values generated on the GPU.  The final linear CPU array is only constructed lazily as needed or when the GPU garbage collector needs the space.  At that point, a linear CPU array is allocated and filled in with the computed values.  This is precisely what happens in our implementation of K-Means clustering discussed in Section \ref{results-k-means}.
+In cases (1) and (3), the operator is executed entirely on a single processor.  In case (2), however, the \textbf{map} runs as a loop on the CPU, generating each element of the resulting vector with a separate GPU program invocation.  In this case, the interpreter creates an interpreter array object on the CPU whose elements are references to the values generated on the GPU.  The final linear CPU array is only constructed lazily as needed or when the GPU garbage collector needs the space.  At that point, a linear CPU array is allocated and filled in with the computed values.  This is precisely what happens in our implementation of K-Means clustering discussed in Section \ref{results-k-means}.
+
+\subsection{Column-Major Transposition}
+\label{colmajor}
+
+Parakeet is able to leverage dynamic information in various ways to optimize both the implementation and the execution of the GPU programs it executes.  One important such optimization is the use of data transposition.  On GPUs, poor memory access patterns can result in orders of magnitude lower performance.  In particular, neighboring threads in an executing GPU kernel should access adjacent memory words in order to get maximum performance.  Use of column major data layouts as a performance optimization is well known in the CPU high performance computing world.  Parakeet's data layout is row major by default.  However, when a \textbf{map} computation is performed over a two-dimensional structure, a row major layout would result in the worst possible memory access pattern for the GPU kernel as its threads would concurrently access memory at some large stride.  Thus in this case, Parakeet specializes the function in question to create a transposed column-major version of the data input.  This column-major version is strictly an intermediate within the Parakeet runtime.  We have found this optimization to be extremely beneficial to performance, and it contributes immensely to the good performance Parakeet delivers on the K-Means clustering benchmark discussed in Section \ref{results-k-means}.
 
 \subsection{Shape Inference}
 \label{shapeinference}
@@ -425,8 +429,6 @@ Unlike many other systems similar to Parakeet \cite{Cata10,Chaf11}, our back end
 The PTX code is JIT compiled by the NVIDIA graphics driver before being executed.  We keep these compiled binary GPU versions of functions in a code cache so that when they are invoked multiple times with the same ``argument'' types we needn't incur the code generation and JIT compilation costs more than once.
 
 The reason that we emit PTX instead of CUDA code is largely our latency requirements, as our goal is to provide a framework for transparent acceleration of interactive languages. The NVIDIA CUDA compiler is a wrapper around the GCC C++ compiler, and CUDA supports all of C++ in the host code and a large subset (including C++ templates) in the GPU code.  Thus, the compile times for even simple kernels can be on the order of 5--10 seconds.  There are, of course, advantages to using the NVIDIA compiler. The main ones are that we would be able to take advantage of all of the NVIDIA and GCC compiler optimizations and that it would simplify our implementation effort.  However, the strict latency requirements meant that we needed to emit PTX directly.
-
-We perform a handful of optimizations to the GPU code we generate that are of interest.  In our 
 
 \subsection{Imp}
 \label{Imp}
@@ -487,15 +489,15 @@ The PTX compilation time is rather significant for this benchmark -- ranging fro
 \subsection{K-Means Clustering}
 \label{results-k-means}
 
-K-Means clustering illustrates a key aspect of our approach: the ability to exploit dynamic information to tailor code generation and execution.  In the \texttt{calc\_centroids} function, we have a $\MAP$ operator applied to a nested function that in turns contains array operators.  Our interpreter is able to make the most efficient choice regarding where to execute things: the outer $\MAP$, since it's applied to a small array of integers and involves little computation of its own, gets executed on the CPU as a loop.  The inner function, which since it has dense computation applied to large inputs, gets synthesized into a kernel that is repeatedly launched.  This type of dynamic decision based on data size would not be possible in a static environment.
-
 \begin{figure}
 \includegraphics[scale=0.45]{KMCPUK3.pdf}
 \caption{K-Means Total Times with 30 Features, K = 3}
 \label{KMCPU3}
 \end{figure}
 
-In Figure \ref{KMCPU3}, we see the total run times of the various systems. These times include the time it takes to transfer data to and from the GPU in the GPU benchmarks.
+We also tested Parakeet on K-Means clustering, a standard unsupervised learning algorithm.  K-Means is interesting as it is a fairly dense and complicated algorithm with loops and nested array operators.  Thus it serves to illustrate that Parakeet is a usable system for implementing real world programs.  K-Means has a number of parameters that can greatly affect run times and algorithmic characteristics.  These include: the number of data points being clustered; the number of clusters K; and the number of features (i.e.~the dimensionality of the data points).
+
+In Figure \ref{KMCPU3}, we see the total run times of K-Means for the CPU and GPU versions with K = 3 clusters and 30 features.
 
 \begin{figure}
 \includegraphics[scale=0.45]{KMCPUK30.pdf}
@@ -508,6 +510,8 @@ In Figure \ref{KMCPU3}, we see the total run times of the various systems. These
 \caption{K-Means GPU Times with 30 Features, K = 3}
 \label{KMGPU}
 \end{figure}
+
+K-Means clustering illustrates a key aspect of our approach: the ability to exploit dynamic information to tailor code generation and execution.  In the \texttt{calc\_centroids} function, we have a $\MAP$ operator applied to a nested function that in turns contains array operators.  Our interpreter is able to make the most efficient choice regarding where to execute things: the outer $\MAP$, since it's applied to a small array of integers and involves little computation of its own, gets executed on the CPU as a loop.  The inner function, which since it has dense computation applied to large inputs, gets synthesized into a kernel that is repeatedly launched.  This type of dynamic decision based on data size would not be possible in a static environment.  In addition, Parakeet uses transposition to column-major order (see Section \ref{colmajor}) in order to greatly improve the performance of this benchmark -- this optimization results in aporoximately a 12.5X speedup for the algorithm as whole. The function to compute the distances between the data points and the centroids is implemented as a map kernel over each data point.  Within this kernel, each thread is responsible for finding the minimum distance from its data point to a centroid.  Thus it maps over a 2D structure, and the column-major transposition can be applied.  Further, as this transposition of the data elements occurs only once with the same transposed version being reused for each loop iteration, the overhead of performing it is very low.
 
 \section{Related Work}
 \label{RelatedWork}
