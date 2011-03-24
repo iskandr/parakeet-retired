@@ -63,13 +63,13 @@ xleftmargin=20pt,
 \maketitle
 
 \begin{abstract}
-Contemporary GPUs offer immense performance potential for general purpose computation -- from an average 2.5X speedup over CPUs on 14 standard ``throughput computing'' benchmarks~\cite{Lee10} to 80X on data parallel workloads~\cite{Che09}. However, the commonly used frameworks for general purpose GPU (GPGPU) programming, OpenCL~\cite{Muns10} and NVIDIA's CUDA~\cite{NvidCU}, require highly specialized low level programming and performance tuning knowledge to tap into this potential.
+Contemporary GPUs offer the potential for substantial performance improvements on general purpose computation -- from an average 2.5X speedup over CPUs on 14 standard ``throughput computing'' benchmarks~\cite{Lee10} to 80X on data parallel workloads~\cite{Che09}. However, the commonly used frameworks for general purpose GPU (GPGPU) programming, OpenCL~\cite{Muns10} and NVIDIA's CUDA~\cite{NvidCU}, require highly specialized low level programming and performance tuning knowledge to tap into this potential.
 
 A desire to bring this performance potential to a wider audience has motivated a flurry of recent work on the GPU acceleration of high level languages. There has been much recent work on enabling GPU acceleration of higher level languages to ease GPGPU programming and to bring this performance potential to a wider audience.  However, these projects are typically (1) intimately tied to a specific source language; (2) expose a constrained or non-idiomatic programming model; and (3) suffer from long GPU compile times, inhibiting rapid prototyping.
 
 We present Parakeet, an intelligent runtime library and JIT compiler for array-oriented subsets of existing high level languages.  Parakeet was designed to ameliorate the three issues mentioned above. Parakeet includes a language-agnostic front end for translating programs from source languages to Parakeet's array-oriented intermediate language.  The heart of Parakeet is an IL interpreter, which upon reaching an array operator can quickly synthesize and execute a data parallel GPU program to implement that operator.  Parakeet is attached as a library to the source language's interpreter, allowing all of the source language's standard features and tools to be used.
 
-We evaluate Parakeet on two standard benchmarks: Black-Scholes option pricing, and K-Means clustering.  We compare high level array-oriented implementations to hand-written, tuned GPU versions from the CUDA SDK~\cite{NvidSD} and the Rodinia GPU benchmark suite~\cite{Che09}. Despite having orders of magnitude shorter source code, the high level versions perform very favorably when executed by Parakeet.
+We evaluate Parakeet on two standard benchmarks: Black-Scholes option pricing, and K-Means clustering.  We compare high level array-oriented implementations to hand-written, tuned GPU versions from the CUDA SDK~\cite{NvidSD} and the Rodinia GPU benchmark suite~\cite{Che09}. Despite having orders of magnitude shorter source code, the high level versions perform very favorably when executed by Parakeet, in some cases even faster than hand-written CUDA code.
 \end{abstract}
 
 \section{Introduction}
@@ -411,7 +411,7 @@ In cases (1) and (3), the operator is executed entirely on a single processor.  
 
 \subsection{Shape Inference}
 \label{shapeinference}
-Accurate prediction of array shapes is necessary both for the allocation of intermediate values on the GPU as well as for the above cost model determining placement of computations. We employ a simple abstract interpreter which propagates shape information through a function using the obvious shape semantics for each operator. For example, a \REDUCE\; operation collapses the outermost dimension of its argument whereas a \MAP\; preserves a shape's outermost dimension. 
+Accurate prediction of array shapes is necessary both for the allocation of intermediate values on the GPU as well as for the above cost model determining placement of computations. We employ a simple abstract interpreter which propagates shape information through a function using the obvious shape semantics for each operator. For example, a $\REDUCE$; operation collapses the outermost dimension of its argument whereas a $\MAP$; preserves a shape's outermost dimension.
 
 \subsection{Data Movement and Garbage Collection} 
 Arrays are moved to the GPU whenever they are used as the argument to some GPU computation. The specific GPU memory space into which an array is loaded depends on both the other data already on the GPU and the individual characteristics of the computation in which that array is being used. Tracking and collection of unused memory is achieved by counting array references. Parakeet does not immediately free an array whose reference count drops to zero but rather maintains a cache of free data blocks which can be cheaply reused. Such caching of free pointers can be advantageous when a computation repeatedly allocate arrays of the same size. 
@@ -426,7 +426,7 @@ Parakeet is able to leverage dynamic information in various ways to optimize bot
 In addition to these skeletons, we provide a library of precompiled parallel implementations of our simple (first-order) array operators. Since these operators don't require synthesis with embedded payload functions, we needn't dynamically generate them.  We use the Thrust library \cite{Hobe10} for some of these operators such as \textbf{sort}, while providing our own hand-tuned implementations of others such as \textbf{where}.
 
 \section{GPU Back End}
-Unlike many other systems similar to Parakeet \cite{Cata10,Chaf11}, our back end doesn't emit CUDA code to be compiled by the NVIDIA CUDA compiler.  Instead, we target PTX, NVIDIA's GPU pseudoassembly language. 
+Unlike many other systems similar to Parakeet \cite{Cata11,Chaf11}, our back end doesn't emit CUDA code to be compiled by the NVIDIA CUDA compiler.  Instead, we target PTX, NVIDIA's GPU pseudoassembly language.
 
 The PTX code is JIT compiled by the NVIDIA graphics driver before being executed.  We keep these compiled binary GPU versions of functions in a code cache so that when they are invoked multiple times with the same ``argument'' types we needn't incur the code generation and JIT compilation costs more than once.
 
