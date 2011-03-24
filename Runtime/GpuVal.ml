@@ -5,6 +5,8 @@ open DynType
 open HostVal
 open Cuda 
 
+type data_layout = RowMajor | ColumnMajor
+
 type gpu_vec = {
   vec_ptr: Int64.t;
   vec_nbytes : int;
@@ -15,16 +17,17 @@ type gpu_vec = {
 
   vec_shape : Shape.t;
   vec_t : DynType.t;
-  
-  (* if this is a slice into some other array, 
+
+  (* if this is a slice into some other array,
      then note the start pointer to avoid calling
-     free twice and assist garbage collection 
-  *)  
-  vec_slice_start: Int64.t option; 
+     free twice and assist garbage collection
+  *)
+  vec_slice_start: Int64.t option;
+  
+  vec_data_layout : data_layout;
 }
 
 type gpu_val = GpuScalar of PQNum.num | GpuArray of gpu_vec
-
 
 let elt_to_str gpuVec idx = 
   match DynType.elt_type gpuVec.vec_t with 
@@ -110,13 +113,15 @@ let get_nbytes = function
   | GpuArray v -> v.vec_nbytes
   | GpuScalar s -> DynType.sizeof (PQNum.type_of_num s)
 
+let get_data_layout = function
+  | GpuArray v -> v.vec_data_layout
+  | GpuScalar s -> failwith "Can't get data layout for GPU scalar"
+
 let mk_scalar n = GpuScalar n
       
 let sizeof = function 
   | GpuArray arr -> arr.vec_nbytes 
-  | GpuScalar n -> DynType.sizeof (PQNum.type_of_num n)  
-
-  
+  | GpuScalar n -> DynType.sizeof (PQNum.type_of_num n)
 
 let index arr idx =
   match DynType.elt_type arr.vec_t with 
@@ -130,5 +135,3 @@ let index arr idx =
     | _ -> failwith $ Printf.sprintf 
                "Indexing into GPU vectors not implemented for type %s"
                (DynType.to_str $  DynType.elt_type arr.vec_t)
-
-

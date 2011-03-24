@@ -6,21 +6,21 @@ type coord = X | Y | Z
  
 type exp = 
   | Var of ID.t
-  | Idx of exp_node * exp_node  
-  | Op of Prim.scalar_op * DynType.t * exp_node list 
-  | Select of DynType.t * exp_node * exp_node * exp_node 
-  | Const of PQNum.num 
-  | Cast of DynType.t * exp_node  
-  | DimSize of int * exp_node 
-  | ThreadIdx of coord 
-  | BlockIdx of coord 
-  | BlockDim of coord 
+  | Idx of exp_node * exp_node
+  | Op of Prim.scalar_op * DynType.t * exp_node list
+  | Select of DynType.t * exp_node * exp_node * exp_node
+  | Const of PQNum.num
+  | Cast of DynType.t * exp_node
+  | DimSize of int * exp_node
+  | ThreadIdx of coord
+  | BlockIdx of coord
+  | BlockDim of coord
   | GridDim of coord
-and exp_node = { 
-  exp : exp; 
-  exp_type : DynType.t;  
-} 
-and stmt = 
+and exp_node = {
+  exp : exp;
+  exp_type : DynType.t;
+}
+and stmt =
   | If of exp_node * block * block
   | While of exp_node * block
   | Set of ID.t * exp_node 
@@ -212,7 +212,7 @@ let set v rhs = match v.exp with
     let id, indices = collect_indices other in 
     SetIdx(id, indices,rhs)
   
-  
+
 let rec setidx v indices rhs = match v.exp with 
   | Var id -> SetIdx(id, indices, rhs)
   | other -> 

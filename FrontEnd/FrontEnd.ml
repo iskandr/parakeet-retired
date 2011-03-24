@@ -114,6 +114,7 @@ let run_function untypedId ~globals ~args =
   let fnTable = InterpState.get_typed_function_table interpState in
   let resultVals = Eval.eval fnTable typedFundef args in
   print_all_timers();
+  Timing.clear Timing.untypedOpt;
   Pervasives.flush_all (); 
    (* assume only one result can be returns *) 
   Success (List.hd resultVals) 

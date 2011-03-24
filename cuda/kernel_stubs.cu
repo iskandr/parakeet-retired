@@ -154,4 +154,49 @@ CAMLprim value ocaml_where_tex(value ocaml_len, value ocaml_output) {
   CAMLreturn(Val_unit);
 }
 
+/** Flip-related stubs **/
+
+#include "flip_kernel.cu"
+CAMLprim value ocaml_flip_int_2D(value ocaml_input,
+                                 value ocaml_in_height,
+                                 value ocaml_in_width,
+                                 value ocaml_output) {
+  CAMLparam4(ocaml_input, ocaml_in_height, ocaml_in_width, ocaml_output);
+  int *input  = (int*)Int32_val(ocaml_input);
+  int *output = (int*)Int32_val(ocaml_output);
+  int in_height = Int_val(ocaml_in_height);
+  int in_width  = Int_val(ocaml_in_width);
+
+  dim3 dimBlock(THREADS_PER_LINEAR_BLOCK);
+  int num_blocks = safe_div(in_height, THREADS_PER_LINEAR_BLOCK);
+  int gridX, gridY;
+  make_linear_grid(num_blocks, &gridX, &gridY);
+  dim3 dimGrid(gridX, gridY);
+  flip_int_2D_kernel<<<dimGrid, dimBlock>>>
+    (input, in_height, in_width, output);
+  check_err(cudaGetLastError(), "Problem launching flip int 2D");
+  CAMLreturn(Val_unit);
+}
+
+CAMLprim value ocaml_flip_float_2D(value ocaml_input,
+                                   value ocaml_in_height,
+                                   value ocaml_in_width,
+                                   value ocaml_output) {
+  CAMLparam4(ocaml_input, ocaml_in_height, ocaml_in_width, ocaml_output);
+  float *input  = (float*)Int32_val(ocaml_input);
+  float *output = (float*)Int32_val(ocaml_output);
+  int in_height = Int_val(ocaml_in_height);
+  int in_width  = Int_val(ocaml_in_width);
+
+  dim3 dimBlock(THREADS_PER_LINEAR_BLOCK);
+  int num_blocks = safe_div(in_height, THREADS_PER_LINEAR_BLOCK);
+  int gridX, gridY;
+  make_linear_grid(num_blocks, &gridX, &gridY);
+  dim3 dimGrid(gridX, gridY);
+  flip_float_2D_kernel<<<dimGrid, dimBlock>>>
+    (input, in_height, in_width, output);
+  check_err(cudaGetLastError(), "Problem launching flip float 2D");
+  CAMLreturn(Val_unit);
+}
+
 }

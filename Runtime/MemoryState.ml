@@ -241,7 +241,9 @@ module ManagedAlloc = struct
 
       vec_shape = shape;
       vec_t = t;
-      vec_slice_start = None; 
+      vec_slice_start = None;
+      
+      vec_data_layout = RowMajor;
     }
     in 
     let id = fresh_data_id ?refcount memState in 
@@ -304,7 +306,7 @@ module ManagedAlloc = struct
     let gpuPtr = alloc_gpu memState hostVec.nbytes in  
     Cuda.cuda_memcpy_to_device hostVec.ptr gpuPtr hostVec.nbytes;
     let shapeDevPtr, shapeBytes = shape_to_gpu memState hostVec.shape in
-    let gpuVec =  {
+    let gpuVec = {
       vec_ptr = gpuPtr; 
       vec_nbytes = hostVec.nbytes;
       vec_len= Shape.nelts hostVec.shape; 
@@ -314,16 +316,18 @@ module ManagedAlloc = struct
       
       vec_shape = hostVec.shape;
       vec_t = hostVec.host_t; 
-      vec_slice_start=None; 
+      vec_slice_start = None;
+      
+      vec_data_layout = RowMajor;
     }
-    in 
-    IFDEF DEBUG THEN 
-      Printf.printf "[Alloc] vector sent to GPU: %s\n" 
-        (GpuVal.gpu_vec_to_str gpuVec); 
+    in
+    IFDEF DEBUG THEN
+      Printf.printf "[Alloc] vector sent to GPU: %s\n"
+        (GpuVal.gpu_vec_to_str gpuVec);
     ENDIF;
-    gpuVec    
-end 
-include ManagedAlloc   
+    gpuVec 
+end
+include ManagedAlloc
 
 module Scope = struct 
   let get_curr_env memState = 
@@ -669,7 +673,8 @@ module Slicing = struct
           vec_shape_nbytes = gpuVec.vec_shape_nbytes - 4; 
           vec_shape = sliceShape; 
           vec_t = sliceType;
-          vec_slice_start = Some gpuVec.vec_ptr; 
+          vec_slice_start = Some gpuVec.vec_ptr;
+          vec_data_layout = gpuVec.vec_data_layout;
         }
       )
     in  

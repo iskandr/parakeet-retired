@@ -174,16 +174,11 @@ CAMLprim value ocaml_cuda_malloc(value num_bytes)  {
   CUdeviceptr devPtr;
   int n = Int_val(num_bytes);
   CUresult result = cuMemAlloc(&devPtr, n);
-  if (result == CUDA_ERROR_OUT_OF_MEMORY) { 
-    CAMLreturn (copy_int64(0));
-  }
-  else if (result != 0) {
+  if (result != 0) {
     printf ("cuMemAlloc failed for %d bytes with error code: %d\n", n, result);
     exit(1);
   }
-  else {
-    CAMLreturn (copy_int64(devPtr));
-  }
+  CAMLreturn (copy_int64(devPtr));
 }
 
 /* Int64.t -> unit */
@@ -231,12 +226,31 @@ value ocaml_cuda_memcpy_device_to_device (value src,
   CAMLreturn(Val_unit);
 }
 
+/* Int64.t -> Int64.t -> int -> unit */
+CAMLprim
+value ocaml_cuda_memcpy_host_to_symbol(value symbol,
+                                       value src,
+                                       value num_bytes,
+                                       value ocaml_offset) {
+  CAMLparam4(symbol, src, num_bytes, ocaml_offset);
+  char *name = String_val(symbol);
+  void *source = (void*)Int64_val(src);
+  int nbytes = Int_val(num_bytes);
+  int offset = Int_val(ocaml_offset);
+
+  cudaError_t result = cudaMemcpyToSymbol(name, source, nbytes, offset,
+                                          cudaMemcpyHostToDevice);
+  if (result) {
+    printf("Error copying from host to constant symbol %s: %d\n", name, result);
+    exit(1);
+  }
+
+  CAMLreturn(Val_unit);
+}
 
 /* Int64.t -> Int64.t -> int -> unit */
 CAMLprim
-value ocaml_cuda_memcpy_to_host (value array,
-                  value dev_ptr,
-                  value num_bytes) {
+value ocaml_cuda_memcpy_to_host(value array, value dev_ptr, value num_bytes) {
   CAMLparam3(array,dev_ptr, num_bytes);
   void* dest = (void*)Int64_val(array);
   CUdeviceptr source = Int64_val(dev_ptr);
@@ -248,7 +262,7 @@ value ocaml_cuda_memcpy_to_host (value array,
   CAMLreturn(Val_unit);
 }
 
-/* EEK:  
+/* EEK:
    Access a GPU array element 
 */
 CAMLprim
