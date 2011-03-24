@@ -572,7 +572,7 @@ The PTX compilation time is rather significant for this benchmark -- ranging fro
 
 We also tested Parakeet on K-Means clustering, a standard unsupervised learning algorithm.  K-Means is interesting as it is a fairly dense and complicated algorithm with loops and nested array operators.  Thus it serves to illustrate that Parakeet is a usable system for implementing real world programs.  K-Means has a number of parameters that can greatly affect run times and algorithmic characteristics.  These include: the number of data points being clustered; the number of clusters K; and the number of features (i.e.~the dimensionality of the data points).
 
-In Figure \ref{KMCPU3}, we see the total run times of K-Means for the CPU and GPU versions with K = 3 clusters and 30 features.
+In Figure \ref{KMCPU3}, we see the total run times of K-Means for the CPU and GPU versions with K = 3 clusters and 30 features on varying numbers of data points.  Here, the distinction between the GPU and the CPU is far less stark.  In fact, for two smaller numbers of data points the CPU version actually outperf
 
 \begin{figure}
 \includegraphics[scale=0.45]{KMCPUK30.pdf}
