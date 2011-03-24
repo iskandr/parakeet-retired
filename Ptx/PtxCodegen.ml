@@ -164,17 +164,27 @@ class ptx_codegen = object (self)
     if not (Hashtbl.mem texGeoms texRef) then
       failwith "[ptx_codegen] getting geom from unknown texture";
     Hashtbl.find texGeoms texRef
+
+  val strideRegs : (PtxVal.symid, PtxVal.value) Hashtbl.t =
+    Hashtbl.create initialNumRegs
+
+  method get_stride_reg (arrayPtr : PtxVal.value) =
+    match Hashtbl.find_option strideRegs (PtxVal.get_id arrayPtr) with
+      | Some reg -> reg
+      | None ->
+          failwith $ 
+            "[PtxCodegen] Unregistered stride arg " ^ 
+            (PtxVal.to_str symbols arrayPtr)
   
   (* works for both shared and global vectors *) 
-  method get_array_rank (ptr: PtxVal.value) = 
+  method get_array_rank (ptr: PtxVal.value) =
     if self#is_shared_ptr ptr then Array.length (self#get_shared_dims ptr)
-    else if self#is_global_array_ptr ptr then self#get_global_array_rank ptr 
+    else if self#is_global_array_ptr ptr then self#get_global_array_rank ptr
     else
       failwith $
         "[ptx_codegen] can't get array rank of non-array register: " ^
         (PtxVal.to_str symbols ptr)
-        
-  
+
   (* get a register which points to the shape vector attached to the 
      argument "ptrReg" which contains the address of some array's data. 
   *) 
@@ -493,6 +503,7 @@ class ptx_codegen = object (self)
           add U64 address address multReg
         ]
       done
+    else begin if self#is_col_major baseReg then pass
     else
       let shapeReg = self#get_shape_reg baseReg in
       for i = 0 to numIndices - 1 do
@@ -522,6 +533,7 @@ class ptx_codegen = object (self)
           add U64 address address offset  
         ]
       done
+    end
     end;
     address
 
