@@ -132,6 +132,11 @@
 \newblock {NVIDIA} {CUDA} {SDK} 3.2.
 \newblock {\tt http://www.nvidia.com/cuda}.
 
+\bibitem{Oliphant07}
+{\sc Oliphant, O.}
+\newblock Python for scientific computing.
+\newblock {\em Computing in Science and Engineering 9\/} (2007), 10--20.
+
 \bibitem{Ott90}
 {\sc Ottenstein, K.~J., Ballance, R.~A., and MacCabe, A.~B.}
 \newblock The program dependence web: a representation supporting control-,
