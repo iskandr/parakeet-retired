@@ -7,12 +7,16 @@ open Cuda
 
 type data_layout = RowMajor | ColumnMajor
 
+let data_layout_to_str = function 
+  | RowMajor -> "row-major"
+  | ColumnMajor -> "col-major"
+
 type gpu_vec = {
-  vec_ptr: Int64.t;
+  vec_ptr: Cuda.GpuPtr.t;
   vec_nbytes : int;
   vec_len : int;
 
-  vec_shape_ptr: Int64.t;
+  vec_shape_ptr: Cuda.GpuPtr.t;
   vec_shape_nbytes: int;
 
   vec_shape : Shape.t;
@@ -22,9 +26,14 @@ type gpu_vec = {
      then note the start pointer to avoid calling
      free twice and assist garbage collection
   *)
-  vec_slice_start: Int64.t option;
+  vec_slice_start: Cuda.GpuPtr.t option;
   
+  (* column major version of this same vector *) 
+  mutable vec_col_major:  Cuda.GpuPtr.t option;
+   
+  (*
   vec_data_layout : data_layout;
+  *)
 }
 
 type gpu_val = GpuScalar of PQNum.num | GpuArray of gpu_vec
@@ -112,10 +121,11 @@ let get_scalar = function
 let get_nbytes = function
   | GpuArray v -> v.vec_nbytes
   | GpuScalar s -> DynType.sizeof (PQNum.type_of_num s)
-
+(*
 let get_data_layout = function
   | GpuArray v -> v.vec_data_layout
   | GpuScalar s -> failwith "Can't get data layout for GPU scalar"
+*)
 
 let mk_scalar n = GpuScalar n
       

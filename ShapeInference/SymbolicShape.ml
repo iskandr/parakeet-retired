@@ -1,3 +1,5 @@
+(* pp: -parser o pa_macro.cmo *)
+
 open Base
 open Imp 
 
@@ -5,6 +7,9 @@ type dim = exp_node
 type shape = dim list
 type env = shape ID.Map.t  
 
+let to_str shape = "[" ^ Imp.exp_node_list_to_str shape ^ "]"
+        
+        
 let scalar = [] 
 
 let is_scalar s = (s=[])
@@ -40,7 +45,12 @@ let rec split_shape_list = function
 let split_max_rank shapes = 
   let ranks = List.map rank shapes in 
   let maxRank = List.fold_left max 0 ranks in
-  assert (maxRank > 0); 
+  IFDEF DEBUG THEN 
+    if maxRank <= 0 then failwith $ 
+      Printf.sprintf 
+        "expected at least one shape with rank higher than 0, received: %s"
+        (String.concat ", " (List.map to_str shapes))
+  ENDIF; 
   let peeledShapes =
     List.map2 
       (fun s r -> if r = maxRank then peel_shape s else s) 
@@ -102,8 +112,7 @@ let rewrite_shapes env shapes = List.map (rewrite_shape env) shapes
 
 let concat s1 s2 = s1 @ s2 
 let nelts = Imp.prod_exp_node_list 
-let to_str shape = Imp.exp_node_list_to_str shape
-        
+
 
 let get_call_output_shapes fn (inputs : shape list) =  
   let replaceMap = 

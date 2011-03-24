@@ -103,6 +103,10 @@ let delete_gpu_vec gpuMemSpace gpuVec =
       Printf.printf "[Alloc] -- %s\n%!" (GpuVal.gpu_vec_to_str gpuVec); 
     ENDIF; 
     gpuMemSpace.delete gpuVec.vec_ptr; 
+    match gpuVec.vec_col_major with 
+      | Some ptr -> gpuMemSpace.delete ptr
+      | None -> ()
+    ;
     if gpuVec.vec_shape_nbytes > 0 then 
-      gpuMemSpace.delete gpuVec.vec_shape_ptr
+      gpuMemSpace.delete gpuVec.vec_shape_ptr  
   )      

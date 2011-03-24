@@ -179,6 +179,44 @@ let fresh_data_id ?(refcount=0) memState =
   id 
 
 module ManagedAlloc = struct 
+
+  let rec alloc_gpu memState nbytes = 
+    try Alloc.smart_alloc memState.gpu_mem nbytes 
+    with _ -> (
+      flush_gpu_to_host memState;  
+      Alloc.smart_alloc memState.gpu_mem nbytes
+    )
+         
+  and alloc_host memState nbytes = Alloc.smart_alloc memState.host_mem nbytes 
+  and vec_from_gpu memState gpuVec = 
+    let dataHostPtr = alloc_host memState gpuVec.vec_nbytes in  
+    Cuda.cuda_memcpy_to_host dataHostPtr gpuVec.vec_ptr gpuVec.vec_nbytes; 
+    let hostVec = { 
+      ptr = dataHostPtr; 
+      nbytes = gpuVec.vec_nbytes;
+      host_t = gpuVec.vec_t; 
+      shape = gpuVec.vec_shape; 
+      slice_start = None; 
+    }
+    in 
+    IFDEF DEBUG THEN 
+      Printf.printf "[Alloc] vector returned from GPU: %s\n"
+        (HostVal.host_vec_to_str hostVec); 
+    ENDIF;
+    hostVec
+  and flush_gpu_to_host memState = 
+    Hashtbl.iter 
+      (fun dataId gpuVec -> 
+        if not $ Hashtbl.mem memState.host_data dataId then
+          Hashtbl.add memState.host_data dataId (vec_from_gpu memState gpuVec)
+        ;  
+        Alloc.delete_gpu_vec memState.gpu_mem gpuVec
+      ) 
+      memState.gpu_data
+    ; 
+    Hashtbl.clear memState.gpu_data; 
+    Hashtbl.clear memState.gpu_rev_lookup
+  
   let flush_gpu memState = 
     Hashtbl.iter 
       (fun _ gpuVec -> Alloc.delete_gpu_vec memState.gpu_mem gpuVec) 
@@ -186,25 +224,6 @@ module ManagedAlloc = struct
     Hashtbl.clear memState.gpu_data; 
     Hashtbl.clear memState.gpu_rev_lookup
 
-    (* TODO: make a version of flush_gpu which moves data to host before 
-       deleting it 
-     *)
-
-  let alloc_gpu memState nbytes = 
-    try Alloc.smart_alloc memState.gpu_mem nbytes 
-    with _ -> (
-      Printf.printf "[Alloc] Can't allocate %d bytes, flushing GPU\n";
-      (* UNSAFE, data will disappear *) 
-      flush_gpu memState;  
-      Alloc.smart_alloc memState.gpu_mem nbytes
-    )
-         
-  let alloc_host memState nbytes = Alloc.smart_alloc memState.host_mem nbytes 
-
-  let calc_nbytes len ty shape =
-    let eltT = DynType.elt_type ty in
-    let eltSize = DynType.sizeof eltT in
-    len * eltSize 
 
   (* send a shape vector the gpu *) 
   let shape_to_gpu memState shape =
@@ -218,6 +237,37 @@ module ManagedAlloc = struct
     let shapeHostPtr = Alloc.get_array1_ptr $ Shape.to_c_array shape in
     Cuda.cuda_memcpy_to_device shapeHostPtr shapeDevPtr shapeBytes;
     shapeDevPtr, shapeBytes
+    
+  let vec_to_gpu memState hostVec = 
+    let gpuPtr = alloc_gpu memState hostVec.nbytes in  
+    Cuda.cuda_memcpy_to_device hostVec.ptr gpuPtr hostVec.nbytes;
+    let shapeDevPtr, shapeBytes = shape_to_gpu memState hostVec.shape in
+    let gpuVec = {
+      vec_ptr = gpuPtr; 
+      vec_nbytes = hostVec.nbytes;
+      vec_len= Shape.nelts hostVec.shape; 
+      
+      vec_shape_ptr = shapeDevPtr;
+      vec_shape_nbytes = shapeBytes; 
+      
+      vec_shape = hostVec.shape;
+      vec_t = hostVec.host_t;
+       
+      vec_slice_start = None;
+      vec_col_major = None; 
+    }
+    in
+    IFDEF DEBUG THEN
+      Printf.printf "[Alloc] vector sent to GPU: %s\n"
+        (GpuVal.gpu_vec_to_str gpuVec);
+    ENDIF;
+    gpuVec 
+
+  let calc_nbytes len ty shape =
+    let eltT = DynType.elt_type ty in
+    let eltSize = DynType.sizeof eltT in
+    len * eltSize 
+
 
   let mk_gpu_vec memState ?refcount ?nbytes t shape =
     let nelts = Shape.nelts shape in 
@@ -238,7 +288,7 @@ module ManagedAlloc = struct
       vec_t = t;
       vec_slice_start = None;
       
-      vec_data_layout = RowMajor;
+      vec_col_major = None; 
     }
     in 
     let id = fresh_data_id ?refcount memState in 
@@ -278,47 +328,7 @@ module ManagedAlloc = struct
     ENDIF;  
     hostVec
     
-  let vec_from_gpu memState gpuVec = 
-    let dataHostPtr = alloc_host memState gpuVec.vec_nbytes in  
-    Cuda.cuda_memcpy_to_host dataHostPtr gpuVec.vec_ptr gpuVec.vec_nbytes; 
-    let hostVec = { 
-      ptr = dataHostPtr; 
-      nbytes = gpuVec.vec_nbytes;
-      host_t = gpuVec.vec_t; 
-      shape = gpuVec.vec_shape; 
-      slice_start = None; 
-    }
-    in 
-    IFDEF DEBUG THEN 
-      Printf.printf "[Alloc] vector returned from GPU: %s\n"
-        (HostVal.host_vec_to_str hostVec); 
-    ENDIF;
-    hostVec 
-      
-  let vec_to_gpu memState hostVec = 
-    let gpuPtr = alloc_gpu memState hostVec.nbytes in  
-    Cuda.cuda_memcpy_to_device hostVec.ptr gpuPtr hostVec.nbytes;
-    let shapeDevPtr, shapeBytes = shape_to_gpu memState hostVec.shape in
-    let gpuVec = {
-      vec_ptr = gpuPtr; 
-      vec_nbytes = hostVec.nbytes;
-      vec_len= Shape.nelts hostVec.shape; 
-      
-      vec_shape_ptr = shapeDevPtr;
-      vec_shape_nbytes = shapeBytes; 
-      
-      vec_shape = hostVec.shape;
-      vec_t = hostVec.host_t; 
-      vec_slice_start = None;
-      
-      vec_data_layout = RowMajor;
-    }
-    in
-    IFDEF DEBUG THEN
-      Printf.printf "[Alloc] vector sent to GPU: %s\n"
-        (GpuVal.gpu_vec_to_str gpuVec);
-    ENDIF;
-    gpuVec 
+  
 end
 include ManagedAlloc
 
@@ -667,7 +677,8 @@ module Slicing = struct
           vec_shape = sliceShape; 
           vec_t = sliceType;
           vec_slice_start = Some gpuVec.vec_ptr;
-          vec_data_layout = gpuVec.vec_data_layout;
+          (* weird that slicing is only in row major *) 
+          vec_col_major = None; 
         }
       )
     in  

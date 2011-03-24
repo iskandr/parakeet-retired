@@ -133,9 +133,14 @@ module MkTranslator(P : PARAMS) = struct
 		      let closureArgs = 
 		        translate_values payload.SSA.closure_args 
 		      in  
-		      let rhs = Array.of_list $ 
-		        closureArgs @ (List.map (fun arr -> idx arr i) arrays_imp) 
-		      in 
+          let payloadInputs = 
+            List.map  
+              (fun arr ->
+                  if DynType.is_scalar arr.exp_type then arr 
+                  else idx arr i) 
+              arrays_imp
+          in 
+		      let rhs = Array.of_list (closureArgs @ payloadInputs) in 
 		      codeBuffer#splice_emit fundef_imp rhs lhs bodyBlock;
 		      output
 		  
