@@ -503,7 +503,6 @@ class ptx_codegen = object (self)
           add U64 address address multReg
         ]
       done
-    else begin if self#is_col_major baseReg then ()
     else
       let shapeReg = self#get_shape_reg baseReg in
       for i = 0 to numIndices - 1 do
@@ -533,7 +532,6 @@ class ptx_codegen = object (self)
           add U64 address address offset  
         ]
       done
-    end
     end;
     address
 
