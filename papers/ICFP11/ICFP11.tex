@@ -81,13 +81,28 @@ xleftmargin=20pt,
 %
 % Thus we have a bam bam bam storyline to why the reader should keep on reading...
 %
-Contemporary GPUs offer immense performance potential for general purpose computation -- from an average 2.5X speedup over CPUs on 14 standard ``throughput computing'' benchmarks~\cite{Lee10} to 80X on data parallel workloads~\cite{Che09}.  Further, most desktop machines today include underutilized graphics accelerators.  However, the widespread frameworks for general purpose GPU (GPGPU) programming, OpenCL~\cite{Muns10} and NVIDIA's CUDA~\cite{NvidCU}, require highly specialized low level programming and performance tuning knowledge to tap into this potential.
+Contemporary GPUs offer immense performance potential for general purpose computation -- from an average 2.5X speedup over CPUs on 14 standard ``throughput computing'' benchmarks~\cite{Lee10} to 80X on data parallel workloads~\cite{Che09}. However, the commonly used frameworks for general purpose GPU (GPGPU) programming, OpenCL~\cite{Muns10} and NVIDIA's CUDA~\cite{NvidCU}, require highly specialized low level programming and performance tuning knowledge to tap into this potential.
 
-There has been much recent work on enabling GPU acceleration of higher level languages to ease GPGPU programming and to bring this performance potential to a wider audience.  However, each of these systems either: (1) requires the programmer to learn and use a new domain-specific language~\cite{Chaf11}; (2) is insufficiently expressive for efficiently executing standard nested data parallel programs such as K-Means clustering that are highly amenable to GPU acceleration~\cite{Chak11,Main10}; (3) has long compilation times that break the interactivity of the source language~\cite{Cata11}; (4) exposes details of the GPU that the programmer must deal with manually~\cite{AcceJa}; or (5) doesn't allow the programmer to use convenient array syntax such as that of NumPy~\cite{AcceJa,Cata11,Chaf11,Chak11,Main10}.
+A desire to bring this performance potential to a wider audience has motivated a flurry of recent work on the GPU acceleration of high level languages. 
 
-We present Parakeet, the first system that addresses all of the above issues.  Parakeet is an intelligent runtime library and JIT compiler for array-oriented subsets of high level languages.  Parakeet defines an array-oriented intermediate language and includes a front end for translating programs from source languages to this IL.  The heart of Parakeet is an IL interpreter, which upon reaching an array operator can automatically synthesize and execute a data parallel GPU program to implement that operator.  Parakeet is attached as a library to the source language's interpreter, allowing all of the source language's standard features and tools to be used.
+There has been much recent work on enabling GPU acceleration of higher level languages to ease GPGPU programming and to bring this performance potential to a wider audience.  
+% suspicious claim--- array languages are pretty weird themselves 
+However, each of these systems either: (1) requires the programmer to learn and use a new domain-specific language~\cite{Chaf11}; 
+% better claim but needs to be strongly backed up. Also, knocking on chakravarty in the intro seems like a bad idea since he's heading this conference
+(2) is insufficiently expressive for efficiently executing standard nested data parallel programs such as K-Means clustering that are highly amenable to GPU acceleration~\cite{Chak11,Main10}; 
+% this can't be our main line of attack against copperhead!
+(3) has long compilation times that break the interactivity of the source language~\cite{Cata11}; (
+% let's forget jacket 
+4) exposes details of the GPU that the programmer must deal with manually~\cite{AcceJa}; or 
+% good point but needs to be phrased better
+(5) doesn't allow the programmer to use convenient array syntax such as that of NumPy~\cite{AcceJa,Cata11,Chaf11,Chak11,Main10}.
 
-We evaluate Parakeet on two standard benchmarks: Black-Scholes option pricing, and K-Means clustering.  We compare high level array-oriented implementations to hand-written, tuned GPU versions from the CUDA SDK~\cite{NvidSD} and the Rodinia GPU benchmark suite~\cite{Che09}. Despite having orders of magnitude less code, the high level versions perform competitively when executed by Parakeet.
+% Ha, no we don't. 
+We present Parakeet, the first system that addresses all of the above issues.  
+
+Parakeet is an intelligent runtime library and JIT compiler for array-oriented subsets of high level languages.  Parakeet defines an array-oriented intermediate language and includes a front end for translating programs from source languages to this IL.  The heart of Parakeet is an IL interpreter, which upon reaching an array operator can automatically synthesize and execute a data parallel GPU program to implement that operator.  Parakeet is attached as a library to the source language's interpreter, allowing all of the source language's standard features and tools to be used.
+
+We evaluate Parakeet on two standard benchmarks: Black-Scholes option pricing, and K-Means clustering.  We compare high level array-oriented implementations to hand-written, tuned GPU versions from the CUDA SDK~\cite{NvidSD} and the Rodinia GPU benchmark suite~\cite{Che09}. Despite having orders of magnitude shorter source code, the high level versions perform competitively when executed by Parakeet.
 \end{abstract}
 
 \section{Introduction}
@@ -201,20 +216,17 @@ intraday trading in the financial computing domain. Since the focus of this pape
 \begin{figure}[h!]
 \begin{lstlisting}
 calc_centroid:{[X;a;i] avg X[where a = i]}
-calc_centroids:{[X;a;k]
-  calc_centroid[X;a] each til k}
-
 dist:{[x;y] sqrt sum (x-y) * (x-y)}
-minidx:{[x] x ? min x}
+minidx:{[C;x] ds: dist[x] each C; 
+  ds ? min ds }
 
 kmeans:{[X;k;a]
-  C: calc_centroids[X;a;k];
-  converged: 0b;
+  C: calc_centroid[X;a] each til k;
+  converged: 0;
   while[not converged;
     lastAssignment: a;
-    D: X dist/:\: C;
-    a: minidx each D;
-    C: calc_centroids[X;a;k];
+    a: minidx[C] each X;
+    C: calc_centroid[X;a] each til k;
     converged: all lastAssignment = a];
   C}
 \end{lstlisting}
@@ -256,43 +268,43 @@ This isn't to say these are the only constructs executed in parallel on the GPU.
 
 We take inspiration from \cite{Bol09} and allow functions to both accept and return multiple values. This feature simplifies the specification of certain optimizations and naturally models the simultaneous creation of multiple values on the GPU. By convention we will write $\overline{\tau_m}$ to denote a sequence of $m$ simple types, $\overline{v_n}$ for a sequence  of $n$ values, etc. A single element is equivalent to a sequence of length 1 and sequences may be concatenated via juxtaposition, such that $\tau, \overline{\tau_n} = \overline{\tau_{m+1}}$.
 
-\begin{figure}
-  \begin{tabular}{| m{0.01cm}m{1.5cm}m{0.1cm}m{0.2cm}p{4.5cm} |}
+
+\section{Typed First-Order IL}
+\begin{figure}[h!]
+  \begin{tabular}{| m{0.01cm}m{1.3cm}m{0.1cm}m{0.2cm}p{5.0cm} |}
   \hline
-  & & & &\\
-   \multicolumn{5}{|l|}{\textbf{Intermediate Language Syntax}}  \\[4pt]
+    & & & &\\
+   \multicolumn{5}{|l|}{\textbf{Typed First-Order IL}}  \\[4pt]
   & program & $p$ &  $\bnfdef$   &  $d_1 \cdots d_n $ \\[4pt]
-  & definition & $d$ & $\bnfdef$ & $f_i(\overline{x_m} : \overline{\tau_m}) \rightarrow (\overline{y_n} : \overline{\tau_n}) =s^{\small{+}}$ \\[4pt]
-  & statement  & $s$ & $\bnfdef$ & $\overline{x_m} : \overline{\rho_m} = e $\\[2pt]
-  &            &     & $\sep$    & $\IF \;v\; \THEN \;s^*\; \ELSE \;s^*$ \\[2pt]
-  &            &     & $\sep$    & $\WHILE \;e\; \DO \;s^+\;  $ \\[4pt]
-  & expression & $e$ & $\bnfdef$ & $ v_{f}(v_1, \ldots, v_m)$ \\[2pt]
-  &            &     & $\sep$    & $\textrm{values} (\overline{v_m})$ \\[2pt]
-  &            &     & $\sep$    & $\textrm{cast} \; (v, \tau)$ \\[2pt] 
-  &            &     & $\sep$    & $\MAP_m (v_{f},\overline{v_m})$ \\[2pt]
-  &            &     & $\sep$    & $\REDUCE_m (v_{f}, v_{g}, v_{init}, \overline{v_m})$ \\[2pt]
-  &            &     & $\sep$    & $\SCAN_m (v_{f}, v_{g}, v_{init}, \overline{v_m})$ \\[4pt]
-  & value      & $v$ & $\bnfdef$ & numeric constant\\[2pt]
+  & definition & $d$ & $\bnfdef$ & $f_i(x^m : \tau^m) \rightarrow (y^n : \tau^n) = \overline{s} $ \\[4pt]
+  & statement  & $s$ & $\bnfdef$ & $x^m : \tau^m = e $\\[2pt]
+  &            &     & $\sep$    & $\mathrm{if} ~v~ \mathrm{then} ~\overline{s}~ \mathrm{else} ~ \overline{s}$ \\[2pt]
+  &            &     & $\sep$    & $\mathrm{while} ~ \overline{s}, x_{cond} ~ \mathrm{do} ~ \overline{s} ~  $ \\[4pt]
+  & expression & $e$ & $\bnfdef$ & $\mathrm{values}(\overline{v})$ \\[2pt]
+  &            &     & $\sep$    & $\mathrm{cast} (v, \tau_{src}, \tau_{dest})$ \\[2pt]
+  &            &     & $\sep$    & $\mathrm{prim}_{\left\langle \oplus \right\rangle }(\overline{v})$ \\[2pt]
+  &            &     & $\sep$    & $\mathrm{call}_{\left\langle f  \right\rangle } (\overline{v})$ \\[2pt] 
+  &            &     & $\sep$    & $\mathbf{stencil} \MAP _{\left\langle c \right\rangle}(\overline{v})$ \\[2pt]
+  
+  &            &     & $\sep$    & $\MAP _{\left\langle c \right\rangle}(\overline{v})$ \\[2pt]
+  &            &     & $\sep$    & $\REDUCE _{ \left\langle c_i, c_r \right\rangle } (\overline{v_i}, \overline{v})$ \\[2pt]
+  &            &     & $\sep$    & $\SCAN _{ \left\langle c_i, c_r, \right\rangle} (\overline{v_i}, \overline{v})$ \\[5pt]
+  & value      & $v$ & $\bnfdef$ & numeric constant \\[2pt]
   &            &     & $\sep$    &  $x$  \quad \small{(data variable)} \\[2pt]
-  &            &     & $\sep$    &  $f$  \quad \small{(function label)} \\[2pt]
-  &            &     & $\sep$    &  $\oplus$ \quad \small{(scalar operator)} \\[2pt]
-  &            &     & $\sep$    &  $a$ \quad \small{(simple array operator)}
-\\[4pt]
-  & & & &\\
-  \multicolumn{5}{|l|}{\textbf{Type System}} \\[4pt]
-  & data     & $\tau$    & $\bnfdef$ & $int \sep float \sep \mathbf{vec} \; \tau   $ \\[4pt]
-  & closures        & $\rho$  & $\bnfdef$ & $\{f_i, \overline{\tau_{c}} \} \Rightarrow \overline{\tau_m} \rightarrow \overline{\tau_n}$\\[2pt]
-  &                 &           & $\sep$    & $\tau$ \\[4pt]
-  & higher-order    & $\theta$  & $\bnfdef$ & $\overline{\rho_m} \rightarrow
-\overline{\rho_n} $ \\[4pt]
-  & & & &\\
+  & closure    & $c$ & $\bnfdef$ & $f \times \overline{v}$ \\[4pt]
+  & type & $\tau$    & $\bnfdef$ & $bool \sep int \sep float \sep \mathbf{vec} \; \tau   $\\[5pt]
   \hline
   \end{tabular}\\[4pt]
-\caption{Intermediate Language and Type System}
-\label{ILandType}
-\end{figure}
+  \caption{Typed First-Order Language}
+\end{figure} 
 
-Scalar operators include the usual boolean operations as well as scalar and floating point arithmetic operators and functions. Examples of simple array operators include indexing, replication, and inspecting an array's shape.
+\begin{enumerate}
+\item Distinguished map, reduce, scan operators which serve as a basis for both the implementation of other array 
+ operators and compilation of parallel code using operator-specific templates.  
+\item All user-defined functions have first order types. Any function arguments in the original program 
+ must either end up as arguments to the primitive higher order operators (map, reduce, and scan) or
+ must be directly encoded as an enumeration over a finite set of possible function calls (defunctionalization). 
+\end{enumerate}
 
 Salient features of our intermediate language include:
 \begin{itemize}
@@ -349,6 +361,30 @@ To help elucidate the different program transformations performed by Parakeet, w
     \caption{Distance Function in Q}
     \label{QDist}
 \end{figure}
+
+
+\section{Untyped Higher-Order IL}
+\begin{figure}[h!]
+  \begin{tabular}{| m{0.01cm}m{1.5cm}m{0.1cm}m{0.2cm}p{4.5cm} |}
+  \hline
+  & & & &\\ 
+   \multicolumn{5}{|l|}{\textbf{Untyped Higher-Order IL}}  \\[4pt]
+  & program & $p$ &  $\bnfdef$   &  $d_1 \cdots d_n $ \\[4pt]
+  & definition & $d$ & $\bnfdef$ & $f_i(\overline{x}) \rightarrow (\overline{y}) = \overline{s}$ \\[4pt]
+  & statement  & $s$ & $\bnfdef$ & $\overline{x} = e $\\[2pt]
+  &            &     & $\sep$    & $\mathrm{if} ~v~ \mathrm{then} ~ \overline{s} ~ \mathrm{else} ~ \overline{s} $ \\[2pt]
+  &            &     & $\sep$    & $\mathrm{while} ~\overline{s}, x_{cond} ~ \mathrm{do} ~\overline{s}~ $  \\[5pt]
+  & expression & $e$ & $\bnfdef$ & $\mathrm{values} (\overline{v})$ \\[2pt]
+  &            &     & $\sep$    & $ v_f (\overline{v}) $ \\[9pt]
+  & value      & $v$ & $\bnfdef$ & numeric constant \\[2pt]
+  &            &     & $\sep$    &  $x$  \quad \small{(data variable)} \\[2pt]
+  &            &     & $\sep$    &  $f$  \quad \small{(function label)} \\[2pt]
+  &            &     & $\sep$    &  $\oplus$ \quad \small{(primitive operator)} \\[5pt]
+  \hline
+  \end{tabular}
+\caption{Untyped Higher-Order Intermediate Language}
+\end{figure}
+
 
 \subsection{Lambda Lifting and SSA Conversion}
 After a function call has been intercepted by the Parakeet runtime, Parakeet performs a syntax-directed translation from a language-specific abstract syntax tree (AST) into Parakeet's IL. Since type information is not yet available to specialize user functions, the functions must be translated into an untyped
