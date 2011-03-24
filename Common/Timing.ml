@@ -124,4 +124,7 @@ let gpuIndex = mk_gpu_timer "GPU Array Op - Index"
 let gpuIndexAlloc = mk_gpu_timer "GPU Array Op - Index (Alloc)"
 
 let gpuWhere = mk_gpu_timer "GPU Array Op - Where"
-let gpuWhereAlloc = mk_gpu_timer "GPU Array Op - Where"
+let gpuWhereAlloc = mk_gpu_timer "GPU Array Op - Where (Alloc)"
+
+let gpuFlip = mk_gpu_timer "GPU Array Op - Flip"
+let gpuFlipAlloc = mk_gpu_timer "GPU Array Op - Flip (Alloc)"

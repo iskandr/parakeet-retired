@@ -186,18 +186,18 @@ let gen_exp
   let translate_arg expNode' ptxT =
     let ptxVal = translate_simple_exp codegen expNode'.exp in 
     codegen#convert_fresh ~destType:ptxT ~srcVal:ptxVal
-  in 
-  let exp = expNode.Imp.exp in 
+  in
+  let exp = expNode.Imp.exp in
   begin match exp with
-  | Imp.Op(op,dynArgType, args) -> 
-      IFDEF DEBUG THEN 
+  | Imp.Op(op,dynArgType, args) ->
+      IFDEF DEBUG THEN
         same_type ptxResultT destType;
         assert (ptxResultT = destType);
-      ENDIF; 
+      ENDIF;
       let ptxArgT = PtxType.of_dyn_type dynArgType in
       let args' = List.map (fun x -> translate_arg x ptxArgT) args in
-      prim_to_ptx_op codegen destReg args' op ptxArgT 
-      
+      prim_to_ptx_op codegen destReg args' op ptxArgT
+
    | Imp.Select(t, cond, trueExp, falseExp) -> 
       let t' = PtxType.of_dyn_type t in
       IFDEF DEBUG THEN 
@@ -407,20 +407,20 @@ and gen_block codegen  block =
    
 let translate_kernel (impfn : Imp.fn) inputSpaces =
   let codegen = new PtxCodegen.ptx_codegen in
-  Array.iter3 
-    codegen#declare_input 
-    impfn.input_ids 
-    impfn.input_types 
+  Array.iter3
+    codegen#declare_input
+    impfn.input_ids
+    impfn.input_types
     inputSpaces
   ;
-  Array.iter2 codegen#declare_output impfn.output_ids impfn.output_types; 
-  
+  Array.iter2 codegen#declare_output impfn.output_ids impfn.output_types;
+
   (* declare all local variables as:
-      1) a scalar register 
-      2) a local array for which you receive a pointer 
-      3) a shared array 
+      1) a scalar register
+      2) a local array for which you receive a pointer
+      3) a shared array
   *)
-  let register_local id  = 
+  let register_local id =
     let t = Hashtbl.find impfn.types id in
     let dims = Hashtbl.find_default impfn.sizes id [] in  
     IFDEF DEBUG THEN 

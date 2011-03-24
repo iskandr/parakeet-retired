@@ -310,7 +310,7 @@ value ocaml_cuda_memcpy_to_host(value array, value dev_ptr, value num_bytes) {
   CAMLreturn(Val_unit);
 }
 
-/* EEK:  
+/* EEK:
    Access a GPU array element 
 */
 CAMLprim
