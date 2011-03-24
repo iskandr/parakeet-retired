@@ -576,27 +576,27 @@ In addition to these skeletons, we provide a library of precompiled parallel imp
 We evaluated Parakeet on two standard benchmark programs: Black-Scholes option pricing, and K-Means Clustering.  We compare Parakeet against both hand-tuned CPU and GPU implementations.  For Black-Scholes, the CPU implementation is taken from the PARSEC \cite{Bien08} benchmark suite -- which we used as the basis
 of our Q implementation -- and the GPU implementation is taken from the CUDA SDK \cite{NvidSD}.  For K-Means Clustering, we wrote our own Q version in 15 lines of code.  Both the CPU and GPU benchmark version come from the Rodinia benchmark suite \cite{Che09}.
 
-Our experimental setup is as follows.  We ran all of our benchmarks on a machine with an Intel Core i7 3.2GHz 960 4-core CPU, each core with 2 thread contexts for a total of 8, and with 16GB of RAM.  The theoretical peak scalar throughput of this CPU is 25.6 GFLOP/s, and it has a theoretical peak memory bandwidth of 32GB/s \cite{Lee10}.  The GPU used in our system was an NVIDIA GTX460. This card has 336 processor cores with clock speeds of 1.35 GHz and 1GB of memory, with peak theoretical execution throughput of 907.2 GFLOP/s and peak memory bandwidth of 115.2 GB/s.  We ran all of our experiments without the X windowing system running so that all of the GPU's resources were available to Parakeet -- in our experience, X can consume upwards of 650MB of GPU memory in a standard desktop setup.
+Our experimental setup is as follows.  We ran all of our benchmarks on a machine running 64-bit Linux with an Intel Core i7 3.2GHz 960 4-core CPU, each core with 2 thread contexts for a total of 8, and with 16GB of RAM.  The theoretical peak scalar throughput of this CPU is 25.6 GFLOP/s, and it has a theoretical peak memory bandwidth of 32GB/s \cite{Lee10}.  The GPU used in our system was an NVIDIA GTX460. This card has 336 processor cores with clock speeds of 1.35 GHz and 1GB of memory, with peak theoretical execution throughput of 907.2 GFLOP/s and peak memory bandwidth of 115.2 GB/s.  We ran all of our experiments without the X windowing system running so that all of the GPU's resources were available to Parakeet -- in our experience, X can consume upwards of 650MB of GPU memory in a standard desktop setup.
 
 \subsection{Black-Scholes}
 \label{results-bs}
 
 Black-Scholes option pricing \cite{Blac73} is a standard benchmark for data parallel workloads, since it is embarrassingly parallel -- the calculation of the price of a given option doesn't impact that of any other, and the benchmark consists of simply running thousands of independent threads in parallel for computing the prices of thousands of options.
 
-We compare our system against the multithreaded OpenMP CPU implementation from the PARSEC \cite{Bien08} benchmark suite with 4 threads and the CUDA version in the NVIDIA CUDA SDK \cite{NvidSD}.  We modified the benchmarks to all accept the input data from the PARSEC implementation as their input so as to have a direct comparison of the computation alone.  We also modified the CUDA SDK version to calculate only one of the call or put price per option, as that matches the behavior in PARSEC.
+We compare our system against the multithreaded OpenMP CPU implementation from the PARSEC \cite{Bien08} benchmark suite with 1 and 8 threads and the CUDA version in the NVIDIA CUDA SDK \cite{NvidSD}.  We modified the benchmarks to all accept the input data from the PARSEC implementation as their input so as to have a direct comparison of the computation alone.  We also modified the CUDA SDK version to calculate only one of the call or put price per option, as that matches the behavior in PARSEC.
 
 \begin{figure}
-\includegraphics[scale=0.45]{BSTotal.pdf}
+\includegraphics[scale=0.45]{BSWCPU.pdf}
 \caption{Black Scholes Total Times}
-\label{BSResults}
+\label{BSCPU}
 \end{figure}
 
-In Figure \ref{BSResults}, we see the total run times of the various systems. These times include the time it takes to transfer data to and from the GPU in the GPU benchmarks.  
+In Figure \ref{BSCPU}, we see the total run times of the various systems. These times include the time it takes to transfer data to and from the GPU in the GPU benchmarks.
 
 \begin{figure}
-\includegraphics[scale=0.45]{BSGPU.pdf}
+\includegraphics[scale=0.45]{BSNOCPU.pdf}
 \caption{Black Scholes GPU Execution Times}
-\label{BSResults}
+\label{BSGPU}
 \end{figure}
 
 \subsection{K-Means Clustering}
@@ -606,17 +606,23 @@ K-Means illustrates a key aspect of our approach: the ability to exploit dynamic
 nested function that in turns contains array operators.  Our interpreter is able to make the most efficient choice regarding where to execute things: the outer $\MAP$, since it's applied to a small array of integers and involves little computation of its own, gets executed on the CPU as a loop.  The inner function, which since it has dense computation applied to large inputs, gets synthesized into a kernel that is repeatedly launched.  This type of dynamic decision based on data size would not be possible in a static environment.
 
 \begin{figure}
-\includegraphics[scale=0.45]{BSTotal.pdf}
-\caption{Placeholder K-Means Total Times}
-\label{BSResults}
+\includegraphics[scale=0.45]{KMCPUK3.pdf}
+\caption{K-Means Total Times with 30 Features, K = 3}
+\label{KMCPU3}
 \end{figure}
 
-In Figure \ref{BSResults}, we see the total run times of the various systems. These times include the time it takes to transfer data to and from the GPU in the GPU benchmarks.
+In Figure \ref{KMCPU3}, we see the total run times of the various systems. These times include the time it takes to transfer data to and from the GPU in the GPU benchmarks.
 
 \begin{figure}
-\includegraphics[scale=0.45]{BSGPU.pdf}
-\caption{Placeholder K-Means GPU Execution Times}
-\label{BSResults}
+\includegraphics[scale=0.45]{KMCPUK30.pdf}
+\caption{K-Means Total Times with 30 Features, K = 30}
+\label{KMCPU30}
+\end{figure}
+
+\begin{figure}
+\includegraphics[scale=0.45]{KMGPU.pdf}
+\caption{K-Means GPU Times with 30 Features, K = 3}
+\label{KMGPU}
 \end{figure}
 
 \section{Related Work}

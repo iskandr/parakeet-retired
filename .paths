@@ -214,3 +214,6 @@ unit/tmp
 .git/objects/ee
 .git/objects/fd
 .git/objects/43
+.git/objects/3c
+.git/objects/ce
+.git/objects/fc
