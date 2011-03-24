@@ -119,8 +119,6 @@ class ptx_codegen = object (self)
     | Some t -> t 
     | None -> failwith $ "[PtxCodegen] No type registered for " ^ (ID.to_str id) 
   
- 
-  
   (* Any register pointing to a global array should also have an accompanying 
      register pointing to a shape vector.  
   *)
@@ -299,7 +297,7 @@ class ptx_codegen = object (self)
       let constTableAlloc = { 
         t = PtxType.B8; 
         decl_space = PtxVal.CONST; 
-        array_size = Some 64000; 
+        array_size = Some 500; 
         init_val = None; 
       } 
       in
@@ -567,7 +565,7 @@ class ptx_codegen = object (self)
         for j = (i+1) to rank - 1 do
           let shapeEltReg = self#fresh_reg U32 in
           let shapeEltReg64 = self#fresh_reg U64 in
-          self#emit [ld_global U32 shapeEltReg shapeReg ~offset:(4*j)];
+          self#emit [ld_const U32 shapeEltReg shapeReg ~offset:(4*j)];
           self#convert ~destReg:shapeEltReg64 ~srcVal:shapeEltReg;
           self#emit [mul_lo U64 sliceReg sliceReg shapeEltReg64]
         done;

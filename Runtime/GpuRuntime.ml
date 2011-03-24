@@ -202,19 +202,11 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
       let id = combinedIds.(i) in 
       argEnv :=  extend_env cc modulePtr !argEnv id gpuVal 
     done;  
-    (*
-    let valueEnv' : CudaModule.gpu_arg list ID.Map.t = 
-      Hashtbl.fold
-        (process_private_array nThreads impfn shapeEnv)
-        impfn.Imp.array_storage 
-        valueEnv
-    in
-    *) 
     let paramsArray = DynArray.create() in
     let process_param id =
       let args = ID.Map.find id !argEnv in
       IFDEF DEBUG THEN 
-          Printf.printf "[GpuRuntime] Registering GPU param for %s = %s\n" 
+          Printf.printf "[GpuRuntime] Registering GPU params for %s = [%s]\n%!" 
             (ID.to_str id)
             (String.concat ", "  (List.map CudaModule.gpu_arg_to_str args)) 
           ; 
