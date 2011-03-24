@@ -119,24 +119,21 @@ The main contributions of this paper are the following:
 %      more convincing and better worded/complete
 %Our thesis is that if we can JIT compile and transparently accelerate the critical paths of algorithms written in array-oriented languages, we can bring the best of both worlds together -- viz., the ease of use and domain exploration of the dynamic, interactive environment; and the speed of the hand optimized versions. A key constraint in such a setup is keeping JIT compilation overheads low enough so as not to impair the interactive nature of the source language environment.  It has been shown in the pioneering JIT work by Chambers~\cite{Cham92} that in such scenarios the key psychological barrier for compilation overhead is roughly on the order of less than half a second: if overheads are kept below this threshold, the programmer doesn't notice them.  Since our JIT costs are indeed low and are negligible in comparison with the run times of the large scientific codes, we feel it is reasonable to expect programmers to pay them in return for the resultant large runtime speedups so long as the JIT costs don't slow down their workflow.
 
-% Existing Array languages
-Array operations are higher level than explicit loops and thus tend to be easier for programmers to use. At the same time, array operations encode rich information about their access patterns that we can exploit to translate them into efficient parallel programs \cite{Ju94}. The prototypical array language is APL~\cite{Iverson62}, which allows for extremely terse loop-free specification of algorithms. More commonly used array languages include Matlab~\cite{Moler80} (the lingua franca of signal processing and machine learning research) as well as Python's NumPy~\cite{Oliphant07} extensions.
+%Might be useful: 
+% array operations encode rich information about their access patterns that we can exploit to translate them into efficient parallel programs \cite{Ju94}. 
+Parakeet is designed as an accelerator library for dynamic languages which possess either intrinsic array-oriented semantics or expressive array libraries. Parakeet acts as an interpreter nested within its source language's execution context. The advantage of this arrangement is that this allows the programmer to continue using all of the source language's normal tools and support libraries.
 
-The program execution pipeline for our system (shown in Figure \ref{fig:overview}) begins in the standard interpreter of the source array language.  Parakeet is designed as an accelerator library for dynamic, interpreted array languages, and is attached to the source language's interpreter via its plugin interface. This allows the programmer to continue to use all of the language's normal tools and support libraries.
+The program execution pipeline for our system (shown in Figure \ref{fig:overview}) begins in the standard interpreter of the source array language. At program start time, a subset of the source language's functions (either annotated manually by the programmer or detected automatically as parallelizable by Parakeet) are registered with Parakeet. The body of a registered function is then translated into an untyped intermediate representation using the Parakeet front end interface and the source language's introspection facilities.
 
-The core of the Parakeet framework is its internal typed intermediate language and an interpreter provided for that language. This IL includes data parallel array operators such as \textbf{map}, \textbf{reduce}, and \textbf{scan} that translate well into efficient data parallel GPU programs (a full table of the supported operators can be found in Figure \ref{ArrayOps}).
+When a call is made to a function which has been registered with Parakeet, the untyped function is specialized by propagating type information from the arguments to all values in the body.  Type specialization translates the function into a typed intermediate language. Further standard optimizations are performed at this stage, the most impactful of which is \emph{array operator fusion}, wherein array operators are combined according rewriting rules. This fusion step can be extremely beneficial to the final GPU program's performance, since it can potentially drastically improve the computational density of GPU programs and eliminate many wasteful array temporaries. 
 
-Execution of a program proceeds as normal in the source language's interpreter, with Parakeet intercepting function calls.  The source of these functions is then translated into an untyped intermediate representation using the Parakeet front end interface and the source language's facilities for introspection. At this step, various standard compiler optimizations are applied to the untyped IL AST such as common subexpression elimination.
-
-When a call is made to such an intercepted function, the untyped function body is type specialized according to its argument types.  Further standard optimizations are performed at this stage, as well as an optimization we call \emph{array operator fusion}.  Here, nested array operators are fused according to various rewriting rules into fewer operators. This fusion step can be extremely beneficial to the final GPU program's performance, as it eliminates temporaries and therefore achieves more efficient use of GPU memory bandwidth.
-
-Next, the Parakeet interpreter interprets the typed IL version of the function.  When Parakeet reaches an array operator node in the code tree, it employs a simple cost-based heuristic (which includes things such as data size and memory transfer costs) to decide whether to execute that array operator on the GPU or CPU (for more details see Section \ref{costmodel}).  Some code simply cannot be efficiently translated into GPU programs (such as that which performs I/O or modifies global state), and such code is kept on the CPU. In the case where Parakeet executes the operator on the CPU, the operator is either (1) translated into an IL implementation and then executed by the Parakeet interpreter; or (2) passed back to the source language's interpreter for execution. In this way, we are able to support the entire source language by simply deferring to its interpreter all computation we don't wish to perform or don't yet support. The Parakeet interpreter's execution of IL code hasn't been heavily optimized as of yet -- our effort has been focused on the generation of efficient GPU kernels.  This is reasonable for now, as its IL is very dense since array operators express large computations extremely concisely.
+Execution of the optimized typed IL is initiated by Parakeet's interpreter, which is then responsible for offloading certain operations onto the GPU. When the interpreter encounters an array operator it employs a simple cost-based heuristic (which includes things such as data size and memory transfer costs) to decide whether to execute that array operator on the GPU or CPU (for more details see Section \ref{costmodel}). Parakeet's interpreter invests great effort into analyzing the both the program and information about the data to make dynamic execution decisions. The inefficiency of these analyses are mitigated by the tremendous computational density of the intermediate language's array operators. 
 
 If an array operator's computation is deemed a good candidate for GPU execution, Parakeet flattens all nested array computations within that operator into sequential loops.  This payload is then inlined into a GPU program skeleton that implements that operator.  For example, in the case of a \textbf{map} operation, Parakeet provides an efficient GPU skeleton that implements the pattern of applying the same function to each element of an array.  The flattened payload function argument to the \textbf{map} is inlined into this skeleton, and a complete GPU program is synthesized and JIT compiled.
 
 To execute the GPU program, Parakeet first copies any of its inputs that aren't already present on the graphics card to the GPU's memory, which Parakeet treats as a managed cache of data present in the CPU's RAM.  However, unlike some systems similar to Parakeet \cite{Chaf11}, we do not by default preallocate the entirety of the GPU's memory.  Rather, Parakeet has a runtime flag that can enable such preallocation for better performance in dedicated compute server environments.  This is because we expect a typical use case to be in a desktop environment, where the GPU serves a double function of graphics processing and array operator acceleration and we don't want steal all of the GPU's resources.
 
-The GPU program is then executed, with its output lazily brought back to the CPU either when it is needed or when Parakeet's GPU garbage collector reclaims its space. If a kernel's data doesn't fit on the GPU, we default to CPU execution for now.  We are currently implementing an approach to divide an array operator's execution into pieces to allow automatic execution of kernels on arbitrarily large inputs.
+The GPU program is then executed, with its output lazily brought back to the CPU either when it is needed or when Parakeet's GPU garbage collector reclaims its space. 
 
 \section{GPU Hardware}
 To set the stage and motivate the design choices of Parakeet, we discuss here some important features of modern GPU hardware.  A GPU consists of an array of tens of multiprocessors.  Within these multiprocessors are various resources such as local memories and instruction issue units that are shared among its simple cores. Since the issue units are shared, the threads running on a single multiprocessor execute instructions in lockstep -- hence the name Single Instruction Multiple Thread (SIMT) for the execution model.  The typical pattern is to issue a short program to be executed in parallel by thousands of lightweight threads that run on these hundreds of simple cores, each operating on different subsets of some input data.  With all these cores, a typical graphics card has a peak throughput of many hundreds of GFLOP/s -- an order of magnitude more than typical high end CPUs at a fraction of the cost.
@@ -201,10 +198,9 @@ vector \texttt{a} and the scalar index \texttt{i}, we simply write \texttt{a = i
 
 We then generate the list of indices we want by applying the built-in \texttt{where} operator to the result of this test, and index into the data matrix \texttt{X} to get the list of data points in the centroid. The result of this indexing is itself a 2-D matrix which contains the list of data points belonging to the \texttt{i}-th cluster. Finally, the built-in \texttt{avg} function -- a reduction operator -- gets applied to this 2-D list. Thus we see that reductions and other built-in array operators can be applied to arrays of any arity.  Further array built-ins used in K-Means include \texttt{sum}, \texttt{min}, and the find operator (denoted by `\texttt{?}').
 
-In this algorithm we also see a number of higher-order data-parallel function modifier keywords, which in Q are called \emph{adverbs}.  For example, the \texttt{each} keyword modifies a function by applying it element-wise to its argument.  In the \texttt{calc\_centroids} function, we calculate each cluster's
-new centroid by using \texttt{each} to apply the \texttt{calc\_centroid} function to a list of integers from \texttt{0} to \texttt{k-1}.  The other adverbs used in K-Means are the directional each variants, \texttt{each-left} and \texttt{each-right} (denoted by \texttt{$\backslash$:} and  \texttt{/:}, respectively). These adverbs modify a binary function and apply it to each element of the respective input argument.  By combining both, we are able to apply the \texttt{dist} function to each pair of rows from the two input arrays--i.e.~to each data point and each centroid to calculate all the needed distances for reassigning the centroids.
+In this algorithm we also see a number of higher-order data-parallel function modifier keywords, which in Q are called \emph{adverbs}.  For example, the \texttt{each} keyword modifies a function by applying it elementwise to its argument.  In the \texttt{calc\_centroids} function, we calculate each cluster's new centroid by using \texttt{each} to apply the \texttt{calc\_centroid} function to a list of integers from \texttt{0} to \texttt{k-1}.
 
-We see that array programming languages are both expressive and compact.  While the CUDA implementation of K-Means in the Rodinia benchmark suite is hundreds of lines of code long, our Q version is only 17 even though we wrote in a verbose style in the interest of clarity. Importantly, the Q program is sequential as well.
+In this example it is evident that array programming is both expressive and compact.  While the CUDA implementation of K-Means in the Rodinia benchmark suite is hundreds of lines of code long, our Q version is only 14. 
 
 \section{Typed Intermediate Language}
 Now we turn to the problem of compiling an array language program into an efficient GPU program. At first glance, there seems to be a significant mismatch between the highly dynamic expressiveness of an array language like Q and the limitations imposed by GPU hardware discussed in Section \ref{GPULimitations}. Indeed, the Parakeet intermediate language must serve as a compromise between two competing tensions. First, in order to translate array programs into efficient GPU code it is necessary for the compiler to eliminate as much abstraction as possible. On the other hand, we must be careful not to make our program representation overly concrete with regard to evaluation order (which would eliminate opportunities for parallelism provided by the array operators).
@@ -218,16 +214,9 @@ In deference to the above-mentioned GPU hardware restrictions we disallow from o
 \item Compound data types other than arrays
 \end{itemize}
 
-These restrictions are not necessarily as severe as they initially seem, since the programmer needn't know about them. This is simply the internal format Parakeet uses in order to generate efficient GPU back end code. We explain the specialization algorithm later on in this paper.
-
-Our intermediate language is shown in Figure \ref{ILandType}. The parallelism abstraction we prefer to maintain is the use of the higher-order array operators $\MAP$, $\REDUCE$, and $\SCAN$. The higher-order array operators form a carefully confined higher-order subset of our otherwise first-order language and thus we elevate them to primitive syntax. These operators are important since they are the only constructs in our language that we attempt to parallelize automatically through GPU code synthesis.
-
-This isn't to say these are the only constructs executed in parallel on the GPU. The simple array operators such as \textbf{sort} (a full list can be found in Figure \ref{ArrayOps}) are executed in parallel on the GPU as well. They simply aren't higher-order, and thus are implemented via a fixed parallel standard library.
-
-We take inspiration from \cite{Bol09} and allow functions to both accept and return multiple values. This feature simplifies the specification of certain optimizations and naturally models the simultaneous creation of multiple values on the GPU. By convention we will write $\overline{\tau_m}$ to denote a sequence of $m$ simple types, $\overline{v_n}$ for a sequence  of $n$ values, etc. A single element is equivalent to a sequence of length 1 and sequences may be concatenated via juxtaposition, such that $\tau, \overline{\tau_n} = \overline{\tau_{m+1}}$.
+These restrictions are not necessarily as severe as they initially seem, since they can be partially concealed from the programmer via extensive specialization and program transformations explained later in this paper.
 
 
-\section{Typed First-Order IL}
 \begin{figure}[h!]
   \begin{tabular}{| m{0.01cm}m{1.3cm}m{0.1cm}m{0.2cm}p{5.0cm} |}
   \hline
@@ -242,7 +231,6 @@ We take inspiration from \cite{Bol09} and allow functions to both accept and ret
   &            &     & $\sep$    & $\mathrm{cast} (v, \tau_{src}, \tau_{dest})$ \\[2pt]
   &            &     & $\sep$    & $\mathrm{prim}_{\left\langle \oplus \right\rangle }(\overline{v})$ \\[2pt]
   &            &     & $\sep$    & $\mathrm{call}_{\left\langle f  \right\rangle } (\overline{v})$ \\[2pt] 
-  &            &     & $\sep$    & $\mathbf{stencil} \MAP _{\left\langle c \right\rangle}(\overline{v})$ \\[2pt]
   
   &            &     & $\sep$    & $\MAP _{\left\langle c \right\rangle}(\overline{v})$ \\[2pt]
   &            &     & $\sep$    & $\REDUCE _{ \left\langle c_i, c_r \right\rangle } (\overline{v_i}, \overline{v})$ \\[2pt]
@@ -254,57 +242,18 @@ We take inspiration from \cite{Bol09} and allow functions to both accept and ret
   \hline
   \end{tabular}\\[4pt]
   \caption{Typed First-Order Language}
+  \label{TIL}
 \end{figure} 
 
-\begin{enumerate}
-\item Distinguished map, reduce, scan operators which serve as a basis for both the implementation of other array 
- operators and compilation of parallel code using operator-specific templates.  
-\item All user-defined functions have first order types. Any function arguments in the original program 
- must either end up as arguments to the primitive higher order operators (map, reduce, and scan) or
- must be directly encoded as an enumeration over a finite set of possible function calls (defunctionalization). 
-\end{enumerate}
+A specification of our intermediate language is shown in Figure \ref{TIL}. We take inspiration from \cite{Bol09} and allow functions to both accept and return multiple values. This feature simplifies the specification of certain optimizations and naturally models the simultaneous creation of multiple values on the GPU. By convention we will write $\overline{\tau_m}$ to denote a sequence of $m$ simple types, $\overline{v_n}$ for a sequence  of $n$ values, etc. A single element is equivalent to a sequence of length 1 and sequences may be concatenated via juxtaposition, such that $\tau, \overline{\tau_n} = \overline{\tau_{m+1}}$.
 
-Salient features of our intermediate language include:
-\begin{itemize}
-\item In order for higher-order functions to be translated into the Parakeet IL, it must be possible to specialize away all higher-order arguments. There are situations where exhaustive specialization is not possible (e.g., combinator libraries); in these cases, we revert to the source language's interpreter for
-execution. This highlights an important point: since Parakeet augments (but does not replace) the interpreter of the source language, we are free to disallow problematic language constructs from Parakeet.
+The array operators $\MAP$, $\REDUCE$, and $\SCAN$ form a carefully confined higher-order subset of our otherwise first-order language and thus we elevate them to primitive syntax. These operators are important since they are the only constructs in our language that we attempt to parallelize automatically through GPU code synthesis. This isn't to say these are the only constructs executed in parallel on the GPU. The simple (first-order) array operators such as \textbf{sort} can be executed in parallel on the GPU as well via a fixed parallel standard library. 
 
-\item It is important to note that we can still represent function values within our intermediate language (which are created by partial application of top-level functions). However, since user functions cannot themselves accept other functions as arguments, the only purpose of function values is to parameterize the $\MAP$, $\SCAN$, and $\REDUCE$ higher-order primitives.
 
-\item It is also worth highlighting the curious nature of the type we assign to function values:
-$ \{ f_i, \overline{\tau_{c}} \} \Rightarrow \overline{\tau_m} \rightarrow \overline{\tau_n}$.  The terms occurring before the double arrow ($\{f_i, \overline{\tau_{c}} \}$) represent both the function label of a closure and the types of partially applied function arguments. We attach this information to a closure's type to facilitate efficient passing of closure arguments to the GPU and avoid any actual indirection which might otherwise be associated with function invocation. The need to statically determine a function label for any closure restricts which programs Parakeet can compile. We must reject any code where the function
-that executes at a particular program point depends on some dynamic condition.
-\end{itemize}
+It is important to note that uncertainty with regard to function values has been made completely explicit in this intermediate language. Every higher-order operator carries known labels for its function arguments. Any uncertainty in the original source must be directly encoded as an enumeration over a finite set of possible function calls. Function labels are associated with a set of closure argument values, which are necessary in order to support partial function application. This representation of function values resembles defunctionalization combined with specialization of \textit{apply} functions \cite{Tolmach98}. 
 
-\begin{figure}
-\begin{center}
-\begin{tabular}{|p{2.25cm}|p{5.5cm}|}
-\hline
-\multicolumn{2}{|c|}{\textbf{Higher-Order Array Operators}}\\[4pt] \hline
-\textbf{Array Operator} & \textbf{Meaning}\\[4pt] \hline
-\textbf{map}($f$,$x$) & Apply function $f$ to all elements of $x$\\[4pt] \hline
-\textbf{reduce}($f$,$init$,$x$) & Return result of inserting binary $f$ \\
-& between all elements of $x$ prefixed by $init$\\[4pt] \hline
-\textbf{scan}($f$,$init$,$x$) & Return running application of $f$ to $init$ \\
-& and each element of $x$\\[4pt] \hline
-\end{tabular}
-\\[12pt]
-\begin{tabular}{|p{2.25cm}|p{5.5cm}|}
-\hline
-\multicolumn{2}{|c|}{\textbf{Simple Array Operators}}\\[4pt] \hline
-\textbf{Array Operator} & \textbf{Meaning}\\[4pt] \hline
-\textbf{sort}($x$) & Return a sorted version of $x$\\[4pt] \hline
-\textbf{find}($x$,$i$) & Return index of first occurence of $i$ in
-$x$\\[4pt] \hline
-\textbf{where}($x$) & Return an array of indices where $x$ = 1\\[4pt] \hline
-\textbf{index}($x$,$i$) & Return the value of $x$ at index $i$\\[4pt] \hline
-
-% Which other ones do we support and want to list?
-\end{tabular}
-\caption{Parakeet's Supported Array Operators}
-\label{ArrayOps}
-\end{center}
-\end{figure}
+In order for higher-order functions to be translated into the Parakeet IL, it must be possible to specialize away all higher-order arguments. There are situations where exhaustive specialization is not possible (e.g. combinator libraries); in these cases, we revert to the source language's interpreter for
+execution. This highlights an important point: since Parakeet augments (but does not replace) the interpreter of the source language, we are free to disallow problematic language constructs.
 
 \section{Translation, Specialization, and Optimization}
 \label{Compilation}
@@ -319,30 +268,6 @@ To help elucidate the different program transformations performed by Parakeet, w
     \caption{Distance Function in Q}
     \label{QDist}
 \end{figure}
-
-
-\section{Untyped Higher-Order IL}
-\begin{figure}[h!]
-  \begin{tabular}{| m{0.01cm}m{1.5cm}m{0.1cm}m{0.2cm}p{4.5cm} |}
-  \hline
-  & & & &\\ 
-   \multicolumn{5}{|l|}{\textbf{Untyped Higher-Order IL}}  \\[4pt]
-  & program & $p$ &  $\bnfdef$   &  $d_1 \cdots d_n $ \\[4pt]
-  & definition & $d$ & $\bnfdef$ & $f_i(\overline{x}) \rightarrow (\overline{y}) = \overline{s}$ \\[4pt]
-  & statement  & $s$ & $\bnfdef$ & $\overline{x} = e $\\[2pt]
-  &            &     & $\sep$    & $\mathrm{if} ~v~ \mathrm{then} ~ \overline{s} ~ \mathrm{else} ~ \overline{s} $ \\[2pt]
-  &            &     & $\sep$    & $\mathrm{while} ~\overline{s}, x_{cond} ~ \mathrm{do} ~\overline{s}~ $  \\[5pt]
-  & expression & $e$ & $\bnfdef$ & $\mathrm{values} (\overline{v})$ \\[2pt]
-  &            &     & $\sep$    & $ v_f (\overline{v}) $ \\[9pt]
-  & value      & $v$ & $\bnfdef$ & numeric constant \\[2pt]
-  &            &     & $\sep$    &  $x$  \quad \small{(data variable)} \\[2pt]
-  &            &     & $\sep$    &  $f$  \quad \small{(function label)} \\[2pt]
-  &            &     & $\sep$    &  $\oplus$ \quad \small{(primitive operator)} \\[5pt]
-  \hline
-  \end{tabular}
-\caption{Untyped Higher-Order Intermediate Language}
-\end{figure}
-
 
 \subsection{Lambda Lifting and SSA Conversion}
 After a function call has been intercepted by the Parakeet runtime, Parakeet performs a syntax-directed translation from a language-specific abstract syntax tree (AST) into Parakeet's IL. Since type information is not yet available to specialize user functions, the functions must be translated into an untyped

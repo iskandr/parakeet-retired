@@ -79,25 +79,11 @@
 \newblock Thrust: A parallel template library, 2010.
 \newblock Version 1.3.0.
 
-\bibitem{Iverson62}
-{\sc Iverson, K.~E.}
-\newblock A programming language.
-\newblock In {\em Proceedings of the May 1-3, 1962, spring joint computer
-  conference\/} (New York, NY, USA, 1962), AIEE-IRE '62 (Spring), ACM,
-  pp.~345--351.
-
 \bibitem{Jones01}
 {\sc Jones, S.~P., Tolmach, A., and Hoare, T.}
 \newblock Playing by the rules: rewriting as a practical optimisation technique
   in {GHC}.
 \newblock In {\em Proceedings of the 2004 Haskell Workshop\/} (2001).
-
-\bibitem{Ju94}
-{\sc Ju, D. C.~R., Wu, C.~L., and Carini, P.}
-\newblock The classification, fusion, and parallelization of array language
-  primitives.
-\newblock {\em IEEE Trans. Parallel Distrib. Syst. 5\/} (October 1994),
-  1113--1120.
 
 \bibitem{Latt02}
 {\sc Lattner, C.}
@@ -146,11 +132,6 @@
 \newblock {NVIDIA} {CUDA} {SDK} 3.2.
 \newblock {\tt http://www.nvidia.com/cuda}.
 
-\bibitem{Oliphant07}
-{\sc Oliphant, O.}
-\newblock Python for scientific computing.
-\newblock {\em Computing in Science and Engineering 9\/} (2007), 10--20.
-
 \bibitem{Ott90}
 {\sc Ottenstein, K.~J., Ballance, R.~A., and MacCabe, A.~B.}
 \newblock The program dependence web: a representation supporting control-,
@@ -176,5 +157,11 @@
 \newblock In {\em ASPLOS '06: Proceedings of the 12th International Conference
   on Architectural Support for Programming Languages and Operating Systems\/}
   (November 2006).
+
+\bibitem{Tolmach98}
+{\sc Tolmach, A., and Oliva, D.~P.}
+\newblock From ml to ada: Strongly-typed language interoperability via source
+  translation.
+\newblock {\em J. Funct. Program. 8\/} (July 1998), 367--412.
 
 \end{thebibliography}
