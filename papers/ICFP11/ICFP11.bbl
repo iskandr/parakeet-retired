@@ -1,10 +1,5 @@
 \begin{thebibliography}{10}
 
-\bibitem{AcceJa}
-{\sc Accelereyes}.
-\newblock Jacket.
-\newblock {\tt http://www.accelereyes.com}.
-
 \bibitem{Ald01}
 {\sc Aldinucci, M., Gorlatch, S., Lengauer, C., and Pelagatti, S.}
 \newblock Towards parallel programming by transformation: the {FAN} skeleton
@@ -60,12 +55,6 @@
 \newblock In {\em Proceedings of the Sixth Workshop on Declarative Aspects of
   Multicore Programming\/} (2011), pp.~3--14.
 
-\bibitem{Cham92}
-{\sc Chambers, C.}
-\newblock {\em The Design and Implementation of the Self Compiler, an
-  Optimizing Compiler for Object-Oriented Programming Languages}.
-\newblock PhD thesis, Stanford, CA, USA, 1992.
-
 \bibitem{Che09}
 {\sc Che, S., Boyer, M., Meng, J., Tarjan, D., Sheaffer, J., Lee, S.-h., and
   Skadron, K.}
@@ -78,6 +67,11 @@
 \newblock Bringing skeletons out of the closet: A pragmatic manifesto for
   skeletal parallel programming.
 \newblock {\em Parallel Computing 30}, 3 (2004), 389--406.
+
+\bibitem{dubo96}
+{\sc Dubois, P.~F., Hinsen, K., and Hugunin, J.}
+\newblock Numerical python.
+\newblock {\em Computers in Physics 10}, 3 (May/June 1996).
 
 \bibitem{feng10}
 {\sc Feng, W.-c., and Xiao, S.}
