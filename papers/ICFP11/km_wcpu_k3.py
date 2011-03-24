@@ -4,10 +4,10 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-cpu1t = [179.69, 351.97, 693.39, 1379.91]
-cpu8t = [35.5, 71.1, 140.7, 287.7]
-cuda = [19.8, 37.3, 72.5, 143.1]
-para = [22.2, 54.0, 88.0, 160.0]
+cpu1t = [243.19, 491.08, 985.4, 1971.99]
+cpu8t = [95.7, 210.35, 426.2, 838.62]
+cuda  = [180.18, 253.52, 399.51, 689.38]
+para  = [208.23, 252.29, 355.23, 559.5]
 
 N = 4
 opts = np.arange(N)
@@ -26,11 +26,11 @@ cpu8tRects1 = ax.bar(opts+width+space, cpu8t, width, color=color2)
 cudRects1 = ax.bar(opts+2*(width+space), cuda, width, color=color3)
 parRects1 = ax.bar(opts+3*(width+space), para, width, color=color4)
 
-ax.set_xlabel('Number Of ')
+ax.set_xlabel('Number Of Data Points')
 ax.set_ylabel('Time In Milliseconds')
-ax.set_title('K-Means Execution Time')
+ax.set_title('K-Means Execution Time with K = 3')
 ax.set_xticks(opts+(2*width+1.5*space))
-ax.set_xticklabels(('1M', '2M', '4M', '8M'))
+ax.set_xticklabels(('32K', '64K', '128K', '256K'))
 
 ax.legend((cpu1tRects1[0], cpu8tRects1[0], cudRects1[0], parRects1[0]),
           ('CPU 1 thread', 'CPU 8 threads', 'CUDA', 'Parakeet'),

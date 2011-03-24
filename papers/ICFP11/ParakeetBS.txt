@@ -1,13 +1,13 @@
-# Parakeet Black-Scholes
+# Parakeet Black-Scholes w/ Textures Enabled on Tesla
 #
-#Options  Time(msec)  GPU Time    Mem xfer  Compilation   PTX Compilation
+#Options  Time(msec)  GPU    Mem xfer   Comp    PTX Comp  Init    Alloc
 
 
 
-1048576   
+1048576   20.0        0.52   7.69       3.95    7.09      1.66    0.79
 
-2097152   
+2097152   27.45       0.96   14.16      4.12    7.17      1.80    1.04
 
-4194304   
+4194304   41.31       1.98   26.91      4.29    6.81      1.53    1.32
 
-8388608   
+8388608   70.10       3.76   52.91      4.79    6.77      1.40    1.87
