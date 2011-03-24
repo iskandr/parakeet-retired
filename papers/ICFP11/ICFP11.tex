@@ -383,7 +383,7 @@ $) $ \rightarrow  ($ z $ : float ) =$} \\
 \label{DistFuse}
 \end{figure}
 
-\section{The Parakeet Runtime and Implementation}
+\section{The Parakeet Runtime}
 \label{runtime}
 
 Once a function has been type specialized and fully optimized, it is handed off to the Parakeet runtime for intelligent execution. The heart of the runtime is a heavy-weight interpreter whose primary responsibility is to initiate GPU kernel synthesis and execution. The interpreter uses program analyses and performance heuristics in order to dynamically make decisions such as: 
@@ -409,19 +409,21 @@ In the case of nested array operators -- e.g.~a \textbf{map} whose payload funct
 
 In cases (1) and (3), the operator is executed entirely on a single processor.  In case (2), however, the \textbf{map} runs as a loop on the CPU, generating each element of the resulting vector with a separate GPU program invocation.  In this case, the interpreter creates an interpreter array object on the CPU whose elements are references to the values generated on the GPU.  The final linear CPU array is only constructed lazily as needed or when the GPU garbage collector needs the space.  At that point, a linear CPU array is allocated and filled in with the computed values.  This is precisely what happens in our implementation of K-Means clustering discussed in Section \ref{results-k-means}.
 
+\subsection{Shape Inference}
+\label{shapeinference}
+Accurate prediction of array shapes is necessary both for the allocation of intermediate values on the GPU as well as for the above cost model determining placement of computations. We employ a simple abstract interpreter which propagates shape information through a function using the obvious shape semantics for each operator. For example, a \REDUCE\; operation collapses the outermost dimension of its argument whereas a \MAP\; preserves a shape's outermost dimension. 
+
+\subsection{Data Movement and Garbage Collection} 
+Arrays are moved to the GPU whenever they are used as the argument to some GPU computation. The specific GPU memory space into which an array is loaded depends on both the other data already on the GPU and the individual characteristics of the computation in which that array is being used. Tracking and collection of unused memory is achieved by counting array references. Parakeet does not immediately free an array whose reference count drops to zero but rather maintains a cache of free data blocks which can be cheaply reused. Such caching of free pointers can be advantageous when a computation repeatedly allocate arrays of the same size. 
+
 \subsection{Column-Major Transposition}
 \label{colmajor}
 
 Parakeet is able to leverage dynamic information in various ways to optimize both the implementation and the execution of the GPU programs it executes.  One important such optimization is the use of data transposition.  On GPUs, poor memory access patterns can result in orders of magnitude lower performance.  In particular, neighboring threads in an executing GPU kernel should access adjacent memory words in order to get maximum performance.  Use of column major data layouts as a performance optimization is well known in the CPU high performance computing world.  Parakeet's data layout is row major by default.  However, when a \textbf{map} computation is performed over a two-dimensional structure, a row major layout would result in the worst possible memory access pattern for the GPU kernel as its threads would concurrently access memory at some large stride.  Thus in this case, Parakeet specializes the function in question to create a transposed column-major version of the data input.  This column-major version is strictly an intermediate within the Parakeet runtime.  We have found this optimization to be extremely beneficial to performance, and it contributes immensely to the good performance Parakeet delivers on the K-Means clustering benchmark discussed in Section \ref{results-k-means}.
 
-\subsection{Shape Inference}
-\label{shapeinference}
-
-Alex should write a couple paragraphs about how he does shape inference here.
-
 \subsection{Parallel Library}
 
-In addition to these skeletons, we provide a library of precompiled parallel implementations of our simple (first-order) array operators, which are listed in Figure \ref{ArrayOps}.  Since these operators don't require synthesis with embedded payload functions, we needn't dynamically generate them.  We use the Thrust library \cite{Hobe10} for some of these operators such as \textbf{sort}, while providing our own hand-tuned implementations of others such as \textbf{where}.
+In addition to these skeletons, we provide a library of precompiled parallel implementations of our simple (first-order) array operators. Since these operators don't require synthesis with embedded payload functions, we needn't dynamically generate them.  We use the Thrust library \cite{Hobe10} for some of these operators such as \textbf{sort}, while providing our own hand-tuned implementations of others such as \textbf{where}.
 
 \section{GPU Back End}
 Unlike many other systems similar to Parakeet \cite{Cata10,Chaf11}, our back end doesn't emit CUDA code to be compiled by the NVIDIA CUDA compiler.  Instead, we target PTX, NVIDIA's GPU pseudoassembly language. 
@@ -432,7 +434,6 @@ The reason that we emit PTX instead of CUDA code is largely our latency requirem
 
 \subsection{Imp}
 \label{Imp}
-
 As mentioned above, we implement the higher-order array operators as skeletons of code with splice points where their payload functions get inlined.  Rather than implement these skeletons directly in CUDA or PTX, Parakeet includes a second intermediate language that we call Imp (short for imperative) which we use for this purpose.  This means in addition that in order to inline a function into a higher-order Imp skeleton we must first translate the function's body from the higher level Parakeet IL into Imp.
 
 Imp is largely a syntactic sugar wrapper around PTX that simplifies our job of implementing efficient GPU versions of these operator skeletons by hiding some of the architectural details PTX exposes. Imp differs from PTX in the following important respects:
