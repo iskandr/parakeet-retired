@@ -18,7 +18,10 @@ type simple_array_op_impl = values -> DynType.t list -> values
 exception InvalidGpuArgs
 
 
-type code_cache_key = FnId.t * DynType.t array * PtxVal.ptx_space array
+type types = DynType.t array 
+type spaces = PtxVal.ptx_space array 
+type layouts = GpuVal.data_layout array 
+type code_cache_key = FnId.t * types * layouts * spaces  
 
 type code_cache_entry = {
   imp_source : Imp.fn;
@@ -75,9 +78,44 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
     inputSpaces
   
   
+  
+  (**********************************************************
+        FLIP DATA LAYOUT FROM ROW MAJOR TO COLUMN MAJOR
+   **********************************************************)
+    let flip_data_layout (inputVec : GpuVal.gpu_vec) =
+      (* TODO: For now, this _only_ supports flipping 2D stuff *)
+      Timing.start Timing.gpuFlipAlloc;
+      let inputPtr = inputVec.vec_ptr in 
+      let inputShape = inputVec.vec_shape in 
+      let width = Shape.get inputShape 1 in 
+      let height = Shape.get inputShape 0 in 
+      let flipPtr = MemoryState.alloc_gpu P.memState inputVec.vec_nbytes in 
+      Timing.stop Timing.gpuFlipAlloc;
+      Timing.start Timing.gpuFlip;
+      (match DynType.elt_type inputVec.vec_t with
+        | DynType.Int32T ->
+            Kernels.flip_int_2D inputPtr height width flipPtr
+        | DynType.Float32T ->
+            Kernels.flip_float_2D inputPtr height width flipPtr
+        | _ -> failwith "Flip only supported for 2D int and float"
+      );
+      Timing.stop Timing.gpuFlip;
+      inputVec.vec_col_major <- Some flipPtr;  
+      flipPtr
+  
+  (*************************************************************
+       CONSTRUCT KERNEL PARAMS USING PTX CALLING CONVENTIONS
+   *************************************************************)
+  
   let copy_constant modulePtr gpuPtr nbytes offset = 
     Cuda.cuda_memcpy_device_to_symbol modulePtr "constants" gpuPtr nbytes offset 
     
+  let get_column_major_ptr = function 
+    | GpuVal.GpuArray gpuVec -> 
+        if Option.is_some gpuVec.vec_col_major  then 
+          Option.get gpuVec.vec_col_major
+        else flip_data_layout gpuVec 
+    | GpuVal.GpuScalar _ -> failwith "can't flip a scalar"
      
   (* any given gpu argument might either get placed into the array 
      of explicit args or it might become an implicit argument via a
@@ -87,18 +125,30 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
   let arg_helper modulePtr inputVal = function
     | PtxCallingConventions.ScalarInput ->
         [CudaModule.GpuScalarArg(GpuVal.get_scalar inputVal)]
-    | PtxCallingConventions.GlobalOutput shapeOffset 
-    | PtxCallingConventions.GlobalInput shapeOffset ->
+    | PtxCallingConventions.GlobalOutput shapeOffset -> 
         let shapePtr = GpuVal.get_shape_ptr inputVal in 
         let shapeBytes = GpuVal.get_shape_nbytes inputVal in
         copy_constant modulePtr shapePtr shapeBytes shapeOffset; 
         let dataPtr = GpuVal.get_ptr inputVal in 
         let dataBytes = GpuVal.get_nbytes inputVal in 
+        [CudaModule.GpuArrayArg(dataPtr, dataBytes)] 
+    | PtxCallingConventions.GlobalInput (dataLayout, shapeOffset) ->
+        let shapePtr = GpuVal.get_shape_ptr inputVal in 
+        let shapeBytes = GpuVal.get_shape_nbytes inputVal in
+        copy_constant modulePtr shapePtr shapeBytes shapeOffset; 
+        let dataPtr = match dataLayout with 
+          | GpuVal.RowMajor -> GpuVal.get_ptr inputVal  
+          | GpuVal.ColumnMajor -> get_column_major_ptr inputVal
+        in 
+        let dataBytes = GpuVal.get_nbytes inputVal in 
         [CudaModule.GpuArrayArg(dataPtr, dataBytes)]
-    | PtxCallingConventions.TextureInput (texName, geom, shapeOffset) ->
+    | PtxCallingConventions.TextureInput (texName, geom, layout,shapeOffset) ->
         let texRef = Cuda.cuda_module_get_tex_ref modulePtr texName in
         let inputShape = GpuVal.get_shape inputVal in
-        let inputPtr = GpuVal.get_ptr inputVal in
+        let inputPtr = match layout with 
+          | GpuVal.RowMajor -> GpuVal.get_ptr inputVal 
+          | GpuVal.ColumnMajor -> get_column_major_ptr inputVal  
+        in
         let channelFormat = 
           Cuda.infer_channel_format 
             (DynType.elt_type $ GpuVal.get_type inputVal)
@@ -217,6 +267,7 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
     (DynArray.to_array paramsArray), (DynArray.to_list outputOrder)
 
 
+
   (**********************************************************
                            MAP 
    **********************************************************)
@@ -224,7 +275,12 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
   let map_id_gen = mk_gen ()
   let mapThreadsPerBlock = 256 
   
-  let compile_map payload closureTypes argTypes retTypes inputSpaces =
+  let compile_map payload 
+        (closureTypes : DynType.t array) 
+        (argTypes : DynType.t array) 
+        (retTypes : DynType.t array)
+        (dataLayouts : GpuVal.data_layout array) 
+        (inputSpaces : PtxVal.ptx_space array) =
     (* converting payload to Imp *) 
     let impPayload = SSA_to_Imp.translate_fundef P.fnTable payload in
     (* generating Imp kernel w/ embedded payload *)
@@ -236,7 +292,7 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
         argTypes 
         retTypes
     in
-    let kernel, cc = ImpToPtx.translate_kernel impfn inputSpaces in
+    let kernel, cc = ImpToPtx.translate_kernel impfn ~dataLayouts inputSpaces in
     let kernelName = "map_kernel" ^ (string_of_int (map_id_gen())) in
     let cudaModule = 
       CudaModule.cuda_module_from_kernel_list
@@ -246,23 +302,34 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
     {imp_source=impfn; cc=cc; cuda_module=cudaModule}
 
   let mapCache : code_cache = Hashtbl.create 127
- 
+
+  
+  let decide_map_input_layout = function 
+    | DynType.VecT (DynType.VecT DynType.Float32T)
+    | DynType.VecT (DynType.VecT DynType.Int32T) -> GpuVal.ColumnMajor 
+    | _ -> GpuVal.RowMajor 
+
   let map ~payload ~closureArgs ~args =
     let closureTypes = Array.of_list (List.map GpuVal.get_type closureArgs) in
     let closureShapes = Array.of_list (List.map GpuVal.get_shape closureArgs) in
-    let inputTypes = Array.of_list (List.map GpuVal.get_type args)in
+    let inputTypesList = List.map GpuVal.get_type args in
+    let inputTypes = Array.of_list inputTypesList in 
     let inputShapes = Array.of_list (List.map GpuVal.get_shape args) in 
     let combinedInputTypes = Array.append closureTypes inputTypes in  
     let combinedInputShapes = Array.append closureShapes inputShapes in
     let combinedInputSpaces = 
       assign_input_spaces combinedInputTypes combinedInputShapes
-    
-    in  
+    in
     let outputTypes = 
       Array.of_list 
         (List.map (fun t -> DynType.VecT t) payload.SSA.fn_output_types)
-    in 
-    let cacheKey = payload.SSA.fn_id, combinedInputTypes, combinedInputSpaces in  
+    in
+    let closureLayouts = Array.map (fun _ -> GpuVal.RowMajor) closureTypes in 
+    let inputLayouts = Array.map decide_map_input_layout inputTypes in 
+    let dataLayouts = Array.append closureLayouts inputLayouts in   
+    let cacheKey = 
+      payload.SSA.fn_id, combinedInputTypes, dataLayouts, combinedInputSpaces 
+    in  
     let {imp_source=impKernel; cc=cc; cuda_module=cudaModule} = 
       if Hashtbl.mem mapCache cacheKey then Hashtbl.find mapCache cacheKey
       else (
@@ -271,7 +338,8 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
             payload 
             closureTypes 
             inputTypes 
-            outputTypes 
+            outputTypes
+            dataLayouts  
             combinedInputSpaces 
         in
         Hashtbl.add mapCache cacheKey entry; 
@@ -324,12 +392,17 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
         String.concat sep 
           (List.map PtxVal.ptx_space_to_str (Array.to_list combinedInputSpaces))
       in  
+      let layoutString = 
+        String.concat sep 
+          (List.map GpuVal.data_layout_to_str (Array.to_list dataLayouts))
+      in 
       let outputString = 
       String.concat sep (List.map GpuVal.to_str outputVals)
       in
       Printf.printf "[GpuRuntime] MAP closureArgs: %s\n" closureArgString;      
       Printf.printf "[GpuRuntime] MAP inputs: %s\n" inputArgString;  
       Printf.printf "[GpuRuntime] MAP memory spaces:%s\n" inputSpaceString; 
+      Printf.printf "[GpuRuntime] MAP data layouts: %s\n" layoutString; 
       Printf.printf "[GpuRuntime] MAP outputs: %s\n" outputString 
     ENDIF;
     outputVals
@@ -377,7 +450,7 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
   let vecTypes = Array.of_list (List.map GpuVal.get_type args) in
   let vecShapes = Array.of_list (List.map GpuVal.get_shape args) in  
   let inputSpaces = assign_input_spaces vecTypes vecShapes in 
-  let cacheKey = payload.SSA.fn_id, vecTypes, inputSpaces  in 
+  let cacheKey = payload.SSA.fn_id, vecTypes, [||], inputSpaces  in 
   let {imp_source=impKernel; cc=cc; cuda_module=compiledModule} =  
     if Hashtbl.mem reduceCache cacheKey then 
       Hashtbl.find reduceCache cacheKey
@@ -615,39 +688,7 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
       Timing.stop Timing.gpuWhere; 
       GpuVal.GpuArray output
 
-  (**********************************************************
-                          FLIP 
-   **********************************************************)
-    let flip (inputVec : gpu_val) =
-      (* TODO: For now, this _only_ supports flipping 2D stuff *)
-      let inputShape = GpuVal.get_shape inputVec in
-      let height = Shape.get inputShape 0 in
-      let width  = Shape.get inputShape 1 in
-      let inputType = GpuVal.get_type inputVec in
-      let outputShape = Shape.create 2 in
-      Shape.set outputShape 0 (Shape.get inputShape 1);
-      Shape.set outputShape 1 (Shape.get inputShape 0);
-      Timing.start Timing.gpuFlipAlloc;
-      let output =
-        MemoryState.mk_gpu_vec ~refcount:1 P.memState inputType outputShape
-      in
-      let input_ptr = GpuVal.get_ptr inputVec in
-      let elType = DynType.elt_type inputType in
-      Timing.stop Timing.gpuFlipAlloc;
-      Timing.start Timing.gpuFlip;
-      begin match elType with
-        | DynType.Int32T ->
-            Kernels.flip_int_2D input_ptr height width output.vec_ptr
-        | DynType.Float32T ->
-            Kernels.flip_float_2D input_ptr height width output.vec_ptr
-        | _ -> failwith "Flip only supported for 2D int and float"
-      end;
-      output.vec_data_layout = (match GpuVal.get_data_layout inputVec with
-        | GpuVal.RowMajor -> GpuVal.ColumnMajor
-        | GpuVal.ColumnMajor -> GpuVal.RowMajor);
-      Timing.stop Timing.gpuFlip;
-      GpuVal.GpuArray output
-
+  
 (*
 let init () =
   (* initialize GPU contexts and device info *)

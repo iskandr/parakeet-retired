@@ -145,6 +145,9 @@ class ptx_codegen = object (self)
           "[PtxCodegen] Unable to find rank: PTX value " ^ 
           (PtxVal.to_str symbols arrayPtr) ^ " not registered as a global array"
   
+  method private set_global_array_rank (arrayPtr:PtxVal.value) rank = 
+    Hashtbl.add globalArrayRanks (PtxVal.get_id arrayPtr) rank 
+     
   method is_global_array_ptr = function 
     | PtxVal.Sym {id=id} -> Hashtbl.mem globalArrayRanks id
     | _ -> false
@@ -171,17 +174,6 @@ class ptx_codegen = object (self)
       failwith "[ptx_codegen] getting geom from unknown texture";
     Hashtbl.find texGeoms texRef
 
-  val strideRegs : (PtxVal.symid, PtxVal.value) Hashtbl.t =
-    Hashtbl.create initialNumRegs
-
-  method get_stride_reg (arrayPtr : PtxVal.value) =
-    match Hashtbl.find_option strideRegs (PtxVal.get_id arrayPtr) with
-      | Some reg -> reg
-      | None ->
-          failwith $ 
-            "[PtxCodegen] Unregistered stride arg " ^ 
-            (PtxVal.to_str symbols arrayPtr)
-  
   (* works for both shared and global vectors *) 
   method get_array_rank (ptr: PtxVal.value) =
     if self#is_shared_ptr ptr then Array.length (self#get_shared_dims ptr)
@@ -198,9 +190,9 @@ class ptx_codegen = object (self)
     let shapeReg = self#fresh_reg PtxType.ptrT in
     let ptrId = PtxVal.get_id ptrReg in
     Hashtbl.add shapeRegs ptrId shapeReg;
-    Hashtbl.add globalArrayRanks ptrId rank;
+    self#set_global_array_rank ptrReg rank;
     shapeReg
-  
+    
   val mutable maxShapeOffset = 0
   
   method private incr_shape_offset rank = 
@@ -220,7 +212,6 @@ class ptx_codegen = object (self)
     let constants = self#get_constants in  
     self#emit [Ptx.add PtxType.ptrT shapeReg constants (Ptx.int offset)]; 
     shapeReg, offset 
-    
   
   method fresh_reg gpuT =
     let reg_name gpuT id = Printf.sprintf "r%s%d" (PtxType.suffix gpuT) id in
@@ -266,40 +257,88 @@ class ptx_codegen = object (self)
     Hashtbl.add sharedDims (PtxVal.get_id sharedReg) dimsArray;
     sharedReg
  
+  val dataLayouts : (PtxVal.value, GpuVal.data_layout) Hashtbl.t = 
+    Hashtbl.create 127  
+
+  method private get_data_layout reg = 
+    Hashtbl.find_default dataLayouts reg GpuVal.RowMajor
+  
+  method private set_data_layout reg layout = 
+    Hashtbl.replace dataLayouts reg layout 
+  
+  method private is_column_major reg = 
+    self#get_data_layout reg = GpuVal.ColumnMajor
+
+  (* ancestor array of some slice register *)  
+  val sliceRoots : (PtxVal.symid, PtxVal.value) Hashtbl.t = Hashtbl.create 127
+  
+  method private get_slice_root reg : PtxVal.value option =
+    let symid = PtxVal.get_id reg in 
+    if Hashtbl.mem sliceRoots symid then 
+        Some (Hashtbl.find sliceRoots symid)
+    else None  
+   
   (* we've already declared the array, have a pointer into it and 
      have even allocated the slice destination. We just need to track the 
      dimensions of the slice. We expect the caller to actually compute the 
      value of sliceReg. 
   *)  
-  method declare_slice ptrReg sliceReg =
-    if self#is_shared_ptr ptrReg then
+  method declare_slice (ptrReg : PtxVal.value) (sliceReg:PtxVal.value) =
+    (match self#get_slice_root ptrReg with 
+      | None -> 
+        (* if we're slicing into the original array, register it as our root *)
+        Hashtbl.add sliceRoots (PtxVal.get_id sliceReg) ptrReg
+      | Some prevRoot -> 
+        Hashtbl.add sliceRoots (PtxVal.get_id sliceReg) prevRoot
+    );   
+   
+    if self#is_shared_ptr ptrReg then (
+     
       let dims = self#get_shared_dims ptrReg in
       let rank = Array.length dims in
       if rank < 2 then
         failwith "[ptx_codegen->declared_shared_slice] insufficient rank"
-      else begin
+      else (
         let sliceDims = Array.init (rank - 1) (fun idx -> dims.(idx+1)) in
         (* the value of sliceReg needs to get computed by the caller *)
         Hashtbl.add sharedDims (PtxVal.get_id sliceReg) sliceDims
-      end
+      )
+    )
     else
       let rank = self#get_array_rank ptrReg in
+      
       if rank < 2 then
         failwith "[ptx_codegen->declare_global_slice] insufficient rank" 
-      else begin
-        let shapeReg = self#get_shape_reg ptrReg in
+      else (
+        IFDEF DEBUG THEN 
+          Printf.printf "In declare_slice, rank=%d, is_tex=%B!" 
+           rank
+           (self#is_tex ptrReg)
+        ENDIF; 
+        if self#is_tex ptrReg then (
+            let texRef = Hashtbl.find texRefs (PtxVal.get_id ptrReg) in            
+            Hashtbl.add texRefs (PtxVal.get_id sliceReg) texRef
+        ); 
+        if self#is_column_major ptrReg then 
+           self#set_data_layout sliceReg GpuVal.ColumnMajor
+        ;
+        (* SUPER HACKISH-- even if arrays are in column-major layout, 
+           maintain a row-major shape associated with the pointer
+           so that DimSize can be compiled correctly 
+         *)
+        
+        let shapeReg = self#get_shape_reg ptrReg in 
         let sliceShapeReg = self#fresh_shape_reg sliceReg (rank - 1) in
+        IFDEF DEBUG THEN 
+          Printf.printf "[PtxCodegen] Setting %s as slice into %s\n%!"
+            (PtxVal.to_str symbols sliceShapeReg)
+            (PtxVal.to_str symbols shapeReg)
+        ENDIF; 
         (* increment pointer to shape by 4 bytes to start at next dim *)
-        self#emit [add PtxType.ptrT sliceShapeReg shapeReg (int 4)];
-        if self#is_tex ptrReg then
-          let texRef = Hashtbl.find texRefs (PtxVal.get_id ptrReg) in
-          Hashtbl.add texRefs (PtxVal.get_id sliceReg) texRef
-      end
+        self#emit [add PtxType.ptrT sliceShapeReg shapeReg (int 4)]
+      )
 
-  
- 
   (* CONSTANTS TABLE *) 
-  
   val mutable constants = None
   method private get_constants = match constants with 
     | None ->  
@@ -332,7 +371,10 @@ class ptx_codegen = object (self)
   (* shared between storage arguments-- used for local vectors, 
      and global input arguments 
   *) 
-  method private declare_param (id : ID.t) (dynT : DynType.t) : PtxVal.value =
+  method private declare_param 
+      (id : ID.t) 
+      (dynT : DynType.t)
+      (dataLayout:GpuVal.data_layout) : PtxVal.value =
     Hashtbl.add dynTypes id dynT;
     DynArray.add paramOrder id;
     let paramId = self#fresh_arg_id in
@@ -348,18 +390,21 @@ class ptx_codegen = object (self)
         else self#convert_fresh ~destType:gpuT ~srcVal:storageReg
     in
     Hashtbl.add dataRegs id dataReg;
+    Hashtbl.add dataLayouts dataReg dataLayout;
     dataReg
     
-    
-  method private declare_input_param (id:ID.t) (dynT:DynType.t) : PtxVal.value =
-    let dataReg = self#declare_param id dynT in  
+  method private declare_input_param 
+                  (id:ID.t) 
+                  (dynT:DynType.t) 
+                  (dataLayout : GpuVal.data_layout) :  PtxVal.value =
+    let dataReg = self#declare_param id dynT dataLayout in  
     (* vectors need an additional param for their shape *)
     if DynType.is_scalar dynT then
-      Hashtbl.add dataLocations id PtxCallingConventions.ScalarInput
+      Hashtbl.add dataLocations id PtxCallingConventions.ScalarInput 
     else (
       let rank = DynType.nest_depth dynT in
       let shapeReg, shapeOffset = self#register_input_shape dataReg rank in
-      let loc = PtxCallingConventions.GlobalInput shapeOffset in  
+      let loc = PtxCallingConventions.GlobalInput (dataLayout, shapeOffset) in  
       Hashtbl.add dataLocations id loc
     );
     dataReg
@@ -376,12 +421,16 @@ class ptx_codegen = object (self)
      is registered for the external storage.
   *) 
   method declare_local impId dynT =
-    (* while changing shapes to be stored in constant memory
-       not sure what to do with locals, so disabling for now *) 
     let ptxT = PtxType.of_dyn_type dynT in
     let dataReg = self#fresh_reg ptxT in
+    IFDEF DEBUG THEN 
+      Printf.printf "[PtxCodegen] Registering Imp ID %s as %s\n"
+        (ID.to_str impId)
+        (PtxVal.to_str symbols dataReg)
+    ENDIF; 
     Hashtbl.add dataRegs impId dataReg;
     Hashtbl.add dynTypes impId dynT;
+    
     if not $ DynType.is_scalar dynT then
       ignore (self#fresh_shape_reg dataReg (DynType.nest_depth dynT))
     ;
@@ -389,7 +438,7 @@ class ptx_codegen = object (self)
    
   
   (* Texture inputs *)
-  method private declare_tex_param impId dynT =
+  method private declare_tex_param impId dynT dataLayout =
     Hashtbl.add dynTypes impId dynT;
     DynArray.add paramOrder impId;
     let texId = self#fresh_tex_id in
@@ -400,6 +449,7 @@ class ptx_codegen = object (self)
     let baseId = PtxVal.get_id basePtr in
     self#emit [mov basePtr (int 0)];
     Hashtbl.add dataRegs impId basePtr;
+    Hashtbl.add dataLayouts basePtr dataLayout; 
     Hashtbl.add texRefs baseId texParam;
     let rank = DynType.nest_depth dynT in
     (* We also do something really dumb here, which is just to pick a shape *)
@@ -412,7 +462,9 @@ class ptx_codegen = object (self)
     Hashtbl.add texGeoms texParam geom;
     (* still need to pass down shapes of inputs bound to textures *)
     let shapeReg, shapeOffset = self#register_input_shape basePtr rank in
-    let cc = PtxCallingConventions.TextureInput(name, geom, shapeOffset) in
+    let cc = 
+      PtxCallingConventions.TextureInput(name, geom, dataLayout, shapeOffset) 
+    in
     Hashtbl.add dataLocations impId cc;
     shapeReg
   
@@ -556,18 +608,50 @@ class ptx_codegen = object (self)
           add U64 address address multReg
         ]
       done
-    else
+    (* COLUMN MAJOR INDEXING, BITSNITCHES *) 
+    else if self#is_column_major baseReg then (
+        assert (Array.length idxRegs = 1); 
+        let root : PtxVal.value = match self#get_slice_root baseReg with 
+          | Some root -> root 
+          | None -> baseReg 
+        in
+        let rootRank = self#get_array_rank root in
+        let rootShape = self#get_shape_reg root in  
+        let currRank = self#get_array_rank baseReg in 
+        let multiplier = self#fresh_reg U64 in
+        if self#is_tex baseReg then
+          self#emit [mov multiplier (int 1)]
+        else
+          self#emit [mov multiplier (int eltSize)]
+        ;
+        for i = 0 to rootRank - currRank - 1 do
+          let shapeElt = self#fresh_reg U32 in
+          self#emit [ld_const U32 shapeElt rootShape ~offset:(4*i)];
+          let shapeElt64 = self#fresh_reg U64 in
+          self#convert ~destReg:shapeElt64 ~srcVal:shapeElt;
+          self#emit [mul_lo U64 multiplier multiplier shapeElt64] 
+        done; 
+        let offset = self#fresh_reg U64 in
+        self#emit [
+          mul U64 offset idxRegs64.(0) multiplier;
+          add U64 address address offset  
+        ]
+    )
+    else   
+      (* for row major arrays, get an offset into the parent shape, 
+         for column major get the full shape
+      *)
       let shapeReg = self#get_shape_reg baseReg in
       for i = 0 to numIndices - 1 do
       (* size of slice through array each index accounts for *)
-        let sliceReg = self#fresh_reg U64 in
+        let multiplier = self#fresh_reg U64 in
         (* at the very least each increase in this index has to go up by the
            bytesize of the element
         *)
         if self#is_tex baseReg then
-          self#emit [mov sliceReg (int 1)]
+          self#emit [mov multiplier (int 1)]
         else
-          self#emit [mov sliceReg (int eltSize)];
+          self#emit [mov multiplier (int eltSize)];
         (* indexing the first dimension effectively slices through all
            other dimensions. If this is, however, a 1D vector then this
            loop never runs
@@ -577,11 +661,11 @@ class ptx_codegen = object (self)
           let shapeEltReg64 = self#fresh_reg U64 in
           self#emit [ld_const U32 shapeEltReg shapeReg ~offset:(4*j)];
           self#convert ~destReg:shapeEltReg64 ~srcVal:shapeEltReg;
-          self#emit [mul_lo U64 sliceReg sliceReg shapeEltReg64]
+          self#emit [mul_lo U64 multiplier multiplier shapeEltReg64]
         done;
         let offset = self#fresh_reg U64 in
         self#emit [
-          mul U64 offset idxRegs64.(i) sliceReg;
+          mul U64 offset idxRegs64.(i) multiplier;
           add U64 address address offset  
         ]
       done
@@ -593,13 +677,18 @@ class ptx_codegen = object (self)
   val storageArgs : ID.t DynArray.t = DynArray.create () 
   method  declare_storage_arg impId dynT =  
     (* BROKEN!!!! *) 
-    Hashtbl.add dataLocations impId (PtxCallingConventions.GlobalInput 0);
+    Hashtbl.add dataLocations 
+      impId 
+      (PtxCallingConventions.GlobalInput(GpuVal.RowMajor,0));
     DynArray.add storageArgs impId; 
     (* storage is a giant vector in memory, where each 
        element of this vector corresponds to a single thread's
        storage requirements
     *)
-    let giantVectorReg = self#declare_input_param impId (DynType.VecT dynT) in
+    let giantVectorReg = 
+      self#declare_input_param impId (DynType.VecT dynT) GpuVal.RowMajor 
+      
+    in
     (* don't map impId to the huge global vector, we expect that
        declare_local will instead later associate impId with
        this thread's local slice into the storage vector
@@ -621,9 +710,9 @@ class ptx_codegen = object (self)
     self#emit [mov myStorageSlice address];
     myStorageSlice
   
-  method declare_input impId dynT = function 
+  method declare_input impId dynT ?(dataLayout=GpuVal.RowMajor) = function 
     | PtxVal.PARAM 
-    | PtxVal.GLOBAL -> self#declare_input_param impId dynT
+    | PtxVal.GLOBAL -> self#declare_input_param impId dynT dataLayout
     (* For now, assume dumbly that we can surely use textures for all 1D *)
     (* inputs that were requested to use them, and not use textures for*)
     (* anything else *)
@@ -637,17 +726,17 @@ class ptx_codegen = object (self)
           match elType with
             | DynType.UInt32T
             | DynType.Int32T
-            | DynType.Float32T -> self#declare_tex_param impId dynT
-            | _ -> self#declare_input_param impId dynT
+            | DynType.Float32T -> self#declare_tex_param impId dynT dataLayout
+            | _ -> self#declare_input_param impId dynT dataLayout
         ) else
-          self#declare_input_param impId dynT
+          self#declare_input_param impId dynT dataLayout
     | PtxVal.CONST -> assert false 
     | other -> failwith $ Printf.sprintf
         "kernel inputs via %s space not yet implemented"
         (PtxVal.ptx_space_to_str other)
   
   method declare_output impId dynT = 
-    let dataReg = self#declare_param impId dynT in 
+    let dataReg = self#declare_param impId dynT GpuVal.RowMajor in 
     let rank = DynType.nest_depth dynT in
     let shapeReg, shapeOffset = self#register_input_shape dataReg rank in
     let loc = PtxCallingConventions.GlobalOutput shapeOffset in  
@@ -751,7 +840,7 @@ class ptx_codegen = object (self)
     
   method finalize_kernel 
          : Ptx.kernel * PtxCallingConventions.calling_conventions =
-    PtxTidy.cleanup_kernel instructions local_allocations;
+    (*PtxTidy.cleanup_kernel instructions local_allocations;*)
     let kernel = { 
       params = DynArray.to_array parameters; 
       code = DynArray.to_array instructions; 

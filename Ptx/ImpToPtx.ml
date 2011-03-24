@@ -213,6 +213,11 @@ let gen_exp
      so only expect a variable on the lhs 
   *)
   | Imp.Idx({exp=Var id; exp_type=arrDynT}, idx) ->
+      IFDEF DEBUG THEN 
+        Printf.printf "[ImpToPtx] Slicing %s[%s]\n%!" 
+          (ID.to_str id)
+          (Imp.exp_node_to_str idx)
+      ENDIF;  
       let baseReg = codegen#imp_reg id in
 	    let idxDynT = idx.exp_type in
 	    let idxPtxT = PtxType.of_dyn_type idxDynT in
@@ -233,6 +238,11 @@ let gen_exp
       else
       let rank = codegen#get_array_rank baseReg in
       let address = codegen#compute_address baseReg eltBytes [|idxReg|] in
+      IFDEF DEBUG THEN 
+        Printf.printf "[ImpToPtx] Slicing: base rank: %d, address: %s\n%!"
+          rank
+          (codegen#value_to_str address)
+      ENDIF; 
       (* indexing into a 1D array yields a scalar *)  
       if rank = 1 then (
         let gpuStorageT = PtxType.storage_of_dyn_type dynResultT in
@@ -240,6 +250,7 @@ let gen_exp
         if isShared then
           codegen#emit [ld_shared gpuStorageT storageReg address]
         else if codegen#is_tex baseReg then begin
+          IFDEF DEBUG THEN Printf.printf "TEX!\n" ENDIF; 
 	        let idxRegs = codegen#fresh_regs idxPtxT 3 in
 	        for i = 0 to 2 do
 	          codegen#emit[mov ~ty:idxPtxT idxRegs.(i) (int 0)]
@@ -262,16 +273,16 @@ let gen_exp
                               xCoord yCoord idxRegs.(1) idxRegs.(2)]
             | Ptx.Tex3D -> failwith "3D textures not implemented"
         end
-        else
+        else (
           codegen#emit [ld_global gpuStorageT storageReg address]
-        ;
+        ); 
         codegen#convert ~destReg ~srcVal:storageReg
       )
       (* generate an array slice *)
       else (
         codegen#convert ~destReg ~srcVal:address;
         codegen#declare_slice baseReg destReg
-     )
+       )
   | Imp.Idx(_, _) -> failwith "[ImpToPtx] attempted to index into non-array"
   | Imp.Cast(tNew, x) ->
       let tNewPtx = PtxType.of_dyn_type tNew in 
@@ -323,6 +334,9 @@ let gen_exp
 let rec gen_stmt codegen stmt = 
   match stmt with 
   | Imp.Set (id,rhs) ->
+      IFDEF DEBUG THEN
+        codegen#emit [comment (Imp.stmt_to_str stmt) ]
+      ENDIF; 
       let reg = codegen#imp_reg id in   
       ignore (gen_exp codegen ~destReg:reg rhs)
       
@@ -405,15 +419,27 @@ let rec gen_stmt codegen stmt =
 and gen_block codegen  block = 
   List.iter (gen_stmt codegen) block
    
-let translate_kernel (impfn : Imp.fn) inputSpaces =
+let translate_kernel (impfn : Imp.fn) ?dataLayouts inputSpaces =
   let codegen = new PtxCodegen.ptx_codegen in
-  Array.iter3
-    codegen#declare_input
-    impfn.input_ids
-    impfn.input_types
-    inputSpaces
-  ;
-  Array.iter2 codegen#declare_output impfn.output_ids impfn.output_types;
+  let dataLayouts = 
+    match dataLayouts with 
+    | Some layouts -> layouts
+    | None -> Array.map (fun _ -> GpuVal.RowMajor) impfn.input_ids  
+  in 
+  let nInputs = Array.length impfn.input_ids in 
+  for i = 0 to nInputs - 1 do
+    let id = impfn.input_ids.(i) in 
+    let t = impfn.input_types.(i) in 
+    let dataLayout = dataLayouts.(i) in 
+    let inputSpace = inputSpaces.(i) in 
+    ignore (codegen#declare_input id t ~dataLayout inputSpace) 
+  done; 
+  let nOutputs = Array.length impfn.output_ids in 
+  for i = 0 to nOutputs - 1 do
+    let id = impfn.output_ids.(i) in 
+    let t = impfn.output_types.(i) in
+    ignore (codegen#declare_output id t)  
+  done;  
 
   (* declare all local variables as:
       1) a scalar register

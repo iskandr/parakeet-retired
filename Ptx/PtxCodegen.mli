@@ -24,8 +24,9 @@ class ptx_codegen : object
   method is_tex : PtxVal.value -> bool
   method get_tex_geom : PtxVal.value -> Ptx.geom
   
+  (*
   method get_stride_reg : PtxVal.value -> PtxVal.value
-  
+  *)
   method is_global_array_ptr : PtxVal.value -> bool  
   method get_global_array_rank : PtxVal.value -> int
   
@@ -41,7 +42,10 @@ class ptx_codegen : object
   method declare_local : ID.t -> DynType.t -> PtxVal.value 
   (* a local which needs heap storage *) 
   method declare_storage_arg : ID.t -> DynType.t -> PtxVal.value
-  method declare_input : ID.t -> DynType.t -> PtxVal.ptx_space -> PtxVal.value 
+  method declare_input 
+    : ID.t -> DynType.t -> ?dataLayout:GpuVal.data_layout -> 
+      PtxVal.ptx_space -> PtxVal.value
+         
   method declare_output : ID.t -> DynType.t -> PtxVal.value 
   
   method compute_threads_per_block : PtxVal.value 

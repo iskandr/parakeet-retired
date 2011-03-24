@@ -46,3 +46,7 @@ val mk_host_vec :
 val mk_gpu_val : t -> DynType.t -> Shape.t -> GpuVal.gpu_val 
 
 val flush_gpu : t -> unit    
+val flush_gpu_to_host : t -> unit
+
+(* UNMANAGED ALLOCATION! ONLY FOR USE WITH FLIP_DATA_LAYOUT! *)
+val alloc_gpu : t -> int -> Cuda.GpuPtr.t 
