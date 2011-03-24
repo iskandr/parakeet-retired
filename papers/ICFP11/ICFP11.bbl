@@ -68,11 +68,6 @@
   skeletal parallel programming.
 \newblock {\em Parallel Computing 30}, 3 (2004), 389--406.
 
-\bibitem{dubo96}
-{\sc Dubois, P.~F., Hinsen, K., and Hugunin, J.}
-\newblock Numerical python.
-\newblock {\em Computers in Physics 10}, 3 (May/June 1996).
-
 \bibitem{feng10}
 {\sc Feng, W.-c., and Xiao, S.}
 \newblock {To GPU Synchronize or Not GPU Synchronize?}
