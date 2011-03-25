@@ -65,6 +65,14 @@ xleftmargin=20pt,
 \begin{abstract}
 Contemporary GPUs offer the potential for substantial performance improvements on general purpose computation -- from an average 2.5X speedup over CPUs on 14 standard ``throughput computing'' benchmarks~\cite{Lee10} to 80X on data parallel workloads~\cite{Che09}. However, the commonly used frameworks for general purpose GPU (GPGPU) programming, OpenCL~\cite{Muns10} and NVIDIA's CUDA~\cite{NvidCU}, require highly specialized low level programming and performance tuning knowledge to tap into this potential.
 
+There has been much recent work on enabling GPU acceleration of higher level languages to ease GPGPU programming and to bring this performance potential to a wider audience.  However, these projects are typically 
+(1) intimately tied to a specific source language; 
+% DON'T WE ALSO? 
+(2) expose a constrained or non-idiomatic programming model ; and 
+% DOES ICFP CARE ABOUT COMPILE TIMES?
+(3) suffer from long GPU compile times, inhibiting rapid prototyping.
+
+
 We present Parakeet, an intelligent runtime library and JIT compiler for array-oriented subsets of existing high level languages.  Parakeet dynamically translates array-oriented code into a typed intermediate language and performs optimizations that eliminate costly abstractions and increase computational density. Parakeet then executes its intermediate representation by quickly synthesizing and executing data parallel GPU programs. Parakeet's runtime transparently handles data movement, GPU memory space selection, data layout, as well as garbage collection. Parakeet is attached as a library to the source language's interpreter, allowing all of the source language's standard features and tools to be used.
 
 We evaluate Parakeet on two standard benchmarks: Black-Scholes option pricing, and K-Means clustering.  We compare high level array-oriented implementations to hand-written, tuned GPU versions from the CUDA SDK~\cite{NvidSD} and the Rodinia GPU benchmark suite~\cite{Che09}. Despite having orders of magnitude shorter source code, the high level versions perform very favorably when executed by Parakeet, in some cases even faster than hand-written CUDA code.
