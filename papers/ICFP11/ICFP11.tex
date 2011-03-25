@@ -65,9 +65,7 @@ xleftmargin=20pt,
 \begin{abstract}
 Contemporary GPUs offer the potential for substantial performance improvements on general purpose computation -- from an average 2.5X speedup over CPUs on 14 standard ``throughput computing'' benchmarks~\cite{Lee10} to 80X on data parallel workloads~\cite{Che09}. However, the commonly used frameworks for general purpose GPU (GPGPU) programming, OpenCL~\cite{Muns10} and NVIDIA's CUDA~\cite{NvidCU}, require highly specialized low level programming and performance tuning knowledge to tap into this potential.
 
-There has been much recent work on enabling GPU acceleration of higher level languages to ease GPGPU programming and to bring this performance potential to a wider audience.  However, these projects are typically (1) intimately tied to a specific source language; (2) expose a constrained or non-idiomatic programming model; and (3) suffer from long GPU compile times, inhibiting rapid prototyping.
-
-We present Parakeet, an intelligent runtime library and JIT compiler for array-oriented subsets of existing high level languages.  Parakeet was designed to ameliorate the three issues mentioned above. Parakeet includes a language-agnostic front end for translating programs from source languages to Parakeet's array-oriented intermediate language.  The heart of Parakeet is an IL interpreter, which upon reaching an array operator can quickly synthesize and execute a data parallel GPU program to implement that operator.  Parakeet is attached as a library to the source language's interpreter, allowing all of the source language's standard features and tools to be used.
+We present Parakeet, an intelligent runtime library and JIT compiler for array-oriented subsets of existing high level languages.  Parakeet dynamically translates array-oriented code into a typed intermediate language and performs optimizations that eliminate costly abstractions and increase computational density. Parakeet then executes its intermediate representation by quickly synthesizing and executing data parallel GPU programs. Parakeet's runtime transparently handles data movement, GPU memory space selection, data layout, as well as garbage collection. Parakeet is attached as a library to the source language's interpreter, allowing all of the source language's standard features and tools to be used.
 
 We evaluate Parakeet on two standard benchmarks: Black-Scholes option pricing, and K-Means clustering.  We compare high level array-oriented implementations to hand-written, tuned GPU versions from the CUDA SDK~\cite{NvidSD} and the Rodinia GPU benchmark suite~\cite{Che09}. Despite having orders of magnitude shorter source code, the high level versions perform very favorably when executed by Parakeet, in some cases even faster than hand-written CUDA code.
 \end{abstract}
@@ -221,9 +219,10 @@ To help elucidate the different program transformations performed by Parakeet, w
 \subsection{Lambda Lifting and SSA Conversion}
 After a function call has been intercepted by the Parakeet runtime, Parakeet performs a syntax-directed translation from a language-specific abstract syntax tree (AST) into Parakeet's IL. Since type information is not yet available to specialize user functions, the functions must be translated into an untyped
 form (by setting all type assignments to $\bot$). The translation into Parakeet's IL maintains a closure environment and a name environment so that simultaneous lambda lifting and SSA conversion can be performed.
-% What does SSA conversion mean? We should define.
 
-Since we would like to interpret our intermediate language we use a gated SSA form based on the GSA sub-language of the Program Dependence Web \cite{Ott90}. Classical SSA cannot be directly executed since the $\phi$-nodes lack deterministic semantics. Gated SSA overcomes this limitation by using "gates" which not only merge data flow but also associate predicates with each data flow branch. Aside from simplifying certain optimizations, these gates also enable us to execute our code without converting out of SSA.  Figure \ref{UntypedSSADist} shows the \texttt{dist} function after it has been translated to Untyped SSA.
+Since we would like to interpret our intermediate language we use a gated SSA form based on the GSA sub-language of the Program Dependence Web \cite{Ott90}. Classical SSA cannot be directly executed since the $\phi$-nodes lack deterministic semantics. Gated SSA overcomes this limitation by using "gates" which not only merge data flow but also associate predicates with each data flow branch. Aside from simplifying certain optimizations, these gates also enable us to execute our code without converting out of SSA.  For the sake of clarity, we elide SSA gates from the specifications of our untyped and typed intermediate languages. 
+
+Figure \ref{UntypedSSADist} shows the \texttt{dist} function after it has been translated to Untyped SSA.
 
 \begin{figure}[h!]
 \fbox{
@@ -257,8 +256,8 @@ In our distance example, untyped optimizations will both remove a redundant subt
 \caption{Distance Function after untyped optimizations}
 \end{figure}
 
-\subsection{Typed Intermediate Language} 
-
+\subsection{Specialization}
+Specialization transform user programs from the untyped intermediate language into its typed variety. The purpose of this transformation is to eliminate polymorphism, to make manifest all implicit behavior (such as coercion and scalar promotion), and to assign simple unboxed types to all data used within a function body. Beyond the fact that the GPU requires its programs to be statically typed, these goals are also essential for the efficient execution of user code on the GPU. Thus, the specializer generates a different specialized version of a function for each distinct call string, with all of the function's variables receiving the appropriate types.
 
 \begin{figure}[h!]
   \begin{tabular}{| m{0.01cm}m{1.3cm}m{0.1cm}m{0.2cm}p{5.0cm} |}
@@ -298,10 +297,7 @@ It is important to note that uncertainty with regard to function values has been
 In order for higher-order functions to be translated into the Parakeet IL, it must be possible to specialize away all higher-order arguments. There are situations where exhaustive specialization is not possible (e.g. combinator libraries); in these cases, we revert to the source language's interpreter for
 execution. This highlights an important point: since Parakeet augments (but does not replace) the interpreter of the source language, we are free to disallow problematic language constructs.
 
-\subsection{Specialization}
-Specialization transform user programs from the untyped intermediate language into its typed variety. The purpose of this transformation is to eliminate polymorphism, to make manifest all implicit behavior (such as coercion and scalar promotion), and to assign simple unboxed types to all data used within a function body. Beyond the fact that the GPU requires its programs to be statically typed, these goals are also essential for the efficient execution of user code on the GPU. Thus, the specializer generates a different specialized version of a function for each distinct call string, with all of the function's variables receiving the appropriate types.
 
-It is important to note that specialization is not performed only on types but also also on function tags and the types of their associated closure arguments (since the typed IL cannot express uncertainty about the identity of a function value). One caveat is that non-constant closure values are disallowed. This prevents us from having to implement them as large switch statements on the GPU, which would be very inefficient due to branch divergence. 
 
 To continue the example, if the \textit{dist} function is called with arguments of type $vec~ float$ the specializer will then generate the code shown in Figure \ref{SpecDist}.
 \begin{figure}[h!]
@@ -446,26 +442,34 @@ Our experimental setup is as follows.  We ran all of our benchmarks on a machine
 \subsection{Black-Scholes}
 \label{results-bs}
 
+
 Black-Scholes option pricing \cite{Blac73} is a standard benchmark for data parallel workloads, since it is embarrassingly parallel -- the calculation of the price of a given option doesn't impact that of any other, and the benchmark consists of simply running thousands of independent threads in parallel for computing the prices of thousands of options.
+
+
 
 We compare our system against the multithreaded OpenMP CPU implementation from the PARSEC \cite{Bien08} benchmark suite with both 1 and 8 threads and the CUDA version in the NVIDIA CUDA SDK \cite{NvidSD}.  We modified the benchmarks to all accept the input data from the PARSEC implementation as their input so as to have a direct comparison of the computation alone.  We also modified the CUDA SDK version to calculate only one of the call or put price per option, as that matches the behavior in PARSEC.
 
-\begin{figure}
+
+
+\begin{figure}[h!]
 \includegraphics[scale=0.45]{BSWCPU.pdf}
-\caption{Black Scholes Total Times}
 \label{BSCPU}
+\caption{Black Scholes Total Times}
 \end{figure}
 
-\begin{figure}
-\includegraphics[scale=0.45]{BSNOCPU.pdf}
-\caption{Black Scholes GPU Execution Times}
-\label{BSGPU}
-\end{figure}
 
 In Figure \ref{BSCPU}, we see the total run times of the various systems. These times include the time it takes to transfer data to and from the GPU in the GPU benchmarks.  As expected, Black Scholes performs very well on the GPU as compared with the CPU, since it is a purely data parallel benchmark.  We see that Parakeet performs very similarly to the hand-written CUDA version, with overheads decreasing as a percentage of the run time as the data sizes grow.  This is due to the fact that most of these overheads are fixed costs related to dynamic compilation.
 
+\begin{figure}[h!]
+\includegraphics[scale=0.45]{BSNOCPU.pdf}
+\label{BSGPU}
+\caption{Black Scholes GPU Execution Times}
+\end{figure}
 
-In Figure \ref{BSGPU}, we break down Parakeet's performance as compared with the hand-written CUDA version.  The Parakeet run times range from 24\% to 2.4X slower than those of CUDA, with Parakeet performing better as the data size increases.  These results illustrate an important aspect of GPU acceleration, viz. that the cost of transferring data to and from the GPU's memory is rather expensive.  This large data transfer cost is, however, the same for Parakeet and CUDA.  The GPU programs that Parakeet generates are slightly less efficient than those of the CUDA version, with approximately 50\% higher run time on average.  However, the data transfer costs overwhelm the GPU execution times for Black Scholes, so this overhead isn't very important.  There are three other sources of overhead for Black Scholes that Parakeet introduces:
+
+In Figure \ref{BSGPU}, we break down Parakeet's performance as compared with the hand-written CUDA version.  The Parakeet run times range from 24\% to 2.4X slower than those of CUDA, with Parakeet performing better as the data size increases.  These results illustrate an important aspect of GPU acceleration, viz. that the cost of transferring data to and from the GPU's memory is rather expensive.  This large data transfer cost is, however, the same for Parakeet and CUDA.  The GPU programs that Parakeet generates are slightly less efficient than those of the CUDA version, with approximately 50\% higher run time on average.  However, the data transfer costs overwhelm the GPU execution times for Black Scholes, so this overhead isn't very important. 
+
+ There are three other sources of overhead for Black Scholes that Parakeet introduces:
 \begin{enumerate}
 \item Initialization costs related to registering the Black Scholes function with the Parakeet runtime.
 \item Time spent in the Parakeet IL interpreter.
@@ -473,6 +477,7 @@ In Figure \ref{BSGPU}, we break down Parakeet's performance as compared with the
 \end{enumerate}
 
 The PTX compilation time is rather significant for this benchmark -- ranging from 33\% of the total runtime for the 1 million option case to roughly 10\% in the 8 million option case.  This cost can't be helped, but it is important to note that it as well as the initialization costs are only paid once per function since Parakeet caches the compiled version of the function.  Thus, in the case of workloads where a single function is repeatedly called, this costs will be insignificant.
+
 
 \subsection{K-Means Clustering}
 \label{results-k-means}
@@ -499,7 +504,7 @@ In Figure \ref{KMCPU3}, we see the total run times of K-Means for the CPU and GP
 \label{KMGPU}
 \end{figure}
 
-K-Means clustering illustrates a key aspect of our approach: the ability to exploit dynamic information to tailor code generation and execution.  In the \texttt{calc\_centroids} function, we have a $\MAP$ operator applied to a nested function that in turns contains array operators.  Our interpreter is able to make the most efficient choice regarding where to execute things: the outer $\MAP$, since it's applied to a small array of integers and involves little computation of its own, gets executed on the CPU as a loop.  The inner function, which since it has dense computation applied to large inputs, gets synthesized into a kernel that is repeatedly launched.  This type of dynamic decision based on data size would not be possible in a static environment.  In addition, Parakeet uses transposition to column-major order (see Section \ref{colmajor}) in order to greatly improve the performance of this benchmark -- this optimization results in aporoximately a 12.5X speedup for the algorithm as whole. The function to compute the distances between the data points and the centroids is implemented as a map kernel over each data point.  Within this kernel, each thread is responsible for finding the minimum distance from its data point to a centroid.  Thus it maps over a 2D structure, and the column-major transposition can be applied.  Further, as this transposition of the data elements occurs only once with the same transposed version being reused for each loop iteration, the overhead of performing it is very low.
+K-Means clustering illustrates a key aspect of our approach: the ability to exploit dynamic information to tailor code generation and execution.  When calculating centroids, we have a $\MAP$ operator using a nested function that in turns contains array operators.  Our interpreter is able to make the most efficient choice regarding execution placement: the outer $\MAP$, since it is applied to a small array of integers and involves little computation of its own, gets executed on the CPU as a loop.  The inner function, which since it has dense computation applied to large inputs, gets synthesized into a kernel that is repeatedly launched.  This type of dynamic decision based on data size would not be possible in a static environment.  In addition, Parakeet uses transposition to a column-major data layout (see Section \ref{colmajor}) in order to greatly improve the performance of this benchmark -- transposition results in an average 12.5X speedup of K-Means clustering as a whole. The function which calculates centroid assignments is implemented as a map kernel where each thread is responsible for calculting the distance from its data point to every centroid. The Parakeet runtime identifies maps over 2D structures with nested maps over the rows, and transposes their inputs. This optimization is crucial for attaining coalesced memory accesses, and its absence can be ruinous for GPU performance.  Since a transposed data matrix can be reused across loop iterations, the relative overhead of performing a transposition is very low.
 
 \section{Related Work}
 \label{RelatedWork}
