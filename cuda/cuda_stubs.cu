@@ -254,23 +254,22 @@ value ocaml_cuda_memcpy_host_to_symbol(value symbol,
 
 CAMLprim
 value ocaml_cuda_memcpy_device_to_symbol(value modulePtr, 
-                                       value symbol,
-                                       value src,
-                                       value num_bytes,
-                                       value ocaml_offset) {
+                                         value symbol,
+                                         value src,
+                                         value num_bytes,
+                                         value ocaml_offset) {
   CAMLparam5(modulePtr, symbol, src, num_bytes, ocaml_offset);
   CUmodule* cuModule = (CUmodule*)  Int64_val(modulePtr); 
   char *name = String_val(symbol);
   CUdeviceptr source = (CUdeviceptr) Int64_val(src);
-  
 
-  CUdeviceptr dest; 
-  size_t bytes; 
-  CUresult result = cuModuleGetGlobal  (&dest, &bytes, *cuModule, name);  
+  CUdeviceptr dest;
+  unsigned bytes;
+  CUresult result = cuModuleGetGlobal(&dest, &bytes, *cuModule, name);
 
   int offset = Int_val(ocaml_offset);
    
-  if (result == CUDA_ERROR_NOT_FOUND) { 
+  if (result == CUDA_ERROR_NOT_FOUND) {
     printf("Constant symbol %s not found!\n", name);
     exit(1);
   }

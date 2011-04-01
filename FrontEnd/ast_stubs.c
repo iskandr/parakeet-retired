@@ -401,6 +401,7 @@ static paranode mk_node(value exp, source_info_t *src_info) {
 
   // build the node
   caml_register_global_root(&node);
+  node = caml_alloc_tuple(3);
   Store_field(node, 0, exp);
   Store_field(node, 1, ocaml_src_info);
   Store_field(node, 2, ast_info);

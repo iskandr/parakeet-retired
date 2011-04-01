@@ -14,24 +14,24 @@ type ast_info = {
 	mutable io : bool;
     
 	mutable nested_functions : bool;
-    mutable is_function : bool;
+  mutable is_function : bool;
 }
 
-let mk_ast_info () = { 
+let mk_ast_info () = {
 	defs_local = PSet.empty; 
-    defs_global = PSet.empty; 
+  defs_global = PSet.empty; 
 		
-    reads_local = PSet.empty; 
-    reads_global = PSet.empty; 
+  reads_local = PSet.empty; 
+  reads_global = PSet.empty; 
         	 
 	writes_local = PSet.empty; 
 	writes_global = PSet.empty; 		 
 		  
 	io = false; 
 	nested_functions = false;
-    is_function = false;
+  is_function = false;
 }
-	
+
 let combine_ast_info info1 info2 = {	
     defs_local = PSet.union info1.defs_local info2.defs_local;
     defs_global = PSet.union info1.defs_global info2.defs_global;

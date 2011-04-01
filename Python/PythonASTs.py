@@ -27,7 +27,7 @@ class ASTPrinter(ast.NodeVisitor):
   def prettyPrint(self):
     print "Error: didn't import ASTPrint.py"
 
-from ASTPrint import ASTPrinter
+#from ASTPrint import ASTPrinter
 
 #Note: keep context as a hash table, or just make in_assignment a string? 
 class ASTCreator(ASTPrinter):
@@ -242,7 +242,7 @@ def paranodes(node, args):
     bin_args = list_args(args[0],args[2])
     return libtest.mk_app(args[1],bin_args,2,0)
   elif (node_type == 'Num'):
-    return libtest.mk_int32(args[0],0)
+    return libtest.mk_int32_paranode(args[0],0)
   elif (node_type == 'Add'):
     return libtest.mk_scalar_op(0,0)
   #Note: Doesn't really give useful info, will be grouped together in an else
@@ -328,7 +328,10 @@ node = ast.parse("x = 2")
 #End Test2
 import os;
 libcude = cdll.LoadLibrary('/usr/local/cuda/lib/libcudart.so.3')
-libtest = cdll.LoadLibrary(os.getcwd() + '/parakeetpy.so')
+libtest = cdll.LoadLibrary(os.getcwd() + '/../_build/parakeetpy.so')
+libtest.parakeet_init()
+libtest.ast_init()
+libtest.front_end_init()
 AST = ASTCreator('test1')
 AST.var_list = ['x']
 AST.visit(node,0)

@@ -25,10 +25,10 @@ type exp =
     | CountLoop of node * node 
     | Void
       
-and node = { 
-    data:exp; 
+and node = {
+    data:exp;
     src:SourceInfo.t;
-    mutable ast_info : ast_info; 
+    mutable ast_info : ast_info;
 }
 
 (* FIX: use a better AST_Info without all this local/global nonsense *) 

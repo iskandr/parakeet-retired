@@ -11,4 +11,3 @@ void parakeet_init(void) {
   char *argv[] = {"argv", 0};
   caml_startup(argv);
 }
-

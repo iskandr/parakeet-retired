@@ -48,7 +48,7 @@ int64_t register_untyped_function(char *name, char **globals, int num_globals,
   int len;
 
   len = strlen(name);
-  val_name = caml_alloc_str(len);
+  val_name = caml_alloc_string(len);
   memcpy(String_val(val_name), &name, len);
 
   val_globals = build_str_list(globals, num_globals);
@@ -99,7 +99,7 @@ return_val_t run_function(int64_t id, host_val *globals, int num_globals,
   } else if (Tag_val(ocaml_rslt) == Error) {
     ret.return_code = RET_FAIL;
     ret.num_results = 0;
-    msg_len = String_len(Field(ocaml_rslt, 0));
+    msg_len = caml_string_length(Field(ocaml_rslt, 0));
     if (msg_len < RET_MSG_MAX_LEN) {
       strcpy(ret.data.error_msg, String_val(Field(ocaml_rslt, 0)));
     } else {
@@ -126,7 +126,7 @@ static CAMLprim value build_str_list(char **strs, int num_strs) {
   if (num_strs > 0) {
     str1 = caml_alloc_tuple(2);
     len  = strlen(strs[num_strs - 1]);
-    ocaml_str = caml_alloc_str(len);
+    ocaml_str = caml_alloc_string(len);
     memcpy(String_val(ocaml_str), &strs[num_strs - 1], len);
     Store_field(str1, 0, ocaml_str);
     Store_field(str1, 1, Val_int(0));
@@ -134,7 +134,7 @@ static CAMLprim value build_str_list(char **strs, int num_strs) {
     for (i = num_strs - 2; i >= 0; --i) {
       str2 = caml_alloc_tuple(2);
       len = strlen(strs[i]);
-      ocaml_str = caml_alloc_str(len);
+      ocaml_str = caml_alloc_string(len);
       memcpy(String_val(ocaml_str), &strs[i], len);
       Store_field(str2, 0, ocaml_str);
       Store_field(str2, 1, str1);
