@@ -237,11 +237,20 @@ def paranodes(node, args):
   if (node_type == 'Name'):
     return args[0]
   elif (node_type == 'Assign'):
-    return libtest.mk_def(args[0],args[1],0)
+    libtest.mk_def.restype = c_void_p
+    #print args[0], args[1], type(args[0]), type(args[1])
+    #x = libtest.mk_def(args[0],args[1],0)
+    return libtest.mk_def(c_char_p('x'),c_void_p(args[1]),0)
+    #print 'assign created'
+    #return x
   elif (node_type == 'BinOp'):
+    libtest.mk_app.restype = c_void_p
     bin_args = list_args(args[0],args[2])
     return libtest.mk_app(args[1],bin_args,2,0)
   elif (node_type == 'Num'):
+    libtest.mk_int32_paranode.restype = c_void_p
+    x = libtest.mk_int32_paranode(args[0],0)
+    print type(x),x
     return libtest.mk_int32_paranode(args[0],0)
   elif (node_type == 'Add'):
     return libtest.mk_scalar_op(0,0)
@@ -334,7 +343,14 @@ libtest.ast_init()
 libtest.front_end_init()
 AST = ASTCreator('test1')
 AST.var_list = ['x']
-AST.visit(node,0)
+finalTree = AST.visit(node,0)[0][0]
+print type(finalTree), finalTree
+emptyList = c_char_p * 0
+funID = libtest.register_untyped_function(c_char_p('test'),emptyList(),0,emptyList(),0,c_void_p(finalTree))
+
+#print type(finalTree), finalTree
+#funID = libtest.register_untyped_function('hi',0,0,0,0,c_void_p(finalTree))
+
 if AST.evil_function:
   print "This function is evil because:",AST.evil_function
 else:
