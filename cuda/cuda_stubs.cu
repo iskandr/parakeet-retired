@@ -259,12 +259,12 @@ value ocaml_cuda_memcpy_device_to_symbol(value modulePtr,
                                          value num_bytes,
                                          value ocaml_offset) {
   CAMLparam5(modulePtr, symbol, src, num_bytes, ocaml_offset);
-  CUmodule* cuModule = (CUmodule*)  Int64_val(modulePtr); 
+  CUmodule* cuModule = (CUmodule*)Int64_val(modulePtr);
   char *name = String_val(symbol);
-  CUdeviceptr source = (CUdeviceptr) Int64_val(src);
+  CUdeviceptr source = (CUdeviceptr)Int64_val(src);
 
   CUdeviceptr dest;
-  unsigned bytes;
+  size_t bytes;
   CUresult result = cuModuleGetGlobal(&dest, &bytes, *cuModule, name);
 
   int offset = Int_val(ocaml_offset);
