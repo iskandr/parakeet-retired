@@ -311,7 +311,7 @@ class ptx_codegen = object (self)
         failwith "[ptx_codegen->declare_global_slice] insufficient rank" 
       else (
         IFDEF DEBUG THEN 
-          Printf.printf "In declare_slice, rank=%d, is_tex=%B!" 
+          Printf.printf "In declare_slice, rank=%d, is_tex=%B!\n" 
            rank
            (self#is_tex ptrReg)
         ENDIF; 
@@ -329,11 +329,6 @@ class ptx_codegen = object (self)
         
         let shapeReg = self#get_shape_reg ptrReg in 
         let sliceShapeReg = self#fresh_shape_reg sliceReg (rank - 1) in
-        IFDEF DEBUG THEN 
-          Printf.printf "[PtxCodegen] Setting %s as slice into %s\n%!"
-            (PtxVal.to_str symbols sliceShapeReg)
-            (PtxVal.to_str symbols shapeReg)
-        ENDIF; 
         (* increment pointer to shape by 4 bytes to start at next dim *)
         self#emit [add PtxType.ptrT sliceShapeReg shapeReg (int 4)]
       )
@@ -840,7 +835,7 @@ class ptx_codegen = object (self)
     
   method finalize_kernel 
          : Ptx.kernel * PtxCallingConventions.calling_conventions =
-    (*PtxTidy.cleanup_kernel instructions local_allocations;*)
+    PtxTidy.cleanup_kernel instructions local_allocations;
     let kernel = { 
       params = DynArray.to_array parameters; 
       code = DynArray.to_array instructions; 

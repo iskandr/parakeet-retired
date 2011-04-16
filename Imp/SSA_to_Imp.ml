@@ -328,13 +328,6 @@ let rec translate_fundef fnTable fn =
         fnState#fresh_local_id ~dims:dims' t
       )
     in  
-    (*
-    IFDEF DEBUG THEN 
-        Printf.printf "[ssa2imp] Renamed %s to %s\n"
-          (ID.to_str id)
-          (ID.to_str impId); 
-    ENDIF;
-    *)
     ID.Map.add id impId env    
   in  
   let idEnv = MutableSet.fold add_local liveIds inputIdEnv in

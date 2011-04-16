@@ -134,9 +134,36 @@ let rec contains_volatile volatileSet expNode =
   | DimSize (_, e) 
   | Cast (_, e) -> aux e   
   | _ -> false 
-    
-type const_env = (Imp.exp, Imp.exp_node) PMap.t 
 
+
+(* traverse a block forward looking for copies, 
+   return an environment to propagate copies backwards 
+*)
+
+
+     
+   
+(*
+let rec remove_copies_block forwardCopyEnv = function 
+  | [] -> [], PMap.empty 
+  | stmt::rest ->
+      let rest', backwardCopyEnv = remove_copies_block rest forwardCopyEnv in   
+      let rest', backwardCopyEnv = remove_copies forwardCopyEnv rest in 
+      let tBlock', _ = remove_copies backwardCopyEnv tBlock in 
+      let fBlock', _ = remove_copies backwardCopyEnv fBlock in
+      let cond' = remove_copies_exp  
+      (If(cond
+  | (Set(id, _))::rest -> 
+      ID.Set.add id (find_defs rest)
+  | (While(_, body))::rest ->
+    let rest', copyEnv = 
+    let body', _ = remove_copies body in 
+     
+  | other::rest -> 
+    let rest', copyEnv = remove_copies rest in 
+    other :: rest', copyEnv   
+*)        
+type const_env = (Imp.exp, Imp.exp_node) PMap.t 
 
 let rec simplify_stmt 
   (constEnv : const_env) 
