@@ -4,8 +4,8 @@ type ast_info = {
 	mutable defs_local : string PSet.t;
 	mutable defs_global : string PSet.t; 
 
-    mutable reads_local : string PSet.t;
-    mutable reads_global : string PSet.t; 
+  mutable reads_local : string PSet.t;
+  mutable reads_global : string PSet.t; 
     		
 	mutable writes_local : string PSet.t;
 	mutable writes_global : string PSet.t; 

@@ -1,9 +1,7 @@
-
-
 val interpState : InterpState.t 
 
 val register_untyped_function : 
-  name:string -> globals:string list -> args:string list ->  AST.node -> FnId.t
+  name:string -> globals:string list -> args:string list -> AST.node -> FnId.t
   
 val register_untyped_functions : 
   (string * string list * string list * AST.node) list -> unit

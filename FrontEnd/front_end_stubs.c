@@ -23,7 +23,7 @@
 /** Private members **/
 value *ocaml_register_untyped_function = NULL;
 value *ocaml_run_function              = NULL;
-int init = 0;
+int fe_inited = 0;
 static CAMLprim value build_str_list(char **strs, int num_strs);
 static CAMLprim value build_host_val_list(host_val *vals, int num_vals);
 static CAMLprim value get_value_and_remove_root(host_val h);
@@ -31,9 +31,9 @@ static CAMLprim value get_value_and_remove_root(host_val h);
 /** Public interface **/
 
 void front_end_init(void) {
-  if (init) return;
+  if (fe_inited) return;
 
-  init = 1;
+  fe_inited = 1;
 
   ocaml_register_untyped_function =
     caml_named_value("register_untyped_function");
@@ -47,19 +47,33 @@ int64_t register_untyped_function(char *name, char **globals, int num_globals,
 
   int len;
 
+  printf("Registering bitches\n");
+  fflush(stdout);
+
   len = strlen(name);
   val_name = caml_alloc_string(len);
   memcpy(String_val(val_name), &name, len);
 
+  printf("copied string\n");
+
   val_globals = build_str_list(globals, num_globals);
+  printf("built %d globals\n", num_globals);
   val_args    = build_str_list(args, num_args);
+  printf("built %d args\n", num_args);
+
+  printf("ast is at address %p\n", ast);
   value func_args[4];
   func_args[0] = val_name;
   func_args[1] = val_globals;
   func_args[2] = val_args;
   func_args[3] = *(value*)ast;
 
+  printf("calling callback at address %p\n", ocaml_register_untyped_function);
+  fflush(stdout);
   fn_id = caml_callbackN(*ocaml_register_untyped_function, 4, func_args);
+  printf("registered function\n");
+
+  free(func_args);
 
   CAMLreturnT(int64_t, Int64_val(fn_id));
 }

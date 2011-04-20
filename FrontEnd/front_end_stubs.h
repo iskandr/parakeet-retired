@@ -41,4 +41,3 @@ return_val_t run_function(int64_t id, host_val *globals, int num_globals,
                           host_val *args, int num_args);
 
 #endif
-

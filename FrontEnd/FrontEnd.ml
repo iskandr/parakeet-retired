@@ -12,8 +12,8 @@ let init() =
 let _ = init () 
   
 (* global interpreter state *) 
-let interpState = StdLib.initState 
-
+let interpState = StdLib.initState
+ 
 let register_untyped_function ~name ~globals ~args astNode =
   (* FIX: for now, we're reusing the Analyze_AST module used by 
      the Q preprocessor, 
@@ -25,11 +25,16 @@ let register_untyped_function ~name ~globals ~args astNode =
         
      It does, however, populate the AST info fields with info about 
      uses and defs later used by AST_to_SSA
-    *) 
-  let _ = Analyze_AST.analyze_ast astNode in  
+    *)
+  printf "Inside registration function\n%!";
+  Debug.inspect_block astNode;
+  printf "AST: \n%s\n%!" (AST.node_to_str astNode);
+  let _ = Analyze_AST.analyze_ast astNode in
+  printf "Analyzed AST\n%!";
   let ssaEnv = 
     AST_to_SSA.Env.GlobalScope (InterpState.get_untyped_id interpState)  
   in
+  printf "converted to SSA\n%!";
   let argNames = globals @ args in  
   let fundef = AST_to_SSA.translate_fn ssaEnv argNames astNode in  
   InterpState.add_untyped interpState ~optimize:true name fundef; 

@@ -28,9 +28,11 @@ PARAKEET_INCLUDES = -I $(BUILDPATH) \
   -I $(BUILDPATH)/FrontEnd
 OCAMLINCLUDES := $(LIB_INCLUDES) $(PARAKEET_INCLUDES)
 
+COMMON = `ls $(PARAKEET_PATH)/Common/*.o`
+
 OBJS = cqinterface.o ocaml_functions.o
 COBJS = -ccopt -L/usr/lib/nvidia-current \
-  $(PARAKEET_PATH)/cuda/parakeet_cuda.a \
+  $(PARAKEET_PATH)/cuda/parakeet_cuda.a $(COMMON) \
   $(PARAKEET_PATH)/FrontEnd/parakeet.a \
 	-ccopt -lcuda -ccopt -L/usr/local/cuda/lib -ccopt -lcudart \
   -ccopt $(UINT_DIR)/libuint32_stubs.a -ccopt $(UINT_DIR)/libuint64_stubs.a
@@ -52,7 +54,7 @@ all: parakeetq
 parakeetq: $(OBJS) 
 	$(OCAMLCC) -linkall -ccopt -shared -ccopt -Wl,-Bsymbolic $(OBJS) \
 	$(OCAMLINCLUDES) $(COBJS) $(DEBUG) -ccopt -Wl,--start-group $(OCAMLOBJS) \
-	-ccopt -Wl,--end-group -o parakeetq.so -verbose -cclib -lstdc++
+	-ccopt -Wl,--end-group -o libparakeetq.so -verbose -cclib -lstdc++
 
 cqinterface.o: cqinterface.c cqinterface.h
 	$(OCAMLCC) $(OCAMLCFLAGS) $(DEBUG) -o cqinterface.o cqinterface.c

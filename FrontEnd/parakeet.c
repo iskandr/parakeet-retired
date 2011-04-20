@@ -7,7 +7,16 @@
  */
 #include "parakeet.h"
 
+static int parakeet_inited = 0;
+
 void parakeet_init(void) {
+  if (parakeet_inited) return;
+
+  parakeet_inited = 1;
+  
   char *argv[] = {"argv", 0};
   caml_startup(argv);
+
+  ast_init();
+  front_end_init();
 }

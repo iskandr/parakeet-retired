@@ -29,4 +29,3 @@ dt_t get_type_tag(dyn_type t);
 dyn_type get_subtype(dyn_type t);
 
 #endif
-

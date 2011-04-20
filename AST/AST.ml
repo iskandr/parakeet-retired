@@ -14,7 +14,7 @@ type exp =
     | Str of string
     | Sym of string
 				
-    | App of  node * node list 
+    | App of node * node list 
     | Arr of node list 
     | If of node * node * node
     | Def of string * node
@@ -149,7 +149,6 @@ let rec flatten_block ast = match ast.data with
     update_block_node ast nodes'
   | Def(lhs,rhs) -> update_def_node ast lhs (flatten_block rhs) 
   | _ -> ast   
-
 
 let rec is_void_recursive astNode = match astNode.data with 
   | Void  

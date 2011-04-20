@@ -28,10 +28,11 @@ PARAKEET_INCLUDES = -I $(BUILDPATH) \
   -I $(BUILDPATH)/FrontEnd
 OCAMLINCLUDES := $(LIB_INCLUDES) $(PARAKEET_INCLUDES)
 
+COMMON = `ls $(PARAKEET_PATH)/Common/*.o`
 FRONTEND = `ls $(PARAKEET_PATH)/FrontEnd/*.o`
 OBJS =
 COBJS = -ccopt -L/usr/lib/nvidia-current \
-  $(PARAKEET_PATH)/cuda/parakeet_cuda.a $(FRONTEND) \
+  $(PARAKEET_PATH)/cuda/parakeet_cuda.a $(COMMON) $(FRONTEND) \
 	-ccopt -lcuda -ccopt -L/usr/local/cuda/lib -ccopt -lcudart \
   -ccopt $(UINT_DIR)/libuint32_stubs.a -ccopt $(UINT_DIR)/libuint64_stubs.a
 
@@ -54,7 +55,7 @@ parakeetpy: $(OBJS)
 	echo "OCAML OBJS: " $(OCAMLOBJS)
 	$(OCAMLCC) -linkall -ccopt -shared -ccopt -Wl,-Bsymbolic $(OBJS) \
 	$(OCAMLINCLUDES) $(COBJS) $(DEBUG) -ccopt -Wl,--start-group $(OCAMLOBJS) \
-	-ccopt -Wl,--end-group -o parakeetpy.so -verbose -cclib -lstdc++
+	-ccopt -Wl,--end-group -o libparakeetpy.so -verbose -cclib -lstdc++
 
 # The Python C interface will be added here
 # cqinterface.o: cqinterface.c cqinterface.h

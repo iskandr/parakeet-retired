@@ -9,6 +9,8 @@
 #ifndef _AST_STUBS_H_
 #define _AST_STUBS_H_
 
+#include <stdint.h>
+
 #include "prim_variants.h"
 
 /**

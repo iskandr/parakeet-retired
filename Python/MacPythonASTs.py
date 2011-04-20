@@ -383,7 +383,7 @@ if 0:
   import os
   if testing == 0:
     libcude = cdll.LoadLibrary('/usr/local/cuda/lib/libcudart.so.3')
-    libtest = cdll.LoadLibrary(os.getcwd() + '/../_build/parakeetpy.so')
+    libtest = cdll.LoadLibrary(os.getcwd() + '/../_build/libparakeetpy.so')
     libtest.parakeet_init()
     libtest.ast_init()
     libtest.front_end_init()
