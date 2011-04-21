@@ -186,7 +186,7 @@ paranode mk_app(paranode fun, paranode *args, int num_args,
   CAMLparam0();
   CAMLlocal4(val_fun, app, arg1, arg2);
 
-  app = caml_alloc(1, Exp_App);
+  app = caml_alloc(2, Exp_App);
   val_fun = get_value_and_remove_root(fun);
   Store_field(app, 0, val_fun);
 

@@ -68,25 +68,31 @@ int main(int argc, char **argv) {
   printf("Initializing Parakeet\n");
   parakeet_init();
 
-  /*
   // Build AST for the Lambda
   paranode plus_args[2];
   printf("Building Var(X) Paranode\n");
   plus_args[0] = mk_var("x", NULL);
+  printf("\nParanode x var contents:\n");
+  inspect_block((value)plus_args[0]);
+  
   printf("Building Int(2) Paranode\n");
   plus_args[1] = mk_int64_paranode(2, NULL);
+  printf("\nParanode Int(2) contents:\n");
+  inspect_block((value)plus_args[1]);
 
   printf("Building App(Scalar_Op_Add, ...)\n");
   paranode plus     = mk_scalar_op(Scalar_Op_Add, NULL);
   paranode app_plus = mk_app(plus, plus_args, 2, NULL);
+  printf("\nParanode app_plus contents:\n");
+  inspect_block((value)app_plus);
 
   printf("Building Lambda\n");
   char *args[1] = {"x"};
   paranode plus_lam = mk_lam(args, 1, app_plus, NULL);
 
-  inspect_block(*((value*)plus_lam));
-  */
-
+  inspect_block((value)plus_lam);
+  
+  /*
   paranode xvar = mk_var("x", NULL);
   printf("\nParanode x var contents:\n");
   inspect_block((value)xvar);
@@ -100,12 +106,14 @@ int main(int argc, char **argv) {
   printf("\nIdentity lambda contents:\n");
   inspect_block((value)iden_lam);
 
+  
   printf("\nDef contents:\n");
+  */
   
   // Register the function
   printf("Registering the untyped function\n");
   int64_t add2id =
-    register_untyped_function("identity", NULL, 0, args, 1, iden_lam);
+    register_untyped_function("add2", NULL, 0, args, 1, plus_lam);
 
   // Build an input value for x
   printf("Building input integer array\n");
