@@ -132,6 +132,7 @@ paranode mk_int64_paranode(int64_t l, source_info_t *src_info) {
 
   val = caml_alloc(1, PQNUM_INT64);
   Store_field(val, 0, caml_copy_int64(l));
+
   CAMLreturnT(paranode, mk_num(val, src_info));
 }
 
