@@ -9,6 +9,7 @@
 #ifndef _AST_STUBS_H_
 #define _AST_STUBS_H_
 
+#include <caml/mlvalues.h>
 #include <stdint.h>
 
 #include "prim_variants.h"
@@ -24,7 +25,7 @@ typedef struct source_info {
   int   col;
 } source_info_t;
 
-typedef void* paranode;
+typedef value paranode;
 
 /** Initialization function - call before using any creation functions **/
 void ast_init(void);

@@ -197,4 +197,4 @@ let is_one = function
 let is_inf = function 
   | Inf _  
   | NegInf _ -> true
-  | _ -> false 
+  | _ -> false

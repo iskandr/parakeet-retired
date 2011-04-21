@@ -53,7 +53,7 @@ paranode mk_lam(char **args, int num_args, paranode body,
     arg1 = caml_alloc_tuple(2);
     len  = strlen(args[num_args - 1]);
     ocaml_str = caml_alloc_string(len);
-    memcpy(String_val(ocaml_str), &args[num_args - 1], len);
+    memcpy(String_val(ocaml_str), args[num_args - 1], len);
     Store_field(arg1, 0, ocaml_str);
     Store_field(arg1, 1, Val_int(0));
 
@@ -62,7 +62,7 @@ paranode mk_lam(char **args, int num_args, paranode body,
       arg2 = caml_alloc_tuple(2);
       len = strlen(args[i]);
       ocaml_str = caml_alloc_string(len);
-      memcpy(String_val(ocaml_str), &args[i], len);
+      memcpy(String_val(ocaml_str), args[i], len);
       Store_field(arg2, 0, ocaml_str);
       Store_field(arg2, 1, arg1);
       arg1 = arg2;
@@ -385,7 +385,7 @@ static CAMLprim value get_value_and_remove_root(paranode p) {
   CAMLparam0();
   CAMLlocal1(val);
 
-  val = *(value*)p;
+  val = (value)p;
   caml_remove_global_root(&val);
 
   CAMLreturn(val);
@@ -407,6 +407,6 @@ static paranode mk_node(value exp, source_info_t *src_info) {
   Store_field(node, 1, ocaml_src_info);
   Store_field(node, 2, ast_info);
 
-  paranode ret = (paranode)&node;
+  paranode ret = (paranode)node;
   CAMLreturnT(paranode, ret);
 }

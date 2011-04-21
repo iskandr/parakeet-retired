@@ -66,7 +66,7 @@ int64_t register_untyped_function(char *name, char **globals, int num_globals,
   func_args[0] = val_name;
   func_args[1] = val_globals;
   func_args[2] = val_args;
-  func_args[3] = *(value*)ast;
+  func_args[3] = (value)ast;
 
   printf("calling callback at address %p\n", ocaml_register_untyped_function);
   fflush(stdout);
@@ -169,13 +169,13 @@ static CAMLprim value build_host_val_list(host_val *vals, int num_vals) {
 
   if (num_vals > 0) {
     val1 = caml_alloc_tuple(2);
-    ocaml_val = *(value*)vals[num_vals - 1];
+    ocaml_val = (value)vals[num_vals - 1];
     Store_field(val1, 0, ocaml_val);
     Store_field(val1, 1, Val_int(0));
 
     for (i = num_vals - 2; i >= 0; --i) {
       val2 = caml_alloc_tuple(2);
-      ocaml_val = *(value*)vals[i];
+      ocaml_val = (value)vals[i];
       Store_field(val2, 0, ocaml_val);
       Store_field(val2, 1, val1);
       val1 = val2;
@@ -191,7 +191,7 @@ static CAMLprim value get_value_and_remove_root(host_val h) {
   CAMLparam0();
   CAMLlocal1(val);
 
-  val = *(value*)h;
+  val = (value)h;
   caml_remove_global_root(&val);
 
   CAMLreturn(val);

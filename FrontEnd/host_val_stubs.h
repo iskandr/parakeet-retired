@@ -8,11 +8,12 @@
 #ifndef _HOST_VAL_STUBS_H_
 #define _HOST_VAL_STUBS_H_
 
+#include <caml/mlvalues.h>
 #include <stdint.h>
 
 #include "dyn_type_stubs.h"
 
-typedef void *host_val;
+typedef value host_val;
 
 typedef struct host_val_data {
   void *data;

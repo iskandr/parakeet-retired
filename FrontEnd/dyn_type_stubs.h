@@ -1,9 +1,10 @@
 #ifndef _DYN_TYPE_STUBS_
 #define _DYN_TYPE_STUBS_
 
+#include <caml/mlvalues.h>
 #include "variants.h"
 
-typedef void* dyn_type;
+typedef value dyn_type;
 
 typedef struct dt {
   int scalar;

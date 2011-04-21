@@ -6,20 +6,22 @@
 #include <stdint.h>
 #include <stdio.h>
 
+#include "debug.h"
+
 /**
  * I took the following three functions from this website:
  *
  * http://caml.inria.fr/pub/docs/oreilly-book/html/book-ora115.html
  *
  */
-void margin(int n) {
+static void margin(int n) {
   while (n-- > 0)
     printf(".");
 
   return;
 }
 
-void print_block(value v, int m) {
+static void print_block(value v, int m) {
   int size, i;
   margin(m);
   if (Is_long(v))
