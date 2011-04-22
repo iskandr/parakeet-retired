@@ -315,10 +315,12 @@ paranode mk_void(source_info_t *src_info) {
 
 static paranode mk_prim(prim_t prim_op, int op, source_info_t *src_info) {
   CAMLparam0();
-  CAMLlocal1(prim_val);
+  CAMLlocal2(prim_op_val, prim_val);
 
-  prim_val = caml_alloc(1, prim_op);
-  Store_field(prim_val, 0, Val_int(op));
+  prim_val = caml_alloc(1, Exp_Prim);
+  prim_op_val = caml_alloc(1, prim_op);
+  Store_field(prim_op_val, 0, Val_int(op));
+  Store_field(prim_val, 0, prim_op_val);
 
   CAMLreturnT(paranode, mk_node(prim_val, src_info));
 }
