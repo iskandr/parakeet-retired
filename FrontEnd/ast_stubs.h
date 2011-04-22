@@ -65,7 +65,7 @@ paranode mk_def(char *name, paranode rhs, source_info_t *src_info);
 paranode mk_setidx(char *arr_name, paranode idxs, paranode rhs,
                    source_info_t *src_info);
 
-paranode mk_block(paranode stmts, source_info_t *src_info);
+paranode mk_block(paranode *stmts, int num_stmts, source_info_t *src_info);
 
 paranode mk_whileloop(paranode test, paranode body,
                       source_info_t *src_info);
