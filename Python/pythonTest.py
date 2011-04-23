@@ -15,21 +15,25 @@ libtest.mk_var.restype = c_void_p
 libtest.mk_scalar_op.restype = c_void_p
 libtest.mk_app.restype = c_void_p
 libtest.mk_lam.restype = c_void_p
-
+libtest.mk_block.restype = c_void_p
 
 INT = c_void_p(libtest.mk_int64_paranode(2,None))
 VAR = c_void_p(libtest.mk_var(c_char_p("x"),None))
 ADD = c_void_p(libtest.mk_scalar_op(0,None))
 print "added"
+print sizeof(ADD)
+print ADD
 LIST = c_void_p * 2
 ARGS = LIST(VAR,INT)
 print "list made"
 APP = c_void_p(libtest.mk_app(ADD,ARGS,2,None))
 print "apped"
+BLOCKLIST = c_void_p * 1
+BLOCK = c_void_p(libtest.mk_block(BLOCKLIST(APP),1,None))
 VARLIST = c_char_p * 1
 VARS = VARLIST(c_char_p("x"))
 LAM = c_void_p(libtest.mk_lam(VARS,1,APP,None))
 GLOBLIST = c_char_p * 0
 GLOB = GLOBLIST()
 #libtest.register_untyped_function(c_char_p("add2"),GLOB,0,VARS,1,c_void_p(libtest.mk_lam(VARS,1,c_void_p(libtest.mk_app(c_void_p(libtest.mk_scalar_op(0,None)),ARGS,2,None)),None)))
-libtest.register_untyped_function(c_char_p("add2"),GLOB,0,VARS,1,LAM)
+libtest.register_untyped_function(c_char_p("add2"),GLOB,0,VARS,1,BLOCK)
