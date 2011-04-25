@@ -68,7 +68,6 @@ let rec gen_module_template = function
       let bodyAST = build_function_body_ast bodyText in
       IFDEF DEBUG THEN 
         Printf.printf "%s\n" (AST.node_to_str bodyAST);
-        Debug.inspect_block bodyAST;
       ENDIF; 
       (* global function lookup function used by AST_to_SSA conversion *)
       let _= 

@@ -40,46 +40,36 @@ void front_end_init(void) {
   ocaml_run_function = caml_named_value("run_function");
 }
 
-int32_t register_untyped_function(char *name, char **globals, int num_globals,
-                                  char **args, int num_args, paranode ast) {
+int register_untyped_function(char *name, char **globals, int num_globals,
+                              char **args, int num_args, paranode ast) {
   CAMLparam0();
   CAMLlocal5(val_name, val_globals, val_args, val_ast, fn_id);
 
   int len;
 
-  printf("Registering bitches\n");
-  fflush(stdout);
-
   len = strlen(name);
   val_name = caml_alloc_string(len);
   memcpy(String_val(val_name), &name, len);
 
-  printf("copied string\n");
-
   val_globals = build_str_list(globals, num_globals);
-  printf("built %d globals\n", num_globals);
   val_args    = build_str_list(args, num_args);
-  printf("built %d args\n", num_args);
 
-  printf("ast is at address %p\n", ast);
   value func_args[4];
   func_args[0] = val_name;
   func_args[1] = val_globals;
   func_args[2] = val_args;
   func_args[3] = (value)ast;
 
-  printf("calling callback at address %p\n", ocaml_register_untyped_function);
-  fflush(stdout);
   fn_id = caml_callbackN(*ocaml_register_untyped_function, 4, func_args);
-  printf("registered function with id %d\n", Int_val(fn_id));
 
-  CAMLreturnT(int32_t, Int_val(fn_id));
+  CAMLreturnT(int, Int_val(fn_id));
 }
 
-return_val_t run_function(int32_t id, host_val *globals, int num_globals,
+return_val_t run_function(int id, host_val *globals, int num_globals,
                           host_val *args, int num_args) {
   CAMLparam0();
   CAMLlocal5(ocaml_rslt, ocaml_id, ocaml_globals, ocaml_args, ocaml_ret_type);
+  CAMLlocal3(ocaml_host_val, ocaml_host_array, ocaml_shape);
 
   ocaml_id      = Val_int(id);
   ocaml_globals = build_host_val_list(globals, num_globals);
@@ -89,9 +79,9 @@ return_val_t run_function(int32_t id, host_val *globals, int num_globals,
                               ocaml_globals, ocaml_args);
 
   // For now, the interface is such that we assume only one return val
-  // can be returned.  We may need to revisit this later.
+  // can be returned.  We will need to revisit this later.
   return_val_t ret;
-  int msg_len;
+  int msg_len, i;
   
   if (Is_long(ocaml_rslt)) {
     // In this case, we know that the return code must have been Pass,
@@ -99,15 +89,37 @@ return_val_t run_function(int32_t id, host_val *globals, int num_globals,
     ret.return_code = RET_PASS;
     ret.num_results = 0;
   } else if (Tag_val(ocaml_rslt) == Success) {
+    ocaml_host_val = Field(ocaml_rslt, 0);
+    // TODO: For now, only support returning unboxed arrays from the GPU.
+    if (Tag_val(ocaml_host_val) != HostArray) {
+      printf("Only support returning arrays from the GPU. Aborting\n");
+      exit(1);
+    }
+
+    ocaml_host_array = Field(ocaml_host_val, 0);
+
     // I think we only need to register a global root here for the dyn_type,
     // since the return value's data was created in C world and is just a
     // pointer to something outside the OCaml heap.
     ret.return_code = RET_SUCCESS;
     ret.num_results = 1;
     caml_register_global_root(&ocaml_ret_type);
-    ocaml_ret_type = Field(ocaml_rslt, 1);
-    ret.ret_type = (dyn_type)&ocaml_ret_type;
-    ret.data.results = (void*)Int64_val(Field(ocaml_rslt, 0));
+    ocaml_ret_type = Field(ocaml_host_array, HostArray_HOST_T);
+    ret.ret_type = (dyn_type)ocaml_ret_type;
+
+    // Build the results array
+    ret.data.results = (void**)malloc(sizeof(void*));
+    ret.data.results[0] =
+      (void*)Int64_val(Field(ocaml_host_array, HostArray_PTR));
+
+    // Build the shapes array
+    ocaml_shape = Field(ocaml_host_array, HostArray_SHAPE);
+    int shape_len = Wosize_val(ocaml_shape);
+    ret.shapes = (int**)malloc(sizeof(int*));
+    ret.shapes[0] = (int*)malloc(shape_len);
+    for (i = 0; i < shape_len; ++i) {
+      ret.shapes[0][i] = Int_val(Field(ocaml_shape, i));
+    }
   } else if (Tag_val(ocaml_rslt) == Error) {
     ret.return_code = RET_FAIL;
     ret.num_results = 0;

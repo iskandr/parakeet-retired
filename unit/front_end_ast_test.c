@@ -65,7 +65,6 @@ value inspect_block (value v)
  */
 
 int main(int argc, char **argv) {
-  printf("Initializing Parakeet\n");
   parakeet_init();
 
   // Build AST for the function body
@@ -81,16 +80,10 @@ int main(int argc, char **argv) {
   char *args[1] = {"x"};
 
   // Register the function
-  printf("Registering the untyped function\n");
-  fflush(stdout);
-  int32_t add2id =
-    register_untyped_function("add2", NULL, 0, args, 1, plus_block);
+  int add2id = register_untyped_function("add2", NULL, 0, args, 1, plus_block);
 
   // Build an input value for x
-  printf("Building input integer array\n");
   int input_data[10] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
-  printf("6th element on CPU: %d\n", input_data[5]);
-  printf("sizeof(int): %d\n", sizeof(int));
   int input_shape[1] = {10};
   dyn_type scalar_int = mk_scalar(Int32T);
   dyn_type vec_int = mk_vec(scalar_int);
@@ -100,17 +93,12 @@ int main(int argc, char **argv) {
   inputs[0] = input;
 
   // Run the function with x = [0 1 2 3 4 5 6 7 8 9]
-  printf("Running the function\n");
   return_val_t ret = run_function(add2id, NULL, 0, inputs, 1);
 
-  printf("Printing results %d\n", ret.return_code);
   int i;
   if (ret.return_code == RET_SUCCESS) {
-    printf("Return type:\n");
-    inspect_block(ret.ret_type);
     // Hard-coding the expected return type to be Vec(Int)
     int *rslt = (int*)ret.data.results[0];
-    printf("Result: ");
     for (i = 0; i < 10; ++i) {
       printf("%d ", rslt[i]);
     }

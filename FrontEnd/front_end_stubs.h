@@ -29,15 +29,16 @@ typedef struct return_val {
     char error_msg[RET_MSG_MAX_LEN];
     void **results;
   } data;
+  int **shapes;
 } return_val_t;
 
 /** Initialization function - call before using any other functions **/
 void front_end_init(void);
 
-int32_t register_untyped_function(char *name, char **globals, int num_globals,
-                                  char **args, int num_args, paranode ast);
+int register_untyped_function(char *name, char **globals, int num_globals,
+                              char **args, int num_args, paranode ast);
 
-return_val_t run_function(int32_t id, host_val *globals, int num_globals,
+return_val_t run_function(int id, host_val *globals, int num_globals,
                           host_val *args, int num_args);
 
 #endif

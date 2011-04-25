@@ -26,21 +26,13 @@ let register_untyped_function ~name ~globals ~args astNode =
      It does, however, populate the AST info fields with info about 
      uses and defs later used by AST_to_SSA
     *)
-  printf "Inside registration function\n%!";
-  Debug.inspect_block astNode;
-  printf "AST: \n%s\n%!" (AST.node_to_str astNode);
-  let arg0 :: rest = args in
-  printf "args[0]: %s\n" arg0;
   let _ = Analyze_AST.analyze_ast astNode in
-  printf "Analyzed AST\n%!";
   let ssaEnv = 
     AST_to_SSA.Env.GlobalScope (InterpState.get_untyped_id interpState)  
   in
-  printf "converted to SSA\n%!";
   let argNames = globals @ args in  
   let fundef = AST_to_SSA.translate_fn ssaEnv argNames astNode in  
   InterpState.add_untyped interpState ~optimize:true name fundef;
-  printf "After translate: %d\n%!" fundef.SSA.fn_id;
   fundef.SSA.fn_id 
   
 let rec register_untyped_functions = function 
@@ -124,5 +116,5 @@ let run_function untypedId ~globals ~args =
   print_all_timers();
   Timing.clear Timing.untypedOpt;
   Pervasives.flush_all (); 
-   (* assume only one result can be returns *) 
+   (* assume only one result can be returns *)
   Success (List.hd resultVals) 
