@@ -29,6 +29,8 @@ let register_untyped_function ~name ~globals ~args astNode =
   printf "Inside registration function\n%!";
   Debug.inspect_block astNode;
   printf "AST: \n%s\n%!" (AST.node_to_str astNode);
+  let arg0 :: rest = args in
+  printf "args[0]: %s\n" arg0;
   let _ = Analyze_AST.analyze_ast astNode in
   printf "Analyzed AST\n%!";
   let ssaEnv = 
@@ -37,7 +39,8 @@ let register_untyped_function ~name ~globals ~args astNode =
   printf "converted to SSA\n%!";
   let argNames = globals @ args in  
   let fundef = AST_to_SSA.translate_fn ssaEnv argNames astNode in  
-  InterpState.add_untyped interpState ~optimize:true name fundef; 
+  InterpState.add_untyped interpState ~optimize:true name fundef;
+  printf "After translate: %d\n%!" fundef.SSA.fn_id;
   fundef.SSA.fn_id 
   
 let rec register_untyped_functions = function 

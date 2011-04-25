@@ -34,10 +34,10 @@ typedef struct return_val {
 /** Initialization function - call before using any other functions **/
 void front_end_init(void);
 
-int64_t register_untyped_function(char *name, char **globals, int num_globals,
+int32_t register_untyped_function(char *name, char **globals, int num_globals,
                                   char **args, int num_args, paranode ast);
 
-return_val_t run_function(int64_t id, host_val *globals, int num_globals,
+return_val_t run_function(int32_t id, host_val *globals, int num_globals,
                           host_val *args, int num_args);
 
 #endif

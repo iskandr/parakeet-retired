@@ -71,39 +71,31 @@ int main(int argc, char **argv) {
   // Build AST for the function body
   paranode plus_args[2];
   plus_args[0] = mk_var("x", NULL);
-  plus_args[1] = mk_int64_paranode(2, NULL);
+  plus_args[1] = mk_int32_paranode(2, NULL);
 
   paranode plus     = mk_scalar_op(Scalar_Op_Add, NULL);
   paranode app_plus = mk_app(plus, plus_args, 2, NULL);
 
   paranode plus_block = mk_block(&app_plus, 1, NULL);
 
-  /*
-  paranode xvar = mk_var("x", NULL);
-  printf("\nParanode x var contents:\n");
-  inspect_block((value)xvar);
-
-  // Create a block node to hold the function body and create the args
-  paranode idblock = mk_block(&xvar, 1, NULL);
-  printf("\nBlock contents:\n");
-  inspect_block((value)idblock);
-  */
-
   char *args[1] = {"x"};
 
   // Register the function
   printf("Registering the untyped function\n");
-  int64_t add2id =
+  fflush(stdout);
+  int32_t add2id =
     register_untyped_function("add2", NULL, 0, args, 1, plus_block);
 
   // Build an input value for x
   printf("Building input integer array\n");
-  int64_t input_data[10] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
+  int input_data[10] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
+  printf("6th element on CPU: %d\n", input_data[5]);
+  printf("sizeof(int): %d\n", sizeof(int));
   int input_shape[1] = {10};
-  dyn_type scalar_int = mk_scalar(Int64T);
+  dyn_type scalar_int = mk_scalar(Int32T);
   dyn_type vec_int = mk_vec(scalar_int);
   host_val input = mk_host_array((char*)input_data, vec_int, input_shape, 1,
-                                 10 * 8);
+                                 10 * sizeof(int));
   host_val inputs[1];
   inputs[0] = input;
 
@@ -111,9 +103,11 @@ int main(int argc, char **argv) {
   printf("Running the function\n");
   return_val_t ret = run_function(add2id, NULL, 0, inputs, 1);
 
-  printf("Printing results\n");
+  printf("Printing results %d\n", ret.return_code);
   int i;
   if (ret.return_code == RET_SUCCESS) {
+    printf("Return type:\n");
+    inspect_block(ret.ret_type);
     // Hard-coding the expected return type to be Vec(Int)
     int *rslt = (int*)ret.data.results[0];
     printf("Result: ");
@@ -129,3 +123,4 @@ int main(int argc, char **argv) {
   // just to see how it should be done
   return 0;
 }
+

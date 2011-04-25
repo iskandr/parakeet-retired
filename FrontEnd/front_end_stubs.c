@@ -40,7 +40,7 @@ void front_end_init(void) {
   ocaml_run_function = caml_named_value("run_function");
 }
 
-int64_t register_untyped_function(char *name, char **globals, int num_globals,
+int32_t register_untyped_function(char *name, char **globals, int num_globals,
                                   char **args, int num_args, paranode ast) {
   CAMLparam0();
   CAMLlocal5(val_name, val_globals, val_args, val_ast, fn_id);
@@ -71,19 +71,17 @@ int64_t register_untyped_function(char *name, char **globals, int num_globals,
   printf("calling callback at address %p\n", ocaml_register_untyped_function);
   fflush(stdout);
   fn_id = caml_callbackN(*ocaml_register_untyped_function, 4, func_args);
-  printf("registered function\n");
+  printf("registered function with id %d\n", Int_val(fn_id));
 
-  free(func_args);
-
-  CAMLreturnT(int64_t, Int64_val(fn_id));
+  CAMLreturnT(int32_t, Int_val(fn_id));
 }
 
-return_val_t run_function(int64_t id, host_val *globals, int num_globals,
+return_val_t run_function(int32_t id, host_val *globals, int num_globals,
                           host_val *args, int num_args) {
   CAMLparam0();
   CAMLlocal5(ocaml_rslt, ocaml_id, ocaml_globals, ocaml_args, ocaml_ret_type);
 
-  ocaml_id      = copy_int64(id);
+  ocaml_id      = Val_int(id);
   ocaml_globals = build_host_val_list(globals, num_globals);
   ocaml_args    = build_host_val_list(args, num_args);
 
@@ -141,7 +139,7 @@ static CAMLprim value build_str_list(char **strs, int num_strs) {
     str1 = caml_alloc_tuple(2);
     len  = strlen(strs[num_strs - 1]);
     ocaml_str = caml_alloc_string(len);
-    memcpy(String_val(ocaml_str), &strs[num_strs - 1], len);
+    memcpy(String_val(ocaml_str), strs[num_strs - 1], len);
     Store_field(str1, 0, ocaml_str);
     Store_field(str1, 1, Val_int(0));
 
@@ -149,7 +147,7 @@ static CAMLprim value build_str_list(char **strs, int num_strs) {
       str2 = caml_alloc_tuple(2);
       len = strlen(strs[i]);
       ocaml_str = caml_alloc_string(len);
-      memcpy(String_val(ocaml_str), &strs[i], len);
+      memcpy(String_val(ocaml_str), strs[i], len);
       Store_field(str2, 0, ocaml_str);
       Store_field(str2, 1, str1);
       str1 = str2;

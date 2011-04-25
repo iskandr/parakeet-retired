@@ -137,7 +137,7 @@ host_val mk_host_array(char *data, dyn_type t, int *shape, int shape_len,
   ocaml_shape = caml_alloc(shape_len, 0);
   int i;
   for(i = 0; i < shape_len; i++) {
-      Store_field(ocaml_shape, i, Val_int(shape[i]));
+    Store_field(ocaml_shape, i, Val_int(shape[i]));
   }
   ocaml_host_ptr = caml_copy_int64((int64_t)data);
   ocaml_num_bytes = Val_int(num_bytes);
