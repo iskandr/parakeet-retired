@@ -1,5 +1,8 @@
 import ast
 from ctypes import *
+testing = 0
+debug = 0
+printing = 0
 
 #List of which built-in functions are allowed and which aren't
 primitives = {"abs":1,"all":1,"any":1,"basestring":1,"bin":0,"bool":0,"bytearray":1,
@@ -14,6 +17,10 @@ primitives = {"abs":1,"all":1,"any":1,"basestring":1,"bin":0,"bool":0,"bytearray
               "reversed":0,"round":1,"set":0,"settattr":0,"slice":0,"sorted":0,
               "staticmethod":0,"str":0,"sum":1,"super":0,"tuple":0,"type":1,"unichr":0,
               "unicode":0,"vars":1,"xrange":0,"zip":0}
+import numpy as np
+import functools as ft
+numpyPrimitives = {np.all:1,np.sum:1,np.argmin:1,np.mean:1}
+functoolsPrimitives = {ft.partial:1}
 
 class ASTPrinter(ast.NodeVisitor):
   def __init__(self):
@@ -25,9 +32,10 @@ class ASTPrinter(ast.NodeVisitor):
   def printNode(self,lit):
     pass
   def prettyPrint(self):
-    print "Error: didn't import ASTPrint.py"
+    print "Not printing"
 
-#from ASTPrint import ASTPrinter
+if printing == 1:
+  from ASTPrint import ASTPrinter
 
 #Note: keep context as a hash table, or just make in_assignment a string? 
 class ASTCreator(ASTPrinter):
@@ -52,7 +60,34 @@ class ASTCreator(ASTPrinter):
     self.from_import = {}
     #Do normal init stuff
     ASTPrinter.__init__(self)
+    self.func_name = ""
   #Visiting a node
+  def getFunction(self,newNode):
+    if str(newNode) in self.var_list:
+      self.evil_function = "calling a variable as a function is not supported"
+      print str(newNode)    
+    func_str = self.function_path + '.' + str(newNode)
+    try:
+      exec "curr_func = %s" % func_str
+    except:
+      try:
+        exec "curr_func = %s.__globals__['%s']" % (self.func_name , str(newNode))
+        func_str = str(newNode)
+      except:
+        str_new_node = str(newNode)
+        try:
+          exec "import %s" % self.from_import[str_new_node]
+          str_new_node = self.from_import[str_new_node] + "." + str_new_node
+        except:
+          pass
+        exec "curr_func = %s" % str_new_node
+        try:
+          if not primitives[str(newNode)]:
+            self.evil_function = "%s is an unsupported primitive" % str(newNode)
+        except:
+          pass #Note: Not a primitive, use this somehow?
+    return curr_func
+           
   def visit(self,node,in_assignment):
     #Some tests for evilness
     if type(node).__name__ == "Print":
@@ -75,7 +110,6 @@ class ASTCreator(ASTPrinter):
     #Visits all of the child nodes
     for child in node._fields:
       exec "newNode = node.%s" % child
-
       #Sees if the child being visited is a node or a normal dataType i.e. ints
       try:
         #If the node isn't part of a list
@@ -106,6 +140,8 @@ class ASTCreator(ASTPrinter):
             except:
               self.var_list.remove(node.name)
           args.append(self.visit(newNode,in_assignment))
+          print "Nonlist:",args
+#          print "1",args
           #Handles following function calls of type a.b.c()
           #If statement makes sure we're at c, and not just at a.b
           if in_assignment == self.context['attribute'] and \
@@ -150,21 +186,30 @@ class ASTCreator(ASTPrinter):
         else:
           listArgs = []
           for elm in newNode:
+            #Special case because of partial :S
+            if type(node).__name__ == 'Call':
+              try:
+                if elm == node.args[0] and node.func.id == 'partial':
+                  if type(elm).__name__ == 'Name':
+                    in_assignment = self.context["function_call"]
+                  elif type(elm).__name__ == 'Attribute':
+                    in_assignment = self.context["attribute"]
+              except:
+                pass          
             #The assign node only has one child that's a list, and it's
-            #the names of the variables that are beign assigned to 
+            #the names of the variables that are being assigned to 
             if type(node).__name__ == 'Assign':
               in_assignment = self.context["assignment"]
             listArgs.append(self.visit(elm,in_assignment))
+            print "Nonlist in list:",listArgs
+ #           print "2",listArgs
             in_assignment = 0
-          args.append(listArgs)
+          args += listArgs
+          print "list:",args
+ #         print "3",args
         #Otherwise, we still want the info for the child, it's just not a node
       except:
         #Means it's a variable name
-#        try:
-#          if type(newNode).__name__ == 'Name':
-#            print "WTF???"
-#        except:
-#          pass
         if in_assignment == self.context["assignment"]:
           if not str(newNode) in self.var_list:
             if type(node).__name__ == 'Name':
@@ -172,29 +217,7 @@ class ASTCreator(ASTPrinter):
         elif in_assignment == self.context["function_call"]:
           #Means the code looked like you were defining a variable when it was
           #really a function
-          if str(newNode) in self.var_list:
-            self.evil_function = "calling a variable as a function is not supported"
-            print str(newNode)    
-          func_str = self.function_path + '.' + str(newNode)
-          try:
-            exec "curr_func = %s" % func_str
-          except:
-            try:
-              exec "curr_func = %s.__globals__['%s']" % ('test1.funTest' , str(newNode))
-              func_str = str(newNode)
-            except:
-              str_new_node = str(newNode)
-              try:
-                exec "import %s" % self.from_import[str_new_node]
-                str_new_node = self.from_import[str_new_node] + "." + str_new_node
-              except:
-                pass
-              exec "curr_func = %s" % str_new_node
-              try:
-                if not primitives[str(newNode)]:
-                  self.evil_function = "%s is an unsupported primitive" % str(newNode)
-              except:
-                pass #Note: Not a primitive, use this somehow?
+          curr_func = self.getFunction(newNode)
           if type(curr_func).__name__ == 'classobj':#$ or \
 #          type(curr_func).__name__ == 'builtin_function_or_method':
             if (self.right_assignment):
@@ -210,15 +233,16 @@ class ASTCreator(ASTPrinter):
         #Note: printing stuff?
         self.printLiteral(newNode)
         args.append(str(newNode))
-
-        
+    
     #Now that the child information is known, we can do pretty printing
     self.printNode(type(node).__name__)
     #return ''
-    print 'hi'
+#    print 'hi'
     x = paranodes(node, args)
-    print 'bye'
-    return paranodes(node, args)
+    if testing == 1 and debug == 1:
+      print x
+#    print 'bye'
+    return x
 
 def readFile(file_name):
   try:
@@ -231,12 +255,27 @@ def readFile(file_name):
   return out_string
 
 def paranodes(node, args):
+  print "TYPE:",type(node).__name__
+  if testing == 1:
+#      print "ASSIGN?",type(args),type([])
+    argStr = ''
+#TEMP:    print args
+    for elm in args:
+      if type(elm) == type([]):
+        argStr += "{"
+        for elm2 in elm:
+          argStr += elm2 + ','
+        argStr += "}"
+      else:
+        argStr = argStr + elm + ','
+    return type(node).__name__ + "[" + argStr + "]"
   list_args = c_void_p * 2 #Note: make this more generic?
   node_type = type(node).__name__
-  print node_type
+  #print node_type
   if (node_type == 'Name'):
-    return args[0]
+    return c_void_p(libtest.mk_var(c_char_p(args[0]),None))
   elif (node_type == 'Assign'):
+    #NOTE: args[0] is a list, not an element, so be careful
     libtest.mk_def.restype = c_void_p
     #print args[0], args[1], type(args[0]), type(args[1])
     #x = libtest.mk_def(args[0],args[1],0)
@@ -246,20 +285,26 @@ def paranodes(node, args):
   elif (node_type == 'BinOp'):
     libtest.mk_app.restype = c_void_p
     bin_args = list_args(args[0],args[2])
-    return libtest.mk_app(args[1],bin_args,2,0)
+    return c_void_p(libtest.mk_app(args[1],bin_args,2,None))
   elif (node_type == 'Num'):
     libtest.mk_int32_paranode.restype = c_void_p
-    x = libtest.mk_int32_paranode(args[0],0)
-    print type(x),x
-    return libtest.mk_int32_paranode(args[0],0)
+#    x = c_void_p(libtest.mk_int32_paranode(args[0],None))
+#    print type(x),x
+    return c_void_p(libtest.mk_int32_paranode(args[0],None))
   elif (node_type == 'Add'):
-    return libtest.mk_scalar_op(0,0)
+    return c_void_p(libtest.mk_scalar_op(0,None))
   #Note: Doesn't really give useful info, will be grouped together in an else
   #statement later
   elif (node_type == 'Store'):
     return ''
+  elif (node_type == 'Return'):
+    #Note: Always just the 1st argument?
+    return args[0]
   elif (node_type == 'Module'):
-    return args
+    BLOCKLIST = c_void_p * 1
+#    print args
+    return c_void_p(libtest.mk_block(BLOCKLIST(args[0]),1,None))
+    #return args
 
 def functionInfo(function_obj):
   #get the information for the sourcecode
@@ -314,6 +359,7 @@ def fun_visit(name,func):
     AST = ASTCreator(name)
   #Note: Put in __init?
     AST.var_list = fun_info[2]
+    AST.func_name = func.__module__ + "." + func.__name__
     AST.visit(node,0)
     if AST.npArrayEvil and AST.npArrayEvil != 'Safe':
       AST.evil_function = AST.npArrayEvil
@@ -322,41 +368,65 @@ def fun_visit(name,func):
     else:
       AST.prettyPrint()
       for key in AST.curr_function.keys():
-        if (not AST.func_handled.has_key(key)):
+        if numpyPrimitives.get(key):
+          print key.__name__,"is a numpy function"
+          AST.func_handled[key] = 1
+        elif functoolsPrimitives.get(key):
+          print key.__name__,"is a functools function"
+          AST.func_handled[key] = 1
+        elif (not AST.func_handled.has_key(key)):
           print 'Now visiting:', key.__name__
           AST.func_handled[key] = 1
           fun_visit(str(key.__module__),key)
           print 'Finished visiting:', key.__name__
 
+def returnTypeInit():
+  #Note: Do more automatically?
+  libtest.mk_int32_paranode.restype = c_void_p
+  libtest.mk_int64_paranode.restype = c_void_p
+  libtest.mk_var.restype = c_void_p
+  libtest.mk_scalar_op.restype = c_void_p
+  libtest.mk_app.restype = c_void_p
+  libtest.mk_lam.restype = c_void_p
+  libtest.mk_block.restype = c_void_p
 
 #Test1:
-node = ast.parse("x = 2")
+###node = ast.parse("x = 2")
 #Test2:
-###import test1
-###node = ast.parse(functionInfo(test1.funTest)[1])
+if 1:
+  import KMMeans
+#  print functionInfo(KMMeans.minidx)[1]
+  node = ast.parse("return x + 2")
 #End Test2
-import os;
-libcude = cdll.LoadLibrary('/usr/local/cuda/lib/libcudart.so.3')
-libtest = cdll.LoadLibrary(os.getcwd() + '/../_build/parakeetpy.so')
-libtest.parakeet_init()
-libtest.ast_init()
-libtest.front_end_init()
-AST = ASTCreator('test1')
-AST.var_list = ['x']
-finalTree = AST.visit(node,0)[0][0]
-print type(finalTree), finalTree
-emptyList = c_char_p * 0
-funID = libtest.register_untyped_function(c_char_p('test'),emptyList(),0,emptyList(),0,c_void_p(finalTree))
+  import os
+  if testing == 0:
+    libcude = cdll.LoadLibrary('/usr/local/cuda/lib/libcudart.so.3')
+    libtest = cdll.LoadLibrary(os.getcwd() + '/../_build/libparakeetpy.so')
+    libtest.parakeet_init()
+    returnTypeInit()
+
+  AST = ASTCreator('KMMeans')
+  AST.var_list = ['x']
+  if testing == 1:
+    AST.visit(node,0)
+  if testing == 0:
+    finalTree = AST.visit(node,0)
+    AST.prettyPrint()
+    print type(finalTree), finalTree
+    emptyList = c_char_p * 0
+    varList = c_char_p * 1
+    Vars = varList(c_char_p("x"))
+    funID = libtest.register_untyped_function(c_char_p('add2'),emptyList(),0,Vars,1,finalTree)
 
 #print type(finalTree), finalTree
 #funID = libtest.register_untyped_function('hi',0,0,0,0,c_void_p(finalTree))
 
-if AST.evil_function:
-  print "This function is evil because:",AST.evil_function
-else:
-  AST.prettyPrint()
-#import test1
-#fun_visit('test1',test1.numPyTest)
+  if AST.evil_function:
+    print "This function is evil because:",AST.evil_function
+  else:
+    AST.prettyPrint()
+#import KMMeans
+#fun_visit('KMMeans',KMMeans.kmeans)
 
 ###Test if built-in needs to be part of if statement
 ###Make sure x = abs(y) works if built-in DOES have to be part of if statement
