@@ -1,7 +1,11 @@
 open Base 
 open AST
 open Prim
-	
+
+  
+  (*
+type global_fn = Prim of Prim.prim | Fn of string 
+    *) 	
 let prim_hash =  Hashtbl.of_list [
 			"+", ScalarOp Add;
 			"-", ScalarOp Sub; 

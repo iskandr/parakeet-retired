@@ -14,7 +14,9 @@ let add ?(opt_queue=true) fundef (cache:t) =
   Hashtbl.add cache.arities id arity;  
   if opt_queue then Queue.add id cache.unoptimized_queue 
   
-let find id cache = Hashtbl.find cache.fundefs id  
+let find id cache = 
+  try Hashtbl.find cache.fundefs id
+  with _ -> failwith $ "[FnTable] Could not find function " ^ (FnId.to_str id)  
 
 let find_option id cache = 
   if Hashtbl.mem cache.fundefs id  then 

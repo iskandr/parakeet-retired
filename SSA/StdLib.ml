@@ -42,8 +42,12 @@ let initState = InterpState.create_from_untyped_list ~optimize:false [
   "sum", sum; 
   "prod", prod;
   "min", min;
-  "max", max; 
-  "avg", avg; 
+  "max", max;
+  (* keep two names for 'avg' until Q has a proper frontend, then 
+     change to 'mean' 
+   *)  
+  "avg", avg;
+  "mean", avg;  
   "count", count 
 ]
 
