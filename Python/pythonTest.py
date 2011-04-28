@@ -28,10 +28,10 @@ class _U(Union):
 
 class return_val_t(Structure):
   _fields_ = [("return_code",c_int),
-              ("ret_type",c_void_p),
-			  ("num_results",c_int),
-			  ("data",_U),
-			  ("shapes",POINTER(POINTER(c_int)))]
+        ("results_len",c_int),
+        ("ret_types",POINTER(c_void_p)),
+        ("shapes",POINTER(POINTER(c_int))),
+        ("data",_U)]
 
 libtest.run_function.restype = return_val_t
 
@@ -62,11 +62,16 @@ INPUTLIST = c_int * 10
 input_data = INPUTLIST(0,1,2,3,4,5,6,7,8,9)
 SHAPELIST = c_int * 1
 input_shape = SHAPELIST(10)
-scalar_int = c_void_p(libtest.mk_scalar(c_int()))
+scalar_int = c_void_p(libtest.mk_scalar(7))
 vec_int = c_void_p(libtest.mk_vec(scalar_int))
 input = c_void_p(libtest.mk_host_array(input_data, vec_int,
 				 input_shape, 1, 40))
 INPUTLIST = c_void_p * 1
 inputs = INPUTLIST(input)				 
-ret = return_val_t(libtest.run_function(add2id, None, 0, inputs, 1))
+ret = libtest.run_function(add2id, None, 0, inputs, 1)
+if (ret.return_code == 0):
+  rslt = cast(ret.data.results[0], POINTER(c_int))
+  for i in range(10):
+    print rslt[i],
+  print
 print("DONE")
