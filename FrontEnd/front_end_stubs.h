@@ -13,8 +13,6 @@
 #include "ast_stubs.h"
 #include "host_val_stubs.h"
 
-#define RET_MSG_MAX_LEN 256
-
 typedef enum {
   RET_SUCCESS = 0,
   RET_PASS,
@@ -23,13 +21,13 @@ typedef enum {
 
 typedef struct return_val {
   return_code_t return_code;
-  dyn_type ret_type;
-  int num_results;
+  int results_len;
+  dyn_type *ret_types;
+  int **shapes;
   union {
-    char error_msg[RET_MSG_MAX_LEN];
+    char *error_msg;
     void **results;
   } data;
-  int **shapes;
 } return_val_t;
 
 /** Initialization function - call before using any other functions **/
@@ -40,5 +38,7 @@ int register_untyped_function(char *name, char **globals, int num_globals,
 
 return_val_t run_function(int id, host_val *globals, int num_globals,
                           host_val *args, int num_args);
+
+void free_return_val(return_val_t ret_val);
 
 #endif

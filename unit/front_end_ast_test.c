@@ -61,7 +61,7 @@ value inspect_block (value v)
  *
  * The Parakeet AST ends up being:
  *
- * App(Prim(Scalar_Op_Add), [Var("x"), Num(PQNum.Int64(2))])
+ * App(Prim(Scalar_Op_Add), [Var("x"), Num(PQNum.Int32(2))])
  */
 
 int main(int argc, char **argv) {
@@ -83,12 +83,18 @@ int main(int argc, char **argv) {
   int add2id = register_untyped_function("add2", NULL, 0, args, 1, plus_block);
 
   // Build an input value for x
-  int input_data[10] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
+  //int input_data[10] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
+  float input_data[10] = {0.0f, 1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f, 7.0f,
+                          8.0f, 9.0f};
   int input_shape[1] = {10};
-  dyn_type scalar_int = mk_scalar(Int32T);
-  dyn_type vec_int = mk_vec(scalar_int);
-  host_val input = mk_host_array((char*)input_data, vec_int, input_shape, 1,
-                                 10 * sizeof(int));
+  //dyn_type scalar_int = mk_scalar(Int32T);
+  //dyn_type vec_int = mk_vec(scalar_int);
+  //host_val input = mk_host_array((char*)input_data, vec_int, input_shape, 1,
+  //                               10 * sizeof(int));
+  dyn_type scalar_float = mk_scalar(Float32T);
+  dyn_type vec_float = mk_vec(scalar_float);
+  host_val input = mk_host_array((char*)input_data, vec_float, input_shape, 1,
+                                 10 * sizeof(float));
   host_val inputs[1];
   inputs[0] = input;
 
@@ -98,9 +104,9 @@ int main(int argc, char **argv) {
   int i;
   if (ret.return_code == RET_SUCCESS) {
     // Hard-coding the expected return type to be Vec(Int)
-    int *rslt = (int*)ret.data.results[0];
+    float *rslt = (float*)ret.data.results[0];
     for (i = 0; i < 10; ++i) {
-      printf("%d ", rslt[i]);
+      printf("%f ", rslt[i]);
     }
     printf("\n");
   } else {

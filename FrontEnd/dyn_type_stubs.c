@@ -41,6 +41,26 @@ void free_dyn_type(dyn_type t) {
   CAMLreturn0;
 }
 
+int get_dyn_type_rank(dyn_type t) {
+  int rank = 0;
+  dyn_type cur = t;
+  while(!dyn_type_is_scalar(cur)) {
+    rank++;
+    cur = get_subtype(cur);
+  }
+
+  return rank;
+}
+
+dyn_type_no_data_t get_dyn_type_element_type(dyn_type t) {
+  dyn_type cur = t;
+  while(!dyn_type_is_scalar(cur)) {
+    cur = get_subtype(cur);
+  }
+
+  return (dyn_type_no_data_t)Val_int(cur);
+}
+
 int dyn_type_is_scalar(dyn_type t) {
   CAMLparam0();
   CAMLlocal1(ocaml_dyn_type);

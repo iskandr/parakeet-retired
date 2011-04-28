@@ -79,15 +79,16 @@ return_val_t run_function(int id, host_val *globals, int num_globals,
                               ocaml_globals, ocaml_args);
 
   // For now, the interface is such that we assume only one return val
-  // can be returned.  We will need to revisit this later.
+  // can be returned.  We will need to revisit this later - once the
+  // front end function in OCaml returns a list this will seg fault.
   return_val_t ret;
-  int msg_len, i;
+  int i;
   
   if (Is_long(ocaml_rslt)) {
     // In this case, we know that the return code must have been Pass,
     // since the other two return codes have data.
     ret.return_code = RET_PASS;
-    ret.num_results = 0;
+    ret.results_len = 0;
   } else if (Tag_val(ocaml_rslt) == Success) {
     ocaml_host_val = Field(ocaml_rslt, 0);
     // TODO: For now, only support returning unboxed arrays from the GPU.
@@ -102,10 +103,9 @@ return_val_t run_function(int id, host_val *globals, int num_globals,
     // since the return value's data was created in C world and is just a
     // pointer to something outside the OCaml heap.
     ret.return_code = RET_SUCCESS;
-    ret.num_results = 1;
-    caml_register_global_root(&ocaml_ret_type);
-    ocaml_ret_type = Field(ocaml_host_array, HostArray_HOST_T);
-    ret.ret_type = (dyn_type)ocaml_ret_type;
+    ret.results_len = 1;
+    ret.ret_types = (dyn_type*)malloc(sizeof(dyn_type));
+    ret.ret_types[0] = (dyn_type)Field(ocaml_host_array, HostArray_HOST_T);
 
     // Build the results array
     ret.data.results = (void**)malloc(sizeof(void*));
@@ -122,21 +122,38 @@ return_val_t run_function(int id, host_val *globals, int num_globals,
     }
   } else if (Tag_val(ocaml_rslt) == Error) {
     ret.return_code = RET_FAIL;
-    ret.num_results = 0;
-    msg_len = caml_string_length(Field(ocaml_rslt, 0));
-    if (msg_len < RET_MSG_MAX_LEN) {
-      strcpy(ret.data.error_msg, String_val(Field(ocaml_rslt, 0)));
-    } else {
-      memcpy(ret.data.error_msg, String_val(Field(ocaml_rslt, 0)),
-             RET_MSG_MAX_LEN - 1);
-      ret.data.error_msg[RET_MSG_MAX_LEN - 1] = '\0';
-    }
+    ret.results_len = caml_string_length(Field(ocaml_rslt, 0));
+    ret.data.error_msg = malloc(ret.results_len);
+    strcpy(ret.data.error_msg, String_val(Field(ocaml_rslt, 0)));
   } else {
     printf("Unknown return code from run_function. Aborting.\n");
     exit(1);
   }
 
   CAMLreturnT(return_val_t, ret);
+}
+
+void free_return_val(return_val_t ret_val) {
+  CAMLparam0();
+  CAMLlocal1(ret_type);
+  
+  int i;
+
+  // Free the return types
+  free(ret_val.ret_types);
+
+  // Free the shapes
+  for (i = 0; i < ret_val.results_len; ++i) {
+    free(ret_val.shapes[i]);
+  }
+  free(ret_val.shapes);
+
+  // Free error msg if necessary
+  if (ret_val.return_code == RET_FAIL) {
+    free(ret_val.data.error_msg);
+  }
+
+  CAMLreturn0;
 }
 
 /** Private functions **/

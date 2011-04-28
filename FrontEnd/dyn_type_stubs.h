@@ -22,6 +22,8 @@ dyn_type mk_vec(dyn_type t);
 void free_dyn_type(dyn_type t);
 
 /** Type accessor functions **/
+int get_dyn_type_rank(dyn_type t);
+dyn_type_no_data_t get_dyn_type_element_type(dyn_type t);
 int dyn_type_is_scalar(dyn_type t);
 dt_t get_type_tag(dyn_type t);
 
