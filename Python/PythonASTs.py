@@ -3,6 +3,9 @@ from ctypes import *
 testing = 0
 debug = 0
 printing = 0
+simpleTest = 0
+import os
+libtest = 0 #NOTE: JUST TO BE GLOBAL
 
 ####STRUCT
 class _U(Union):
@@ -32,10 +35,10 @@ primitives = {"abs":1,"all":1,"any":1,"basestring":1,"bin":0,"bool":0,"bytearray
               "unicode":0,"vars":1,"xrange":0,"zip":0}
 
 
-#import numpy as np
-#import functools as ft
-#numpyPrimitives = {np.all:1,np.sum:1,np.argmin:1,np.mean:1}
-#functoolsPrimitives = {ft.partial:1}
+import numpy as np
+import functools as ft
+numpyPrimitives = {np.all:1,np.sum:1,np.argmin:1,np.mean:1}
+functoolsPrimitives = {ft.partial:1}
 newPrimitves = {"sum":"sum","argmin":"argmin","map":"map","mean":"mean","arange":"range","all":"all"}
 
 
@@ -307,6 +310,10 @@ def paranodes(node, args):
     return c_void_p(libtest.mk_int32_paranode(int(args[0]),None))
   elif (node_type == 'Add'):
     return c_void_p(libtest.mk_scalar_op(0,None))
+  elif (node_type == 'Sub'):
+    return c_void_p(libtest.mk_scalar_op(1,None))
+  elif (node_type == 'Mult'):
+    return c_void_p(libtest.mk_scalar_op(2,None))
   #Note: Doesn't really give useful info, will be grouped together in an else
   #statement later
   elif (node_type == 'Call'):
@@ -346,12 +353,12 @@ def functionInfo(function_obj):
   first_comments = 0
   for line in code_text:
     #if it's the first line of meaningful code
-    if line_no == code_info.co_firstlineno+1+first_comments:
+    if line_no == code_info.co_firstlineno+2+first_comments:
       if line.isspace() or line.strip()[0] == '#':
         first_comments += 1
-    if line_no > code_info.co_firstlineno + first_comments:
+    if line_no > code_info.co_firstlineno +1+ first_comments:
       #Special case for the first line of code
-      if line_no == code_info.co_firstlineno + 1 + first_comments:
+      if line_no == code_info.co_firstlineno + 2 + first_comments:
         tab_char = line[0]
         for c in line:
           if c == tab_char:
@@ -377,13 +384,24 @@ def fun_visit(name,func):
   #Note: Put in __init?
     AST.var_list = fun_info[2]
     AST.func_name = func.__module__ + "." + func.__name__
-    AST.visit(node,0)
+    finalTree = AST.visit(node,0)
     if AST.npArrayEvil and AST.npArrayEvil != 'Safe':
       AST.evil_function = AST.npArrayEvil
     if AST.evil_function:
       print "This function is evil because:",AST.evil_function
+      return
     else:
-      AST.prettyPrint()
+      if printing:
+        AST.prettyPrint()
+      #Ignoring global variables, would use this
+      ######################print "VARS",AST.var_list and fun_info[2]
+      emptyList = c_char_p * 0
+      varList = c_char_p * len(fun_info[0])
+      vars = varList()
+      for index in range(len(fun_info[0])):
+        vars[index] = fun_info[0][index]
+      funID = c_int(libtest.register_untyped_function(c_char_p(func.__name__),emptyList(),0,vars,len(fun_info[0]),finalTree))
+      return funID
       for key in AST.curr_function.keys():
         if numpyPrimitives.get(key):
           print key.__name__,"is a numpy function"
@@ -411,30 +429,40 @@ def returnTypeInit():
   libtest.mk_host_array.restype = c_void_p
   libtest.register_untyped_function.restype = c_int
   libtest.run_function.restype = return_val_t
+  libtest.get_prim.restype = c_void_p
   
-def runFunction(func):
-  INPUTLIST = c_int * 10
-  input_data = INPUTLIST(0,1,2,3,4,5,6,7,8,9)
+def runFunction(func,args):
+  arg_length = len(args)
+  INPUTLIST = c_int * arg_length
+  input_data = INPUTLIST()
+  for index in range(arg_length):
+    input_data[index] = args[index]
+#  input_data = INPUTLIST(0,1,2,3,4,5,6,7,8,9)
   SHAPELIST = c_int * 1
-  input_shape = SHAPELIST(10)
+  input_shape = SHAPELIST(arg_length)
   scalar_int = c_void_p(libtest.mk_scalar(7)) #Int32T
   vec_int = c_void_p(libtest.mk_vec(scalar_int))
-  input = c_void_p(libtest.mk_host_array(input_data,vec_int,input_shape,1,10*sizeof(c_int)))
+  input = c_void_p(libtest.mk_host_array(input_data,vec_int,input_shape,1,arg_length*sizeof(c_int)))
   INPUTLIST = c_void_p*1
   inputs = INPUTLIST(input)
   ret = libtest.run_function(func, None, 0, inputs, 1)
   if (ret.return_code == 0): #Success
     rslt = cast(ret.data.results[0],POINTER(c_int))
-    for i in range(10):
+    py_rslt = np.zeros(arg_length,dtype = np.int)
+    for i in range(arg_length):
       print rslt[i],
+      py_rslt[i] = rslt[i]
     print
+    return py_rslt
 
-
+#if 0:
+#  import KMeans
+#  fun_visit('KMeans',KMeans.sqr_dist)
 #Test1:
 ###node = ast.parse("x = 2")
 #Test2:
-if 1:
-###  import KMMeans
+if simpleTest:
+#  import KMMeans
 #  print functionInfo(KMMeans.minidx)[1]
   node = ast.parse("return x + 20")
 #End Test2
@@ -465,9 +493,23 @@ if 1:
   if AST.evil_function:
     print "This function is evil because:",AST.evil_function
   else:
-    AST.prettyPrint()
+    pass
+    #AST.prettyPrint()
 #import KMMeans
 #fun_visit('KMMeans',KMMeans.kmeans)
 
 ###Test if built-in needs to be part of if statement
 ###Make sure x = abs(y) works if built-in DOES have to be part of if statement
+
+def GPU(fun):
+#  print fun.__name__
+#  print fun.__code__.co_filename
+  global libtest
+  libcude = cdll.LoadLibrary('/usr/local/cuda/lib/libcudart.so.3')
+  libtest = cdll.LoadLibrary(os.getcwd() + '/../_build/libparakeetpy.so')
+  libtest.parakeet_init()
+  returnTypeInit()
+  funID = fun_visit('add.py',fun)
+  def new_f(*args, **kwds):
+    return runFunction(funID,args[0])
+  return new_f
