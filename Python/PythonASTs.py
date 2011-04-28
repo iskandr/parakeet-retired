@@ -4,6 +4,19 @@ testing = 0
 debug = 0
 printing = 0
 
+####STRUCT
+class _U(Union):
+  _fields_ = [("error_msg",c_char_p),
+              ("results",POINTER(c_void_p))]
+
+class return_val_t(Structure):
+  _fields_ = [("return_code",c_int),
+              ("results_len",c_int),
+              ("ret_types",POINTER(c_void_p)),
+              ("shapes",POINTER(POINTER(c_int))),
+              ("data",_U)]
+###########
+
 #List of which built-in functions are allowed and which aren't
 primitives = {"abs":1,"all":1,"any":1,"basestring":1,"bin":0,"bool":0,"bytearray":1,
               "callable":1,"chr":0,"classmethod":0,"cmp":1,"compile":0,"complex":0,
@@ -17,10 +30,14 @@ primitives = {"abs":1,"all":1,"any":1,"basestring":1,"bin":0,"bool":0,"bytearray
               "reversed":0,"round":1,"set":0,"settattr":0,"slice":0,"sorted":0,
               "staticmethod":0,"str":0,"sum":1,"super":0,"tuple":0,"type":1,"unichr":0,
               "unicode":0,"vars":1,"xrange":0,"zip":0}
-import numpy as np
-import functools as ft
-numpyPrimitives = {np.all:1,np.sum:1,np.argmin:1,np.mean:1}
-functoolsPrimitives = {ft.partial:1}
+
+
+#import numpy as np
+#import functools as ft
+#numpyPrimitives = {np.all:1,np.sum:1,np.argmin:1,np.mean:1}
+#functoolsPrimitives = {ft.partial:1}
+newPrimitves = {"sum":"sum","argmin":"argmin","map":"map","mean":"mean","arange":"range","all":"all"}
+
 
 class ASTPrinter(ast.NodeVisitor):
   def __init__(self):
@@ -276,25 +293,25 @@ def paranodes(node, args):
     return c_void_p(libtest.mk_var(c_char_p(args[0]),None))
   elif (node_type == 'Assign'):
     #NOTE: args[0] is a list, not an element, so be careful
-    libtest.mk_def.restype = c_void_p
     #print args[0], args[1], type(args[0]), type(args[1])
     #x = libtest.mk_def(args[0],args[1],0)
     return libtest.mk_def(c_char_p('x'),c_void_p(args[1]),0)
     #print 'assign created'
     #return x
   elif (node_type == 'BinOp'):
-    libtest.mk_app.restype = c_void_p
     bin_args = list_args(args[0],args[2])
     return c_void_p(libtest.mk_app(args[1],bin_args,2,None))
   elif (node_type == 'Num'):
-    libtest.mk_int32_paranode.restype = c_void_p
 #    x = c_void_p(libtest.mk_int32_paranode(args[0],None))
 #    print type(x),x
-    return c_void_p(libtest.mk_int32_paranode(args[0],None))
+    return c_void_p(libtest.mk_int32_paranode(int(args[0]),None))
   elif (node_type == 'Add'):
     return c_void_p(libtest.mk_scalar_op(0,None))
   #Note: Doesn't really give useful info, will be grouped together in an else
   #statement later
+  elif (node_type == 'Call'):
+    fun_name = call.func.id
+    
   elif (node_type == 'Store'):
     return ''
   elif (node_type == 'Return'):
@@ -389,14 +406,37 @@ def returnTypeInit():
   libtest.mk_app.restype = c_void_p
   libtest.mk_lam.restype = c_void_p
   libtest.mk_block.restype = c_void_p
+  libtest.mk_scalar.restype = c_void_p
+  libtest.mk_vec.restype = c_void_p
+  libtest.mk_host_array.restype = c_void_p
+  libtest.register_untyped_function.restype = c_int
+  libtest.run_function.restype = return_val_t
+  
+def runFunction(func):
+  INPUTLIST = c_int * 10
+  input_data = INPUTLIST(0,1,2,3,4,5,6,7,8,9)
+  SHAPELIST = c_int * 1
+  input_shape = SHAPELIST(10)
+  scalar_int = c_void_p(libtest.mk_scalar(7)) #Int32T
+  vec_int = c_void_p(libtest.mk_vec(scalar_int))
+  input = c_void_p(libtest.mk_host_array(input_data,vec_int,input_shape,1,10*sizeof(c_int)))
+  INPUTLIST = c_void_p*1
+  inputs = INPUTLIST(input)
+  ret = libtest.run_function(func, None, 0, inputs, 1)
+  if (ret.return_code == 0): #Success
+    rslt = cast(ret.data.results[0],POINTER(c_int))
+    for i in range(10):
+      print rslt[i],
+    print
+
 
 #Test1:
 ###node = ast.parse("x = 2")
 #Test2:
 if 1:
-  import KMMeans
+###  import KMMeans
 #  print functionInfo(KMMeans.minidx)[1]
-  node = ast.parse("return x + 2")
+  node = ast.parse("return x + 20")
 #End Test2
   import os
   if testing == 0:
@@ -406,7 +446,7 @@ if 1:
     returnTypeInit()
 
   AST = ASTCreator('KMMeans')
-  AST.var_list = ['x']
+###  AST.var_list = ['x']
   if testing == 1:
     AST.visit(node,0)
   if testing == 0:
@@ -416,8 +456,9 @@ if 1:
     emptyList = c_char_p * 0
     varList = c_char_p * 1
     Vars = varList(c_char_p("x"))
-    funID = libtest.register_untyped_function(c_char_p('add2'),emptyList(),0,Vars,1,finalTree)
+    funID = c_int(libtest.register_untyped_function(c_char_p('add2'),emptyList(),0,Vars,1,finalTree))
 
+    runFunction(funID)
 #print type(finalTree), finalTree
 #funID = libtest.register_untyped_function('hi',0,0,0,0,c_void_p(finalTree))
 
