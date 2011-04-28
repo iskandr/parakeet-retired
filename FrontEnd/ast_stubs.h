@@ -75,4 +75,6 @@ paranode mk_countloop(paranode count, paranode body,
 
 paranode mk_void(source_info_t *src_info);
 
+paranode get_prim(char* prim_name);
+
 #endif
