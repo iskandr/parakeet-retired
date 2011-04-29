@@ -318,7 +318,6 @@ def paranodes(node, args):
   #statement later
   elif (node_type == 'Call'):
     fun_name = call.func.id
-    
   elif (node_type == 'Store'):
     return ''
   elif (node_type == 'Return'):
@@ -432,28 +431,83 @@ def returnTypeInit():
   libtest.get_prim.restype = c_void_p
   
 def runFunction(func,args):
-  arg_length = len(args)
+  num_args = len(args)
+  input_arr = []
+  INPUTLIST = c_void_p*num_args
+  inputs = INPUTLIST()
+  #HACKISH, memory leaks!!!!!!!!
+  input_data = [0] * num_args
+  input_shape = [0] * num_args
+  for i in range(num_args):
+    arg = args[i]
+    arg_length = len(arg)
+    INPUTDATALIST = c_int * arg_length
+    input_data[i] = INPUTDATALIST()
+    for index in range(arg_length):
+      input_data[i][index] = arg[index]
+    SHAPELIST = c_int * 1
+    input_shape[i] = SHAPELIST(arg_length)
+    scalar_int = c_void_p(libtest.mk_scalar(7)) #Int32T
+    vec_int = c_void_p(libtest.mk_vec(scalar_int))
+    inputs[i] = c_void_p(libtest.mk_host_array(input_data[i],vec_int,input_shape[i],1,arg_length*sizeof(c_int)))
+
+  ret = libtest.run_function(func, None, 0, inputs, num_args)
+  if (ret.return_code == 0): #Success
+    rslt = cast(ret.data.results[0],POINTER(c_int))
+    py_rslt = []
+    ret_len = ret.shapes[0][0]
+    for index in range(ret_len):
+      print rslt[index],
+      py_rslt.append(rslt[index])
+    print
+    np_rslt = np.array(py_rslt)
+    return np_rslt
+  return 0
+
+def RunFunction(func,args):
+  num_args = 2
+  INPUTLISTT = c_void_p*2
+  inputs = INPUTLISTT()
+  arg = args[0]
+  arg_length = len(arg)
   INPUTLIST = c_int * arg_length
   input_data = INPUTLIST()
   for index in range(arg_length):
-    input_data[index] = args[index]
+    input_data[index] = arg[index]
 #  input_data = INPUTLIST(0,1,2,3,4,5,6,7,8,9)
   SHAPELIST = c_int * 1
   input_shape = SHAPELIST(arg_length)
   scalar_int = c_void_p(libtest.mk_scalar(7)) #Int32T
   vec_int = c_void_p(libtest.mk_vec(scalar_int))
-  input = c_void_p(libtest.mk_host_array(input_data,vec_int,input_shape,1,arg_length*sizeof(c_int)))
-  INPUTLIST = c_void_p*1
-  inputs = INPUTLIST(input)
-  ret = libtest.run_function(func, None, 0, inputs, 1)
+  input1 = c_void_p(libtest.mk_host_array(input_data,vec_int,input_shape,1,arg_length*sizeof(c_int)))
+  arg1 = args[1]
+  arg_length1 = len(arg1)
+  INPUTLIST1 = c_int * arg_length1
+  input_data1 = INPUTLIST1()
+  for index in range(arg_length1):
+    input_data1[index] = arg1[index]
+  SHAPELIST1 = c_int * 1
+  input_shape1 = SHAPELIST(arg_length1)
+  scalar_int1 = c_void_p(libtest.mk_scalar(7))
+  vec_int1 = c_void_p(libtest.mk_vec(scalar_int1))
+  input2 = c_void_p(libtest.mk_host_array(input_data1,vec_int1,input_shape1,1,arg_length1*sizeof(c_int)))
+  inputs[0] = input1
+  inputs[1] = input2
+#    input_arr.append(input)
+  
+#  for index in range(num_args):
+#    inputs[index] = input_arr[1]
+  ret = libtest.run_function(func, None, 0, inputs, num_args)
   if (ret.return_code == 0): #Success
     rslt = cast(ret.data.results[0],POINTER(c_int))
-    py_rslt = np.zeros(arg_length,dtype = np.int)
-    for i in range(arg_length):
-      print rslt[i],
-      py_rslt[i] = rslt[i]
+    py_rslt = []
+    ret_len = ret.shapes[0][0]
+    for index in range(ret_len):
+      print rslt[index],
+      py_rslt.append(rslt[index])
     print
-    return py_rslt
+    np_rslt = np.array(py_rslt)
+    return np_rslt
   return 0
 
 #if 0:
@@ -512,5 +566,5 @@ def GPU(fun):
   returnTypeInit()
   funID = fun_visit('add.py',fun)
   def new_f(*args, **kwds):
-    return runFunction(funID,args[0])
+    return runFunction(funID,args)
   return new_f
