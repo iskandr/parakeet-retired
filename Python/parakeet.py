@@ -438,18 +438,17 @@ def runFunction(func,args):
   INPUTLIST = c_void_p*num_args
   inputs = INPUTLIST()
 #  input_data = [0] * num_args
-  input_shape = [0] * num_args
-  #HACKISH, memory leaks!!!!!!!!
+#  input_shape = [0] * num_args
   for i in range(num_args):
     arg = args[i]
     arg_length = len(arg)
     input_data = arg.ctypes.data_as(POINTER(c_int))
-    SHAPELIST = c_int * 1
-    input_shape[i] = SHAPELIST(arg_length)
-#    input_shape[i] = arg.shape.ctypes.data_as(POINTER(c_int))
+#    SHAPELIST = c_int * 1
+#    input_shape[i] = SHAPELIST(arg_length)
+    input_shape = arg.ctypes.shape_as(c_int)
     scalar_int = c_void_p(libtest.mk_scalar(7)) #Int32T
     vec_int = c_void_p(libtest.mk_vec(scalar_int))
-    inputs[i] = c_void_p(libtest.mk_host_array(input_data,vec_int,input_shape[i],1,arg_length*sizeof(c_int)))
+    inputs[i] = c_void_p(libtest.mk_host_array(input_data,vec_int,input_shape,1,arg_length*sizeof(c_int)))
 
   ret = libtest.run_function(func, None, 0, inputs, num_args)
   if (ret.return_code == 0): #Success
