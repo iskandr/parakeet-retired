@@ -441,23 +441,28 @@ def runFunction(func,args):
 #  input_shape = [0] * num_args
   for i in range(num_args):
     arg = args[i]
-    arg_length = len(arg)
     input_data = arg.ctypes.data_as(POINTER(c_int))
 #    SHAPELIST = c_int * 1
 #    input_shape[i] = SHAPELIST(arg_length)
+    #Not sure how this will work with multi-dimensional arrays
     input_shape = arg.ctypes.shape_as(c_int)
+    try:
+      input_shape[0],input_shape[1] = input_shape[1],input_shape[0]
+    except:
+      pass
     scalar_int = c_void_p(libtest.mk_scalar(7)) #Int32T
     vec_int = c_void_p(libtest.mk_vec(scalar_int))
-    inputs[i] = c_void_p(libtest.mk_host_array(input_data,vec_int,input_shape,1,arg_length*sizeof(c_int)))
+    inputs[i] = c_void_p(libtest.mk_host_array(input_data,vec_int,input_shape,len(arg.shape),arg.nbytes))
 
   ret = libtest.run_function(func, None, 0, inputs, num_args)
   if (ret.return_code == 0): #Success
-    rslt = cast(ret.data.results[0],POINTER(c_int))
+    rslt = cast(ret.data.results,POINTER(POINTER(c_int)))
+    print "LENGTH", ret.results_len
     py_rslt = []
     ret_len = ret.shapes[0][0]
     for index in range(ret_len):
-      print rslt[index],
-      py_rslt.append(rslt[index])
+      print rslt[0][index],
+      py_rslt.append(rslt[0][index])
     print
     np_rslt = np.array(py_rslt)
     return np_rslt
