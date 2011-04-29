@@ -6,6 +6,8 @@ printing = 0
 simpleTest = 0
 import os
 libtest = 0 #NOTE: JUST TO BE GLOBAL
+#Platform dependent?
+#libc = cdll.LoadLibrary("libc.so.6")
 
 ####STRUCT
 class _U(Union):
@@ -435,21 +437,19 @@ def runFunction(func,args):
   input_arr = []
   INPUTLIST = c_void_p*num_args
   inputs = INPUTLIST()
-  #HACKISH, memory leaks!!!!!!!!
-  input_data = [0] * num_args
+#  input_data = [0] * num_args
   input_shape = [0] * num_args
+  #HACKISH, memory leaks!!!!!!!!
   for i in range(num_args):
     arg = args[i]
     arg_length = len(arg)
-    INPUTDATALIST = c_int * arg_length
-    input_data[i] = INPUTDATALIST()
-    for index in range(arg_length):
-      input_data[i][index] = arg[index]
+    input_data = arg.ctypes.data_as(POINTER(c_int))
     SHAPELIST = c_int * 1
     input_shape[i] = SHAPELIST(arg_length)
+#    input_shape[i] = arg.shape.ctypes.data_as(POINTER(c_int))
     scalar_int = c_void_p(libtest.mk_scalar(7)) #Int32T
     vec_int = c_void_p(libtest.mk_vec(scalar_int))
-    inputs[i] = c_void_p(libtest.mk_host_array(input_data[i],vec_int,input_shape[i],1,arg_length*sizeof(c_int)))
+    inputs[i] = c_void_p(libtest.mk_host_array(input_data,vec_int,input_shape[i],1,arg_length*sizeof(c_int)))
 
   ret = libtest.run_function(func, None, 0, inputs, num_args)
   if (ret.return_code == 0): #Success
