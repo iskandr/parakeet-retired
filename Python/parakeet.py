@@ -162,7 +162,7 @@ class ASTCreator(ASTPrinter):
             except:
               self.var_list.remove(node.name)
           args.append(self.visit(newNode,in_assignment))
-          print "Nonlist:",args
+#          print "Nonlist:",args
 #          print "1",args
           #Handles following function calls of type a.b.c()
           #If statement makes sure we're at c, and not just at a.b
@@ -223,11 +223,11 @@ class ASTCreator(ASTPrinter):
             if type(node).__name__ == 'Assign':
               in_assignment = self.context["assignment"]
             listArgs.append(self.visit(elm,in_assignment))
-            print "Nonlist in list:",listArgs
+#            print "Nonlist in list:",listArgs
  #           print "2",listArgs
             in_assignment = 0
-          args += listArgs
-          print "list:",args
+          args += [listArgs]
+#          print "list:",args
  #         print "3",args
         #Otherwise, we still want the info for the child, it's just not a node
       except:
@@ -295,27 +295,41 @@ def paranodes(node, args):
   node_type = type(node).__name__
   #print node_type
   if (node_type == 'Name'):
-    return c_void_p(libtest.mk_var(c_char_p(args[0]),None))
+    print "NAME",args
+    if args[0] == 'True':
+      return c_void_p(libtest.mk_bool(1))
+    elif args[0] == 'False':
+      return c_void_p(libtest.mk_bool(0))      
+    else:
+      return c_void_p(libtest.mk_var(c_char_p(args[0]),None))
   elif (node_type == 'Assign'):
-    #NOTE: args[0] is a list, not an element, so be careful
-    #print args[0], args[1], type(args[0]), type(args[1])
-    #x = libtest.mk_def(args[0],args[1],0)
-    return libtest.mk_def(c_char_p('x'),c_void_p(args[1]),0)
+    print "ASSIGN",args    
+    #Note: currently doesn't allow for multiple assignment
+    return c_void_p(libtest.mk_def(args[0][0],args[1],0))
     #print 'assign created'
     #return x
   elif (node_type == 'BinOp'):
+    print "BINOP",args
     bin_args = list_args(args[0],args[2])
     return c_void_p(libtest.mk_app(args[1],bin_args,2,None))
+  elif (node_type == 'UnaryOp'):
+    print "UNARYOP",args
+    return c_void_p(libtest.mk_app(args[0],(c_void_p*1)(args[1]),1,None))
   elif (node_type == 'Num'):
+    print "NUM",args
 #    x = c_void_p(libtest.mk_int32_paranode(args[0],None))
 #    print type(x),x
     return c_void_p(libtest.mk_int32_paranode(int(args[0]),None))
   elif (node_type == 'Add'):
+    print "ADD",args
     return c_void_p(libtest.mk_scalar_op(0,None))
   elif (node_type == 'Sub'):
     return c_void_p(libtest.mk_scalar_op(1,None))
   elif (node_type == 'Mult'):
     return c_void_p(libtest.mk_scalar_op(2,None))
+  elif (node_type == 'Not'):
+    print "NOT",args
+    return c_void_p(libtest.mk_scalar_op(18,None))
   #Note: Doesn't really give useful info, will be grouped together in an else
   #statement later
   elif (node_type == 'Call'):
@@ -326,10 +340,21 @@ def paranodes(node, args):
     #Note: Always just the 1st argument?
     return args[0]
   elif (node_type == 'Module'):
-    BLOCKLIST = c_void_p * 1
-#    print args
-    return c_void_p(libtest.mk_block(BLOCKLIST(args[0]),1,None))
+    print "MODULE",args
+    numArgs = len(args[0])
+    BLOCKLIST = c_void_p * numArgs
+    block = BLOCKLIST()
+    for i in range(numArgs):
+      block[i] = args[0][i]
+    return c_void_p(libtest.mk_block(block,numArgs,None))
     #return args
+  elif (node_type == 'While'):
+    print "WHILE",args
+    numStmt = len(args[1])
+#    block = c_void_p(libtest.mk_block((c_void_p*numStmt)(args[1]),numStmt,None))
+    BLOCKLIST = c_void_p*1
+    block = c_void_p(libtest.mk_block(BLOCKLIST(args[1][0]),1,None))
+    return c_void_p(libtest.mk_whileloop(args[0],block,None))
 
 def functionInfo(function_obj):
   #get the information for the sourcecode
@@ -401,6 +426,10 @@ def fun_visit(name,func):
       vars = varList()
       for index in range(len(fun_info[0])):
         vars[index] = fun_info[0][index]
+#        print vars[index],
+#      print
+#      return
+      print "FINALTREE",func.__name__,vars,fun_info[0],finalTree
       funID = c_int(libtest.register_untyped_function(c_char_p(func.__name__),emptyList(),0,vars,len(fun_info[0]),finalTree))
       return funID
       for key in AST.curr_function.keys():
@@ -418,6 +447,7 @@ def fun_visit(name,func):
 
 def returnTypeInit():
   #Note: Do more automatically?
+  libtest.mk_def.restype = c_void_p
   libtest.mk_int32_paranode.restype = c_void_p
   libtest.mk_int64_paranode.restype = c_void_p
   libtest.mk_var.restype = c_void_p
@@ -431,38 +461,45 @@ def returnTypeInit():
   libtest.register_untyped_function.restype = c_int
   libtest.run_function.restype = return_val_t
   libtest.get_prim.restype = c_void_p
+  libtest.mk_int32.restype = c_void_p
+  libtest.mk_whileloop.restype = c_void_p
+  libtest.mk_bool.restype = c_void_p
   
 def runFunction(func,args):
   num_args = len(args)
   input_arr = []
   INPUTLIST = c_void_p*num_args
+  EMPTYLIST = c_int * 0
+  ONELIST = c_int * 1
   inputs = INPUTLIST()
 #  input_data = [0] * num_args
 #  input_shape = [0] * num_args
   for i in range(num_args):
     arg = args[i]
-    input_data = arg.ctypes.data_as(POINTER(c_int))
-#    SHAPELIST = c_int * 1
-#    input_shape[i] = SHAPELIST(arg_length)
+    try: #if Numpy array
+      input_data = arg.ctypes.data_as(POINTER(c_int))
     #Not sure how this will work with multi-dimensional arrays
-    input_shape = arg.ctypes.shape_as(c_int)
-    try:
-      input_shape[0],input_shape[1] = input_shape[1],input_shape[0]
-    except:
-      pass
-    scalar_int = c_void_p(libtest.mk_scalar(7)) #Int32T
-    vec_int = c_void_p(libtest.mk_vec(scalar_int))
-    inputs[i] = c_void_p(libtest.mk_host_array(input_data,vec_int,input_shape,len(arg.shape),arg.nbytes))
+      input_shape = arg.ctypes.shape_as(c_int)
+      scalar_int = c_void_p(libtest.mk_scalar(7)) #Int32T
+      vec_int = c_void_p(libtest.mk_vec(scalar_int))
+      nbytes = arg.nbytes
+      inputs[i] = c_void_p(libtest.mk_host_array(input_data,vec_int,input_shape,1,nbytes))
+#    try:
+#      input_shape[0],input_shape[1] = input_shape[1],input_shape[0]
+#    except:
+#      pass
+    except: #Scalar
+      inputs[i] = c_void_p(libtest.mk_int32(arg))
 
   ret = libtest.run_function(func, None, 0, inputs, num_args)
   if (ret.return_code == 0): #Success
-    rslt = cast(ret.data.results,POINTER(POINTER(c_int)))
-    print "LENGTH", ret.results_len
+    rslt = cast(ret.data.results[0],POINTER(c_int))
+    
     py_rslt = []
     ret_len = ret.shapes[0][0]
     for index in range(ret_len):
-      print rslt[0][index],
-      py_rslt.append(rslt[0][index])
+      print rslt[index],
+      py_rslt.append(rslt[index])
     print
     np_rslt = np.array(py_rslt)
     return np_rslt
@@ -541,6 +578,7 @@ if simpleTest:
     AST.prettyPrint()
     print type(finalTree), finalTree
     emptyList = c_char_p * 0
+    ###HARDCODED
     varList = c_char_p * 1
     Vars = varList(c_char_p("x"))
     funID = c_int(libtest.register_untyped_function(c_char_p('add2'),emptyList(),0,Vars,1,finalTree))
@@ -569,6 +607,8 @@ def GPU(fun):
   libtest.parakeet_init()
   returnTypeInit()
   funID = fun_visit('add.py',fun)
+  print "FUNFUN",funID
+#  return
   def new_f(*args, **kwds):
     return runFunction(funID,args)
   return new_f
