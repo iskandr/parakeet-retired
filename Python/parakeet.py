@@ -305,7 +305,7 @@ def paranodes(node, args):
   elif (node_type == 'Assign'):
     print "def(",'y',",",args[1],")"    
     #Note: currently doesn't allow for multiple assignment
-    return c_void_p(libtest.mk_def(c_char_p('y'),args[1],0))
+    return c_void_p(libtest.mk_def(c_char_p(node.targets[0].id),args[1],0))
     #print 'assign created'
     #return x
   elif (node_type == 'BinOp'):

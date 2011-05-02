@@ -4,8 +4,8 @@ from numpy import *
 @GPU
 def mult9(x):
 #  y = x + 2
-  x = x + 1 
-  return x * 9 + 32 - x
+  z = x + 4
+  return z * 9
 
 #@GPU
 def addxy(x,y,z):
