@@ -277,7 +277,7 @@ def readFile(file_name):
   return out_string
 
 def paranodes(node, args):
-  print "TYPE:",type(node).__name__
+#  print "TYPE:",type(node).__name__
   if testing == 1:
 #      print "ASSIGN?",type(args),type([])
     argStr = ''
@@ -295,7 +295,7 @@ def paranodes(node, args):
   node_type = type(node).__name__
   #print node_type
   if (node_type == 'Name'):
-    print "NAME",args
+    print "var(",args[0],")"
     if args[0] == 'True':
       return c_void_p(libtest.mk_bool(1))
     elif args[0] == 'False':
@@ -303,29 +303,31 @@ def paranodes(node, args):
     else:
       return c_void_p(libtest.mk_var(c_char_p(args[0]),None))
   elif (node_type == 'Assign'):
-    print "ASSIGN",args    
+    print "def(",'y',",",args[1],")"    
     #Note: currently doesn't allow for multiple assignment
-    return c_void_p(libtest.mk_def(args[0][0],args[1],0))
+    return c_void_p(libtest.mk_def(c_char_p('y'),args[1],0))
     #print 'assign created'
     #return x
   elif (node_type == 'BinOp'):
-    print "BINOP",args
+    print "app(",args[1],",[",args[0],",",args[2],"])"
     bin_args = list_args(args[0],args[2])
     return c_void_p(libtest.mk_app(args[1],bin_args,2,None))
   elif (node_type == 'UnaryOp'):
     print "UNARYOP",args
     return c_void_p(libtest.mk_app(args[0],(c_void_p*1)(args[1]),1,None))
   elif (node_type == 'Num'):
-    print "NUM",args
+    print "int32(",args[0],")"
 #    x = c_void_p(libtest.mk_int32_paranode(args[0],None))
 #    print type(x),x
     return c_void_p(libtest.mk_int32_paranode(int(args[0]),None))
   elif (node_type == 'Add'):
-    print "ADD",args
+    print "ADD"
     return c_void_p(libtest.mk_scalar_op(0,None))
   elif (node_type == 'Sub'):
+    print "SUB"
     return c_void_p(libtest.mk_scalar_op(1,None))
   elif (node_type == 'Mult'):
+    print "MULT"
     return c_void_p(libtest.mk_scalar_op(2,None))
   elif (node_type == 'Not'):
     print "NOT",args
@@ -346,6 +348,7 @@ def paranodes(node, args):
     block = BLOCKLIST()
     for i in range(numArgs):
       block[i] = args[0][i]
+#    block = BLOCKLIST(args[0][0],args[0][1])
     return c_void_p(libtest.mk_block(block,numArgs,None))
     #return args
   elif (node_type == 'While'):
@@ -355,6 +358,8 @@ def paranodes(node, args):
     BLOCKLIST = c_void_p*1
     block = c_void_p(libtest.mk_block(BLOCKLIST(args[1][0]),1,None))
     return c_void_p(libtest.mk_whileloop(args[0],block,None))
+  else:
+    return args[0]
 
 def functionInfo(function_obj):
   #get the information for the sourcecode
@@ -426,10 +431,9 @@ def fun_visit(name,func):
       vars = varList()
       for index in range(len(fun_info[0])):
         vars[index] = fun_info[0][index]
-#        print vars[index],
-#      print
-#      return
-      print "FINALTREE",func.__name__,vars,fun_info[0],finalTree
+#      print "FINALTREE",finalTree
+      import PrettyAST
+      PrettyAST.printAst(node)
       funID = c_int(libtest.register_untyped_function(c_char_p(func.__name__),emptyList(),0,vars,len(fun_info[0]),finalTree))
       return funID
       for key in AST.curr_function.keys():
@@ -505,52 +509,6 @@ def runFunction(func,args):
     return np_rslt
   return 0
 
-def RunFunction(func,args):
-  num_args = 2
-  INPUTLISTT = c_void_p*2
-  inputs = INPUTLISTT()
-  arg = args[0]
-  arg_length = len(arg)
-  INPUTLIST = c_int * arg_length
-  input_data = INPUTLIST()
-  for index in range(arg_length):
-    input_data[index] = arg[index]
-#  input_data = INPUTLIST(0,1,2,3,4,5,6,7,8,9)
-  SHAPELIST = c_int * 1
-  input_shape = SHAPELIST(arg_length)
-  scalar_int = c_void_p(libtest.mk_scalar(7)) #Int32T
-  vec_int = c_void_p(libtest.mk_vec(scalar_int))
-  input1 = c_void_p(libtest.mk_host_array(input_data,vec_int,input_shape,1,arg_length*sizeof(c_int)))
-  arg1 = args[1]
-  arg_length1 = len(arg1)
-  INPUTLIST1 = c_int * arg_length1
-  input_data1 = INPUTLIST1()
-  for index in range(arg_length1):
-    input_data1[index] = arg1[index]
-  SHAPELIST1 = c_int * 1
-  input_shape1 = SHAPELIST(arg_length1)
-  scalar_int1 = c_void_p(libtest.mk_scalar(7))
-  vec_int1 = c_void_p(libtest.mk_vec(scalar_int1))
-  input2 = c_void_p(libtest.mk_host_array(input_data1,vec_int1,input_shape1,1,arg_length1*sizeof(c_int)))
-  inputs[0] = input1
-  inputs[1] = input2
-#    input_arr.append(input)
-  
-#  for index in range(num_args):
-#    inputs[index] = input_arr[1]
-  ret = libtest.run_function(func, None, 0, inputs, num_args)
-  if (ret.return_code == 0): #Success
-    rslt = cast(ret.data.results[0],POINTER(c_int))
-    py_rslt = []
-    ret_len = ret.shapes[0][0]
-    for index in range(ret_len):
-      print rslt[index],
-      py_rslt.append(rslt[index])
-    print
-    np_rslt = np.array(py_rslt)
-    return np_rslt
-  return 0
-
 #if 0:
 #  import KMeans
 #  fun_visit('KMeans',KMeans.sqr_dist)
@@ -607,7 +565,7 @@ def GPU(fun):
   libtest.parakeet_init()
   returnTypeInit()
   funID = fun_visit('add.py',fun)
-  print "FUNFUN",funID
+
 #  return
   def new_f(*args, **kwds):
     return runFunction(funID,args)
