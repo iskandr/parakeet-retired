@@ -1,3 +1,5 @@
+(* pp: -parser o pa_macro.cmo *)
+
 open Base
 open SSA 
 open Printf
@@ -26,6 +28,10 @@ let register_untyped_function ~name ~globals ~args astNode =
      It does, however, populate the AST info fields with info about 
      uses and defs later used by AST_to_SSA
     *)
+  IFDEF DEBUG THEN 
+    Printf.printf "[register_untyped] Received untyped AST: %s\n%!"
+      (AST.node_to_str astNode)
+  ENDIF; 
   let _ = Analyze_AST.analyze_ast astNode in
   let ssaEnv = 
     AST_to_SSA.Env.GlobalScope (InterpState.get_untyped_id interpState)  
