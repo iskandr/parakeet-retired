@@ -219,7 +219,7 @@ paranode mk_if(paranode cond_node, paranode true_node, paranode false_node,
   val_true  = get_value_and_remove_root(true_node);
   val_false = get_value_and_remove_root(false_node);
 
-  if_node = caml_alloc(1, Exp_If);
+  if_node = caml_alloc(3, Exp_If);
   Store_field(if_node, 0, val_cond);
   Store_field(if_node, 1, val_true);
   Store_field(if_node, 2, val_false);
@@ -237,7 +237,7 @@ paranode mk_def(char *name, paranode rhs, source_info_t *src_info) {
   ocaml_name = caml_alloc_string(len);
   memcpy(String_val(ocaml_name), name, len);
   
-  def = caml_alloc(1, Exp_Def);
+  def = caml_alloc(2, Exp_Def);
   Store_field(def, 0, ocaml_name);
   Store_field(def, 1, val_rhs);
 

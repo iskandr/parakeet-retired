@@ -28,7 +28,7 @@ let register_untyped_function ~name ~globals ~args astNode =
      It does, however, populate the AST info fields with info about 
      uses and defs later used by AST_to_SSA
     *)
-  IFDEF DEBUG THEN 
+  IFDEF DEBUG THEN
     Printf.printf "[register_untyped] Received untyped AST: %s\n%!"
       (AST.node_to_str astNode)
   ENDIF; 
