@@ -1,5 +1,9 @@
+import numpy as np
+import functools as ft
 import ast
 from ctypes import *
+import PrettyAST
+
 testing = 0
 debug = 0
 printing = 0
@@ -20,9 +24,66 @@ class return_val_t(Structure):
               ("ret_types",POINTER(c_void_p)),
               ("shapes",POINTER(POINTER(c_int))),
               ("data",_U)]
+  
+#INITIALIZATION
+def returnTypeInit():
+  #NOTE: can set default to c_void_p, much less initialization?
+  libtest.mk_def.restype = c_void_p
+  libtest.mk_int32_paranode.restype = c_void_p
+  libtest.mk_int64_paranode.restype = c_void_p
+  libtest.mk_var.restype = c_void_p
+  libtest.mk_scalar_op.restype = c_void_p
+  libtest.mk_app.restype = c_void_p
+  libtest.mk_lam.restype = c_void_p
+  libtest.mk_block.restype = c_void_p
+  libtest.mk_scalar.restype = c_void_p
+  libtest.mk_vec.restype = c_void_p
+  libtest.mk_host_array.restype = c_void_p
+  libtest.register_untyped_function.restype = c_int
+  libtest.run_function.restype = return_val_t
+  libtest.mk_int32.restype = c_void_p
+  libtest.mk_whileloop.restype = c_void_p
+  libtest.mk_bool.restype = c_void_p
+  libtest.get_prim.restype = c_void_p
+  libtest.mk_float_paranode.restype = c_void_p
+  libtest.mk_double_paranode.restype = c_void_p
+
+libcude = cdll.LoadLibrary('/usr/local/cuda/lib/libcudart.so.3')
+libtest = cdll.LoadLibrary(os.getcwd() + '/../_build/libparakeetpy.so')
+libtest.parakeet_init()
+returnTypeInit()
 ###########
 
+safe_functions = {}
+builtin_primitives = {'Add':c_void_p(libtest.get_prim('+')),
+                      'Sub':c_void_p(libtest.get_prim('-')),
+                      'Mult':c_void_p(libtest.get_prim('*')),
+                      'Div':c_void_p(libtest.get_prim('/')),
+                      'Mod':c_void_p(libtest.get_prim('mod')),
+                      'Pow':c_void_p(libtest.get_prim('exp')),
+                      'LShift':'Not yet implemented',
+                      'RShift':'Not yet implemented',
+                      'BitOr':'Not yet implemented',
+                      'BitXor':'Not yet implemented',
+                      'BitAnd':'Not yet implemented',
+                      'FloorDiv':'Not yet implemented',
+                      'Invert':'Not yet implemented (bit-wise inverse)',
+                      'Not':c_void_p(libtest.get_prim('not')),
+                      'Uadd':'Not sure what this is',
+                      'Usub':'Not sure what this is',
+                      'Eq':c_void_p(libtest.get_prim('eq')),
+                      'NotEq':c_void_p(libtest.get_prim('neq')),
+                      'Lt':c_void_p(libtest.get_prim('<')),
+                      'LtE':c_void_p(libtest.get_prim('<=')),
+                      'Gt':c_void_p(libtest.get_prim('>')),
+                      'GtE':c_void_p(libtest.get_prim('>=')),
+                      'Is':'Not yet implemented',
+                      'IsNot':'Not yet implemented',
+                      'In':'Not yet implemented',
+                      'NotIn':'Not yet implemented'}
+all_functions = safe_functions.copy()
 #List of which built-in functions are allowed and which aren't
+#Old code:
 primitives = {"abs":1,"all":1,"any":1,"basestring":1,"bin":0,"bool":0,"bytearray":1,
               "callable":1,"chr":0,"classmethod":0,"cmp":1,"compile":0,"complex":0,
               "delattr":0,"dict":0,"dir":0,"divmod":1, "enumerate":0, "eval":0,
@@ -37,8 +98,6 @@ primitives = {"abs":1,"all":1,"any":1,"basestring":1,"bin":0,"bool":0,"bytearray
               "unicode":0,"vars":1,"xrange":0,"zip":0}
 
 
-import numpy as np
-import functools as ft
 numpyPrimitives = {np.all:1,np.sum:1,np.argmin:1,np.mean:1}
 functoolsPrimitives = {ft.partial:1}
 newPrimitves = {"sum":"sum","argmin":"argmin","map":"map","mean":"mean","arange":"range","all":"all"}
@@ -303,32 +362,34 @@ def paranodes(node, args):
     else:
       return c_void_p(libtest.mk_var(c_char_p(args[0]),None))
   elif (node_type == 'Assign'):
-    print "def(",'y',",",args[1],")"    
+    print "def(",node.targets[0].id,",",args[1],")"    
     #Note: currently doesn't allow for multiple assignment
     return c_void_p(libtest.mk_def(c_char_p(node.targets[0].id),args[1],0))
     #print 'assign created'
     #return x
   elif (node_type == 'BinOp'):
-    print "app(",args[1],",[",args[0],",",args[2],"])"
+    print "app(",type(node.op).__name__,",[",args[0],",",args[2],"])"
     bin_args = list_args(args[0],args[2])
-    return c_void_p(libtest.mk_app(args[1],bin_args,2,None))
+    operation = builtin_primitives[type(node.op).__name__]
+    return c_void_p(libtest.mk_app(operation,bin_args,2,None))
   elif (node_type == 'UnaryOp'):
     print "UNARYOP",args
-    return c_void_p(libtest.mk_app(args[0],(c_void_p*1)(args[1]),1,None))
+    operation = builtin_primitives[type(node.op).__name__]
+    return c_void_p(libtest.mk_app(operation,(c_void_p*1)(args[1]),1,None))
   elif (node_type == 'Num'):
     print "int32(",args[0],")"
 #    x = c_void_p(libtest.mk_int32_paranode(args[0],None))
 #    print type(x),x
     return c_void_p(libtest.mk_int32_paranode(int(args[0]),None))
-  elif (node_type == 'Add'):
-    print "ADD"
-    return c_void_p(libtest.mk_scalar_op(0,None))
-  elif (node_type == 'Sub'):
-    print "SUB"
-    return c_void_p(libtest.mk_scalar_op(1,None))
-  elif (node_type == 'Mult'):
-    print "MULT"
-    return c_void_p(libtest.mk_scalar_op(2,None))
+#  elif (node_type == 'Add'):
+#    print "ADD"
+#    return c_void_p(libtest.mk_scalar_op(0,None))
+#  elif (node_type == 'Sub'):
+#    print "SUB"
+#    return c_void_p(libtest.mk_scalar_op(1,None))
+#  elif (node_type == 'Mult'):
+#    print "MULT"
+#    return c_void_p(libtest.mk_scalar_op(2,None))
   elif (node_type == 'Not'):
     print "NOT",args
     return c_void_p(libtest.mk_scalar_op(18,None))
@@ -354,12 +415,10 @@ def paranodes(node, args):
   elif (node_type == 'While'):
     print "WHILE",args
     numStmt = len(args[1])
-#    block = c_void_p(libtest.mk_block((c_void_p*numStmt)(args[1]),numStmt,None))
-    BLOCKLIST = c_void_p*1
-    block = c_void_p(libtest.mk_block(BLOCKLIST(args[1][0]),1,None))
+    block = c_void_p(libtest.mk_block((c_void_p*numStmt)(args[1]),numStmt,None))
     return c_void_p(libtest.mk_whileloop(args[0],block,None))
   else:
-    return args[0]
+    return 
 
 def functionInfo(function_obj):
   #get the information for the sourcecode
@@ -432,7 +491,6 @@ def fun_visit(name,func):
       for index in range(len(fun_info[0])):
         vars[index] = fun_info[0][index]
 #      print "FINALTREE",finalTree
-      import PrettyAST
       PrettyAST.printAst(node)
       funID = c_int(libtest.register_untyped_function(c_char_p(func.__name__),emptyList(),0,vars,len(fun_info[0]),finalTree))
       return funID
@@ -449,26 +507,7 @@ def fun_visit(name,func):
           fun_visit(str(key.__module__),key)
           print 'Finished visiting:', key.__name__
 
-def returnTypeInit():
-  #Note: Do more automatically?
-  libtest.mk_def.restype = c_void_p
-  libtest.mk_int32_paranode.restype = c_void_p
-  libtest.mk_int64_paranode.restype = c_void_p
-  libtest.mk_var.restype = c_void_p
-  libtest.mk_scalar_op.restype = c_void_p
-  libtest.mk_app.restype = c_void_p
-  libtest.mk_lam.restype = c_void_p
-  libtest.mk_block.restype = c_void_p
-  libtest.mk_scalar.restype = c_void_p
-  libtest.mk_vec.restype = c_void_p
-  libtest.mk_host_array.restype = c_void_p
-  libtest.register_untyped_function.restype = c_int
-  libtest.run_function.restype = return_val_t
-  libtest.get_prim.restype = c_void_p
-  libtest.mk_int32.restype = c_void_p
-  libtest.mk_whileloop.restype = c_void_p
-  libtest.mk_bool.restype = c_void_p
-  
+
 def runFunction(func,args):
   num_args = len(args)
   input_arr = []
@@ -481,24 +520,50 @@ def runFunction(func,args):
   for i in range(num_args):
     arg = args[i]
     try: #if Numpy array
-      input_data = arg.ctypes.data_as(POINTER(c_int))
-    #Not sure how this will work with multi-dimensional arrays
+      #Might not work with multi-dimensional, think it does though
       input_shape = arg.ctypes.shape_as(c_int)
-      scalar_int = c_void_p(libtest.mk_scalar(7)) #Int32T
-      vec_int = c_void_p(libtest.mk_vec(scalar_int))
       nbytes = arg.nbytes
-      inputs[i] = c_void_p(libtest.mk_host_array(input_data,vec_int,input_shape,1,nbytes))
+      if type(arg[0]) == np.int32:
+        input_data = arg.ctypes.data_as(POINTER(c_int))
+        scalar_int = c_void_p(libtest.mk_scalar(7)) #Int32T
+        vec = c_void_p(libtest.mk_vec(scalar_int))
+      elif type(arg[0]) == np.float32:
+        input_data = arg.ctypes.data_as(POINTER(c_float))
+        scalar_float = c_void_p(libtest.mk_scalar(11)) #Float32T
+        vec = c_void_p(libtest.mk_vec(scalar_float))
+      elif type(arg[0]) == np.float64:
+        input_data = arg.ctypes.data_as(POINTER(c_double))
+        scalar_double = c_void_p(libtest.mk_scalar(12)) #Float64T
+        vec = c_void_p(libtest.mk_vec(scalar_double))
+        
+      inputs[i] = c_void_p(libtest.mk_host_array(input_data,vec,input_shape,1,nbytes))
 #    try:
 #      input_shape[0],input_shape[1] = input_shape[1],input_shape[0]
 #    except:
 #      pass
     except: #Scalar
-      inputs[i] = c_void_p(libtest.mk_int32(arg))
+      if type(arg) == int:
+        inputs[i] = c_void_p(libtest.mk_int32(arg))
+      elif type(arg) == float:
+        inputs[i] = c_void_p(libtest.mk_float_paranode(arg))
+      elif type(arg) == np.float64:
+        inputs[i] = c_void_p(libtest.mk_double_paranode(arg))
 
   ret = libtest.run_function(func, None, 0, inputs, num_args)
   if (ret.return_code == 0): #Success
-    rslt = cast(ret.data.results[0],POINTER(c_int))
-    
+    print "TYPE",libtest.get_dyn_type_element_type(c_void_p(ret.ret_types[0]))
+    elmt_type = libtest.get_dyn_type_element_type(c_void_p(ret.ret_types[0]))
+    #NOTE: WRONG numbers, should be (x-3)/4....returning as a wrong type of integer?
+    if elmt_type == 47:
+      rslt = cast(ret.data.results[0],POINTER(c_float))
+    elif elmt_type == 31:
+      rslt = cast(ret.data.results[0],POINTER(c_int))
+    elif elmt_type == 51:
+      rslt = cast(ret.data.results[0],POINTER(c_double))
+    else:
+      #Not sure what to do with it yet
+      rslt = cast(ret.data.results[0],POINTER(c_int))
+
     py_rslt = []
     ret_len = ret.shapes[0][0]
     for index in range(ret_len):
@@ -559,11 +624,6 @@ if simpleTest:
 def GPU(fun):
 #  print fun.__name__
 #  print fun.__code__.co_filename
-  global libtest
-  libcude = cdll.LoadLibrary('/usr/local/cuda/lib/libcudart.so.3')
-  libtest = cdll.LoadLibrary(os.getcwd() + '/../_build/libparakeetpy.so')
-  libtest.parakeet_init()
-  returnTypeInit()
   funID = fun_visit('add.py',fun)
 
 #  return
