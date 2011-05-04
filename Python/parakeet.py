@@ -170,18 +170,22 @@ class ASTCreator(ASTPrinter):
     self.func_name = ""
   #Visiting a node
   def getFunction(self,node):
-    print "in getFunction"
-    if str(node) in self.var_list:
-      self.evil_function = "calling a variable as a function is not supported"
-      print str(node)    
-    print "after var list"
+#    if str(node) in self.var_list:
+#      self.evil_function = "calling a variable as a function is not supported"
+#      print str(node)    
     func_str = self.function_path + '.' + str(node)
     try:
       exec "curr_func = %s" % func_str
       print "Not in except block"
     except:
-      print "In except block"
-      exec "curr_func = np.%s" %str(node)
+      try:
+        exec "curr_func = np.%s" %str(node)
+      except:
+        try:
+          import addn
+          exec "curr_func = addn.%s"%str(node)
+        except:
+          print "Failed trying to find the function",str(node)
 #      try:
 #        exec "curr_func = %s.__globals__['%s']" % (self.func_name , str(node))
 #        func_str = str(node)
@@ -301,7 +305,6 @@ class ASTCreator(ASTPrinter):
           if node_type == 'ImportFrom' or node_type == 'alias':
             from_imports(node)
 
-
           args.append(self.visit(child_node,in_assignment))
 
 
@@ -326,14 +329,14 @@ class ASTCreator(ASTPrinter):
             #Special case because of partial
             #node.args[0] represents the function being called by partial
             if node_type == 'Call':
-              try:
-                if elm == node.args[0] and node.func.id == 'partial':
+#              try:
+#                if elm == node.args[0] and node.func.id == 'partial':
                   if type(elm).__name__ == 'Name':
                     in_assignment = self.context["function_call"]
                   elif type(elm).__name__ == 'Attribute':
                     in_assignment = self.context["attribute"]
-              except:
-                pass          
+#              except:
+#                pass          
             #The assign node only has one child that's a list, and it's
             #the names of the variables that are being assigned to
             #This is (only) important to catch assigning an attribute 
@@ -361,15 +364,18 @@ class ASTCreator(ASTPrinter):
         elif in_assignment == self.context["function_call"]:
           #Means the code looked like you were defining a variable when it was
           #really a function
-          curr_func = self.getFunction(child_node)
-          self.curr_function[curr_func] = 1
-          if type(curr_func).__name__ == 'classobj':#$ or \
-#          type(curr_func).__name__ == 'builtin_function_or_method':
-            if (self.right_assignment):
-#              pass
-              self.evil_function = 'a complicated object was created'
-          else:
+          try:
+            curr_func = self.getFunction(child_node)
             self.curr_function[curr_func] = 1
+            if type(curr_func).__name__ == 'classobj':#$ or \
+#            type(curr_func).__name__ == 'builtin_function_or_method':
+              if (self.right_assignment):
+#                pass
+                self.evil_function = 'a complicated object was created'
+            else:
+              self.curr_function[curr_func] = 1
+          except:
+            pass
         elif in_assignment == self.context['attribute']:
           self.curr_path += '.' + str(child_node)
         if self.right_assignment == 1:
@@ -430,11 +436,12 @@ def paranodes(node, args):
     #Should be in a general function later
     try:
       exec "fun_ref = np.%s" % fun_name
+      fun_node = safe_functions[fun_ref]
+      print "FOUND: np.%s" % fun_name
     except:
-      exec "fun_ref = %s" % fun_name
-    print fun_ref, "made"
-    fun_node = safe_functions[fun_ref]
-    print "FUNCS:",fun_ref, np.sum
+#      exec "fun_ref = %s" % fun_name
+      fun_node = c_void_p(libtest.mk_var(c_char_p(fun_name),None))
+      print "FUNCTION CALL NAME:", fun_name
     fun_args = list_to_ctypes_array(args[1],c_void_p)
     return c_void_p(libtest.mk_app(fun_node,fun_args,len(args[1]),None))
   elif (node_type == 'Return'):
@@ -546,7 +553,7 @@ def fun_visit(name,func):
                                                       vars,
                                                       len(fun_info[0]),
                                                       finalTree))
-      print "REGISTERED"
+      print "REGISTERED",func.__name__
       #Note, shouldn't return this
       #should add to a dictionary that associates function references
       #To there completely built ASTs
@@ -585,21 +592,20 @@ def runFunction(func,args):
       nbytes = arg.nbytes
       if type(arg[0]) == np.int32:
         input_data = arg.ctypes.data_as(POINTER(c_int))
-        scalar_int = c_void_p(libtest.mk_scalar(7)) #Int32T
-        vec = c_void_p(libtest.mk_vec(scalar_int))
+        elmt_type = c_void_p(libtest.mk_scalar(7)) #Int32T
       elif type(arg[0]) == np.float32:
         input_data = arg.ctypes.data_as(POINTER(c_float))
-        scalar_float = c_void_p(libtest.mk_scalar(11)) #Float32T
-        vec = c_void_p(libtest.mk_vec(scalar_float))
+        elmt_type = c_void_p(libtest.mk_scalar(11)) #Float32T
       elif type(arg[0]) == np.float64:
         input_data = arg.ctypes.data_as(POINTER(c_double))
-        scalar_double = c_void_p(libtest.mk_scalar(12)) #Float64T
-        vec = c_void_p(libtest.mk_vec(scalar_double))
-        
+        elmt_type = c_void_p(libtest.mk_scalar(12)) #Float64T
+      for i in range(len(arg.shape)):
+        elmt_type = c_void_p(libtest.mk_vec(elmt_type))
+      print ("ELEMENTS",input_data,elmt_type,imput_shape),len(arg.shape),nbytes
       inputs[i] = c_void_p(libtest.mk_host_array(input_data,
-                                                 vec,
+                                                 elmt_type,
                                                  input_shape,
-                                                 1,
+                                                 len(arg.shape),
                                                  nbytes))
 #    try:
 #      input_shape[0],input_shape[1] = input_shape[1],input_shape[0]

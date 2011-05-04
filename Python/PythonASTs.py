@@ -454,6 +454,7 @@ def runFunction(func,args):
       py_rslt[i] = rslt[i]
     print
     return py_rslt
+  return 0
 
 #if 0:
 #  import KMeans

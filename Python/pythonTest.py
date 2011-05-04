@@ -58,6 +58,20 @@ GLOBLIST = c_char_p * 0
 GLOB = GLOBLIST()
 #libtest.register_untyped_function(c_char_p("add2"),GLOB,0,VARS,1,c_void_p(libtest.mk_lam(VARS,1,c_void_p(libtest.mk_app(c_void_p(libtest.mk_scalar_op(0,None)),ARGS,2,None)),None)))
 add2id = c_int(libtest.register_untyped_function(c_char_p("add2"),GLOB,0,VARS,1,BLOCK))
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 INPUTLIST = c_int * 10
 input_data = INPUTLIST(0,1,2,3,4,5,6,7,8,9)
 SHAPELIST = c_int * 1

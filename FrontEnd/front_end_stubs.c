@@ -44,7 +44,9 @@ int register_untyped_function(char *name, char **globals, int num_globals,
                               char **args, int num_args, paranode ast) {
   CAMLparam0();
   CAMLlocal5(val_name, val_globals, val_args, val_ast, fn_id);
-
+ 
+	
+	printf("INTERFACE Name: %s",name);
   int len;
 
   len = strlen(name);
