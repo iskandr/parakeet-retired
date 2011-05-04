@@ -590,18 +590,19 @@ def runFunction(func,args):
       #Might not work with multi-dimensional, think it does though
       input_shape = arg.ctypes.shape_as(c_int)
       nbytes = arg.nbytes
-      if type(arg[0]) == np.int32:
+      if arg.dtype == np.int32:
         input_data = arg.ctypes.data_as(POINTER(c_int))
         elmt_type = c_void_p(libtest.mk_scalar(7)) #Int32T
-      elif type(arg[0]) == np.float32:
+      elif arg.dtype == np.float32:
         input_data = arg.ctypes.data_as(POINTER(c_float))
         elmt_type = c_void_p(libtest.mk_scalar(11)) #Float32T
-      elif type(arg[0]) == np.float64:
+      elif arg.dtype == np.float64:
         input_data = arg.ctypes.data_as(POINTER(c_double))
         elmt_type = c_void_p(libtest.mk_scalar(12)) #Float64T
       for i in range(len(arg.shape)):
         elmt_type = c_void_p(libtest.mk_vec(elmt_type))
-      print ("ELEMENTS",input_data,elmt_type,imput_shape),len(arg.shape),nbytes
+        
+      print "ELEMENTS",input_data,elmt_type,input_shape,len(arg.shape),nbytes
       inputs[i] = c_void_p(libtest.mk_host_array(input_data,
                                                  elmt_type,
                                                  input_shape,
