@@ -49,8 +49,7 @@ int register_untyped_function(char *name, char **globals, int num_globals,
 	
 	printf("INTERFACE Name: %s",name);
 
-	//int len;
-  //len = strlen(name);
+	//int len = strlen(name);
   //val_name = caml_alloc_string(len);
   //memcpy(String_val(val_name), name, len);
   val_name = caml_copy_string(name);
@@ -167,8 +166,6 @@ static CAMLprim value build_str_list(char **strs, int num_strs) {
   CAMLlocal3(ocaml_str, cons1, cons2);
 
   int i;
-  printf("build_str \n\n");
-  fflush(stdout);
   if (num_strs > 0) {
     cons1 = caml_alloc_tuple(2);
     ocaml_str = caml_copy_string(strs[num_strs - 1]);
