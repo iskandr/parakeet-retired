@@ -8,7 +8,7 @@ def mult9(x):
 #  x = x + 4
   return x * 9
 
-@GPU
+#@GPU
 def addxy(x,y,z):
   q = mult9(x)
   return q * y + z

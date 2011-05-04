@@ -24,6 +24,7 @@
 value *ocaml_register_untyped_function = NULL;
 value *ocaml_run_function              = NULL;
 int fe_inited = 0;
+
 static CAMLprim value build_str_list(char **strs, int num_strs);
 static CAMLprim value build_host_val_list(host_val *vals, int num_vals);
 static CAMLprim value get_value_and_remove_root(host_val h);
@@ -47,11 +48,12 @@ int register_untyped_function(char *name, char **globals, int num_globals,
  
 	
 	printf("INTERFACE Name: %s",name);
-  int len;
 
-  len = strlen(name);
-  val_name = caml_alloc_string(len);
-  memcpy(String_val(val_name), &name, len);
+	//int len;
+  // len = strlen(name);
+  // val_name = caml_alloc_string(len);
+  // memcpy(String_val(val_name), &name, len);
+  val_name = caml_copy_string(name);
 
   val_globals = build_str_list(globals, num_globals);
   val_args    = build_str_list(args, num_args);
@@ -162,32 +164,36 @@ void free_return_val(return_val_t ret_val) {
 
 static CAMLprim value build_str_list(char **strs, int num_strs) {
   CAMLparam0();
-  CAMLlocal3(ocaml_str, str1, str2);
+  CAMLlocal3(ocaml_str, cons1, cons2);
 
-  int len, i;
+  int i;
+  // int len;
 
   if (num_strs > 0) {
-    str1 = caml_alloc_tuple(2);
-    len  = strlen(strs[num_strs - 1]);
-    ocaml_str = caml_alloc_string(len);
-    memcpy(String_val(ocaml_str), strs[num_strs - 1], len);
-    Store_field(str1, 0, ocaml_str);
-    Store_field(str1, 1, Val_int(0));
+    cons1 = caml_alloc_tuple(2);
+    //len  = strlen(strs[num_strs - 1]);
+    // caml_alloc_string(len);
+    // memcpy(String_val(ocaml_str), strs[num_strs - 1], len);
+
+    ocaml_str = caml_copy_string(strs[num_strs -1]);
+    Store_field(cons1, 0, ocaml_str);
+    Store_field(cons1, 1, Val_int(0));
 
     for (i = num_strs - 2; i >= 0; --i) {
-      str2 = caml_alloc_tuple(2);
-      len = strlen(strs[i]);
-      ocaml_str = caml_alloc_string(len);
-      memcpy(String_val(ocaml_str), strs[i], len);
-      Store_field(str2, 0, ocaml_str);
-      Store_field(str2, 1, str1);
-      str1 = str2;
+      cons2 = caml_alloc_tuple(2);
+      // len = strlen(strs[i]);
+      // ocaml_str = caml_alloc_string(len);
+      // memcpy(String_val(ocaml_str), strs[i], len);
+      ocaml_str = caml_copy_string(strs[i]);
+      Store_field(cons2, 0, ocaml_str);
+      Store_field(cons2, 1, cons1);
+      cons1 = cons2;
     }
   } else {
-    str1 = Val_int(0);
+    cons1 = Val_int(0);
   }
 
-  CAMLreturn(str1);
+  CAMLreturn(cons1);
 }
 
 static CAMLprim value build_host_val_list(host_val *vals, int num_vals) {
