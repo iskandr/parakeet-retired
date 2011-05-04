@@ -42,11 +42,16 @@ def returnTypeInit():
   libtest.register_untyped_function.restype = c_int
   libtest.run_function.restype = return_val_t
   libtest.mk_int32.restype = c_void_p
+  libtest.mk_float32.restype = c_void_p
+  libtest.mk_float64.restype = c_void_p
   libtest.mk_whileloop.restype = c_void_p
   libtest.mk_bool.restype = c_void_p
   libtest.get_prim.restype = c_void_p
   libtest.mk_float_paranode.restype = c_void_p
   libtest.mk_double_paranode.restype = c_void_p
+
+def ast_prim(sym):
+  return c_void_p(libtest.get_prim(sym))
 
 libcude = cdll.LoadLibrary('/usr/local/cuda/lib/libcudart.so.3')
 libtest = cdll.LoadLibrary(os.getcwd() + '/../_build/libparakeetpy.so')
@@ -54,13 +59,16 @@ libtest.parakeet_init()
 returnTypeInit()
 ###########
 
-safe_functions = {}
-builtin_primitives = {'Add':c_void_p(libtest.get_prim('+')),
-                      'Sub':c_void_p(libtest.get_prim('-')),
-                      'Mult':c_void_p(libtest.get_prim('*')),
-                      'Div':c_void_p(libtest.get_prim('/')),
-                      'Mod':c_void_p(libtest.get_prim('mod')),
-                      'Pow':c_void_p(libtest.get_prim('exp')),
+safe_functions = {np.all:ast_prim('all'),
+#                  np.argmin:ast_prim('argmin'),
+                  np.mean:ast_prim('mean'),
+                  np.sum:ast_prim('sum')}
+builtin_primitives = {'Add':ast_prim('+'),
+                      'Sub':ast_prim('-'),
+                      'Mult':ast_prim('*'),
+                      'Div':ast_prim('/'),
+                      'Mod':ast_prim('mod'),
+                      'Pow':ast_prim('exp'),
                       'LShift':'Not yet implemented',
                       'RShift':'Not yet implemented',
                       'BitOr':'Not yet implemented',
@@ -68,20 +76,21 @@ builtin_primitives = {'Add':c_void_p(libtest.get_prim('+')),
                       'BitAnd':'Not yet implemented',
                       'FloorDiv':'Not yet implemented',
                       'Invert':'Not yet implemented (bit-wise inverse)',
-                      'Not':c_void_p(libtest.get_prim('not')),
-                      'Uadd':'Not sure what this is',
-                      'Usub':'Not sure what this is',
-                      'Eq':c_void_p(libtest.get_prim('eq')),
-                      'NotEq':c_void_p(libtest.get_prim('neq')),
-                      'Lt':c_void_p(libtest.get_prim('<')),
-                      'LtE':c_void_p(libtest.get_prim('<=')),
-                      'Gt':c_void_p(libtest.get_prim('>')),
-                      'GtE':c_void_p(libtest.get_prim('>=')),
+                      'Not':ast_prim('not'),
+                      'Uadd':'Not yet implemented',
+                      'Usub':ast_prim('neg'),
+                      'Eq':ast_prim('eq'),
+                      'NotEq':ast_prim('neq'),
+                      'Lt':ast_prim('<'),
+                      'LtE':ast_prim('<='),
+                      'Gt':ast_prim('>'),
+                      'GtE':ast_prim('>='),
                       'Is':'Not yet implemented',
                       'IsNot':'Not yet implemented',
                       'In':'Not yet implemented',
                       'NotIn':'Not yet implemented'}
-all_functions = safe_functions.copy()
+function_asts = safe_functions.copy()
+function_globals = {}
 #List of which built-in functions are allowed and which aren't
 #Old code:
 primitives = {"abs":1,"all":1,"any":1,"basestring":1,"bin":0,"bool":0,
@@ -137,7 +146,7 @@ if printing == 1:
 
 #Note: keep context as a hash table, or just make in_assignment a string? 
 class ASTCreator(ASTPrinter):
-  func_handled = {}
+  func_handled = {} #Note; deprecated, shouldn't use anymore
   def __init__(self,file_name):
     self.npArrayEvil = ""
     self.context = {'assignment':1,'function_call':2,'attribute':3}
@@ -161,29 +170,34 @@ class ASTCreator(ASTPrinter):
     self.func_name = ""
   #Visiting a node
   def getFunction(self,node):
+    print "in getFunction"
     if str(node) in self.var_list:
       self.evil_function = "calling a variable as a function is not supported"
       print str(node)    
+    print "after var list"
     func_str = self.function_path + '.' + str(node)
     try:
       exec "curr_func = %s" % func_str
+      print "Not in except block"
     except:
-      try:
-        exec "curr_func = %s.__globals__['%s']" % (self.func_name , str(node))
-        func_str = str(node)
-      except:
-        str_node = str(node)
-        try:
-          exec "import %s" % self.from_import[str_node]
-          str_node = self.from_import[str_node] + "." + str_node
-        except:
-          pass
-        exec "curr_func = %s" % str_new_node
-        try:
-          if not primitives[str(node)]:
-            self.evil_function = "%s is an unsupported primitive" % str(node)
-        except:
-          pass #Note: Not a primitive, use this somehow?
+      print "In except block"
+      exec "curr_func = np.%s" %str(node)
+#      try:
+#        exec "curr_func = %s.__globals__['%s']" % (self.func_name , str(node))
+#        func_str = str(node)
+#      except:
+#        str_node = str(node)
+#        try:
+#          exec "import %s" % self.from_import[str_node]
+#          str_node = self.from_import[str_node] + "." + str_node
+#        except:
+#          pass
+#        exec "curr_func = %s" % str_new_node
+#        try:
+#          if not primitives[str(node)]:
+#            self.evil_function = "%s is an unsupported primitive" % str(node)
+#        except:
+#          pass #Note: Not a primitive, use this somehow?
     return curr_func
   
   def from_imports(self,node):
@@ -226,6 +240,7 @@ class ASTCreator(ASTPrinter):
     if type(curr_func).__name__ == 'classobj' or \
     type(curr_func).__name__ == 'builtin_function_or_method':
       if (self.right_assignment):
+        self.curr_function[curr_func] = 1
         if (func_str.split('.').pop() == 'array'):
           self.npArrayEvil = "Safe"
         #If it's not a numpy array, then it's not handled by parakeet
@@ -347,6 +362,7 @@ class ASTCreator(ASTPrinter):
           #Means the code looked like you were defining a variable when it was
           #really a function
           curr_func = self.getFunction(child_node)
+          self.curr_function[curr_func] = 1
           if type(curr_func).__name__ == 'classobj':#$ or \
 #          type(curr_func).__name__ == 'builtin_function_or_method':
             if (self.right_assignment):
@@ -399,11 +415,28 @@ def paranodes(node, args):
     operation = builtin_primitives[type(node.op).__name__]
     return c_void_p(libtest.mk_app(operation,unary_arg,1,None))
   elif (node_type == 'Num'):
-    print "int32(",args[0],")"
-    return c_void_p(libtest.mk_int32_paranode(int(args[0]),None))
+    num = eval(args[0])
+    if type(num) == int:
+      print "int32(",num,")"
+      return c_void_p(libtest.mk_int32_paranode(num,None))
+    elif type(num) == float:
+      print "float32(",num,")"
+      return c_void_p(libtest.mk_float_paranode(c_float(num),None))
   elif (node_type == 'Call'):
     #Note: special case for partial
-    fun_name = call.func.id
+    print "app(",node.func.id,",",args[1],")"
+    fun_name = node.func.id
+    fun_node = safe_functions[np.sum]
+    #Should be in a general function later
+    try:
+      exec "fun_ref = np.%s" % fun_name
+    except:
+      exec "fun_ref = %s" % fun_name
+    print fun_ref, "made"
+    fun_node = safe_functions[fun_ref]
+    print "FUNCS:",fun_ref, np.sum
+    fun_args = list_to_ctypes_array(args[1],c_void_p)
+    return c_void_p(libtest.mk_app(fun_node,fun_args,len(args[1]),None))
   elif (node_type == 'Return'):
     #Note: Always just the 1st argument?
     return args[0]
@@ -495,16 +528,29 @@ def fun_visit(name,func):
         vars[index] = fun_info[0][index]
 #      print "FINALTREE",finalTree
       PrettyAST.printAst(node)
+
+#    Recursively call fun_visit on functions here
+
+
+      num_func = len(AST.curr_function)
+      #Note: actual global variables (non-functions) will be initialized later
+      global_vars = []
+      for key in AST.curr_function.keys():
+        if not (function_asts.has_key(key)):
+          fun_visit(str(key.__module__),key)
+      globals_list = list_to_ctypes_array(global_vars,c_char_p)
+      function_globals[func] = global_vars
       funID = c_int(libtest.register_untyped_function(c_char_p(func.__name__),
-                                                      emptyList(),
-                                                      0,
+                                                      globals_list,
+                                                      len(global_vars),
                                                       vars,
                                                       len(fun_info[0]),
                                                       finalTree))
+      print "REGISTERED"
       #Note, shouldn't return this
       #should add to a dictionary that associates function references
       #To there completely built ASTs
-      return funID
+      function_asts[func] = funID
       #Note: will be changed
       #1 list for functions already found (including builtin)
       #1 list for functions that need to be handled
@@ -563,10 +609,13 @@ def runFunction(func,args):
       if type(arg) == int:
         inputs[i] = c_void_p(libtest.mk_int32(arg))
       elif type(arg) == float:
-        inputs[i] = c_void_p(libtest.mk_float_paranode(arg))
-      elif type(arg) == np.float64:
-        inputs[i] = c_void_p(libtest.mk_double_paranode(arg))
+        print "FLOAT INPUT",arg
+        inputs[i] = c_void_p(libtest.mk_float32(c_float(arg)))
 
+      elif type(arg) == np.float64:
+        inputs[i] = c_void_p(libtest.mk_double64(c_double(arg)))
+####  global_values = function_globals[func]
+####  global_args = []
   ret = libtest.run_function(func, None, 0, inputs, num_args)
   if (ret.return_code == 0): #Success
     print "TYPE",libtest.get_dyn_type_element_type(c_void_p(ret.ret_types[0]))
@@ -595,8 +644,11 @@ def runFunction(func,args):
 def GPU(fun):
 #  print fun.__name__
 #  print fun.__code__.co_filename
-  funID = fun_visit('add.py',fun)
+  if not (function_asts.has_key(fun)):
+    fun_visit('add.py',fun)
 
+  funID = function_asts[fun]
+  
 #  return
   def new_f(*args, **kwds):
     return runFunction(funID,args)
