@@ -49,10 +49,9 @@ int register_untyped_function(char *name, char **globals, int num_globals,
 	
 	printf("INTERFACE Name: %s",name);
 
-	//int len;
-  // len = strlen(name);
-  // val_name = caml_alloc_string(len);
-  // memcpy(String_val(val_name), &name, len);
+	//int len = strlen(name);
+  //val_name = caml_alloc_string(len);
+  //memcpy(String_val(val_name), name, len);
   val_name = caml_copy_string(name);
 
   val_globals = build_str_list(globals, num_globals);
@@ -167,23 +166,14 @@ static CAMLprim value build_str_list(char **strs, int num_strs) {
   CAMLlocal3(ocaml_str, cons1, cons2);
 
   int i;
-  // int len;
-
   if (num_strs > 0) {
     cons1 = caml_alloc_tuple(2);
-    //len  = strlen(strs[num_strs - 1]);
-    // caml_alloc_string(len);
-    // memcpy(String_val(ocaml_str), strs[num_strs - 1], len);
-
-    ocaml_str = caml_copy_string(strs[num_strs -1]);
+    ocaml_str = caml_copy_string(strs[num_strs - 1]);
     Store_field(cons1, 0, ocaml_str);
     Store_field(cons1, 1, Val_int(0));
 
     for (i = num_strs - 2; i >= 0; --i) {
       cons2 = caml_alloc_tuple(2);
-      // len = strlen(strs[i]);
-      // ocaml_str = caml_alloc_string(len);
-      // memcpy(String_val(ocaml_str), strs[i], len);
       ocaml_str = caml_copy_string(strs[i]);
       Store_field(cons2, 0, ocaml_str);
       Store_field(cons2, 1, cons1);
