@@ -61,6 +61,7 @@ returnTypeInit()
 
 safe_functions = {np.all:ast_prim('all'),
 #                  np.argmin:ast_prim('argmin'),
+                  map:ast_prim('map'),
                   np.mean:ast_prim('mean'),
                   np.sum:ast_prim('sum')}
 builtin_primitives = {'Add':ast_prim('+'),
@@ -432,16 +433,23 @@ def paranodes(node, args):
     #Note: special case for partial
     print "app(",node.func.id,",",args[1],")"
     fun_name = node.func.id
-    fun_node = safe_functions[np.sum]
+    if fun_name == 'partial':
+      fun_name = node.args[0].id
+      args[1] = args[1][1:]
+      print fun_name,args[1]
     #Should be in a general function later
     try:
       exec "fun_ref = np.%s" % fun_name
       fun_node = safe_functions[fun_ref]
-      print "FOUND: np.%s" % fun_name
+#      print "FOUND: np.%s" % fun_name
     except:
+      try:
+        exec "fun_ref = %s" % fun_name
+        fun_node = safe_functions[fun_ref]
+      except:
 #      exec "fun_ref = %s" % fun_name
-      fun_node = c_void_p(libtest.mk_var(c_char_p(fun_name),None))
-      print "FUNCTION CALL NAME:", fun_name
+        fun_node = c_void_p(libtest.mk_var(c_char_p(fun_name),None))
+#      print "FUNCTION CALL NAME:", fun_name
     fun_args = list_to_ctypes_array(args[1],c_void_p)
     return c_void_p(libtest.mk_app(fun_node,fun_args,len(args[1]),None))
   elif (node_type == 'Return'):
@@ -599,10 +607,12 @@ def runFunction(func,args):
       elif arg.dtype == np.float64:
         input_data = arg.ctypes.data_as(POINTER(c_double))
         elmt_type = c_void_p(libtest.mk_scalar(12)) #Float64T
-      for i in range(len(arg.shape)):
+      else:
+        print "not handled?",arg.dtype
+      for z in range(len(arg.shape)):
         elmt_type = c_void_p(libtest.mk_vec(elmt_type))
         
-      print "ELEMENTS",input_data,elmt_type,input_shape,len(arg.shape),nbytes
+#      print "ELEMENTS",input_data,elmt_type,input_shape,len(arg.shape),nbytes
       inputs[i] = c_void_p(libtest.mk_host_array(input_data,
                                                  elmt_type,
                                                  input_shape,
