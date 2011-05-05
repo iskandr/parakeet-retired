@@ -72,7 +72,10 @@ return_val_t run_function(int id, host_val *globals, int num_globals,
                           host_val *args, int num_args) {
   CAMLparam0();
   CAMLlocal5(ocaml_rslt, ocaml_id, ocaml_globals, ocaml_args, ocaml_ret_type);
+  // when returning an array
   CAMLlocal3(ocaml_host_val, ocaml_host_array, ocaml_shape);
+  // when returning a scalar
+  CAMLlocal1(ocaml_scalar);
 
   ocaml_id      = Val_int(id);
   ocaml_globals = build_host_val_list(globals, num_globals);
@@ -93,36 +96,111 @@ return_val_t run_function(int id, host_val *globals, int num_globals,
     ret.return_code = RET_PASS;
     ret.results_len = 0;
   } else if (Tag_val(ocaml_rslt) == Success) {
-    ocaml_host_val = Field(ocaml_rslt, 0);
-    // TODO: For now, only support returning unboxed arrays from the GPU.
-    if (Tag_val(ocaml_host_val) != HostArray) {
-      printf("Only support returning arrays from the GPU. Aborting\n");
-      exit(1);
-    }
+      ret.return_code = RET_SUCCESS;
 
-    ocaml_host_array = Field(ocaml_host_val, 0);
+      // TODO: Allow more than one returned result
+      ret.results_len = 1;
+      ret.shapes = (int**)malloc(sizeof(int*));
+      ret.ret_types = (dyn_type*)malloc(sizeof(dyn_type));
+      ret.data.results = (void**)malloc(sizeof(void*));
 
-    // I think we only need to register a global root here for the dyn_type,
-    // since the return value's data was created in C world and is just a
-    // pointer to something outside the OCaml heap.
-    ret.return_code = RET_SUCCESS;
-    ret.results_len = 1;
-    ret.ret_types = (dyn_type*)malloc(sizeof(dyn_type));
-    ret.ret_types[0] = (dyn_type)Field(ocaml_host_array, HostArray_HOST_T);
+      ocaml_host_val = Field(ocaml_rslt, 0);
 
-    // Build the results array
-    ret.data.results = (void**)malloc(sizeof(void*));
-    ret.data.results[0] =
-      (void*)Int64_val(Field(ocaml_host_array, HostArray_PTR));
+      // returning a scalar
+      if (Tag_val(ocaml_host_val) != HostArray) {
 
-    // Build the shapes array
-    ocaml_shape = Field(ocaml_host_array, HostArray_SHAPE);
-    int shape_len = Wosize_val(ocaml_shape);
-    ret.shapes = (int**)malloc(sizeof(int*));
-    ret.shapes[0] = (int*)malloc(shape_len);
-    for (i = 0; i < shape_len; ++i) {
-      ret.shapes[0][i] = Int_val(Field(ocaml_shape, i));
-    }
+        // WARNING:
+        // Tiny Memory Leak Ahead
+        // -----------------------
+        // When scalar data is returned to the host language
+        // on the heap, it should be manually deleted by the
+        // host frontend
+
+        ocaml_scalar = Field(ocaml_host_val, 0);
+
+        void* scalar_data_ptr;
+
+        /* OCAML Accessors
+           Long_val(v) returns the long int encoded in value v.
+           Int_val(v) returns the int encoded in value v.
+           Bool_val(v) returns 0 if v is the Caml boolean false, 1 if v is true
+
+           Wosize_val(v) returns the size of the block v, in words,
+                        excluding the header.
+           Tag_val(v) returns the tag of the block v.
+           String_val(v) returns a pointer to the first byte of the string v
+           Double_val(v) returns the floating-point number contained in value v, with type double.
+           Int32_val(v) returns the 32-bit integer contained in the int32 v.
+           Int64_val(v) returns the 64-bit integer contained in the int64 v.
+           Nativeint_val(v) returns the long integer contained in the nativeint v.
+         */
+        switch (Tag_val(ocaml_scalar)) {
+        case PQNUM_BOOL:
+          ret.ret_types[0] = BoolT;
+          scalar_data_ptr = malloc(sizeof(int*));
+          *((int*) scalar_data_ptr) = Bool_val(Field(ocaml_scalar, 0));
+          ret.data.results[0] = scalar_data_ptr;
+          break;
+
+        case PQNUM_CHAR:
+          ret.ret_types[0] = CharT;
+          scalar_data_ptr = malloc(sizeof(char*));
+          *((char*)scalar_data_ptr) = Int_val(Field(ocaml_scalar, 0));
+          ret.data.results[0] = scalar_data_ptr;
+          break;
+
+        case PQNUM_INT32:
+          ret.ret_types[0] = Int32T;
+          scalar_data_ptr = malloc(sizeof(int*));
+          *((int*)scalar_data_ptr) = Int32_val(Field(ocaml_scalar, 0));
+          ret.data.results[0] = scalar_data_ptr;
+          break;
+
+        case PQNUM_FLOAT32:
+          ret.ret_types[0] = Float32T;
+          scalar_data_ptr = malloc(sizeof(float*));
+          *((float*)scalar_data_ptr) = Double_val(Field(ocaml_scalar, 0));
+          ret.data.results[0] = scalar_data_ptr;
+          break;
+
+        case PQNUM_FLOAT64:
+          ret.ret_types[0] = Float64T;
+          scalar_data_ptr = malloc(sizeof(double*));
+          *((double*)scalar_data_ptr) = Double_val(Field(ocaml_scalar, 0));
+          ret.data.results[0] = scalar_data_ptr;
+          break;
+
+        case PQNUM_UINT16:
+        case PQNUM_INT16:
+        case PQNUM_UINT32:
+        case PQNUM_UINT64:
+        case PQNUM_INT64:
+        case PQNUM_INF:
+        case PQNUM_NEGINF:
+          printf ("Unable to return scalar of this type\n");
+          exit(1);
+        }
+      } else {
+        ocaml_host_array = Field(ocaml_host_val, 0);
+
+        // I think we only need to register a global root here for the dyn_type,
+        // since the return value's data was created in C world and is just a
+        // pointer to something outside the OCaml heap.
+        ret.ret_types[0] = (dyn_type)Field(ocaml_host_array, HostArray_HOST_T);
+
+        // Build the results array
+        ret.data.results[0] =
+            (void*)Int64_val(Field(ocaml_host_array, HostArray_PTR));
+
+        // Build the shapes array
+        ocaml_shape = Field(ocaml_host_array, HostArray_SHAPE);
+        int shape_len = Wosize_val(ocaml_shape);
+
+        ret.shapes[0] = (int*)malloc(shape_len);
+        for (i = 0; i < shape_len; ++i) {
+          ret.shapes[0][i] = Int_val(Field(ocaml_shape, i));
+        }
+      }
   } else if (Tag_val(ocaml_rslt) == Error) {
     ret.return_code = RET_FAIL;
     ret.results_len = caml_string_length(Field(ocaml_rslt, 0));

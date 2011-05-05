@@ -66,19 +66,30 @@ enum pqnum_tag {
   PQNUM_NEGINF
 };
 
-enum host_val_tag { HostScalar = 0, HostArray, HostBoxedArray };
+enum host_val_tag {
+    HostScalar = 0,
+    HostArray,
+    HostBoxedArray
+};
 
 enum host_array_layout {
-  HostArray_PTR = 0, HostArray_HOST_T, HostArray_SHAPE, HostArray_NBYTES
+    HostArray_PTR = 0,
+    HostArray_HOST_T,
+    HostArray_SHAPE,
+    HostArray_NBYTES
 };
 
 /* needs to stay synchronized with definition in GpuVal.ml */
 enum gpu_val_tag { GpuScalar = 0, GpuArray };
 
 enum gpu_array_layout {
-    GpuArray_VEC_PTR = 0, GpuArray_VEC_NBYTES, GpuArray_VEC_LEN,
-        GpuArray_VEC_SHAPE_PTR, GpuArray_VEC_SHAPE_NBYTES,
-        GpuArray_VEC_SHAPE, GpuArray_VEC_T
+    GpuArray_VEC_PTR = 0,
+    GpuArray_VEC_NBYTES,
+    GpuArray_VEC_LEN,
+    GpuArray_VEC_SHAPE_PTR,
+    GpuArray_VEC_SHAPE_NBYTES,
+    GpuArray_VEC_SHAPE,
+    GpuArray_VEC_T
 };
 
 enum pqnum_gpu_arg_tag {
