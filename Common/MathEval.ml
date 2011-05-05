@@ -2,15 +2,17 @@ open Base
 
 (* generic evaluator for scalar operations, used in both Eval and ShapeEval *)
 
-type 'a math_ops = {   
+type 'a math_ops = {  
   of_int : int -> 'a; 
   of_pqnum : PQNum.num -> 'a;
   to_str : 'a -> string; 
   
   safe_div : 'a -> 'a -> 'a;  
   log : 'a -> 'a; 
-  mul : 'a -> 'a -> 'a;  
+
+  mul : 'a -> 'a -> 'a; 
   add : 'a -> 'a -> 'a;    
+  sub : 'a -> 'a -> 'a; 
 } 
 
 
@@ -22,8 +24,9 @@ let eval (m : 'a math_ops) (op:Prim.scalar_op) (args : 'a list) =
   match op, args with 
   | Prim.Max, [x;y] -> max x y 
   | Prim.Min, [x;y] -> min x y
-  | Prim.Add, [x;y] -> m.add x y 
-  | Prim.SafeDiv, [x;y] ->  m.safe_div x y  
+  | Prim.Add, [x;y] -> m.add x y
+  | Prim.Sub, [x;y] -> m.sub x y  
+  | Prim.SafeDiv, [x;y] ->  m.safe_div x y 
   | Prim.Mult, [x;y] -> m.mul x y  
   | Prim.Log, [x]  -> m.log x
   | op, args -> failwith $ 
@@ -38,6 +41,7 @@ let int_ops : int math_ops = {
   log =  (fun x -> int_of_float (ceil (log (float_of_int x))));
   mul = Int.mul;  
   add = ( + );
+  sub = ( - ); 
   of_int = (fun x -> x); 
   of_pqnum = PQNum.to_int;
   to_str = string_of_int;   
@@ -47,7 +51,8 @@ let float_ops : float math_ops = {
   safe_div = (/.);  
   log = log; 
   mul = ( *. );
-  add = ( +. ); 
+  add = ( +. );
+  sub = ( -. );  
   of_int = float_of_int; 
   of_pqnum = PQNum.to_float;
   to_str = string_of_float; 
@@ -59,7 +64,8 @@ let int32_ops : Int32.t math_ops = {
   safe_div = int32_safe_div;   
   log = (fun x -> Int32.of_float (ceil (log (Int32.to_float x)))); 
   mul = Int32.mul; 
-  add = Int32.add; 
+  add = Int32.add;
+  sub = Int32.sub;  
   of_int = Int32.of_int; 
   of_pqnum = PQNum.to_int32; 
   to_str = Int32.to_string;  

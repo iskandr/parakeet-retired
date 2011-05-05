@@ -232,8 +232,10 @@ and eval_exp (expNode : SSA.exp_node) : InterpVal.t list =
         InterpVal.of_bool (PQNum.to_float x > PQNum.to_float y)
     | Prim.Gte,  [x;y] -> 
         InterpVal.of_bool (PQNum.to_float x >= PQNum.to_float y)
+    | Prim.Div, [x;y] -> 
+        InterpVal.of_float (PQNum.to_float x /. PQNum.to_float y)
     (* other math operations should return the same type as their inputs, 
-       so use the generic meth eval function
+       so use the generic math eval function
      *) 
     | op, _  -> 
         InterpVal.Scalar (MathEval.eval_pqnum_op op nums)

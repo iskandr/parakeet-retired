@@ -32,5 +32,5 @@ let to_num = function
 
 let of_bool b = Scalar (PQNum.Bool b) 
 let of_int i = Scalar (PQNum.Int32 (Int32.of_int i))
-
+let of_float f = Scalar (PQNum.Float32 f)
 
