@@ -149,6 +149,7 @@ if printing == 1:
 class ASTCreator(ASTPrinter):
   func_handled = {} #Note; deprecated, shouldn't use anymore
   def __init__(self,file_name):
+    self.file_name = file_name
     self.npArrayEvil = ""
     self.context = {'assignment':1,'function_call':2,'attribute':3}
     self.right_assignment = 0
@@ -184,7 +185,7 @@ class ASTCreator(ASTPrinter):
       except:
         try:
           import addn
-          exec "curr_func = addn.%s"%str(node)
+          exec "curr_func = %s.%s"%(self.file_name,str(node))
         except:
           print "Failed trying to find the function",str(node)
 #      try:
@@ -417,10 +418,15 @@ def paranodes(node, args):
     operation = builtin_primitives[type(node.op).__name__]
     return c_void_p(libtest.mk_app(operation,bin_args,2,None))
   elif (node_type == 'UnaryOp'):
-    print "app(",type(node.op).__name__,",[",args[0],"])"
+    print "app(",type(node.op).__name__,",[",args[1],"])"
     unary_arg = list_to_ctypes_array(args[1],c_void_p)
     operation = builtin_primitives[type(node.op).__name__]
     return c_void_p(libtest.mk_app(operation,unary_arg,1,None))
+  elif (node_type == 'Compare'):
+    print "app(",type(node.ops[0]).__name__,",[",args[0],",",args[2][0],"])"
+    comp_args = list_to_ctypes_array([args[0],args[2][0]],c_void_p)
+    operation = builtin_primitives[type(node.ops[0]).__name__]
+    return c_void_p(libtest.mk_app(operation,comp_args,2,None))    
   elif (node_type == 'Num'):
     num = eval(args[0])
     if type(num) == int:
@@ -463,7 +469,7 @@ def paranodes(node, args):
   elif (node_type == 'While'):
     print "while(",args[0],",block(",args[1],"))"
     numStmt = len(args[1])
-    block_args = list_to_ctypes_array(arsg[1],c_void_p)
+    block_args = list_to_ctypes_array(args[1],c_void_p)
     block = c_void_p(libtest.mk_block(block_args,numStmt,None))
     return c_void_p(libtest.mk_whileloop(args[0],block,None))
   else:
@@ -517,7 +523,7 @@ def functionInfo(function_obj):
     line_no += 1
   return args, out_string, variable_list
 
-def fun_visit(name,func):
+def fun_visit(func,name = ''):
   fun_info = functionInfo(func)
   if fun_info:
     node = ast.parse(fun_info[1])
@@ -649,7 +655,7 @@ def runFunction(func,args):
       rslt = cast(ret.data.results[0],POINTER(c_int))
 
     py_rslt = []
-    ret_len = ret.shapes[0][0]
+    ret_len = ret.shapes[0][0]    
     for index in range(ret_len):
       print rslt[index],
       py_rslt.append(rslt[index])
@@ -660,9 +666,17 @@ def runFunction(func,args):
 
 def GPU(fun):
 #  print fun.__name__
+  import inspect
+#  print type(fun.__module__)
+  function_file = inspect.getfile(fun)
+#  print function_file
+  function_name = str(function_file).split(".")[0]
+#  print fun.func_globals
+#  print function_name
+#  return
 #  print fun.__code__.co_filename
   if not (function_asts.has_key(fun)):
-    fun_visit('add.py',fun)
+    fun_visit(fun,function_name)
 
   funID = function_asts[fun]
   
