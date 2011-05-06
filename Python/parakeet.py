@@ -644,23 +644,34 @@ def runFunction(func,args):
     print "TYPE",libtest.get_dyn_type_element_type(c_void_p(ret.ret_types[0]))
     elmt_type = libtest.get_dyn_type_element_type(c_void_p(ret.ret_types[0]))
     #NOTE: WRONG numbers, should be (x-3)/4....returning as a wrong type of integer?
-    if elmt_type == 47:
-      rslt = cast(ret.data.results[0],POINTER(c_float))
-    elif elmt_type == 31:
-      rslt = cast(ret.data.results[0],POINTER(c_int))
-    elif elmt_type == 51:
-      rslt = cast(ret.data.results[0],POINTER(c_double))
+    if libtest.get_dyn_type_rank(c_void_p(ret.ret_types[0])) == 0:
+      if elmt_type == 15:
+        rslt = cast(ret.data.results[0],POINTER(c_int))
+      elif elmt_type == 23:
+        rslt = cast(ret.data.results[0],POINTER(c_float))
+      elif elmt_type == 25:
+        rslt = cast(ret.data.results[0],POINTER(c_double))
+      else:
+        rslt = cast(ret.data.results[0],POINTER(c_int))
+      np_rslt = rslt[0]
+      print np_rslt
     else:
+      if elmt_type == 47:
+        rslt = cast(ret.data.results[0],POINTER(c_float))
+      elif elmt_type == 31:
+        rslt = cast(ret.data.results[0],POINTER(c_int))
+      elif elmt_type == 51:
+        rslt = cast(ret.data.results[0],POINTER(c_double))
+      else:
       #Not sure what to do with it yet
-      rslt = cast(ret.data.results[0],POINTER(c_int))
-
-    py_rslt = []
-    ret_len = ret.shapes[0][0]    
-    for index in range(ret_len):
-      print rslt[index],
-      py_rslt.append(rslt[index])
-    print
-    np_rslt = np.array(py_rslt)
+        rslt = cast(ret.data.results[0],POINTER(c_int))
+      py_rslt = []
+      ret_len = ret.shapes[0][0]    
+      for index in range(ret_len):
+        print rslt[index],
+        py_rslt.append(rslt[index])
+      print
+      np_rslt = np.array(py_rslt)
     return np_rslt
   return 0
 
