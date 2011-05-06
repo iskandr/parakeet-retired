@@ -38,18 +38,35 @@ type gpu_vec = {
 
 type gpu_val = GpuScalar of PQNum.num | GpuArray of gpu_vec
 
-let elt_to_str gpuVec idx = 
-  match DynType.elt_type gpuVec.vec_t with 
-  | DynType.Int32T -> 
-    let i32 = Cuda.cuda_get_gpu_int32_vec_elt gpuVec.vec_ptr idx in
-    Int32.to_string i32         
+let get_gpu_vec = function 
+  | GpuScalar _ -> failwith "Expected GPU vector"
+  | GpuArray data -> data 
+
+let get_elt (gpuVec : gpu_vec) (idx:int) : PQNum.num = 
+  let t = DynType.elt_type gpuVec.vec_t in  
+  match t with 
+  | DynType.Int32T ->
+      let i32 = Cuda.cuda_get_gpu_int32_vec_elt gpuVec.vec_ptr idx in  
+      PQNum.Int32 i32         
   | DynType.Float32T ->
       let f = Cuda.cuda_get_gpu_float32_vec_elt gpuVec.vec_ptr idx in  
-    string_of_float f 
-  | DynType.CharT 
+      PQNum.Float32 f 
+  | DynType.CharT ->
+      let i =  Cuda.cuda_get_gpu_char_vec_elt gpuVec.vec_ptr idx in
+      PQNum.Char (Char.chr i) 
   | DynType.BoolT ->
-    let i =  Cuda.cuda_get_gpu_char_vec_elt gpuVec.vec_ptr idx in
-    string_of_int i 
+      let i = Cuda.cuda_get_gpu_char_vec_elt gpuVec.vec_ptr idx in 
+      PQNum.Bool (i > 0)
+  | _ -> 
+      let tStr = DynType.to_str t in 
+      failwith ("[GpuVal] gpu_elt: type not supported: " ^ tStr) 
+
+let elt_to_str gpuVec idx = 
+  match DynType.elt_type gpuVec.vec_t with 
+  | DynType.Int32T  
+  | DynType.Float32T 
+  | DynType.CharT 
+  | DynType.BoolT -> PQNum.num_to_str (get_elt gpuVec idx) 
   | _ -> "?" 
 
 let elts_summary gpuVec =

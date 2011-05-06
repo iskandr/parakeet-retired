@@ -79,8 +79,12 @@ os.environ['dbg'] = '0'
 if not opts['opt']:
   build_command.append("-ppflag")
   build_command.append("-DDEBUG")
+  build_command.append("-cflag")
+  build_command.append("-g")
   make_command.append("DEBUG=-g")
   os.environ['dbg'] = '1'
+
+print build_command
 
 print " ".join(build_command)
 
