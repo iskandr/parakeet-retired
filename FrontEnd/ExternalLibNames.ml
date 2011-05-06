@@ -44,7 +44,7 @@ let prim_names =  Hashtbl.of_list [
        
     "where", ArrayOp Where; 
     "enlist", ArrayOp Enlist; 
-       
+    "index",  ArrayOp Index;   
     "range", ArrayOp Til;
     "concat", ArrayOp Concat; 
 ]   

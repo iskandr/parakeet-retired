@@ -154,4 +154,11 @@ let fn1 constructor =
   let constructorWrapper = 
     fun inputs outputs _ -> constructor inputs.(0) outputs.(0)
   in 
-  mk_fn 1 1 0 constructorWrapper   
+  mk_fn 1 1 0 constructorWrapper
+  
+(* 2 inputs, 1 output, 0 locals *)   
+let fn2 constructor =
+  let constructorWrapper = 
+    fun inputs outputs _ -> constructor inputs.(0) inputs.(1) outputs.(0)
+  in 
+  mk_fn 2 1 0 constructorWrapper      
