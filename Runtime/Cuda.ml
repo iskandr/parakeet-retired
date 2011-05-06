@@ -101,11 +101,12 @@ cuda_memcpy_device_to_symbol : string -> GpuPtr.t -> int -> int -> unit
 *)
 
 (** READ ARRAY ELEMENTS **) 
-external cuda_get_gpu_char_vec_elt : GpuPtr.t -> int -> int 
-  = "ocaml_cuda_get_gpu_char_vec_elt"
 
 external cuda_get_gpu_int_vec_elt : GpuPtr.t -> int -> int
   = "ocaml_cuda_get_gpu_int_vec_elt"
+
+external cuda_get_gpu_int8_vec_elt : GpuPtr.t -> int -> int 
+  = "ocaml_cuda_get_gpu_int8_vec_elt"
 
 external cuda_get_gpu_int16_vec_elt : GpuPtr.t -> int -> int
   = "ocaml_cuda_get_gpu_int16_vec_elt" 

@@ -322,12 +322,13 @@ value ocaml_cuda_memcpy_to_host(value array, value dev_ptr, value num_bytes) {
    Access a GPU array element 
 */
 CAMLprim
-value ocaml_cuda_get_gpu_char_vec_elt(value ocaml_gpu_vec, value ocaml_id) {
-  CAMLparam2(ocaml_gpu_vec, ocaml_id);
-  char *gpu_vec = (char* ) Int64_val(ocaml_gpu_vec);
-  char cval = 0;
-  cudaError_t rslt = cudaMemcpy(&cval, &gpu_vec[Int_val(ocaml_id)],
-                                sizeof(char), cudaMemcpyDeviceToHost);
+value ocaml_cuda_get_gpu_int8_vec_elt(value ocaml_gpu_vec, value ocaml_idx) {
+  CAMLparam2(ocaml_gpu_vec, ocaml_idx);
+  int8_t *gpu_vec = (int8_t* ) Int64_val(ocaml_gpu_vec);
+  int8_t cval = 0;
+  int idx = Int_val(ocaml_idx); 
+  cudaError_t rslt = cudaMemcpy(&cval, &gpu_vec[idx],
+                                sizeof(int8_t), cudaMemcpyDeviceToHost);
   if (rslt) {
     char msg[100];
     sprintf(msg, "Error getting element of gpu char vec: %d", rslt);  

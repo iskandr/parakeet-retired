@@ -52,10 +52,10 @@ let get_elt (gpuVec : gpu_vec) (idx:int) : PQNum.num =
       let f = Cuda.cuda_get_gpu_float32_vec_elt gpuVec.vec_ptr idx in  
       PQNum.Float32 f 
   | DynType.CharT ->
-      let i =  Cuda.cuda_get_gpu_char_vec_elt gpuVec.vec_ptr idx in
+      let i =  Cuda.cuda_get_gpu_int8_vec_elt gpuVec.vec_ptr idx in
       PQNum.Char (Char.chr i) 
   | DynType.BoolT ->
-      let i = Cuda.cuda_get_gpu_int16_vec_elt gpuVec.vec_ptr idx in 
+      let i = Cuda.cuda_get_gpu_int8_vec_elt gpuVec.vec_ptr idx in 
       PQNum.Bool (i > 0)
   | _ -> 
       let tStr = DynType.to_str t in 

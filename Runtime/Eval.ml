@@ -141,12 +141,12 @@ and eval_exp (expNode : SSA.exp_node) : InterpVal.t list =
             MemoryState.enter_data_scope P.memState; 
             let gpuResults = 
               GpuEval.map 
-                ~payload:fundef  
+                ~payload:fundef
                 ~closureArgs:gpuClosureVals  
-                ~args:gpuInputVals 
-            in 
+                ~args:gpuInputVals
+            in
             let interpResults = List.map add_gpu gpuResults in 
-            MemoryState.exit_data_scope 
+            MemoryState.exit_data_scope
               ~escaping_values:interpResults 
               P.memState
             ;

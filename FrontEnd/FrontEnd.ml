@@ -71,7 +71,15 @@ let run_function untypedId ~globals ~args =
   Timing.clear Timing.gpuTransfer;
   Timing.clear Timing.gpuExec;
   Timing.clear Timing.gpuMalloc;
-  Timing.start Timing.runTemplate; 
+  Timing.start Timing.runTemplate;
+  IFDEF DEBUG THEN 
+    Printf.printf "[run_function] received globals: %s\n"
+      (String.concat ", " $ List.map HostVal.to_str globals)
+    ; 
+    Printf.printf "[run_function] received args: %s\n"
+      (String.concat ", " $ List.map HostVal.to_str args)
+    ; 
+  ENDIF;  
   let args = globals @ args in
   let argTypes = List.map HostVal.get_type args in
   let untypedFn = InterpState.get_untyped_function interpState untypedId in

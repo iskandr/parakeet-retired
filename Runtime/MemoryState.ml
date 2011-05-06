@@ -200,7 +200,7 @@ module ManagedAlloc = struct
     }
     in 
     IFDEF DEBUG THEN 
-      Printf.printf "[Alloc] vector returned from GPU: %s\n"
+      Printf.printf "[MemState] vector returned from GPU: %s\n"
         (HostVal.host_vec_to_str hostVec); 
     ENDIF;
     hostVec
@@ -258,7 +258,7 @@ module ManagedAlloc = struct
     }
     in
     IFDEF DEBUG THEN
-      Printf.printf "[Alloc] vector sent to GPU: %s\n"
+      Printf.printf "[MemState] vector sent to GPU: %s\n"
         (GpuVal.gpu_vec_to_str gpuVec);
     ENDIF;
     gpuVec 
@@ -294,7 +294,7 @@ module ManagedAlloc = struct
     let id = fresh_data_id ?refcount memState in 
     associate_id_with_gpu_data memState gpuVec id;  
     IFDEF DEBUG THEN
-      Printf.printf "[Alloc] Created %s\n%!"  (GpuVal.gpu_vec_to_str gpuVec);
+      Printf.printf "[MemState] Created %s\n%!"  (GpuVal.gpu_vec_to_str gpuVec);
     ENDIF;  
     gpuVec   
 
@@ -324,7 +324,7 @@ module ManagedAlloc = struct
     let id = fresh_data_id ?refcount memState in 
     associate_id_with_host_data memState hostVec id; 
     IFDEF DEBUG THEN
-      Printf.printf "[Alloc] Created %s\n%!"  (HostVal.host_vec_to_str hostVec); 
+      Printf.printf "[MemState] Created %s\n%!"  (HostVal.host_vec_to_str hostVec); 
     ENDIF;  
     hostVec
     
@@ -357,7 +357,7 @@ module Scope = struct
      if ID.Map.mem id env then ID.Map.find id env
      else 
        failwith $ 
-         Printf.sprintf "[MemoryState] variable %s not found!" (ID.to_str id) 
+         Printf.sprintf "[MemState] variable %s not found!" (ID.to_str id) 
 
 
   let dec_old_binding_value memState env id = 
@@ -554,7 +554,7 @@ let rec get_gpu memState = function
     else (
       let hostVec = Hashtbl.find memState.host_data id in
       IFDEF DEBUG THEN 
-        Printf.printf "[MemoryState] Sending to GPU: --%s\n" 
+        Printf.printf "[MemState] Sending to GPU: --%s\n" 
           (HostVal.host_vec_to_str hostVec);
        ENDIF; 
       let gpuVec = vec_to_gpu memState hostVec in 
@@ -578,18 +578,18 @@ let rec get_gpu memState = function
       let destVec = mk_gpu_vec memState finalType finalShape in
       let destPtr = destVec.vec_ptr in 
       IFDEF DEBUG THEN 
-        Printf.printf "[MemoryState] Transferring interpreter array to GPU\n";
-        Printf.printf "[MemoryState] -- elts = %s \n" 
+        Printf.printf "[MemState] Transferring interpreter array to GPU\n";
+        Printf.printf "[MemState] -- elts = %s \n" 
             (String.concat ", " (List.map InterpVal.to_str (Array.to_list arr)))
         ;  
         Printf.printf 
-          "[MemoryState] -- elt size: %d, elt type: %s, elt shape: %s\n" 
+          "[MemState] -- elt size: %d, elt type: %s, elt shape: %s\n" 
             eltSize
             (DynType.to_str eltType)
             (Shape.to_str eltShape)
         ;
         Printf.printf 
-          "[MemoryState] -- total size: %d, final type : %s,  final shape: %s\n"
+          "[MemState] -- total size: %d, final type : %s,  final shape: %s\n"
           nbytes
           (DynType.to_str finalType)
           (Shape.to_str finalShape)
@@ -607,7 +607,7 @@ let rec get_gpu memState = function
                 let eltVec = Hashtbl.find memState.gpu_data id in 
                 IFDEF DEBUG THEN 
                   Printf.printf 
-                    "[MemoryState] copying array elt to gpu address %Lx: %s\n"
+                    "[MemState] copying array elt to gpu address %Lx: %s\n"
                     currPtr
                     (GpuVal.gpu_vec_to_str eltVec)
                 ENDIF; 
@@ -616,7 +616,7 @@ let rec get_gpu memState = function
                 let eltHostVec = Hashtbl.find memState.host_data id in
                 IFDEF DEBUG THEN 
                   Printf.printf 
-                    "[MemoryState] copying array elt to gpu address %Lx: %s\n"
+                    "[MemState] copying array elt to gpu address %Lx: %s\n"
                     currPtr
                     (HostVal.host_vec_to_str eltHostVec)
                 ENDIF;  
@@ -633,14 +633,14 @@ let rec get_host memState interpVal =
     else (
       IFDEF DEBUG THEN 
         Printf.printf 
-          "[MemoryState->get_host] Initiating transfer from GPU to host\n%!"
+          "[MemState->get_host] Initiating transfer from GPU to host\n%!"
         ;
       ENDIF; 
       let gpuVec = Hashtbl.find memState.gpu_data id in
       let hostVec = vec_from_gpu memState gpuVec in
       associate_id_with_host_data memState hostVec id; 
       IFDEF DEBUG THEN
-        Printf.printf "[MemoryState->get_host] Got %s \n"
+        Printf.printf "[MemState->get_host] Got %s \n"
           (HostVal.host_vec_to_str hostVec);  
       ENDIF;
       HostVal.HostArray hostVec
@@ -684,11 +684,11 @@ module Slicing = struct
     in  
     IFDEF DEBUG THEN 
     Printf.printf 
-      "[MemoryState] Got GPU slice index %d of %s\n" 
+      "[MemState] Got GPU slice index %d of %s\n" 
       idx
       (gpu_vec_to_str gpuVec)
     ; 
-    Printf.printf "[MemoryState] GPU slice result: %s\n" (to_str sliceVal); 
+    Printf.printf "[MemState] GPU slice result: %s\n" (to_str sliceVal); 
     ENDIF; 
     sliceVal   
 
@@ -700,7 +700,7 @@ let slice_gpu_val memState gpuVal idx : gpu_val =
 
   (* slice on the GPU or CPU? *) 
   let slice memState arr idx = match arr with 
-    | InterpVal.Scalar _ -> failwith "[MemoryState] Can't slice a scalar"
+    | InterpVal.Scalar _ -> failwith "[MemState] Can't slice a scalar"
     | InterpVal.Array arr -> arr.(idx)
     | InterpVal.Data id -> 
       if Hashtbl.mem memState.gpu_data id then 
