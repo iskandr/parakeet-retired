@@ -89,7 +89,8 @@ builtin_primitives = {'Add':ast_prim('+'),
                       'Is':'Not yet implemented',
                       'IsNot':'Not yet implemented',
                       'In':'Not yet implemented',
-                      'NotIn':'Not yet implemented'}
+                      'NotIn':'Not yet implemented',
+                      'Index':ast_prim('index')}
 function_asts = safe_functions.copy()
 function_globals = {}
 #List of which built-in functions are allowed and which aren't
@@ -472,6 +473,14 @@ def paranodes(node, args):
     block_args = list_to_ctypes_array(args[1],c_void_p)
     block = c_void_p(libtest.mk_block(block_args,numStmt,None))
     return c_void_p(libtest.mk_whileloop(args[0],block,None))
+  elif (node_type == 'Subscript'):
+    print "app(",type(node.slice).__name__,",[",args[0],",",args[1],"])"
+    operation = builtin_primitives[type(node.slice).__name__]
+    array_args = list_to_ctypes_array([args[0],args[1]],c_void_p)
+    return c_void_p(libtest.mk_app(operation,array_args,2,None))
+
+  elif (node_type == 'Index'):
+    return args[0]
   else:
     print "Not handled:",node_type
     return ''
