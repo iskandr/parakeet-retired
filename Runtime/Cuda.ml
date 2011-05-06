@@ -106,7 +106,10 @@ external cuda_get_gpu_char_vec_elt : GpuPtr.t -> int -> int
 
 external cuda_get_gpu_int_vec_elt : GpuPtr.t -> int -> int
   = "ocaml_cuda_get_gpu_int_vec_elt"
-  
+
+external cuda_get_gpu_int16_vec_elt : GpuPtr.t -> int -> int
+  = "ocaml_cuda_get_gpu_int16_vec_elt" 
+    
 external cuda_get_gpu_int32_vec_elt : GpuPtr.t -> int -> Int32.t
   = "ocaml_cuda_get_gpu_int32_vec_elt" 
 

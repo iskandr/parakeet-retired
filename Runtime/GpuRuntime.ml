@@ -382,28 +382,29 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
     IFDEF DEBUG THEN
       print_string "\n --- MAP ---\n";
       let sep = ";   " in 
-      let closureArgString = 
-        String.concat sep (List.map GpuVal.to_str closureArgs) 
-      in  
-      let inputArgString = 
-        String.concat sep (List.map GpuVal.to_str args)
-      in
       let inputSpaceString = 
         String.concat sep 
           (List.map PtxVal.ptx_space_to_str (Array.to_list combinedInputSpaces))
-      in  
+      in
+      Printf.printf "[GpuRuntime] MAP memory spaces:%s\n" inputSpaceString;  
       let layoutString = 
         String.concat sep 
           (List.map GpuVal.data_layout_to_str (Array.to_list dataLayouts))
-      in 
-      let outputString = 
-      String.concat sep (List.map GpuVal.to_str outputVals)
       in
-      Printf.printf "[GpuRuntime] MAP closureArgs: %s\n" closureArgString;      
-      Printf.printf "[GpuRuntime] MAP inputs: %s\n" inputArgString;  
-      Printf.printf "[GpuRuntime] MAP memory spaces:%s\n" inputSpaceString; 
       Printf.printf "[GpuRuntime] MAP data layouts: %s\n" layoutString; 
-      Printf.printf "[GpuRuntime] MAP outputs: %s\n" outputString 
+      let closureArgString = 
+        String.concat sep (List.map GpuVal.to_str closureArgs) 
+      in
+      Printf.printf "[GpuRuntime] MAP closureArgs: %s\n" closureArgString;  
+      let inputArgString = 
+        String.concat sep (List.map GpuVal.to_str args)
+      in
+      Printf.printf "[GpuRuntime] MAP inputs: %s\n" inputArgString;
+      let outputString = 
+        String.concat sep (List.map GpuVal.to_str outputVals)
+      in
+      Printf.printf "[GpuRuntime] MAP outputs: %s\n" outputString      
+       
     ENDIF;
     outputVals
 

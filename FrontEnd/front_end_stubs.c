@@ -177,8 +177,7 @@ return_val_t run_function(int id, host_val *globals, int num_globals,
         case PQNUM_INT64:
         case PQNUM_INF:
         case PQNUM_NEGINF:
-          printf ("Unable to return scalar of this type\n");
-          exit(1);
+          caml_failwith("Unable to return scalar of this type\n");
         }
       } else {
         ocaml_host_array = Field(ocaml_host_val, 0);
@@ -207,8 +206,7 @@ return_val_t run_function(int id, host_val *globals, int num_globals,
     ret.data.error_msg = malloc(ret.results_len);
     strcpy(ret.data.error_msg, String_val(Field(ocaml_rslt, 0)));
   } else {
-    printf("Unknown return code from run_function. Aborting.\n");
-    exit(1);
+    caml_failwith("Unknown return code from run_function. Aborting.");
   }
 
   CAMLreturnT(return_val_t, ret);
