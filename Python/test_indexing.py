@@ -1,15 +1,16 @@
 from numpy import *  
 from parakeet import GPU
+import test_multidiminput
 
-#@GPU
+@GPU
 def fourthElement(x):
   return x[3]
 
-#@GPU
+@GPU
 def arrElements(x,y):
   return x[y]
 
-@GPU
+#@GPU
 def calc_centroid(X,a,i): 
     return mean(X[a == i])
 
@@ -26,7 +27,9 @@ class MyTest(unittest.TestCase):
 
   def testMethod(self):
     self.assertTrue(fourthElement(arr_test)==4,"fourthElement not working")
-#    self.assertTrue(all(arrElements(arr_test,arr_index)) == all(arr_index_ans), "arrElements not working")
+    self.assertTrue(all(arrElements(arr_test,arr_index) == arr_index_ans), "arrElements not working")
     self.assertTrue(calc_centroid(arr_test,arr_a,i)==4,"calc_centroid not working")
 if __name__ == '__main__':
   unittest.main()
+  
+#print arrElements(arr_test,arr_index)
