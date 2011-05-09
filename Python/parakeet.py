@@ -46,6 +46,7 @@ def returnTypeInit():
   libtest.mk_float64.restype = c_void_p
   libtest.mk_whileloop.restype = c_void_p
   libtest.mk_bool.restype = c_void_p
+  libtest.mk_bool_paranode.restype = c_void_p
   libtest.get_prim.restype = c_void_p
   libtest.mk_float_paranode.restype = c_void_p
   libtest.mk_double_paranode.restype = c_void_p
@@ -60,6 +61,7 @@ returnTypeInit()
 ###########
 
 safe_functions = {np.all:ast_prim('all'),
+                  np.arange:ast_prim('range'),
 #                  np.argmin:ast_prim('argmin'),
                   map:ast_prim('map'),
                   np.mean:ast_prim('mean'),
@@ -403,12 +405,14 @@ def readFile(file_name):
 def paranodes(node, args,function_globals_variables):
   node_type = type(node).__name__
   if (node_type == 'Name'):
-    print "var(",args[0],")"
     if args[0] == 'True':
-      return c_void_p(libtest.mk_bool(1))
+      print "bool(False)"
+      return c_void_p(libtest.mk_bool_paranode(1,None))
     elif args[0] == 'False':
-      return c_void_p(libtest.mk_bool(0))      
+      print "bool(False)" 
+      return c_void_p(libtest.mk_bool_paranode(0,None))      
     else:
+      print "var(",args[0],")"
       return c_void_p(libtest.mk_var(c_char_p(args[0]),None))
   elif (node_type == 'Assign'):
     print "def(",node.targets[0].id,",",args[1],")"    
@@ -421,7 +425,7 @@ def paranodes(node, args,function_globals_variables):
     return c_void_p(libtest.mk_app(operation,bin_args,2,None))
   elif (node_type == 'UnaryOp'):
     print "app(",type(node.op).__name__,",[",args[1],"])"
-    unary_arg = list_to_ctypes_array(args[1],c_void_p)
+    unary_arg = list_to_ctypes_array([args[1]],c_void_p)
     operation = builtin_primitives[type(node.op).__name__]
     return c_void_p(libtest.mk_app(operation,unary_arg,1,None))
   elif (node_type == 'Compare'):
@@ -464,14 +468,14 @@ def paranodes(node, args,function_globals_variables):
         fun_node = safe_functions[fun_ref]
         print "found built-in",fun_node
       except:
-        print "NAME", function_names, fun_ref,np.mean
+#        print "NAME", function_names, fun_ref,np.mean
         try:
           fun_node = c_void_p(libtest.mk_var(c_char_p(function_names[fun_ref]),None))
         except:
           fun_node = c_void_p(libtest.mk_var(c_char_p(fun_name),None))          
-      print "creating ARGS",args,"for",fun_name
+#      print "creating ARGS",args,"for",fun_name
       fun_args = list_to_ctypes_array(args[1],c_void_p)
-      print "created args"
+#      print "created args"
       num_args = len(args[1])
     elif type(node.func).__name__ == 'Attribute':
       module_list = []

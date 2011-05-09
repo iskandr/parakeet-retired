@@ -14,6 +14,7 @@ def minidx(C,x):
 def calc_centroid(X,a,i): 
     return mean(X[a == i], 0)
 
+@GPU
 def kmeans(X,assign,k):
     C = map(partial(calc_centroid, X, assign), arange(k))
     converged = False
@@ -23,3 +24,5 @@ def kmeans(X,assign,k):
         converged = all(assign == lastAssign)
         C = map(partial(calc_centroid, X, assign), arange(k))
     return C
+  
+  
