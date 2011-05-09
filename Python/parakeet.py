@@ -9,7 +9,7 @@ debug = 0
 printing = 0
 simpleTest = 0
 import os
-libtest = 0 #NOTE: JUST TO BE GLOBAL
+function_names = {}
 #Platform dependent?
 #libc = cdll.LoadLibrary("libc.so.6")
 
@@ -149,7 +149,8 @@ if printing == 1:
 #Note: keep context as a hash table, or just make in_assignment a string? 
 class ASTCreator(ASTPrinter):
   func_handled = {} #Note; deprecated, shouldn't use anymore
-  def __init__(self,file_name):
+  def __init__(self,file_name,function_globalss):
+    self.function_globals_variables = function_globalss
     self.file_name = file_name
     self.npArrayEvil = ""
     self.context = {'assignment':1,'function_call':2,'attribute':3}
@@ -185,7 +186,7 @@ class ASTCreator(ASTPrinter):
         exec "curr_func = np.%s" %str(node)
       except:
         try:
-          import addn
+#          import addn
           exec "curr_func = %s.%s"%(self.file_name,str(node))
         except:
           print "Failed trying to find the function",str(node)
@@ -387,7 +388,7 @@ class ASTCreator(ASTPrinter):
         
         args.append(str(child_node))
     
-    return paranodes(node, args)
+    return paranodes(node, args,self.function_globals_variables)
 
 def readFile(file_name):
   try:
@@ -399,7 +400,7 @@ def readFile(file_name):
     return ''
   return out_string
 
-def paranodes(node, args):
+def paranodes(node, args,function_globals_variables):
   node_type = type(node).__name__
   if (node_type == 'Name'):
     print "var(",args[0],")"
@@ -438,27 +439,71 @@ def paranodes(node, args):
       return c_void_p(libtest.mk_float_paranode(c_float(num),None))
   elif (node_type == 'Call'):
     #Note: special case for partial
-    print "app(",node.func.id,",",args[1],")"
-    fun_name = node.func.id
-    if fun_name == 'partial':
-      fun_name = node.args[0].id
-      args[1] = args[1][1:]
-      print fun_name,args[1]
-    #Should be in a general function later
-    try:
-      exec "fun_ref = np.%s" % fun_name
-      fun_node = safe_functions[fun_ref]
-#      print "FOUND: np.%s" % fun_name
-    except:
+
+    if type(node.func).__name__ == 'Name':
+      print "app(",node.func.id,",",args[1],")"
+      fun_name = node.func.id
+      if fun_name == 'partial':
+        fun_name = node.args[0].id
+        args[1] = args[1][1:]
+        print "PARTIAL:",fun_name,args[1]
       try:
-        exec "fun_ref = %s" % fun_name
-        fun_node = safe_functions[fun_ref]
+        fun_ref = function_globals_variables[fun_name]
       except:
-#      exec "fun_ref = %s" % fun_name
-        fun_node = c_void_p(libtest.mk_var(c_char_p(fun_name),None))
-#      print "FUNCTION CALL NAME:", fun_name
-    fun_args = list_to_ctypes_array(args[1],c_void_p)
-    return c_void_p(libtest.mk_app(fun_node,fun_args,len(args[1]),None))
+        #Either couldn't find it, or it's a built-in
+        try:
+          #Note: on different versions, might be __builtins__.__dict__[]
+          fun_ref = __builtins__[fun_name]
+          print "found python built-in",fun_name
+        except:
+          print "ERROR: Couldn't find:",fun_name
+
+      try:
+#        print "TEST1",fun_ref, np.mean
+#        print "TEST2",safe_functions
+        fun_node = safe_functions[fun_ref]
+        print "found built-in",fun_node
+      except:
+        print "NAME", function_names, fun_ref,np.mean
+        try:
+          fun_node = c_void_p(libtest.mk_var(c_char_p(function_names[fun_ref]),None))
+        except:
+          fun_node = c_void_p(libtest.mk_var(c_char_p(fun_name),None))          
+      print "creating ARGS",args,"for",fun_name
+      fun_args = list_to_ctypes_array(args[1],c_void_p)
+      print "created args"
+      num_args = len(args[1])
+    elif type(node.func).__name__ == 'Attribute':
+      module_list = []
+      next_node = node.func
+      fun_name = node.func.attr
+      while type(next_node.value).__name__ == 'Attribute':
+        next_node = next_node.value
+#        print type(next_node.value).__name__, next_node.attr
+        module_list = [next_node.attr] + module_list
+#      print "MODULE_LIST",module_list,next_node.value.id
+      next_modu = function_globals_variables[next_node.value.id]
+      for modu in module_list:
+        next_modu = next_modu.__dict__[modu]
+#      print "Final module",next_modu,fun_name
+      fun_ref = next_modu.__dict__[fun_name]
+      from test_multidiminput import sum_rows
+#      print "FUN_REF",fun_ref,sum_rows
+      try:
+        fun_node = safe_functions[fun_ref]
+#        print "fun_node was safe"
+      except:
+        try:
+          fun_node = c_void_p(libtest.mk_var(c_char_p(function_names[fun_ref]),None))
+        except:
+          fun_node = c_void_p(libtest.mk_var(c_char_p(fun_name),None))
+#        print "fun_node made of",fun_name
+      fun_args = list_to_ctypes_array(args[2],c_void_p)
+      num_args = len(args[2])
+
+    else:
+      print "Invalid node?",type(node.func).__name__
+    return c_void_p(libtest.mk_app(fun_node,fun_args,num_args,None))
   elif (node_type == 'Return'):
     #Note: Always just the 1st argument?
     return args[0]
@@ -481,9 +526,11 @@ def paranodes(node, args):
 
   elif (node_type == 'Index'):
     return args[0]
+  elif (node_type == 'Attribute'):
+    return args[1]
   else:
     print "Not handled:",node_type
-    return ''
+    return node_type
 
 def functionInfo(function_obj):
   #get the information for the sourcecode
@@ -536,7 +583,7 @@ def fun_visit(func,name = ''):
   fun_info = functionInfo(func)
   if fun_info:
     node = ast.parse(fun_info[1])
-    AST = ASTCreator(name)
+    AST = ASTCreator(name,func.func_globals)
   #Note: Put in __init?
     AST.var_list = fun_info[2]
     AST.func_name = func.__module__ + "." + func.__name__
@@ -610,7 +657,11 @@ def runFunction(func,args):
   for i in range(num_args):
     arg = args[i]
     try: #if Numpy array
-      #Might not work with multi-dimensional, think it does though
+      if len(arg.shape) > 1:
+        arg1 = np.transpose(arg)
+        arg = arg1.copy()
+#        print arg,arg.base
+#        return
       input_shape = arg.ctypes.shape_as(c_int)
       nbytes = arg.nbytes
       if arg.dtype == np.int32:
@@ -633,10 +684,6 @@ def runFunction(func,args):
                                                  input_shape,
                                                  len(arg.shape),
                                                  nbytes))
-#    try:
-#      input_shape[0],input_shape[1] = input_shape[1],input_shape[0]
-#    except:
-#      pass
     except: #Scalar
       if type(arg) == int:
         inputs[i] = c_void_p(libtest.mk_int32(arg))
@@ -675,7 +722,10 @@ def runFunction(func,args):
       #Not sure what to do with it yet
         rslt = cast(ret.data.results[0],POINTER(c_int))
       py_rslt = []
-      ret_len = ret.shapes[0][0]    
+      ret_len = 1
+      for index in range(libtest.get_dyn_type_rank(c_void_p(ret.ret_types[0]))):
+        ret_len *= ret.shapes[0][index]
+#      ret_len = ret.shapes[0][0]
       for index in range(ret_len):
         print rslt[index],
         py_rslt.append(rslt[index])
@@ -703,4 +753,5 @@ def GPU(fun):
 #  return
   def new_f(*args, **kwds):
     return runFunction(funID,args)
+  function_names[new_f] = fun.__name__
   return new_f
