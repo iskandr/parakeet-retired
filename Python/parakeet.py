@@ -446,21 +446,32 @@ def paranodes(node, args,function_globals_variables):
       if fun_name == 'partial':
         fun_name = node.args[0].id
         args[1] = args[1][1:]
-        print fun_name,args[1]
-
+        print "PARTIAL:",fun_name,args[1]
       try:
         fun_ref = function_globals_variables[fun_name]
       except:
-        print "Couldn't find:",fun_name
+        #Either couldn't find it, or it's a built-in
+        try:
+          #Note: on different versions, might be __builtins__.__dict__[]
+          fun_ref = __builtins__[fun_name]
+          print "found python built-in",fun_name
+        except:
+          print "ERROR: Couldn't find:",fun_name
+
       try:
-        fun_node = safe_function[fun_ref]
+#        print "TEST1",fun_ref, np.mean
+#        print "TEST2",safe_functions
+        fun_node = safe_functions[fun_ref]
+        print "found built-in",fun_node
       except:
-        print "NAME", function_names, fun_ref
+        print "NAME", function_names, fun_ref,np.mean
         try:
           fun_node = c_void_p(libtest.mk_var(c_char_p(function_names[fun_ref]),None))
         except:
           fun_node = c_void_p(libtest.mk_var(c_char_p(fun_name),None))          
+      print "creating ARGS",args,"for",fun_name
       fun_args = list_to_ctypes_array(args[1],c_void_p)
+      print "created args"
       num_args = len(args[1])
     elif type(node.func).__name__ == 'Attribute':
       module_list = []
@@ -479,7 +490,7 @@ def paranodes(node, args,function_globals_variables):
       from test_multidiminput import sum_rows
 #      print "FUN_REF",fun_ref,sum_rows
       try:
-        fun_node = safe_function[fun_ref]
+        fun_node = safe_functions[fun_ref]
 #        print "fun_node was safe"
       except:
         try:
