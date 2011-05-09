@@ -42,6 +42,7 @@ paranode mk_adverb(adverb_t op, source_info_t *src_info);
 paranode mk_impure_op(impure_op_t op, source_info_t *src_info);
 paranode mk_q_op(q_op_t op, source_info_t *src_info);
 
+paranode mk_bool_paranode(int, source_info_t*);
 paranode mk_int32_paranode(int32_t i, source_info_t *src_info);
 paranode mk_int64_paranode(int64_t l, source_info_t *src_info);
 paranode mk_float_paranode(float f, source_info_t *src_info);

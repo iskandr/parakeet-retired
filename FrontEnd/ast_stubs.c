@@ -120,6 +120,15 @@ paranode mk_q_op(q_op_t op, source_info_t *src_info) {
   return mk_prim(Prim_Q_Op, op, src_info);
 }
 
+paranode mk_bool_paranode(int b, source_info_t *src_info) {
+   CAMLparam0();
+   CAMLlocal1(val);
+
+   val = caml_alloc(1, PQNUM_BOOL);
+   Store_field(val, 0, Val_int(b));
+   CAMLreturnT(paranode, mk_num(val, src_info));
+}
+
 paranode mk_int32_paranode(int32_t i, source_info_t *src_info) {
   CAMLparam0();
   CAMLlocal1(val);
