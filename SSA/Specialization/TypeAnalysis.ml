@@ -35,15 +35,28 @@ module MkAnalysis (P : TYPE_ANALYSIS_PARAMS) = struct
   type value_info = DynType.t 
   
   let init fundef =
-    let inTypes = Signature.input_types P.signature in
     let tenv = Hashtbl.create 127 in
-    List.iter2 (fun id t -> Hashtbl.add tenv id t) fundef.input_ids inTypes;    
-    (if Signature.has_output_types P.signature then 
-      let outTypes = Signature.output_types P.signature in
-      List.iter2 (fun id t -> Hashtbl.add tenv id t) fundef.output_ids outTypes   
+    let inputIds = ref fundef.input_ids in 
+    let inputTypes = ref (Signature.input_types P.signature) in
+    IFDEF DEBUG THEN 
+      if List.length !inputIds <> List.length !inputTypes then 
+        failwith "[TypeAnalysis] mismatching number of input IDs and types"
+    ENDIF;      
+    while !inputIds <> [] && !inputTypes <> [] do 
+      Hashtbl.add tenv (List.hd !inputIds) (List.hd !inputTypes); 
+      inputIds := List.tl !inputIds; 
+      inputTypes := List.tl !inputTypes
+    done;   
+    if Signature.has_output_types P.signature then (
+      let outputIds = ref fundef.output_ids in  
+      let outputTypes = ref (Signature.output_types P.signature) in
+      while !outputIds <> [] && !outputTypes <> [] do 
+        Hashtbl.add tenv (List.hd !outputIds) (List.hd !outputTypes); 
+        outputIds := List.tl !outputIds; 
+        outputTypes := List.tl !outputTypes
+      done
     );  
     tenv 
-   
    
   let infer_value_type tenv = function 
     | Var id -> get_type tenv id

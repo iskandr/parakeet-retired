@@ -1,3 +1,5 @@
+(* pp: -parser o pa_macro.cmo *)
+
 include BaseCommon
 
 let _ = Printexc.record_backtrace true 
@@ -62,17 +64,22 @@ module Array = BaseArray
 module Hashtbl = struct 
     include ExtHashtbl.Hashtbl 
     
+    IFDEF DEBUG THEN
+      (* makes lookups slightly slower, 
+         so only use the descriptive exception in debug mode 
+       *) 
+      exception KeyNotFound of string 
+      let find hash x = 
+        try find hash x  with _ -> raise (KeyNotFound (dump x))
+    ENDIF
+    
+    
     let of_list pairs = 
         let hash  = Hashtbl.create (List.length pairs) in 
         let iter_fn (a,b) = Hashtbl.add hash a b in 
         List.iter iter_fn pairs; hash
             
     let remove_list hash keys = List.iter (Hashtbl.remove hash) keys 
-    
-    exception KeyNotFound of string 
-   
-     
-    (*let find hash x = try find hash x  with _ -> raise (KeyNotFound (dump x))*)
     
     let combine h1 h2 = 
       let h3 = create (2*(length h1 + length h2) + 1) in 

@@ -57,6 +57,7 @@ let initState = InterpState.create_from_untyped_list ~optimize:false [
   "count", count 
 ]
 
+(*
 let minidx_helper = mk_fn 4 2 1 $ fun inputs outputs locals ->
   let accIdx, accVal  = inputs.(0), inputs.(1) in
   let currIdx, currVal = inputs.(2), inputs.(3) in
@@ -83,7 +84,7 @@ let minidx = mk_fn 1 1 2 $ fun inputs outputs locals ->
       [outputs.(0)] := 
          reduce @@ [helper; (* TODO: init val? *) indices; inputs.(0)]     
     ]    
-
+*)
 
 (* K-means specific functions *)
 (* calcCentroid [X;a;i] *) 

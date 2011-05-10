@@ -205,16 +205,13 @@ and specialize_value interpState fnVal signature =
           assert (arity >= Prim.min_prim_arity p && 
                   arity <= Prim.max_prim_arity p); 
           let fundef = mk_untyped_prim_fundef p arity in 
-          print_string $ "A: " ^ (SSA.fundef_to_str fundef) ;
           let typedFundef = specialize_fundef interpState fundef signature in
-          print_string "B\n"; 
           InterpState.add_specialization 
             ~optimize:false 
             interpState 
             fnVal 
             signature 
             typedFundef;
-          print_string "C\n";
           typedFundef
       | _ -> assert false 
     )
