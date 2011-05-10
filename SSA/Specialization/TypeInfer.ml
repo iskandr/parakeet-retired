@@ -80,14 +80,20 @@ let infer_simple_array_op op argTypes = match op, argTypes with
   | Prim.Where, [VecT BoolT] -> VecT Int32T 
   | Prim.Where, _ -> failwith "operator 'where' expects a vector of booleans"
   | Prim.Index, [VecT a; indexType] ->
-    (* can index by any subtype of Int32 or a vector of ints *) 
+    (* can index by any subtype of Int32 or a vector of ints, 
+       or a vector of bools
+     *) 
     (match DynType.common_type indexType Int32T with 
-      | Int32T -> a 
+      | Int32T -> a
+      | VecT BoolT  
       | VecT Int32T -> VecT a 
-      | _ -> failwith "wrong index type passed to operator 'index'"
+      | _ -> 
+        failwith $ Printf.sprintf  
+          "[TypeInfer] wrong index type passed to operator 'index': %s" 
+          (DynType.to_str indexType)
     )  
   | Prim.Index, [t; _] when DynType.is_scalar t -> 
-    failwith "can't index into a scalar"
+    failwith "[TypeInfer] can't index into a scalar"
   | Prim.DimSize, _ -> Int32T
   | Prim.Find,  [VecT t1; t2] -> assert (t1 = t2); t1  
   | _ -> 

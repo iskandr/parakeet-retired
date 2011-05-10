@@ -1,18 +1,18 @@
+(* pp: -parser o pa_macro.cmo *)
 open Base
 open SSA 
 open SSA_Transform
 open Printf 
 open DynType 
-
-
+ 
 module type REWRITE_PARAMS = sig
   val output_arity : value -> int 
   val specializer : value -> Signature.t -> fundef   
   val closureEnv : CollectPartialApps.closure_env
   val tenv : (ID.t, DynType.t) Hashtbl.t 
 end  
- 
-module Rewrite_Rules (P: REWRITE_PARAMS) = struct 
+
+module Rewrite_Rules (P: REWRITE_PARAMS) = struct
   let get_type id = Hashtbl.find P.tenv id 
      
   let set_type id t = Hashtbl.replace P.tenv id t 
@@ -117,6 +117,9 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
    *)
   let coercions = ref []
    
+  let add_coercion stmtNode = 
+    coercions := stmtNode :: !coercions 
+    
   let collect_coercions stmtNode = 
     let stmts = List.rev $ stmtNode :: !coercions in 
     coercions := []; 
@@ -132,7 +135,7 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
         let coerceExp = SSA.mk_cast t valNode in    
         let id' =  ID.gen() in 
         set_type id' t;
-        coercions :=  (SSA.mk_set [id'] coerceExp) :: !coercions;   
+        add_coercion (SSA.mk_set [id'] coerceExp);    
         SSA.mk_var ~ty:t id'
       | _ -> rewrite_value t valNode 
 
@@ -162,8 +165,9 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
         let reduceClosure = mk_typed_closure fnVal reduceSignature in 
         SSA.mk_reduce ?src initClosure reduceClosure initArgs args  
       | Prim.AllPairs -> 
-        let eltTypes = List.map DynType.peel_vec argTypes in
-        let eltSignature = Signature.from_input_types eltTypes in 
+        (*let eltTypes = List.map DynType.peel_vec argTypes in
+        let eltSignature = Signature.from_input_types eltTypes in
+        *) 
         assert false  
       | other -> failwith $ (Prim.adverb_to_str other) ^ " not implemented"
   
@@ -177,10 +181,29 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
         SSA.mk_primapp p [outT] argNodes
       else 
         rewrite_adverb src Prim.Map fnVal argNodes argTypes 
-              
     | Prim ((Prim.ArrayOp op) as p) -> 
-        let outT = TypeInfer.infer_simple_array_op op argTypes in 
-        SSA.mk_primapp ?src p [outT] argNodes
+       
+        (* Transform boolean index x[b] into x[where b] *) 
+        (match p, argNodes, argTypes with
+          | Prim.ArrayOp Prim.Index, [array; index], [arrayType; indexType] 
+            when DynType.elt_type indexType = DynType.BoolT ->
+              IFDEF DEBUG THEN 
+                if DynType.nest_depth indexType <> 1 then 
+                  failwith "Expected boolean index vector to be 1D"
+              ENDIF;  
+              let whereId = ID.gen() in
+              let whereT = DynType.VecT DynType.Int32T in 
+              let whereExp = 
+                SSA.mk_primapp ?src (Prim.ArrayOp Prim.Where) [whereT] [index] 
+              in 
+              add_coercion (SSA.mk_set ?src [whereId] whereExp); 
+              let args' = array :: [SSA.mk_var ?src ~ty:whereT whereId] in
+              let resultType = DynType.VecT (DynType.elt_type arrayType) in 
+              SSA.mk_primapp ?src (Prim.ArrayOp Prim.Index) [resultType] args'  
+          | _ -> 
+            let outT = TypeInfer.infer_simple_array_op op argTypes in
+            SSA.mk_primapp ?src p [outT] argNodes
+       )
     | Prim (Prim.Q_Op qOp) ->  
         let outT = TypeInfer.infer_q_op qOp argTypes in 
         let prim = TypeInfer.translate_q_op qOp argTypes in 
