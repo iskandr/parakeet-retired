@@ -39,8 +39,13 @@ module MkAnalysis (P : TYPE_ANALYSIS_PARAMS) = struct
     let inputIds = ref fundef.input_ids in 
     let inputTypes = ref (Signature.input_types P.signature) in
     IFDEF DEBUG THEN 
-      if List.length !inputIds <> List.length !inputTypes then 
-        failwith "[TypeAnalysis] mismatching number of input IDs and types"
+      if List.length !inputIds <> List.length !inputTypes then
+        failwith  $ Printf.sprintf  
+            "[TypeAnalysis] 
+                mismatching number of input IDs (%s) and types (%s) in %s"
+            (String.concat ", " (List.map ID.to_str !inputIds)) 
+            (DynType.type_list_to_str !inputTypes)
+            (FnId.to_str fundef.fn_id)
     ENDIF;      
     while !inputIds <> [] && !inputTypes <> [] do 
       Hashtbl.add tenv (List.hd !inputIds) (List.hd !inputTypes); 
@@ -50,6 +55,16 @@ module MkAnalysis (P : TYPE_ANALYSIS_PARAMS) = struct
     if Signature.has_output_types P.signature then (
       let outputIds = ref fundef.output_ids in  
       let outputTypes = ref (Signature.output_types P.signature) in
+      IFDEF DEBUG THEN 
+        if List.length !outputIds <> List.length !outputTypes then
+          failwith  $ Printf.sprintf  
+            "[TypeAnalysis] 
+                mismatching number of output IDs (%s) and types (%s) in %s"
+            (String.concat ", " (List.map ID.to_str !outputIds)) 
+            (DynType.type_list_to_str !outputTypes)
+            (FnId.to_str fundef.fn_id)
+    ENDIF;      
+    
       while !outputIds <> [] && !outputTypes <> [] do 
         Hashtbl.add tenv (List.hd !outputIds) (List.hd !outputTypes); 
         outputIds := List.tl !outputIds; 
