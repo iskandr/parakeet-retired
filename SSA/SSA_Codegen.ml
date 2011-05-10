@@ -96,7 +96,8 @@ let print = impure_op Prim.Print
 
 let plus = scalar_op Prim.Add 
 let minus = scalar_op Prim.Sub 
-let mul = scalar_op Prim.Mult  
+let mul = scalar_op Prim.Mult 
+let div = scalar_op Prim.Div  
 
 let lt = scalar_op Prim.Lt
 let lte = scalar_op Prim.Lte
@@ -111,6 +112,8 @@ let falseVal = mk_num (PQNum.Bool false)
 let inf = mk_num (PQNum.Inf DynType.Float32T)
 let neginf = mk_num (PQNum.NegInf DynType.Float32T)
 
+let select = mk_op (Prim.ScalarOp Prim.Select)
+
 let reduce = mk_op  (Prim.Adverb Prim.Reduce) 
 let map = mk_op (Prim.Adverb Prim.Map)
 let allPairs = mk_op (Prim.Adverb Prim.AllPairs) 
@@ -120,6 +123,7 @@ let index = mk_op (Prim.ArrayOp Prim.Index)
 let til = mk_op (Prim.ArrayOp Prim.Til) 
 let find = mk_op (Prim.ArrayOp Prim.Find)
 let dimsize = mk_op (Prim.ArrayOp Prim.DimSize) 
+
 
 let value x = SSA.mk_exp $ SSA.Values [x]
 let values xs = SSA.mk_exp $ SSA.Values xs

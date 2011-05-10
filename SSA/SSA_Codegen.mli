@@ -42,6 +42,7 @@ val neginf : value_node
 val plus : value_node  
 val minus : value_node  
 val mul : value_node 
+val div : value_node 
 
 val lt : value_node 
 val lte : value_node 
@@ -60,6 +61,7 @@ val index : value_node
 val til : value_node  
 val find : value_node 
 val dimsize : value_node 
+val select : value_node 
 
 
 

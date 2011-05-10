@@ -32,9 +32,9 @@ let count = fn1 $ fun x y ->
   [[y] := mk_app (array_op Prim.DimSize) [x; mk_int32 0]]
 
 let avg = mk_fn 1 1 2 $ fun inputs outputs locals -> [
-    [locals.(0)] := reduce @@ [scalar_op Prim.Add; mk_int32 0; inputs.(0)];
-    [locals.(1)] := mk_app (array_op Prim.DimSize) [inputs.(0); mk_int32 0];  
-    [outputs.(0)] := mk_app (scalar_op Prim.Div) [locals.(0); locals.(1)]
+    [locals.(0)] := reduce @@ [plus; mk_int32 0; inputs.(0)];
+    [locals.(1)] := dimsize @@ [inputs.(0); mk_int32 0];  
+    [outputs.(0)] := div @@ [locals.(0); locals.(1)]
   ]  
 
 
@@ -56,6 +56,34 @@ let initState = InterpState.create_from_untyped_list ~optimize:false [
   "length", count;  
   "count", count 
 ]
+
+let minidx_helper = mk_fn 4 2 1 $ fun inputs outputs locals ->
+  let accIdx, accVal  = inputs.(0), inputs.(1) in
+  let currIdx, currVal = inputs.(2), inputs.(3) in
+  let keepAcc = locals.(0) in [
+    [keepAcc] := lt @@ [accVal; currVal];    
+    [outputs.(0)] := select @@ [keepAcc; accIdx; currIdx]; 
+    [outputs.(1)] := select @@ [keepAcc; accVal; currVal]
+  ]
+
+let minidx = mk_fn 1 1 2 $ fun inputs outputs locals -> 
+    let n, indices = locals.(0), locals.(1) in 
+    let helper = 
+      mk_globalfn (InterpState.get_untyped_id initState "$minidx_helper")
+    in  
+    [  
+      [n] := dimsize @@ [inputs.(0)];
+      (* TODO: will this run on the gpu? 
+         It has a til operator built in! *)    
+      [indices] := til @@ [n];
+      (* TODO: what are the initial values? *)
+      (* IDEA: Maybe need named argument groups? 
+         ie: Reduce (fn, initvals = [i;j], data=[x;y;z]) 
+      *) 
+      [outputs.(0)] := 
+         reduce @@ [helper; (* TODO: init val? *) indices; inputs.(0)]     
+    ]    
+
 
 (* K-means specific functions *)
 (* calcCentroid [X;a;i] *) 
