@@ -60,15 +60,37 @@ let mk_typed_map_fundef ?src nestedFundef inputTypes =
   SSA_Codegen.mk_codegen_fn inputTypes outTypes $ fun codegen inputs outputs ->
     codegen#emit [outputs := (SSA.mk_map ?src closure inputs )]  
 
+
+(* 1) some statements (ie, those involving array ops) 
+      make a function definitely not a scalar-only function. 
+      In a three-value-logic, these give the whole function a value of No. 
+   2) Other statements have a neutral effect (ie, setting constants).
+      These have a value Maybe.    
+*) 
+type three_valued_logic = Yes | Maybe | No 
+
+let combine_tvl x y = match x,y with 
+  | No, _  
+  | _, No  -> No 
+  | Yes, _ 
+  | _, Yes -> Yes
+  | Maybe, Maybe -> Maybe 
+   
+
 (* checks whether a statement uses an untyped scalar operator *) 
 let rec is_scalar_stmt stmtNode = match stmtNode.stmt with 
-  | SSA.Set(_, {exp=SSA.App({value=SSA.Prim (Prim.ScalarOp _)}, _)})
-  | SSA.Set(_, {exp=Values _}) -> true 
+  | SSA.Set(_, {exp=SSA.App({value=SSA.Prim (Prim.ScalarOp _)}, _)}) -> Yes
+  | SSA.Set(_, {exp=Values _}) -> Maybe
   | SSA.If(_, tCode, fCode, _) -> 
-      is_scalar_block tCode && is_scalar_block fCode
-  | _ -> false 
-and is_scalar_block block = Block.for_all is_scalar_stmt block
-  
+      combine_tvl (is_scalar_block tCode) (is_scalar_block fCode)
+  | _ -> No
+
+and is_scalar_block block = 
+  Block.fold_forward 
+    (fun status stmtNode -> combine_tvl status (is_scalar_stmt stmtNode))
+    Maybe
+    block 
+
 
 let rec output_arity interpState closures = function 
   | Var id -> 
@@ -99,7 +121,7 @@ let rec specialize_fundef interpState fundef signature =
   if not (Signature.has_output_types signature) && 
      maxRank > 0 && 
      List.for_all (fun r -> r = 0 || r = maxRank) ranks &&    
-     is_scalar_block fundef.body 
+     (is_scalar_block fundef.body = Yes) 
   then scalarize_fundef interpState fundef signature 
   else 
   let fundef', closureEnv = 
