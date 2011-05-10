@@ -2,6 +2,7 @@ from numpy import *
 #from functools import * 
 from parakeet import GPU
 
+
 #@GPU
 def sqr_dist(x,y): 
     

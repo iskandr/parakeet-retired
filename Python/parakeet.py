@@ -250,15 +250,15 @@ class ASTCreator(ASTPrinter):
     if type(curr_func).__name__ == 'classobj' or \
     type(curr_func).__name__ == 'builtin_function_or_method':
       if (self.right_assignment):
-        self.curr_function[curr_func] = 1
+#        self.curr_function[curr_func] = 1
         if (func_str.split('.').pop() == 'array'):
           self.npArrayEvil = "Safe"
         #If it's not a numpy array, then it's not handled by parakeet
         else:
           self.evil_function = "a complicated object was created"
-    else:
-      #Otherwise, we're gonna say it's a function
-      self.curr_function[curr_func] = 1
+#    else:
+#      #Otherwise, we're gonna say it's a function
+#      self.curr_function[curr_func] = 1
     self.curr_path = ''
 
            
@@ -372,14 +372,14 @@ class ASTCreator(ASTPrinter):
           #really a function
           try:
             curr_func = self.getFunction(child_node)
-            self.curr_function[curr_func] = 1
+#            self.curr_function[curr_func] = 1
             if type(curr_func).__name__ == 'classobj':#$ or \
 #            type(curr_func).__name__ == 'builtin_function_or_method':
               if (self.right_assignment):
 #                pass
                 self.evil_function = 'a complicated object was created'
-            else:
-              self.curr_function[curr_func] = 1
+#            else:
+#              self.curr_function[curr_func] = 1
           except:
             pass
         elif in_assignment == self.context['attribute']:
@@ -390,7 +390,7 @@ class ASTCreator(ASTPrinter):
         
         args.append(str(child_node))
     
-    return paranodes(node, args,self.function_globals_variables)
+    return paranodes(node, args,self.function_globals_variables,self)
 
 def readFile(file_name):
   try:
@@ -402,7 +402,7 @@ def readFile(file_name):
     return ''
   return out_string
 
-def paranodes(node, args,function_globals_variables):
+def paranodes(node, args,function_globals_variables,ASTInst):
   node_type = type(node).__name__
   if (node_type == 'Name'):
     if args[0] == 'True':
@@ -461,18 +461,25 @@ def paranodes(node, args,function_globals_variables):
           print "found python built-in",fun_name
         except:
           print "ERROR: Couldn't find:",fun_name
-
+      ASTInst.curr_function[fun_ref] = 1
       try:
 #        print "TEST1",fun_ref, np.mean
 #        print "TEST2",safe_functions
         fun_node = safe_functions[fun_ref]
         print "found built-in",fun_node
       except:
-#        print "NAME", function_names, fun_ref,np.mean
+  #        print "NAME", function_names, fun_ref,np.mean
+        print "MODULE NAME:",fun_ref.__module__
         try:
-          fun_node = c_void_p(libtest.mk_var(c_char_p(function_names[fun_ref]),None))
+          fun_node = c_void_p(libtest.mk_var(c_char_p(fun_ref.__module__ + 
+                                                      "." + 
+                                                      function_names[fun_ref]),
+                                                      None))
+          print "THE NAME IS:",function_names[fun_ref]
         except:
-          fun_node = c_void_p(libtest.mk_var(c_char_p(fun_name),None))          
+          print "THE NAME IS:",fun_name
+          fun_node = c_void_p(libtest.mk_var(c_char_p(fun_ref.__module__ + 
+                                                      "." + fun_name),None))          
 #      print "creating ARGS",args,"for",fun_name
       fun_args = list_to_ctypes_array(args[1],c_void_p)
 #      print "created args"
@@ -491,16 +498,15 @@ def paranodes(node, args,function_globals_variables):
         next_modu = next_modu.__dict__[modu]
 #      print "Final module",next_modu,fun_name
       fun_ref = next_modu.__dict__[fun_name]
-      from test_multidiminput import sum_rows
-#      print "FUN_REF",fun_ref,sum_rows
+      ASTInst.curr_function[fun_ref] = 1
       try:
         fun_node = safe_functions[fun_ref]
 #        print "fun_node was safe"
       except:
         try:
-          fun_node = c_void_p(libtest.mk_var(c_char_p(function_names[fun_ref]),None))
+          fun_node = c_void_p(libtest.mk_var(c_char_p(fun_ref.__module__ + "." + function_names[fun_ref]),None))
         except:
-          fun_node = c_void_p(libtest.mk_var(c_char_p(fun_name),None))
+          fun_node = c_void_p(libtest.mk_var(c_char_p(fun_ref.__module__ + "." + fun_name),None))
 #        print "fun_node made of",fun_name
       fun_args = list_to_ctypes_array(args[2],c_void_p)
       num_args = len(args[2])
@@ -557,15 +563,24 @@ def functionInfo(function_obj):
   #Keeps tracks of blank or comment lines at the beginning of the function
   #Note: switch to simple boolean?
   first_comments = 0
+  extra_lines = 0
   for line in code_text:
     #Note: need to change now that function decorators mess up the first lineno
     #if it's the first line of meaningful code
-    if line_no == code_info.co_firstlineno+2+first_comments:
+    if line_no == code_info.co_firstlineno + extra_lines:
+      try:
+        if line.split()[0] == 'def':
+          pass
+        else:
+          extra_lines += 1
+      except:
+        extra_lines+= 1
+    if line_no == code_info.co_firstlineno+1+first_comments+extra_lines:
       if line.isspace() or line.strip()[0] == '#':
         first_comments += 1
-    if line_no > code_info.co_firstlineno +1+ first_comments:
+    if line_no > code_info.co_firstlineno + first_comments+extra_lines:
       #Special case for the first line of code
-      if line_no == code_info.co_firstlineno + 2 + first_comments:
+      if line_no == code_info.co_firstlineno+  1 + first_comments+extra_lines:
         tab_char = line[0]
         for c in line:
           if c == tab_char:
@@ -613,15 +628,20 @@ def fun_visit(func,name = ''):
 #    Recursively call fun_visit on functions here
 
 
-      num_func = len(AST.curr_function)
       #Note: actual global variables (non-functions) will be initialized later
       global_vars = []
+      print "FUNCTIONS:",AST.curr_function.keys()
       for key in AST.curr_function.keys():
-        if not (function_asts.has_key(key)):
-          fun_visit(str(key.__module__),key)
+        if not (function_asts.has_key(key)) and not (function_names.has_key(key)):
+          print "Visiting",key.__name__
+          fun_visit(key,str(key.__module__))
+          print "Visited",key.__name__
+
       globals_list = list_to_ctypes_array(global_vars,c_char_p)
       function_globals[func] = global_vars
-      funID = c_int(libtest.register_untyped_function(c_char_p(func.__name__),
+      funID = c_int(libtest.register_untyped_function(c_char_p(
+                                                       func.__module__ + "." +
+                                                       func.__name__),
                                                       globals_list,
                                                       len(global_vars),
                                                       vars,
@@ -635,18 +655,18 @@ def fun_visit(func,name = ''):
       #Note: will be changed
       #1 list for functions already found (including builtin)
       #1 list for functions that need to be handled
-      for key in AST.curr_function.keys():
-        if numpyPrimitives.get(key):
-          print key.__name__,"is a numpy function"
-          AST.func_handled[key] = 1
-        elif functoolsPrimitives.get(key):
-          print key.__name__,"is a functools function"
-          AST.func_handled[key] = 1
-        elif (not AST.func_handled.has_key(key)):
-          print 'Now visiting:', key.__name__
-          AST.func_handled[key] = 1
-          fun_visit(str(key.__module__),key)
-          print 'Finished visiting:', key.__name__
+#      for key in AST.curr_function.keys():
+#        if numpyPrimitives.get(key):
+#          print key.__name__,"is a numpy function"
+#          AST.func_handled[key] = 1
+#        elif functoolsPrimitives.get(key):
+#          print key.__name__,"is a functools function"
+#          AST.func_handled[key] = 1
+#        elif (not AST.func_handled.has_key(key)):
+#          print 'Now visiting:', key.__name__
+#          AST.func_handled[key] = 1
+#          fun_visit(str(key.__module__),key)
+#          print 'Finished visiting:', key.__name__
 
 
 def runFunction(func,args):
@@ -758,4 +778,5 @@ def GPU(fun):
   def new_f(*args, **kwds):
     return runFunction(funID,args)
   function_names[new_f] = fun.__name__
+  new_f.__module__ = fun.__module__
   return new_f

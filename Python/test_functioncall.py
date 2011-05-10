@@ -34,6 +34,6 @@ class MyTest(unittest.TestCase):
         self.assertTrue(from_as_call(scaltest)==9,"from_as_call failed")
         self.assertTrue(module_function_calls(arrtest)==55,"module_function_calls failed")
 
-if __name__ == '__main__':
-    unittest.main()
+#if __name__ == '__main__':
+#    unittest.main()
     
