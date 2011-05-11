@@ -688,7 +688,7 @@ def runFunction(func,args):
 #        return
       input_shape = arg.ctypes.shape_as(c_int)
       nbytes = arg.nbytes
-      if arg.dtype == np.int32:
+      if arg.dtype == np.int32 or arg.dtype == np.int64:
         input_data = arg.ctypes.data_as(POINTER(c_int))
         elmt_type = c_void_p(libtest.mk_scalar(7)) #Int32T
       elif arg.dtype == np.float32:
@@ -697,6 +697,9 @@ def runFunction(func,args):
       elif arg.dtype == np.float64:
         input_data = arg.ctypes.data_as(POINTER(c_double))
         elmt_type = c_void_p(libtest.mk_scalar(12)) #Float64T
+      elif arg.dtype == np.bool:
+        input_data = arg.ctypes.data_as(POINTER(c_bool))
+        elmt_type = c_void_p(libtest.mk_scalar(3))
       else:
         print "not handled?",arg.dtype
       for z in range(len(arg.shape)):
