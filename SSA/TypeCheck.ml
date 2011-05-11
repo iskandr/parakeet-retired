@@ -56,14 +56,21 @@ let rec check_stmt
       check_value_list errorLog tenv defined indices;
       check_value errorLog tenv defined rhs;
       defined  
-  | If (test, tBlock, fBlock, merge) ->
+  | If (test, tBlock, fBlock, phiNodes) ->
       check_value errorLog tenv defined test;
       let _ = check_block errorLog tenv defined tBlock in  
       let _ = check_block errorLog tenv defined fBlock in  
-      (* TODO: check phi nodes check_block errorLog tenv defined merge*)
-      defined 
+      let phiIds = List.map (fun phiNode -> phiNode.phi_id) phiNodes in 
+      ID.Set.add_list phiIds defined 
       
-  | WhileLoop _ -> defined
+  | WhileLoop (testBlock, testVal, body, phiNodes) -> 
+      let phiIds = List.map (fun phiNode -> phiNode.phi_id) phiNodes in 
+      let defined' = ID.Set.add_list phiIds defined in 
+      let _ = check_block errorLog tenv defined'  testBlock in 
+      check_value errorLog tenv defined' testVal; 
+      let _ = check_block errorLog tenv defined' body in  
+      (* TODO: check phi node types *)
+      defined' 
 and check_exp errorLog tenv (defined : ID.Set.t) (expNode : exp_node) : unit = 
   let err msg = Queue.add (expNode.exp_src, msg) errorLog in
   match expNode.exp with 

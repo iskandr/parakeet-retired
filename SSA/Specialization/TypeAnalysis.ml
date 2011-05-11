@@ -121,14 +121,6 @@ module MkAnalysis (P : TYPE_ANALYSIS_PARAMS) = struct
 
         
   let infer_higher_order tenv arrayOp args argTypes =
-    (*
-    IFDEF DEBUG THEN 
-      Printf.printf "[TypeAnalysis] %s(%s) : %s\n"
-        (Prim.adverb_to_str arrayOp)
-        (SSA.value_nodes_to_str args)
-        (DynType.type_list_to_str argTypes);
-    ENDIF;
-    *) 
     match arrayOp, args, argTypes with 
     | Prim.Map, {value=fnVal}::_, _::dataTypes ->
         if List.for_all DynType.is_scalar dataTypes then 

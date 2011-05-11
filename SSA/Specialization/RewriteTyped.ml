@@ -13,18 +13,20 @@ module type REWRITE_PARAMS = sig
 end  
 
 module Rewrite_Rules (P: REWRITE_PARAMS) = struct
+
+
   let get_type id = Hashtbl.find P.tenv id 
-     
   let set_type id t = Hashtbl.replace P.tenv id t 
-  
-  let is_closure id = Hashtbl.mem P.closureEnv.CollectPartialApps.closures id
-  
+  let fresh_id t = 
+    let id = ID.gen() in 
+    set_type id t; 
+    id 
+
+  let is_closure id = Hashtbl.mem P.closureEnv.CollectPartialApps.closures id  
   let get_closure_val id = 
     Hashtbl.find P.closureEnv.CollectPartialApps.closures id
-    
   let get_closure_args id = 
     Hashtbl.find P.closureEnv.CollectPartialApps.closure_args id
-    
   let get_closure_arity id = 
     Hashtbl.find P.closureEnv.CollectPartialApps.closure_arity id   
   
@@ -133,8 +135,7 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
         if t = t' then {valNode with value_type = t } 
         else 
         let coerceExp = SSA.mk_cast t valNode in    
-        let id' =  ID.gen() in 
-        set_type id' t;
+        let id' =  fresh_id t in 
         add_coercion (SSA.mk_set [id'] coerceExp);    
         SSA.mk_var ~ty:t id'
       | _ -> rewrite_value t valNode 
@@ -191,8 +192,8 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
                 if DynType.nest_depth indexType <> 1 then 
                   failwith "Expected boolean index vector to be 1D"
               ENDIF;  
-              let whereId = ID.gen() in
               let whereT = DynType.VecT DynType.Int32T in 
+              let whereId = fresh_id whereT in 
               let whereExp = 
                 SSA.mk_primapp ?src (Prim.ArrayOp Prim.Where) [whereT] [index] 
               in 

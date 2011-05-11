@@ -38,11 +38,11 @@ module MkTranslator(P : PARAMS) = struct
 		
     let translate_values vs = List.map translate_value vs 
     
-		let translate_exp 
-          (codeBuffer : ImpCodegen.code_buffer) 
-          (expectedType : DynType.t) 
-          (expNode : SSA.exp_node) = 
-		  let impExpNode = match expNode.SSA.exp with
+    let translate_exp 
+      (codeBuffer : ImpCodegen.code_buffer) 
+      (expectedType : DynType.t) 
+      (expNode : SSA.exp_node) = 
+         let impExpNode = match expNode.SSA.exp with
 		  | SSA.Values [v] -> translate_value v
 		  | SSA.Values [] -> failwith "[ssa->imp] unexpected empty value list"
 		  | SSA.Values _ ->  failwith "[ssa->imp] unexpected multiple return values"
@@ -58,9 +58,13 @@ module MkTranslator(P : PARAMS) = struct
 		      let argT = (List.hd vs').exp_type in  
 		      if Prim.is_comparison op then cmp_op op ~t:argT vs' 
 		      else typed_op op vs'
-		      
+		  
+          | SSA.PrimApp (Prim.ArrayOp Prim.ArgMin, [_]) -> 
+              failwith "[ssa2imp] argmin not implemented"     
+          | SSA.PrimApp (Prim.ArrayOp Prim.ArgMax, [_]) -> 
+              failwith "[ssa2imp] argmax not implemented" 
 		  | SSA.PrimApp (Prim.ArrayOp Prim.DimSize, [array; idx]) -> 
-          (match idx.SSA.value with 
+            (match idx.SSA.value with 
             | SSA.Num n ->  
 		          let array' = translate_value array in 
 		          let i = PQNum.to_int n in 
@@ -68,12 +72,12 @@ module MkTranslator(P : PARAMS) = struct
             | _ -> 
               failwith $
                 "[ssa->imp] DimSize with non-constant index not yet implemented"
-          ) 
+            ) 
 		  | SSA.PrimApp (Prim.ArrayOp Prim.Index, [inArray; idx]) -> 
-          if DynType.is_scalar $ idx.SSA.value_type then 
-            Imp.idx (translate_value inArray) (translate_value idx)
-          else 
-            failwith "[ssa->imp] Vector indexing not implement" 
+            if DynType.is_scalar $ idx.SSA.value_type then 
+              Imp.idx (translate_value inArray) (translate_value idx)
+            else 
+              failwith "[ssa->imp] Vector indexing not implement" 
                
 		  | SSA.PrimApp (Prim.ArrayOp Prim.Find, [inArray; elToFind]) -> 
 		    let inArray' = translate_value inArray in
@@ -94,7 +98,8 @@ module MkTranslator(P : PARAMS) = struct
 		    failwith ("WHERE operator can't be translated to Imp " ^ 
 		              "due to unpredictable size semantics") 
 		
-		  
+          		  
+
 		  | SSA.Cast (t, vNode) -> cast t (translate_value vNode) 
 		  (* assume you only have one array over which you're mapping for now *)
 		  | SSA.Map(payload, arrays) ->
@@ -281,24 +286,11 @@ end
 
 
 let rec translate_fundef fnTable fn =
-  (*
-  IFDEF DEBUG THEN 
-    Printf.printf "[SSA_To_Imp] translating function: %s\n"
-      (SSA.fundef_to_str fn);
-  ENDIF; 
-  *) 
   let fnState = new ImpCodegen.fn_state in
   let inputTypes = fn.SSA.fn_input_types in 
   (* first generate imp ids for inputs, to make sure their order is preserved *)
   let add_input env id t = 
     let impId = fnState#fresh_input_id t in
-    (* 
-    IFDEF DEBUG THEN 
-      Printf.printf "[SSA_To_Imp] Renaming input %s => %s\n"
-        (ID.to_str id)
-        (ID.to_str impId); 
-    ENDIF;
-    *) 
     ID.Map.add id impId env  
   in 
   let inputIdEnv = 
