@@ -50,6 +50,7 @@ def returnTypeInit():
   libtest.get_prim.restype = c_void_p
   libtest.mk_float_paranode.restype = c_void_p
   libtest.mk_double_paranode.restype = c_void_p
+  libtest.mk_bool.restype = c_void_p
 
 def ast_prim(sym):
   return c_void_p(libtest.get_prim(sym))
@@ -690,15 +691,22 @@ def runFunction(func,args):
       nbytes = arg.nbytes
       if arg.dtype == np.int32 or arg.dtype == np.int64:
         input_data = arg.ctypes.data_as(POINTER(c_int))
+        print "I AM A",input_data, "WITH",input_data[0]
         elmt_type = c_void_p(libtest.mk_scalar(7)) #Int32T
       elif arg.dtype == np.float32:
         input_data = arg.ctypes.data_as(POINTER(c_float))
+        print "I AM A",input_data, "WITH",input_data[0]
         elmt_type = c_void_p(libtest.mk_scalar(11)) #Float32T
       elif arg.dtype == np.float64:
         input_data = arg.ctypes.data_as(POINTER(c_double))
+        print "I AM A",input_data, "WITH",input_data[0]
         elmt_type = c_void_p(libtest.mk_scalar(12)) #Float64T
       elif arg.dtype == np.bool:
-        input_data = arg.ctypes.data_as(POINTER(c_bool))
+        input_data = arg.ctypes.data_as(POINTER(c_int))
+        for counting in range(8):
+          print "I'm counting"
+          input_data[counting] -= 65536
+        print "I AM A",input_data, "WITH",input_data[0]
         elmt_type = c_void_p(libtest.mk_scalar(3))
       else:
         print "not handled?",arg.dtype
