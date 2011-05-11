@@ -750,14 +750,18 @@ def runFunction(func,args):
         rslt = cast(ret.data.results[0],POINTER(c_int))
       py_rslt = []
       ret_len = 1
+      rslt_shape = []
       for index in range(libtest.get_dyn_type_rank(c_void_p(ret.ret_types[0]))):
         ret_len *= ret.shapes[0][index]
+        rslt_shape.append(ret.shapes[0][index])
 #      ret_len = ret.shapes[0][0]
       for index in range(ret_len):
         print rslt[index],
         py_rslt.append(rslt[index])
       print
       np_rslt = np.array(py_rslt)
+      np_rslt.shape = rslt_shape
+      np_rslt = np_rslt.transpose()
     return np_rslt
   return 0
 

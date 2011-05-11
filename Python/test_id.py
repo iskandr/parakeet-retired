@@ -5,7 +5,7 @@ from parakeet import GPU
 def id(x):
   return x
 
-multi_test = array([[1,2,3],[4,5,6],[7,8,9]],dtype = int32)
+multi_test = array([[1,2,3,5],[4,5,6,8],[7,8,9,11]],dtype = int32)
 
 print multi_test
 print shape(multi_test)
