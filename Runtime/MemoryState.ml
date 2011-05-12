@@ -547,20 +547,28 @@ let rec sizeof memState interpVal =
   | InterpVal.Array arr ->  
       Array.fold_left (fun sum elt -> sum + sizeof memState elt) 0 arr 
 
+(* assumes dataId is an array, get the GPU vec descriptor 
+   (copy to gpu if necessary)
+ *)
+let get_gpu_vec memState dataId =
+  if Hashtbl.mem memState.gpu_data dataId then
+    Hashtbl.find memState.gpu_data dataId
+  else (
+    let hostVec = Hashtbl.find memState.host_data dataId in
+    IFDEF DEBUG THEN 
+      Printf.printf "[MemState] Sending to GPU: --%s\n" 
+        (HostVal.host_vec_to_str hostVec);
+     ENDIF; 
+    let gpuVec = vec_to_gpu memState hostVec in 
+    associate_id_with_gpu_data memState gpuVec dataId;  
+    gpuVec 
+  )
+
 let rec get_gpu memState = function 
-  | InterpVal.Data id -> 
-    if Hashtbl.mem memState.gpu_data id then
-      GpuVal.GpuArray (Hashtbl.find memState.gpu_data id)
-    else (
-      let hostVec = Hashtbl.find memState.host_data id in
-      IFDEF DEBUG THEN 
-        Printf.printf "[MemState] Sending to GPU: --%s\n" 
-          (HostVal.host_vec_to_str hostVec);
-       ENDIF; 
-      let gpuVec = vec_to_gpu memState hostVec in 
-      associate_id_with_gpu_data memState gpuVec id;  
-      GpuVal.GpuArray gpuVec
-   )
+  | InterpVal.Data id ->
+      let gpuVec = get_gpu_vec memState id in 
+      GpuVal.GpuArray gpuVec  
+   
   | InterpVal.Scalar n -> GpuVal.GpuScalar n
   (* WARNING: This is essentially a memory leak, since we leave 
      no data id associated with the gpu memory allocated here 
@@ -621,7 +629,10 @@ let rec get_gpu memState = function
                     (HostVal.host_vec_to_str eltHostVec)
                 ENDIF;  
                 Cuda.cuda_memcpy_to_device eltHostVec.ptr currPtr eltSize  
-          | _ -> assert false 
+          | interpVal -> failwith $ 
+                  Printf.sprintf 
+                    "[MemState] Can't set gpu element to host value: %s"
+                    (InterpVal.to_str interpVal)
        done; 
        GpuVal.GpuArray destVec
 
@@ -702,16 +713,14 @@ let slice_gpu_val memState gpuVal idx : gpu_val =
   let slice memState arr idx = match arr with 
     | InterpVal.Scalar _ -> failwith "[MemState] Can't slice a scalar"
     | InterpVal.Array arr -> arr.(idx)
-    | InterpVal.Data id -> 
-      if Hashtbl.mem memState.gpu_data id then 
-        let gpuVec = Hashtbl.find memState.gpu_data id in
-        add_gpu memState (slice_gpu_vec memState gpuVec idx)
-      else 
-        assert false
-        (*
-        let hostVec = Hashtbl.find memState.host_data id in 
-        let sliceVec = host_slice hostVec idx in 
-        add_host memState sliceVec
-        *)   
+    | InterpVal.Data id ->
+      (* always move data to the GPU-- should be replaced with a 
+         proper array slice proxy object! 
+       *)
+      let gpuVec = get_gpu_vec memState id in 
+      let slice = slice_gpu_vec memState gpuVec idx in  
+      add_gpu memState slice 
+            
+          
 end
 include Slicing 
