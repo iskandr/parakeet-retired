@@ -123,7 +123,7 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
     coercions := stmtNode :: !coercions 
     
   let collect_coercions stmtNode = 
-    let stmts = List.rev $ stmtNode :: !coercions in 
+    let stmts = (*List.rev $*) stmtNode :: !coercions in 
     coercions := []; 
     stmts 
   
