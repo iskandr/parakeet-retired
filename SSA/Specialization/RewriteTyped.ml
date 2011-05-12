@@ -188,10 +188,7 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
         (match p, argNodes, argTypes with
           | Prim.ArrayOp Prim.Index, [array; index], [arrayType; indexType] 
             when DynType.elt_type indexType = DynType.BoolT ->
-              IFDEF DEBUG THEN 
-                if DynType.nest_depth indexType <> 1 then 
-                  failwith "Expected boolean index vector to be 1D"
-              ENDIF;  
+              let indexRank = DynType.nest_depth indexType in 
               let whereT = DynType.VecT DynType.Int32T in 
               let whereId = fresh_id whereT in 
               let whereExp = 
@@ -199,7 +196,12 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
               in 
               add_coercion (SSA.mk_set ?src [whereId] whereExp); 
               let args' = array :: [SSA.mk_var ?src ~ty:whereT whereId] in
-              let resultType = DynType.VecT (DynType.elt_type arrayType) in 
+               
+              let resultType = 
+                if indexRank = 1 then 
+                  DynType.VecT (DynType.peel_vec arrayType)
+                else failwith "Expected boolean index vector to be 1D" 
+              in 
               SSA.mk_primapp ?src (Prim.ArrayOp Prim.Index) [resultType] args'  
           | _ -> 
             let outT = TypeInfer.infer_simple_array_op op argTypes in
