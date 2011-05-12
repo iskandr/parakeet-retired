@@ -703,9 +703,9 @@ def runFunction(func,args):
         elmt_type = c_void_p(libtest.mk_scalar(12)) #Float64T
       elif arg.dtype == np.bool:
         input_data = arg.ctypes.data_as(POINTER(c_int))
-        for counting in range(8):
-          print "I'm counting"
-          input_data[counting] -= 65536
+        #for counting in range(8):
+        #  print "I'm counting"
+        #  input_data[counting] -= 65536
         print "I AM A",input_data, "WITH",input_data[0]
         elmt_type = c_void_p(libtest.mk_scalar(3))
       else:
