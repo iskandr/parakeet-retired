@@ -691,22 +691,19 @@ def runFunction(func,args):
       nbytes = arg.nbytes
       if arg.dtype == np.int32 or arg.dtype == np.int64:
         input_data = arg.ctypes.data_as(POINTER(c_int))
-        print "I AM A",input_data, "WITH",input_data[0]
+#        print "I AM A",input_data, "WITH",input_data[0]
         elmt_type = c_void_p(libtest.mk_scalar(7)) #Int32T
       elif arg.dtype == np.float32:
         input_data = arg.ctypes.data_as(POINTER(c_float))
-        print "I AM A",input_data, "WITH",input_data[0]
+#        print "I AM A",input_data, "WITH",input_data[0]
         elmt_type = c_void_p(libtest.mk_scalar(11)) #Float32T
       elif arg.dtype == np.float64:
         input_data = arg.ctypes.data_as(POINTER(c_double))
-        print "I AM A",input_data, "WITH",input_data[0]
+#        print "I AM A",input_data, "WITH",input_data[0]
         elmt_type = c_void_p(libtest.mk_scalar(12)) #Float64T
       elif arg.dtype == np.bool:
-        input_data = arg.ctypes.data_as(POINTER(c_int))
-        #for counting in range(8):
-        #  print "I'm counting"
-        #  input_data[counting] -= 65536
-        print "I AM A",input_data, "WITH",input_data[0]
+        input_data = arg.ctypes.data_as(POINTER(c_bool))
+#        print "I AM A",input_data, "WITH",input_data[0]
         elmt_type = c_void_p(libtest.mk_scalar(3))
       else:
         print "not handled?",arg.dtype
@@ -736,6 +733,7 @@ def runFunction(func,args):
     elmt_type = libtest.get_dyn_type_element_type(c_void_p(ret.ret_types[0]))
     #NOTE: WRONG numbers, should be (x-3)/4....returning as a wrong type of integer?
     if libtest.get_dyn_type_rank(c_void_p(ret.ret_types[0])) == 0:
+      print "I am a scalar"
       if elmt_type == 15:
         rslt = cast(ret.data.results[0],POINTER(c_int))
       elif elmt_type == 23:
@@ -759,9 +757,12 @@ def runFunction(func,args):
       py_rslt = []
       ret_len = 1
       rslt_shape = []
+      print "SHAPE",
       for index in range(libtest.get_dyn_type_rank(c_void_p(ret.ret_types[0]))):
         ret_len *= ret.shapes[0][index]
+        print ret.shapes[0][index],
         rslt_shape.append(ret.shapes[0][index])
+      print
 #      ret_len = ret.shapes[0][0]
       for index in range(ret_len):
         print rslt[index],
