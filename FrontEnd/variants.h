@@ -23,27 +23,7 @@ enum run_template_ret_val_data {
   Success = 0,
   Error
 };
-/*
-typedef enum dyn_type_no_data {
-  BottomT = 0,
-  AnyT,
-  UnitT,
-  BoolT,
-  CharT,
-  Int16T,
-  UInt16T,
-  Int32T,
-  UInt32T,
-  Int64T,
-  UInt64T,
-  Float32T,
-  Float64T,
-  SymT,
-  StrT,
-  BottomFnT,
-  AnyFnT
-} dyn_type_no_data_t;
-*/
+
 typedef enum dyn_type_with_data {
   VecT = 0,
   TupleT,

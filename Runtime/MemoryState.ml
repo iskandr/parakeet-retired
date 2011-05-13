@@ -563,105 +563,6 @@ let get_gpu_vec memState dataId =
     associate_id_with_gpu_data memState gpuVec dataId;  
     gpuVec 
   )
-
-
-
-let rec get_gpu memState = function 
-  | InterpVal.Data id ->
-      let gpuVec = get_gpu_vec memState id in 
-      GpuVal.GpuArray gpuVec  
-   
-  | InterpVal.Scalar n -> GpuVal.GpuScalar n
-  (* WARNING: This is essentially a memory leak, since we leave 
-     no data id associated with the gpu memory allocated here 
-   *)   
-  | InterpVal.Array arr ->
-      (* for now, assume all rows are of uniform type/size *)
-      let nrows = Array.length arr in   
-      let elt = arr.(0) in 
-      let eltSize = sizeof memState elt in
-      let eltType = get_type memState elt in 
-      let eltShape = get_shape memState elt in  
-      let nbytes = nrows * eltSize in
-      let finalType = DynType.VecT eltType in 
-      let finalShape = Shape.append_dim nrows eltShape in 
-      let destVec = mk_gpu_vec memState finalType finalShape in
-      let destPtr = destVec.vec_ptr in 
-      IFDEF DEBUG THEN 
-        Printf.printf "[MemState] Transferring interpreter array to GPU\n";
-        Printf.printf "[MemState] -- elts = %s \n" 
-            (String.concat ", " (List.map InterpVal.to_str (Array.to_list arr)))
-        ;  
-        Printf.printf 
-          "[MemState] -- elt size: %d, elt type: %s, elt shape: %s\n" 
-            eltSize
-            (DynType.to_str eltType)
-            (Shape.to_str eltShape)
-        ;
-        Printf.printf 
-          "[MemState] -- total size: %d, final type : %s,  final shape: %s\n"
-          nbytes
-          (DynType.to_str finalType)
-          (Shape.to_str finalShape)
-        ;  
-      ENDIF; 
-      for i = 0 to nrows - 1 do 
-        let currPtr = Int64.add destPtr (Int64.of_int $ i * eltSize) in 
-        match arr.(i) with 
-          | InterpVal.Scalar (PQNum.Int32 i32) -> 
-              Cuda.cuda_set_gpu_int32_vec_elt currPtr 0 i32 
-          | InterpVal.Scalar (PQNum.Float32 f32) -> 
-              Cuda.cuda_set_gpu_float32_vec_elt currPtr 0 f32 
-          | InterpVal.Data id -> 
-              if Hashtbl.mem memState.gpu_data id then 
-                let eltVec = Hashtbl.find memState.gpu_data id in 
-                IFDEF DEBUG THEN 
-                  Printf.printf 
-                    "[MemState] copying array elt to gpu address %Lx: %s\n"
-                    currPtr
-                    (GpuVal.gpu_vec_to_str eltVec)
-                ENDIF; 
-                Cuda.cuda_memcpy_device_to_device eltVec.vec_ptr currPtr eltSize 
-              else
-                let eltHostVec = Hashtbl.find memState.host_data id in
-                IFDEF DEBUG THEN 
-                  Printf.printf 
-                    "[MemState] copying array elt to gpu address %Lx: %s\n"
-                    currPtr
-                    (HostVal.host_vec_to_str eltHostVec)
-                ENDIF;  
-                Cuda.cuda_memcpy_to_device eltHostVec.ptr currPtr eltSize  
-          | interpVal -> failwith $ 
-                  Printf.sprintf 
-                    "[MemState] Can't set gpu element to host value: %s"
-                    (InterpVal.to_str interpVal)
-       done; 
-       GpuVal.GpuArray destVec
-
-let rec get_host memState interpVal = 
-  match interpVal with  
-  | InterpVal.Data id -> 
-    if Hashtbl.mem memState.host_data id then
-      HostVal.HostArray (Hashtbl.find memState.host_data id)
-    else (
-      IFDEF DEBUG THEN 
-        Printf.printf 
-          "[MemState->get_host] Initiating transfer from GPU to host\n%!"
-        ;
-      ENDIF; 
-      let gpuVec = Hashtbl.find memState.gpu_data id in
-      let hostVec = vec_from_gpu memState gpuVec in
-      associate_id_with_host_data memState hostVec id; 
-      IFDEF DEBUG THEN
-        Printf.printf "[MemState->get_host] Got %s \n"
-          (HostVal.host_vec_to_str hostVec);  
-      ENDIF;
-      HostVal.HostArray hostVec
-    )
-  | InterpVal.Scalar n -> HostVal.HostScalar n 
-  | InterpVal.Array arr ->
-      HostVal.HostBoxedArray (Array.map (get_host memState) arr)
-
 module Slicing = struct 
 
   (* returns a gpu_val, not a gpu_vec since the elements might be scalars, 
@@ -705,7 +606,7 @@ module Slicing = struct
     ENDIF; 
     sliceVal   
 
-let slice_gpu_val memState gpuVal idx : gpu_val = 
+let slice_gpu_val (memState:t) (gpuVal:GpuVal.gpu_val) (idx:int) : gpu_val = 
   match gpuVal with   
   | GpuScalar _ -> failwith "can't slice a GPU scalar"
   | GpuArray gpuVec -> slice_gpu_vec memState gpuVec idx
@@ -723,6 +624,107 @@ let slice_gpu_val memState gpuVal idx : gpu_val =
       let slice = slice_gpu_vec memState gpuVec idx in  
       add_gpu memState slice 
             
-          
+
+  (* set either an element or a row-major slice of an array to an interpVal 
+     assumed to be of the same type as other elements 
+   *) 
+  let rec set_gpu_idx memState (destVec:GpuVal.gpu_vec)  (idx:int) interpVal =
+    (* assume uniform array *)  
+    let eltSize = sizeof memState interpVal in 
+    let currPtr = 
+      Int64.add destVec.GpuVal.vec_ptr (Int64.of_int $ idx * eltSize) 
+    in 
+    match interpVal with 
+    | InterpVal.Scalar (PQNum.Int32 i32) ->  
+      Cuda.cuda_set_gpu_int32_vec_elt currPtr 0 i32 
+    | InterpVal.Scalar (PQNum.Float32 f32) -> 
+      Cuda.cuda_set_gpu_float32_vec_elt currPtr 0 f32 
+    | InterpVal.Data id -> 
+      if Hashtbl.mem memState.gpu_data id then 
+        let eltVec = Hashtbl.find memState.gpu_data id in 
+        IFDEF DEBUG THEN 
+          Printf.printf  "[MemState] copying array elt to gpu address %Lx: %s\n"
+            currPtr (GpuVal.gpu_vec_to_str eltVec)
+        ENDIF; 
+        Cuda.cuda_memcpy_device_to_device eltVec.vec_ptr currPtr eltSize 
+      else (
+        let eltHostVec = Hashtbl.find memState.host_data id in
+        IFDEF DEBUG THEN 
+          Printf.printf  "[MemState] copying array elt to gpu address %Lx: %s\n"
+            currPtr (HostVal.host_vec_to_str eltHostVec)
+        ENDIF;  
+        Cuda.cuda_memcpy_to_device eltHostVec.ptr currPtr eltSize
+      )
+    (* TODO: use flatten_gpu here *)   
+    | interpVal -> failwith $ 
+       Printf.sprintf 
+         "[MemState] Can't set gpu element to host value: %s"
+         (InterpVal.to_str interpVal)
+  and flatten_gpu memState arr =
+    (* for now, assume all rows are of uniform type/size *)
+    let nrows = Array.length arr in   
+    let elt = arr.(0) in
+    let eltType = get_type memState elt in
+    let eltShape = get_shape memState elt in  
+    let finalType = DynType.VecT eltType in
+    let finalShape = Shape.append_dim nrows eltShape in 
+    let destVec = mk_gpu_vec memState finalType finalShape in
+    IFDEF DEBUG THEN 
+      Printf.printf "[MemState] Transferring interpreter array to GPU\n";
+      Printf.printf "[MemState] -- elts = %s \n" 
+        (String.concat ", " (List.map InterpVal.to_str (Array.to_list arr)));  
+      Printf.printf 
+        "[MemState] elt type: %s, elt shape: %s\n" 
+        (DynType.to_str eltType) (Shape.to_str eltShape);
+      Printf.printf 
+        "[MemState] -- final type : %s,  final shape: %s\n"
+        (DynType.to_str finalType) (Shape.to_str finalShape);  
+    ENDIF; 
+    for idx = 0 to nrows - 1 do
+      set_gpu_idx memState destVec  idx arr.(idx)
+    done;     
+    destVec   
 end
+
 include Slicing 
+
+
+
+
+let rec get_gpu memState = function 
+  | InterpVal.Data id ->
+      let gpuVec = get_gpu_vec memState id in 
+      GpuVal.GpuArray gpuVec  
+   
+  | InterpVal.Scalar n -> GpuVal.GpuScalar n
+  | InterpVal.Array arr ->
+     (* WARNING: This is essentially a memory leak, since we leave 
+        no data id associated with the gpu memory allocated here 
+      *)   
+      let destVec = flatten_gpu memState arr in 
+      GpuVal.GpuArray destVec
+  
+  
+let rec get_host memState interpVal = 
+  match interpVal with  
+  | InterpVal.Data id -> 
+    if Hashtbl.mem memState.host_data id then
+      HostVal.HostArray (Hashtbl.find memState.host_data id)
+    else (
+      IFDEF DEBUG THEN 
+        Printf.printf 
+          "[MemState->get_host] Initiating transfer from GPU to host\n%!"
+        ;
+      ENDIF; 
+      let gpuVec = Hashtbl.find memState.gpu_data id in
+      let hostVec = vec_from_gpu memState gpuVec in
+      associate_id_with_host_data memState hostVec id; 
+      IFDEF DEBUG THEN
+        Printf.printf "[MemState->get_host] Got %s \n"
+          (HostVal.host_vec_to_str hostVec);  
+      ENDIF;
+      HostVal.HostArray hostVec
+    )
+  | InterpVal.Scalar n -> HostVal.HostScalar n 
+  | InterpVal.Array arr ->
+      HostVal.HostBoxedArray (Array.map (get_host memState) arr)
