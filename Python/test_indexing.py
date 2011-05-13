@@ -29,7 +29,7 @@ class MyTest(unittest.TestCase):
     self.assertTrue(fourthElement(arr_test)==4,"fourthElement not working")
     self.assertTrue(all(arrElements(arr_test,arr_index) == arr_index_ans), "arrElements not working")
     self.assertTrue(calc_centroid(arr_test,arr_a,i)==4,"calc_centroid not working")
-if __name__ == '__main__':
-  unittest.main()
+#if __name__ == '__main__':
+#  unittest.main()
   
 #print arrElements(arr_test,arr_index)

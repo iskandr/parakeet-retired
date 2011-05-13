@@ -7,7 +7,35 @@
 #include "dyn_type_stubs.h"
 #include "variants.h"
 
+int dyn_type_inited = 0;
+
+value *get_elt_type_callback = NULL;
+value *type_rank_callback = NULL;
+
+dyn_type parakeet_bool_t;
+dyn_type parakeet_char_t;
+dyn_type parakeet_int32_t;
+dyn_type parakeet_int64_t;
+dyn_type parakeet_float32_t;
+dyn_type parakeet_float64_t;
+
+void dyn_type_init() {
+  if (dyn_type_inited == 0) {
+     dyn_type_inited = 1;
+     get_elt_type_callback = caml_named_value("get_elt_type");
+     type_rank_callback = caml_named_value("type_rank");
+
+     parakeet_bool_t = *caml_named_value("bool_t");
+     parakeet_char_t = *caml_named_value("char_t");
+     parakeet_int32_t = *caml_named_value("int32_t");
+     parakeet_int64_t = *caml_named_value("int64_t");
+     parakeet_float32_t = *caml_named_value("float32_t");
+     parakeet_float64_t = *caml_named_value("float64_t");
+   }
+}
+
 /** Public interface **/
+/*
 dyn_type mk_scalar(dyn_type_no_data_t t) {
   CAMLparam0();
   CAMLlocal1(ocaml_dyn_type);
@@ -17,6 +45,7 @@ dyn_type mk_scalar(dyn_type_no_data_t t) {
 
   CAMLreturnT(dyn_type, (dyn_type)ocaml_dyn_type);
 }
+*/
 
 dyn_type mk_vec(dyn_type subtype) {
   CAMLparam0();
@@ -42,23 +71,13 @@ void free_dyn_type(dyn_type t) {
 }
 
 int get_dyn_type_rank(dyn_type t) {
-  int rank = 0;
-  dyn_type cur = t;
-  while(!dyn_type_is_scalar(cur)) {
-    rank++;
-    cur = get_subtype(cur);
-  }
-
-  return rank;
+  return Int_val(caml_callback(*type_rank_callback, t));
 }
 
-dyn_type_no_data_t get_dyn_type_element_type(dyn_type t) {
-  dyn_type cur = t;
-  while(!dyn_type_is_scalar(cur)) {
-    cur = get_subtype(cur);
-  }
 
-  return (dyn_type_no_data_t)Val_int(cur);
+dyn_type get_dyn_type_element_type(dyn_type t) {
+  CAMLparam1(t);
+  return caml_callback(*get_elt_type_callback, t);
 }
 
 int dyn_type_is_scalar(dyn_type t) {
@@ -69,8 +88,8 @@ int dyn_type_is_scalar(dyn_type t) {
 
   CAMLreturnT(int, Is_long(ocaml_dyn_type));
 }
-
-dt_t get_type_tag(dyn_type t) {
+/*
+dyn_type get_type_tag(dyn_type t) {
   CAMLparam0();
   CAMLlocal1(ocaml_dyn_type);
 
@@ -87,7 +106,7 @@ dt_t get_type_tag(dyn_type t) {
 
   CAMLreturnT(dt_t, ret);
 }
-
+*/
 dyn_type get_subtype(dyn_type t) {
   CAMLparam0();
   CAMLlocal2(ocaml_dyn_type, ocaml_subtype);

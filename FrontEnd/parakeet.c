@@ -18,5 +18,7 @@ void parakeet_init(void) {
   caml_startup(argv);
 
   ast_init();
+  dyn_type_init();
   front_end_init();
+
 }

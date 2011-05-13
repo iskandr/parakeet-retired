@@ -564,6 +564,8 @@ let get_gpu_vec memState dataId =
     gpuVec 
   )
 
+
+
 let rec get_gpu memState = function 
   | InterpVal.Data id ->
       let gpuVec = get_gpu_vec memState id in 

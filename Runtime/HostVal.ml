@@ -42,11 +42,13 @@ let c_set_bool ptr idx b =
   c_set_char ptr idx ch 
 
 let host_vec_to_str hostVec = 
-  Printf.sprintf "HostArray { host_t=%s, shape=%s; nbytes=%d; first_word=%ld }"
+  Printf.sprintf "HostArray { host_t=%s, shape=%s; nbytes=%d; contents=%ld,%ld,%ld,... }"
     (DynType.to_str hostVec.host_t) 
     (Shape.to_str hostVec.shape) 
     hostVec.nbytes
     (c_get_int32 hostVec.ptr 0)
+    (c_get_int32 hostVec.ptr 1)
+    (c_get_int32 hostVec.ptr 2)
 
 let to_str = function 
   | HostScalar n -> sprintf "HostScalar %s" (PQNum.num_to_str n)
@@ -56,10 +58,17 @@ let to_str = function
 
 let mk_host_scalar n = HostScalar n
 
-let get_type = function 
+let rec get_type = function 
   | HostArray { host_t = host_t } -> host_t
   | HostScalar n -> PQNum.type_of_num n
-  | HostBoxedArray _ -> assert false 
+  | HostBoxedArray arr -> 
+      assert (Array.length arr > 0); 
+      let types = Array.map get_type arr in 
+      let firstType = types.(0) in
+      let check_types allGood eltT = allGood && eltT = firstType in  
+      assert (Array.fold_left check_types true types); 
+      DynType.VecT firstType 
+         
 
 let get_shape = function 
   | HostArray { shape = shape } -> shape
