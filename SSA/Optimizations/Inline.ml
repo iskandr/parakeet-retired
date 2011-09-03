@@ -2,7 +2,7 @@
 
 open Base
 open SSA 
-open DynType 
+open Type 
 open SSA_Transform 
 
 let do_inline fundef argVals = 
@@ -29,7 +29,7 @@ let do_inline fundef argVals =
     mk_exp ~types:freshFundef.fn_output_types (Values outputValNodes) 
   in
   (* list of new ids and their types-- ignore types missing from tenv *) 
-  let typesList : (ID.t * DynType.t) list =
+  let typesList : (ID.t * Type.t) list =
     MutableSet.fold  
       (fun oldId accList ->
           if ID.Map.mem oldId fundef.tenv then
@@ -50,7 +50,7 @@ end
 module Inline_Rules (P:INLINE_PARAMS) = struct
   include P 
    
-  type context = (DynType.t ID.Map.t) ref
+  type context = (Type.t ID.Map.t) ref
   let init fundef = ref fundef.tenv   
   let finalize _ _ = NoChange 
   let dir = Forward 

@@ -1,7 +1,7 @@
 (********** VALUES **********)
 type value = 
   | Var of ID.t
-  | Num of PQNum.num 
+  | Num of ParNum.t 
   | Str of string
   | Sym of string
   | Unit
@@ -9,7 +9,7 @@ type value =
   | GlobalFn of FnId.t  
 
 and value_node = { 
-  value_type : DynType.t;
+  value_type : Type.t;
   value_src : SourceInfo.t option; 
   value : value 
 }
@@ -21,7 +21,7 @@ type exp =
   | Arr of value_nodes
   | Values of value_nodes
   (* nodes below are only used after type specialization *) 
-  | Cast of DynType.t * value_node  
+  | Cast of Type.t * value_node  
   | Call of FnId.t * value_nodes 
   | PrimApp of Prim.prim * value_nodes  
   | Map of closure * value_nodes
@@ -33,14 +33,14 @@ and exp_node = {
   exp_src : SourceInfo.t option;
   (* because a function applicatin might return multiple values,*)
   (* expressions have multiple types *)  
-  exp_types : DynType.t list; 
+  exp_types : Type.t list; 
 } 
 and closure = {   
   closure_fn: FnId.t; 
   closure_args: value_node list; 
-  closure_arg_types: DynType.t list; 
-  closure_input_types:DynType.t list; 
-  closure_output_types: DynType.t list 
+  closure_arg_types: Type.t list; 
+  closure_input_types:Type.t list; 
+  closure_output_types: Type.t list 
 } 
 
 (********** STATEMENTS **********) 
@@ -60,7 +60,7 @@ and phi_node = {
   phi_id : ID.t;
   phi_left:  value_node;
   phi_right: value_node;
-  phi_type : DynType.t; 
+  phi_type : Type.t; 
   phi_src : SourceInfo.t option; 
 }  
 and phi_nodes = phi_node list 
@@ -71,11 +71,11 @@ type fundef = {
   tenv : tenv;
   input_ids:ID.t list;
   output_ids: ID.t list; 
-  fn_input_types : DynType.t list;
-  fn_output_types : DynType.t list;  
+  fn_input_types : Type.t list;
+  fn_output_types : Type.t list;  
   fn_id : FnId.t; 
 }
-and tenv = DynType.t ID.Map.t 
+and tenv = Type.t ID.Map.t 
 
 val is_simple_exp : exp -> bool 
 
@@ -123,14 +123,14 @@ val get_fn_ids : value_node list -> FnId.t list
     helpers for values 
  ***)
 
-val mk_val : ?src:SourceInfo.t -> ?ty:DynType.t -> value -> value_node
+val mk_val : ?src:SourceInfo.t -> ?ty:Type.t -> value -> value_node
 
-val mk_var : ?src:SourceInfo.t -> ?ty:DynType.t -> ID.t -> value_node 
-val mk_op :  ?src:SourceInfo.t -> ?ty:DynType.t -> Prim.prim -> value_node 
+val mk_var : ?src:SourceInfo.t -> ?ty:Type.t -> ID.t -> value_node 
+val mk_op :  ?src:SourceInfo.t -> ?ty:Type.t -> Prim.prim -> value_node 
 
-val mk_globalfn : ?src:SourceInfo.t -> ?ty:DynType.t -> FnId.t -> value_node
+val mk_globalfn : ?src:SourceInfo.t -> ?ty:Type.t -> FnId.t -> value_node
 
-val mk_num : ?src:SourceInfo.t -> ?ty:DynType.t -> PQNum.num -> value_node
+val mk_num : ?src:SourceInfo.t -> ?ty:Type.t -> ParNum.t -> value_node
     
 val mk_bool : ?src:SourceInfo.t -> bool -> value_node 
 val mk_int32  : ?src:SourceInfo.t -> int -> value_node
@@ -141,29 +141,29 @@ val mk_float32 : ?src:SourceInfo.t -> float -> value_node
  ***) 
 
 val map_default_types : 
-      DynType.t list option -> value_node list -> DynType.t list 
+      Type.t list option -> value_node list -> Type.t list 
   
 val mk_app :
-     ?src:SourceInfo.t -> ?types:DynType.t list -> value_node -> 
+     ?src:SourceInfo.t -> ?types:Type.t list -> value_node -> 
       value_node list -> exp_node 
 
 val mk_primapp : 
-     ?src:SourceInfo.t -> Prim.prim -> DynType.t list -> 
+     ?src:SourceInfo.t -> Prim.prim -> Type.t list -> 
        value_node list -> exp_node  
 
 val mk_arr :
-      ?src:SourceInfo.t -> ?types:DynType.t list -> value_node list -> exp_node
+      ?src:SourceInfo.t -> ?types:Type.t list -> value_node list -> exp_node
  
-val mk_val_exp : ?src:SourceInfo.t -> ?ty:DynType.t -> 
+val mk_val_exp : ?src:SourceInfo.t -> ?ty:Type.t -> 
       value -> exp_node
 
 val mk_vals_exp :
-      ?src:SourceInfo.t -> ?types : DynType.t list -> value list -> exp_node
+      ?src:SourceInfo.t -> ?types : Type.t list -> value list -> exp_node
 
-val mk_cast : ?src:SourceInfo.t -> DynType.t -> value_node -> exp_node
-val mk_exp :  ?src:SourceInfo.t -> ?types:DynType.t list -> exp -> exp_node
+val mk_cast : ?src:SourceInfo.t -> Type.t -> value_node -> exp_node
+val mk_exp :  ?src:SourceInfo.t -> ?types:Type.t list -> exp -> exp_node
 val mk_call : 
-      ?src:SourceInfo.t -> FnId.t -> DynType.t list  -> value_node list ->
+      ?src:SourceInfo.t -> FnId.t -> Type.t list  -> value_node list ->
          exp_node 
 val mk_map : ?src:SourceInfo.t -> closure -> value_node list -> exp_node 
 val mk_reduce : 
@@ -181,7 +181,7 @@ val empty_stmt : stmt_node
 val is_empty_stmt : stmt_node -> bool 
 
 val mk_phi : 
-     ?src:SourceInfo.t -> ?ty:DynType.t -> 
+     ?src:SourceInfo.t -> ?ty:Type.t -> 
        ID.t -> value_node -> value_node -> phi_node
 
 val empty_phi : phi_node 

@@ -13,12 +13,12 @@ end
 
 type value = GpuVal.gpu_val
 type values = value list 
-type adverb_impl = SSA.fundef -> values -> values -> DynType.t list -> values
-type simple_array_op_impl = values -> DynType.t list -> values 
+type adverb_impl = SSA.fundef -> values -> values -> Type.t list -> values
+type simple_array_op_impl = values -> Type.t list -> values 
 exception InvalidGpuArgs
 
 
-type types = DynType.t array 
+type types = Type.t array 
 type spaces = PtxVal.ptx_space array 
 type layouts = GpuVal.data_layout array 
 type code_cache_key = FnId.t * types * layouts * spaces  
@@ -31,7 +31,7 @@ type code_cache_entry = {
 
 type code_cache = (code_cache_key, code_cache_entry) Hashtbl.t
 
-let sizeof ty shape = DynType.sizeof (DynType.elt_type ty) * Shape.nelts shape
+let sizeof ty shape = Type.sizeof (Type.elt_type ty) * Shape.nelts shape
 
 module Mk(P : GPU_RUNTIME_PARAMS) = struct 
 
@@ -48,13 +48,13 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
        
     for i = 0 to nInputs - 1 do
       let t = inputTypes.(i) in 
-      let eltT = DynType.elt_type t in 
-      let eltSize = DynType.sizeof eltT in
+      let eltT = Type.elt_type t in 
+      let eltSize = Type.sizeof eltT in
       let s = inputShapes.(i) in
       let nelts = Shape.nelts s in  
       let r = inputRanks.(i) in
       let currBytes = nelts * eltSize in 
-      if DynType.is_scalar t then 
+      if Type.is_scalar t then 
         inputSpaces.(i) <- PtxVal.PARAM
       else if not !haveConstantInput && 
               currBytes < availableConstantMem then (
@@ -69,7 +69,7 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
         Printf.printf 
           "[Input Space] Input #%d type=%s, shape=%s, eltsz=%d, space=%s\n"
           i
-          (DynType.to_str t)
+          (Type.to_str t)
           (Shape.to_str s)
           eltSize 
           (PtxVal.ptx_space_to_str inputSpaces.(i))
@@ -92,10 +92,10 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
       let flipPtr = MemoryState.alloc_gpu P.memState inputVec.vec_nbytes in 
       Timing.stop Timing.gpuFlipAlloc;
       Timing.start Timing.gpuFlip;
-      (match DynType.elt_type inputVec.vec_t with
-        | DynType.Int32T ->
+      (match Type.elt_type inputVec.vec_t with
+        | Type.Int32T ->
             Kernels.flip_int_2D inputPtr height width flipPtr
-        | DynType.Float32T ->
+        | Type.Float32T ->
             Kernels.flip_float_2D inputPtr height width flipPtr
         | _ -> failwith "Flip only supported for 2D int and float"
       );
@@ -151,7 +151,7 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
         in
         let channelFormat = 
           Cuda.infer_channel_format 
-            (DynType.elt_type $ GpuVal.get_type inputVal)
+            (Type.elt_type $ GpuVal.get_type inputVal)
         in 
         (match geom with
           | Ptx.Tex1D ->
@@ -220,7 +220,7 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
       let ty = Hashtbl.find impfn.Imp.types id in
       let shape = ID.Map.find id shapeEnv in
       IFDEF DEBUG THEN 
-        assert (DynType.is_vec ty);
+        assert (Type.is_vec ty);
         assert (Shape.rank shape > 0);
       ENDIF; 
       let vec = MemoryState.mk_gpu_vec ~refcount:1 P.memState ty shape in
@@ -276,9 +276,9 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
   let mapThreadsPerBlock = 256 
   
   let compile_map payload 
-        (closureTypes : DynType.t array) 
-        (argTypes : DynType.t array) 
-        (retTypes : DynType.t array)
+        (closureTypes : Type.t array) 
+        (argTypes : Type.t array) 
+        (retTypes : Type.t array)
         (dataLayouts : GpuVal.data_layout array) 
         (inputSpaces : PtxVal.ptx_space array) =
     (* converting payload to Imp *) 
@@ -305,8 +305,8 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
 
   
   let decide_map_input_layout = function 
-    | DynType.VecT (DynType.VecT DynType.Float32T)
-    | DynType.VecT (DynType.VecT DynType.Int32T) -> GpuVal.ColumnMajor 
+    | Type.VecT (Type.VecT Type.Float32T)
+    | Type.VecT (Type.VecT Type.Int32T) -> GpuVal.ColumnMajor 
     | _ -> GpuVal.RowMajor 
 
   let map ~payload ~closureArgs ~args =
@@ -322,7 +322,7 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
     in
     let outputTypes = 
       Array.of_list 
-        (List.map (fun t -> DynType.VecT t) payload.SSA.fn_output_types)
+        (List.map (fun t -> Type.VecT t) payload.SSA.fn_output_types)
     in
     let closureLayouts = Array.map (fun _ -> GpuVal.RowMajor) closureTypes in 
     let inputLayouts = Array.map decide_map_input_layout inputTypes in 
@@ -533,7 +533,7 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
       let impPayload = SSA_to_Imp.translate_fundef P.fnTable payload in
       let retTypes =
         List.map 
-          (fun t -> DynType.VecT (DynType.VecT t))
+          (fun t -> Type.VecT (Type.VecT t))
           payload.SSA.fn_output_types 
       in 
       let impfn =
@@ -611,7 +611,7 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
     end
     in
     let inputType = GpuVal.get_type inputVec in 
-    let elType = DynType.elt_type inputType in
+    let elType = Type.elt_type inputType in
     Timing.start Timing.gpuIndexAlloc; 
     let output = 
       MemoryState.mk_gpu_vec ~refcount:1 P.memState inputType outputShape 
@@ -622,12 +622,12 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
     Timing.start Timing.gpuIndex;
     Kernels.bind_index_idxs_tex indexPtr nidxs;
     begin match elType with
-    | DynType.Int32T -> begin
+    | Type.Int32T -> begin
         Kernels.bind_index_int_vecs_tex inputPtr ninputels;
         Kernels.index_int ninputs vec_len nidxs output.vec_ptr;
         Kernels.unbind_index_int_vecs_tex ()
       end
-    | DynType.Float32T -> begin
+    | Type.Float32T -> begin
         Kernels.bind_index_float_vecs_tex inputPtr ninputels;
         Kernels.index_float ninputs vec_len nidxs output.vec_ptr;
         Kernels.unbind_index_float_vecs_tex ()
@@ -636,7 +636,7 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
         failwith $ 
           Printf.sprintf  
             "[GpuRuntime] unsupported element type for indexing (%s)"
-            (DynType.to_str elType)
+            (Type.to_str elType)
     end;
     Timing.stop Timing.gpuIndex;
     let gpuVal = GpuVal.GpuArray output in 
@@ -655,7 +655,7 @@ module Mk(P : GPU_RUNTIME_PARAMS) = struct
       let binPtr = GpuVal.get_ptr binVec in
       let nelts = GpuVal.nelts binVec in
       let scanShape = GpuVal.get_shape binVec in
-      let int32_vec_type = DynType.VecT DynType.Int32T in  
+      let int32_vec_type = Type.VecT Type.Int32T in  
       Timing.start Timing.gpuWhereAlloc; 
       let scanInterm = 
         MemoryState.mk_gpu_vec ~refcount:1 P.memState int32_vec_type scanShape 

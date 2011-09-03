@@ -1,18 +1,16 @@
 open Base
 open Imp 
 
-
 (* arithmetic simplifications *) 
 let rec simplify_arith expNode = match expNode.Imp.exp with
   | Imp.Op (Prim.Max, _, [x;y])
-  | Imp.Op (Prim.Min, _, [x;y]) 
-    when x.Imp.exp = y.Imp.exp -> x 
+  | Imp.Op (Prim.Min, _, [x;y]) when x.Imp.exp = y.Imp.exp -> x 
   | Imp.Op (op, t,  args) -> 
       let args' = List.map simplify_arith args in 
       let expNode' = {expNode with Imp.exp = Imp.Op(op, t, args') } in 
       begin match op, args' with
         | _, [{Imp.exp = Imp.Const n1}; {Imp.exp = Imp.Const n2}] -> 
-          if DynType.is_integer t && DynType.sizeof t < 32 then  
+          if Type.is_integer t && Type.sizeof t < 32 then  
             try 
               let opFn = match op with 
               | Prim.Add -> (+) | Prim.Sub -> (-)  
@@ -21,10 +19,10 @@ let rec simplify_arith expNode = match expNode.Imp.exp with
               | Prim.Mod -> (mod) 
               | _ -> assert false  
               in  
-              let n3 = opFn (PQNum.to_int n1) (PQNum.to_int n2) in 
-              { expNode with Imp.exp = Imp.Const (PQNum.coerce_int n3 t) }
+              let n3 = opFn (ParNum.to_int n1) (ParNum.to_int n2) in 
+              { expNode with Imp.exp = Imp.Const (ParNum.coerce_int n3 t) }
             with _ -> expNode' 
-          else if t = DynType.Int32T then  
+          else if t = Type.Int32T then  
             try 
               let opFn = match op with 
               | Prim.Add -> Int32.add | Prim.Sub -> Int32.sub  
@@ -34,8 +32,8 @@ let rec simplify_arith expNode = match expNode.Imp.exp with
               | _ -> 
                failwith ("op not implemented: " ^ (Prim.scalar_op_to_str op))
               in  
-              let n3 = opFn (PQNum.to_int32 n1) (PQNum.to_int32 n2) in 
-              { expNode with Imp.exp = Imp.Const (PQNum.coerce_int32 n3 t) }
+              let n3 = opFn (ParNum.to_int32 n1) (ParNum.to_int32 n2) in 
+              { expNode with Imp.exp = Imp.Const (ParNum.coerce_int32 n3 t) }
             with _ -> expNode' 
           else expNode' 
         (* 0 + x = x + 0 = x 
@@ -44,13 +42,13 @@ let rec simplify_arith expNode = match expNode.Imp.exp with
         | Prim.Sub, [x; {Imp.exp = Imp.Const n}] 
         | Prim.Add, [{Imp.exp = Imp.Const n}; x] 
         | Prim.Add, [x; {Imp.exp = Imp.Const n}] ->
-          if PQNum.is_zero n then Imp.cast t x 
+          if ParNum.is_zero n then Imp.cast t x 
           else expNode'
         | Prim.Mult, [{Imp.exp = Imp.Const n}; x] 
         | Prim.Mult, [x; {Imp.exp = Imp.Const n}] -> 
-          if PQNum.is_zero n then 
+          if ParNum.is_zero n then 
             Imp.cast t {expNode with Imp.exp = Imp.Const n}
-          else if PQNum.is_one n then 
+          else if ParNum.is_one n then 
             Imp.cast t x 
           else expNode' 
         | _ -> expNode'  
@@ -140,29 +138,6 @@ let rec contains_volatile volatileSet expNode =
    return an environment to propagate copies backwards 
 *)
 
-
-     
-   
-(*
-let rec remove_copies_block forwardCopyEnv = function 
-  | [] -> [], PMap.empty 
-  | stmt::rest ->
-      let rest', backwardCopyEnv = remove_copies_block rest forwardCopyEnv in   
-      let rest', backwardCopyEnv = remove_copies forwardCopyEnv rest in 
-      let tBlock', _ = remove_copies backwardCopyEnv tBlock in 
-      let fBlock', _ = remove_copies backwardCopyEnv fBlock in
-      let cond' = remove_copies_exp  
-      (If(cond
-  | (Set(id, _))::rest -> 
-      ID.Set.add id (find_defs rest)
-  | (While(_, body))::rest ->
-    let rest', copyEnv = 
-    let body', _ = remove_copies body in 
-     
-  | other::rest -> 
-    let rest', copyEnv = remove_copies rest in 
-    other :: rest', copyEnv   
-*)        
 type const_env = (Imp.exp, Imp.exp_node) PMap.t 
 
 let rec simplify_stmt 
@@ -238,8 +213,8 @@ let rec simplify_stmt
             let trueNode' = simplify_exp constEnv volatileSet  trueNode in 
             let falseNode' = simplify_exp constEnv volatileSet  falseNode in
             let rhs' = 
-              if switch'.exp = Const (PQNum.Bool true) then trueNode'
-              else if switch'.exp = Const (PQNum.Bool false) then falseNode' 
+              if switch'.exp = Const (ParNum.Bool true) then trueNode'
+              else if switch'.exp = Const (ParNum.Bool false) then falseNode' 
               else 
               { rhs with exp = Select(t, switch', trueNode', falseNode') }
             in    
@@ -248,7 +223,7 @@ let rec simplify_stmt
         | Cast (t, nestedNode) ->
             let nestedNode' = simplify_exp constEnv volatileSet  nestedNode in
             let rhs' = match nestedNode'.exp with 
-              | Const n -> { exp = Const (PQNum.coerce_num n t); exp_type = t} 
+              | Const n -> { exp = Const (ParNum.coerce_num n t); exp_type = t} 
               | _ -> {rhs with exp = Cast(t, nestedNode') } 
             in 
             Set(id, rhs'), constEnv

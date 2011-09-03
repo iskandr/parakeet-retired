@@ -264,8 +264,8 @@ module ManagedAlloc = struct
     gpuVec 
 
   let calc_nbytes len ty shape =
-    let eltT = DynType.elt_type ty in
-    let eltSize = DynType.sizeof eltT in
+    let eltT = Type.elt_type ty in
+    let eltSize = Type.sizeof eltT in
     len * eltSize 
 
 
@@ -299,7 +299,7 @@ module ManagedAlloc = struct
     gpuVec   
 
   let mk_gpu_val memState t shape = 
-    IFDEF DEBUG THEN assert (DynType.is_vec t); ENDIF; 
+    IFDEF DEBUG THEN assert (Type.is_vec t); ENDIF; 
     let gpuVec = mk_gpu_vec memState t shape in 
     GpuVal.GpuArray gpuVec   
 
@@ -307,8 +307,8 @@ module ManagedAlloc = struct
     let len = Shape.nelts shape in  
     let nbytes = match nbytes with 
       | None ->
-         let eltT = DynType.elt_type ty in 
-         let eltSize = DynType.sizeof eltT in
+         let eltT = Type.elt_type ty in 
+         let eltSize = Type.sizeof eltT in
          len * eltSize 
       | Some n -> n
     in  
@@ -521,7 +521,7 @@ let rec get_shape memState interpVal = match interpVal with
 
 let rec get_type memState interpVal = 
   match interpVal with  
-  | InterpVal.Scalar n -> PQNum.type_of_num n 
+  | InterpVal.Scalar n -> ParNum.type_of_num n 
   | InterpVal.Data id -> 
       if is_on_gpu memState interpVal then
         let gpuVec = Hashtbl.find memState.gpu_data id in  
@@ -534,16 +534,16 @@ let rec get_type memState interpVal =
   | InterpVal.Array arr -> 
       (* for now, assume uniformity of element types *) 
       let eltT = get_type memState arr.(0) in 
-      DynType.VecT eltT 
+      Type.VecT eltT 
 
 
 let rec sizeof memState interpVal = 
   let t = get_type memState interpVal in 
   match interpVal with  
-  | InterpVal.Scalar n -> DynType.sizeof t  
+  | InterpVal.Scalar n -> Type.sizeof t  
   | InterpVal.Data _ -> 
       let s = get_shape memState interpVal in 
-      Shape.nelts s * (DynType.sizeof (DynType.elt_type t))
+      Shape.nelts s * (Type.sizeof (Type.elt_type t))
   | InterpVal.Array arr ->  
       Array.fold_left (fun sum elt -> sum + sizeof memState elt) 0 arr 
 
@@ -573,7 +573,7 @@ let rec get_gpu memState = function
       let eltType = get_type memState elt in 
       let eltShape = get_shape memState elt in  
       let nbytes = nrows * eltSize in
-      let finalType = DynType.VecT eltType in 
+      let finalType = Type.VecT eltType in 
       let finalShape = Shape.append_dim nrows eltShape in 
       let destVec = mk_gpu_vec memState finalType finalShape in
       let destPtr = destVec.vec_ptr in 
@@ -585,22 +585,22 @@ let rec get_gpu memState = function
         Printf.printf 
           "[MemState] -- elt size: %d, elt type: %s, elt shape: %s\n" 
             eltSize
-            (DynType.to_str eltType)
+            (Type.to_str eltType)
             (Shape.to_str eltShape)
         ;
         Printf.printf 
           "[MemState] -- total size: %d, final type : %s,  final shape: %s\n"
           nbytes
-          (DynType.to_str finalType)
+          (Type.to_str finalType)
           (Shape.to_str finalShape)
         ;  
       ENDIF; 
       for i = 0 to nrows - 1 do 
         let currPtr = Int64.add destPtr (Int64.of_int $ i * eltSize) in 
         match arr.(i) with 
-          | InterpVal.Scalar (PQNum.Int32 i32) -> 
+          | InterpVal.Scalar (ParNum.Int32 i32) -> 
               Cuda.cuda_set_gpu_int32_vec_elt currPtr 0 i32 
-          | InterpVal.Scalar (PQNum.Float32 f32) -> 
+          | InterpVal.Scalar (ParNum.Float32 f32) -> 
               Cuda.cuda_set_gpu_float32_vec_elt currPtr 0 f32 
           | InterpVal.Data id -> 
               if Hashtbl.mem memState.gpu_data id then 
@@ -656,16 +656,16 @@ module Slicing = struct
    *)
   let slice_gpu_vec memState gpuVec idx : gpu_val = 
     let sliceShape = Shape.slice_shape gpuVec.vec_shape [0] in
-    let sliceType = DynType.peel_vec gpuVec.vec_t in
+    let sliceType = Type.peel_vec gpuVec.vec_t in
     let sliceVal = 
-      if DynType.is_scalar sliceType then index gpuVec idx 
+      if Type.is_scalar sliceType then index gpuVec idx 
       else (
         (* if the slice result is not a scalar, we have to increment 
            the reference count of the original data so we don't 
            leave this slice dangling by deleting its parent 
          *) 
         inc_data_ref memState (get_gpu_vec_id memState gpuVec); 
-        let bytesPerElt = DynType.sizeof (DynType.elt_type sliceType) in
+        let bytesPerElt = Type.sizeof (Type.elt_type sliceType) in
         let nelts =  Shape.nelts sliceShape in 
         let sliceBytes = bytesPerElt * nelts in
         GpuVal.GpuArray { 

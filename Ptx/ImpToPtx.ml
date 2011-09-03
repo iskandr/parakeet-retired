@@ -9,21 +9,20 @@ open PtxCodegen
 open Printf 
 
 
-  
 let num_to_ptx_const = function 
-  | PQNum.Char c -> int $  Char.code c
-  | PQNum.Int32 i -> int64 (Int64.of_int32 i)
-  | PQNum.Int64 i -> int64 i
-  | PQNum.Float32 f
-  | PQNum.Float64 f -> float f
-  | PQNum.Bool b -> int64 $ if b then 1L else 0L
-  | PQNum.Inf t when DynType.is_floating t -> float max_float
-  | PQNum.NegInf t when DynType.is_floating t -> float (-. max_float) 
-  | PQNum.Inf _ -> int max_int 
-  | PQNum.NegInf _ -> int min_int    
+  | ParNum.Char c -> int $  Char.code c
+  | ParNum.Int32 i -> int64 (Int64.of_int32 i)
+  | ParNum.Int64 i -> int64 i
+  | ParNum.Float32 f
+  | ParNum.Float64 f -> float f
+  | ParNum.Bool b -> int64 $ if b then 1L else 0L
+  | ParNum.Inf t when Type.is_floating t -> float max_float
+  | ParNum.NegInf t when Type.is_floating t -> float (-. max_float) 
+  | ParNum.Inf _ -> int max_int 
+  | ParNum.NegInf _ -> int min_int    
   | n -> 
       failwith $ Printf.sprintf "Can't convert %s to PTX"
-        (PQNum.num_to_str n)
+        (ParNum.num_to_str n)
 
 
 let prim_to_ptx_op codegen destReg args op t =
@@ -228,7 +227,7 @@ let gen_exp
       let idxReg = translate_arg idx idxPtxT in
       let eltBytes =
         PtxType.nbytes
-          (PtxType.storage_of_dyn_type (DynType.elt_type dynResultT))
+          (PtxType.storage_of_dyn_type (Type.elt_type dynResultT))
       in
       let isShared = codegen#is_shared_ptr baseReg in
       if not isShared && not (codegen#is_global_array_ptr baseReg) &&
@@ -451,24 +450,24 @@ let translate_kernel (impfn : Imp.fn) ?dataLayouts inputSpaces =
     let dims = Hashtbl.find_default impfn.sizes id [] in  
     IFDEF DEBUG THEN 
       let shapeRank = List.length dims in 
-      let typeRank = DynType.nest_depth t in 
+      let typeRank = Type.nest_depth t in 
       if shapeRank <> typeRank then 
         failwith $ 
           Printf.sprintf 
             "[ImpToPtx] Incorrect rank for imp variable %s : %s with shape %s"
             (ID.to_str id)
-            (DynType.to_str t)
+            (Type.to_str t)
             (SymbolicShape.shape_to_str dims)
     ENDIF;  
     ignore $
-      if DynType.is_scalar t then codegen#declare_local id t
+      if Type.is_scalar t then codegen#declare_local id t
       else (
         assert (Hashtbl.mem impfn.array_storage id); 
         match Hashtbl.find impfn.array_storage id with 
         | Shared ->
         (* since dims are all constant, evaluate them to ints *) 
         let intDims = List.map (ShapeEval.eval_exp_as_int ID.Map.empty) dims in  
-        codegen#declare_shared_vec id (DynType.elt_type t) intDims
+        codegen#declare_shared_vec id (Type.elt_type t) intDims
         | Private ->  codegen#declare_storage_arg id t   
         | _ -> codegen#declare_local id t 
       )

@@ -1,6 +1,6 @@
 (* pp: -parser o pa_macro.cmo *)
 
-open DynType 
+open Type 
 open Base
 open SSA 
 open SSA_Transform 

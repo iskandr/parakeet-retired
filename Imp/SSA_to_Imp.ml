@@ -24,7 +24,7 @@ module MkTranslator(P : PARAMS) = struct
 		          Printf.sprintf  
 		            "Can't find shape for Imp variable %s : %s"
 		            (ID.to_str id)
-		            (DynType.to_str expNode.exp_type) 
+		            (Type.to_str expNode.exp_type) 
              )
 		  | _ -> SymbolicShape.scalar
 		
@@ -40,7 +40,7 @@ module MkTranslator(P : PARAMS) = struct
     
     let translate_exp 
       (codeBuffer : ImpCodegen.code_buffer) 
-      (expectedType : DynType.t) 
+      (expectedType : Type.t) 
       (expNode : SSA.exp_node) = 
          let impExpNode = match expNode.SSA.exp with
 		  | SSA.Values [v] -> translate_value v
@@ -63,18 +63,13 @@ module MkTranslator(P : PARAMS) = struct
               failwith "[ssa2imp] argmin not implemented"     
           | SSA.PrimApp (Prim.ArrayOp Prim.ArgMax, [_]) -> 
               failwith "[ssa2imp] argmax not implemented" 
-		  | SSA.PrimApp (Prim.ArrayOp Prim.DimSize, [array; idx]) -> 
-            (match idx.SSA.value with 
-            | SSA.Num n ->  
-		          let array' = translate_value array in 
-		          let i = PQNum.to_int n in 
-		          Imp.dim i array'
-            | _ -> 
-              failwith $
-                "[ssa->imp] DimSize with non-constant index not yet implemented"
-            ) 
+		  | SSA.PrimApp (Prim.ArrayOp Prim.DimSize, [array; idx]) ->
+            let array' = translate_value array in 
+            let idx' = translate_value idx in 
+            { Imp.exp = Imp.DimSize(idx', array'); Imp.exp_type = Type.Int32T }
+             
 		  | SSA.PrimApp (Prim.ArrayOp Prim.Index, [inArray; idx]) -> 
-            if DynType.is_scalar $ idx.SSA.value_type then 
+            if Type.is_scalar $ idx.SSA.value_type then 
               Imp.idx (translate_value inArray) (translate_value idx)
             else 
               failwith "[ssa->imp] Vector indexing not implement" 
@@ -106,7 +101,7 @@ module MkTranslator(P : PARAMS) = struct
 		      let eltOutTypes = payload.SSA.closure_output_types in
 		      (* TODO: make this work for multiple outputs *)  
 		      let eltOutType = List.hd eltOutTypes in
-		      let vecOutType = DynType.VecT eltOutType in 
+		      let vecOutType = Type.VecT eltOutType in 
 		      let fundef_ssa = FnTable.find payload.SSA.closure_fn P.fnTable in
 		      let fundef_imp = P.translate_fundef fundef_ssa in
 		      let arrays_imp = translate_values arrays in
@@ -141,7 +136,7 @@ module MkTranslator(P : PARAMS) = struct
           let payloadInputs = 
             List.map  
               (fun arr ->
-                  if DynType.is_scalar arr.exp_type then arr 
+                  if Type.is_scalar arr.exp_type then arr 
                   else idx arr i) 
               arrays_imp
           in 
@@ -172,14 +167,14 @@ module MkTranslator(P : PARAMS) = struct
 		      ENDIF; 
 		      let arrayElts = 
 		        List.map2 
-		          (fun arr t -> if DynType.is_scalar t then arr else idx arr i) 
+		          (fun arr t -> if Type.is_scalar t then arr else idx arr i) 
 		          impArrays
 		          arrayTypes   
 		      in
 		      let payloadArgs = Array.of_list (acc :: arrayElts) in
 		      let payloadOutputs = [|acc|] in
 		      let bodyBlock = 
-		        if List.exists DynType.is_vec arrayTypes then 
+		        if List.exists Type.is_array arrayTypes then 
 		        [
 		          set i (int 0);
 		          (* assume arrays are of the same length *) 
@@ -225,9 +220,9 @@ module MkTranslator(P : PARAMS) = struct
          
     let translate_phi_nodes codeBuffer pred phiNodes =
       match pred.exp with 
-      | Imp.Const (PQNum.Bool true) ->
+      | Imp.Const (ParNum.Bool true) ->
         List.iter (translate_phi_branch codeBuffer true) phiNodes 
-      | Imp.Const (PQNum.Bool false) -> 
+      | Imp.Const (ParNum.Bool false) -> 
         List.iter (translate_phi_branch codeBuffer false) phiNodes
       | _ -> 
         let trueBuffer = P.fnState#fresh_code_buffer in
@@ -329,17 +324,6 @@ let rec translate_fundef fnTable fn =
     ID.Map.add id' shape' env  
   in
   let impSizeEnv = ID.Map.fold rename_shape_env sizeEnv ID.Map.empty in
-  (* 
-  IFDEF DEBUG THEN 
-    Printf.printf "[ssa2imp] Size env\n";
-    let print_size id sz =
-      Printf.printf "[ssa2imp] %s : %s\n"
-        (ID.to_str id)
-        (SymbolicShape.to_str sz)
-    in 
-    ID.Map.iter print_size impSizeEnv
-  ENDIF;
-  *)
   let module Translator = MkTranslator(struct
     let fnTable = fnTable 
     let idEnv = idEnv

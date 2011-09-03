@@ -21,7 +21,7 @@ open Printf
 
 class type fn_state_interface = object 
   method has_type : ID.t -> bool 
-  method get_type : ID.t -> DynType.t
+  method get_type : ID.t -> Type.t
   
   method get_id_shape : ID.t -> SymbolicShape.shape
   method get_exp_shape : Imp.exp_node -> SymbolicShape.shape
@@ -34,27 +34,27 @@ class type fn_state_interface = object
   method get_array_storage : ID.t -> Imp.array_storage
   method set_array_storage : ID.t -> Imp.array_storage -> unit
    
-  method fresh_id : DynType.t -> ID.t 
+  method fresh_id : Type.t -> ID.t 
   
   method fresh_local_id : 
       ?dims:(Imp.exp_node list) -> ?storage:Imp.array_storage -> 
-        DynType.t -> ID.t
+        Type.t -> ID.t
          
   method add_to_locals : ID.t -> unit 
   
   method fresh_var : 
       ?dims:(Imp.exp_node list) -> ?storage:Imp.array_storage -> 
-        DynType.t -> Imp.exp_node
-  method fresh_vars : int -> DynType.t -> Imp.exp_node array
+        Type.t -> Imp.exp_node
+  method fresh_vars : int -> Type.t -> Imp.exp_node array
     
-  method fresh_input_id : DynType.t -> ID.t 
-  method fresh_input : DynType.t -> Imp.exp_node 
+  method fresh_input_id : Type.t -> ID.t 
+  method fresh_input : Type.t -> Imp.exp_node 
     
-  method fresh_output_id : ?dims:(Imp.exp_node list) -> DynType.t -> ID.t 
-  method fresh_output : ?dims:(Imp.exp_node list) -> DynType.t -> Imp.exp_node 
+  method fresh_output_id : ?dims:(Imp.exp_node list) -> Type.t -> ID.t 
+  method fresh_output : ?dims:(Imp.exp_node list) -> Type.t -> Imp.exp_node 
     
-  method shared_vec_id : DynType.t -> int list -> ID.t 
-  method shared_vec_var : DynType.t -> int list -> Imp.exp_node
+  method shared_vec_id : Type.t -> int list -> ID.t 
+  method shared_vec_var : Type.t -> int list -> Imp.exp_node
 end
 
 let is_simple eNode = match eNode.exp with   
@@ -79,7 +79,7 @@ class code_buffer (fnState: fn_state_interface) = object(self)
   val expCache  = ((Hashtbl.create 127) : (Imp.exp, ID.t) Hashtbl.t)
     
   (* cache variables which are casts of constant expressions *) 
-  val coercionCache : (Imp.exp * DynType.t, Imp.exp_node) Hashtbl.t = 
+  val coercionCache : (Imp.exp * Type.t, Imp.exp_node) Hashtbl.t = 
     Hashtbl.create 127
   (* prints last 10 stmts before throwing exceptions *) 
   method private fail_with_context msg = 
@@ -96,7 +96,7 @@ class code_buffer (fnState: fn_state_interface) = object(self)
   method private register_slice_storage = function 
     | [] -> () 
     | (Set(id, {exp=Idx({exp=Var arrId}, _)}))::rest 
-      when DynType.nest_depth (fnState#get_type arrId) > 1 ->
+      when Type.rank (fnState#get_type arrId) > 1 ->
         fnState#set_array_storage id Imp.Slice;  
         self#register_slice_storage rest 
     | _::rest -> self#register_slice_storage rest 
@@ -110,21 +110,21 @@ class code_buffer (fnState: fn_state_interface) = object(self)
     let rhsType = rhs.exp_type in 
     if lhsType <> rhsType  then (
       IFDEF DEBUG THEN
-      if not $ DynType.is_scalar lhsType then 
+      if not $ Type.is_scalar lhsType then 
         failwith $
           Printf.sprintf 
             "expected x%d to be a scalar of type %s, got: %s"
             id 
-            (DynType.to_str rhsType)
-            (DynType.to_str lhsType)
+            (Type.to_str rhsType)
+            (Type.to_str lhsType)
         ; 
-      if not $ DynType.is_scalar rhsType then 
+      if not $ Type.is_scalar rhsType then 
         failwith $ 
           Printf.sprintf 
             "expected %s to be a scalar %s, got: %s"
             (Imp.exp_node_to_str rhs)
-            (DynType.to_str lhsType)
-            (DynType.to_str rhsType)
+            (Type.to_str lhsType)
+            (Type.to_str rhsType)
           ; 
         ENDIF;
       let cacheKey = rhs.exp, lhsType in
@@ -196,15 +196,15 @@ class code_buffer (fnState: fn_state_interface) = object(self)
             stmts, arg'
           else 
             stmts, { expNode with exp =  Cast(t1, arg') }   
-      | DimSize (i, arg) -> 
-          let stmts, arg' = flatten_arg arg in
-          let expNode' = {expNode with exp = DimSize(i,arg') } in 
-          stmts, expNode'   
+      | DimSize (idx, arg) ->
+          let stmts1, idx' = flatten_arg idx in 
+          let stmts2, arg' = flatten_arg arg in
+          let expNode' = {expNode with exp = DimSize(idx',arg') } in 
+          stmts1 @ stmts2, expNode'   
       | Idx (lhs, rhs) ->
           let lhsStmts, lhs' = flatten_arg lhs in 
           let rhsStmts, rhs' = flatten_arg rhs in
-          let allStmts = lhsStmts @ rhsStmts in 
-          allStmts, { expNode with exp = Idx(lhs', rhs') } 
+          lhsStmts @ rhsStmts, { expNode with exp = Idx(lhs', rhs') } 
             
       | Op (op, argType, args) ->
           let stmts, args' = flatten_args args in
@@ -302,7 +302,7 @@ class code_buffer (fnState: fn_state_interface) = object(self)
       if MutableSet.mem fn.local_id_set id then (
         let id' = fnState#fresh_id t in
         fnState#add_to_locals id'; 
-        if not (DynType.is_scalar t) then (
+        if not (Type.is_scalar t) then (
           assert (Hashtbl.mem fn.array_storage id);
           fnState#set_array_storage id' (Hashtbl.find fn.array_storage id); 
           let oldShape = Hashtbl.find fn.sizes id in
@@ -339,7 +339,7 @@ class code_buffer (fnState: fn_state_interface) = object(self)
 end
 
 and fn_state = object (self)
-    val types : (ID.t, DynType.t) Hashtbl.t = Hashtbl.create 127
+    val types : (ID.t, Type.t) Hashtbl.t = Hashtbl.create 127
     val array_storage : (ID.t, Imp.array_storage) Hashtbl.t = Hashtbl.create 127
     val sizes : (ID.t, Imp.exp_node list) Hashtbl.t = Hashtbl.create 127 
     
@@ -380,7 +380,7 @@ and fn_state = object (self)
     method is_shared id = 
       Hashtbl.mem array_storage id && Hashtbl.find array_storage id = Imp.Shared
          
-    method is_array id = DynType.is_vec (self#get_type id)  
+    method is_array id = Type.is_vec (self#get_type id)  
       
     method has_array_storage arrId = Hashtbl.mem array_storage arrId   
     method get_array_storage arrId = Hashtbl.find array_storage arrId 
@@ -398,12 +398,12 @@ and fn_state = object (self)
       let id = self#fresh_id t in
       self#add_to_locals id; 
       self#set_shape id dims;
-      if DynType.is_vec t then (
+      if Type.is_vec t then (
         match dims with 
           | [] ->    
             failwith $ Printf.sprintf 
               "[ImpCodegen] Local var of type %s can't have scalar shape"
-              (DynType.to_str t)
+              (Type.to_str t)
           | _ ->
 
             self#set_array_storage id storage 
@@ -419,7 +419,7 @@ and fn_state = object (self)
       let id = self#fresh_id t in
       Hashtbl.add sizes id (SymbolicShape.all_dims (Imp.var ~t id));  
       MutableSet.add inputSet id;
-      if DynType.is_vec t then 
+      if Type.is_vec t then 
         Hashtbl.add array_storage id Imp.Global
       ; 
       DynArray.add inputs id;    
@@ -433,11 +433,11 @@ and fn_state = object (self)
       DynArray.add outputs id;  
       MutableSet.add outputSet id;
      
-      if DynType.is_scalar t then (  
+      if Type.is_scalar t then (  
         if dims <> [] then failwith $ 
            Printf.sprintf 
              "[ImpCodegen] Cannot create var of type %s and non-scalar shape %s"
-             (DynType.to_str t)
+             (Type.to_str t)
              (SymbolicShape.shape_to_str dims)
       )
       else (
@@ -446,7 +446,7 @@ and fn_state = object (self)
           Printf.sprintf 
              "[ImpCodegen] 
                  Cannot create var of vector type %s and scalar shape %s"
-             (DynType.to_str t)
+             (Type.to_str t)
              (SymbolicShape.shape_to_str dims);   
       ); 
       id
@@ -468,7 +468,7 @@ and fn_state = object (self)
       id 
       
     method shared_vec_var t dims = 
-      assert (DynType.nest_depth t = 1); 
+      assert (Type.rank t = 1); 
       {exp =Var (self#shared_vec_id t dims); exp_type= t} 
     
     method finalize = 

@@ -1,7 +1,7 @@
 (* pp: -parser o pa_macro.cmo *)
 
 open Base
-open DynType
+open Type
 open HostVal
 open Cuda 
 
@@ -20,7 +20,7 @@ type gpu_vec = {
   vec_shape_nbytes: int;
 
   vec_shape : Shape.t;
-  vec_t : DynType.t;
+  vec_t : Type.t;
 
   (* if this is a slice into some other array,
      then note the start pointer to avoid calling
@@ -36,37 +36,37 @@ type gpu_vec = {
   *)
 }
 
-type gpu_val = GpuScalar of PQNum.num | GpuArray of gpu_vec
+type gpu_val = GpuScalar of ParNum.num | GpuArray of gpu_vec
 
 let get_gpu_vec = function 
   | GpuScalar _ -> failwith "Expected GPU vector"
   | GpuArray data -> data 
 
-let get_elt (gpuVec : gpu_vec) (idx:int) : PQNum.num = 
-  let t = DynType.elt_type gpuVec.vec_t in  
+let get_elt (gpuVec : gpu_vec) (idx:int) : ParNum.num = 
+  let t = Type.elt_type gpuVec.vec_t in  
   match t with 
-  | DynType.Int32T ->
+  | Type.Int32T ->
       let i32 = Cuda.cuda_get_gpu_int32_vec_elt gpuVec.vec_ptr idx in  
-      PQNum.Int32 i32         
-  | DynType.Float32T ->
+      ParNum.Int32 i32         
+  | Type.Float32T ->
       let f = Cuda.cuda_get_gpu_float32_vec_elt gpuVec.vec_ptr idx in  
-      PQNum.Float32 f 
-  | DynType.CharT ->
+      ParNum.Float32 f 
+  | Type.CharT ->
       let i =  Cuda.cuda_get_gpu_int8_vec_elt gpuVec.vec_ptr idx in
-      PQNum.Char (Char.chr i) 
-  | DynType.BoolT ->
+      ParNum.Char (Char.chr i) 
+  | Type.BoolT ->
       let i = Cuda.cuda_get_gpu_int8_vec_elt gpuVec.vec_ptr idx in 
-      PQNum.Bool (i > 0)
+      ParNum.Bool (i > 0)
   | _ -> 
-      let tStr = DynType.to_str t in 
+      let tStr = Type.to_str t in 
       failwith ("[GpuVal] gpu_elt: type not supported: " ^ tStr) 
 
 let elt_to_str gpuVec idx = 
-  match DynType.elt_type gpuVec.vec_t with 
-  | DynType.Int32T  
-  | DynType.Float32T 
-  | DynType.CharT 
-  | DynType.BoolT -> PQNum.num_to_str (get_elt gpuVec idx) 
+  match Type.elt_type gpuVec.vec_t with 
+  | Type.Int32T  
+  | Type.Float32T 
+  | Type.CharT 
+  | Type.BoolT -> ParNum.num_to_str (get_elt gpuVec idx) 
   | _ -> "?" 
 
 let elts_summary gpuVec =
@@ -94,7 +94,7 @@ let gpu_vec_to_str ?(show_contents=true) gpuVec =
     Printf.sprintf 
       "GpuVec(%stype=%s, shape=%s, address=%Lx)"
         (if gpuVec.vec_slice_start = None then "" else "SLICE, ") 
-        (DynType.to_str gpuVec.vec_t)
+        (Type.to_str gpuVec.vec_t)
         (gpu_shape_to_str gpuVec)
         gpuVec.vec_ptr
   in 
@@ -103,7 +103,7 @@ let gpu_vec_to_str ?(show_contents=true) gpuVec =
       
 
 let to_str ?(show_contents=true) = function 
-  | GpuScalar n -> Printf.sprintf "GpuScalar(%s)" (PQNum.num_to_str n)
+  | GpuScalar n -> Printf.sprintf "GpuScalar(%s)" (ParNum.num_to_str n)
   | GpuArray gpuVec -> gpu_vec_to_str ~show_contents gpuVec
        
 
@@ -125,7 +125,7 @@ let get_shape_nbytes = function
 
 let get_type = function
   | GpuArray v -> v.vec_t
-  | GpuScalar n -> (PQNum.type_of_num n)
+  | GpuScalar n -> (ParNum.type_of_num n)
 
 let get_ptr = function
   | GpuArray v -> v.vec_ptr
@@ -137,7 +137,7 @@ let get_scalar = function
 
 let get_nbytes = function
   | GpuArray v -> v.vec_nbytes
-  | GpuScalar s -> DynType.sizeof (PQNum.type_of_num s)
+  | GpuScalar s -> Type.sizeof (ParNum.type_of_num s)
 (*
 let get_data_layout = function
   | GpuArray v -> v.vec_data_layout
@@ -148,17 +148,17 @@ let mk_scalar n = GpuScalar n
       
 let sizeof = function 
   | GpuArray arr -> arr.vec_nbytes 
-  | GpuScalar n -> DynType.sizeof (PQNum.type_of_num n)
+  | GpuScalar n -> Type.sizeof (ParNum.type_of_num n)
 
 let index arr idx =
-  match DynType.elt_type arr.vec_t with 
-    | DynType.Int32T -> 
+  match Type.elt_type arr.vec_t with 
+    | Type.Int32T -> 
         let i32 = Cuda.cuda_get_gpu_int32_vec_elt arr.vec_ptr idx in 
-        GpuScalar (PQNum.Int32 i32)         
-    | DynType.Float32T ->
+        GpuScalar (ParNum.Int32 i32)         
+    | Type.Float32T ->
         let f = Cuda.cuda_get_gpu_float32_vec_elt arr.vec_ptr idx in  
-        GpuScalar (PQNum.Float32 f) 
+        GpuScalar (ParNum.Float32 f) 
 
     | _ -> failwith $ Printf.sprintf 
                "Indexing into GPU vectors not implemented for type %s"
-               (DynType.to_str $  DynType.elt_type arr.vec_t)
+               (Type.to_str $  Type.elt_type arr.vec_t)

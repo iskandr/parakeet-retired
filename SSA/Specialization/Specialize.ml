@@ -3,7 +3,7 @@
 open Base
 open SSA
 open SSA_Codegen 
-open DynType
+open Type
 open Printf 
 
 (* make a fresh function definition whose body is only an untyped prim *) 
@@ -17,7 +17,7 @@ let mk_untyped_prim_fundef prim arity : fundef =
   else 
   let inputs = ID.gen_fresh_list arity in 
   let output = ID.gen() in 
-  let bottoms = List.map (fun _ -> DynType.BottomT) inputs in 
+  let bottoms = List.map (fun _ -> Type.BottomT) inputs in 
   let inputVars = List.map (fun id -> SSA.mk_var id) inputs in 
   let rhs = SSA.mk_app ~types:bottoms (SSA.mk_val (Prim prim)) inputVars in    
   let body = Block.singleton (SSA.mk_set [output] rhs) in 
@@ -55,7 +55,7 @@ let mk_typed_scalar_prim (op : Prim.scalar_op) ?optOutType argTypes =
 
 let mk_typed_map_fundef ?src nestedFundef inputTypes = 
   let nestedOutputTypes = nestedFundef.SSA.fn_output_types in 
-  let outTypes = List.map (fun t -> DynType.VecT t) nestedOutputTypes in
+  let outTypes = List.map (fun t -> Type.VecT t) nestedOutputTypes in
   let closure = SSA.mk_closure nestedFundef [] in 
   SSA_Codegen.mk_codegen_fn inputTypes outTypes $ fun codegen inputs outputs ->
     codegen#emit [outputs := (SSA.mk_map ?src closure inputs )]  
@@ -109,7 +109,7 @@ let rec specialize_fundef interpState fundef signature =
      vectors of the same rank or scalars. 
    *) 
   let inTypes = Signature.input_types signature in
-  let ranks = List.map DynType.nest_depth inTypes in 
+  let ranks = List.map Type.nest_depth inTypes in 
   let maxRank = List.fold_left max 0 ranks in 
   if not (Signature.has_output_types signature) && 
      maxRank > 0 && 
@@ -150,7 +150,7 @@ let rec specialize_fundef interpState fundef signature =
 and scalarize_fundef interpState untypedFundef vecSig =
   let inTypes = Signature.input_types vecSig in 
   let scalarSig = 
-    Signature.from_input_types (List.map DynType.peel_vec inTypes) 
+    Signature.from_input_types (List.map Type.peel_vec inTypes) 
   in 
   let scalarFundef = 
     specialize_value interpState (SSA.GlobalFn untypedFundef.fn_id) scalarSig
@@ -193,15 +193,15 @@ and specialize_value interpState fnVal signature =
             Option.map List.hd (Signature.output_types_option signature)
           in
           let typedFundef = 
-            if List.for_all DynType.is_scalar inputTypes then 
+            if List.for_all Type.is_scalar inputTypes then 
              mk_typed_scalar_prim op ?optOutType inputTypes 
           else
-            let nestedInputTypes = List.map DynType.peel_vec inputTypes in 
+            let nestedInputTypes = List.map Type.peel_vec inputTypes in 
             let nestedSig = 
               match optOutType with 
                 | None -> Signature.from_input_types nestedInputTypes
                 | Some outT -> 
-                  Signature.from_types nestedInputTypes [DynType.peel_vec outT]
+                  Signature.from_types nestedInputTypes [Type.peel_vec outT]
             in
             let nestedFundef = specialize_value interpState fnVal nestedSig in
             mk_typed_map_fundef nestedFundef inputTypes

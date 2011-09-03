@@ -5,7 +5,7 @@ open SSA
 open Printf 
 
 type errors = (SourceInfo.t option * string) Queue.t 
-type tenv = DynType.t ID.Map.t 
+type tenv = Type.t ID.Map.t 
 
 
 let rec check_stmt 
@@ -36,9 +36,9 @@ let rec check_stmt
           err $ sprintf 
             "type error in assignment: %s type %s, but rhs %s type %s %s"
             (if lhsCount > 1 then "identifiers have" else  "identifier has")
-            (DynType.type_list_to_str lhsTypes)
+            (Type.type_list_to_str lhsTypes)
             (if rhsCount > 1 then  "values have" else "value has")
-            (DynType.type_list_to_str rhsTypes)
+            (Type.type_list_to_str rhsTypes)
             (if lhsCount <> rhsCount then "(arity mismatch)" else "")
          )
       );
@@ -50,7 +50,7 @@ let rec check_stmt
           (ID.to_str arrId) 
       else (
         let lhsType = ID.Map.find arrId tenv in 
-        if DynType.is_scalar lhsType then 
+        if Type.is_scalar lhsType then 
           err $ Printf.sprintf "cannot index into scalar %s" (ID.to_str arrId)
       ); 
       check_value_list errorLog tenv defined indices;
@@ -79,8 +79,8 @@ and check_exp errorLog tenv (defined : ID.Set.t) (expNode : exp_node) : unit =
       check_value_list errorLog tenv defined args; 
       let argTypes = List.map (fun v -> v.value_type) args in
       let fnType = fn.value_type in  
-      if DynType.is_function fnType then (
-        let expectedTypes =  DynType.fn_input_types fnType in
+      if Type.is_function fnType then (
+        let expectedTypes =  Type.fn_input_types fnType in
         (* HACK: ignore the case where there are too few args so our primitive
            closure implementation doesn't break 
         *) 
@@ -89,20 +89,20 @@ and check_exp errorLog tenv (defined : ID.Set.t) (expNode : exp_node) : unit =
             err $ sprintf  
               "type mismatch in function application\n\
               \t  - expected: %s\n\t  - received: %s"
-              (DynType.type_list_to_str expectedTypes)
-              (DynType.type_list_to_str argTypes)
+              (Type.type_list_to_str expectedTypes)
+              (Type.type_list_to_str argTypes)
             ;
-          let retTypes = DynType.fn_output_types fnType in 
+          let retTypes = Type.fn_output_types fnType in 
           if retTypes <> expNode.exp_types then 
             err $ sprintf 
               "function returns %s but context expects to receive %s"
-              (DynType.type_list_to_str retTypes)
-              (DynType.type_list_to_str expNode.exp_types)
+              (Type.type_list_to_str retTypes)
+              (Type.type_list_to_str expNode.exp_types)
         )
       )
       else err $  
              sprintf "expected a function type, received: %s"
-               (DynType.to_str fnType)
+               (Type.to_str fnType)
    
   | Values vs 
   | Arr vs -> check_value_list errorLog tenv defined vs
@@ -110,8 +110,8 @@ and check_exp errorLog tenv (defined : ID.Set.t) (expNode : exp_node) : unit =
       check_value errorLog tenv defined v; 
       if expNode.exp_types <> [t] then 
         err $ sprintf "context expects type %s but cast is to type %s"
-          (DynType.type_list_to_str expNode.exp_types)
-          (DynType.to_str t)  
+          (Type.type_list_to_str expNode.exp_types)
+          (Type.to_str t)  
   | Call (typedFn, args) -> ()
   | PrimApp (typedPrim, args) -> ()  
   | Map (closure,args) -> ()
@@ -130,21 +130,21 @@ and check_value (errorLog:errors)(tenv:tenv) (defined : ID.Set.t) vNode : unit =
         if t <> vNode.value_type then 
           err $ sprintf 
             "type annotation %s for variable %s does not match its type %s"
-            (DynType.to_str vNode.value_type)
+            (Type.to_str vNode.value_type)
             (ID.to_str id)
-            (DynType.to_str t)
+            (Type.to_str t)
         )
   | Num _ ->  
-      if not $ DynType.is_number vNode.value_type then
+      if not $ Type.is_number vNode.value_type then
         err "number annotated with non-numeric type" 
   | Prim _
   | GlobalFn _ -> 
-      if not $ DynType.is_function vNode.value_type then 
+      if not $ Type.is_function vNode.value_type then 
         err "expected function annotation"  
   | Sym _ | Str _ | Unit  -> ()
 and check_value_list errorLog tenv defined values = 
   List.iter (check_value errorLog tenv defined) values
-and check_block (errorLog : errors) (tenv : DynType.t ID.Map.t) defined block = 
+and check_block (errorLog : errors) (tenv : Type.t ID.Map.t) defined block = 
   Block.fold_forward
     (fun accDefined stmtNode -> check_stmt errorLog tenv accDefined stmtNode) 
     defined

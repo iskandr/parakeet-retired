@@ -32,21 +32,21 @@ class ptx_codegen : object
   
   method get_array_rank : PtxVal.value -> int 
   
-  method imp_dyn_type : ID.t -> DynType.t 
+  method imp_dyn_type : ID.t -> Type.t 
   method imp_reg : ID.t -> PtxVal.value
    
-  method declare_shared_vec : ID.t -> DynType.t -> int list -> PtxVal.value 
+  method declare_shared_vec : ID.t -> Type.t -> int list -> PtxVal.value 
   method declare_slice : PtxVal.value -> PtxVal.value -> unit 
   
   (* a scalar local *) 
-  method declare_local : ID.t -> DynType.t -> PtxVal.value 
+  method declare_local : ID.t -> Type.t -> PtxVal.value 
   (* a local which needs heap storage *) 
-  method declare_storage_arg : ID.t -> DynType.t -> PtxVal.value
+  method declare_storage_arg : ID.t -> Type.t -> PtxVal.value
   method declare_input 
-    : ID.t -> DynType.t -> ?dataLayout:GpuVal.data_layout -> 
+    : ID.t -> Type.t -> ?dataLayout:GpuVal.data_layout -> 
       PtxVal.ptx_space -> PtxVal.value
          
-  method declare_output : ID.t -> DynType.t -> PtxVal.value 
+  method declare_output : ID.t -> Type.t -> PtxVal.value 
   
   method compute_threads_per_block : PtxVal.value 
   method compute_linear_block_index : PtxVal.value 

@@ -3,13 +3,13 @@ open Base
 open SSA 
 open SSA_Transform
 open Printf 
-open DynType 
+open Type 
  
 module type REWRITE_PARAMS = sig
   val output_arity : value -> int 
   val specializer : value -> Signature.t -> fundef   
   val closureEnv : CollectPartialApps.closure_env
-  val tenv : (ID.t, DynType.t) Hashtbl.t 
+  val tenv : (ID.t, Type.t) Hashtbl.t 
 end  
 
 module Rewrite_Rules (P: REWRITE_PARAMS) = struct
@@ -31,12 +31,9 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
     Hashtbl.find P.closureEnv.CollectPartialApps.closure_arity id   
   
   let infer_value_type = function 
-    | Var id -> if is_closure id then DynType.BottomT else get_type id 
-    | Num n -> PQNum.type_of_num n 
-    | Str _ -> DynType.StrT
-    | Sym _ -> DynType.SymT
-    | Unit -> DynType.UnitT
-    | other -> DynType.BottomT 
+    | Var id -> if is_closure id then Type.BottomT else get_type id 
+    | Num n -> ParNum.type_of_num n 
+    | other -> Type.BottomT 
   
   let infer_value_node_type valNode =
     infer_value_type valNode.value   
@@ -86,7 +83,7 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
     if valNode.value_type = t then valNode    
     else match valNode.value with 
       | Num n ->
-        let n' = PQNum.coerce_num n t in 
+        let n' = ParNum.coerce_num n t in 
         SSA.mk_num ?src:valNode.value_src ~ty:t n' 
       | Var id ->   
         let t' = get_type id in
@@ -95,23 +92,11 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
           Printf.sprintf 
             "Cannot rewrite %s : %s to become %s"
             (ID.to_str id)
-            (DynType.to_str t')
-            (DynType.to_str t)
-      | Str _ -> 
-        if t = DynType.StrT then 
-          {valNode with value_type = DynType.StrT} 
-        else assert false
-      | Sym _ -> 
-        if t = DynType.SymT then 
-          {valNode with value_type = DynType.SymT} 
-        else assert false 
-      | Unit ->
-        if t = DynType.UnitT then 
-          {valNode with value_type = DynType.UnitT} 
-        else assert false    
+            (Type.to_str t')
+            (Type.to_str t)
       | _ ->   
         failwith  $ Printf.sprintf "Can't coerce value %s to type %s"
-          (SSA.value_node_to_str valNode) (DynType.to_str t)
+          (SSA.value_node_to_str valNode) (Type.to_str t)
   
   
   (* if a value needs to be coerced, then it gets added to this list. 
@@ -123,7 +108,7 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
     coercions := stmtNode :: !coercions 
     
   let collect_coercions stmtNode = 
-    let stmts = List.rev $ stmtNode :: !coercions in 
+    let stmts = List.rev $ (stmtNode :: !coercions) in 
     coercions := []; 
     stmts 
   
@@ -145,7 +130,7 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
   let rewrite_adverb src adverb fnVal argNodes argTypes = 
     match adverb with 
       | Prim.Map ->
-        let eltTypes = List.map DynType.peel_vec argTypes in 
+        let eltTypes = List.map Type.peel_vec argTypes in 
         let closure = 
           mk_typed_closure fnVal (Signature.from_input_types eltTypes) 
         in 
@@ -154,7 +139,7 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
         let arity = P.output_arity fnVal in 
         let initArgs, args = List.split_nth arity argNodes in 
         let initTypes, argTypes = List.split_nth arity argTypes in
-        let eltTypes = List.map DynType.peel_vec argTypes in
+        let eltTypes = List.map Type.peel_vec argTypes in
         let initSignature = 
           Signature.from_input_types (initTypes @ eltTypes)
         in 
@@ -166,7 +151,7 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
         let reduceClosure = mk_typed_closure fnVal reduceSignature in 
         SSA.mk_reduce ?src initClosure reduceClosure initArgs args  
       | Prim.AllPairs -> 
-        (*let eltTypes = List.map DynType.peel_vec argTypes in
+        (*let eltTypes = List.map Type.peel_vec argTypes in
         let eltSignature = Signature.from_input_types eltTypes in
         *) 
         assert false  
@@ -178,7 +163,7 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
     match fnVal with
     | Prim ((Prim.ScalarOp op) as p) -> 
       let outT = TypeInfer.infer_scalar_op op argTypes in
-      if DynType.is_scalar outT then  
+      if Type.is_scalar outT then  
         SSA.mk_primapp p [outT] argNodes
       else 
         rewrite_adverb src Prim.Map fnVal argNodes argTypes 
@@ -187,19 +172,19 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
         (* Transform boolean index x[b] into x[where b] *) 
         (match p, argNodes, argTypes with
           | Prim.ArrayOp Prim.Index, [array; index], [arrayType; indexType] 
-            when DynType.elt_type indexType = DynType.BoolT ->
+            when Type.elt_type indexType = Type.BoolT ->
               IFDEF DEBUG THEN 
-                if DynType.nest_depth indexType <> 1 then 
+                if Type.nest_depth indexType <> 1 then 
                   failwith "Expected boolean index vector to be 1D"
               ENDIF;  
-              let whereT = DynType.VecT DynType.Int32T in 
+              let whereT = Type.VecT Type.Int32T in 
               let whereId = fresh_id whereT in 
               let whereExp = 
                 SSA.mk_primapp ?src (Prim.ArrayOp Prim.Where) [whereT] [index] 
               in 
               add_coercion (SSA.mk_set ?src [whereId] whereExp); 
               let args' = array :: [SSA.mk_var ?src ~ty:whereT whereId] in
-              let resultType = DynType.VecT (DynType.elt_type arrayType) in 
+              let resultType = Type.VecT (Type.elt_type arrayType) in 
               SSA.mk_primapp ?src (Prim.ArrayOp Prim.Index) [resultType] args'  
           | _ -> 
             let outT = TypeInfer.infer_simple_array_op op argTypes in
@@ -241,7 +226,7 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
           (closureArgs @ argNodes)   
       else 
         let arrType = infer_value_node_type fn in 
-        let outTypes = [DynType.slice_type arrType argTypes] in
+        let outTypes = [Type.slice_type arrType argTypes] in
         let arrNode = {fn with value_type = arrType} in 
         SSA.mk_primapp 
           ?src 
@@ -254,7 +239,7 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
       
   let rewrite_exp types expNode =
     match expNode.exp, types with 
-      | Arr elts, [DynType.VecT eltT] ->
+      | Arr elts, [Type.VecT eltT] ->
           let elts' = coerce_values eltT elts in 
           {expNode with exp = Arr elts'; exp_types = types}
       | Values vs, _ ->
@@ -287,7 +272,7 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
     | SetIdx (arrayId, indices, rhs) -> failwith "setidx not implemented"
  
     | If(cond, tBlock, fBlock, phiNodes) -> 
-        let cond' = coerce_value DynType.BoolT cond in
+        let cond' = coerce_value Type.BoolT cond in
         let tBlock' = transform_block tBlock in 
         let fBlock' = transform_block fBlock in
         let phiNodes' = rewrite_phi_nodes phiNodes in 
@@ -299,7 +284,7 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
     | WhileLoop(testBlock, testVal, body, header) -> 
         let body' = transform_block body in
         let testBlock' = transform_block testBlock in
-        let testVal' = coerce_value DynType.BoolT testVal in  
+        let testVal' = coerce_value Type.BoolT testVal in  
         let header' = rewrite_phi_nodes header in 
         let stmtNode' =  { stmtNode with 
             stmt =WhileLoop(testBlock', testVal', body', header')

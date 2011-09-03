@@ -1,20 +1,20 @@
 open SSA 
 
 class ssa_codegen : object 
-    val types : DynType.t ID.Map.t ref   
+    val types : Type.t ID.Map.t ref   
     val code : stmt_node DynArray.t 
     
-    method get_type_env : DynType.t ID.Map.t 
-    method get_type  : ID.t -> DynType.t  
-    method add_type : ID.t -> DynType.t -> unit   
+    method get_type_env : Type.t ID.Map.t 
+    method get_type  : ID.t -> Type.t  
+    method add_type : ID.t -> Type.t -> unit   
     
-    method fresh_var  : DynType.t -> ID.t 
+    method fresh_var  : Type.t -> ID.t 
     method id_value_node : ID.t -> value_node 
     
-    method cvt : to_type:DynType.t->from_type:DynType.t->value_node->value_node  
+    method cvt : to_type:Type.t->from_type:Type.t->value_node->value_node  
       
     method cvt_list 
-      : to_type : DynType.t -> from_types:DynType.t list -> 
+      : to_type : Type.t -> from_types:Type.t list -> 
           value_node list ->value_node list 
         
     method emit : stmt_node list -> unit 
@@ -23,7 +23,7 @@ class ssa_codegen : object
 end
 
 val mk_codegen_fn 
-      : DynType.t list ->  DynType.t list -> 
+      : Type.t list ->  Type.t list -> 
         (ssa_codegen -> value_node list-> value_node list -> unit) -> fundef 
     
     

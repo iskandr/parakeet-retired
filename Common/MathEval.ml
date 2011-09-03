@@ -4,7 +4,7 @@ open Base
 
 type 'a math_ops = {  
   of_int : int -> 'a; 
-  of_pqnum : PQNum.num -> 'a;
+  of_pqnum : ParNum.t -> 'a;
   to_str : 'a -> string; 
   
   safe_div : 'a -> 'a -> 'a;  
@@ -43,7 +43,7 @@ let int_ops : int math_ops = {
   add = ( + );
   sub = ( - ); 
   of_int = (fun x -> x); 
-  of_pqnum = PQNum.to_int;
+  of_pqnum = ParNum.to_int;
   to_str = string_of_int;   
 }
 
@@ -54,7 +54,7 @@ let float_ops : float math_ops = {
   add = ( +. );
   sub = ( -. );  
   of_int = float_of_int; 
-  of_pqnum = PQNum.to_float;
+  of_pqnum = ParNum.to_float;
   to_str = string_of_float; 
 } 
 
@@ -67,22 +67,22 @@ let int32_ops : Int32.t math_ops = {
   add = Int32.add;
   sub = Int32.sub;  
   of_int = Int32.of_int; 
-  of_pqnum = PQNum.to_int32; 
+  of_pqnum = ParNum.to_int32; 
   to_str = Int32.to_string;  
 }
 
 let eval_pqnum_op op args =
-  let types = List.map PQNum.type_of_num args in  
+  let types = List.map ParNum.type_of_num args in  
   let commonT = DynType.fold_type_list types in 
   match commonT with 
     | DynType.Float32T -> 
-      PQNum.Float32 (eval float_ops op (List.map PQNum.to_float args)) 
+      ParNum.Float32 (eval float_ops op (List.map ParNum.to_float args)) 
     | DynType.Float64T ->
-      PQNum.Float64 (eval float_ops op (List.map PQNum.to_float args)) 
+      ParNum.Float64 (eval float_ops op (List.map ParNum.to_float args)) 
     | DynType.Int16T -> 
-      PQNum.Int16 (eval int_ops op (List.map PQNum.to_int args))
+      ParNum.Int16 (eval int_ops op (List.map ParNum.to_int args))
     | DynType.Int32T -> 
-      PQNum.Int32 (eval int32_ops op (List.map PQNum.to_int32 args))
+      ParNum.Int32 (eval int32_ops op (List.map ParNum.to_int32 args))
     | _ -> 
       failwith $ Printf.sprintf
         "[MathEval] Evaluation for arguments of type %s not supported"

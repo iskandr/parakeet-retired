@@ -8,11 +8,11 @@ module type TYPE_ANALYSIS_PARAMS = sig
   val closure_val : ID.t -> value 
   val closure_args : ID.t -> value_node list
   val output_arity : value -> int 
-  val infer_output_types : value -> Signature.t -> DynType.t list   
+  val infer_output_types : value -> Signature.t -> Type.t list   
   val signature : Signature.t 
 end
  
-let get_type tenv id = Hashtbl.find_default tenv id DynType.BottomT  
+let get_type tenv id = Hashtbl.find_default tenv id Type.BottomT  
 let add_type tenv id t = Hashtbl.add tenv id t; tenv 
 
 
@@ -30,9 +30,9 @@ module MkAnalysis (P : TYPE_ANALYSIS_PARAMS) = struct
   let iterative = true
   let dir = Forward 
   
-  type env = (ID.t, DynType.t) Hashtbl.t  
-  type exp_info = DynType.t list
-  type value_info = DynType.t 
+  type env = (ID.t, Type.t) Hashtbl.t  
+  type exp_info = Type.t list
+  type value_info = Type.t 
   
   let init fundef =
     let tenv = Hashtbl.create 127 in
@@ -44,7 +44,7 @@ module MkAnalysis (P : TYPE_ANALYSIS_PARAMS) = struct
             "[TypeAnalysis] 
                 mismatching number of input IDs (%s) and types (%s) in %s"
             (String.concat ", " (List.map ID.to_str !inputIds)) 
-            (DynType.type_list_to_str !inputTypes)
+            (Type.type_list_to_str !inputTypes)
             (FnId.to_str fundef.fn_id)
     ENDIF;      
     while !inputIds <> [] && !inputTypes <> [] do 
@@ -61,7 +61,7 @@ module MkAnalysis (P : TYPE_ANALYSIS_PARAMS) = struct
             "[TypeAnalysis] 
                 mismatching number of output IDs (%s) and types (%s) in %s"
             (String.concat ", " (List.map ID.to_str !outputIds)) 
-            (DynType.type_list_to_str !outputTypes)
+            (Type.type_list_to_str !outputTypes)
             (FnId.to_str fundef.fn_id)
     ENDIF;      
     
@@ -75,11 +75,8 @@ module MkAnalysis (P : TYPE_ANALYSIS_PARAMS) = struct
    
   let infer_value_type tenv = function 
     | Var id -> get_type tenv id
-    | Num n -> PQNum.type_of_num n
-    | Str _ -> DynType.StrT
-    | Sym _ -> DynType.SymT
-    | Unit -> DynType.UnitT
-    | _ -> DynType.AnyT   
+    | Num n -> ParNum.type_of_num n
+    | _ -> Type.AnyT   
   
   let value tenv vNode = infer_value_type tenv vNode.value 
   
@@ -88,16 +85,16 @@ module MkAnalysis (P : TYPE_ANALYSIS_PARAMS) = struct
       let oldT = Hashtbl.find tenv id in 
       if oldT = t then None 
       else 
-        let t' = DynType.common_type oldT t in
+        let t' = Type.common_type oldT t in
         (Hashtbl.replace tenv id t'; Some tenv)
     )
     with _ -> Hashtbl.replace tenv id t; Some tenv
   
   let phi_merge tenv id tLeft tRight = 
-    phi_set tenv id (DynType.common_type tLeft tRight)  
+    phi_set tenv id (Type.common_type tLeft tRight)  
        
            
-  let rec infer_app tenv fnVal (argTypes:DynType.t list) = match fnVal with
+  let rec infer_app tenv fnVal (argTypes:Type.t list) = match fnVal with
     | Var id ->
         (* if the identifier would evaluate to a function value...*) 
         let fnVal' = P.closure_val id in
@@ -123,17 +120,17 @@ module MkAnalysis (P : TYPE_ANALYSIS_PARAMS) = struct
   let infer_higher_order tenv arrayOp args argTypes =
     match arrayOp, args, argTypes with 
     | Prim.Map, {value=fnVal}::_, _::dataTypes ->
-        if List.for_all DynType.is_scalar dataTypes then 
+        if List.for_all Type.is_scalar dataTypes then 
           failwith "expected at least one argument to map to be a vector"
         ; 
         (* we're assuming Map works only along the outermost axis of an array *) 
-        let eltTypes = List.map DynType.peel_vec dataTypes in 
+        let eltTypes = List.map Type.peel_vec dataTypes in 
         let eltResultTypes = infer_app tenv fnVal eltTypes in 
-        List.map (fun t -> DynType.VecT t) eltResultTypes     
+        List.map (fun t -> Type.VecT t) eltResultTypes     
     | Prim.Reduce, {value=fnVal}::_, _::argTypes ->
         let arity = P.output_arity fnVal in 
         let initTypes, vecTypes = List.split_nth arity argTypes in
-        let eltTypes = List.map DynType.peel_vec vecTypes in 
+        let eltTypes = List.map Type.peel_vec vecTypes in 
         let accTypes = infer_app tenv fnVal (initTypes @ eltTypes) in
         let accTypes' = infer_app tenv fnVal (accTypes @ eltTypes) in 
         if accTypes <> accTypes' then 
@@ -141,9 +138,9 @@ module MkAnalysis (P : TYPE_ANALYSIS_PARAMS) = struct
         ; 
         accTypes 
     | Prim.AllPairs, {value=fnVal}::_, _::argTypes ->  
-        let eltTypes = List.map DynType.peel_vec argTypes in 
+        let eltTypes = List.map Type.peel_vec argTypes in 
         let outTypes = infer_app tenv fnVal  eltTypes in
-        List.map (fun t -> DynType.VecT (DynType.VecT t)) outTypes 
+        List.map (fun t -> Type.VecT (Type.VecT t)) outTypes 
         
     | other, _, _ -> failwith (Prim.adverb_to_str other ^ " not impl")     
 
@@ -153,13 +150,13 @@ module MkAnalysis (P : TYPE_ANALYSIS_PARAMS) = struct
     | App(fn, args) ->
         let fnT = value tenv fn in 
         let argTypes = helpers.eval_values tenv args in 
-        if DynType.is_vec fnT then   
+        if Type.is_vec fnT then   
           [TypeInfer.infer_simple_array_op Prim.Index (fnT::argTypes)]
         else infer_app tenv fn.value argTypes   
     | Arr elts -> 
-        let commonT = DynType.fold_type_list (helpers.eval_values tenv elts) in
-        assert (commonT <> DynType.AnyT); 
-        [DynType.VecT commonT]
+        let commonT = Type.fold_type_list (helpers.eval_values tenv elts) in
+        assert (commonT <> Type.AnyT); 
+        [Type.VecT commonT]
   
     | Values vs -> helpers.eval_values tenv vs  
     | _ -> failwith $ Printf.sprintf 
@@ -178,10 +175,10 @@ module MkAnalysis (P : TYPE_ANALYSIS_PARAMS) = struct
       ENDIF; 
       let rec process_types (tenv, changed) id rhsT =  
         IFDEF DEBUG THEN 
-          if rhsT = DynType.AnyT then failwith "error during type inference"
+          if rhsT = Type.AnyT then failwith "error during type inference"
         ENDIF; 
         let oldT = get_type tenv id in
-        let newT = DynType.common_type oldT rhsT in 
+        let newT = Type.common_type oldT rhsT in 
         let changedT = oldT <> newT in
         let tenv' = if changedT then add_type tenv id newT else tenv in 
         tenv', (changed || changedT)

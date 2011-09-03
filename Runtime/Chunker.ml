@@ -7,7 +7,7 @@ let minFreeMemory = 50000000
 (* is either 1D or 2D *)
 let get_map_chunks memState inputArgs outputTypes =
   let (free, total) = cuda_device_get_free_and_total_mem () in
-  let nDims = DynType.nest_depth inputArgs.(0) in
+  let nDims = Type.rank inputArgs.(0) in
   let aux arg =
     if Hashtbl.mem memState.gpu_vals arg.dataId then
       Hashtbl.find memState.gpu_vals

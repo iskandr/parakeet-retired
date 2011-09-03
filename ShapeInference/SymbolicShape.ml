@@ -66,7 +66,7 @@ let shapes_to_str shapes = String.concat ", " (List.map shape_to_str shapes)
 
 (* get a list of all the dimensions of an Imp array *) 
 let all_dims ( x : exp_node) : exp_node list =
-  let ndims = DynType.nest_depth x.exp_type in  
+  let ndims = Type.nest_depth x.exp_type in  
   List.map (fun i -> dim i x) (List.range 0 (ndims-1))
 
 let rec largest_ssa_val = function 
@@ -74,15 +74,15 @@ let rec largest_ssa_val = function
   | [x] -> x
   | x::xs -> 
       let restMax = largest_ssa_val xs in 
-      let restRank = DynType.nest_depth restMax.SSA.value_type in 
-      let currRank = DynType.nest_depth x.SSA.value_type in   
+      let restRank = Type.nest_depth restMax.SSA.value_type in 
+      let currRank = Type.nest_depth x.SSA.value_type in   
       if  restRank > currRank then restMax else x   
       
 (* return list of dimsizes for value of largest type in the given array *)
 let largest_val ( exps : exp_node array ) : exp_node = 
   let maxExp = ref exps.(0) in   
   for i = 1 to Array.length exps - 1 do
-    if DynType.is_structure_subtype !maxExp.exp_type exps.(i).exp_type then 
+    if Type.is_structure_subtype !maxExp.exp_type exps.(i).exp_type then 
       maxExp := exps.(i)
   done; 
   !maxExp
