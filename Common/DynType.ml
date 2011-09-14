@@ -20,9 +20,8 @@ type t  =
   | VecT of t
   | TupleT of t array
   | TableT of t String.Map.t
-  | BottomFnT (* function about which we know nothing *) 
-  | AnyFnT (* overspecified function type *)
-  | FnT of  t list * t list 
+  (* use this to replace VecT, stores both element type and rank  *) 
+  | ArrT of t * int   
             
   
 let rec to_str = function 
@@ -45,7 +44,7 @@ let rec to_str = function
   | TupleT ts -> 
     "(" ^ (String.concat " * " (Array.to_list (Array.map to_str ts))) ^ ")"
   | TableT _ -> "table"
-  | FnT (x,y) -> 
+  (*| FnT (x,y) -> 
       let sx = type_list_to_str x in
       let sy = type_list_to_str y in
       sprintf "%s -> %s"
@@ -53,6 +52,8 @@ let rec to_str = function
         (if List.length y > 0 then "{" ^ sy ^ "}" else sy)   
   | AnyFnT -> "? -> ?"
   | BottomFnT -> "bottom_fn"
+  *) 
+  | ArrT (t, rank) -> "arr("^ (to_str t) ^ ", " ^ (string_of_int rank) ^ ")"
 and type_list_to_str ts = String.concat ", " (List.map to_str ts)
 
 let type_array_to_str ts = type_list_to_str (Array.to_list ts)
@@ -96,30 +97,36 @@ let is_scalar t = is_number t || t = UnitT || t = SymT
 let is_compound t = not (is_scalar t)
 
 let is_vec = function
-    | VecT _ -> true
-    | _ -> false
+  | ArrT _ 
+  | VecT _ -> true
+  | _ -> false
 
 (* are you a scalar or a vector of scalars? *) 
 let is_scalar_or_vec = function 
-  | VecT t -> is_scalar t
+  | VecT t 
+  | ArrT (t, _) -> is_scalar t 
   | t -> is_scalar t 
 
 let is_numvec = function
     |  VecT t when is_number t -> true
     | _ -> false
 
+(*
 (* doesn't cover functions contained in vectors or anything like that *) 
 let is_function = function 
   | FnT _ -> true
   | _ -> false 
+*)
 
 let rec elt_type = function
   | VecT t -> elt_type t
+  | ArrT (t, _) -> t 
   | t -> t
 
 (* given a type "vec t" returns t *) 
 let peel_vec = function 
-  | VecT t -> t 
+  | VecT t  
+  | ArrT (t, _) -> t 
   | t when is_scalar t -> t 
   | t -> failwith
      (Printf.sprintf 
