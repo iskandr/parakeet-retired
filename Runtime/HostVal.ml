@@ -21,25 +21,6 @@ type host_val =
   | HostArray of host_array
   | HostBoxedArray of host_val array
 
-external c_get_int32 : Int64.t -> int -> Int32.t = "ocaml_get_int32"
-external c_set_int32 : Int64.t -> int -> Int32.t -> unit = "ocaml_set_int32"
-
-external c_get_float32 : Int64.t -> int -> float = "ocaml_get_float"
-external c_set_float32 : Int64.t -> int -> float -> unit = "ocaml_set_float"
-
-external c_get_float64 : Int64.t -> int -> float = "ocaml_get_double"
-external c_set_float64 : Int64.t -> int -> float -> unit = "ocaml_set_double"
-
-external c_get_char : Int64.t -> int -> int = "ocaml_get_char"
-external c_set_char : Int64.t -> int -> int -> unit = "ocaml_set_char"
-
-let c_get_bool ptr idx = 
-  let ch = c_get_char ptr idx in 
-  ch > 0  
-
-let c_set_bool ptr idx b = 
-  let ch = if b then 1 else 0 in 
-  c_set_char ptr idx ch 
 
 let host_vec_to_str hostVec = 
   Printf.sprintf "HostArray { host_t=%s, shape=%s; nbytes=%d; first_word=%ld }"

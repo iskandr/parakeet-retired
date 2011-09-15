@@ -37,7 +37,7 @@ val append_dim : int -> t -> t
 
 val append_dims : int list -> t -> t 
 
-val peel_shape : t -> t
+val peel : ?axes:int list -> t -> t
 
 (* return max outer dim, and nested shapes *)
 val split_nested_shapes : t list -> int * t list 

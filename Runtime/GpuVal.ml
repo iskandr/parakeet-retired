@@ -31,18 +31,15 @@ type gpu_vec = {
   (* column major version of this same vector *) 
   mutable vec_col_major:  Cuda.GpuPtr.t option;
    
-  (*
-  vec_data_layout : data_layout;
-  *)
 }
 
-type gpu_val = GpuScalar of ParNum.num | GpuArray of gpu_vec
+type gpu_val = GpuScalar of ParNum.t | GpuArray of gpu_vec
 
 let get_gpu_vec = function 
   | GpuScalar _ -> failwith "Expected GPU vector"
   | GpuArray data -> data 
 
-let get_elt (gpuVec : gpu_vec) (idx:int) : ParNum.num = 
+let get_elt (gpuVec : gpu_vec) (idx:int) : ParNum.t = 
   let t = Type.elt_type gpuVec.vec_t in  
   match t with 
   | Type.Int32T ->
@@ -66,7 +63,7 @@ let elt_to_str gpuVec idx =
   | Type.Int32T  
   | Type.Float32T 
   | Type.CharT 
-  | Type.BoolT -> ParNum.num_to_str (get_elt gpuVec idx) 
+  | Type.BoolT -> ParNum.t_to_str (get_elt gpuVec idx) 
   | _ -> "?" 
 
 let elts_summary gpuVec =
@@ -103,7 +100,7 @@ let gpu_vec_to_str ?(show_contents=true) gpuVec =
       
 
 let to_str ?(show_contents=true) = function 
-  | GpuScalar n -> Printf.sprintf "GpuScalar(%s)" (ParNum.num_to_str n)
+  | GpuScalar n -> Printf.sprintf "GpuScalar(%s)" (ParNum.to_str n)
   | GpuArray gpuVec -> gpu_vec_to_str ~show_contents gpuVec
        
 

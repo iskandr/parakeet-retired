@@ -73,7 +73,7 @@ let is_subshape s1 s2 =
   else  
     let acc = ref true in 
     for i = 0 to r1 - 1 do 
-       acc := !acc && get s1 i = get s2 (r2 - r1 + i)
+      acc := !acc && get s1 i = get s2 (r2 - r1 + i)
     done; 
     !acc
 
@@ -96,14 +96,22 @@ let max_shape_list lst =
   List.fold_left aux (Some scalar_shape) lst
 
  
-let peel_shape shape = 
-  let n = rank shape in 
-  if n <= 1 then scalar_shape 
+let peel ?(axes=[0]) shape = 
+  let n = rank shape in
+  let num_axes = List.length axes in
+  let diff = n - num_axes in 
+  if diff <= 0 then scalar_shape
   else
-    let shape' = create (n-1) in 
-    for i = 0 to n - 2 do
-      set shape' i (get shape (i+1)) 
-    done;   
+    let all_axes =  List.til n in 
+    let kept_axes = List.filter (fun x -> not $ List.mem x axes) all_axes in  
+    let shape' = create diff in 
+    let idx = ref 0 in 
+    let set_dim old_axis = 
+      let old_dim = get shape old_axis in 
+      set shape' !idx old_dim; 
+      idx := !idx + 1
+    in 
+    List.iter set_dim kept_axes;   
     shape'
 
 (* peel the maximal shapes in a list, leaving the rest unchanged *) 

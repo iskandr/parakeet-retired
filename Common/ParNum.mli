@@ -6,18 +6,18 @@ type t =
   | Int64 of Int64.t
   | Float32 of float
   | Float64 of float
-  | Inf of Type.t
-  | NegInf of Type.t 
+  | Inf of Type.elt_t
+  | NegInf of Type.elt_t 
 
 
 val to_str : t -> string
-val type_of_t : t -> Type.t
+val type_of : t -> Type.elt_t
 
-val coerce_int : int -> Type.t -> t 
-val coerce_int32 :  Int32.t -> Type.t -> t 
-val coerce_int64 : Int64.t -> Type.t -> t 
-val coerce_float : float -> Type.t -> t 
-val coerce : t -> Type.t -> t 
+val coerce_int : int -> Type.elt_t -> t 
+val coerce_int32 :  Int32.t -> Type.elt_t -> t 
+val coerce_int64 : Int64.t -> Type.elt_t -> t 
+val coerce_float : float -> Type.elt_t -> t 
+val coerce : t -> Type.elt_t -> t 
 
 val to_int : t -> int
 val to_int32 : t -> Int32.t 

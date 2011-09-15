@@ -14,7 +14,17 @@ and value_node = {
   value : value 
 }
 and value_nodes = value_node list   
-    
+
+type axes = int list 
+
+type closure = {   
+  closure_fn: FnId.t; 
+  closure_args: value_node list; 
+  closure_arg_types: Type.t list; 
+  closure_input_types:Type.t list; 
+  closure_output_types: Type.t list 
+} 
+        
 (********** EXPRESSIONS **********)
 type exp = 
   | App of  value_node * value_nodes
@@ -25,8 +35,8 @@ type exp =
   | Call of FnId.t * value_nodes 
   | PrimApp of Prim.prim * value_nodes  
   | Map of closure * value_nodes
-  | Reduce of closure * closure * value_nodes * value_nodes
-  | Scan of closure * closure * value_nodes * value_nodes 
+  | Reduce of closure * axes * value_nodes
+  | Scan of closure * axes * value_nodes 
  
 and exp_node = { 
   exp: exp; 
@@ -34,14 +44,7 @@ and exp_node = {
   (* because a function applicatin might return multiple values,*)
   (* expressions have multiple types *)  
   exp_types : Type.t list; 
-} 
-and closure = {   
-  closure_fn: FnId.t; 
-  closure_args: value_node list; 
-  closure_arg_types: Type.t list; 
-  closure_input_types:Type.t list; 
-  closure_output_types: Type.t list 
-} 
+}
 
 (********** STATEMENTS **********) 
 type stmt = 

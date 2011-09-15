@@ -44,12 +44,8 @@ and analyze_node ~inFunction scopeInfo node = match node.data with
     | Lam (ids, body) ->
         node.ast_info.is_function <- true; 
         node.ast_info.defs_local <- PSet.from_list ids; 
-        if inFunction then 
-            node.ast_info.nested_functions <- true
-        ;
-        let initScopeInfo = 
-            { emptyScopeInfo with locals = PSet.from_list ids} 
-        in 
+        if inFunction then node.ast_info.nested_functions <- true;
+        let initScopeInfo = {emptyScopeInfo with locals = PSet.from_list ids} in 
         let bodyScopeInfo = analyze_node initScopeInfo ~inFunction:true body in
         node.ast_info <- node.ast_info <+> body.ast_info;
         let bodyVolatile = bodyScopeInfo.volatile_global in             
@@ -59,14 +55,11 @@ and analyze_node ~inFunction scopeInfo node = match node.data with
     
     | CountLoop (a,b) 
     | WhileLoop (a,b) ->
-        let bodyScopeInfo, bodyAstInfo = 
-            analyze_block ~inFunction scopeInfo [a;b]
-        in 
-        node.ast_info <- bodyAstInfo; 
-        bodyScopeInfo 
-
+        let scopeInfo', astInfo' =  analyze_block ~inFunction scopeInfo [a;b] in 
+        node.ast_info <- astInfo'; 
+        scopeInfo' 
     | Arr nodes  
-	| Block nodes -> 
+    | Block nodes -> 
         let scopeInfo', astInfo' = analyze_block ~inFunction scopeInfo nodes in 
         node.ast_info <- astInfo';
         scopeInfo' 
@@ -74,11 +67,11 @@ and analyze_node ~inFunction scopeInfo node = match node.data with
     | If(test, tNode, fNode) ->
         let testInfo = analyze_node ~inFunction scopeInfo test in
         let tScopeInfo = analyze_node ~inFunction testInfo tNode in
-    	let fScopeInfo = analyze_node ~inFunction testInfo fNode in 
+        let fScopeInfo = analyze_node ~inFunction testInfo fNode in 
         let combinedAstInfo = 
             test.ast_info <+> tNode.ast_info <+> fNode.ast_info
         in 
-    	node.ast_info <- combinedAstInfo; 
+        node.ast_info <- combinedAstInfo; 
         { 
             volatile_local = 
                 PSet.union tScopeInfo.volatile_local fScopeInfo.volatile_local;
@@ -86,6 +79,7 @@ and analyze_node ~inFunction scopeInfo node = match node.data with
                 PSet.union tScopeInfo.volatile_global fScopeInfo.volatile_global;
             locals = PSet.inter tScopeInfo.locals fScopeInfo.locals;      
         }
+        
     | App (fn,args) -> 
         let emptyArgsInfo = mk_ast_info () in
         let scopeInfo', argsInfo = 
@@ -102,28 +96,7 @@ and analyze_node ~inFunction scopeInfo node = match node.data with
 
     (* SetIdx is deprecated, will soon be phased out of SSA*) 				
     | SetIdx (name, indices, rhs) -> assert false
-(*            let scopeInfo2 = aux ~inFunction scopeInfo rhs in 
-            let emptyIdxInfo = mk_ast_info () in
-            let scopeInfo3, idxInfo = 
-            fold_block ~inFunction scopeInfo2 emptyIdxInfo indices in
-            node.ast_info <- idxInfo <+> rhs.ast_info;
-            if PSet.mem name scopeInfo3.locals then
-                let locals' = PSet.add name node.ast_info.writes_local in 
-                ( 
-                    node.ast_info.writes_local <- locals'; 
-                    { scopeInfo3 with 
-                        volatile_local = PSet.add name scopeInfo3.volatile_local 
-                    }
-                ) 
-            else
-               let locals' = PSet.add name node.ast_info.writes_global in  
-               (
-                  node.ast_info.writes_global <- locals';
-                  { scopeInfo3 with 
-                    volatile_global = PSet.add name scopeInfo3.volatile_global 
-                  } 
-               )
-*)
+
     | Var name ->
         let isLocal = PSet.mem name scopeInfo.locals in 
         if inFunction &&  isLocal then 

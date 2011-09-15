@@ -64,6 +64,7 @@ include ExtList.List
         (f x)::(f y)::(f z)::(f w)::(f a)::(f b)::(map f rest)
   
   let sum xs = fold_left (+) 0 xs 
+  let prod xs = fold_left ( * ) 1 xs 
   
   let rec drop n lst = 
     if n = 0 then lst else drop (n-1) (tl lst)
