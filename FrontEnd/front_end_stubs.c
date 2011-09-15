@@ -136,35 +136,35 @@ return_val_t run_function(int id, host_val *globals, int num_globals,
          */
         switch (Tag_val(ocaml_scalar)) {
         case PQNUM_BOOL:
-          ret.ret_types[0] = BoolT;
+          ret.ret_types[0] = parakeet_bool_t;
           scalar_data_ptr = malloc(sizeof(int*));
           *((int*) scalar_data_ptr) = Bool_val(Field(ocaml_scalar, 0));
           ret.data.results[0] = scalar_data_ptr;
           break;
 
         case PQNUM_CHAR:
-          ret.ret_types[0] = CharT;
+          ret.ret_types[0] = parakeet_char_t;
           scalar_data_ptr = malloc(sizeof(char*));
           *((char*)scalar_data_ptr) = Int_val(Field(ocaml_scalar, 0));
           ret.data.results[0] = scalar_data_ptr;
           break;
 
         case PQNUM_INT32:
-          ret.ret_types[0] = Int32T;
+          ret.ret_types[0] = parakeet_int32_t;
           scalar_data_ptr = malloc(sizeof(int*));
           *((int*)scalar_data_ptr) = Int32_val(Field(ocaml_scalar, 0));
           ret.data.results[0] = scalar_data_ptr;
           break;
 
         case PQNUM_FLOAT32:
-          ret.ret_types[0] = Float32T;
+          ret.ret_types[0] = parakeet_float32_t;
           scalar_data_ptr = malloc(sizeof(float*));
           *((float*)scalar_data_ptr) = Double_val(Field(ocaml_scalar, 0));
           ret.data.results[0] = scalar_data_ptr;
           break;
 
         case PQNUM_FLOAT64:
-          ret.ret_types[0] = Float64T;
+          ret.ret_types[0] = parakeet_float64_t;
           scalar_data_ptr = malloc(sizeof(double*));
           *((double*)scalar_data_ptr) = Double_val(Field(ocaml_scalar, 0));
           ret.data.results[0] = scalar_data_ptr;

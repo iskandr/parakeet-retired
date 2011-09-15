@@ -2,17 +2,19 @@ from numpy import *
 from parakeet import GPU
 
 @GPU
-def id(x):
+def identity(x):
   return x
 
-multi_test = array([[1,2,3,5],[4,5,6,8],[7,8,9,11]],dtype = int32)
+multi_test = reshape(arange(12, dtype=int32), (3,4))
+#multi_test = arange(12, dtype=int32)
 
-print multi_test
-print shape(multi_test)
-res =  id(multi_test)
-print res
-print shape(res)
-
+print "Input:", multi_test
+print "Input Shape:", shape(multi_test)
+print "Input Type:", multi_test.dtype
+res =  identity(multi_test)
+print "Output: ", res
+print "Output Shape:", shape(res)
+print "Output Type:", res.dtype
 #import unittest
 
 #class TestIdent(unittest.TestCase):

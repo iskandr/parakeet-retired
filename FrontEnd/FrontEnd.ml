@@ -133,4 +133,10 @@ let run_function untypedId ~globals ~args =
   Timing.clear Timing.untypedOpt;
   Pervasives.flush_all (); 
    (* assume only one result can be returns *)
-  Success (List.hd resultVals) 
+  let result = List.hd resultVals in 
+  IFDEF DEBUG THEN 
+    printf "[run_function] returning value: %s : %s \n%!"
+      (HostVal.to_str result)
+      (DynType.to_str (HostVal.get_type result))
+  ENDIF;   
+  Success result 

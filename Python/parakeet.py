@@ -26,39 +26,51 @@ class return_val_t(Structure):
               ("data",_U)]
   
 #INITIALIZATION
-def returnTypeInit():
+def get_parakeet_lib():
+  parlib = cdll.LoadLibrary(os.getcwd() + '/../_build/libparakeetpy.so')
+  parlib.parakeet_init()
+
   #NOTE: can set default to c_void_p, much less initialization?
-  libtest.mk_def.restype = c_void_p
-  libtest.mk_int32_paranode.restype = c_void_p
-  libtest.mk_int64_paranode.restype = c_void_p
-  libtest.mk_var.restype = c_void_p
-  libtest.mk_scalar_op.restype = c_void_p
-  libtest.mk_app.restype = c_void_p
-  libtest.mk_lam.restype = c_void_p
-  libtest.mk_block.restype = c_void_p
-  libtest.mk_scalar.restype = c_void_p
-  libtest.mk_vec.restype = c_void_p
-  libtest.mk_host_array.restype = c_void_p
-  libtest.register_untyped_function.restype = c_int
-  libtest.run_function.restype = return_val_t
-  libtest.mk_int32.restype = c_void_p
-  libtest.mk_float32.restype = c_void_p
-  libtest.mk_float64.restype = c_void_p
-  libtest.mk_whileloop.restype = c_void_p
-  libtest.mk_bool.restype = c_void_p
-  libtest.mk_bool_paranode.restype = c_void_p
-  libtest.get_prim.restype = c_void_p
-  libtest.mk_float_paranode.restype = c_void_p
-  libtest.mk_double_paranode.restype = c_void_p
-  libtest.mk_bool.restype = c_void_p
+  parlib.mk_def.restype = c_void_p
+  parlib.mk_int32_paranode.restype = c_void_p
+  parlib.mk_int64_paranode.restype = c_void_p
+  parlib.mk_var.restype = c_void_p
+  parlib.mk_scalar_op.restype = c_void_p
+  parlib.mk_app.restype = c_void_p
+  parlib.mk_lam.restype = c_void_p
+  parlib.mk_block.restype = c_void_p
+#  parlib.mk_scalar.restype = c_void_p
+  parlib.mk_vec.restype = c_void_p
+  parlib.mk_host_array.restype = c_void_p
+  parlib.register_untyped_function.restype = c_int
+  parlib.run_function.restype = return_val_t
+  parlib.mk_int32.restype = c_void_p
+  parlib.mk_float32.restype = c_void_p
+  parlib.mk_float64.restype = c_void_p
+  parlib.mk_whileloop.restype = c_void_p
+  parlib.mk_bool.restype = c_void_p
+  parlib.mk_bool_paranode.restype = c_void_p
+  parlib.get_prim.restype = c_void_p
+  parlib.mk_float_paranode.restype = c_void_p
+  parlib.mk_double_paranode.restype = c_void_p
+  parlib.mk_bool.restype = c_void_p
+  parlib.get_dyn_type_element_type.restype = c_int
+
+  # get global values for parakeet types
+  parlib.bool_t = c_int.in_dll(parlib, "parakeet_bool_t").value
+  parlib.char_t = c_int.in_dll(parlib, "parakeet_char_t").value
+  parlib.int32_t = c_int.in_dll(parlib, "parakeet_int32_t").value
+  parlib.int64_t = c_int.in_dll(parlib, "parakeet_int64_t").value
+  parlib.float32_t = c_int.in_dll(parlib, "parakeet_float32_t").value  
+  parlib.float64_t = c_int.in_dll(parlib, "parakeet_float64_t").value    
+  return parlib 
 
 def ast_prim(sym):
-  return c_void_p(libtest.get_prim(sym))
+  return c_void_p(parlib.get_prim(sym))
 
-libcude = cdll.LoadLibrary('/usr/local/cuda/lib/libcudart.so.3')
-libtest = cdll.LoadLibrary(os.getcwd() + '/../_build/libparakeetpy.so')
-libtest.parakeet_init()
-returnTypeInit()
+#libcude = cdll.LoadLibrary('/usr/local/cuda/lib/libcudart.so.3')
+parlib = get_parakeet_lib()
+
 ###########
 
 safe_functions = {np.all:ast_prim('all'),
@@ -96,29 +108,6 @@ builtin_primitives = {'Add':ast_prim('+'),
                       'Index':ast_prim('index')}
 function_asts = safe_functions.copy()
 function_globals = {}
-#List of which built-in functions are allowed and which aren't
-#Old code:
-primitives = {"abs":1,"all":1,"any":1,"basestring":1,"bin":0,"bool":0,
-              "bytearray":1,
-              "callable":1,"chr":0,"classmethod":0,"cmp":1,"compile":0,
-              "complex":0,
-              "delattr":0,"dict":0,"dir":0,"divmod":1, "enumerate":0, "eval":0,
-              "execfile":0,"file":0,"filter":0,"float":1,"format":0,
-               "frozenset":0,
-              "getattr":1,"globals":1,"hasattr":1,"hash":1,"help":0, "hex":0,
-              "id":1,
-              "input":0,"int":1,"isinstance":1, "issubcalss": 1, "iter":0,
-              "len":1,
-              "list":0, "locals":1, "long":1, "map": 1, "max":1,
-              "memoryview":0,
-              "min":1,"next":1,"object":0,"oct":0,"open":0,"ord":0,"pow":1,
-              "print":0,
-              "property":1,"range":0,"raw_input":0,"reduce":1,"reload":1,
-              "repr":0,
-              "reversed":0,"round":1,"set":0,"settattr":0,"slice":0,"sorted":0,
-              "staticmethod":0,"str":0,"sum":1,"super":0,"tuple":0,"type":1,
-              "unichr":0,
-              "unicode":0,"vars":1,"xrange":0,"zip":0}
 
 
 numpyPrimitives = {np.all:1,np.sum:1,np.argmin:1,np.mean:1}
@@ -177,9 +166,6 @@ class ASTCreator(ASTPrinter):
     self.func_name = ""
   #Visiting a node
   def getFunction(self,node):
-#    if str(node) in self.var_list:
-#      self.evil_function = "calling a variable as a function is not supported"
-#      print str(node)    
     func_str = self.function_path + '.' + str(node)
     try:
       exec "curr_func = %s" % func_str
@@ -189,26 +175,10 @@ class ASTCreator(ASTPrinter):
         exec "curr_func = np.%s" %str(node)
       except:
         try:
-#          import addn
           exec "curr_func = %s.%s"%(self.file_name,str(node))
         except:
           print "Failed trying to find the function",str(node)
-#      try:
-#        exec "curr_func = %s.__globals__['%s']" % (self.func_name , str(node))
-#        func_str = str(node)
-#      except:
-#        str_node = str(node)
-#        try:
-#          exec "import %s" % self.from_import[str_node]
-#          str_node = self.from_import[str_node] + "." + str_node
-#        except:
-#          pass
-#        exec "curr_func = %s" % str_new_node
-#        try:
-#          if not primitives[str(node)]:
-#            self.evil_function = "%s is an unsupported primitive" % str(node)
-#        except:
-#          pass #Note: Not a primitive, use this somehow?
+
     return curr_func
   
   def from_imports(self,node):
@@ -408,40 +378,40 @@ def paranodes(node, args,function_globals_variables,ASTInst):
   if (node_type == 'Name'):
     if args[0] == 'True':
       print "bool(False)"
-      return c_void_p(libtest.mk_bool_paranode(1,None))
+      return c_void_p(parlib.mk_bool_paranode(1,None))
     elif args[0] == 'False':
       print "bool(False)" 
-      return c_void_p(libtest.mk_bool_paranode(0,None))      
+      return c_void_p(parlib.mk_bool_paranode(0,None))      
     else:
       print "var(",args[0],")"
-      return c_void_p(libtest.mk_var(c_char_p(args[0]),None))
+      return c_void_p(parlib.mk_var(c_char_p(args[0]),None))
   elif (node_type == 'Assign'):
     print "def(",node.targets[0].id,",",args[1],")"    
     #Note: currently doesn't allow for multiple assignment
-    return c_void_p(libtest.mk_def(c_char_p(node.targets[0].id),args[1],0))
+    return c_void_p(parlib.mk_def(c_char_p(node.targets[0].id),args[1],0))
   elif (node_type == 'BinOp'):
     print "app(",type(node.op).__name__,",[",args[0],",",args[2],"])"
     bin_args = list_to_ctypes_array([args[0],args[2]],c_void_p)
     operation = builtin_primitives[type(node.op).__name__]
-    return c_void_p(libtest.mk_app(operation,bin_args,2,None))
+    return c_void_p(parlib.mk_app(operation,bin_args,2,None))
   elif (node_type == 'UnaryOp'):
     print "app(",type(node.op).__name__,",[",args[1],"])"
     unary_arg = list_to_ctypes_array([args[1]],c_void_p)
     operation = builtin_primitives[type(node.op).__name__]
-    return c_void_p(libtest.mk_app(operation,unary_arg,1,None))
+    return c_void_p(parlib.mk_app(operation,unary_arg,1,None))
   elif (node_type == 'Compare'):
     print "app(",type(node.ops[0]).__name__,",[",args[0],",",args[2][0],"])"
     comp_args = list_to_ctypes_array([args[0],args[2][0]],c_void_p)
     operation = builtin_primitives[type(node.ops[0]).__name__]
-    return c_void_p(libtest.mk_app(operation,comp_args,2,None))    
+    return c_void_p(parlib.mk_app(operation,comp_args,2,None))    
   elif (node_type == 'Num'):
     num = eval(args[0])
     if type(num) == int:
       print "int32(",num,")"
-      return c_void_p(libtest.mk_int32_paranode(num,None))
+      return c_void_p(parlib.mk_int32_paranode(num,None))
     elif type(num) == float:
       print "float32(",num,")"
-      return c_void_p(libtest.mk_float_paranode(c_float(num),None))
+      return c_void_p(parlib.mk_float_paranode(c_float(num),None))
   elif (node_type == 'Call'):
     #Note: special case for partial
 
@@ -472,14 +442,14 @@ def paranodes(node, args,function_globals_variables,ASTInst):
   #        print "NAME", function_names, fun_ref,np.mean
         print "MODULE NAME:",fun_ref.__module__
         try:
-          fun_node = c_void_p(libtest.mk_var(c_char_p(fun_ref.__module__ + 
+          fun_node = c_void_p(parlib.mk_var(c_char_p(fun_ref.__module__ + 
                                                       "." + 
                                                       function_names[fun_ref]),
                                                       None))
           print "THE NAME IS:",function_names[fun_ref]
         except:
           print "THE NAME IS:",fun_name
-          fun_node = c_void_p(libtest.mk_var(c_char_p(fun_ref.__module__ + 
+          fun_node = c_void_p(parlib.mk_var(c_char_p(fun_ref.__module__ + 
                                                       "." + fun_name),None))          
 #      print "creating ARGS",args,"for",fun_name
       fun_args = list_to_ctypes_array(args[1],c_void_p)
@@ -505,16 +475,16 @@ def paranodes(node, args,function_globals_variables,ASTInst):
 #        print "fun_node was safe"
       except:
         try:
-          fun_node = c_void_p(libtest.mk_var(c_char_p(fun_ref.__module__ + "." + function_names[fun_ref]),None))
+          fun_node = c_void_p(parlib.mk_var(c_char_p(fun_ref.__module__ + "." + function_names[fun_ref]),None))
         except:
-          fun_node = c_void_p(libtest.mk_var(c_char_p(fun_ref.__module__ + "." + fun_name),None))
+          fun_node = c_void_p(parlib.mk_var(c_char_p(fun_ref.__module__ + "." + fun_name),None))
 #        print "fun_node made of",fun_name
       fun_args = list_to_ctypes_array(args[2],c_void_p)
       num_args = len(args[2])
 
     else:
       print "Invalid node?",type(node.func).__name__
-    return c_void_p(libtest.mk_app(fun_node,fun_args,num_args,None))
+    return c_void_p(parlib.mk_app(fun_node,fun_args,num_args,None))
   elif (node_type == 'Return'):
     #Note: Always just the 1st argument?
     return args[0]
@@ -522,18 +492,18 @@ def paranodes(node, args,function_globals_variables,ASTInst):
     print "block(",args[0],")"
     numArgs = len(args[0])
     block = list_to_ctypes_array(args[0], c_void_p)
-    return c_void_p(libtest.mk_block(block,numArgs,None))
+    return c_void_p(parlib.mk_block(block,numArgs,None))
   elif (node_type == 'While'):
     print "while(",args[0],",block(",args[1],"))"
     numStmt = len(args[1])
     block_args = list_to_ctypes_array(args[1],c_void_p)
-    block = c_void_p(libtest.mk_block(block_args,numStmt,None))
-    return c_void_p(libtest.mk_whileloop(args[0],block,None))
+    block = c_void_p(parlib.mk_block(block_args,numStmt,None))
+    return c_void_p(parlib.mk_whileloop(args[0],block,None))
   elif (node_type == 'Subscript'):
     print "app(",type(node.slice).__name__,",[",args[0],",",args[1],"])"
     operation = builtin_primitives[type(node.slice).__name__]
     array_args = list_to_ctypes_array([args[0],args[1]],c_void_p)
-    return c_void_p(libtest.mk_app(operation,array_args,2,None))
+    return c_void_p(parlib.mk_app(operation,array_args,2,None))
 
   elif (node_type == 'Index'):
     return args[0]
@@ -640,7 +610,7 @@ def fun_visit(func,name = ''):
 
       globals_list = list_to_ctypes_array(global_vars,c_char_p)
       function_globals[func] = global_vars
-      funID = c_int(libtest.register_untyped_function(c_char_p(
+      funID = c_int(parlib.register_untyped_function(c_char_p(
                                                        func.__module__ + "." +
                                                        func.__name__),
                                                       globals_list,
@@ -670,6 +640,108 @@ def fun_visit(func,name = ''):
 #          print 'Finished visiting:', key.__name__
 
 
+
+numpy_type_to_ctype = { 
+    np.int32: c_int32, 
+    np.int64: c_int64, 
+    np.float32: c_float,
+    np.float64: c_double, 
+    np.bool: c_bool
+  }
+
+numpy_type_to_parakeet_type = {
+    np.int32: parlib.int32_t, 
+    np.int64: parlib.int64_t, 
+    np.float32: parlib.float32_t,
+    np.float64: parlib.float64_t, 
+    np.bool: parlib.bool_t
+  }
+
+parakeet_type_to_ctype = {
+    parlib.int32_t: c_int32,
+    parlib.int64_t: c_int64,  
+    parlib.float32_t: c_float, 
+    parlib.float64_t: c_double,
+    parlib.bool_t: c_int,
+    parlib.char_t: c_char
+  }
+  
+# given a numpy array or a scalar, construct 
+# the equivalent parakeet value 
+def python_value_to_parakeet(arg):
+  if isinstance(arg, np.ndarray):
+    print arg.flags
+    rank = len(arg.shape)
+    input_shape = arg.ctypes.shape_as(c_int32)
+    if rank > 1 and not arg.flags['C_CONTIGUOUS']:
+      # until we have a proper interface for telling parakeet this data is 
+      # column-major, we have to manually transpose it  
+      arg = np.transpose(arg).copy()
+    np_type = arg.dtype.type
+    if (np_type not in numpy_type_to_ctype) or (np_type not in numpy_type_to_parakeet_type):
+      raise Exception("Numpy element type unsupported: " + str(np_type))
+    
+    ctype = numpy_type_to_ctype[np_type]
+    parakeet_type = numpy_type_to_parakeet_type[np_type]
+    data_ptr = arg.ctypes.data_as(POINTER(ctype))
+    #print arg, "\n", ctype, "\n"
+    for i in range(np.size(arg)):
+      print data_ptr[i]
+    # recursively construct Vec (Vec (... elementType ...)) 
+    for z in range(len(arg.shape)):
+      parakeet_type = c_void_p(parlib.mk_vec(parakeet_type))
+    parakeetVal = parlib.mk_host_array(data_ptr, parakeet_type, input_shape, rank, arg.nbytes)
+    return c_void_p(parakeetVal)
+  elif np.isscalar(arg):
+    if type(arg) == int:
+      return c_void_p(parlib.mk_int32(arg))
+    elif type(arg) == float:
+      return c_void_p(parlib.mk_float32(c_float(arg)))
+    elif type(arg) == np.float64:
+      return c_void_p(parlib.mk_double64(c_double(arg)))
+  else:
+    raise Exception("Input not supported by Parakeet: " + str(arg)) 
+
+
+def array_from_memory(pointer,shape,dtype):
+  from_memory = ctypes.pythonapi.PyBuffer_FromReadWriteMemory
+  from_memory.restype = ctypes.py_object
+  arr = np.empty(shape=shape,dtype=dtype)
+  arr.data = from_memory(pointer,arr.nbytes)
+  return arr
+ 
+def parakeet_value_to_python(data, shape_ptr, ty): 
+  parakeet_elt_type = parlib.get_dyn_type_element_type(ty)
+  print "TYPE", parakeet_elt_type
+  print parakeet_elt_type, parlib.float32_t
+  c_elt_type = parakeet_type_to_ctype[parakeet_elt_type]
+  rank = parlib.get_dyn_type_rank(ty)  
+  if rank == 0:
+    result_ptr = cast(data,POINTER(c_elt_type))
+    return result_ptr[0]
+  else:
+    shape = []
+    nelts = 1
+    for index in range(rank): 
+      dim = shape_ptr[index]
+      nelts *= dim
+      shape.append(dim)
+    print "SHAPE: ", shape
+    array_type = c_elt_type * nelts
+    result_array = array_type.from_address(data)
+    for i in range(nelts):
+      print result_array[i]
+    np_result = np.ctypeslib.as_array(result_array)
+    np_result.shape = shape 
+    # hack around Parakeet's support for only row-major data 
+    #if rank == 2:
+    #  np_result = np.reshape(np_result.transpose(), shape)
+    #  print np_result
+    #  print np_result.shape
+    #  print np_result.flags
+      #np_result.shape = shape
+    return np_result
+
 def runFunction(func,args):
   num_args = len(args)
   input_arr = []
@@ -677,101 +749,17 @@ def runFunction(func,args):
   EMPTYLIST = c_int * 0
   ONELIST = c_int * 1
   inputs = INPUTLIST()
-#  input_data = [0] * num_args
-#  input_shape = [0] * num_args
   for i in range(num_args):
-    arg = args[i]
-    try: #if Numpy array
-      if len(arg.shape) > 1:
-        arg1 = np.transpose(arg)
-        arg = arg1.copy()
-#        print arg,arg.base
-#        return
-      input_shape = arg.ctypes.shape_as(c_int)
-      nbytes = arg.nbytes
-      if arg.dtype == np.int32 or arg.dtype == np.int64:
-        input_data = arg.ctypes.data_as(POINTER(c_int))
-        print "I AM A",input_data, "WITH",input_data[0]
-        elmt_type = c_void_p(libtest.mk_scalar(7)) #Int32T
-      elif arg.dtype == np.float32:
-        input_data = arg.ctypes.data_as(POINTER(c_float))
-        print "I AM A",input_data, "WITH",input_data[0]
-        elmt_type = c_void_p(libtest.mk_scalar(11)) #Float32T
-      elif arg.dtype == np.float64:
-        input_data = arg.ctypes.data_as(POINTER(c_double))
-        print "I AM A",input_data, "WITH",input_data[0]
-        elmt_type = c_void_p(libtest.mk_scalar(12)) #Float64T
-      elif arg.dtype == np.bool:
-        input_data = arg.ctypes.data_as(POINTER(c_int))
-        for counting in range(8):
-          print "I'm counting"
-          input_data[counting] -= 65536
-        print "I AM A",input_data, "WITH",input_data[0]
-        elmt_type = c_void_p(libtest.mk_scalar(3))
-      else:
-        print "not handled?",arg.dtype
-      for z in range(len(arg.shape)):
-        elmt_type = c_void_p(libtest.mk_vec(elmt_type))
-        
-#      print "ELEMENTS",input_data,elmt_type,input_shape,len(arg.shape),nbytes
-      inputs[i] = c_void_p(libtest.mk_host_array(input_data,
-                                                 elmt_type,
-                                                 input_shape,
-                                                 len(arg.shape),
-                                                 nbytes))
-    except: #Scalar
-      if type(arg) == int:
-        inputs[i] = c_void_p(libtest.mk_int32(arg))
-      elif type(arg) == float:
-        print "FLOAT INPUT",arg
-        inputs[i] = c_void_p(libtest.mk_float32(c_float(arg)))
-
-      elif type(arg) == np.float64:
-        inputs[i] = c_void_p(libtest.mk_double64(c_double(arg)))
-####  global_values = function_globals[func]
-####  global_args = []
-  ret = libtest.run_function(func, None, 0, inputs, num_args)
+    inputs[i] = python_value_to_parakeet(args[i])
+  ret = parlib.run_function(func, None, 0, inputs, num_args)
   if (ret.return_code == 0): #Success
-    print "TYPE",libtest.get_dyn_type_element_type(c_void_p(ret.ret_types[0]))
-    elmt_type = libtest.get_dyn_type_element_type(c_void_p(ret.ret_types[0]))
-    #NOTE: WRONG numbers, should be (x-3)/4....returning as a wrong type of integer?
-    if libtest.get_dyn_type_rank(c_void_p(ret.ret_types[0])) == 0:
-      if elmt_type == 15:
-        rslt = cast(ret.data.results[0],POINTER(c_int))
-      elif elmt_type == 23:
-        rslt = cast(ret.data.results[0],POINTER(c_float))
-      elif elmt_type == 25:
-        rslt = cast(ret.data.results[0],POINTER(c_double))
-      else:
-        rslt = cast(ret.data.results[0],POINTER(c_int))
-      np_rslt = rslt[0]
-      print np_rslt
-    else:
-      if elmt_type == 47:
-        rslt = cast(ret.data.results[0],POINTER(c_float))
-      elif elmt_type == 31:
-        rslt = cast(ret.data.results[0],POINTER(c_int))
-      elif elmt_type == 51:
-        rslt = cast(ret.data.results[0],POINTER(c_double))
-      else:
-      #Not sure what to do with it yet
-        rslt = cast(ret.data.results[0],POINTER(c_int))
-      py_rslt = []
-      ret_len = 1
-      rslt_shape = []
-      for index in range(libtest.get_dyn_type_rank(c_void_p(ret.ret_types[0]))):
-        ret_len *= ret.shapes[0][index]
-        rslt_shape.append(ret.shapes[0][index])
-#      ret_len = ret.shapes[0][0]
-      for index in range(ret_len):
-        print rslt[index],
-        py_rslt.append(rslt[index])
-      print
-      np_rslt = np.array(py_rslt)
-      np_rslt.shape = rslt_shape
-      np_rslt = np_rslt.transpose()
-    return np_rslt
-  return 0
+    # for now limited to 1 result values 
+    data = ret.data.results[0]
+    ty = c_void_p(ret.ret_types[0])
+    shape = ret.shapes[0]
+    return parakeet_value_to_python(data, shape, ty)
+  else :
+    raise Exception("run_function failed")
 
 def GPU(fun):
 #  print fun.__name__
@@ -780,10 +768,6 @@ def GPU(fun):
   function_file = inspect.getfile(fun)
 #  print function_file
   function_name = str(function_file).split(".")[0]
-#  print fun.func_globals
-#  print function_name
-#  return
-#  print fun.__code__.co_filename
   if not (function_asts.has_key(fun)):
     fun_visit(fun,function_name)
 

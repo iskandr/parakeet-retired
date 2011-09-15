@@ -23,11 +23,13 @@ type host_val =
 
 
 let host_vec_to_str hostVec = 
-  Printf.sprintf "HostArray { host_t=%s, shape=%s; nbytes=%d; first_word=%ld }"
-    (Type.to_str hostVec.host_t) 
+  Printf.sprintf "HostArray { host_t=%s, shape=%s; nbytes=%d; contents=%ld,%ld,%ld,... }"
+    (DynType.to_str hostVec.host_t) 
     (Shape.to_str hostVec.shape) 
     hostVec.nbytes
     (c_get_int32 hostVec.ptr 0)
+    (c_get_int32 hostVec.ptr 1)
+    (c_get_int32 hostVec.ptr 2)
 
 let to_str = function 
   | HostScalar n -> sprintf "HostScalar %s" (ParNum.num_to_str n)
@@ -37,10 +39,11 @@ let to_str = function
 
 let mk_host_scalar n = HostScalar n
 
-let get_type = function 
+let rec get_type = function 
   | HostArray { host_t = host_t } -> host_t
   | HostScalar n -> ParNum.type_of_num n
   | HostBoxedArray _ -> assert false 
+         
 
 let get_shape = function 
   | HostArray { shape = shape } -> shape
