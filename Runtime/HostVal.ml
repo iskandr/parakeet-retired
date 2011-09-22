@@ -76,17 +76,20 @@ let set_vec_elt hostVec idx v =
        failwith "[HostVal] boxed array elt set not implemented" 
 
 
+let bool b = HostScalar (ParNum.Bool b)
+let char c = HostScalar (ParNum.Char c)
+let int32 i32 = HostScalar (ParNum.Int32 i32)
+let int64 i64 = HostScalar (ParNum.Int64 i64)
+let float32 f = HostScalar (ParNum.Float32 f)
+let float64 f = HostScalar (ParNum.Float64 f)
+
 let get_vec_elt hostVec idx = 
   assert (Type.is_vec hostVec.host_t);    
   match Type.elt_type hostVec.host_t with
-    | Type.BoolT -> 
-       HostScalar (ParNum.Bool (c_get_bool hostVec.ptr idx)) 
-    | Type.Int32T -> 
-        HostScalar (ParNum.Int32 (c_get_int32 hostVec.ptr idx))
-    | Type.Float32T -> 
-        HostScalar (ParNum.Float32 (c_get_float32 hostVec.ptr idx))  
-    | Type.Float64T ->  
-        HostScalar (ParNum.Float64 (c_get_float64 hostVec.ptr idx))
+    | Type.BoolT -> bool (c_get_bool hostVec.ptr idx)
+    | Type.Int32T -> int32 (c_get_int32 hostVec.ptr idx)
+    | Type.Float32T -> float32 (c_get_float32 hostVec.ptr idx)  
+    | Type.Float64T -> float64 (c_get_float64 hostVec.ptr idx)
     | _ -> failwith $ 
        Printf.sprintf "[HostVal->get_vec_elt] cannot get elements of %s"
         (Type.to_str hostVec.host_t)    
@@ -95,4 +98,3 @@ let sizeof = function
   | HostArray arr -> arr.nbytes 
   | HostScalar n -> Type.sizeof (ParNum.type_of_num n)  
   | HostBoxedArray _ -> assert false 
-
