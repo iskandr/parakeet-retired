@@ -1,16 +1,21 @@
-open Type 
+ 
 
 (* question: how do we know which memory space the pointer is in? *) 
-type t = { 
-    ptr : Int64.t; 
+type array = { 
+    memspace_id : MemId.t; 
+    data_ptr : Ptr.t; 
+    shape_ptr : Ptr.t;
+    strides_ptr: Ptr.t;
+    
     array_type : Type.t;
     elt_type : Type.elt_t;
+    
+    rank : int;
     nelts : int; 
     nbytes : int; 
-    elt_nbytes : int;  
-    rank : int; 
     shape : Shape.t;
-    shape_ptr : Int64.t;   
     strides : int array;
-    strides_ptr: Int64.t;   
 }
+
+type t = Scalar of ParNum.t | Array of array
+
