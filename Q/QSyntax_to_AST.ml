@@ -8,7 +8,8 @@ let rec syntax_to_ast  (syntax, src) =
 		| [e1;e2;e3] -> If(e1,e2,e3)
 		| _ -> let msg = "complicated if statements not yet implemented" in 
 				 raise (SourcedError (msg, src))
-    in let exp = match syntax with                                 
+    in let exp = match syntax with 
+    | LoadExp _ -> failwith "[QSyntax->AST] LoadExp not implemented"                                 
     | BlockExp nodes ->  Block (List.map syntax_to_ast nodes)
     | DefExp (name,rhs) -> Def(name, syntax_to_ast rhs)
     | SetIdxExp (id, indices, rhs) -> 
@@ -52,35 +53,27 @@ let rec syntax_to_ast  (syntax, src) =
         let node = syntax_to_ast stx in   
         Block [mk $ App(tic, []); node; mk $ App(toc, [])]
     | ControlExp(id, args) ->
-	    let args' = List.map syntax_to_ast args in 
-		  begin match id with 
-		  | "$" -> gen_conditional args'   
-		  | "if" -> 
-        begin match args' with 
-			  | condition::rest -> 
-			    let void = mk (Block [])  in 
-          let block = mk (Block rest) in If(condition, block, void)
-        | _ -> raise (SourcedError("too few arguments for if statement", src))
-        end
-      | "do" ->
-        begin match args' with
-          (* generate all the necessary code for a for-loop *)
-			  | upper_limit::code -> 
-			    let block = mk (Block code) in CountLoop (upper_limit, block)
-			  | _ -> 
-				  let msg = "insufficient arguments for do-loop" in 
-            raise (SourcedError(msg, src))
-        end
-      | "while" ->
-         begin match args' with 
-			    | condition::code -> 
-			      let block = mk (Block code) in WhileLoop (condition, block)
-			    | _ -> 
-            raise (SourcedError ("insufficient arguments for while-loop",src)) 
-		     end
-        | _ -> raise (SourcedError("unknown control structure", src)) 	
-      end 
-    in mk exp
+        begin match id, List.map syntax_to_ast args with 
+		  | "$", args' -> gen_conditional args'   
+		  | "if", (condition::rest) -> 
+             let void = mk (Block [])  in 
+             let block = mk (Block rest) in If(condition, block, void)
+          | "if", [] -> 
+             raise (SourcedError("too few arguments for if statement", src))
+          | "do", upper_limit::code -> 
+             (* generate all the necessary code for a for-loop *)
+			 let block = mk (Block code) in CountLoop (upper_limit, block)
+	      | "do", [] -> 
+		     let msg = "insufficient arguments for do-loop" in 
+             raise (SourcedError(msg, src))
+          | "while", condition::code ->
+             let block = mk (Block code) in WhileLoop (condition, block)
+		  | "while", [] -> 
+             raise (SourcedError ("insufficient arguments for while-loop",src)) 
+          | _ -> raise (SourcedError("unknown control structure", src)) 	
+        end 
+        in 
+        mk exp
 and remove_list ids set = 
     List.fold_left (fun set id -> String.Set.remove id set) set ids  
 and collect_arg_vars args set = 

@@ -1,7 +1,7 @@
 (* pp: -parser o pa_macro.cmo *)
 
 open Base
-open DynType 
+open Type 
 open SSA
 open SSA_Transform
 open FindUseCounts
@@ -14,7 +14,7 @@ module SimplifyRules = struct
     constants: SSA.value ConstantLattice.t ID.Map.t;
     copies : FindCopies.CopyLattice.t ID.Map.t;   
     use_counts : (ID.t, int) Hashtbl.t; 
-    types : DynType.t ID.Map.t; 
+    types : Type.t ID.Map.t; 
   } 
       
   let init fundef = 
@@ -69,7 +69,7 @@ module SimplifyRules = struct
     | If (condVal, tBlock, fBlock, merge) ->
       let get_type id = ID.Map.find id cxt.types in
       begin match condVal.value with 
-        | Num (PQNum.Bool b) ->
+        | Num (ParNum.Bool b) ->
             let ids, valNodes = SSA.collect_phi_values b merge in 
             let types = List.map get_type ids in 
             let expNode = 

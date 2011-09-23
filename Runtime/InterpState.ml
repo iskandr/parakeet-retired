@@ -76,8 +76,9 @@ let optimize_untyped_functions program =
 let default_typed_optimizations = 
   [
     (*"function cloning", TypedFunctionCloning.function_cloning;*)   
-    "simplify", Simplify.simplify_fundef; 
-    "adverb fusion", AdverbFusion.optimize_fundef; 
+    "simplify", Simplify.simplify_fundef;
+    "cse", CSE.cse;  
+    "adverb fusion", AdverbFusion.optimize_fundef;
     "inlining", Inline.run_fundef_inliner;  
   ]  
   

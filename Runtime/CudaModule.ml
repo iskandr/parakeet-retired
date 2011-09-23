@@ -13,10 +13,10 @@ type grid_params = {
   grid_y    : int;
 }
 
-type gpu_arg = GpuScalarArg of PQNum.num | GpuArrayArg of Int64.t * int
+type gpu_arg = GpuScalarArg of ParNum.t | GpuArrayArg of Int64.t * int
 
 let gpu_arg_to_str = function 
-  | GpuScalarArg n -> "Scalar: " ^ (PQNum.num_to_str n)
+  | GpuScalarArg n -> "Scalar: " ^ (ParNum.num_to_str n)
   | GpuArrayArg (ptr, n) -> Printf.sprintf "Array: %Lx (%d)" ptr n
 
 let gpu_args_to_str args = 

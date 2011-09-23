@@ -22,16 +22,17 @@ PARAKEET_INCLUDES = -I $(BUILDPATH) \
 	-I $(BUILDPATH)/SSA/Optimizations \
  	-I $(BUILDPATH)/SSA/Analyses \
 	-I $(BUILDPATH)/SSA/Specialization \
-        -I $(BUILDPATH)/ShapeInference \
+  -I $(BUILDPATH)/ShapeInference \
 	-I $(BUILDPATH)/CostModel \
 	-I $(BUILDPATH)/Runtime \
-        -I $(BUILDPATH)/FrontEnd
+  -I $(BUILDPATH)/FrontEnd
 OCAMLINCLUDES := $(LIB_INCLUDES) $(PARAKEET_INCLUDES)
 
+COMMON = `ls $(PARAKEET_PATH)/Common/*.o`
 FRONTEND = `ls $(PARAKEET_PATH)/FrontEnd/*.o`
 OBJS =
 COBJS = -ccopt -L/usr/lib/nvidia-current \
-  $(PARAKEET_PATH)/cuda/parakeet_cuda.a $(FRONTEND) \
+  $(PARAKEET_PATH)/cuda/parakeet_cuda.a $(COMMON) $(FRONTEND) \
 	-ccopt -lcuda -ccopt -L/usr/local/cuda/lib -ccopt -lcudart \
   -ccopt $(UINT_DIR)/libuint32_stubs.a -ccopt $(UINT_DIR)/libuint64_stubs.a
 
@@ -39,21 +40,22 @@ OCAML_LIB_OBJECTS := bigarray.cmxa unix.cmxa str.cmxa \
                      uint32.cmxa uint64.cmx extLib.cmxa
 
 $(shell ocamlopt ../FrontEnd/depsort.ml -o ../FrontEnd/depsort)
-DEPENDENCY_SORTED_OBJECTS := $(shell ../FrontEnd/depsort -E preprocess.cmx $(PARAKEET_INCLUDES))
-OCAMLOBJSRAW := $(OCAML_LIB_OBJECTS) $(DEPENDENCY_SORTED_OBJECTS)
+DEPENDENCY_SORTED_OBJECTS := $(shell ../FrontEnd/depsort -E Callbacks.cmx $(PARAKEET_INCLUDES))
+OCAMLOBJSRAW := $(OCAML_LIB_OBJECTS) $(DEPENDENCY_SORTED_OBJECTS) Callbacks.cmx
 ifneq ($(PROF),)
   OCAMLOBJS = $(patsubst %.cmx,%.p.cmx,$(OCAMLOBJSRAW))
 else
-  OCAMLOBJS = $(OCAMLOBJSRAW) 
+  OCAMLOBJS = $(OCAMLOBJSRAW)
 endif
 
 all: parakeetpy
 
 parakeetpy: $(OBJS)
 	echo "Building Python Parakeet library"
+	echo "OCAML OBJS: " $(OCAMLOBJS)
 	$(OCAMLCC) -linkall -ccopt -shared -ccopt -Wl,-Bsymbolic $(OBJS) \
 	$(OCAMLINCLUDES) $(COBJS) $(DEBUG) -ccopt -Wl,--start-group $(OCAMLOBJS) \
-	-ccopt -Wl,--end-group -o parakeetpy.so -verbose -cclib -lstdc++
+	-ccopt -Wl,--end-group -o libparakeetpy.so -verbose -cclib -lstdc++
 
 # The Python C interface will be added here
 # cqinterface.o: cqinterface.c cqinterface.h

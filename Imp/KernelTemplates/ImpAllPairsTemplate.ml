@@ -1,6 +1,6 @@
 open Base
 open Imp
-open DynType
+open Type
 
 (* Assumes that inputs are 2D and that the payload is a function that takes *)
 (* two input vectors and an output vector and populates the output vector *)
@@ -44,10 +44,10 @@ let gen_all_pairs_2d payload t1 t2 outTypes =
   let outType = List.hd outTypes in 
   debug $ Printf.sprintf
      "[imp] generating all_pairs kernel with signature (%s,%s)->%s\n"
-     (DynType.to_str t1) (DynType.to_str t2) (DynType.to_str outType)
+     (Type.to_str t1) (Type.to_str t2) (Type.to_str outType)
   ;
   let fnState = new ImpCodegen.fn_state in  
-  let output_elt_t = DynType.peel_vec outType in 
+  let output_elt_t = Type.peel_vec outType in 
   let input1 = fnState#fresh_input t1 in 
   let input2 =  fnState#fresh_input t2 in
   let output = fnState#fresh_output outType in
@@ -83,8 +83,8 @@ let gen_all_pairs_2d payload t1 t2 outTypes =
 
 let gen_all_pairs_2d_tiled payload t1 t2 outType =
   let fnState = new ImpCodegen.fn_state in 
-  let elt_t1, elt_t2 = DynType.peel_vec t1, DynType.peel_vec t2 in
-  let output_elt_t = DynType.peel_vec outType in
+  let elt_t1, elt_t2 = Type.peel_vec t1, Type.peel_vec t2 in
+  let output_elt_t = Type.peel_vec outType in
   let input1 = fnState#fresh_input t1 in 
   let input2 = fnState#fresh_input t2 in
   let output = fnState#fresh_output outType in

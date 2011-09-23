@@ -3,18 +3,18 @@ type coord = X | Y | Z
 type exp = 
   | Var of ID.t
   | Idx of exp_node * exp_node  
-  | Op of Prim.scalar_op * DynType.t * exp_node list 
-  | Select of DynType.t * exp_node * exp_node * exp_node 
-  | Const of PQNum.num 
-  | Cast of DynType.t * exp_node  
-  | DimSize of int * exp_node 
+  | Op of Prim.scalar_op * Type.t * exp_node list 
+  | Select of Type.t * exp_node * exp_node * exp_node 
+  | Const of ParNum.t
+  | Cast of Type.t * exp_node  
+  | DimSize of exp_node * exp_node 
   | ThreadIdx of coord 
   | BlockIdx of coord 
   | BlockDim of coord 
   | GridDim of coord
 and exp_node = { 
   exp : exp; 
-  exp_type : DynType.t;  
+  exp_type : Type.t;  
 } 
 and stmt = 
   | If of exp_node * block * block
@@ -35,15 +35,15 @@ and array_storage =
 and fn = {
   input_ids : ID.t array;
   input_id_set : ID.t MutableSet.t; 
-  input_types : DynType.t array;
+  input_types : Type.t array;
           
   output_ids : ID.t array; 
   output_id_set : ID.t MutableSet.t; 
-  output_types : DynType.t array;
+  output_types : Type.t array;
   
   local_id_set : ID.t MutableSet.t; 
   
-  types : (ID.t, DynType.t) Hashtbl.t; 
+  types : (ID.t, Type.t) Hashtbl.t; 
   sizes: (ID.t, exp_node list) Hashtbl.t; 
   array_storage : (ID.t, array_storage) Hashtbl.t;
   
@@ -79,12 +79,10 @@ val collect_indices : exp -> ID.t * exp_node list
    
 
 (* HELPER FUNCTIONS FOR IMP EXPRESSIONS *)
-val typed_exp : DynType.t -> exp -> exp_node
+val typed_exp : Type.t -> exp -> exp_node
 val bool_exp : exp->exp_node 
 val int16_exp : exp->exp_node    
-val uint16_exp : exp->exp_node
 val int_exp : exp -> exp_node   
-val uint_exp : exp -> exp_node  
 val f32_exp : exp -> exp_node  
 val f64_exp : exp -> exp_node  
 
@@ -92,13 +90,13 @@ val f64_exp : exp -> exp_node
    (or leave it alone if it's already that type
 *)
 
-val cast : DynType.t -> exp_node -> exp_node 
+val cast : Type.t -> exp_node -> exp_node 
 
-val common_type : ?t:DynType.t -> exp_node list -> DynType.t  
-val typed_op : Prim.scalar_op -> ?t:DynType.t -> exp_node list -> exp_node 
+val common_type : ?t:Type.t -> exp_node list -> Type.t  
+val typed_op : Prim.scalar_op -> ?t:Type.t -> exp_node list -> exp_node 
 
 (* Same as typed_op, but with comparison operators which always return bools *) 
-val cmp_op : Prim.scalar_op -> ?t:DynType.t -> exp_node list -> exp_node 
+val cmp_op : Prim.scalar_op -> ?t:Type.t -> exp_node list -> exp_node 
 
 (* CUDA stuff *)
 type vec3 = { x: exp_node; y: exp_node; z: exp_node}
@@ -136,43 +134,43 @@ val dim : int -> exp_node -> exp_node
     
     
 val len : exp_node -> exp_node 
-val max_ : ?t:DynType.t -> exp_node -> exp_node -> exp_node 
-val min_ : ?t:DynType.t -> exp_node -> exp_node -> exp_node   
+val max_ : ?t:Type.t -> exp_node -> exp_node -> exp_node 
+val min_ : ?t:Type.t -> exp_node -> exp_node -> exp_node   
 
-val mul : ?t:DynType.t -> exp_node -> exp_node -> exp_node  
-val ( *$ ) :  ?t:DynType.t -> exp_node -> exp_node -> exp_node
+val mul : ?t:Type.t -> exp_node -> exp_node -> exp_node  
+val ( *$ ) :  ?t:Type.t -> exp_node -> exp_node -> exp_node
 
-val add : ?t:DynType.t -> exp_node -> exp_node -> exp_node
-val ( +$ ): ?t:DynType.t -> exp_node -> exp_node -> exp_node
+val add : ?t:Type.t -> exp_node -> exp_node -> exp_node
+val ( +$ ): ?t:Type.t -> exp_node -> exp_node -> exp_node
 
-val div : ?t:DynType.t -> exp_node -> exp_node -> exp_node
-val ( /$ ) : ?t:DynType.t -> exp_node -> exp_node -> exp_node 
+val div : ?t:Type.t -> exp_node -> exp_node -> exp_node
+val ( /$ ) : ?t:Type.t -> exp_node -> exp_node -> exp_node 
 
-val sub : ?t:DynType.t -> exp_node -> exp_node -> exp_node
-val ( -$ ) : ?t:DynType.t -> exp_node -> exp_node -> exp_node 
+val sub : ?t:Type.t -> exp_node -> exp_node -> exp_node
+val ( -$ ) : ?t:Type.t -> exp_node -> exp_node -> exp_node 
 
-val mod_ : ?t:DynType.t -> exp_node -> exp_node -> exp_node
-val ( %$ ) : ?t:DynType.t -> exp_node -> exp_node -> exp_node 
+val mod_ : ?t:Type.t -> exp_node -> exp_node -> exp_node
+val ( %$ ) : ?t:Type.t -> exp_node -> exp_node -> exp_node 
 
-val safe_div_ : ?t:DynType.t -> exp_node -> exp_node -> exp_node
+val safe_div_ : ?t:Type.t -> exp_node -> exp_node -> exp_node
 
-val lt : ?t:DynType.t -> exp_node -> exp_node -> exp_node
-val ( <$ ) : ?t:DynType.t -> exp_node -> exp_node -> exp_node
+val lt : ?t:Type.t -> exp_node -> exp_node -> exp_node
+val ( <$ ) : ?t:Type.t -> exp_node -> exp_node -> exp_node
  
-val lte : ?t:DynType.t -> exp_node -> exp_node -> exp_node
-val ( <=$ ) : ?t:DynType.t -> exp_node -> exp_node -> exp_node
+val lte : ?t:Type.t -> exp_node -> exp_node -> exp_node
+val ( <=$ ) : ?t:Type.t -> exp_node -> exp_node -> exp_node
 
-val gt : ?t:DynType.t -> exp_node -> exp_node -> exp_node
-val ( >$ ) : ?t:DynType.t -> exp_node -> exp_node -> exp_node 
+val gt : ?t:Type.t -> exp_node -> exp_node -> exp_node
+val ( >$ ) : ?t:Type.t -> exp_node -> exp_node -> exp_node 
 
-val gte : ?t:DynType.t -> exp_node -> exp_node -> exp_node
-val ( >=$ ) : ?t:DynType.t -> exp_node -> exp_node -> exp_node 
+val gte : ?t:Type.t -> exp_node -> exp_node -> exp_node
+val ( >=$ ) : ?t:Type.t -> exp_node -> exp_node -> exp_node 
 
-val eq : ?t:DynType.t -> exp_node -> exp_node -> exp_node
-val ( =$ ) : ?t:DynType.t -> exp_node -> exp_node -> exp_node
+val eq : ?t:Type.t -> exp_node -> exp_node -> exp_node
+val ( =$ ) : ?t:Type.t -> exp_node -> exp_node -> exp_node
 
-val neq : ?t:DynType.t -> exp_node -> exp_node -> exp_node
-val ( <>$ ) : ?t:DynType.t -> exp_node -> exp_node -> exp_node
+val neq : ?t:Type.t -> exp_node -> exp_node -> exp_node
+val ( <>$ ) : ?t:Type.t -> exp_node -> exp_node -> exp_node
 
 
 val not_ : exp_node -> exp_node 
@@ -191,7 +189,7 @@ val ln_32 : exp_node -> exp_node
 val ln_64 : exp_node -> exp_node  
 
 val id_of : exp_node -> ID.t 
-val var : ?t:DynType.t -> ID.t -> exp_node
+val var : ?t:Type.t -> ID.t -> exp_node
 
 val max_simplify : exp_node -> exp_node -> exp_node
 val mul_simplify : exp_node -> exp_node -> exp_node

@@ -31,12 +31,12 @@ type cuda_channel_format_kind =
   | Float
 
 let infer_channel_format = function 
-  | DynType.Int32T -> Signed
-  | DynType.UInt32T -> Unsigned
-  | DynType.Float32T -> Float
+  | Type.Int32T -> Signed
+  (*| Type.UInt32T -> Unsigned*)
+  | Type.Float32T -> Float
   | t -> failwith $ 
     Printf.sprintf "Cannot infer texture channel format for type %s"
-    (DynType.to_str t) 
+    (Type.to_str t) 
 
 (** Trying to keep things manageable by keeping these in the same order as they
     are in cuda_stubs.cu **) 
@@ -101,12 +101,16 @@ cuda_memcpy_device_to_symbol : string -> GpuPtr.t -> int -> int -> unit
 *)
 
 (** READ ARRAY ELEMENTS **) 
-external cuda_get_gpu_char_vec_elt : GpuPtr.t -> int -> int 
-  = "ocaml_cuda_get_gpu_char_vec_elt"
 
 external cuda_get_gpu_int_vec_elt : GpuPtr.t -> int -> int
   = "ocaml_cuda_get_gpu_int_vec_elt"
-  
+
+external cuda_get_gpu_int8_vec_elt : GpuPtr.t -> int -> int 
+  = "ocaml_cuda_get_gpu_int8_vec_elt"
+
+external cuda_get_gpu_int16_vec_elt : GpuPtr.t -> int -> int
+  = "ocaml_cuda_get_gpu_int16_vec_elt" 
+    
 external cuda_get_gpu_int32_vec_elt : GpuPtr.t -> int -> Int32.t
   = "ocaml_cuda_get_gpu_int32_vec_elt" 
 

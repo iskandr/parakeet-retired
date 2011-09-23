@@ -53,6 +53,8 @@ type array_op =
   | Where
   | Find 
   | DimSize
+  | ArgMin 
+  | ArgMax
 
 type adverb = 
   | Map 
@@ -65,7 +67,11 @@ type adverb =
 
 type impure_op = ResetTimer | GetTimer | Print 
 
-type q_op =  Q_WriteOrLoadText | Q_WriteOrLoadBinary | Q_Question |  Q_Dollar  
+type q_op = 
+  | Q_WriteOrLoadText 
+  | Q_WriteOrLoadBinary 
+  | Q_Question 
+  |  Q_Dollar  
 
 type prim =
   | ScalarOp of scalar_op  
@@ -129,19 +135,6 @@ let is_unop = function
   | Log10 -> true
   | _ -> false 
 
-(* does the operator expect a function argument *)
-(* 
-let is_higher_order = function 
-  | Map 
-  | EachLeft (* each left *)
-  | EachRight (* each right *)
-  | Scan  
-  | Reduce 
-  | AllPairs  
-  | AllPairsRight  -> true 
-  | _ -> false 
-*)
-
 (* binary operators which preserve the greatest type of their args *) 
 let is_comparison = function   
   | Eq | Neq | Lt  | Lte | Gt  | Gte -> true 
@@ -166,6 +159,8 @@ let min_prim_arity = function
   | ScalarOp op when is_binop op -> 2
   | ScalarOp Select -> 3  
   | ScalarOp _ -> 1   
+  | ArrayOp ArgMin 
+  | ArrayOp ArgMax
   | ArrayOp Til
   | ArrayOp Where 
   | ArrayOp Enlist -> 1
@@ -189,22 +184,22 @@ let max_prim_arity = function
   | other -> min_prim_arity other
 	
 let scalar_op_to_str = function 
-	| Add -> "+"
-	| Sub -> "-"
-	| Mult -> "*"
-	| Div -> "%"
+  | Add -> "+"
+  | Sub -> "-"
+  | Mult -> "*"
+  | Div -> "%"
   | SafeDiv -> "safediv"
-	| Mod -> "mod"
-	| Min -> "min"
-	| Max -> "max"
-	| Pow -> "pow" 
-	| Log -> "log"
+  | Mod -> "mod"
+  | Min -> "min"
+  | Max -> "max"
+  | Pow -> "pow" 
+  | Log -> "log"
   | Eq -> "="
-	| Neq -> "<>"
-	| Lt -> "<" 
-	| Lte -> "<="
-	| Gt -> ">" 
-	| Gte -> ">="
+  | Neq -> "<>"
+  | Lt -> "<" 
+  | Lte -> "<="
+  | Gt -> ">" 
+  | Gte -> ">="
   | And -> "&&"
   | Or -> "||"
   | Neg -> "neg"
@@ -231,15 +226,17 @@ let scalar_op_to_str = function
 	
 
 let array_op_to_str = function 
-	| Zip -> "zip"
-	| Concat -> ","
-	| Enlist -> "enlist"
-	| Til -> "til"
-	| Rand -> "rand"
+  | Zip -> "zip"
+  | Concat -> ","
+  | Enlist -> "enlist"
+  | Til -> "til"
+  | Rand -> "rand"
   | Index -> "@"
   | Where -> "where"
   | DimSize -> "dimsize" 
   | Find -> "?"
+  | ArgMin -> "argmin" 
+  | ArgMax -> "argmax" 
 
 let adverb_to_str = function 
   | Map -> "each"

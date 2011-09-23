@@ -6,9 +6,9 @@ import matplotlib.pyplot as plt
 
 bscpu1t = [179.69, 351.97, 693.39, 1379.91] # True
 bscpu8t = [35.5, 71.1, 140.7, 287.7] # True
-bscuda = [19.8, 37.5, 72.5, 143.1] # True
+bscuda = [8.28, 15.27, 28.94, 56.55] # True
 
-bspara = [22.2, 54.0, 88.0, 160.0] # Not true (yet)
+bspara = [20.0, 27.45, 41.31, 70.10] # Not true (yet)
 
 N = 4
 opts = np.arange(N)

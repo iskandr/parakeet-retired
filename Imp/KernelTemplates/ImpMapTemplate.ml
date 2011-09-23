@@ -1,6 +1,6 @@
 (* pp: -parser o pa_macro.cmo *)
 open Base 
-open DynType 
+open Type 
 open Imp
 
 (* assume all threadblocks are 1d row of size threadsPerBlock *) 
@@ -8,9 +8,9 @@ let gen_map payload threadsPerBlock closureTypes inTypes outTypes =
   IFDEF DEBUG THEN 
     Printf.printf "\n\nGenerating map template for %s%s -> %s\n"
       (if Array.length closureTypes = 0 then "" 
-       else DynType.type_array_to_str closureTypes ^ " => ")
-      (DynType.type_array_to_str inTypes)
-      (DynType.type_array_to_str outTypes)
+       else Type.type_array_to_str closureTypes ^ " => ")
+      (Type.type_array_to_str inTypes)
+      (Type.type_array_to_str outTypes)
     ; 
   ENDIF; 
   let nInputs = Array.length inTypes in 
@@ -34,14 +34,14 @@ let gen_map payload threadsPerBlock closureTypes inTypes outTypes =
       )
       inputArgs 
   in
-  let inputEltTypes = Array.map DynType.peel_vec inTypes in 
+  let inputEltTypes = Array.map Type.peel_vec inTypes in 
   let payloadInputShapes = Array.append closureArgShapes inputEltShapes in   
   let payloadOutputShapes = 
     Array.of_list $ SymbolicShape.get_call_output_shapes 
       payload 
       (Array.to_list payloadInputShapes)
   in
-  let outEltTypes = Array.map DynType.peel_vec outTypes in 
+  let outEltTypes = Array.map Type.peel_vec outTypes in 
   (* outputs of payload function *) 
   let outVars = 
     Array.map2 
@@ -78,7 +78,7 @@ let gen_map payload threadsPerBlock closureTypes inTypes outTypes =
       inputEltShapes
   in 
   for i = 0 to  nInputs - 1 do
-    if DynType.is_scalar inTypes.(i) then 
+    if Type.is_scalar inTypes.(i) then 
       (* assign elt to be the scalar input *)
       nestedBuffer#emit [set inputEltArgs.(i) inputArgs.(i)]
     else 

@@ -105,7 +105,7 @@ host_val mk_inf(dyn_type t) {
   CAMLparam0();
   CAMLlocal2(num, ocaml_t);
   num = caml_alloc(1, PQNUM_INF);
-  ocaml_t = *(value*)t;
+  ocaml_t = (value)t;
   Store_field(num, 0, ocaml_t);
   CAMLreturnT(host_val, build_ocaml_host_scalar(num));
 }
@@ -114,7 +114,7 @@ host_val mk_neginf(dyn_type t) {
   CAMLparam0();
   CAMLlocal2(num, ocaml_t);
   num = caml_alloc(1, PQNUM_NEGINF);
-  ocaml_t = *(value*)t;
+  ocaml_t = (value)t;
   Store_field(num, 0, ocaml_t);
   CAMLreturnT(host_val, build_ocaml_host_scalar(num));
 }
@@ -126,7 +126,7 @@ host_val mk_host_array(char *data, dyn_type t, int *shape, int shape_len,
       ocaml_tuple, ocaml_host_val);
   CAMLlocal1(ocaml_dyn_type);
 
-  ocaml_dyn_type = *(value*)t;
+  ocaml_dyn_type = (value)t;
 
   ocaml_host_val = caml_alloc(1, HostArray);
 
@@ -137,7 +137,7 @@ host_val mk_host_array(char *data, dyn_type t, int *shape, int shape_len,
   ocaml_shape = caml_alloc(shape_len, 0);
   int i;
   for(i = 0; i < shape_len; i++) {
-      Store_field(ocaml_shape, i, Val_int(shape[i]));
+    Store_field(ocaml_shape, i, Val_int(shape[i]));
   }
   ocaml_host_ptr = caml_copy_int64((int64_t)data);
   ocaml_num_bytes = Val_int(num_bytes);
@@ -151,14 +151,14 @@ host_val mk_host_array(char *data, dyn_type t, int *shape, int shape_len,
   // put the host_array record into the host_val
   caml_register_global_root(&ocaml_host_val);
   Store_field(ocaml_host_val, 0, ocaml_tuple);
-  CAMLreturnT(host_val, (host_val)&ocaml_host_val);
+  CAMLreturnT(host_val, (host_val)ocaml_host_val);
 }
 
 void free_host_val(host_val val) {
   CAMLparam0();
   CAMLlocal1(ocaml_host_val);
 
-  ocaml_host_val = *(value*)val;
+  ocaml_host_val = (value)val;
   caml_remove_global_root(&ocaml_host_val);
 
   CAMLreturn0;
@@ -176,7 +176,7 @@ int host_val_is_scalar(host_val val) {
   CAMLparam0();
   CAMLlocal1(ocaml_host_val);
 
-  ocaml_host_val = *(value*)val;
+  ocaml_host_val = (value)val;
   int ret = Tag_val(ocaml_host_val) == HostScalar;
 
   CAMLreturnT(int, ret);
@@ -188,7 +188,7 @@ int get_bool(host_val val) {
   CAMLparam0();
   CAMLlocal1(ocaml_host_val);
 
-  ocaml_host_val = *(value*)val;
+  ocaml_host_val = (value)val;
 
   CAMLreturnT(int, (int)Bool_val(Field(Field(ocaml_host_val, 0), 0)));
 }
@@ -198,7 +198,7 @@ char get_char(host_val val);
   CAMLparam0();
   CAMLlocal1(ocaml_host_val);
 
-  ocaml_host_val = *(value*)val;
+  ocaml_host_val = (value)val;
 
   CAMLreturnT();
 }
@@ -209,7 +209,7 @@ uint16_t get_uint16(host_val val);
   CAMLparam0();
   CAMLlocal1(ocaml_host_val);
 
-  ocaml_host_val = *(value*)val;
+  ocaml_host_val = (value)val;
 
   CAMLreturnT(uint);
 }
@@ -218,7 +218,7 @@ int16_t  get_int16(host_val val);
   CAMLparam0();
   CAMLlocal1(ocaml_host_val);
 
-  ocaml_host_val = *(value*)val;
+  ocaml_host_val = (value)val;
 
   CAMLreturnT();
 }
@@ -228,7 +228,7 @@ uint32_t get_uint32(host_val val) {
   CAMLparam0();
   CAMLlocal1(ocaml_host_val);
 
-  ocaml_host_val = *(value*)val;
+  ocaml_host_val = (value)val;
 
   CAMLreturnT(uint32_t, Int32_val(Field(Field(ocaml_host_val, 0), 0)));
 }
@@ -237,7 +237,7 @@ int32_t get_int32(host_val val) {
   CAMLparam0();
   CAMLlocal1(ocaml_host_val);
 
-  ocaml_host_val = *(value*)val;
+  ocaml_host_val = (value)val;
 
   CAMLreturnT(int32_t, Int32_val(Field(Field(ocaml_host_val, 0), 0)));
 }
@@ -246,7 +246,7 @@ uint64_t get_uint64(host_val val) {
   CAMLparam0();
   CAMLlocal1(ocaml_host_val);
 
-  ocaml_host_val = *(value*)val;
+  ocaml_host_val = (value)val;
 
   CAMLreturnT(uint64_t, Int64_val(Field(Field(ocaml_host_val, 0), 0)));
 }
@@ -255,7 +255,7 @@ int64_t  get_int64(host_val val) {
   CAMLparam0();
   CAMLlocal1(ocaml_host_val);
 
-  ocaml_host_val = *(value*)val;
+  ocaml_host_val = (value)val;
 
   CAMLreturnT(int64_t, Int64_val(Field(Field(ocaml_host_val, 0), 0)));
 }
@@ -264,7 +264,7 @@ float get_float32(host_val val) {
   CAMLparam0();
   CAMLlocal1(ocaml_host_val);
 
-  ocaml_host_val = *(value*)val;
+  ocaml_host_val = (value)val;
 
   CAMLreturnT(float, (float)Double_val(Field(Field(ocaml_host_val, 0), 0)));
 }
@@ -273,7 +273,7 @@ double get_float64(host_val val) {
   CAMLparam0();
   CAMLlocal1(ocaml_host_val);
 
-  ocaml_host_val = *(value*)val;
+  ocaml_host_val = (value)val;
 
   CAMLreturnT(double, Double_val(Field(Field(ocaml_host_val, 0), 0)));
 }
@@ -283,18 +283,18 @@ dyn_type get_host_val_array_type(host_val val) {
   CAMLparam0();
   CAMLlocal2(ocaml_host_val, ocaml_dyn_type);
 
-  ocaml_host_val = *(value*)val;
+  ocaml_host_val = (value)val;
 
   caml_register_global_root(&ocaml_dyn_type);
   ocaml_dyn_type = Field(Field(ocaml_host_val, 0), 1);
-  CAMLreturnT(dyn_type, (dyn_type)&ocaml_dyn_type);
+  CAMLreturnT(dyn_type, (dyn_type)ocaml_dyn_type);
 }
 
 host_val_data_t get_host_val_array_data(host_val val) {
   CAMLparam0();
   CAMLlocal3(ocaml_host_val, ocaml_array, ocaml_shape);
 
-  ocaml_host_val = *(value*)val;
+  ocaml_host_val = (value)val;
   ocaml_array    = Field(ocaml_host_val, 0);
   ocaml_shape    = Field(ocaml_array, 2);
 
@@ -321,6 +321,6 @@ host_val build_ocaml_host_scalar(value num) {
   hostScalar = caml_alloc(1, HostScalar);
   caml_register_global_root(&hostScalar);
   Store_field(hostScalar, 0, num);
-  CAMLreturnT(host_val, (host_val)&hostScalar);
+  CAMLreturnT(host_val, (host_val)hostScalar);
 }
 

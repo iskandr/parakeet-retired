@@ -3,14 +3,13 @@ open Base
 (* make a unique identifier module, with a specific to_str function and
    distinct counter from all other unique identifiers 
 *)  
-module Make(S : sig val to_str : int -> string end) = struct 
+module Make(A : sig val to_str : int -> string end) = struct 
   type t = int 
-  include S
+  let to_str x = A.to_str x 
    
-  module Set = Int.Set
-  module Map = Int.Map 
-  module Graph = Int.Graph 
-
+  module Set = Set.Make(struct type t = t let compare = compare end)
+  module Map = Map.Make(struct type t = t let compare = compare end)
+  
   let gen : (unit -> t) = mk_gen ()
    
   (* takes a list of ids, returns a mapping of id -> fresh id *)

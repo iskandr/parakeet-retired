@@ -58,64 +58,33 @@ let is_bits = function
    types to a pointer. This is the type used after data is loaded from an 
    array. 
 *)
-let rec of_dyn_type = function
-  | DynType.Int16T -> S16
-  | DynType.UInt16T -> U16
-  | DynType.Int32T -> S32
-  | DynType.UInt32T -> U32 
-  | DynType.Int64T -> S64
-  | DynType.UInt64T -> U64        
-  | DynType.CharT -> U16 
-  | DynType.Float32T ->  F32 
-  | DynType.Float64T ->  F64
-  | DynType.BoolT -> Pred
-  | DynType.TupleT types ->
-     begin match types with
-      | [|t1; t2|] ->
-        if t1 <> t2 then
-          failwith "[dyn_to_ptx_type] v2 elements must be the same"
-       else if not $ DynType.is_scalar t1 then
-          failwith "[dyn_to_ptx_type] v2 must contain scalar types "
-       else V2 (of_dyn_type t1)
-     | [|t1; t2; t3; t4|] -> 
-        if t1 <> t2 || t2 <> t3 || t3 <> t4 then
-           failwith "[dyn_to_ptx_type] v4 elements must be the same"
-       else if not $ DynType.is_scalar t1 then
-          failwith "[dyn_to_ptx_type] v2 must contain scalar types "
-       else V4 (of_dyn_type t1)
-     | _ -> failwith "[dyn_to_ptx_type] wrong number of elements in tuple"
-     end
+let convert_elt_type = function 
+  | Type.Int16T -> S16
+  | Type.Int32T -> S32
+  | Type.Int64T -> S64
+  | Type.CharT -> U16 
+  | Type.Float32T ->  F32 
+  | Type.Float64T ->  F64
+  | Type.BoolT -> Pred
+  
+let rec convert_type = function
+  | Type.ScalarT t -> convert_elt_type t 
   | _ -> ptrT (* everything else is a pointer *)
 
 (* the type of a variable when its stored in an array *) 
-let rec storage_of_dyn_type = function
-  | DynType.Int16T -> S16
-  | DynType.UInt16T -> U16
-  | DynType.Int32T -> S32
-  | DynType.Int64T -> S64
-  | DynType.CharT -> U8
-  | DynType.Float32T ->  F32 
-  | DynType.Float64T ->  F64
+let storage_of_elt_type = function
+  | Type.Int16T -> S16
+  | Type.Int32T -> S32
+  | Type.Int64T -> S64
+  | Type.CharT -> U8
+  | Type.Float32T ->  F32 
+  | Type.Float64T ->  F64
   (* storing bools as 16-bit for now *) 
-  | DynType.BoolT -> U8
-  | DynType.TupleT types ->
-     begin match types with
-      | [|t1; t2|] ->
-        if t1 <> t2 then
-          failwith "[dyn_to_ptx_type] v2 elements must be the same"
-       else if not $ DynType.is_scalar t1 then
-          failwith "[dyn_to_ptx_type] v2 must contain scalar types "
-       else V2 (storage_of_dyn_type t1)
-     | [|t1; t2; t3; t4|] -> 
-        if t1 <> t2 || t2 <> t3 || t3 <> t4 then
-           failwith "[dyn_to_ptx_type] v4 elements must be the same"
-       else if not $ DynType.is_scalar t1 then
-          failwith "[dyn_to_ptx_type] v2 must contain scalar types "
-       else V4 (storage_of_dyn_type t1)
-     | _ -> failwith "[dyn_to_ptx_type] wrong number of elements in tuple"
-     end
-  | _ -> ptrT (* everything else is a pointer *)
+  | Type.BoolT -> U8
 
+let to_storage_type = function 
+  | Type.ScalarT eltT -> storage_of_elt_type eltT
+  | _ -> ptrT  
  
 let rec to_str = function 
   | Pred -> "pred"

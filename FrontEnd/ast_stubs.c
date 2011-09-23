@@ -20,21 +20,24 @@
 
 /** Private members **/
 value *ocaml_mk_ast_info = NULL;
-static int init = 0;
+value *ocaml_get_prim = NULL;
+static int ast_inited = 0;
 static CAMLprim value mk_src_info(source_info_t *src_info);
 static paranode mk_node(value exp, source_info_t *src_info);
 static paranode mk_prim(prim_t prim_op, int op, source_info_t *src_info);
 static paranode mk_num(value num, source_info_t *src_info);
 static CAMLprim value get_value_and_remove_root(paranode p);
+static CAMLprim value mk_val_list(paranode *vals, int num_vals);
 
 /** Public interface **/
 
 void ast_init(void) {
-  if (init) return;
+  if (ast_inited) return;
 
-  init = 1;
+  ast_inited = 1;
 
   ocaml_mk_ast_info = caml_named_value("mk_ast_info");
+  ocaml_get_prim = caml_named_value("get_prim");
 }
 
 paranode mk_lam(char **args, int num_args, paranode body,
@@ -53,7 +56,7 @@ paranode mk_lam(char **args, int num_args, paranode body,
     arg1 = caml_alloc_tuple(2);
     len  = strlen(args[num_args - 1]);
     ocaml_str = caml_alloc_string(len);
-    memcpy(String_val(ocaml_str), &args[num_args - 1], len);
+    memcpy(String_val(ocaml_str), args[num_args - 1], len);
     Store_field(arg1, 0, ocaml_str);
     Store_field(arg1, 1, Val_int(0));
 
@@ -62,7 +65,7 @@ paranode mk_lam(char **args, int num_args, paranode body,
       arg2 = caml_alloc_tuple(2);
       len = strlen(args[i]);
       ocaml_str = caml_alloc_string(len);
-      memcpy(String_val(ocaml_str), &args[i], len);
+      memcpy(String_val(ocaml_str), args[i], len);
       Store_field(arg2, 0, ocaml_str);
       Store_field(arg2, 1, arg1);
       arg1 = arg2;
@@ -117,6 +120,15 @@ paranode mk_q_op(q_op_t op, source_info_t *src_info) {
   return mk_prim(Prim_Q_Op, op, src_info);
 }
 
+paranode mk_bool_paranode(int b, source_info_t *src_info) {
+   CAMLparam0();
+   CAMLlocal1(val);
+
+   val = caml_alloc(1, PQNUM_BOOL);
+   Store_field(val, 0, Val_int(b));
+   CAMLreturnT(paranode, mk_num(val, src_info));
+}
+
 paranode mk_int32_paranode(int32_t i, source_info_t *src_info) {
   CAMLparam0();
   CAMLlocal1(val);
@@ -132,6 +144,7 @@ paranode mk_int64_paranode(int64_t l, source_info_t *src_info) {
 
   val = caml_alloc(1, PQNUM_INT64);
   Store_field(val, 0, caml_copy_int64(l));
+
   CAMLreturnT(paranode, mk_num(val, src_info));
 }
 
@@ -184,32 +197,12 @@ paranode mk_sym(char *sym, source_info_t *src_info) {
 paranode mk_app(paranode fun, paranode *args, int num_args,
                 source_info_t *src_info) {
   CAMLparam0();
-  CAMLlocal4(val_fun, app, arg1, arg2);
-  
-  app = caml_alloc(1, Exp_App);
+  CAMLlocal2(val_fun, app);
+
+  app = caml_alloc(2, Exp_App);
   val_fun = get_value_and_remove_root(fun);
   Store_field(app, 0, val_fun);
-
-  // Build the args list
-  int i;
-  if (num_args > 0) {
-    // Create the tail of the list
-    arg1 = caml_alloc_tuple(2);
-    Store_field(arg1, 0, get_value_and_remove_root(args[num_args-1]));
-    Store_field(arg1, 1, Val_int(0));
-
-    // Extract each arg and add it to the OCaml list
-    for (i = num_args - 2; i >= 0; --i) {
-      arg2 = caml_alloc_tuple(2);
-      Store_field(arg2, 0, get_value_and_remove_root(args[i]));
-      Store_field(arg2, 1, arg1);
-      arg1 = arg2;
-    }
-  } else {
-    arg1 = Val_int(0);
-  }
-  
-  Store_field(app, 1, arg1);
+  Store_field(app, 1, mk_val_list(args, num_args));
 
   CAMLreturnT(paranode, mk_node(app, src_info));
 }
@@ -235,7 +228,7 @@ paranode mk_if(paranode cond_node, paranode true_node, paranode false_node,
   val_true  = get_value_and_remove_root(true_node);
   val_false = get_value_and_remove_root(false_node);
 
-  if_node = caml_alloc(1, Exp_If);
+  if_node = caml_alloc(3, Exp_If);
   Store_field(if_node, 0, val_cond);
   Store_field(if_node, 1, val_true);
   Store_field(if_node, 2, val_false);
@@ -253,7 +246,7 @@ paranode mk_def(char *name, paranode rhs, source_info_t *src_info) {
   ocaml_name = caml_alloc_string(len);
   memcpy(String_val(ocaml_name), name, len);
   
-  def = caml_alloc(1, Exp_Def);
+  def = caml_alloc(2, Exp_Def);
   Store_field(def, 0, ocaml_name);
   Store_field(def, 1, val_rhs);
 
@@ -280,14 +273,12 @@ paranode mk_setidx(char *arr_name, paranode idxs, paranode rhs,
   CAMLreturnT(paranode, mk_node(setidx, src_info));
 }
 
-paranode mk_block(paranode stmts, source_info_t *src_info) {
+paranode mk_block(paranode *stmts, int num_stmts, source_info_t *src_info) {
   CAMLparam0();
-  CAMLlocal2(val_stmts, block);
-
-  val_stmts = get_value_and_remove_root(stmts);
+  CAMLlocal1(block);
 
   block = caml_alloc(1, Exp_Block);
-  Store_field(block, 0, val_stmts);
+  Store_field(block, 0, mk_val_list(stmts, num_stmts));
 
   CAMLreturnT(paranode, mk_node(block, src_info));
 }
@@ -335,10 +326,12 @@ paranode mk_void(source_info_t *src_info) {
 
 static paranode mk_prim(prim_t prim_op, int op, source_info_t *src_info) {
   CAMLparam0();
-  CAMLlocal1(prim_val);
+  CAMLlocal2(prim_op_val, prim_val);
 
-  prim_val = caml_alloc(1, prim_op);
-  Store_field(prim_val, 0, Val_int(op));
+  prim_val = caml_alloc(1, Exp_Prim);
+  prim_op_val = caml_alloc(1, prim_op);
+  Store_field(prim_op_val, 0, Val_int(op));
+  Store_field(prim_val, 0, prim_op_val);
 
   CAMLreturnT(paranode, mk_node(prim_val, src_info));
 }
@@ -385,10 +378,35 @@ static CAMLprim value get_value_and_remove_root(paranode p) {
   CAMLparam0();
   CAMLlocal1(val);
 
-  val = *(value*)p;
+  val = (value)p;
   caml_remove_global_root(&val);
 
   CAMLreturn(val);
+}
+
+static CAMLprim value mk_val_list(paranode *vals, int num_vals) {
+  CAMLparam0();
+  CAMLlocal2(val1, val2);
+
+  int i;
+  if (num_vals > 0) {
+    // Create the tail of the list
+    val1 = caml_alloc_tuple(2);
+    Store_field(val1, 0, get_value_and_remove_root(vals[num_vals-1]));
+    Store_field(val1, 1, Val_int(0));
+
+    // Extract each val and add it to the OCaml list
+    for (i = num_vals - 2; i >= 0; --i) {
+      val2 = caml_alloc_tuple(2);
+      Store_field(val2, 0, get_value_and_remove_root(vals[i]));
+      Store_field(val2, 1, val1);
+      val1 = val2;
+    }
+  } else {
+    val1 = Val_int(0);
+  }
+  
+  CAMLreturn(val1);
 }
 
 static paranode mk_node(value exp, source_info_t *src_info) {
@@ -397,14 +415,33 @@ static paranode mk_node(value exp, source_info_t *src_info) {
 
   // build the ast_info and src_info
   ocaml_src_info = mk_src_info(src_info);
+
   ast_info       = caml_callback(*ocaml_mk_ast_info, Val_unit);
 
   // build the node
   caml_register_global_root(&node);
+  node = caml_alloc_tuple(3);
   Store_field(node, 0, exp);
   Store_field(node, 1, ocaml_src_info);
   Store_field(node, 2, ast_info);
 
-  paranode ret = (paranode)&node;
+  paranode ret = (paranode)node;
   CAMLreturnT(paranode, ret);
 }
+
+paranode get_prim(char* prim_name) {
+  CAMLparam0();
+  CAMLlocal1(ocaml_str);
+
+  // copy over the string
+  int len = strlen(prim_name);
+  ocaml_str = caml_alloc_string(len);
+  memcpy(String_val(ocaml_str), prim_name, len);
+
+  // build the var expression
+  paranode prim = caml_callback(*ocaml_get_prim, ocaml_str);
+
+  // build the node and return
+  CAMLreturnT(paranode, prim);
+}
+

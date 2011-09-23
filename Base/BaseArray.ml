@@ -1,5 +1,5 @@
-  open BaseCommon
-  include ExtArray.Array
+open BaseCommon
+include ExtArray.Array
   
   let remove_mask data bools = 
     let len = Array.length data in 

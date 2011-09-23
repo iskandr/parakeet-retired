@@ -31,11 +31,8 @@ typedef enum dyn_type_no_data {
   BoolT,
   CharT,
   Int16T,
-  UInt16T,
   Int32T,
-  UInt32T,
   Int64T,
-  UInt64T,
   Float32T,
   Float64T,
   SymT,
@@ -54,11 +51,8 @@ typedef enum dyn_type_with_data {
 enum pqnum_tag {
   PQNUM_BOOL = 0,
   PQNUM_CHAR,
-  PQNUM_UINT16,
   PQNUM_INT16,
-  PQNUM_UINT32,
   PQNUM_INT32,
-  PQNUM_UINT64,
   PQNUM_INT64,
   PQNUM_FLOAT32,
   PQNUM_FLOAT64,
@@ -66,19 +60,30 @@ enum pqnum_tag {
   PQNUM_NEGINF
 };
 
-enum host_val_tag { HostScalar = 0, HostArray, HostBoxedArray };
+enum host_val_tag {
+    HostScalar = 0,
+    HostArray,
+    HostBoxedArray
+};
 
 enum host_array_layout {
-  HostArray_PTR = 0, HostArray_HOST_T, HostArray_SHAPE, HostArray_NBYTES
+    HostArray_PTR = 0,
+    HostArray_HOST_T,
+    HostArray_SHAPE,
+    HostArray_NBYTES
 };
 
 /* needs to stay synchronized with definition in GpuVal.ml */
 enum gpu_val_tag { GpuScalar = 0, GpuArray };
 
 enum gpu_array_layout {
-    GpuArray_VEC_PTR = 0, GpuArray_VEC_NBYTES, GpuArray_VEC_LEN,
-        GpuArray_VEC_SHAPE_PTR, GpuArray_VEC_SHAPE_NBYTES,
-        GpuArray_VEC_SHAPE, GpuArray_VEC_T
+    GpuArray_VEC_PTR = 0,
+    GpuArray_VEC_NBYTES,
+    GpuArray_VEC_LEN,
+    GpuArray_VEC_SHAPE_PTR,
+    GpuArray_VEC_SHAPE_NBYTES,
+    GpuArray_VEC_SHAPE,
+    GpuArray_VEC_T
 };
 
 enum pqnum_gpu_arg_tag {

@@ -79,8 +79,12 @@ os.environ['dbg'] = '0'
 if not opts['opt']:
   build_command.append("-ppflag")
   build_command.append("-DDEBUG")
+  build_command.append("-cflag")
+  build_command.append("-g")
   make_command.append("DEBUG=-g")
   os.environ['dbg'] = '1'
+
+print build_command
 
 print " ".join(build_command)
 
@@ -89,6 +93,11 @@ for f in glob.glob("_build/*.o"):
   os.remove(f)
 for f in glob.glob("_build/*.so"):
   os.remove(f)
+
+# Clean Common directory
+os.chdir("Common")
+subprocess.call(["make", "clean"])
+os.chdir("..")
 
 # Clean FrontEnd directory
 os.chdir("FrontEnd")
@@ -100,6 +109,13 @@ if opts['q']:
   os.chdir("Q")
   subprocess.call(["make", "clean"])
   os.chdir("..")
+
+# Build Common
+os.chdir("Common")
+if subprocess.call(make_command):
+  print "Parakeet Common C build failed"
+  sys.exit(1)
+os.chdir("..")
 
 # Build CUDA stubs 
 print "\n\n ******** Building Cuda Modules ********* "
@@ -134,7 +150,7 @@ if opts['q']:
     sys.exit(1)
   for f in glob.glob("*.o"):
     shutil.move(f, "../_build")
-  shutil.move("parakeetq.so", "../_build")
+  shutil.move("libparakeetq.so", "../_build")
   os.chdir("..")
 
 # Build Python Front End
@@ -150,5 +166,5 @@ if opts['python']:
     sys.exit(1)
   for f in glob.glob("*.o"):
     shutil.move(f, "../_build")
-  shutil.move("parakeetpy.so", "../_build")
+  shutil.move("libparakeetpy.so", "../_build")
   os.chdir("..")

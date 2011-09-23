@@ -114,7 +114,7 @@ class ptx_codegen = object (self)
     | Some reg -> reg
     | None -> failwith $ "[PtxCodegen] Unregistered arg " ^ (ID.to_str id)
 
-  val dynTypes : (ID.t, DynType.t) Hashtbl.t = Hashtbl.create initialNumRegs
+  val dynTypes : (ID.t, Type.t) Hashtbl.t = Hashtbl.create initialNumRegs
   method imp_dyn_type id = match Hashtbl.find_option dynTypes id with 
     | Some t -> t 
     | None -> failwith $ "[PtxCodegen] No type registered for " ^ (ID.to_str id) 
@@ -311,7 +311,7 @@ class ptx_codegen = object (self)
         failwith "[ptx_codegen->declare_global_slice] insufficient rank" 
       else (
         IFDEF DEBUG THEN 
-          Printf.printf "In declare_slice, rank=%d, is_tex=%B!" 
+          Printf.printf "In declare_slice, rank=%d, is_tex=%B!\n" 
            rank
            (self#is_tex ptrReg)
         ENDIF; 
@@ -329,11 +329,6 @@ class ptx_codegen = object (self)
         
         let shapeReg = self#get_shape_reg ptrReg in 
         let sliceShapeReg = self#fresh_shape_reg sliceReg (rank - 1) in
-        IFDEF DEBUG THEN 
-          Printf.printf "[PtxCodegen] Setting %s as slice into %s\n%!"
-            (PtxVal.to_str symbols sliceShapeReg)
-            (PtxVal.to_str symbols shapeReg)
-        ENDIF; 
         (* increment pointer to shape by 4 bytes to start at next dim *)
         self#emit [add PtxType.ptrT sliceShapeReg shapeReg (int 4)]
       )
@@ -373,7 +368,7 @@ class ptx_codegen = object (self)
   *) 
   method private declare_param 
       (id : ID.t) 
-      (dynT : DynType.t)
+      (dynT : Type.t)
       (dataLayout:GpuVal.data_layout) : PtxVal.value =
     Hashtbl.add dynTypes id dynT;
     DynArray.add paramOrder id;
@@ -395,14 +390,14 @@ class ptx_codegen = object (self)
     
   method private declare_input_param 
                   (id:ID.t) 
-                  (dynT:DynType.t) 
+                  (dynT:Type.t) 
                   (dataLayout : GpuVal.data_layout) :  PtxVal.value =
     let dataReg = self#declare_param id dynT dataLayout in  
     (* vectors need an additional param for their shape *)
-    if DynType.is_scalar dynT then
+    if Type.is_scalar dynT then
       Hashtbl.add dataLocations id PtxCallingConventions.ScalarInput 
     else (
-      let rank = DynType.nest_depth dynT in
+      let rank = Type.rank dynT in
       let shapeReg, shapeOffset = self#register_input_shape dataReg rank in
       let loc = PtxCallingConventions.GlobalInput (dataLayout, shapeOffset) in  
       Hashtbl.add dataLocations id loc
@@ -431,8 +426,8 @@ class ptx_codegen = object (self)
     Hashtbl.add dataRegs impId dataReg;
     Hashtbl.add dynTypes impId dynT;
     
-    if not $ DynType.is_scalar dynT then
-      ignore (self#fresh_shape_reg dataReg (DynType.nest_depth dynT))
+    if not $ Type.is_scalar dynT then
+      ignore (self#fresh_shape_reg dataReg (Type.rank dynT))
     ;
     dataReg
    
@@ -451,7 +446,7 @@ class ptx_codegen = object (self)
     Hashtbl.add dataRegs impId basePtr;
     Hashtbl.add dataLayouts basePtr dataLayout; 
     Hashtbl.add texRefs baseId texParam;
-    let rank = DynType.nest_depth dynT in
+    let rank = Type.rank dynT in
     (* We also do something really dumb here, which is just to pick a shape *)
     (* that matches the input's rank (1D for 1D, etc.) -- should surely *)
     (* revisit later *)
@@ -686,7 +681,7 @@ class ptx_codegen = object (self)
        storage requirements
     *)
     let giantVectorReg = 
-      self#declare_input_param impId (DynType.VecT dynT) GpuVal.RowMajor 
+      self#declare_input_param impId (Type.VecT dynT) GpuVal.RowMajor 
       
     in
     (* don't map impId to the huge global vector, we expect that
@@ -697,7 +692,7 @@ class ptx_codegen = object (self)
     let linearIndexReg = self#compute_linear_thread_index in
     let eltBytes =
       PtxType.nbytes
-        (PtxType.storage_of_dyn_type (DynType.elt_type dynT))
+        (PtxType.storage_of_dyn_type (Type.elt_type dynT))
     in
     (* the starting address of a thread's private slice into the 
        global storage vector
@@ -720,13 +715,12 @@ class ptx_codegen = object (self)
         (* TODO: Let 2D inputs be bound to 1D textures *)
         (*       In order to support this, have to make indexing into them *)
         (*       return their element type, not a pointer to a slice *)
-        let rank = DynType.nest_depth dynT in
-        let elType = DynType.elt_type dynT in
+        let rank = Type.rank dynT in
+        let elType = Type.elt_type dynT in
         if rank = 1 || rank = 2 then (
           match elType with
-            | DynType.UInt32T
-            | DynType.Int32T
-            | DynType.Float32T -> self#declare_tex_param impId dynT dataLayout
+            | Type.Int32T
+            | Type.Float32T -> self#declare_tex_param impId dynT dataLayout
             | _ -> self#declare_input_param impId dynT dataLayout
         ) else
           self#declare_input_param impId dynT dataLayout
@@ -737,7 +731,7 @@ class ptx_codegen = object (self)
   
   method declare_output impId dynT = 
     let dataReg = self#declare_param impId dynT GpuVal.RowMajor in 
-    let rank = DynType.nest_depth dynT in
+    let rank = Type.rank dynT in
     let shapeReg, shapeOffset = self#register_input_shape dataReg rank in
     let loc = PtxCallingConventions.GlobalOutput shapeOffset in  
     Hashtbl.add dataLocations impId loc; 
@@ -840,7 +834,7 @@ class ptx_codegen = object (self)
     
   method finalize_kernel 
          : Ptx.kernel * PtxCallingConventions.calling_conventions =
-    (*PtxTidy.cleanup_kernel instructions local_allocations;*)
+    PtxTidy.cleanup_kernel instructions local_allocations;
     let kernel = { 
       params = DynArray.to_array parameters; 
       code = DynArray.to_array instructions; 

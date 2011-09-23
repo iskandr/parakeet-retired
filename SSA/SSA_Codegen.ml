@@ -4,7 +4,7 @@ open SSA
 class ssa_codegen =
   object (self : 'a)
      
-    val types = (ref ID.Map.empty :  DynType.t ID.Map.t ref)  
+    val types = (ref ID.Map.empty :  Type.t ID.Map.t ref)  
     val code = (DynArray.create () : stmt_node DynArray.t)
     
     method get_type_env = !types
@@ -23,7 +23,7 @@ class ssa_codegen =
     method cvt ~to_type ~from_type valNode = 
       if from_type = to_type then valNode 
       else ( 
-        if DynType.nest_depth from_type > DynType.nest_depth  to_type then 
+        if Type.nest_depth from_type > Type.nest_depth  to_type then 
           failwith "Cannot convert from vector to scalar"
         else ( 
           let castNode = 
@@ -58,8 +58,8 @@ end
 (* Once the body is finished, wrap up the code and type environment *)
 (* as a fundef *)   
 let mk_codegen_fn 
-      (inputTypes : DynType.t list) 
-      (outputTypes  : DynType.t list) 
+      (inputTypes : Type.t list) 
+      (outputTypes  : Type.t list) 
       (constr : ssa_codegen -> value_node list -> value_node list -> unit)  = 
   let codegen = new ssa_codegen in 
   let inputIds = List.map codegen#fresh_var inputTypes in 
@@ -96,20 +96,23 @@ let print = impure_op Prim.Print
 
 let plus = scalar_op Prim.Add 
 let minus = scalar_op Prim.Sub 
-let mul = scalar_op Prim.Mult  
+let mul = scalar_op Prim.Mult 
+let div = scalar_op Prim.Div  
 
 let lt = scalar_op Prim.Lt
 let lte = scalar_op Prim.Lte
 let eq = scalar_op Prim.Eq 
 
-let zero = mk_num (PQNum.Int32 0l) 
-let one = mk_num (PQNum.Int32 1l)
-let neg_one = mk_num (PQNum.Int32 (-1l))
-let trueVal = mk_num (PQNum.Bool true)
-let falseVal = mk_num (PQNum.Bool false) 
+let zero = mk_num (ParNum.Int32 0l) 
+let one = mk_num (ParNum.Int32 1l)
+let neg_one = mk_num (ParNum.Int32 (-1l))
+let trueVal = mk_num (ParNum.Bool true)
+let falseVal = mk_num (ParNum.Bool false) 
 
-let inf = mk_num (PQNum.Inf DynType.Float32T)
-let neginf = mk_num (PQNum.NegInf DynType.Float32T)
+let inf = mk_num (ParNum.Inf Type.Float32T)
+let neginf = mk_num (ParNum.NegInf Type.Float32T)
+
+let select = mk_op (Prim.ScalarOp Prim.Select)
 
 let reduce = mk_op  (Prim.Adverb Prim.Reduce) 
 let map = mk_op (Prim.Adverb Prim.Map)
@@ -121,13 +124,14 @@ let til = mk_op (Prim.ArrayOp Prim.Til)
 let find = mk_op (Prim.ArrayOp Prim.Find)
 let dimsize = mk_op (Prim.ArrayOp Prim.DimSize) 
 
+
 let value x = SSA.mk_exp $ SSA.Values [x]
 let values xs = SSA.mk_exp $ SSA.Values xs
 
 let len x = dimsize @@ [x; zero]
 let incr (x:ID.t) (y:value_node) = SSA.mk_set [x] (plus @@ [y;one])    
 let set_int (x:ID.t) (y:Int32.t) = 
-  SSA.mk_set [x] (SSA.mk_vals_exp [SSA.Num (PQNum.Int32 y)])
+  SSA.mk_set [x] (SSA.mk_vals_exp [SSA.Num (ParNum.Int32 y)])
   
 type vars = value_node array 
 (* helper function for creating functions *) 
@@ -154,4 +158,11 @@ let fn1 constructor =
   let constructorWrapper = 
     fun inputs outputs _ -> constructor inputs.(0) outputs.(0)
   in 
-  mk_fn 1 1 0 constructorWrapper   
+  mk_fn 1 1 0 constructorWrapper
+  
+(* 2 inputs, 1 output, 0 locals *)   
+let fn2 constructor =
+  let constructorWrapper = 
+    fun inputs outputs _ -> constructor inputs.(0) inputs.(1) outputs.(0)
+  in 
+  mk_fn 2 1 0 constructorWrapper      

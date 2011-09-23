@@ -2,7 +2,6 @@
 
 open Base
 
-
 type 'a memspace = { 
   alloc : int -> 'a; 
   delete : 'a -> unit; 
@@ -97,7 +96,7 @@ let delete_gpu_vec gpuMemSpace gpuVec =
       "[Alloc] Flushing gpu vec of size %d, shape %s, type %s @ %Lx\n%!" 
       gpuVec.vec_nbytes
       (Shape.to_str gpuVec.vec_shape)
-      (DynType.to_str gpuVec.vec_t)
+      (Type.to_str gpuVec.vec_t)
       gpuVec.vec_ptr
       ; 
       Printf.printf "[Alloc] -- %s\n%!" (GpuVal.gpu_vec_to_str gpuVec); 

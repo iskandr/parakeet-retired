@@ -6,6 +6,6 @@ val type_analysis :
       closureEnv:CollectPartialApps.closure_env -> 
       fundef:fundef -> 
       signature:Signature.t -> 
-      (ID.t, DynType.t) Hashtbl.t       
+      (ID.t, Type.t) Hashtbl.t       
   
   

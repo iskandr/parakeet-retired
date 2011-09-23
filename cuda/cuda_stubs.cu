@@ -20,12 +20,13 @@ extern "C" {
 #include "caml/memory.h"
 #include "caml/mlvalues.h"
 
+
 /* unit -> unit */
 CAMLprim
 value ocaml_cuda_init(value unit) {
   CAMLparam1 (unit);
   if (cuInit(0) != CUDA_SUCCESS) {
-    exit (0);
+    caml_failwith("cuda_stubs.cu: Failed to initialize CUDA"); 
   }
   CAMLreturn (Val_unit);
 }
@@ -99,9 +100,11 @@ CAMLprim value ocaml_cuda_ctx_create(value dev_num) {
   CUcontext ctx = 0;
   CUresult result = cuCtxCreate(&ctx, 0, Int_val(dev_num));
   if (result != 0) {
-    printf ("Error creating context on dev %d: %d \n",
-            Int_val(dev_num), result);
-    exit(1);
+    char msg[100];  
+    sprintf(msg, 
+      "cuda_stubs.cu: Error creating context on dev %d: %d \n",
+      Int_val(dev_num), result);
+    caml_failwith(msg); 
   }
   CAMLreturn(caml_copy_int64((int64_t)ctx));
 }
@@ -111,8 +114,9 @@ CAMLprim value ocaml_cuda_ctx_destroy(value ctx) {
   CAMLparam1(ctx);
   CUresult result = cuCtxDestroy((CUcontext)Int64_val(ctx));
   if (result != 0) {
-    printf ("Error destroying context: %d \n", result);
-    exit(1);
+    char msg[100]; 
+    sprintf (msg, "Error destroying context: %d ", result);
+    caml_failwith(msg);
   }
   CAMLreturn(Val_unit);
 }
@@ -179,8 +183,9 @@ CAMLprim value ocaml_cuda_malloc(value num_bytes)  {
     CAMLreturn (copy_int64(0)); 
   } 
   else if (result != 0) {
-    printf ("cuMemAlloc failed for %d bytes with error code: %d\n", n, result);
-    exit(1);
+    char msg[100];
+    sprintf(msg, "cuMemAlloc failed for %d bytes with error: %d", n, result); 
+    caml_failwith(msg); 
   }
   CAMLreturn (copy_int64(devPtr));
 }
@@ -190,8 +195,9 @@ CAMLprim value ocaml_cuda_free(value gpu_ptr)  {
   CAMLparam1(gpu_ptr);
   CUresult result = cuMemFree(Int64_val(gpu_ptr));
   if (result != 0) {
-    printf ("cuMemFree failed with error code: %d\n", result);
-    exit(1);
+    char msg[100]; 
+    sprintf (msg, "cuMemFree failed with error code: %d", result);
+    caml_failwith(msg);
   }
   CAMLreturn (Val_unit);
 }
@@ -206,8 +212,9 @@ value ocaml_cuda_memcpy_to_device (value array,
   CUdeviceptr dest = Int64_val(dev_ptr);
   CUresult result = cuMemcpyHtoD(dest, source, Int_val(num_bytes));
   if (result != 0) {
-    printf ("Error copying memory from host to GPU: %d \n", result);
-    exit(1);
+    char msg[100];
+    sprintf (msg, "Error copying memory from host to GPU: %d ", result);  
+    caml_failwith(msg); 
   }
   CAMLreturn(Val_unit);
 }
@@ -224,8 +231,9 @@ value ocaml_cuda_memcpy_device_to_device (value src,
   
   CUresult result = cuMemcpyDtoD(dest, source, Int_val(num_bytes));
   if (result != 0) {
-    printf ("Error copying memory from GPU to GPU: %d \n", result);
-    exit(1);
+    char msg[100]; 
+    sprintf (msg, "Error copying memory from GPU to GPU: %d ", result);
+    caml_failwith(msg); 
   }
   CAMLreturn(Val_unit);
 }
@@ -245,51 +253,50 @@ value ocaml_cuda_memcpy_host_to_symbol(value symbol,
   cudaError_t result = cudaMemcpyToSymbol(name, source, nbytes, offset,
                                           cudaMemcpyHostToDevice);
   if (result) {
-    printf("Error copying from host to constant symbol %s: %d\n", name, result);
-    exit(1);
+    char msg[100]; 
+    sprintf (msg, 
+      "Error copying from host to constant symbol %s: %d", name, result);
+    caml_failwith(msg); 
   }
-
   CAMLreturn(Val_unit);
 }
 
 CAMLprim
 value ocaml_cuda_memcpy_device_to_symbol(value modulePtr, 
-                                       value symbol,
-                                       value src,
-                                       value num_bytes,
-                                       value ocaml_offset) {
+                                         value symbol,
+                                         value src,
+                                         value num_bytes,
+                                         value ocaml_offset) {
   CAMLparam5(modulePtr, symbol, src, num_bytes, ocaml_offset);
-  CUmodule* cuModule = (CUmodule*)  Int64_val(modulePtr); 
+  CUmodule* cuModule = (CUmodule*)Int64_val(modulePtr);
   char *name = String_val(symbol);
-  CUdeviceptr source = (CUdeviceptr) Int64_val(src);
-  
+  CUdeviceptr source = (CUdeviceptr)Int64_val(src);
 
-  CUdeviceptr dest; 
-  unsigned int bytes; 
-  CUresult result = cuModuleGetGlobal  (&dest, &bytes, *cuModule, name);  
+  CUdeviceptr dest;
+  size_t bytes;
+  CUresult result = cuModuleGetGlobal(&dest, &bytes, *cuModule, name);
 
   int offset = Int_val(ocaml_offset);
-  
-  /*
-    int nbytes = Int_val(num_bytes);
-    cudaError_t result = cudaMemcpyToSymbol(name, source, nbytes, offset,
-                                          cudaMemcpyDeviceToDevice);
-  */
    
-  if (result == CUDA_ERROR_NOT_FOUND) { 
-    printf("Constant symbol %s not found!\n", name);
-    exit(1);
+   
+  if (result == CUDA_ERROR_NOT_FOUND) {
+    char msg[100];   
+    sprintf(msg, "Constant symbol %s not found!", name); 
+    caml_failwith(msg);
   }
   else if (result) {
-    printf("Error getting constant symbol %s: %d\n", name, result);
-    exit(1);
+    char msg[100]; 
+    sprintf(msg, "Error getting constant symbol %s: %d", name, result);
+    caml_failwith(msg); 
   }
   
   result = cuMemcpyDtoD(dest+offset, source, Int_val(num_bytes));
   if (result) {
-    printf("Error copying from device to constant symbol %s: %d\n", 
-            name, result);
-    exit(1);
+    char msg[100]; 
+    sprintf(msg, 
+      "Error copying from device to constant symbol %s: %d", 
+      name, result); 
+    caml_failwith(msg); 
   }
 
   CAMLreturn(Val_unit);
@@ -304,31 +311,38 @@ value ocaml_cuda_memcpy_to_host(value array, value dev_ptr, value num_bytes) {
   CUdeviceptr source = Int64_val(dev_ptr);
   CUresult result = cuMemcpyDtoH(dest, source, Int_val(num_bytes));
   if (result != 0) {
-    printf ("Error copying memory from GPU to host: %d\n", result);
-    exit(1);
+    char msg[100]; 
+    sprintf(msg, "Error copying memory from GPU to host: %d", result);  
+    caml_failwith(msg); 
   }
   CAMLreturn(Val_unit);
 }
 
-/* EEK:
+/* 
    Access a GPU array element 
 */
 CAMLprim
-value ocaml_cuda_get_gpu_char_vec_elt(value ocaml_gpu_vec, value ocaml_id) {
-  CAMLparam2(ocaml_gpu_vec, ocaml_id);
-  int *gpu_vec = (int*)Int64_val(ocaml_gpu_vec);
-  char cval = 0;
-  int val = 0;
-  cudaError_t rslt = cudaMemcpy(&cval, gpu_vec + Int_val(ocaml_id),
-                                sizeof(char), cudaMemcpyDeviceToHost);
+value ocaml_cuda_get_gpu_int8_vec_elt(value ocaml_gpu_vec, value ocaml_idx) {
+  CAMLparam2(ocaml_gpu_vec, ocaml_idx);
+  int8_t *gpu_vec = (int8_t* ) Int64_val(ocaml_gpu_vec);
+  int8_t cval = 0;
+  int idx = Int_val(ocaml_idx); 
+  cudaError_t rslt = cudaMemcpy(&cval, &gpu_vec[idx],
+                                sizeof(int8_t), cudaMemcpyDeviceToHost);
   if (rslt) {
+<<<<<<< HEAD
     printf("Error getting element of gpu char vec: %d\n", rslt);
     exit(1);
+=======
+    char msg[100];
+    sprintf(msg, "Error getting element of gpu char vec: %d", rslt);  
+    caml_failwith(msg); 
+>>>>>>> 707e5e528a66b7a6a2bbca05eac459e84335f074
   }
-  val = (int)cval;
-  CAMLreturn(Val_int(val));
+  CAMLreturn(Val_int((int) cval));
 }
 
+<<<<<<< HEAD
 CAMLprim
 value ocaml_cuda_get_gpu_int_vec_elt(value ocaml_gpu_vec, value ocaml_id) {
   CAMLparam2(ocaml_gpu_vec, ocaml_id);
@@ -336,47 +350,86 @@ value ocaml_cuda_get_gpu_int_vec_elt(value ocaml_gpu_vec, value ocaml_id) {
   int val = 0;
   cudaError_t rslt = cudaMemcpy(&val, gpu_vec + Int_val(ocaml_id),
                                 sizeof(int), cudaMemcpyDeviceToHost);
+=======
+
+
+CAMLprim value 
+ocaml_cuda_get_gpu_int_vec_elt(value ocaml_gpu_vec, value ocaml_idx) {
+  CAMLparam2(ocaml_gpu_vec, ocaml_idx);
+  int32_t* gpu_vec = (int32_t*)Int64_val(ocaml_gpu_vec); 
+  int32_t val = 0;
+  int idx = Int_val(ocaml_idx);
+  cudaError_t rslt = cudaMemcpy(&val, &gpu_vec[idx],
+                                sizeof(int32_t), cudaMemcpyDeviceToHost);
+>>>>>>> 707e5e528a66b7a6a2bbca05eac459e84335f074
   if (rslt) {
-    printf("Error getting element of gpu int vec: %d\n", rslt);
-    exit(1);
+    char msg[100]; 
+    sprintf(msg, "Error getting element of gpu int vec: %d", rslt);
+    caml_failwith(msg); 
   }
-  CAMLreturn(Val_int(val));
+  CAMLreturn(Val_int(val));  
 }
 
-/*external cuda_get_gpu_int32_vec_elt : GpuPtr.t -> int -> Int64.t
-  = "ocaml_cuda_get_gpu_int32_vec_elt" 
-*/ 
-CAMLprim
-value 
-ocaml_cuda_get_gpu_int32_vec_elt(value ocaml_gpu_vec, value ocaml_id) {
-  CAMLparam2(ocaml_gpu_vec, ocaml_id);
-  int32_t *gpu_vec = (int*)Int64_val(ocaml_gpu_vec);
+CAMLprim value 
+ocaml_cuda_get_gpu_int32_vec_elt(value ocaml_gpu_vec, value ocaml_idx) {
+  CAMLparam2(ocaml_gpu_vec, ocaml_idx);
+  int32_t* gpu_vec = (int32_t*)Int64_val(ocaml_gpu_vec); 
   int32_t val = 0;
-  cudaError_t rslt = cudaMemcpy(&val, gpu_vec + Int_val(ocaml_id),
+  int idx = Int_val(ocaml_idx);
+  cudaError_t rslt = cudaMemcpy(&val, &gpu_vec[idx],
                                 sizeof(int32_t), cudaMemcpyDeviceToHost);
   if (rslt) {
+<<<<<<< HEAD
     printf("Error getting element of gpu int32 vec: %d\n", rslt);
     exit(1);
+=======
+    char msg[100]; 
+    sprintf(msg, "Error getting element of gpu int32 vec: %d", rslt);
+    caml_failwith(msg); 
+>>>>>>> 707e5e528a66b7a6a2bbca05eac459e84335f074
   }
   CAMLreturn(copy_int32(val));
 }
 
 
+CAMLprim value 
+ocaml_cuda_get_gpu_int16_vec_elt(value ocaml_gpu_vec, value ocaml_idx) {
+  CAMLparam2(ocaml_gpu_vec, ocaml_idx);
+  int16_t* gpu_vec = (int16_t*)Int64_val(ocaml_gpu_vec); 
+  int16_t val = 0;
+  int idx = Int_val(ocaml_idx);
+  cudaError_t rslt = cudaMemcpy(&val, &gpu_vec[idx],
+                                sizeof(int16_t), cudaMemcpyDeviceToHost);
+  if (rslt) {
+    char msg[100]; 
+    sprintf(msg, "Error getting element of gpu int16 vec: %d", rslt);
+    caml_failwith(msg); 
+  }
+  CAMLreturn(Val_int(val));
+}
+
 
 /*external cuda_get_gpu_float32_vec_elt : GpuPtr.t -> int -> float 
   = "ocaml_cuda_get_gpu_float_vec_elt"
 */
-CAMLprim
-value 
-ocaml_cuda_get_gpu_float32_vec_elt(value ocaml_gpu_vec, value ocaml_id) {
-  CAMLparam2(ocaml_gpu_vec, ocaml_id);
+CAMLprim value 
+ocaml_cuda_get_gpu_float32_vec_elt(value ocaml_gpu_vec, value ocaml_idx) {
+  CAMLparam2(ocaml_gpu_vec, ocaml_idx);
   float *gpu_vec = (float*)Int64_val(ocaml_gpu_vec);
   float val = 0.0;
-  cudaError_t rslt = cudaMemcpy(&val, gpu_vec + Int_val(ocaml_id),
-                                sizeof(float), cudaMemcpyDeviceToHost);
+  int idx = Int_val(ocaml_idx); 
+  cudaError_t rslt = 
+    cudaMemcpy(&val, &gpu_vec[idx], sizeof(float), cudaMemcpyDeviceToHost);
+    
   if (rslt) {
+<<<<<<< HEAD
     printf("Error getting element of gpu float32 vec: %d\n", rslt);
     exit(1);
+=======
+    char msg[100]; 
+    sprintf(msg, "Error getting element of gpu float32 vec: %d", rslt); 
+    caml_failwith(msg); 
+>>>>>>> 707e5e528a66b7a6a2bbca05eac459e84335f074
   }
   CAMLreturn(copy_double(val));
 }
@@ -398,8 +451,14 @@ ocaml_cuda_set_gpu_int32_vec_elt(value ocaml_gpu_vec, value ocaml_id,
   arr[0] = Int32_val(ocaml_elt);
   CUresult result = cuMemcpyHtoD(gpu_vec, arr, sizeof(int32_t));
   if (result) {
+<<<<<<< HEAD
     printf("Error setting int32 element of gpu int32 vec: %d\n", result);
     exit(1);
+=======
+    char msg[100]; 
+    sprintf(msg, "Error setting int32 element of gpu int vec: %d", result);
+    caml_failwith(msg); 
+>>>>>>> 707e5e528a66b7a6a2bbca05eac459e84335f074
   }
   CAMLreturn0;
 }
@@ -414,8 +473,10 @@ ocaml_cuda_set_gpu_float32_vec_elt(value ocaml_gpu_vec, value ocaml_id,
   arr[0] = Double_val(ocaml_elt);
   CUresult result = cuMemcpyHtoD(gpu_vec, arr, sizeof(float));
   if (result) {
-    printf("Error setting float32 element of gpu int vec: %d\n", result);
-    exit(1);
+    char msg[100]; 
+    sprintf(msg, "Error setting float32 element of gpu int vec: %d", result); 
+    caml_failwith(msg); 
+      
   }
   CAMLreturn0;
 }
@@ -452,8 +513,7 @@ value ocaml_cuda_bind_texture_1d(
       cuTexRefSetFormat(tex, CU_AD_FORMAT_FLOAT, 1);
       break;
     default:
-      printf("Unknown kind for 1D texture binding. Aborting.\n");
-      exit(1);
+      caml_failwith("Unknown kind for 1D texture binding. Aborting.");
   }
   cuTexRefSetAddress(0, tex, (CUdeviceptr)Int64_val(dev_ptr), Int_val(bytes));
   CAMLreturn(Val_unit);
@@ -486,8 +546,8 @@ value ocaml_cuda_bind_texture_2d_std_channel(
       desc.Format = CU_AD_FORMAT_FLOAT;
       break;
     default:
-      printf("[ocaml_cuda_bind_texture_2d_std_channel] unsupported format\n");
-      exit(1);
+      caml_failwith(
+        "[ocaml_cuda_bind_texture_2d_std_channel] unsupported format");
   }
   desc.NumChannels = 1;
   desc.Width = c_width;

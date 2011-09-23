@@ -32,18 +32,8 @@
 {\sc Buck, I., Foley, T., Horn, D., Sugerman, J., Fatahalian, K., Houston, M.,
   and Hanrahan, P.}
 \newblock Brook for {GPU}s: stream computing on graphics hardware.
-\newblock In {\em ACM SIGGRAPH 2004 Papers\/} (New York, NY, USA, 2004),
-  SIGGRAPH '04, ACM, pp.~777--786.
-
-\bibitem{Cata10}
-{\sc Catanzaro, B., Garland, M., and Keutzer, K.}
-\newblock Copperhead: Compiling an embedded data parallel language.
-\newblock Tech. Rep. UCB/EECS-2010-124, EECS Department, University of
-  California, Berkeley, Sep 2010.
-
-\bibitem{ChakAcc}
-{\sc Chakravarty, M.~M., Keller, G., Lee, S., McDonnel, T.~L., and Grover, V.}
-\newblock Accelerating haskell array codes with multicore gpus.
+\newblock In {\em ACM SIGGRAPH 2004 Papers\/} (New York, NY, USA, 2004), ACM,
+  pp.~777--786.
 
 \bibitem{Che09}
 {\sc Che, S., Boyer, M., Meng, J., Tarjan, D., Sheaffer, J., Lee, S.-h., and
@@ -101,12 +91,6 @@
 \newblock Master's thesis, Computer Science Dept., University of Illinois at
   Urbana-Champaign, Urbana, IL, Dec 2002.
 \newblock {\em See {\tt http://llvm.cs.uiuc.edu}.}
-
-\bibitem{Lengyel90}
-{\sc Lengyel, J., Reicher, M., Donald, B.~R., and Greenberg, D.~P.}
-\newblock Real-time robot motion planning using rasterizing computer graphics
-  hardware.
-\newblock In {\em In Proc. SIGGRAPH\/} (1990), pp.~327--335.
 
 \bibitem{Main10}
 {\sc Mainland, G., and Morrisett, G.}

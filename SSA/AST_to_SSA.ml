@@ -259,7 +259,7 @@ and translate_block env codegen ?value_id = function
       
 and translate_exp env codegen node =
   let mk_exp e = 
-    { exp= e; exp_src=Some node.src; exp_types=[DynType.BottomT]} 
+    { exp= e; exp_src=Some node.src; exp_types=[Type.BottomT]} 
   in
   (* simple values generate no statements and don't modify the env *) 
   let value v =
@@ -267,7 +267,7 @@ and translate_exp env codegen node =
       {
         exp = Values [mk_val v]; 
         exp_src=Some node.src; 
-        exp_types=[DynType.BottomT]
+        exp_types=[Type.BottomT]
       } 
     in 
     env, expNode 

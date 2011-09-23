@@ -1,3 +1,5 @@
+(* pp: -parser o pa_macro.cmo *)
+
 open Base
 open SSA 
 open Printf
@@ -12,8 +14,8 @@ let init() =
 let _ = init () 
   
 (* global interpreter state *) 
-let interpState = StdLib.initState 
-
+let interpState = StdLib.initState
+ 
 let register_untyped_function ~name ~globals ~args astNode =
   (* FIX: for now, we're reusing the Analyze_AST module used by 
      the Q preprocessor, 
@@ -25,14 +27,20 @@ let register_untyped_function ~name ~globals ~args astNode =
         
      It does, however, populate the AST info fields with info about 
      uses and defs later used by AST_to_SSA
-    *) 
-  let _ = Analyze_AST.analyze_ast astNode in  
+    *)
+  IFDEF DEBUG THEN
+    Printf.printf "[register_untyped] Received untyped AST: %s (%s)\n %s\n%!"
+      name 
+      (String.concat ", " args)
+      (AST.node_to_str astNode)
+  ENDIF; 
+  let _ = Analyze_AST.analyze_ast astNode in
   let ssaEnv = 
     AST_to_SSA.Env.GlobalScope (InterpState.get_untyped_id interpState)  
   in
   let argNames = globals @ args in  
   let fundef = AST_to_SSA.translate_fn ssaEnv argNames astNode in  
-  InterpState.add_untyped interpState ~optimize:true name fundef; 
+  InterpState.add_untyped interpState ~optimize:true name fundef;
   fundef.SSA.fn_id 
   
 let rec register_untyped_functions = function 
@@ -63,7 +71,15 @@ let run_function untypedId ~globals ~args =
   Timing.clear Timing.gpuTransfer;
   Timing.clear Timing.gpuExec;
   Timing.clear Timing.gpuMalloc;
-  Timing.start Timing.runTemplate; 
+  Timing.start Timing.runTemplate;
+  IFDEF DEBUG THEN 
+    Printf.printf "[run_function] received globals: %s\n"
+      (String.concat ", " $ List.map HostVal.to_str globals)
+    ; 
+    Printf.printf "[run_function] received args: %s\n"
+      (String.concat ", " $ List.map HostVal.to_str args)
+    ; 
+  ENDIF;  
   let args = globals @ args in
   let argTypes = List.map HostVal.get_type args in
   let untypedFn = InterpState.get_untyped_function interpState untypedId in
@@ -116,5 +132,11 @@ let run_function untypedId ~globals ~args =
   print_all_timers();
   Timing.clear Timing.untypedOpt;
   Pervasives.flush_all (); 
-   (* assume only one result can be returns *) 
-  Success (List.hd resultVals) 
+   (* assume only one result can be returns *)
+  let result = List.hd resultVals in 
+  IFDEF DEBUG THEN 
+    printf "[run_function] returning value: %s : %s \n%!"
+      (HostVal.to_str result)
+      (DynType.to_str (HostVal.get_type result))
+  ENDIF;   
+  Success result 

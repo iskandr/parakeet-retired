@@ -1,27 +1,21 @@
 open Base 
-open DynType
+open IntType
 
-type num = 
+type t = 
   | Bool of bool 
-  | Char of char 
-  | UInt16 of int 
+  | Char of char  
   | Int16 of int 
-  | UInt32 of Uint64.t
   | Int32 of Int32.t
-  | UInt64 of Uint64.t   
   | Int64 of Int64.t
   | Float32 of float
   | Float64 of float
-  | Inf of DynType.t
-  | NegInf of DynType.t 
+  | Inf of Type.elt_t
+  | NegInf of Type.elt_t 
 
-let num_to_str = function
-  | UInt16 x  
+let to_str = function  
   | Int16 x -> string_of_int x
   | Int32 x -> Int32.to_string x
   | Int64 x -> Int64.to_string x
-  | UInt32 ui 
-  | UInt64 ui -> Uint64.to_string ui 
   | Float32 x
   | Float64 x -> Float.to_string x
   | Bool x -> Int.to_string (Bool.to_int x)
@@ -29,12 +23,9 @@ let num_to_str = function
   | Inf t -> Printf.sprintf "inf : %s" (DynType.to_str t)
   | NegInf t -> Printf.sprintf "-inf : %s" (DynType.to_str t)  
 
-let type_of_num = function 
-  | UInt16 _ -> UInt16T 
-  | Int16 _ -> Int16T 
-  | UInt32 _ -> UInt32T 
+let type_of = function 
+  | Int16 _ -> Int16T  
   | Int32 _ -> Int32T
-  | UInt64 _ -> UInt64T 
   | Int64 _ -> Int64T  
 	| Float32 _ -> Float32T
   | Float64 _ -> Float64T 
@@ -44,11 +35,8 @@ let type_of_num = function
   | NegInf t -> t 
 
 let coerce_int i = function
-  | UInt16T -> assert (i >= 0); UInt16 i 
   | Int16T -> Int16 i  
-  | UInt32T -> UInt32 (Uint64.of_int i)  
-  | Int32T -> Int32 (Int32.of_int i)
-  | UInt64T -> UInt64 (Uint64.of_int i) 
+  | Int32T -> Int32 (Int32.of_int i) 
   | Int64T -> Int64 (Int64.of_int i)
   | Float32T -> Float32 (float_of_int i)
   | Float64T -> Float64 (float_of_int i)
@@ -61,12 +49,11 @@ let coerce_int i = function
         else Char (Char.chr i)
   | t -> failwith $ Printf.sprintf 
          "coercion from int to %s not implemented"
-         (DynType.to_str t)
+         (Type.elt_to_str t)
+        
 
-let coerce_int32 i = function
-  | UInt32T 
+let coerce_int32 i = function 
   | Int32T -> Int32 i
-  | UInt64T  
   | Int64T -> Int64 (Int64.of_int32 i)
   | Float32T -> Float32 (Int32.to_float i)
   | Float64T -> Float64 (Int32.to_float i)
@@ -80,14 +67,12 @@ let coerce_int32 i = function
         else Char (Char.chr (Int32.to_int i))
   | t -> failwith $ Printf.sprintf  
            "coercion from int32 to %s not implemented"
-           (DynType.to_str t)
+           (Type.elt_to_str t)
 
 (* this is really an argument for a common NUMBER module interface *)
 (* which is implemented by all of the ocaml number types *) 
 let coerce_int64 i = function
-  | UInt32T -> UInt32 (Uint64.of_int64 i)
-  | Int32T -> Int32 (Int64.to_int32 i)
-  | UInt64T -> UInt64 (Uint64.of_int64 i) 
+  | Int32T -> Int32 (Int64.to_int32 i) 
   | Int64T -> Int64 i
   | Float32T -> Float32 (Int64.to_float i)
   | Float64T -> Float64 (Int64.to_float i)
@@ -101,12 +86,10 @@ let coerce_int64 i = function
         else Char (Char.chr (Int64.to_int i))
   | t -> failwith $ Printf.sprintf 
            "coercion from int64 to %s not implemented"
-           (DynType.to_str t)
+           (Type.elt_to_str t)
 
 let coerce_float f = function
-  | UInt32T -> UInt32 (Uint64.of_float f)
   | Int32T -> Int32 (Int32.of_float f)
-  | UInt64T  
   | Int64T -> Int64 (Int64.of_float f)
   | Float32T -> Float32 f
   | Float64T -> Float64 f
@@ -119,17 +102,14 @@ let coerce_float f = function
         then failwith "float outside valid range for conversion to char"
         else Char (Char.chr (int_of_float f))
   | t -> failwith $ Printf.sprintf  
-           "[PQNum] coercion from float to %s not implemented" 
-           (DynType.to_str t)
+           "coercion from float to %s not implemented" 
+           (Type.elt_to_str t)
 
          
-let coerce_num n t =
+let coerce n t =
   match n with 
     | Int16 i
-    | UInt16 i -> coerce_int i t
     | Int32 i -> coerce_int32 i t
-    | UInt32 unsigned
-    | UInt64 unsigned -> coerce_int64 (Uint64.to_int64 unsigned) t  
     | Int64 i -> coerce_int64 i t 
     | Float32 f 
     | Float64 f -> coerce_float f t  
@@ -139,11 +119,8 @@ let coerce_num n t =
     | NegInf _ -> NegInf t  
 
 let to_int = function
-  | UInt16 i 
   | Int16 i -> i 
   | Int32 i -> Int32.to_int i
-  | UInt32 ui  
-  | UInt64 ui -> Uint64.to_int ui 
   | Int64 i -> Int64.to_int i  
   | Float32 f
   | Float64 f -> Float.to_int f  
@@ -153,11 +130,8 @@ let to_int = function
   | NegInf _ -> min_int
 
 let to_int32 = function 
-  | UInt16 i 
   | Int16 i  -> Int32.of_int i 
   | Int32 i32 -> i32
-  | UInt32 ui
-  | UInt64 ui -> Uint64.to_int32 ui 
   | Int64 i64 -> Int64.to_int32 i64 
   | Float32 f
   | Float64 f -> Int32.of_float f 
@@ -169,8 +143,6 @@ let to_int32 = function
 
 let to_float = function 
   | Int32 i -> Int32.to_float i
-  | UInt32 ui  
-  | UInt64 ui -> Uint64.to_float ui 
   | Int64 i -> Int64.to_float i
   | Float32 f
   | Float64 f -> f
@@ -180,16 +152,12 @@ let to_float = function
 
 let is_zero = function 
   | Int32 i32 -> i32 = Int32.zero
-  | UInt32 ui   
-  | UInt64 ui -> ui = Uint64.zero 
   | Int64 i64 -> i64 = Int64.zero 
   | Float32 f | Float64 f -> f = 0.0 
   | other -> to_int other = 0   
 
 let is_one = function 
   | Int32 i32 -> i32 = Int32.one
-  | UInt32 ui 
-  | UInt64 ui -> ui = Uint64.one 
   | Int64 i64 -> i64 = Int64.one 
   | Float32 f | Float64 f -> f = 1.0 
   | other -> to_int other = 1  
@@ -197,4 +165,4 @@ let is_one = function
 let is_inf = function 
   | Inf _  
   | NegInf _ -> true
-  | _ -> false 
+  | _ -> false

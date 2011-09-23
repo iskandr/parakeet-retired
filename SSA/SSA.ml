@@ -4,18 +4,28 @@ open Base
 
 type value = 
   | Var of ID.t
-  | Num of PQNum.num 
+  | Num of ParNum.t
   | Str of string
   | Sym of string
   | Unit
   | Prim of Prim.prim
   | GlobalFn of FnId.t  
 and value_node = { 
-  value_type : DynType.t;
+  value_type : Type.t;
   value_src : SourceInfo.t option; 
   value : value 
 }
 and value_nodes = value_node list   
+
+type closure = {   
+  closure_fn: FnId.t; 
+  closure_args: value_node list; 
+  closure_arg_types: Type.t list; 
+  closure_input_types:Type.t list; 
+  closure_output_types: Type.t list 
+}
+
+type axes = int list
 
 type exp = 
   (* application of arbitrary values used only in untyped code *) 
@@ -24,27 +34,21 @@ type exp =
   | Arr of value_nodes
   | Values of value_nodes
   (* nodes below are only used after type specialization *) 
-  | Cast of DynType.t * value_node  
+  | Cast of Type.t * value_node  
   | Call of FnId.t * value_nodes 
   | PrimApp of Prim.prim * value_nodes  
-  | Map of closure * value_nodes
-  | Reduce of closure * closure * value_nodes * value_nodes 
-  | Scan of closure * closure * value_nodes * value_nodes 
+  | Map of closure * axes * value_nodes
+  | Reduce of  closure * axes * value_nodes 
+  | Scan of closure * axes * value_nodes 
    
 and exp_node = { 
   exp: exp; 
   exp_src : SourceInfo.t option;
   (* because a function applicatin might return multiple values,*)
   (* expressions have multiple types *)  
-  exp_types : DynType.t list; 
+  exp_types : Type.t list; 
 } 
-and closure = {   
-  closure_fn: FnId.t; 
-  closure_args: value_node list; 
-  closure_arg_types: DynType.t list; 
-  closure_input_types:DynType.t list; 
-  closure_output_types: DynType.t list 
-} 
+and 
 
 type stmt = 
   | Set of ID.t list * exp_node 
@@ -62,7 +66,7 @@ and phi_node = {
   phi_id : ID.t;
   phi_left:  value_node;
   phi_right: value_node;
-  phi_type : DynType.t; 
+  phi_type : Type.t; 
   phi_src : SourceInfo.t option; 
 }  
 and phi_nodes = phi_node list 
@@ -72,11 +76,11 @@ type fundef = {
   tenv : tenv;
   input_ids:ID.t list;
   output_ids: ID.t list; 
-  fn_input_types : DynType.t list;
-  fn_output_types : DynType.t list;
+  fn_input_types : Type.t list;
+  fn_output_types : Type.t list;
   fn_id : FnId.t; 
 }
-and tenv = DynType.t ID.Map.t 
+and tenv = Type.t ID.Map.t 
 
 
 let is_simple_exp = function
@@ -99,7 +103,7 @@ let rec id_list_to_str = function
 
 let rec typed_id_to_str tenv id = 
   if ID.Map.mem id tenv then 
-    sprintf "%s : %s" (ID.to_str id) (DynType.to_str (ID.Map.find id tenv))
+    sprintf "%s : %s" (ID.to_str id) (Type.to_str (ID.Map.find id tenv))
   else sprintf "%s" (ID.to_str id) 
 
 let rec typed_id_list_to_str tenv = function 
@@ -111,7 +115,7 @@ let rec typed_id_list_to_str tenv = function
 let value_to_str = function 
   | GlobalFn fnId -> FnId.to_str fnId 
   | Var id -> ID.to_str id 
-  | Num n -> PQNum.num_to_str n 
+  | Num n -> ParNum.num_to_str n 
   | Str s -> "\""^s ^"\""
   | Sym s -> "`" ^ s
   | Unit -> "()"
@@ -119,8 +123,8 @@ let value_to_str = function
 
 let value_node_to_str vNode =
   let valStr = value_to_str vNode.value in  
-  if vNode.value_type <> DynType.BottomT then 
-    sprintf "%s : %s" valStr (DynType.to_str vNode.value_type)
+  if vNode.value_type <> Type.BottomT then 
+    sprintf "%s : %s" valStr (Type.to_str vNode.value_type)
   else valStr
 
 let rec value_nodes_to_str = function 
@@ -148,7 +152,7 @@ let exp_to_str expNode =
     sprintf "%s(%s)" (value_node_to_str fn)  (value_node_list_to_str args)
   | Arr elts -> "[" ^ (value_node_list_to_str ~sep:";" elts) ^ "]" 
   | Cast(t, v) -> 
-      sprintf "cast<%s>(%s)" (DynType.to_str t) (value_node_to_str v)
+      sprintf "cast<%s>(%s)" (Type.to_str t) (value_node_to_str v)
 
   | Call (fnId, args) -> 
       sprintf "%s(%s)" (FnId.to_str fnId) (value_nodes_to_str args) 
@@ -181,7 +185,7 @@ let phi_node_to_str ?(space="") phiNode =
   Printf.sprintf "%s%s : %s <- phi(%s, %s)"
     space 
     (ID.to_str phiNode.phi_id)
-    (DynType.to_str phiNode.phi_type)
+    (Type.to_str phiNode.phi_type)
     (value_node_to_str phiNode.phi_left)
     (value_node_to_str phiNode.phi_right)
 
@@ -264,10 +268,10 @@ let extract_nested_map_fn_id (fundef : fundef) =
       
 let mk_fundef  ?(tenv=ID.Map.empty) ~input_ids ~output_ids ~body =
   let inTypes = 
-    List.map (fun id -> ID.Map.find_default id tenv DynType.BottomT) input_ids 
+    List.map (fun id -> ID.Map.find_default id tenv Type.BottomT) input_ids 
   in 
   let outTypes = 
-    List.map (fun id -> ID.Map.find_default id tenv DynType.BottomT) output_ids 
+    List.map (fun id -> ID.Map.find_default id tenv Type.BottomT) output_ids 
   in 
   { 
     body = body; 
@@ -294,27 +298,27 @@ let get_id valNode = match valNode.value with
  ***)
 
 
-let mk_val ?src ?(ty=DynType.BottomT) (v:value) : value_node = 
+let mk_val ?src ?(ty=Type.BottomT) (v:value) : value_node = 
   { value = v; value_src = src; value_type = ty }
 
-let mk_var ?src ?(ty=DynType.BottomT) (id:ID.t) : value_node = 
+let mk_var ?src ?(ty=Type.BottomT) (id:ID.t) : value_node = 
   { value = Var id; value_src = src; value_type = ty }    
 
 let mk_op ?src ?ty op = mk_val ?src ?ty (Prim op) 
 
-let mk_globalfn ?src ?(ty=DynType.BottomT) (id:FnId.t) : value_node=
+let mk_globalfn ?src ?(ty=Type.BottomT) (id:FnId.t) : value_node=
   { value = GlobalFn id; value_src = src; value_type = ty } 
 
 let mk_num ?src ?ty n = 
   let ty = match ty with 
-    | None -> PQNum.type_of_num n 
+    | None -> ParNum.type_of_num n 
     | Some t -> t 
   in 
   mk_val ?src ~ty (Num n)
 
-let mk_bool ?src b = mk_num ?src ~ty:DynType.BoolT (PQNum.Bool b)
-let mk_int32 ?src i = mk_num ?src ~ty:DynType.Int32T (PQNum.Int32 (Int32.of_int i))
-let mk_float32 ?src f = mk_num ?src ~ty:DynType.Float32T (PQNum.Float32 f)  
+let mk_bool ?src b = mk_num ?src ~ty:Type.BoolT (ParNum.Bool b)
+let mk_int32 ?src i = mk_num ?src ~ty:Type.Int32T (ParNum.Int32 (Int32.of_int i))
+let mk_float32 ?src f = mk_num ?src ~ty:Type.Float32T (ParNum.Float32 f)  
   
 (*** 
     helpers for expressions 
@@ -328,8 +332,8 @@ let map_default_types optTypes values =
 let mk_app ?src ?types fn args =
   let retTypes = match types, fn.value_type with 
     | Some types, _ -> types 
-    | None, DynType.FnT(_, types) -> types 
-    | _ -> [DynType.BottomT]
+    | None, Type.FnT(_, types) -> types 
+    | _ -> [Type.BottomT]
   in 
   { exp=App(fn,args); exp_src = src; exp_types = retTypes }  
 
@@ -342,11 +346,11 @@ let mk_arr ?src ?types elts =
      assert (List.length argTypes > 0); 
      assert (List.for_all ((=) (List.hd argTypes)) (List.tl argTypes));
   ENDIF;   
-  { exp=Arr elts; exp_src=src; exp_types = [DynType.VecT (List.hd argTypes)] } 
+  { exp=Arr elts; exp_src=src; exp_types = [Type.VecT (List.hd argTypes)] } 
  
 let mk_val_exp ?src ?ty (v: value) =
   let ty' = match ty with 
-    | None -> DynType.BottomT 
+    | None -> Type.BottomT 
     | Some ty -> ty 
   in 
   { exp=Values [mk_val ?src v]; exp_src=src; exp_types = [ty'] } 
@@ -368,8 +372,8 @@ let mk_exp ?src ?types exp =
   *) 
   let types' = match types, exp with 
     | Some ts, _ -> ts
-    | None, Values vs -> List.fill DynType.BottomT vs
-    | _ -> [DynType.BottomT] 
+    | None, Values vs -> List.fill Type.BottomT vs
+    | _ -> [Type.BottomT] 
   in 
   { exp= exp; exp_types = types'; exp_src = src} 
 
@@ -378,7 +382,7 @@ let mk_call ?src fnId outTypes args  =
 
 let mk_map ?src closure args = 
   { exp = Map(closure, args); 
-    exp_types = List.map (fun t -> DynType.VecT t) closure.closure_output_types; 
+    exp_types = List.map (fun t -> Type.VecT t) closure.closure_output_types; 
     exp_src = src
   } 
 let mk_reduce ?src initClosure reduceClosure initArgs args = 
@@ -429,7 +433,7 @@ let mk_phi ?src ?ty id left right =
     phi_id = id; 
     phi_left = left; 
     phi_right = right;
-    phi_type = Option.default DynType.BottomT ty; 
+    phi_type = Option.default Type.BottomT ty; 
     phi_src = src; 
   }  
 
