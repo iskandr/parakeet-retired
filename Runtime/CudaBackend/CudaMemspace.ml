@@ -36,9 +36,7 @@ let raw_alloc n : Int64.t =
 
 
 class ptr addr = object
-
   method free = cuda_free addr 
-   
 end
 
 let of_int64 addr = new ptr addr

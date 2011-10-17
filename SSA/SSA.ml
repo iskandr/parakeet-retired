@@ -71,7 +71,7 @@ and phi_node = {
 }  
 and phi_nodes = phi_node list 
 
-type fundef = {
+type fn = {
   body: block;
   tenv : tenv;
   input_ids:ID.t list;
@@ -246,7 +246,7 @@ and stmt_node_to_str ?(space="") ?(tenv=ID.Map.empty) stmtNode =
         bodyStr 
   in space ^ str
 
-let fundef_to_str (fundef:fundef) = 
+let fn_to_str (fundef:fn) = 
   sprintf "%s (%s)=>(%s) { \n %s \n }"
     (FnId.to_str fundef.fn_id) 
     (typed_id_list_to_str fundef.tenv fundef.input_ids)
@@ -258,7 +258,7 @@ let fundef_to_str (fundef:fundef) =
 (* if a function contains nothing but a map, extracted the nested 
    function being mapped 
 *) 
-let extract_nested_map_fn_id (fundef : fundef) =
+let extract_nested_map_fn_id (fundef : fn) =
   if Block.length fundef.body <> 1 then None 
   else match (Block.idx fundef.body 0).stmt with 
     | Set(_,{exp=App(map, {value=GlobalFn fnId}::_)})
@@ -266,7 +266,7 @@ let extract_nested_map_fn_id (fundef : fundef) =
     | Set(_, {exp=Map({closure_fn=fnId}, _)}) ->  Some fnId 
     | _ -> None 
       
-let mk_fundef  ?(tenv=ID.Map.empty) ~input_ids ~output_ids ~body =
+let mk_fn  ?(tenv=ID.Map.empty) ~input_ids ~output_ids ~body =
   let inTypes = 
     List.map (fun id -> ID.Map.find_default id tenv Type.BottomT) input_ids 
   in 

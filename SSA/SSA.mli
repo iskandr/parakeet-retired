@@ -69,7 +69,7 @@ and phi_node = {
 and phi_nodes = phi_node list 
 
 
-type fundef = {
+type fn = {
   body: block;
   tenv : tenv;
   input_ids:ID.t list;
@@ -98,14 +98,15 @@ val value_to_str : value -> string
 val value_node_list_to_str : ?sep:string -> value_node list -> string 
 val value_list_to_str : ?sep:string -> value list -> string  
   
-val fundef_to_str : fundef -> string  
+val fn_to_str : fn -> string  
 val closure_to_str : closure -> string 
 
-val extract_nested_map_fn_id : fundef -> FnId.t option 
+(* TODO: get rid of this nonsense *)
+val extract_nested_map_fn_id : fn -> FnId.t option 
     
-val mk_fundef : 
+val mk_fn : 
       ?tenv:tenv -> input_ids:ID.t list -> output_ids:ID.t list -> 
-        body:block -> fundef 
+        body:block -> fn 
 (***
      helpers for statements 
  ***) 
@@ -178,7 +179,7 @@ val mk_scan :
         closure -> closure -> 
           value_node list -> value_node list -> exp_node
           
-val mk_closure : fundef -> value_node list -> closure 
+val mk_closure : fn -> value_node list -> closure 
 
 val empty_stmt : stmt_node 
 val is_empty_stmt : stmt_node -> bool 

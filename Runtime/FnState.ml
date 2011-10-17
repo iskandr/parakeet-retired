@@ -4,10 +4,6 @@ open Base
 open Printf 
 open SSA
 
-(* include these for now to keep from having to 
-    rewrite the CQInterface Makefile
-*)
-
 
 (* A program is a mapping of function names to their functions.*)
 (* These functions exist in both untyped and typed forms, as well as *)
@@ -39,23 +35,21 @@ let create () =
     untyped_id_to_name = Hashtbl.create n; 
   }
 
+let state = create() 
 
-let add_untyped interpState ?(optimize=true) name fundef = 
+let add_untyped ?(optimize=true) name fundef = 
   let id = fundef.SSA.fn_id in 
-  Hashtbl.add interpState.name_to_untyped_id name id; 
-  Hashtbl.add interpState.untyped_id_to_name id name;
-  FnTable.add ~opt_queue:optimize fundef interpState.untyped_functions
+  Hashtbl.add state.name_to_untyped_id name id; 
+  Hashtbl.add state.untyped_id_to_name id name;
+  FnTable.add ~opt_queue:optimize fundef state.untyped_functions
   
-let add_untyped_list 
-      interpState 
-      ?(optimize=true) 
-      (fundefList: (string*SSA.fundef) list) =
+let add_untyped_list ?(optimize=true) (fundefList: (string*SSA.fundef) list) =
   List.iter 
-    (fun (name,fundef) -> add_untyped interpState ~optimize name fundef) 
+    (fun (name,fundef) -> add_untyped state ~optimize name fundef) 
     fundefList
   
-let add_untyped_map interpState ?(optimize=true) fundefMap = 
-  String.Map.iter (add_untyped interpState ~optimize) fundefMap 
+let add_untyped_map  ?(optimize=true) fundefMap = 
+  String.Map.iter (add_untyped state ~optimize) fundefMap 
 
 let default_untyped_optimizations = 
   [
@@ -64,11 +58,11 @@ let default_untyped_optimizations =
     "inlining", Inline.run_fundef_inliner;  
   ] 
 
-let optimize_untyped_functions program = 
+let optimize_untyped_functions () = 
   Timing.start Timing.untypedOpt; 
-  RunOptimizations.optimize_all_fundefs
+  RunOptimizations.optimize_all_fundefs 
     ~maxiters:100 
-    program.untyped_functions 
+    state.untyped_functions 
     default_untyped_optimizations
   ; 
   Timing.stop Timing.untypedOpt 
@@ -82,57 +76,58 @@ let default_typed_optimizations =
     "inlining", Inline.run_fundef_inliner;  
   ]  
   
-let optimize_typed_functions program = 
+let optimize_typed_functions () = 
   Timing.start Timing.typedOpt; 
   RunOptimizations.optimize_all_fundefs 
     ~type_check:true
     ~maxiters:100
-    program.typed_functions
+    state.typed_functions
     default_typed_optimizations
   ;
   Timing.stop Timing.typedOpt      
-                  
+
+                  (*                  
 let create_from_untyped_map ?(optimize=true) fundefMap =
-  let interpState = create () in
-  add_untyped_map interpState ~optimize fundefMap;    
-  interpState 
+  let state = create () in
+  add_untyped_map state ~optimize fundefMap;    
+  state 
 
 let create_from_untyped_list ?(optimize=true) fundefList = 
-  let interpState = create () in 
-  add_untyped_list interpState ~optimize fundefList;  
-  interpState  
+  let state = create () in 
+  add_untyped_list state ~optimize fundefList;  
+  state  
+*)
 
-let get_untyped_name program id = Hashtbl.find program.untyped_id_to_name id
-let get_untyped_id program name = Hashtbl.find program.name_to_untyped_id name
+let get_untyped_name id = Hashtbl.find state.untyped_id_to_name id
+let get_untyped_id name = Hashtbl.find state.name_to_untyped_id name
 
-let get_typed_function_table program = program.typed_functions
-let get_untyped_function_table program = program.untyped_functions     
+let get_typed_function_table () = state.typed_functions
+let get_untyped_function_table () = state.untyped_functions     
 
 let add_specialization 
-    program 
     ?(optimize=true)
     (untypedVal : SSA.value) 
     (signature : Signature.t) 
     (typedFundef : SSA.fundef) =
   let fnId = typedFundef.SSA.fn_id in 
-  if FnTable.mem fnId program.typed_functions then (
+  if FnTable.mem fnId state.typed_functions then (
     (* if function is already in the fntable, don't add it again
        but make sure it really is the same function 
     *) 
     IFDEF DEBUG THEN 
-      assert (FnTable.find fnId program.typed_functions = typedFundef) 
+      assert (FnTable.find fnId state.typed_functions = typedFundef) 
     ENDIF; 
     ()
   )
-  else FnTable.add ~opt_queue:optimize typedFundef program.typed_functions
+  else FnTable.add ~opt_queue:optimize typedFundef state.typed_functions
   ; 
   let key = (untypedVal, signature) in 
-  Hashtbl.add program.specializations key typedFundef.fn_id; 
+  Hashtbl.add state.specializations key typedFundef.fn_id; 
   IFDEF DEBUG THEN
     let untypedValStr = 
       match untypedVal with 
       | GlobalFn untypedId ->
-        let fnName = Hashtbl.find program.untyped_id_to_name untypedId in  
+        let fnName = Hashtbl.find state.untyped_id_to_name untypedId in  
         Printf.sprintf 
           "\"%s\" (untyped %s)" fnName (SSA.value_to_str untypedVal)
       | _ -> SSA.value_to_str untypedVal
@@ -156,27 +151,27 @@ let add_specialization
       (SSA.fundef_to_str typedFundef)
   END 
 
-let maybe_get_specialization interpState v signature = 
-  if Hashtbl.mem interpState.specializations (v, signature) then 
-    Some (Hashtbl.find interpState.specializations (v, signature))
+let maybe_get_specialization v signature = 
+  if Hashtbl.mem state.specializations (v, signature) then 
+    Some (Hashtbl.find state.specializations (v, signature))
   else None   
 
-let is_untyped_function interpState untypedId = 
-  FnTable.mem untypedId interpState.untyped_functions 
+let is_untyped_function untypedId = 
+  FnTable.mem untypedId state.untyped_functions 
 
-let get_untyped_function interpState untypedId =
-  FnTable.find untypedId interpState.untyped_functions  
+let get_untyped_function untypedId =
+  FnTable.find untypedId state.untyped_functions  
 
-let get_typed_function interpState typedId =
-  FnTable.find typedId interpState.typed_functions 
+let get_typed_function typedId =
+  FnTable.find typedId state.typed_functions 
 
-let get_typed_fundef_from_value interpState = function 
-  | GlobalFn fnId -> FnTable.find fnId interpState.typed_functions  
+let get_typed_fundef_from_value = function 
+  | GlobalFn fnId -> FnTable.find fnId state.typed_functions  
   | _ -> failwith "expected a function" 
 
-let have_untyped_function interpState name = 
-  Hashtbl.mem interpState.name_to_untyped_id name     
+let have_untyped_function name = 
+  Hashtbl.mem state.name_to_untyped_id name     
 
-let get_untyped_arity interpState fnId = 
-  let fundef = get_untyped_function interpState fnId in 
+let get_untyped_arity state fnId = 
+  let fundef = get_untyped_function fnId in 
   List.length fundef.input_ids 

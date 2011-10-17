@@ -1,8 +1,9 @@
+(* pp: -parser o pa_macro.cmo *)
 
 open Base
 
 type t = {
-  fundefs: (FnId.t, SSA.fundef) Hashtbl.t;
+  fundefs: (FnId.t, SSA.fn) Hashtbl.t;
   unoptimized_queue : FnId.t Queue.t;
   arities : (FnId.t, int) Hashtbl.t; 
 }
@@ -31,7 +32,7 @@ let create (n : int) : t = {
   arities = Hashtbl.create (2*n+1); 
 } 
 
-let from_list (fns :  SSA.fundef list) : t = 
+let from_list (fns :  SSA.fn list) : t = 
   let cache = create (2 * (List.length fns) + 1) in 
   List.iter (fun fundef -> add fundef cache) fns;
   cache
