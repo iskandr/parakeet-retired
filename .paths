@@ -201,11 +201,7 @@ unit/tmp
 .git/objects/cf
 .git/objects/d4
 .git/objects/e9
-Backend_old1
-Backend_old0
-Backend_old2
-Runtime_old0
 Runtime
 Runtime/CudaBackend
-Runtime/InterpBackend
-Runtime/Common
+Runtime/HostBackends
+Runtime/Old

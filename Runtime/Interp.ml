@@ -4,27 +4,14 @@ open Printf
 open Base
 
 open SSA 
-open InterpVal 
+open Value 
  
 
-
-let get_fundef (fnId : FnId.t) : SSA.fundef = FnState.get_typed_function fnId
-
-let get_gpu v = DataManager.get_gpu v
-let get_host v = DataManager.get_host v
-let add_gpu gpuVal = DataManager.add_gpu gpuVal
-let add_host hostVal = DataManager.add_host hostVal
 
 let typeof v = DataManager.get_type v
 let shapeof v = DataManager.get_shape v
 let is_on_gpu v = DataManager.is_on_gpu v
 
-(* the cost model function expect arguments to be described by triplets  *)
-(* of their type, shape, and a boolean indicating whether that argument  *)
-(* is on the gpu.                                                        *)
-let describe_arg v =
-  typeof v, shapeof v, is_on_gpu v
-let describe_args vs = List.map describe_arg vs
 
 let eval_value (valNode : SSA.value_node) : Value.t =
   match valNode.value with
@@ -104,40 +91,14 @@ and eval_exp (expNode : SSA.exp_node) : Value.t list =
       eval_app fundef argVals
   
   | Map ({ closure_fn = fnId; closure_args = closureArgs }, args) ->
-      let fundef = get_fundef fnId in
-      let closureArgVals : Value.t list = List.map eval_value closureArgs in 
-      let argVals : Value.t list = List.map eval_value args in
-      IFDEF DEBUG THEN
-        Printf.printf "[Eval] args to interp map: %s %s\n"
-          (String.concat ", " (List.map Value.to_str closureArgVals))
-          (String.concat ", " (List.map Value.to_str argVals)); 
-      ENDIF; 
-      let bestLoc, bestTime = 
-        CostModel.map_cost 
-          P.fnTable 
-          fundef 
-          (describe_args closureArgVals)
-          (describe_args argVals) 
-      in 
-      (match bestLoc with 
-        | CostModel.GPU ->
-            IFDEF DEBUG THEN Printf.printf "[Eval] running map on GPU\n" ENDIF;
-            let gpuClosureVals = List.map get_gpu closureArgVals in 
-            let gpuInputVals = List.map get_gpu argVals in 
-            DataManager.enter_data_scope P.memState; 
-            let gpuResults = 
-              GpuEval.map 
-                ~payload: fundef
-                ~closureArgs: gpuClosureVals 
-                ~args: gpuInputVals
-            in
-            let interpResults = List.map add_gpu gpuResults in 
-            DataManager.exit_data_scope interpResults;
-            interpResults 
-        | CostModel.CPU -> 
-            IFDEF DEBUG THEN Printf.printf "[Eval] running map on CPU\n" ENDIF;
-            eval_map ~payload: fundef closureArgVals argVals 
-      )
+      let fn = FnManager.get_typed_function fnId in 
+      let fixed = List.map eval_value closureArgs in
+      let arrays = List.map eval_value args in  
+      Scheduler.map fn ~fixed: arrays
+      
+              
+               
+     
   | Reduce (initClosure, reduceClosure, initArgs, dataArgs) -> 
       let initFundef = get_fundef initClosure.closure_fn in
 (* the current reduce kernel works either for 1d data or for maps over 2d  *)
