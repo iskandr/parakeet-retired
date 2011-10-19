@@ -10,12 +10,11 @@ type value =
 
 and value_node = { 
   value_type : Type.t;
-  value_src : SourceInfo.t option; 
+  value_src : SrcInfo.t option; 
   value : value 
 }
 and value_nodes = value_node list   
 
-type axes = int list 
 
 type closure = {   
   closure_fn: FnId.t; 
@@ -24,23 +23,33 @@ type closure = {
   closure_input_types:Type.t list; 
   closure_output_types: Type.t list 
 } 
+
         
+type hof_args = { 
+  axes : int list; 
+  init : value_nodes option; 
+  args : value_nodes 
+} 
+
 (********** EXPRESSIONS **********)
 type exp = 
+  (* application of arbitrary values used only in untyped code *) 
   | App of  value_node * value_nodes
+  (* construction of arrays and values used by both typed and untyped ssa *) 
   | Arr of value_nodes
   | Values of value_nodes
   (* nodes below are only used after type specialization *) 
   | Cast of Type.t * value_node  
   | Call of FnId.t * value_nodes 
   | PrimApp of Prim.prim * value_nodes  
-  | Map of closure * value_nodes
-  | Reduce of closure * axes * value_nodes
-  | Scan of closure * axes * value_nodes 
- 
+  | Map of closure * hof_args  
+  | Reduce of closure * hof_args
+  | Scan of closure * hof_args 
+  | AllPairs of closure * hof_args  
+            
 and exp_node = { 
   exp: exp; 
-  exp_src : SourceInfo.t option;
+  exp_src : SrcInfo.t option;
   (* because a function applicatin might return multiple values,*)
   (* expressions have multiple types *)  
   exp_types : Type.t list; 
@@ -55,7 +64,7 @@ type stmt =
   | WhileLoop of block * value_node * block * phi_nodes 
 and stmt_node = { 
     stmt: stmt;
-    stmt_src: SourceInfo.t option;
+    stmt_src: SrcInfo.t option;
     stmt_id : StmtId.t;  
 }
 and block = stmt_node Block.t
@@ -64,7 +73,7 @@ and phi_node = {
   phi_left:  value_node;
   phi_right: value_node;
   phi_type : Type.t; 
-  phi_src : SourceInfo.t option; 
+  phi_src : SrcInfo.t option; 
 }  
 and phi_nodes = phi_node list 
 
@@ -100,100 +109,3 @@ val value_list_to_str : ?sep:string -> value list -> string
   
 val fn_to_str : fn -> string  
 val closure_to_str : closure -> string 
-
-(* TODO: get rid of this nonsense *)
-val extract_nested_map_fn_id : fn -> FnId.t option 
-    
-val mk_fn : 
-      ?tenv:tenv -> input_ids:ID.t list -> output_ids:ID.t list -> 
-        body:block -> fn 
-(***
-     helpers for statements 
- ***) 
-
-val mk_stmt : ?src:SourceInfo.t -> ?id:StmtId.t -> stmt -> stmt_node 
-val mk_set : ?src:SourceInfo.t -> ID.t list -> exp_node -> stmt_node 
-      
-(* get the id of a variable value node *) 
-val get_id : value_node -> ID.t 
-
-(* get the ids from a list of variable value nodes *) 
-val get_ids : value_node list -> ID.t list  
-
-val get_fn_id : value_node -> FnId.t  
-val get_fn_ids : value_node list -> FnId.t list 
-
-(***
-    helpers for values 
- ***)
-
-val mk_val : ?src:SourceInfo.t -> ?ty:Type.t -> value -> value_node
-
-val mk_var : ?src:SourceInfo.t -> ?ty:Type.t -> ID.t -> value_node 
-val mk_op :  ?src:SourceInfo.t -> ?ty:Type.t -> Prim.prim -> value_node 
-
-val mk_globalfn : ?src:SourceInfo.t -> ?ty:Type.t -> FnId.t -> value_node
-
-val mk_num : ?src:SourceInfo.t -> ?ty:Type.t -> ParNum.t -> value_node
-    
-val mk_bool : ?src:SourceInfo.t -> bool -> value_node 
-val mk_int32  : ?src:SourceInfo.t -> int -> value_node
-val mk_float32 : ?src:SourceInfo.t -> float -> value_node
-
-(*** 
-    helpers for expressions 
- ***) 
-
-val map_default_types : 
-      Type.t list option -> value_node list -> Type.t list 
-  
-val mk_app :
-     ?src:SourceInfo.t -> ?types:Type.t list -> value_node -> 
-      value_node list -> exp_node 
-
-val mk_primapp : 
-     ?src:SourceInfo.t -> Prim.prim -> Type.t list -> 
-       value_node list -> exp_node  
-
-val mk_arr :
-      ?src:SourceInfo.t -> ?types:Type.t list -> value_node list -> exp_node
- 
-val mk_val_exp : ?src:SourceInfo.t -> ?ty:Type.t -> 
-      value -> exp_node
-
-val mk_vals_exp :
-      ?src:SourceInfo.t -> ?types : Type.t list -> value list -> exp_node
-
-val mk_cast : ?src:SourceInfo.t -> Type.t -> value_node -> exp_node
-val mk_exp :  ?src:SourceInfo.t -> ?types:Type.t list -> exp -> exp_node
-val mk_call : 
-      ?src:SourceInfo.t -> FnId.t -> Type.t list  -> value_node list ->
-         exp_node 
-val mk_map : ?src:SourceInfo.t -> closure -> value_node list -> exp_node 
-val mk_reduce : 
-      ?src:SourceInfo.t -> 
-        closure -> closure -> 
-          value_node list -> value_node list -> exp_node
-val mk_scan : 
-      ?src:SourceInfo.t -> 
-        closure -> closure -> 
-          value_node list -> value_node list -> exp_node
-          
-val mk_closure : fn -> value_node list -> closure 
-
-val empty_stmt : stmt_node 
-val is_empty_stmt : stmt_node -> bool 
-
-val mk_phi : 
-     ?src:SourceInfo.t -> ?ty:Type.t -> 
-       ID.t -> value_node -> value_node -> phi_node
-
-val empty_phi : phi_node 
-val is_empty_phi : phi_node -> bool 
-       
-val mk_phi_nodes : ID.t list -> ID.t list -> ID.t list -> phi_nodes  
-
-val mk_phi_nodes_from_values 
-      : value_node list -> value_node list -> value_node list -> phi_nodes
-       
-val collect_phi_values :bool -> phi_nodes -> ID.t list * value_node list 

@@ -43,7 +43,6 @@ let create () =
   memState  
 
 
-
 let associate_id_with_gpu_data 
         (memState:t) 
         (gpuVec:GpuVal.gpu_vec) 

@@ -45,7 +45,7 @@ type exp =
       
 type node = {
     data:exp;
-    src:SourceInfo.t;
+    src:SrcInfo.t;
     mutable ast_info : ast_info;
 }
 
