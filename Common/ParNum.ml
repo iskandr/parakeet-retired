@@ -118,6 +118,9 @@ let coerce n t =
     | Inf _ -> Inf t 
     | NegInf _ -> NegInf t  
 
+let of_int i = coerce_int i Int32T
+let of_float f = coerce_float f Float64T 
+
 let to_int = function
   | Int16 i -> i 
   | Int32 i -> Int32.to_int i

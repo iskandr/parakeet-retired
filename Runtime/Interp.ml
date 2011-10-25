@@ -89,21 +89,17 @@ and eval_exp (expNode : SSA.exp_node) : Value.t list =
       let argVals = List.map eval_value args in
       let fundef = get_fundef fnId in 
       eval_app fundef argVals
-  
-  | Map ({ closure_fn = fnId; closure_args = closureArgs }, args) ->
+      
+  (* currently ignores axes *)
+  | Map ({ closure_fn = fnId; closure_args = closureArgs }, 
+         {args=args; axes=axes}) ->
       let fn = FnManager.get_typed_function fnId in 
       let fixed = List.map eval_value closureArgs in
       let arrays = List.map eval_value args in  
-      Scheduler.map fn ~fixed: arrays
-      
-              
-               
-     
-  | Reduce (initClosure, reduceClosure, initArgs, dataArgs) -> 
-      let initFundef = get_fundef initClosure.closure_fn in
-(* the current reduce kernel works either for 1d data or for maps over 2d  *)
-(* data                                                                    *)
+      Scheduler.map fn ~axes ~fixed arrays
        
+  | Reduce (reduceClosure, {args=args}) -> 
+      let initFundef = get_fundef initClosure.closure_fn in
       let initClosureArgs = 
         List.map eval_value initClosure.closure_args 
       in
@@ -113,34 +109,7 @@ and eval_exp (expNode : SSA.exp_node) : Value.t list =
       in 
       let initArgVals = List.map eval_value initArgs in 
       let argVals = List.map eval_value dataArgs in
-      (match 
-        CostModel.reduce_cost 
-            ~fnTable: P.fnTable 
-            ~init: initFundef
-            ~initClosureArgs: (describe_args initClosureArgs)
-            ~fn: reduceFundef
-            ~closureArgs: (describe_args reduceClosureArgs)
-            ~initArgs: (describe_args initArgVals)
-            ~args: (describe_args argVals) 
-      with 
-        | CostModel.GPU, _ -> 
-          DataManager.enter_data_scope (); 
-          let gpuResults = 
-            GpuEval.reduce
-              ~init: initFundef
-              ~initClosureArgs: (List.map get_gpu initClosureArgs)
-              ~payload: reduceFundef 
-              ~payloadClosureArgs: (List.map get_gpu reduceClosureArgs)
-              ~initArgs: (List.map get_gpu initArgVals)
-              ~args: (List.map get_gpu argVals) 
-          in 
-          let interpResults = List.map add_gpu gpuResults in 
-          DataManager.exit_data_scope interpResults;
-          interpResults 
-
-        | CostModel.CPU, _ -> failwith "CPU reduction not implemented"
-      )
-  | Scan ({ closure_fn = initFnId; closure_args = initClosureArgs }, 
+        | Scan ({ closure_fn = initFnId; closure_args = initClosureArgs }, 
           { closure_fn = fnId; closure_args = closureArgs }, initArgs, args) -> 
      failwith "scan not implemented"
   | _ -> 
@@ -241,7 +210,7 @@ and eval_array_op (op : Prim.array_op) (argVals : Value.t list) : Value.t list =
      results 
 
 
-let eval_host fundef (hostData:Data.t list) =
+let run fundef (hostData:Data.t list) =
   let vals = List.map (fun h -> DataManager.add_host memState h) hostData in 
   (* parameterize the evaluator by mutable global function table and       *)
 	(* memory                                                                *)

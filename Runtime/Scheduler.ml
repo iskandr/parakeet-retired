@@ -11,7 +11,7 @@ let describe_arg v = typeof v, shapeof v, is_on_gpu v
 let describe_args vs = List.map describe_arg vs
 
 
-let map fn ~fixed args = 
+let map fn ?(axes=[0]) ~fixed args = 
   match CostModel.map_cost fn (describe_args fixed) (describe_args args) with 
   | CostModel.GPU, _ ->
       let gpuClosureVals = List.map DataManager.get_gpu fixed in 
@@ -30,4 +30,32 @@ let map fn ~fixed args =
   | CostModel.CPU, _ -> 
       IFDEF DEBUG THEN Printf.printf "[Eval] running map on CPU\n" ENDIF;
       InterpBackend.map fn fixed args  
-    
+
+let reduce fn ?(axes=[0]) ~fixed args =
+(match 
+        CostModel.reduce_cost 
+            ~fnTable: P.fnTable 
+            ~init: initFundef
+            ~initClosureArgs: (describe_args initClosureArgs)
+            ~fn: reduceFundef
+            ~closureArgs: (describe_args reduceClosureArgs)
+            ~initArgs: (describe_args initArgVals)
+            ~args: (describe_args argVals) 
+      with 
+        | CostModel.GPU, _ -> 
+          DataManager.enter_data_scope (); 
+          let gpuResults = 
+            GpuEval.reduce
+              ~init: initFundef
+              ~initClosureArgs: (List.map get_gpu initClosureArgs)
+              ~payload: reduceFundef 
+              ~payloadClosureArgs: (List.map get_gpu reduceClosureArgs)
+              ~initArgs: (List.map get_gpu initArgVals)
+              ~args: (List.map get_gpu argVals) 
+          in 
+          let interpResults = List.map add_gpu gpuResults in 
+          DataManager.exit_data_scope interpResults;
+          interpResults 
+
+        | CostModel.CPU, _ -> failwith "CPU reduction not implemented"
+      )

@@ -10,11 +10,13 @@ type value =
   | Unit
   | Prim of Prim.prim
   | GlobalFn of FnId.t  
+  
 and value_node = { 
   value_type : Type.t;
   value_src : SrcInfo.t option; 
   value : value 
 }
+
 and value_nodes = value_node list   
 
 type closure = {   
@@ -25,11 +27,8 @@ type closure = {
   closure_output_types: Type.t list 
 }
 
-type hof_args = { 
-  axes : int list; 
-  init : value_nodes option; 
-  args : value_nodes 
-} 
+ 
+
     
 type exp = 
   (* application of arbitrary values used only in untyped code *) 
@@ -41,10 +40,10 @@ type exp =
   | Cast of Type.t * value_node  
   | Call of FnId.t * value_nodes 
   | PrimApp of Prim.prim * value_nodes  
-  | Map of closure * hof_args  
-  | Reduce of closure * hof_args
-  | Scan of closure * hof_args 
-  | AllPairs of closure * hof_args  
+  | Map of closure * value HOF_Args.t 
+  | Reduce of closure * value HOF_Args.t 
+  | Scan of closure * value HOF_Args.t  
+  | Combine of closure * value HOF_Args.t   
    
 and exp_node = { 
   exp: exp; 
