@@ -1,11 +1,10 @@
 
 
 Test.add_module "PSet" [
-  Test.ok "list constructor"  
-    (fun () -> 
-      let s1 = PSet.add 1 (PSet.add 2 PSet.empty) in 
-      let s2 = PSet.from_list [1;2] in 
-      PSet.equal s1 s2 
+    Test.ok "list constructor" (fun () -> 
+        let s1 = PSet.add 1 (PSet.add 2 PSet.empty) in 
+        let s2 = PSet.from_list [1;2] in 
+        PSet.equal s1 s2 
     );
     
    Test.ok "diff"  

@@ -12,22 +12,8 @@ let init() =
   
 (* not sure where else to initialize *) 
 let _ = init () 
-  
-(* global interpreter state *) 
-let interpState = StdLib.initState
- 
+
 let register_untyped_function ~name ~globals ~args astNode =
-  (* FIX: for now, we're reusing the Analyze_AST module used by 
-     the Q preprocessor, 
-     Problems: 
-        - it uses linear-time PSet instead of log-time String.Set
-        - it's slow and poorly implemented
-        - it wastes a lot of time computing sets of volatile 
-          variables which aren't relevant outside the Q preprocessor
-        
-     It does, however, populate the AST info fields with info about 
-     uses and defs later used by AST_to_SSA
-    *)
   IFDEF DEBUG THEN
     Printf.printf "[register_untyped] Received untyped AST: %s (%s)\n %s\n%!"
       name 
@@ -39,9 +25,9 @@ let register_untyped_function ~name ~globals ~args astNode =
     AST_to_SSA.Env.GlobalScope (InterpState.get_untyped_id interpState)  
   in
   let argNames = globals @ args in  
-  let fundef = AST_to_SSA.translate_fn ssaEnv argNames astNode in  
-  InterpState.add_untyped interpState ~optimize:true name fundef;
-  fundef.SSA.fn_id 
+  let fn = AST_to_SSA.translate_fn ssaEnv argNames astNode in
+  FnManager.add_untyped ~optimize:true name fn; 
+  fn.SSA.fn_id 
   
 let rec register_untyped_functions = function 
   | (name, globals, args, astNode)::rest -> 
@@ -62,7 +48,7 @@ let print_all_timers () =
   ;
   Pervasives.flush_all()
 
-type ret_val = Success of HostVal.host_val | Pass | Error of string
+type ret_val = Success of Data.t | Pass | Error of string
 
 let run_function untypedId ~globals ~args =
   Timing.clear Timing.runTemplate;
@@ -82,7 +68,7 @@ let run_function untypedId ~globals ~args =
   ENDIF;  
   let args = globals @ args in
   let argTypes = List.map HostVal.get_type args in
-  let untypedFn = InterpState.get_untyped_function interpState untypedId in
+  let untypedFn = FnManager.get_untyped_function untypedId in
   IFDEF DEBUG THEN
      printf "[run_function] untyped function body: %s\n"
       (SSA.fundef_to_str untypedFn);
@@ -102,33 +88,19 @@ let run_function untypedId ~globals ~args =
       "[run_function] calling specializer for argument types: %s\n"
       (DynType.type_list_to_str argTypes);      
   ENDIF;
-  
+  let fnVal = SSA.GlobalFn untypedId in 
   let typedFundef = 
-    match 
-      InterpState.maybe_get_specialization 
-        interpState 
-        (SSA.GlobalFn untypedId)
-        signature 
-    with
-    | Some id -> InterpState.get_typed_function interpState id  
+    match FnManager.maybe_get_specialization fnVal signature with
+    | Some typedId -> FnManager.get_typed_function typedId  
     | None ->
-      (* 
-         first optimize any untyped functions which haven't yet been optimized
-       *)
-      InterpState.optimize_untyped_functions interpState;   
-      let unoptimizedTyped = 
-        Specialize.specialize_function_id interpState untypedId signature
+      FnManager.optimize_untyped_functions ();   
+      let unoptimizedTyped = Specialize.specialize_function_id untypedId signature
       in
       (* now optimize the typed fundef and any typed functions it depends on *)
-      InterpState.optimize_typed_functions interpState;   
-      InterpState.get_typed_function interpState unoptimizedTyped.SSA.fn_id
+      FnManager.optimize_typed_functions ();   
+      FnManager.get_typed_function unoptimizedTyped.SSA.fn_id
   in  
-  IFDEF DEBUG THEN
-    printf "[run_function] calling evaluator on specialized code: \n";
-    printf "%s\n" (SSA.fundef_to_str typedFundef);
-  ENDIF;
-  let fnTable = InterpState.get_typed_function_table interpState in
-  let resultVals = Eval.eval fnTable typedFundef args in
+  let resultVals = Interp.run typedFundef args in
   print_all_timers();
   Timing.clear Timing.untypedOpt;
   Pervasives.flush_all (); 

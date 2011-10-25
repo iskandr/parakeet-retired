@@ -101,11 +101,9 @@ Imp/KernelTemplates
 SSA/Analyses
 SSA/Optimizations
 SSA/Specialization
-Runtime
 Common
 CostModel
 Imp/KernelTemplates
-Runtime
 SSA/Analyses
 SSA/Optimizations
 SSA/Specialization
@@ -134,7 +132,6 @@ Old
 Ptx
 Python
 Q
-Runtime
 SSA
 SSA/Analyses
 SSA/Optimizations
@@ -204,7 +201,7 @@ unit/tmp
 .git/objects/cf
 .git/objects/d4
 .git/objects/e9
-Backend
-Backend_old1
-Backend_old0
-Backend_old2
+Runtime
+Runtime/CudaBackend
+Runtime/HostBackends
+Runtime/Old

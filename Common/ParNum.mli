@@ -19,6 +19,9 @@ val coerce_int64 : Int64.t -> Type.elt_t -> t
 val coerce_float : float -> Type.elt_t -> t 
 val coerce : t -> Type.elt_t -> t 
 
+val of_int : int -> t 
+val of_float : float -> t 
+
 val to_int : t -> int
 val to_int32 : t -> Int32.t 
 val to_float : t -> float 

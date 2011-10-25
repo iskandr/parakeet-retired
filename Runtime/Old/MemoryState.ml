@@ -7,7 +7,7 @@ open HostVal
 open GpuVal 
 
 type t = {
-  envs :  InterpVal.t ID.Map.t Stack.t; 
+  envs :  Value.t ID.Map.t Stack.t; 
   data_scopes : DataId.Set.t Stack.t; 
   refcounts : (DataId.t, int) Hashtbl.t;
    
@@ -41,7 +41,6 @@ let create () =
   (* push an initial dataScope so that we can add data *)  
   Stack.push DataId.Set.empty memState.data_scopes; 
   memState  
-
 
 
 let associate_id_with_gpu_data 
@@ -155,14 +154,14 @@ module RefCounting = struct
     else set_refcount memState dataId (nrefs - 1)
 
   let rec inc_ref memState = function 
-    | InterpVal.Data id -> inc_data_ref memState id
-    | InterpVal.Scalar _ -> ()
-    | InterpVal.Array arr -> Array.iter (inc_ref memState) arr
+    | Value.Data id -> inc_data_ref memState id
+    | Value.Scalar _ -> ()
+    | Value.Array arr -> Array.iter (inc_ref memState) arr
 
   let rec dec_ref memState = function 
-    | InterpVal.Data id -> dec_data_ref memState id
-    | InterpVal.Scalar _ -> ()
-    | InterpVal.Array arr -> Array.iter (dec_ref memState) arr
+    | Value.Data id -> dec_data_ref memState id
+    | Value.Scalar _ -> ()
+    | Value.Array arr -> Array.iter (dec_ref memState) arr
 
 end 
 include RefCounting 
@@ -391,10 +390,10 @@ module Scope = struct
 
   let rec id_set_from_values memState = function 
     | [] -> DataId.Set.empty  
-    | (InterpVal.Data id)::vs -> 
+    | (Value.Data id)::vs -> 
         DataId.Set.add id (id_set_from_values memState vs)
-    | (InterpVal.Scalar _ )::vs -> id_set_from_values memState vs
-    | (InterpVal.Array arr)::vs -> 
+    | (Value.Scalar _ )::vs -> id_set_from_values memState vs
+    | (Value.Array arr)::vs -> 
         ID.Set.union 
           (id_set_from_values memState (Array.to_list arr))
           (id_set_from_values memState vs)
@@ -411,7 +410,7 @@ module Scope = struct
     (* 
     IFDEF DEBUG THEN 
       Printf.printf "[Scope] Leaving data scope w/ escaping values: %s\n"
-        (String.concat ", " (List.map InterpVal.to_str escaping_values)); 
+        (String.concat ", " (List.map Value.to_str escaping_values)); 
       Printf.printf "[Scope] Excluded from deletion by dec_ref: %s\n"
         (String.concat ", " 
           (List.map DataId.to_str (DataId.Set.elements excludeSet)));
@@ -459,12 +458,12 @@ let get_host_vec_id memState hostVec =
   )
   
 let rec add_host memState = function 
-  | HostVal.HostScalar n -> InterpVal.Scalar n 
+  | HostVal.HostScalar n -> Value.Scalar n 
   | HostVal.HostArray  hostVec -> 
-      InterpVal.Data (get_host_vec_id memState hostVec)
+      Value.Data (get_host_vec_id memState hostVec)
   | HostVal.HostBoxedArray boxedArray -> 
       let interpValArray = Array.map (add_host memState) boxedArray in 
-      InterpVal.Array interpValArray 
+      Value.Array interpValArray 
   
 let get_gpu_vec_id memState gpuVec : DataId.t =
   (* check whether we're already tracking this memory address *) 
@@ -478,32 +477,32 @@ let get_gpu_vec_id memState gpuVec : DataId.t =
   )
   
 let add_gpu memState = function 
-  | GpuVal.GpuArray gpuVec -> InterpVal.Data (get_gpu_vec_id memState gpuVec)   
-  | GpuVal.GpuScalar n -> InterpVal.Scalar n  
+  | GpuVal.GpuArray gpuVec -> Value.Data (get_gpu_vec_id memState gpuVec)   
+  | GpuVal.GpuScalar n -> Value.Scalar n  
 
 
 let is_on_gpu memState = function 
-  | InterpVal.Data id -> Hashtbl.mem memState.gpu_data id 
-  | InterpVal.Scalar _ -> true
+  | Value.Data id -> Hashtbl.mem memState.gpu_data id 
+  | Value.Scalar _ -> true
   (* even if all the array's elements are on the GPU, no guarantee 
      they are a contiguous chunk 
   *)
-  | InterpVal.Array _ -> false
+  | Value.Array _ -> false
 
 let is_on_host memState = function 
-  | InterpVal.Data id -> Hashtbl.mem memState.host_data id 
-  | InterpVal.Scalar _ -> true
-  | InterpVal.Array _ -> false
+  | Value.Data id -> Hashtbl.mem memState.host_data id 
+  | Value.Scalar _ -> true
+  | Value.Array _ -> false
   
 
 let get_scalar state = function 
- | InterpVal.Scalar n -> n
- | InterpVal.Data id -> assert false   
- | InterpVal.Array _ -> failwith "An array? How did that happen?"
+ | Value.Scalar n -> n
+ | Value.Data id -> assert false   
+ | Value.Array _ -> failwith "An array? How did that happen?"
 
 let rec get_shape memState interpVal = match interpVal with   
-  | InterpVal.Scalar _ -> Shape.scalar_shape 
-  | InterpVal.Data id ->   
+  | Value.Scalar _ -> Shape.scalar_shape 
+  | Value.Data id ->   
       if is_on_gpu memState interpVal then
         let gpuVec = Hashtbl.find memState.gpu_data id in
         gpuVec.vec_shape 
@@ -514,15 +513,15 @@ let rec get_shape memState interpVal = match interpVal with
         let hostVec = Hashtbl.find memState.host_data id in
         hostVec.shape  
       )
-  | InterpVal.Array arr -> 
+  | Value.Array arr -> 
       (* assume uniform arrays *)
       let eltShape = get_shape memState arr.(0) in
       Shape.append_dim (Array.length arr) eltShape 
 
 let rec get_type memState interpVal = 
   match interpVal with  
-  | InterpVal.Scalar n -> ParNum.type_of_num n 
-  | InterpVal.Data id -> 
+  | Value.Scalar n -> ParNum.type_of_num n 
+  | Value.Data id -> 
       if is_on_gpu memState interpVal then
         let gpuVec = Hashtbl.find memState.gpu_data id in  
         gpuVec.vec_t   
@@ -531,7 +530,7 @@ let rec get_type memState interpVal =
         let hostVec = Hashtbl.find memState.host_data id in
         hostVec.host_t  
       )
-  | InterpVal.Array arr -> 
+  | Value.Array arr -> 
       (* for now, assume uniformity of element types *) 
       let eltT = get_type memState arr.(0) in 
       Type.VecT eltT 
@@ -540,15 +539,15 @@ let rec get_type memState interpVal =
 let rec sizeof memState interpVal = 
   let t = get_type memState interpVal in 
   match interpVal with  
-  | InterpVal.Scalar n -> Type.sizeof t  
-  | InterpVal.Data _ -> 
+  | Value.Scalar n -> Type.sizeof t  
+  | Value.Data _ -> 
       let s = get_shape memState interpVal in 
       Shape.nelts s * (Type.sizeof (Type.elt_type t))
-  | InterpVal.Array arr ->  
+  | Value.Array arr ->  
       Array.fold_left (fun sum elt -> sum + sizeof memState elt) 0 arr 
 
 let rec get_gpu memState = function 
-  | InterpVal.Data id -> 
+  | Value.Data id -> 
     if Hashtbl.mem memState.gpu_data id then
       GpuVal.GpuArray (Hashtbl.find memState.gpu_data id)
     else (
@@ -561,11 +560,11 @@ let rec get_gpu memState = function
       associate_id_with_gpu_data memState gpuVec id;  
       GpuVal.GpuArray gpuVec
    )
-  | InterpVal.Scalar n -> GpuVal.GpuScalar n
+  | Value.Scalar n -> GpuVal.GpuScalar n
   (* WARNING: This is essentially a memory leak, since we leave 
      no data id associated with the gpu memory allocated here 
    *)   
-  | InterpVal.Array arr ->
+  | Value.Array arr ->
       (* for now, assume all rows are of uniform type/size *)
       let nrows = Array.length arr in   
       let elt = arr.(0) in 
@@ -580,7 +579,7 @@ let rec get_gpu memState = function
       IFDEF DEBUG THEN 
         Printf.printf "[MemState] Transferring interpreter array to GPU\n";
         Printf.printf "[MemState] -- elts = %s \n" 
-            (String.concat ", " (List.map InterpVal.to_str (Array.to_list arr)))
+            (String.concat ", " (List.map Value.to_str (Array.to_list arr)))
         ;  
         Printf.printf 
           "[MemState] -- elt size: %d, elt type: %s, elt shape: %s\n" 
@@ -598,11 +597,11 @@ let rec get_gpu memState = function
       for i = 0 to nrows - 1 do 
         let currPtr = Int64.add destPtr (Int64.of_int $ i * eltSize) in 
         match arr.(i) with 
-          | InterpVal.Scalar (ParNum.Int32 i32) -> 
+          | Value.Scalar (ParNum.Int32 i32) -> 
               Cuda.cuda_set_gpu_int32_vec_elt currPtr 0 i32 
-          | InterpVal.Scalar (ParNum.Float32 f32) -> 
+          | Value.Scalar (ParNum.Float32 f32) -> 
               Cuda.cuda_set_gpu_float32_vec_elt currPtr 0 f32 
-          | InterpVal.Data id -> 
+          | Value.Data id -> 
               if Hashtbl.mem memState.gpu_data id then 
                 let eltVec = Hashtbl.find memState.gpu_data id in 
                 IFDEF DEBUG THEN 
@@ -627,7 +626,7 @@ let rec get_gpu memState = function
 
 let rec get_host memState interpVal = 
   match interpVal with  
-  | InterpVal.Data id -> 
+  | Value.Data id -> 
     if Hashtbl.mem memState.host_data id then
       HostVal.HostArray (Hashtbl.find memState.host_data id)
     else (
@@ -645,8 +644,8 @@ let rec get_host memState interpVal =
       ENDIF;
       HostVal.HostArray hostVec
     )
-  | InterpVal.Scalar n -> HostVal.HostScalar n 
-  | InterpVal.Array arr ->
+  | Value.Scalar n -> HostVal.HostScalar n 
+  | Value.Array arr ->
       HostVal.HostBoxedArray (Array.map (get_host memState) arr)
 
 (* assumes dataId is an array, get the GPU vec descriptor 
@@ -716,9 +715,9 @@ let slice_gpu_val (memState:t) (gpuVal:GpuVal.gpu_val) (idx:int) : gpu_val =
 
   (* slice on the GPU or CPU? *) 
   let slice memState arr idx = match arr with 
-    | InterpVal.Scalar _ -> failwith "[MemState] Can't slice a scalar"
-    | InterpVal.Array arr -> arr.(idx)
-    | InterpVal.Data id ->
+    | Value.Scalar _ -> failwith "[MemState] Can't slice a scalar"
+    | Value.Array arr -> arr.(idx)
+    | Value.Data id ->
       (* always move data to the GPU-- should be replaced with a 
          proper array slice proxy object! 
        *)
@@ -737,11 +736,11 @@ let slice_gpu_val (memState:t) (gpuVal:GpuVal.gpu_val) (idx:int) : gpu_val =
       Int64.add destVec.GpuVal.vec_ptr (Int64.of_int $ idx * eltSize) 
     in 
     match interpVal with 
-    | InterpVal.Scalar (PQNum.Int32 i32) ->  
+    | Value.Scalar (PQNum.Int32 i32) ->  
       Cuda.cuda_set_gpu_int32_vec_elt currPtr 0 i32 
-    | InterpVal.Scalar (PQNum.Float32 f32) -> 
+    | Value.Scalar (PQNum.Float32 f32) -> 
       Cuda.cuda_set_gpu_float32_vec_elt currPtr 0 f32 
-    | InterpVal.Data id -> 
+    | Value.Data id -> 
       if Hashtbl.mem memState.gpu_data id then 
         let eltVec = Hashtbl.find memState.gpu_data id in 
         IFDEF DEBUG THEN 
@@ -761,7 +760,7 @@ let slice_gpu_val (memState:t) (gpuVal:GpuVal.gpu_val) (idx:int) : gpu_val =
     | interpVal -> failwith $ 
        Printf.sprintf 
          "[MemState] Can't set gpu element to host value: %s"
-         (InterpVal.to_str interpVal)
+         (Value.to_str interpVal)
   and flatten_gpu memState arr =
     (* for now, assume all rows are of uniform type/size *)
     let nrows = Array.length arr in   
@@ -774,7 +773,7 @@ let slice_gpu_val (memState:t) (gpuVal:GpuVal.gpu_val) (idx:int) : gpu_val =
     IFDEF DEBUG THEN 
       Printf.printf "[MemState] Transferring interpreter array to GPU\n";
       Printf.printf "[MemState] -- elts = %s \n" 
-        (String.concat ", " (List.map InterpVal.to_str (Array.to_list arr)));  
+        (String.concat ", " (List.map Value.to_str (Array.to_list arr)));  
       Printf.printf 
         "[MemState] elt type: %s, elt shape: %s\n" 
         (DynType.to_str eltType) (Shape.to_str eltShape);
@@ -794,12 +793,12 @@ include Slicing
 
 
 let rec get_gpu memState = function 
-  | InterpVal.Data id ->
+  | Value.Data id ->
       let gpuVec = get_gpu_vec memState id in 
       GpuVal.GpuArray gpuVec  
    
-  | InterpVal.Scalar n -> GpuVal.GpuScalar n
-  | InterpVal.Array arr ->
+  | Value.Scalar n -> GpuVal.GpuScalar n
+  | Value.Array arr ->
      (* WARNING: This is essentially a memory leak, since we leave 
         no data id associated with the gpu memory allocated here 
       *)   
@@ -809,7 +808,7 @@ let rec get_gpu memState = function
   
 let rec get_host memState interpVal = 
   match interpVal with  
-  | InterpVal.Data id -> 
+  | Value.Data id -> 
     if Hashtbl.mem memState.host_data id then
       HostVal.HostArray (Hashtbl.find memState.host_data id)
     else (
@@ -827,6 +826,6 @@ let rec get_host memState interpVal =
       ENDIF;
       HostVal.HostArray hostVec
     )
-  | InterpVal.Scalar n -> HostVal.HostScalar n 
-  | InterpVal.Array arr ->
+  | Value.Scalar n -> HostVal.HostScalar n 
+  | Value.Array arr ->
       HostVal.HostBoxedArray (Array.map (get_host memState) arr)

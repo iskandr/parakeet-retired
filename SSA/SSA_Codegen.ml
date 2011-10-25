@@ -78,7 +78,7 @@ let mk_codegen_fn
   in  
   (* allow user provided function to populate the codegen body *) 
   let _ = constr codegen inputVars outputVars in
-  SSA.mk_fundef 
+  SSA.mk_fn
     ~body:codegen#finalize 
     ~tenv:codegen#get_type_env
     ~input_ids:inputIds
@@ -147,7 +147,7 @@ let mk_fn
   let locals = ID.gen_fresh_array nLocals in 
   let localVars = Array.map SSA.mk_var locals in   
   let body = Block.of_list $ bodyConstructor inputVars outputVars localVars in 
-  mk_fundef 
+  mk_fn
     ~input_ids:(Array.to_list inputs)
     ~output_ids:(Array.to_list outputs)
     ~tenv:ID.Map.empty 

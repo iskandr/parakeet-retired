@@ -14,7 +14,7 @@ let debug msg =
   IFDEF DEBUG THEN Printf.printf "%s\n" msg; END;
   ()
 
-exception SourcedError of string * SourceInfo.t
+exception SourcedError of string * SrcInfo.t
 exception StaticError of string
 
 (*

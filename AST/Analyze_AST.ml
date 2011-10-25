@@ -3,9 +3,16 @@ open AST
 open Prim
 open Printf
 
-(* analysis used with preprocess *) 
-
-let _ = Printexc.record_backtrace true 
+  (* FIX: for now, we're reusing the Analyze_AST module used by 
+     the Q preprocessor, 
+     Problems: 
+        - it uses linear-time PSet instead of log-time String.Set
+        - it's slow and poorly implemented
+        - it wastes a lot of time computing sets of volatile  variables 
+        which aren't relevant outside the Q preprocessor
+     It does, however, populate the AST info fields with info about 
+     uses and defs later used by AST_to_SSA
+    *)
 
 type scope_info = { 
     volatile_local : string PSet.t; 	 

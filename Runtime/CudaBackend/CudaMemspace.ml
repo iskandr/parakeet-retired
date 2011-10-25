@@ -1,4 +1,3 @@
-
 external cuda_free : Int64.t -> unit = "ocaml_cuda_free"
 
 (* host ptr -> gpu ptr -> nbytes -> unit *) 
@@ -8,8 +7,7 @@ external cuda_memcpy_to_device_impl : Int64.t  -> Int64.t -> int -> unit
 (* host ptr -> gpu ptr -> nbytes -> unit *) 
 external cuda_memcpy_to_host_impl : Int64.t -> Int64.t  -> int -> unit
   = "ocaml_cuda_memcpy_to_host"
-
-(* HOW TO MAKE THIS WORK WITH MULTIPLE GPUs? *) 
+ 
 let memcpy_from_host ~(src:Int64.t) ~(dest:In64.t) ~(nbytes:int) =  
       Timing.start Timing.gpuTransfer; 
       cuda_memcpy_to_device_impl src dest nbytes; 
@@ -34,12 +32,25 @@ let raw_alloc n : Int64.t =
     else addr  
   end
 
+let memspace_id = MemspaceRegistry.register "gpu"
+
 
 class ptr addr = object
-
   method free = cuda_free addr 
-   
+  method addr = addr  
+ 
+  method memspace_id =  memspace_id
+  
+  method get_bool : int -> bool
+  method get_char : int -> char
+  method get_int32 : int -> Int32.t 
+  method get_int64 : int -> Int64.t 
+  method get_float32 : int -> float
+  method get_float64 : int -> float
+end 
+  
 end
 
-let of_int64 addr = new ptr addr
+(* create pointer object and cast to pointer base type *) 
+let of_int64 addr = (new ptr addr) :> Ptr.t 
 let alloc nbytes = of_int64 (raw_alloc nbytes)

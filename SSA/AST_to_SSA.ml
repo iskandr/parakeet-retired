@@ -336,7 +336,7 @@ and translate_fn parentEnv argNames body =
   let codegen = new ssa_codegen in   
   let _ = translate_stmt initEnv codegen ~value_id:retId body in
   (* make an empty type env since this function hasn't been typed yet *) 
-  SSA.mk_fundef 
+  SSA.mk_fn
     ~body:(codegen#finalize) 
     ~tenv:ID.Map.empty 
     ~input_ids:argIds 
