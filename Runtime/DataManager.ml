@@ -6,20 +6,24 @@ open InterpVal
 open HostVal  
 open GpuVal 
 
-type t = {
-  gpu_data : (DataId.t, GpuVal.gpu_vec) Hashtbl.t;
-  host_data : (DataId.t, HostVal.host_array) Hashtbl.t; 
-  
-  gpu_mem : Cuda.GpuPtr.t Alloc.memspace; 
-  host_mem : Cuda.HostPtr.t Alloc.memspace; 
-  
-  (* slices requires reference counting directly on the pointers, 
-     rather than the DataId.t 
-   *)  
-  gpu_rev_lookup : (Cuda.GpuPtr.t, DataId.t) Hashtbl.t; 
-  host_rev_lookup : (Cuda.HostPtr.t, DataId.t) Hashtbl.t;  
+type t = { 
+    data_table : (DataId.t, (MemspaceRegistry.id * Data.t) list) Hashtbl.t; 
+    (*ptr_lookup : (MemspaceRegistry.id * Int64.t, DataId.t) Hashtbl.t;*) 
 }
 
+let fresh_data_id ?(refcount=0) () =
+  let id = DataId.gen() in 
+  Env.add_to_data_scope id; 
+  RefCounting.setref id refcount; 
+  id 
+
+let state = { data_table =  Hashtbl.create 1001 }
+
+(*
+let associate dataId = function 
+
+*)
+(*
 let create () = 
   let memState = {
     envs = Stack.create();
@@ -37,7 +41,7 @@ let create () =
   (* push an initial dataScope so that we can add data *)  
   Stack.push DataId.Set.empty memState.data_scopes; 
   memState  
-
+*)
 
 let associate_id_with_gpu_data 
         (memState:t) 
@@ -83,15 +87,6 @@ let dissociate_id_from_host_data
   Hashtbl.remove memState.host_rev_lookup hostVec.ptr
 
 
-let fresh_data_id ?(refcount=0) memState =
-  IFDEF DEBUG THEN 
-    assert (not $ Stack.is_empty memState.data_scopes); 
-  ENDIF; 
-  let currDataScope = Stack.pop memState.data_scopes in 
-  let id = DataId.gen() in 
-  Stack.push (DataId.Set.add id currDataScope) memState.data_scopes;
-  set_refcount memState id refcount;  
-  id 
 
 module ManagedAlloc = struct 
 

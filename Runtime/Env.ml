@@ -27,19 +27,25 @@ let set_binding id rhs =
     inc_ref rhs; 
     let env = Stack.pop state.envs in
     decref_old_binding env id; 
-    Stack.push (ID.Map.add id rhs env) memState.envs 
+    Stack.push (ID.Map.add id rhs env) state.envs 
 
 let curr_env () = Stack.top state.envs  
 
 let push_env () = 
-    if Stack.is_empty state.envs then Stack.push ID.Map.empty memState.envs 
-    else Stack.push (curr_env ()) memState.envs
+    if Stack.is_empty state.envs then Stack.push ID.Map.empty state.envs 
+    else Stack.push (curr_env ()) state.envs
 
-let pop_env () = ignore (Stack.pop memState.envs) 
-   
+let pop_env () = ignore (Stack.pop state.envs) 
+
+let add_to_data_scope id = 
+  let currDataScope = Stack.pop state.data_scopes in 
+  Stack.push (DataId.Set.add id currDataScope) state.data_scopes
+  
 
 let push_data_scope () =
-    Stack.push DataId.Set.empty memState.data_scopes
+    Stack.push DataId.Set.empty state.data_scopes
+
+
 
 let rec data_id_set_from_values = function 
     | [] -> DataId.Set.empty  

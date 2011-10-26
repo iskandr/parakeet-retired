@@ -4,7 +4,8 @@
 (* a new environment *) 
 val push_data_scope : unit -> unit
 val pop_data_scope : Value.t list -> unit 
-
+val add_to_data_scope : DataId.t -> unit 
+ 
 (* create both a new environment and a new set of active data *) 
 val enter_scope : unit -> unit 
 val exit_scope : Value.t list -> unit  
