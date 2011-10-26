@@ -7,7 +7,7 @@ open HostVal
 open GpuVal 
 
 type t = { 
-    data_table : (DataId.t, (MemspaceRegistry.id * Data.t) list) Hashtbl.t; 
+    data_table : (DataId.t, (MemId.t * Data.t) list) Hashtbl.t; 
     (*ptr_lookup : (MemspaceRegistry.id * Int64.t, DataId.t) Hashtbl.t;*) 
 }
 

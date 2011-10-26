@@ -4,8 +4,8 @@
 
 type t = {
     envs :  Value.t ID.Map.t Stack.t; 
-    data_scopes : DataId.Set.t Stack.t; 
-    refcounts : (DataId.t, int) Hashtbl.t;
+    data_scopes : ArrayId.Set.t Stack.t; 
+    refcounts : (ArrayId.t, int) Hashtbl.t;
 }
 
 let create () = { 
@@ -39,17 +39,17 @@ let pop_env () = ignore (Stack.pop state.envs)
 
 let add_to_data_scope id = 
   let currDataScope = Stack.pop state.data_scopes in 
-  Stack.push (DataId.Set.add id currDataScope) state.data_scopes
+  Stack.push (ArrayId.Set.add id currDataScope) state.data_scopes
   
 
 let push_data_scope () =
-    Stack.push DataId.Set.empty state.data_scopes
+    Stack.push ArrayId.Set.empty state.data_scopes
 
 
 
 let rec data_id_set_from_values = function 
-    | [] -> DataId.Set.empty  
-    | (Value.Data id)::vs -> DataId.Set.add id (data_id_set_from_values vs)
+    | [] -> ArrayId.Set.empty  
+    | (Value.Data id)::vs -> ArrayId.Set.add id (data_id_set_from_values vs)
     | (Value.Scalar _ )::vs -> data_id_set_from_values vs
     | (Value.Array arr)::vs -> 
         ID.Set.union 
@@ -60,12 +60,12 @@ let pop_data_scope escaping_values =
     let dataScope = Stack.pop state.data_scopes in 
     let excludeSet = data_id_set_from_values escaping_values in
     (* remove the escaping IDs from the scope before freeing its contents *)
-    let prunedScope = DataId.Set.diff dataScope excludeSet in
-    DataId.Set.iter (dec_data_id_ref memState) prunedScope;
+    let prunedScope = ArrayId.Set.diff dataScope excludeSet in
+    ArrayId.Set.iter (dec_data_id_ref memState) prunedScope;
     (* we still decrement the counts on the exclude set, we 
        just expect them to be incremented again by an assignment 
     *) 
-    DataId.Set.iter 
+    ArrayId.Set.iter 
       (fun id -> set_refcount id (get_refcount id - 1))
       excludeSet
     ; 
@@ -74,7 +74,7 @@ let pop_data_scope escaping_values =
       Stack.push excludeSet state.data_scopes 
     else   
       let olderScope = Stack.pop memState.data_scopes in
-      Stack.push (DataId.Set.union excludeSet olderScope) memState.data_scopes 
+      Stack.push (ArrayId.Set.union excludeSet olderScope) memState.data_scopes 
 
 let enter_scope () = 
     push_data_scope (); 
