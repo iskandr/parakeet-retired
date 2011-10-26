@@ -2,15 +2,14 @@ open Base
 
 
 type 'a t = 
-  | Scalar of ParNum.t
   | Array of 'a
+  | Scalar of ParNum.t
   | Nested of ('a t) array 
-  | Explode of ParNum.t * Shape.t 
-  | Rotate of 'a t * int * int  
-  | Shift of 'a t * int * int * ParNum.t
-  | Slice of 'a t * int * int * int 
-  | Range of int * int 
-
+  | Explode of ParNum.t * Shape.t           (* scalar, shape *) 
+  | Rotate of 'a t int * int                (* array, dim, offset *) 
+  | Shift of 'a t  int * int * ParNum.t     (* array, dim, offset, default *) 
+  | Slice of 'a t * int * int * int         (* array, dim, start, end *) 
+  | Range of int * int                      (* start, stop *) 
 
 (* since array data is polymorphic it's by default printed as the *)
 (* totally uninformative string '<array>'. If you want something more*)
@@ -34,8 +33,18 @@ let rec to_str ?(array_to_str=(fun _ -> "<array>")) = function
   | Slice (a, dim, start, stop) -> 
         Printf.printf "slice(%s, dim=%d, start=%d, stop=%d)"
             (to_star array_to_str a) 
-  | Range (start, stop) 
+  | Range (start, stop) -> 
+        Printf.printf "range(from=%d, to=%d)" start stop 
+
+let rec map f = function
+  | Array a -> Array (f a) 
+  | Nested elts -> Nested (Array.map (map f) elts) 
+  | Rotate (a, dim, offset) -> Rotate (map f a, dim offset)
+  | Shift (a, dim, offset, default) -> Shift (map f a, dim, offset, default) 
+  | Slice (a, dim, start, stop) -> Slice (map f a, dim, start, offset)
+  | other -> other  
   
+    
 let to_int = function 
   | Scalar n -> ParNum.to_int n 
   | other -> failwith $ Printf.sprintf  
