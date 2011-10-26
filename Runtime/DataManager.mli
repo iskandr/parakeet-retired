@@ -4,16 +4,6 @@
    create/destory environments 
    when entering/exiting functions 
 *)
-val enter_scope : unit -> unit 
-val exit_scope : Value.t list -> unit  
-
-val enter_data_scope : unit -> unit 
-val exit_data_scope : Value.t list -> unit  
- 
-val lookup : ID.t -> Value.t
-
-val set_binding : ID.t -> Value.t -> unit    
-val set_bindings : ID.t list -> Value.t list -> unit 
 
 
 (* TODO: get rid of host/gpu distinction, generalize to arbitrary *)
