@@ -25,7 +25,7 @@ type closure = {
 } 
 
         
-type hof_args = { 
+type adverb_args = { 
   axes : int list; 
   init : value_nodes option; 
   args : value_nodes 
@@ -42,10 +42,7 @@ type exp =
   | Cast of Type.t * value_node  
   | Call of FnId.t * value_nodes 
   | PrimApp of Prim.prim * value_nodes  
-  | Map of closure * hof_args  
-  | Reduce of closure * hof_args
-  | Scan of closure * hof_args 
-  | AllPairs of closure * hof_args  
+  | Adverb of Prim.adverb * closure * adverb_args  
             
 and exp_node = { 
   exp: exp; 
