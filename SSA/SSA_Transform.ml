@@ -100,7 +100,7 @@ module Mk(R: SIMPLE_TRANSFORM_RULES) = struct
   
   let transform_value blockState cxt vNode = 
     process_update blockState vNode (R.value cxt vNode)  
-     
+  
   let rec transform_values blockState cxt vNodes = match vNodes with 
     | [] -> []
     | v::vs -> 
@@ -111,6 +111,10 @@ module Mk(R: SIMPLE_TRANSFORM_RULES) = struct
       *)
       if (v == v') && (vs == vs') then vNodes
       else v'::vs' 
+  
+  let transform_optional_values blockState cxt = function 
+    | None -> None
+    | Some vNodes -> transform_values blockState cxt vNodes 
   
   let transform_phi blockState cxt phiNode =
     let version = blockState.changes in 
@@ -159,47 +163,16 @@ module Mk(R: SIMPLE_TRANSFORM_RULES) = struct
       let args' = transform_values blockState cxt args in 
       if changed() then {expNode with exp=PrimApp(prim,args')}
       else expNode 
-       
-    | Map (closure,args) -> 
-      let closureArgs' = transform_values blockState cxt args in 
-      let args' = transform_values blockState cxt args in 
+    | Adverb(op, closure, adverb_args) -> 
+      let closureArgs' = transform_values blockState cxt closure.closure_args in 
+      let args' = transform_values blockState cxt adverb_args.args in
+      let init' = transform_optional_values blockState cxt adverb_args.init in 
       if changed() then 
-        let closure' = { closure with closure_args = closureArgs' } in 
-        {expNode with exp = Map(closure', args') } 
+        let closure' = { closure with closure_args = closureArgs' } in
+        let adverb_args' = { adverb_args with args = args'; init = init' } in  
+        { expNode with exp = Adverb(op, closure', args') } 
       else expNode 
-    | Reduce (initClos, reduceClos, initArgs, args) -> 
-        let initClosureArgs' = 
-          transform_values blockState cxt initClos.closure_args 
-        in
-        let reduceClosureArgs' = 
-          transform_values blockState cxt reduceClos.closure_args 
-        in 
-        let initArgs' = transform_values blockState cxt initArgs in 
-        let args' = transform_values blockState cxt args in 
-        if changed () then 
-          let initClos' = { initClos with closure_args = initClosureArgs'} in 
-          let reduceClos' = 
-            { reduceClos with closure_args = reduceClosureArgs' }
-          in 
-          { expNode with exp = Reduce(initClos', reduceClos', initArgs', args')} 
-        else expNode      
-    | Scan (initClos, scanClos, initArgs, args) -> 
-        let initClosureArgs' = 
-          transform_values blockState cxt initClos.closure_args 
-        in
-        let scanClosureArgs' = 
-          transform_values blockState cxt scanClos.closure_args 
-        in 
-        let initArgs' = transform_values blockState cxt initArgs in 
-        let args' = transform_values blockState cxt args in 
-        if changed () then 
-          let initClos' = { initClos with closure_args = initClosureArgs'} in 
-          let scanClos' = 
-            { scanClos with closure_args = scanClosureArgs' }
-          in 
-          { expNode with exp = Scan(initClos', scanClos', initArgs', args')} 
-        else expNode  
-    in
+      in
     BlockState.process_update blockState expNode' (R.exp cxt expNode') 
   
   let rec transform_block cxt (block:block) = 

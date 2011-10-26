@@ -136,20 +136,16 @@ module MkEvaluator(A : ANALYSIS) = struct
   
   and iter_exp_children env expNode = match expNode.exp with 
       | App(x, xs) ->  ignore $ A.value env x; iter_values env xs
-      | Call(_, xs) 
+      | Call(_, xs)
+      | Cast(_, v) -> ignore $ A.value env v 
       | PrimApp(_,xs) 
       | Values xs    
       | Arr xs -> iter_values env xs   
-      | Map(closure, args) ->
-          iter_values env closure.closure_args; 
-          iter_values env args
-      | Reduce(c1, c2, initArgs, args) 
-      | Scan (c1, c2, initArgs, args) -> 
-          iter_values env c1.closure_args;  
-          iter_values env c2.closure_args;
-          iter_values env initArgs; 
-          iter_values env args 
-      | Cast(_, v) -> ignore $ A.value env v  
+      | Adverb (_, {closure_args}, {args; init}) -> 
+          iter_values env closure_args; 
+          (match init with Some inits -> iter_values inits | None -> ())
+          iter_values args 
+   
   and iter_values env = function 
     | [] -> () | v::vs -> let _ = A.value env v in iter_values env vs 
   and eval_values env = function 
