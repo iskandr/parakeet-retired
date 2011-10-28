@@ -5,15 +5,8 @@
 (*   3) performs dispatch on id to call coorect functions for each pointer. *)
 
 
-type memspace_id 
 
-type ptr = { 
-    addr : Int64.t; 
-    size : int; 
-    memspace : memspace_id
-}
-
-type memspace_functions = { 
+type memspace_fns = { 
     alloc : (int -> Int64.t); 
     free : (Int64.t -> unit); 
     idx_bool : (Int64.t -> int -> bool); 
@@ -24,22 +17,21 @@ type memspace_functions = {
     idx_float64 : (Int64.t -> int -> float); 
 } 
 
-val register : string -> memspace_functions -> memspace_id 
-val memspace_name : memspace_id -> string 
+val register : string -> memspace_fns -> MemId.t 
 
-val alloc : int -> ptr
-val unsafe_free : ptr -> unit  
+val alloc : int -> Ptr.t
+val unsafe_free : Ptr.t -> unit  
 
-val idx_bool : ptr -> int -> bool 
-val idx_char : ptr -> int -> char  
-val idx_int32 : ptr -> int -> Int32.t   
-val idx_int64 : ptr -> int -> Int64.t   
-val idx_float32 : ptr -> int -> float  
-val idx_float64 : ptr -> int -> float 
+val idx_bool : Ptr.t -> int -> bool 
+val idx_char : Ptr.t -> int -> char  
+val idx_int32 : Ptr.t -> int -> Int32.t   
+val idx_int64 : Ptr.t -> int -> Int64.t   
+val idx_float32 : Ptr.t -> int -> float  
+val idx_float64 : Ptr.t -> int -> float 
 
-val trace_free_ptrs : memspace_id -> unit 
-val delete_free_ptrs : memspace_id -> unit
+val trace_free_ptrs : MemId.t -> unit 
+val delete_free_ptrs : MemId.t -> unit
 
-val pin : ptr -> unit
-val unpin : ptr -> unit 
+val pin : Ptr.t -> unit
+val unpin : Ptr.t -> unit 
  

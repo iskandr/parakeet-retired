@@ -1,14 +1,12 @@
-class type t = object 
-  method addr : Int64.t 
-  method size : int 
-  method free : unit 
+
+type t = { 
+    addr : Int64.t; 
+    size : int; 
+    memspace : MemId.t; 
+}
+
+let to_str {addr;size;memspace} =
+    let name = MemId.find_name memspace in   
+    Printf.sprintf "<ptr addr=%Ld, size=%d, memspace=%s" addr size name
   
-  method memspace_id : MemId.t 
-  
-  method get_bool : int -> bool
-  method get_char : int -> char
-  method get_int32 : int -> Int32.t 
-  method get_int64 : int -> Int64.t 
-  method get_float32 : int -> float
-  method get_float64 : int -> float
-end 
+ 
