@@ -41,6 +41,10 @@ let register name fns =
   Hashtbl.add gc_states id (GcState.create());
   id   
 
+let trace_free_ptrs memspace_id  = ()  
+let delete_free_ptrs : memspace_id = () 
+
+
 (* don't try to reuse space, really allocate new pointer *)  
 let direct_alloc memspace_id nbytes : Ptr.t option = 
   let fns = get_fns memspace_id in 
@@ -48,13 +52,13 @@ let direct_alloc memspace_id nbytes : Ptr.t option =
   if addr = 0L  then None 
   else Some {Ptr.addr = addr; size = nbytes; memspace = memspace_id }  
 
-let alloc memspace_id nbytes : Ptr.t = 
+let alloc (memspace_id:MemId.t) (nbytes:int) : Ptr.t = 
   let gc_state = get_gc_state memspace_id in 
   let strategy = [
     lazy (GcState.find_free_ptr gc_state nbytes);
-    lazy (collect(); GcState.find_free_ptr gc_state nbytes);
+    lazy (trace_free_ptrs memspace_id; GcState.find_free_ptr gc_state nbytes);
     lazy (direct_alloc memspace_id nbytes); 
-    lazy (delete_all_free(); direct_alloc memspace_id nbytes)
+    lazy (delete_free_ptrs memspace_id; direct_alloc memspace_id nbytes)
   ]
   in match force_til_some strategy with 
     | None -> failwith "Allocation failed"
@@ -68,8 +72,6 @@ let idx_int64 ptr idx =     Int64.zero
 let idx_float32 ptr idx =   0.0
 let idx_float64 ptr idx =   0.0 
 
-let trace_free_ptrs memspace_id  = ()  
-let delete_free_ptrs : memspace_id = () 
 
 let pin ptr = 
   GcState.pin (get_gc_state ptr.memspace) ptr 
