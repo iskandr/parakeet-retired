@@ -15,6 +15,8 @@ let set_name id name =
         Hashtbl.add rev_names name id
     )  
   
-let get_name id name = Hashtbl.find names id  
+let get_name id = match find_option names id with 
+    | None -> failwith $ "Unregister memory space " ^ (string_of_int id)
+    | Some name -> name   
 
  
