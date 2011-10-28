@@ -1,5 +1,6 @@
 class type t = object 
   method addr : Int64.t 
+  method size : size 
   method free : unit 
   
   method memspace_id : MemId.t 
