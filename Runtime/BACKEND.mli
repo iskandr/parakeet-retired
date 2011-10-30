@@ -1,14 +1,18 @@
 
+type data = Data.t Value.t 
 
-module Memspace : MEMSPACE 
+val memspace_id : MemId.t  
    
-val map : 
-  SSA.fn -> Data.t list -> Data.t list -> axes:int list -> Data.t list
+val map :  axes:int list -> fn:SSA.fn -> fixed:(data list) -> 
+    data list -> data list
 
-val reduce : 
-  SSA.fn -> Data.t list -> Data.t list -> axes:int list -> Data.t list
+val reduce : axes:int list -> fn:SSA.fn -> fixed:(data list) -> 
+    data list -> data list
 
-val scan : 
-  SSA.fn -> Data.t list -> Data.t list -> axes:int list -> Data.t list
+val scan : axes:int list -> fn:SSA.fn -> fixed:(data list) -> 
+    data list -> data list
 
-val array_op : Prim.array_op -> Data.t list -> Data.t list             
+val all_pairs : axes:int list -> fn:SSA.fn -> fixed:(data list) -> 
+    data -> data -> data list
+
+val array_op : Prim.array_op -> data list -> data list

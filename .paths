@@ -202,7 +202,6 @@ unit/tmp
 .git/objects/d4
 .git/objects/e9
 Runtime
-Runtime/CudaBackend
-Runtime/HostBackends
 Runtime/Old
 Runtime/Memory
+Runtime/Cuda

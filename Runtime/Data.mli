@@ -13,5 +13,3 @@ type t = {
     shape : Shape.t;
     strides : int array;
 }
-
-

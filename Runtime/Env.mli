@@ -1,17 +1,15 @@
 
+val lookup : ID.t -> DataId.t Value.t
 
-(* push or pop the current set of active ArrayId's without creating *)
-(* a new environment *) 
-val push_data_scope : unit -> unit
-val pop_data_scope : Value.t list -> unit 
-val add_to_data_scope : ArrayId.t -> unit 
- 
-(* create both a new environment and a new set of active data *) 
-val enter_scope : unit -> unit 
-val exit_scope : Value.t list -> unit  
+val set_binding : ID.t -> DataId.t Value.t -> unit    
+val set_bindings : ID.t list -> DataId.t Value.t list -> unit 
 
-val lookup : ID.t -> Value.t
 
-val set_binding : ID.t -> Value.t -> unit    
-val set_bindings : ID.t list -> Value.t list -> unit 
+type env = Value.t ID.Map.t  
+val curr_env : env 
+val push_env : unit -> unit
+val pop_env : unit -> unit 
 
+val from_memspace : Data.t Value.t -> DataId.t Value.t 
+val dissociate : DataId.t Value.t -> MemId.t -> unit
+val on_memspace : DataId.t Value.t -> MemId.t -> Data.t Value.t  
