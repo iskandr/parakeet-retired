@@ -19,4 +19,6 @@ let get_name id = match find_option names id with
     | None -> failwith $ "Unregister memory space " ^ (string_of_int id)
     | Some name -> name   
 
+module Map  = Map.Make(struct type t = t let compare = compare end)  
+
  

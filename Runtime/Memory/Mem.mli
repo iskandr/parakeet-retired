@@ -7,6 +7,8 @@
 
 
 val register : string -> Ptr.raw_fns -> MemId.t 
+val all_memspace_ids : unit -> MemId.t list 
+
 
 val alloc : int -> Ptr.t
 val unsafe_free : Ptr.t -> unit  

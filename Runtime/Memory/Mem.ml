@@ -17,8 +17,13 @@ let gc_states : (MemId.t, GcState.t) Hashtbl.t = Hashtbl.create hash_size
 
 let get_gc_state memspace_id = Hashtbl.find gc_states memspace_id 
 
+let registered = ref [] 
+
+let all_memspace_ids () = !registered
+
 let register name fns = 
-    let id = MemId.register name in 
+    let id = MemId.register name in
+    registered := id ::!registered;  
     Hashtbl.add memspace_fns id fns;
     Hashtbl.add gc_states id (GcState.create());
     id   
