@@ -19,7 +19,7 @@ let register_untyped_function ~name ~globals ~args astNode =
       name 
       (String.concat ", " args)
       (AST.node_to_str astNode)
-  ENDIF; 
+  ENDIF;
   let _ = Analyze_AST.analyze_ast astNode in
   let ssaEnv = 
     AST_to_SSA.Env.GlobalScope (InterpState.get_untyped_id interpState)  

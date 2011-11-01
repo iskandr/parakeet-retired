@@ -23,9 +23,9 @@ type t = {
 
 val to_str : t -> string 
 
-val idx_bool : Ptr.t -> int -> bool 
-val idx_char : Ptr.t -> int -> char  
-val idx_int32 : Ptr.t -> int -> Int32.t   
-val idx_int64 : Ptr.t -> int -> Int64.t   
-val idx_float32 : Ptr.t -> int -> float  
-val idx_float64 : Ptr.t -> int -> float 
+val idx_bool : t -> int -> bool 
+val idx_char : t -> int -> char  
+val idx_int32 : t -> int -> Int32.t   
+val idx_int64 : t -> int -> Int64.t   
+val idx_float32 : t -> int -> float  
+val idx_float64 : t -> int -> float 
