@@ -167,7 +167,7 @@ let combine_type_list = function
 
 let replace_elt_type t s = match t with  
   | ArrayT (_, d) -> ArrayT(s,d)
-  | ScalarT _ -> Scalar T s
+  | ScalarT _ -> ScalarT s 
   | _ -> t  
 (*
 (* what's the return type of multidimensional indexing or slicing *) 
