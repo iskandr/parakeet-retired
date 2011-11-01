@@ -10,7 +10,7 @@ type elt_t =
  
 type t  =
   | ScalarT of elt_t 
-  | ArraryT of elt_t * int
+  | ArrayT of elt_t * int
   | BottomT (* bottom of type lattice for vars whose type is not determined *)
   | AnyT (* top of type lattice, for variables whose type is overdetermined *)
  
@@ -52,21 +52,4 @@ val combine_type_array : t array -> t
 val combine_type_list : t list -> t 
 
 val replace_elt_type : t -> elt_t -> t
-
-(*
-(* what's the return type of multidimensional indexing or slicing *) 
-let rec slice_type arrayType types = match arrayType, types with 
-  (* if we're not slicing an array, just return the same type *)
-  | _, [] -> arrayType
-  | VecT nestedT, (VecT idxT)::rest when is_integer idxT -> 
-      VecT (slice_type nestedT rest)
-  | VecT nestedT, idxT::rest when is_integer idxT ->
-      slice_type nestedT rest 
-  | _ when is_scalar arrayType -> 
-      failwith "[slice_type] indexing into scalar not allowed"
-  | notVec, notIndices -> 
-      failwith (Printf.sprintf "Can't index into %s with indices of type %s"
-        (to_str notVec) (type_list_to_str notIndices))
-*)      
-(* only peel types of maximal depth *)           
 val peel_maximal : t list -> t list
