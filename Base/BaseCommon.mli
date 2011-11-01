@@ -1,5 +1,4 @@
-include Std
-
+include module type of Std
 
 val ($) : ('a -> 'b) -> 'a -> 'b 
 val (>>=) : 'a -> ('a -> 'b) -> 'b
