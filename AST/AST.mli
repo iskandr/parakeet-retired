@@ -6,7 +6,7 @@ type ast_info = {
     mutable defs_local : string PSet.t;
     mutable defs_global : string PSet.t;
 
-    mutable reads_local : strng PSet.t;
+    mutable reads_local : string PSet.t;
     mutable reads_global : string PSet.t; 
             
     mutable writes_local : string PSet.t;
@@ -43,7 +43,7 @@ type exp =
     | CountLoop of node * node 
     | Void
       
-type node = {
+and node = {
     data:exp;
     src:SrcInfo.t;
     mutable ast_info : ast_info;
