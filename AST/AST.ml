@@ -98,8 +98,8 @@ let rec to_str ast = match ast.data with
   | Var name -> name
   | Prim p -> prim_to_str p
   | Sym name -> "Symbol("^ name ^")" 
-  | Num (Char c ) -> "'" ^ (Char.to_string c) ^ "'"
-  | Num n -> num_to_str n 
+  | Num (ParNum.Char c ) -> "'" ^ (Char.to_string c) ^ "'"
+  | Num n -> ParNum.to_str n 
   | Str str -> "\"" ^ (String.escaped str)  ^ "\""
   | App (fn, args) -> 
         sprintf "%s(%s)" (to_str fn) (args_to_str ~delim:", " args)
