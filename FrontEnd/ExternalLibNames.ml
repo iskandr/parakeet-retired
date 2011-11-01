@@ -1,6 +1,5 @@
 
 open Base 
-open AST
 open Prim
 
 let prim_names =  Hashtbl.of_list [
@@ -49,12 +48,9 @@ let prim_names =  Hashtbl.of_list [
     "concat", ArrayOp Concat; 
 ]   
                 
-let get_prim str =
-    try  
-        AST.mk_prim_node (Hashtbl.find prim_names str)
-    with _ -> (
-      if InterpState.have_untyped_function StdLib.initState str then 
-        AST.mk_var_node str
-      else   
-        failwith $ "Couldn't find Parakeet primitive named " ^ str
-    )   
+let get_prim str = match Hashtbl.find_option prim_names str with
+  | Some prim -> AST_Helpers.mk_prim_node prim
+  | None ->
+      if FnManager.have_untyped_function str then AST_Helpers.mk_var_node str
+      else failwith $ "Couldn't find Parakeet primitive named " ^ str  
+    

@@ -28,32 +28,23 @@ val mk_lam_node :
 
 val update_lam_node : node -> string list -> node -> node  
     
-let mk_if_node ?(astInfo=mk_ast_info()) ?(src=SrcInfo.empty) 
-               condNode tNode fNode = 
-  mk_node ~astInfo  ~src (If(condNode, tNode, fNode))
+val mk_if_node : ?info:ast_info -> ?src:SrcInfo.t -> node -> node -> node -> node 
 
-let update_if_node ast condNode tNode fNode = 
-  {ast with data=If(condNode,tNode,fNode)}
+val update_if_node : node -> node -> node -> node -> node 
 
-let mk_void_node ?(astInfo=mk_ast_info()) ?(src=SrcInfo.empty) () = 
-  mk_node ~astInfo ~src Void 
+val mk_void_node : ?info:ast_info -> ?src:SrcInfo.t -> node 
   
-let mk_iftrue_node ?(astInfo=mk_ast_info()) ?(src=SrcInfo.empty) 
-   condNode trueNodes =
-  let voidNode = mk_void_node() in 
-  let blockNode = mk_block_node trueNodes in 
-  mk_node ~astInfo ~src (If(condNode, blockNode, voidNode)) 
+val mk_iftrue_node : ?info:ast_info -> ?src:SrcInfo.t -> node -> node list -> node 
 
-let mk_int_node ?(astInfo=mk_ast_info()) ?(src=SrcInfo.empty) x = 
-  mk_node ~astInfo ~src $ Num (Int32 (Int32.of_int x))  
+val mk_int_node : ?info:ast_info -> ?src:SrcInfo.t -> int -> node 
+
 val update_int_node : node -> int -> node 
 
-let mk_void_node : ?info:ast_info -> ?src:SrcInfo.t -> unit -> node 
 
 (* Array indexing -- special case of App *) 
-let mk_idx_node : ?info:ast_info -> ?src:SrcInfo.t -> node -> node -> node 
-let mk_eq_node ?info:ast_info -> ?src->SourcInfo.t -> node -> node -> node 
-let mk_concat_node : ?info:ast_info -> ?src:SrcInfo.t -> node -> node -> node 
+val mk_idx_node : ?info:ast_info -> ?src:SrcInfo.t -> node -> node -> node 
+val mk_eq_node : ?info:ast_info -> ?src:SrcInfo.t -> node -> node -> node 
+val mk_concat_node : ?info:ast_info -> ?src:SrcInfo.t -> node -> node -> node 
 
 
 val get_lam_args : node -> string list 
