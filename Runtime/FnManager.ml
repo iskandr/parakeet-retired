@@ -86,17 +86,6 @@ let optimize_typed_functions () =
   ;
   Timing.stop Timing.typedOpt      
 
-                  (*                  
-let create_from_untyped_map ?(optimize=true) fundefMap =
-  let state = create () in
-  add_untyped_map state ~optimize fundefMap;    
-  state 
-
-let create_from_untyped_list ?(optimize=true) fundefList = 
-  let state = create () in 
-  add_untyped_list state ~optimize fundefList;  
-  state  
-*)
 
 let get_untyped_name id = Hashtbl.find state.untyped_id_to_name id
 let get_untyped_id name = Hashtbl.find state.name_to_untyped_id name

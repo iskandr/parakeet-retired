@@ -1,11 +1,10 @@
-<**/*.native> or <**/*.ml> or <**/*.mli> or <**/*.cmx> : use_unix, use_str, use_bigarray, pkg_uint.uint128, pkg_uint.uint32, pkg_extlib
+<**/*.native> or <**/*.ml> or <**/*.mli> or <**/*.cmx> : use_unix, use_str, use_bigarray, package(extlib)
 "Common" : include
 "Base" : include
 "AST" : include
 "Dump" : include
 "Ptx": include
 "Tests" : include
-"Q" : include
 "SSA" : include
 "SSA/Analyses" : include
 "SSA/Optimizations" : include
@@ -13,6 +12,8 @@
 "ShapeInference" : include
 "CostModel" : include
 "Runtime" : include
+"Runtime/Memory" : include
+"Runtime/Cuda" : include
 "Imp" : include
 "Imp/KernelTemplates" : include
 "FrontEnd" : include

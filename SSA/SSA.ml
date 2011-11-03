@@ -27,8 +27,11 @@ type closure = {
   closure_output_types: Type.t list 
 }
 
- 
-
+type adverb_args = { 
+  axes : int list; 
+  init : value_nodes option; 
+  args : value_nodes 
+} 
     
 type exp = 
   (* application of arbitrary values used only in untyped code *) 
@@ -40,10 +43,8 @@ type exp =
   | Cast of Type.t * value_node  
   | Call of FnId.t * value_nodes 
   | PrimApp of Prim.prim * value_nodes  
-  | Map of closure * value HOF_Args.t 
-  | Reduce of closure * value HOF_Args.t 
-  | Scan of closure * value HOF_Args.t  
-  | Combine of closure * value HOF_Args.t   
+  | Adverb of Prim.adverb * closure * adverb_args 
+
    
 and exp_node = { 
   exp: exp; 

@@ -32,7 +32,7 @@ let raw_alloc n : Int64.t =
     else addr  
   end
 
-let memspace_id = MemspaceRegistry.register "gpu"
+let memspace_id = MemId.register "gpu"
 
 
 class ptr addr = object

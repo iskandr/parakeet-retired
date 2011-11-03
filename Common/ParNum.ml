@@ -1,5 +1,4 @@
 open Base 
-open IntType
 
 type t = 
   | Bool of bool 
@@ -20,30 +19,30 @@ let to_str = function
   | Float64 x -> Float.to_string x
   | Bool x -> Int.to_string (Bool.to_int x)
   | Char c ->  Char.to_string c
-  | Inf t -> Printf.sprintf "inf : %s" (DynType.to_str t)
-  | NegInf t -> Printf.sprintf "-inf : %s" (DynType.to_str t)  
+  | Inf t -> Printf.sprintf "inf : %s" (Type.elt_to_str t)
+  | NegInf t -> Printf.sprintf "-inf : %s" (Type.elt_to_str t)  
 
 let type_of = function 
-  | Int16 _ -> Int16T  
-  | Int32 _ -> Int32T
-  | Int64 _ -> Int64T  
-	| Float32 _ -> Float32T
-  | Float64 _ -> Float64T 
-	| Bool _ -> BoolT
-  | Char _ -> CharT 
+  | Int16 _ -> Type.Int16T  
+  | Int32 _ -> Type.Int32T
+  | Int64 _ -> Type.Int64T  
+	| Float32 _ -> Type.Float32T
+  | Float64 _ -> Type.Float64T 
+	| Bool _ -> Type.BoolT
+  | Char _ -> Type.CharT 
   | Inf t
   | NegInf t -> t 
 
 let coerce_int i = function
-  | Int16T -> Int16 i  
-  | Int32T -> Int32 (Int32.of_int i) 
-  | Int64T -> Int64 (Int64.of_int i)
-  | Float32T -> Float32 (float_of_int i)
-  | Float64T -> Float64 (float_of_int i)
-  | BoolT -> 
+  | Type.Int16T -> Int16 i  
+  | Type.Int32T -> Int32 (Int32.of_int i) 
+  | Type.Int64T -> Int64 (Int64.of_int i)
+  | Type.Float32T -> Float32 (float_of_int i)
+  | Type.Float64T -> Float64 (float_of_int i)
+  | Type.BoolT -> 
         if i < 0 then failwith "cannot convert negative integer to bool"
         else Bool (i > 0)
-  | CharT -> 
+  | Type.CharT -> 
         if i < 0 || i > 255 
         then failwith "int outside valid range for conversion to char"
         else Char (Char.chr i)
@@ -53,15 +52,15 @@ let coerce_int i = function
         
 
 let coerce_int32 i = function 
-  | Int32T -> Int32 i
-  | Int64T -> Int64 (Int64.of_int32 i)
-  | Float32T -> Float32 (Int32.to_float i)
-  | Float64T -> Float64 (Int32.to_float i)
-  | BoolT -> 
+  | Type.Int32T -> Int32 i
+  | Type.Int64T -> Int64 (Int64.of_int32 i)
+  | Type.Float32T -> Float32 (Int32.to_float i)
+  | Type.Float64T -> Float64 (Int32.to_float i)
+  | Type.BoolT -> 
         if i < Int32.zero 
         then failwith "cannot convert negative integer to bool"
         else Bool (i > Int32.zero) 
-  | CharT -> 
+  | Type.CharT -> 
         if i < Int32.zero || i > Int32.zero 
         then failwith "int32 outside valid range for conversion to char"
         else Char (Char.chr (Int32.to_int i))
@@ -72,15 +71,15 @@ let coerce_int32 i = function
 (* this is really an argument for a common NUMBER module interface *)
 (* which is implemented by all of the ocaml number types *) 
 let coerce_int64 i = function
-  | Int32T -> Int32 (Int64.to_int32 i) 
-  | Int64T -> Int64 i
-  | Float32T -> Float32 (Int64.to_float i)
-  | Float64T -> Float64 (Int64.to_float i)
-  | BoolT -> 
+  | Type.Int32T -> Int32 (Int64.to_int32 i) 
+  | Type.Int64T -> Int64 i
+  | Type.Float32T -> Float32 (Int64.to_float i)
+  | Type.Float64T -> Float64 (Int64.to_float i)
+  | Type.BoolT -> 
         if i < Int64.zero 
         then failwith "cannot convert negative integer to bool"
         else Bool (i > Int64.zero) 
-  | CharT -> 
+  | Type.CharT -> 
         if i < Int64.zero || i > Int64.zero 
         then failwith "int64 outside valid range for conversion to char"
         else Char (Char.chr (Int64.to_int i))
@@ -89,15 +88,15 @@ let coerce_int64 i = function
            (Type.elt_to_str t)
 
 let coerce_float f = function
-  | Int32T -> Int32 (Int32.of_float f)
-  | Int64T -> Int64 (Int64.of_float f)
-  | Float32T -> Float32 f
-  | Float64T -> Float64 f
-  | BoolT -> 
+  | Type.Int32T -> Int32 (Int32.of_float f)
+  | Type.Int64T -> Int64 (Int64.of_float f)
+  | Type.Float32T -> Float32 f
+  | Type.Float64T -> Float64 f
+  | Type.BoolT -> 
         if f < 0. 
         then failwith "cannot convert negative integer to bool"
         else Bool (f > 0.) 
-  | CharT -> 
+  | Type.CharT -> 
         if f < 0. || f > 255.  
         then failwith "float outside valid range for conversion to char"
         else Char (Char.chr (int_of_float f))
@@ -108,7 +107,7 @@ let coerce_float f = function
          
 let coerce n t =
   match n with 
-    | Int16 i
+    | Int16 i -> coerce_int i t 
     | Int32 i -> coerce_int32 i t
     | Int64 i -> coerce_int64 i t 
     | Float32 f 
@@ -118,8 +117,8 @@ let coerce n t =
     | Inf _ -> Inf t 
     | NegInf _ -> NegInf t  
 
-let of_int i = coerce_int i Int32T
-let of_float f = coerce_float f Float64T 
+let of_int i = coerce_int i Type.Int32T
+let of_float f = coerce_float f Type.Float64T 
 
 let to_int = function
   | Int16 i -> i 

@@ -12,7 +12,7 @@ type elt_t =
  
 type t  =
   | ScalarT of elt_t 
-  | ArraryT of elt_t * int
+  | ArrayT of elt_t * int
   | BottomT (* bottom of type lattice for vars whose type is not determined *)
   | AnyT (* top of type lattice, for variables whose type is overdetermined *)
  
@@ -167,7 +167,7 @@ let combine_type_list = function
 
 let replace_elt_type t s = match t with  
   | ArrayT (_, d) -> ArrayT(s,d)
-  | ScalarT _ -> Scalar T s
+  | ScalarT _ -> ScalarT s 
   | _ -> t  
 (*
 (* what's the return type of multidimensional indexing or slicing *) 
@@ -189,6 +189,6 @@ let rec peel_maximal types =
   let depths = List.map rank types in 
   let maxDepth = List.fold_left max 0 depths in 
   List.map2 
-    (fun t depth -> if depth = maxDepth then peel_vec t else t)   
+    (fun t depth -> if depth = maxDepth then peel t else t)   
     types 
     depths   

@@ -1,5 +1,6 @@
 open Base 
 open SSA
+open SSA_Helpers
 open SSA_Codegen
 
 (* 
@@ -37,54 +38,26 @@ let avg = mk_fn 1 1 2 $ fun inputs outputs locals -> [
     [outputs.(0)] := div @@ [locals.(0); locals.(1)]
   ]  
 
+let _ = 
+    FnManager.add_untyped_list ~optimize:false [ 
+        "any", any; 
+        "all", all; 
+        "sum", sum; 
+        "prod", prod;
+  
+        "min_elt", min;
+        "min", min;
+  
+        "max_elt", max;
+        "max", max;
+  
+        "avg", avg;
+        "mean", avg;
+  
+        "length", count;  
+        "count", count 
+    ]
 
-let initState = InterpState.create_from_untyped_list ~optimize:false [ 
-  "any", any; 
-  "all", all; 
-  "sum", sum; 
-  "prod", prod;
-  
-  "min_elt", min;
-  "min", min;
-  
-  "max_elt", max;
-  "max", max;
-  
-  "avg", avg;
-  "mean", avg;
-  
-  "length", count;  
-  "count", count 
-]
-
-(*
-let minidx_helper = mk_fn 4 2 1 $ fun inputs outputs locals ->
-  let accIdx, accVal  = inputs.(0), inputs.(1) in
-  let currIdx, currVal = inputs.(2), inputs.(3) in
-  let keepAcc = locals.(0) in [
-    [keepAcc] := lt @@ [accVal; currVal];    
-    [outputs.(0)] := select @@ [keepAcc; accIdx; currIdx]; 
-    [outputs.(1)] := select @@ [keepAcc; accVal; currVal]
-  ]
-
-let minidx = mk_fn 1 1 2 $ fun inputs outputs locals -> 
-    let n, indices = locals.(0), locals.(1) in 
-    let helper = 
-      mk_globalfn (InterpState.get_untyped_id initState "$minidx_helper")
-    in  
-    [  
-      [n] := dimsize @@ [inputs.(0)];
-      (* TODO: will this run on the gpu? 
-         It has a til operator built in! *)    
-      [indices] := til @@ [n];
-      (* TODO: what are the initial values? *)
-      (* IDEA: Maybe need named argument groups? 
-         ie: Reduce (fn, initvals = [i;j], data=[x;y;z]) 
-      *) 
-      [outputs.(0)] := 
-         reduce @@ [helper; (* TODO: init val? *) indices; inputs.(0)]     
-    ]    
-*)
 
 (* K-means specific functions *)
 (* calcCentroid [X;a;i] *) 
@@ -105,14 +78,12 @@ let calcCentroid = mk_fn 3 1 5 $ fun inputs outputs locals ->
     [outputs.(0)] := (scalar_op Prim.Div) @@ [locals.(3); locals.(4)]
 ]
 let _ = 
-  InterpState.add_untyped 
-    initState ~optimize:false "parakeet_calc_centroid" calcCentroid;;
+  FnManager.add_untyped ~optimize:false "parakeet_calc_centroid" calcCentroid
 
 (* calcCentroids[X;a;k] *) 
 let calcCentroids = mk_fn 3 1 2 $ fun inputs outputs locals -> 
   let cc = 
-    mk_globalfn $ 
-      InterpState.get_untyped_id initState "parakeet_calc_centroid" 
+    mk_globalfn $ FnManager.get_untyped_id "parakeet_calc_centroid" 
   in
   let x = inputs.(0) in 
   let a = inputs.(1) in   
@@ -127,8 +98,7 @@ let calcCentroids = mk_fn 3 1 2 $ fun inputs outputs locals ->
   ;;
            
 let _ = 
-  InterpState.add_untyped 
-    initState ~optimize:false "parakeet_calc_centroids" calcCentroids;;
+  FnManager.add_untyped ~optimize:false "parakeet_calc_centroids" calcCentroids
 
 let dist_helper = mk_fn 3 1 2 $ fun inputs outputs locals -> 
   [ 
@@ -137,36 +107,29 @@ let dist_helper = mk_fn 3 1 2 $ fun inputs outputs locals ->
     [outputs.(0)] := plus @@ [inputs.(0); locals.(1)]
   ] 
 let _ = 
-  InterpState.add_untyped 
-    initState 
-    ~optimize:false 
-    "parakeet_dist_helper" 
-    dist_helper;;
+  FnManager.add_untyped ~optimize:false "parakeet_dist_helper" dist_helper;;
 
 let sqr_dist = mk_fn 2 1 0 $ fun inputs outputs _ -> 
   let dist_helper = 
-    mk_globalfn (InterpState.get_untyped_id initState "parakeet_dist_helper") 
+    mk_globalfn (FnManager.get_untyped_id "parakeet_dist_helper") 
   in
   [
     [outputs.(0)] := reduce @@ [dist_helper; zero; inputs.(0); inputs.(1)];
   ] 
+  
 let _ = 
-  InterpState.add_untyped 
-    initState 
-    ~optimize:false 
-    "parakeet_sqr_dist" 
-    sqr_dist;;
+  FnManager.add_untyped ~optimize:false "parakeet_sqr_dist" sqr_dist;;
        
 
 let dist = mk_fn  2 1 1 $ fun inputs outputs locals -> 
   let dist_helper = 
-    mk_globalfn (InterpState.get_untyped_id initState "parakeet_dist_helper") 
+    mk_globalfn (FnManager.get_untyped_id "parakeet_dist_helper") 
   in
   [
     [locals.(0)] := reduce @@ [dist_helper; zero; inputs.(0); inputs.(1)];
     [outputs.(0)] := (scalar_op Prim.Sqrt) @@ [locals.(0)]
   ] 
-let _ = InterpState.add_untyped initState ~optimize:false "parakeet_dist" dist;;
+let _ = FnManager.add_untyped ~optimize:false "parakeet_dist" dist;;
 
 (* minidx[C;x] -> returns idx of whichever row of C is closest to x *)
 (* 
@@ -184,8 +147,7 @@ let _ = InterpState.add_untyped initState ~optimize:false "parakeet_dist" dist;;
      return minIdx
 *) 
 let minidx = mk_fn 2 1 15 $ fun inputs outputs locals ->
-  let dist = mk_globalfn $ 
-    InterpState.get_untyped_id initState "parakeet_sqr_dist" in
+  let dist = mk_globalfn (FnManager.get_untyped_id "parakeet_sqr_dist") in
   let c = inputs.(0) in 
   let x = inputs.(1) in
   
@@ -210,7 +172,7 @@ let minidx = mk_fn 2 1 15 $ fun inputs outputs locals ->
   let currDist = locals.(13) in 
   let foundNewMin = locals.(14) in 
   let header = 
-    SSA.mk_phi_nodes_from_values 
+    mk_phi_nodes_from_values 
       [i_top; minDist_top; minIdx_top]
       [i_init; minDist_init; minIdx_init]
       [i_bottom; minDist_bottom; minIdx_bottom]
@@ -222,7 +184,7 @@ let minidx = mk_fn 2 1 15 $ fun inputs outputs locals ->
   ]
   in
   let newMinPhi =
-    SSA.mk_phi_nodes_from_values
+    mk_phi_nodes_from_values
       [minDist_bottom; minIdx_bottom]
       [minDist_update; minIdx_update]
       [minDist_top; minIdx_top]
@@ -231,30 +193,25 @@ let minidx = mk_fn 2 1 15 $ fun inputs outputs locals ->
     [currRow] := index @@ [c; i_top]; 
     [currDist] := dist @@ [currRow; x];
     [foundNewMin] := lt @@ [currDist; minDist_top];
-    SSA.mk_stmt $ SSA.If (foundNewMin, newMinBlock, Block.empty, newMinPhi); 
+    mk_stmt $ If (foundNewMin, newMinBlock, Block.empty, newMinPhi); 
     [i_bottom] := plus @@ [i_top; one]
   ]
   in 
   [
     [i_init] := value zero;   
     [minDist_init] := value inf; 
-    [minIdx_init] := value (SSA.mk_int32 (-9999));
+    [minIdx_init] := value (mk_int32 (-9999));
     [n] := len c;
-    SSA.mk_stmt $ SSA.WhileLoop(testBlock, test, body, header)
+    mk_stmt $ WhileLoop(testBlock, test, body, header)
   ]    
 
-let _ = 
-  InterpState.add_untyped 
-    initState ~optimize:false "parakeet_minidx" minidx;;
+let _ = FnManager.add_untyped ~optimize:false "parakeet_minidx" minidx
 
 (* takes as inputs X, number of clusters, and initial assignment *) 
 let kmeans = mk_fn 3 1 2 $ fun inputs outputs locals ->
-  let minIdx = 
-    SSA.mk_globalfn (InterpState.get_untyped_id initState "parakeet_minidx") 
-  in
+  let minIdx = mk_globalfn (FnManager.get_untyped_id "parakeet_minidx") in
   let calcCentroids = 
-    SSA.mk_globalfn $ 
-      InterpState.get_untyped_id initState "parakeet_calc_centroids"
+    mk_globalfn (FnManager.get_untyped_id "parakeet_calc_centroids")
   in 
   let x = inputs.(0) in 
   let a = inputs.(1) in 
@@ -269,6 +226,4 @@ let kmeans = mk_fn 3 1 2 $ fun inputs outputs locals ->
     [outputs.(0)] := map @@ [locals.(1); x]; 
     (*[outputs.(0)] := calcCentroids @@ [x;newA;k];*)    
   ]
-let _ = 
-  InterpState.add_untyped 
-    initState ~optimize:false "parakeet_kmeans" kmeans;;  
+let _ = FnManager.add_untyped ~optimize:false "parakeet_kmeans" kmeans  

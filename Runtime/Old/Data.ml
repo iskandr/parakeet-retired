@@ -1,4 +1,7 @@
-type t = { 
+ 
+
+(* question: how do we know which memory space the pointer is in? *) 
+type array = { 
     memspace_id : MemId.t; 
     data_ptr : Ptr.t; 
     shape_ptr : Ptr.t;
@@ -13,3 +16,6 @@ type t = {
     shape : Shape.t;
     strides : int array;
 }
+
+type t = Scalar of ParNum.t | Array of array
+

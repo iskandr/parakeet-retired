@@ -6,7 +6,7 @@ type ast_info = {
     mutable defs_local : string PSet.t;
     mutable defs_global : string PSet.t;
 
-    mutable reads_local : strng PSet.t;
+    mutable reads_local : string PSet.t;
     mutable reads_global : string PSet.t; 
             
     mutable writes_local : string PSet.t;
@@ -98,8 +98,8 @@ let rec to_str ast = match ast.data with
   | Var name -> name
   | Prim p -> prim_to_str p
   | Sym name -> "Symbol("^ name ^")" 
-  | Num (Char c ) -> "'" ^ (Char.to_string c) ^ "'"
-  | Num n -> num_to_str n 
+  | Num (ParNum.Char c ) -> "'" ^ (Char.to_string c) ^ "'"
+  | Num n -> ParNum.to_str n 
   | Str str -> "\"" ^ (String.escaped str)  ^ "\""
   | App (fn, args) -> 
         sprintf "%s(%s)" (to_str fn) (args_to_str ~delim:", " args)

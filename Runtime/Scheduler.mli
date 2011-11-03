@@ -1,16 +1,18 @@
 
 (* Scheduler chooses on which backend to run code *) 
 
-val map : ?axes:int list -> SSA.fn ->  fixed:Value.t list -> 
-  Value.t list -> Value.t list
+type value = ArrayId.t Value.t 
+type values = value list 
 
-val reduce : ?axes:int list ->  SSA.fn -> fixed:Value.t list -> 
-  ?init:Value.t list -> Value.t list -> Value.t list 
+val map : ?axes:int list -> SSA.fn ->  fixed:values ->  values -> values 
 
-val scan : ?axes:int list -> SSA.fn -> fixed:Value.t list ->  
-  ?init:Value.t list -> Value.t list -> Value.t list
+val reduce : 
+  ?axes:int list ->  SSA.fn -> fixed:values -> ?init:values -> values -> values 
+
+val scan : 
+  ?axes:int list -> SSA.fn -> fixed:values ->  ?init:values -> values -> values
     
-val all_pairs : SSA.fn ->   fixed:Value.t list ->  ?axes:int list -> 
-    Value.t -> Value.t -> Value.t  
+val all_pairs :
+  ?axes:int list -> SSA.fn -> fixed:values -> value -> value -> value   
 
-val array_op : Prim.array_op -> Value.t list -> Value.t list 
+val array_op : Prim.array_op -> values -> values  

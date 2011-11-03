@@ -1,5 +1,4 @@
-
-type array = { 
+type t = { 
     memspace_id : MemId.t; 
     data_ptr : Ptr.t; 
     shape_ptr : Ptr.t;
@@ -14,5 +13,3 @@ type array = {
     shape : Shape.t;
     strides : int array;
 }
-
-type t = Scalar of ParNum.t | Array of array 
