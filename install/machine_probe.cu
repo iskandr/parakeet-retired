@@ -26,7 +26,7 @@ typedef struct {
   int *accessiblePeers;
   int numAccessiblePeers;
   int globalMemspace;
-  float globalBw;
+  float globalPeakBw;
 } gpu_t;
 
 typedef struct {
@@ -143,6 +143,10 @@ int main(int argc, char **argv) {
   // Get number of GPU devices
   int numDevices;
   chkError(cudaGetDeviceCount(&numDevices), "Couldn't get number of devices");
+  if (numDevices > sizeof(int) * 8 - 1) {
+    printf("Can't support more than %d devices\n", sizeof(int) * 8 - 1);
+    exit(1);
+  }
   
   // Create a gpu_t struct for each device
   gpu_t *gpus = (gpu_t*)malloc(numDevices * sizeof(gpu_t));
@@ -184,6 +188,7 @@ int main(int argc, char **argv) {
   int *pinned_data;
   chkError(cudaMallocHost(&pinned_data, data_size),
            "Couldn't malloc pinned host mem");
+  int **dev_datas = (int**)malloc(numDevices * sizeof(int*));
   
   // For each device, get the properties we're interested in
   for (i = 0; i < numDevices; ++i) {
@@ -195,30 +200,20 @@ int main(int argc, char **argv) {
     chkError(cudaGetDeviceProperties(&gpus[i].deviceProp, i),
              "Couldn't get properties for device");
     
+    // Store the calculated peak global memory b/w
+    // TODO: Assumes that all GPUs use DDR, and so uses a x2 multiplier.
+    //       If this ever changes, this won't be accurate.
+    gpus[i].globalPeakBw =
+        gpus[i].deviceProp.memoryClockRate * 2.0f / 1000000.0f *
+        gpus[i].deviceProp.memoryBusWidth / 8.0f;
+
+    if (debug) printf("GPU %d Theoretical Peak Global B/W: %f\n",
+                      i, gpus[i].globalPeakBw);
+    
     // Allocate some device memory space
-    int *dev_data;
     chkError(cudaSetDevice(i), "Couldn't switch GPU devices");
-    chkError(cudaMalloc(&dev_data, data_size), "Couldn't allocate GPU data");
-    
-    // Test RAM <-> GPU bw
-    add_xfer_bw(&bws, numBws, 1);
-    bws[numBws].srcId = RAMID;
-    bws[numBws].dstIds[0] = curId;
-    bws[numBws].bw = time_ram_to_gpu_xfer(dev_data, ram_data, data_size);
-    numBws++;
-    
-    printf("RAM to GPU %d BW: %f\n", i, bws[numBws - 1].bw);
-    
-    // Test Pinned RAM <-> GPU bw
-    add_xfer_bw(&bws, numBws, 1);
-    bws[numBws].srcId = PINNEDID;
-    bws[numBws].dstIds[0] = curId;
-    bws[numBws].bw = time_ram_to_gpu_xfer(dev_data, pinned_data, data_size);
-    numBws++;
-    
-    printf("Pinned RAM to GPU %d BW: %f\n", i, bws[numBws - 1].bw);
-    
-    // TODO: Test RAM <-> GPU + every other GPU's bw
+    chkError(cudaMalloc(&dev_datas[i], data_size),
+             "Couldn't allocate GPU data");
 
     // Get peer access info
     gpus[i].numAccessiblePeers = 0;
@@ -254,7 +249,7 @@ int main(int argc, char **argv) {
           float peer_bw = 0.0f;
           cudaStreamSynchronize(0);
           start = gettime();
-          chkError(cudaMemcpyPeer(dev_data, i, src_data, j, data_size),
+          chkError(cudaMemcpyPeer(dev_datas[i], i, src_data, j, data_size),
                     "Couldn't copy data between peer devices");
           cudaStreamSynchronize(0);
           end = gettime();
@@ -265,7 +260,7 @@ int main(int argc, char **argv) {
           bws[numBws].bw = peer_bw;
           numBws++;
           
-          printf("P2P transfer from %d to %d: %f\n", j, i, peer_bw);
+          if (debug) printf("P2P transfer from %d to %d: %f\n", j, i, peer_bw);
           
           chkError(cudaSetDevice(j), "Couldn't switch GPU devices");
           chkError(cudaFree(src_data), "Couldn't free peer GPU data");
@@ -273,14 +268,68 @@ int main(int argc, char **argv) {
         }
       }
     }
-    
-    chkError(cudaFree(dev_data), "Couldn't free GPU data");
   }
+  
+  // Test RAM <-> devices B/W for every combination of devices
+  int numSets = 1 << numDevices;
+  int devs;
+  for (devs = 1; devs < numSets; ++devs) {
+    // Test RAM <-> GPUs bw
+    int curNumDevs = __builtin_popcount(devs);
+    add_xfer_bw(&bws, numBws, curNumDevs);
+    bws[numBws].srcId = RAMID;
+
+    int curDev = 0;
+    for (i = 0; i < numDevices; ++i) {
+      chkError(cudaSetDevice(i), "Couldn't set device");
+      cudaStreamSynchronize(0);
+    }
+    start = gettime();
+    for (i = 0; i < numDevices; ++i) {
+      if ((1 << i) & devs) {
+        chkError(cudaSetDevice(i), "Couldn't set device");
+        chkError(cudaMemcpy(dev_datas[i], ram_data, data_size,
+                            cudaMemcpyHostToDevice),
+                 "Couldn't copy data from RAM to GPU");
+        bws[numBws].dstIds[curDev++] = i;
+      }
+    }
+    for (i = 0; i < numDevices; ++i) {
+      chkError(cudaSetDevice(i), "Couldn't set device");
+      cudaStreamSynchronize(0);
+    }
+    end = gettime();
+    bws[numBws].bw =
+        data_size * curNumDevs / diff_timers(start, end) / (1 << 30);
+    numBws++;
+    
+    if (debug) {
+      if (curNumDevs == 1) {
+        printf("RAM to GPU %d B/W: %f\n",
+               bws[numBws - 1].dstIds[0],
+               bws[numBws - 1].bw);
+      } else {
+        printf("RAM to %d GPUs B/W: %f\n", curNumDevs, bws[numBws - 1].bw);
+      }
+    }
+    
+    // Test Pinned RAM <-> GPU bw
+    /*
+    add_xfer_bw(&bws, numBws, 1);
+    bws[numBws].srcId = PINNEDID;
+    bws[numBws].dstIds[0] = curId;
+    bws[numBws].bw = time_ram_to_gpu_xfer(dev_data, pinned_data, data_size);
+    numBws++;
+    
+    if (debug) printf("Pinned RAM to GPU %d B/W: %f\n", i, bws[numBws - 1].bw);
+    */
+  }    
 
   free(ram_data);
   cudaFree(pinned_data);
   for (i = 0; i < numDevices; ++i) {
     free(gpus[i].accessiblePeers);
+    cudaFree(dev_datas[i]);
   }
   free(gpus);
   free_xfer_bws(bws, numBws);
