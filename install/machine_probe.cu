@@ -20,6 +20,7 @@
 #include <sys/time.h>
 #include <time.h>
 
+// Data structures to hold the machine characteristics
 typedef struct {
   int id;
   cudaDeviceProp deviceProp;
@@ -41,6 +42,7 @@ typedef struct {
   float bw;
 } mem_xfer_bw_t;
 
+// Helper functions to add and free the memory transfer b/w structs
 void add_xfer_bw(mem_xfer_bw_t **bws, int numBws, int numDsts) {
   mem_xfer_bw_t *tmp =
       (mem_xfer_bw_t*)malloc((numBws + 1) * sizeof(mem_xfer_bw_t));
@@ -72,6 +74,7 @@ void chkError(int rslt, char *msg) {
   }
 }
 
+// Timer helper functions
 double diff_timers(struct timeval *start, struct timeval *end) {
   double ret;
 
@@ -101,26 +104,66 @@ struct timeval *gettime(void) {
   return ret;
 }
 
-// Assumes that the current GPU device is set
-float time_ram_to_gpu_xfer(void *dev_data, void *ram_data, int data_size) {
-  struct timeval *start, *end;
-  float ram_gpu_bw = 0.0f;
-  cudaStreamSynchronize(0);
+// Global state
+int *ram_data;
+int *pinned_data;
+int **dev_datas;
+int numBws = 0;
+mem_xfer_bw_t *bws = NULL;
+struct timeval *start, *end;
+int numDevices = 0;
+int debug;
+
+// Test the memory transfer bandwidth between the src and all the destination
+// devices in the bitmask devs
+void test_mem_xfer_bw(int *src_data, int data_size, int srcId, int devs,
+                      char *src_name) {
+  int curNumDevs = __builtin_popcount(devs);
+  add_xfer_bw(&bws, numBws, curNumDevs);
+  bws[numBws].srcId = srcId;
+
+  int curDev = 0;
+  int i;
+  for (i = 0; i < numDevices; ++i) {
+    chkError(cudaSetDevice(i), "Couldn't set device");
+    cudaStreamSynchronize(0);
+  }
   start = gettime();
-  chkError(cudaMemcpy(dev_data, ram_data, data_size, cudaMemcpyHostToDevice),
-           "Couldn't copy data from RAM to GPU");
-  cudaStreamSynchronize(0);
+  for (i = 0; i < numDevices; ++i) {
+    if ((1 << i) & devs) {
+      chkError(cudaSetDevice(i), "Couldn't set device");
+      chkError(cudaMemcpy(dev_datas[i], src_data, data_size,
+                          cudaMemcpyHostToDevice),
+                "Couldn't copy data from RAM to GPU");
+      bws[numBws].dstIds[curDev++] = i;
+    }
+  }
+  for (i = 0; i < numDevices; ++i) {
+    chkError(cudaSetDevice(i), "Couldn't set device");
+    cudaStreamSynchronize(0);
+  }
   end = gettime();
-  ram_gpu_bw += diff_timers(start, end);  
-  return data_size / ram_gpu_bw / (1 << 30);
-}  
+  bws[numBws].bw =
+      data_size * curNumDevs / diff_timers(start, end) / (1 << 30);
+  numBws++;
+  
+  if (debug) {
+    if (curNumDevs == 1) {
+      printf("%s to GPU %d B/W: %f\n",
+             src_name, bws[numBws - 1].dstIds[0], bws[numBws - 1].bw);
+    } else {
+      printf("%s to %d GPUs B/W: %f\n",
+             src_name, curNumDevs, bws[numBws - 1].bw);
+    }
+    fflush(stdout);
+  }
+}
 
 int main(int argc, char **argv) {
   const int RAMID = 0;
   const int PINNEDID = 1;
   const int GPUOFFSET = 2;
 
-  struct timeval *start, *end;
   int i, j;
 
   // Set up program parameters
@@ -129,7 +172,7 @@ int main(int argc, char **argv) {
   //       to parameterize this so as to scale to any memory size.
   int data_size = (16 << 20) * sizeof(int);
   char *outFilename = "parakeetconf.xml";
-  int debug = 1;
+  debug = 1;
 
   // Process command line args
   
@@ -141,7 +184,6 @@ int main(int argc, char **argv) {
   }
 
   // Get number of GPU devices
-  int numDevices;
   chkError(cudaGetDeviceCount(&numDevices), "Couldn't get number of devices");
   if (numDevices > sizeof(int) * 8 - 1) {
     printf("Can't support more than %d devices\n", sizeof(int) * 8 - 1);
@@ -157,10 +199,6 @@ int main(int argc, char **argv) {
   for (i = 0; i < numDevices + 1; ++i) {
     memspaces[i].id = i;
   }
-  
-  // Memory transfer structs for each valid memspace group
-  int numBws = 0;
-  mem_xfer_bw_t *bws = NULL;
   
   // Set up special RAM memspace
   // TODO: This probably is Ubuntu-specific; need to make it general.
@@ -184,11 +222,10 @@ int main(int argc, char **argv) {
   pclose(cmdfile);
   
   // Allocate some memory for doing RAM <-> GPU transfers.
-  int *ram_data = (int*)malloc(data_size);
-  int *pinned_data;
+  ram_data = (int*)malloc(data_size);
   chkError(cudaMallocHost(&pinned_data, data_size),
            "Couldn't malloc pinned host mem");
-  int **dev_datas = (int**)malloc(numDevices * sizeof(int*));
+  dev_datas = (int**)malloc(numDevices * sizeof(int*));
   
   // For each device, get the properties we're interested in
   for (i = 0; i < numDevices; ++i) {
@@ -275,54 +312,10 @@ int main(int argc, char **argv) {
   int devs;
   for (devs = 1; devs < numSets; ++devs) {
     // Test RAM <-> GPUs bw
-    int curNumDevs = __builtin_popcount(devs);
-    add_xfer_bw(&bws, numBws, curNumDevs);
-    bws[numBws].srcId = RAMID;
-
-    int curDev = 0;
-    for (i = 0; i < numDevices; ++i) {
-      chkError(cudaSetDevice(i), "Couldn't set device");
-      cudaStreamSynchronize(0);
-    }
-    start = gettime();
-    for (i = 0; i < numDevices; ++i) {
-      if ((1 << i) & devs) {
-        chkError(cudaSetDevice(i), "Couldn't set device");
-        chkError(cudaMemcpy(dev_datas[i], ram_data, data_size,
-                            cudaMemcpyHostToDevice),
-                 "Couldn't copy data from RAM to GPU");
-        bws[numBws].dstIds[curDev++] = i;
-      }
-    }
-    for (i = 0; i < numDevices; ++i) {
-      chkError(cudaSetDevice(i), "Couldn't set device");
-      cudaStreamSynchronize(0);
-    }
-    end = gettime();
-    bws[numBws].bw =
-        data_size * curNumDevs / diff_timers(start, end) / (1 << 30);
-    numBws++;
-    
-    if (debug) {
-      if (curNumDevs == 1) {
-        printf("RAM to GPU %d B/W: %f\n",
-               bws[numBws - 1].dstIds[0],
-               bws[numBws - 1].bw);
-      } else {
-        printf("RAM to %d GPUs B/W: %f\n", curNumDevs, bws[numBws - 1].bw);
-      }
-    }
+    test_mem_xfer_bw(ram_data, data_size, RAMID, devs, "RAM");
     
     // Test Pinned RAM <-> GPU bw
-    /*
-    add_xfer_bw(&bws, numBws, 1);
-    bws[numBws].srcId = PINNEDID;
-    bws[numBws].dstIds[0] = curId;
-    bws[numBws].bw = time_ram_to_gpu_xfer(dev_data, pinned_data, data_size);
-    numBws++;
-    
-    if (debug) printf("Pinned RAM to GPU %d B/W: %f\n", i, bws[numBws - 1].bw);
-    */
+    test_mem_xfer_bw(pinned_data, data_size, PINNEDID, devs, "Pinned RAM");
   }    
 
   free(ram_data);
