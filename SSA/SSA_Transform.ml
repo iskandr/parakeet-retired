@@ -12,8 +12,8 @@ type 'a update =
 module type SIMPLE_TRANSFORM_RULES = sig
   val dir : direction
   type context
-  val init : fundef -> context  
-  val finalize : context -> fundef -> fundef update
+  val init : fn -> context  
+  val finalize : context -> fn -> fn update
   val stmt : context -> stmt_node -> stmt_node update  
   val exp : context -> exp_node -> exp_node update 
   val value : context -> value_node -> value_node update
@@ -47,7 +47,7 @@ module BlockState = struct
 
   (* add statement to block unless it's a no-op *)  
   let add_stmt blockState stmtNode = 
-    if not (SSA.is_empty_stmt stmtNode) then
+    if not (SSA_Helpers.is_empty_stmt stmtNode) then
       blockState.stmts := stmtNode :: !(blockState.stmts) 
       
   let add_stmt_list blockState stmts = 
@@ -114,7 +114,7 @@ module Mk(R: SIMPLE_TRANSFORM_RULES) = struct
   
   let transform_optional_values blockState cxt = function 
     | None -> None
-    | Some vNodes -> transform_values blockState cxt vNodes 
+    | Some vNodes -> Some (transform_values blockState cxt vNodes) 
   
   let transform_phi blockState cxt phiNode =
     let version = blockState.changes in 
@@ -170,7 +170,7 @@ module Mk(R: SIMPLE_TRANSFORM_RULES) = struct
       if changed() then 
         let closure' = { closure with closure_args = closureArgs' } in
         let adverb_args' = { adverb_args with args = args'; init = init' } in  
-        { expNode with exp = Adverb(op, closure', args') } 
+        { expNode with exp = Adverb(op, closure', adverb_args') } 
       else expNode 
       in
     BlockState.process_update blockState expNode' (R.exp cxt expNode') 

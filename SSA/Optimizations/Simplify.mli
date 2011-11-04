@@ -1,1 +1,1 @@
-val simplify_fundef : FnTable.t -> SSA.fundef -> SSA.fundef * bool
+val simplify_fundef : FnTable.t -> SSA.fn -> SSA.fn * bool

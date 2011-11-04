@@ -1,14 +1,51 @@
 open BaseCommon
 
+
+(*
+module type S = sig 
+  include Map.S
+  module KeySet : BaseSet.S with type elt = key 
+  exception KeyNotFound of key
+  val find : key -> 'a t -> 'a 
+  val find_default : key -> 'a t -> 'a -> 'a 
+  val find_option : key -> 'a t -> 'a option 
+  val find_list : key list -> 'a t -> 'a list 
+  val add_list : (key * 'a) list -> 'a t -> 'a t 
+  val remove_list : key list -> 'a t -> 'a t
+  val of_list : (key * 'a) list -> 'a t 
+  val to_list : 'a t -> (key * 'a) list
+  val to_array : 'a t -> (key * 'a) array 
+  val to_arrays : 'a t -> ((key array) * ('a array)) 
+  val filter : (key -> 'a -> bool) -> 'a t -> 'a t 
+  val filter_by_key : (key -> bool) -> 'a t -> 'a t
+  val filter_by_value : ('a -> bool) -> 'a t -> 'a t
+  val filter_with_map :  'a t -> bool t -> 'a t
+  val filter_with_set : 'a t -> KeySet.t -> 'a t
+  val keys : 'a t -> key list 
+  val key_set : 'a t -> KeySet.t 
+  val values : 'a t -> 'a list 
+  (*val value_set 
+  let value_set map = KeySet.of_list (values map)*) 
+  
+  val partition : (key -> 'a -> bool) -> 'a t -> ('a t) * ('a t)
+  val partition_by_key : (key -> bool) -> 'a t -> ('a t) * ('a t)
+  val partition_by_value : ('a -> bool) -> 'a t -> ('a t) * ('a t)
+  val num_keys : 'a t -> int 
+  val combine : 'a t -> 'a t -> 'a t 
+  val extend : 'a t -> key list -> 'a list -> 'a t
+   
+end
+*)        
+
 (* extend the builtin Map with helper functions *) 
 module Make (M: ORD) = struct  
   
   include Map.Make(M)
-  module MySet = BaseSet.Make(M)
+  module KeySet = BaseSet.Make(M)
  (*
     Ocaml's builtin Not_found exceptions are unhelpful for debugging, 
   *)    
-  exception KeyNotFound of M.t 
+  exception KeyNotFound of key 
 
   let find key map =
     try find key map with  _ -> raise (KeyNotFound key)  
@@ -77,19 +114,19 @@ module Make (M: ORD) = struct
     fold aux map empty
 
   let filter_with_set map set = 
-    let aux k v acc = if MySet.mem k set then add k v acc else acc in 
+    let aux (k : key) v acc = if KeySet.mem k set then add k v acc else acc in 
     fold aux map empty
 
   (* returns keys of map as a list *) 
   let keys map = fold (fun k _ acc -> k::acc) map [] 
   
   
-  let key_set map = MySet.of_list (keys map) 
+  let key_set map = KeySet.of_list (keys map) 
   
   (* returns values of map as a list *) 
   let values map = fold (fun _ v acc -> v :: acc) map []
   
-  let value_set map = MySet.of_list (values map) 
+  (*let value_set map = KeySet.of_list (values map)*) 
   
   let partition f map = 
     let aux k v (accT, accF) = 

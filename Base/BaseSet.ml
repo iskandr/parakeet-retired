@@ -1,8 +1,18 @@
 open BaseCommon 
-
+(*
+module type S = sig 
+  include Set.S 
+  val add_list : elt list -> t -> t
+  val remove_list : elt list -> t -> t
+  val of_list : elt list -> t 
+  val to_list : t -> elt list 
+  val union_list : t list -> t 
+  val map : (elt -> elt) -> t -> t 
+end
+*)
 (* extend the builtin Set with helper functions *)
 
-module Make (M: ORD) = struct  
+module Make (M: ORD)  = struct  
   include Set.Make(M) 
   (* add the elements of a list to an existing set *)
   let add_list lst set = 

@@ -3,6 +3,7 @@ open Base
 (* make a unique identifier module, with a specific to_str function and
    distinct counter from all other unique identifiers 
 *)
+(*
 module type S = sig
   
   type t 
@@ -19,8 +20,8 @@ module type S = sig
   val gen_fresh_array : int -> t array
   val of_int : int -> t   
 end
-  
-module Make(A : sig val to_str : int -> string end) : S = struct 
+*)
+module Make(A : sig val to_str : int -> string end)  = struct 
   type t = int 
   let to_str x = A.to_str x 
   type uid = t 

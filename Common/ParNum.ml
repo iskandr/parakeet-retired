@@ -46,9 +46,10 @@ let coerce_int i = function
         if i < 0 || i > 255 
         then failwith "int outside valid range for conversion to char"
         else Char (Char.chr i)
-  | t -> failwith $ Printf.sprintf 
+  (*| t -> failwith $ Printf.sprintf 
          "coercion from int to %s not implemented"
          (Type.elt_to_str t)
+  *)
         
 
 let coerce_int32 i = function 

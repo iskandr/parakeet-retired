@@ -1,5 +1,6 @@
 (* pp: -parser o pa_macro.cmo *)
 
+open Base 
 open SSA
 
 (* if a function contains nothing but a map, extracted the nested 
@@ -10,7 +11,9 @@ let extract_nested_map_fn_id (fundef : fn) =
   else match (Block.idx fundef.body 0).stmt with 
     | Set(_,{exp=App(map, {value=GlobalFn fnId}::_)})
       when map.value = Prim (Prim.Adverb Prim.Map) -> Some fnId
-    | Set(_, {exp=Map({closure_fn=fnId}, _)}) ->  Some fnId 
+    | Set(_, {
+        exp=Adverb(Prim.Map, {closure_fn=fnId}, _)
+        }) ->  Some fnId 
     | _ -> None 
       
 let mk_fn  ?(tenv=ID.Map.empty) ~input_ids ~output_ids ~body =
@@ -58,19 +61,19 @@ let mk_globalfn ?src ?(ty=Type.BottomT) (id:FnId.t) : value_node=
 
 let mk_num ?src ?ty n = 
   let ty = match ty with 
-    | None -> ParNum.type_of_num n 
+    | None -> Type.ScalarT (ParNum.type_of n) 
     | Some t -> t 
   in 
   mk_val ?src ~ty (Num n)
 
-let mk_bool ?src b = mk_num ?src ~ty:Type.BoolT (ParNum.Bool b)
+let mk_bool ?src b = mk_num ?src ~ty:Type.bool (ParNum.Bool b)
 
 let mk_int32 ?src i = 
-  mk_num ?src ~ty:Type.Int32T (ParNum.coerce_int i Type.Int32T)
+  mk_num ?src ~ty:Type.int32 (ParNum.coerce_int i Type.Int32T)
   
-let mk_float32 ?src f = mk_num ?src ~ty:Type.Float32T (ParNum.Float32 f)  
+let mk_float32 ?src f = mk_num ?src ~ty:Type.float32 (ParNum.Float32 f)  
 
-let mk_float64 ?src f = mk_num ?src ~ty:Type.Float64T (ParNum.Float64 f)
+let mk_float64 ?src f = mk_num ?src ~ty:Type.float64 (ParNum.Float64 f)
     
 (*** 
     helpers for expressions 
@@ -98,7 +101,7 @@ let mk_arr ?src ?types elts =
      assert (List.length argTypes > 0); 
      assert (List.for_all ((=) (List.hd argTypes)) (List.tl argTypes));
   ENDIF;   
-  { exp=Arr elts; exp_src=src; exp_types = [Type.VecT (List.hd argTypes)] } 
+  { exp=Arr elts; exp_src=src; exp_types = [Type.ArrayT (List.hd argTypes)] } 
  
 let mk_val_exp ?src ?ty (v: value) =
   let ty' = match ty with 
@@ -134,7 +137,7 @@ let mk_call ?src fnId outTypes args  =
 
 let mk_map ?src closure args = 
   { exp = Map(closure, args); 
-    exp_types = List.map (fun t -> Type.VecT t) closure.closure_output_types; 
+    exp_types = List.map (fun t -> Type.ArrayT t) closure.closure_output_types; 
     exp_src = src
   } 
 let mk_reduce ?src initClosure reduceClosure initArgs args = 

@@ -13,7 +13,14 @@ type t  =
   | ArrayT of elt_t * int
   | BottomT (* bottom of type lattice for vars whose type is not determined *)
   | AnyT (* top of type lattice, for variables whose type is overdetermined *)
- 
+
+val bool : t
+val char : t
+val int16 : t 
+val int32 : t 
+val int64 : t 
+val float32 : t
+val float64 : t  
 
 val elt_to_str : elt_t -> string
 val to_str : t -> string

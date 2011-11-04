@@ -7,4 +7,4 @@ type closure_env = {
 }
  
 val collect_partial_apps 
-   : InterpState.t -> SSA.fundef -> SSA.fundef * closure_env
+   : InterpState.t -> SSA.fn -> SSA.fn * closure_env

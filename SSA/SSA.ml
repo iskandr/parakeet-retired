@@ -90,9 +90,7 @@ and tenv = Type.t ID.Map.t
 let is_simple_exp = function
   | Call _ 
   | PrimApp _ 
-  | Map _ 
-  | Reduce _ 
-  | Scan _  
+  | Adverb _ 
   | App _ -> false
   | _ -> true 
 
@@ -119,7 +117,7 @@ let rec typed_id_list_to_str tenv = function
 let value_to_str = function 
   | GlobalFn fnId -> FnId.to_str fnId 
   | Var id -> ID.to_str id 
-  | Num n -> ParNum.num_to_str n 
+  | Num n -> ParNum.to_str n 
   | Str s -> "\""^s ^"\""
   | Sym s -> "`" ^ s
   | Unit -> "()"
@@ -147,6 +145,8 @@ let closure_to_str cl =
       " @ " ^ (value_nodes_to_str cl.closure_args)
     else "")
 
+let adverb_args_to_str adverb_args = value_nodes_to_str adverb_args.args
+
 let exp_to_str expNode = 
   match expNode.exp with  
   | Values vs -> value_nodes_to_str vs 
@@ -163,28 +163,14 @@ let exp_to_str expNode =
   | PrimApp (p, args) -> 
       sprintf "prim{%s}(%s)" 
         (Prim.prim_to_str p) 
-        (value_nodes_to_str args)     
-  | Map (closure, args) -> 
-      sprintf "map{%s}(%s)" (closure_to_str closure) (value_nodes_to_str args) 
-  | Reduce (initClos, reduceClos, initArgs, args) -> 
-      sprintf "reduce%s{%s}(%s | %s)"
-        (if initClos.closure_fn <> reduceClos.closure_fn then 
-          "{" ^ (closure_to_str initClos) ^ "}"
-         else ""
-        )
-        (closure_to_str reduceClos)
-        (value_nodes_to_str initArgs)
         (value_nodes_to_str args)
-  | Scan (initClos, scanClos, initArgs, args) -> 
-      sprintf "scan%s{%s}(%s | %s)"
-        (if initClos.closure_fn <> scanClos.closure_fn then 
-          "{" ^ (closure_to_str initClos) ^ "}"
-         else ""
-        )
-        (closure_to_str scanClos)
-        (value_nodes_to_str initArgs)
-        (value_nodes_to_str args)    
-
+  | Adverb(adverb, closure, adverb_args) ->
+      sprintf 
+        "%s(%s)" 
+        (Prim.adverb_to_str adverb)
+        (adverb_args_to_str adverb_args)
+        
+        
 let phi_node_to_str ?(space="") phiNode = 
   Printf.sprintf "%s%s : %s <- phi(%s, %s)"
     space 

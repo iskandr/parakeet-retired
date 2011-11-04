@@ -1,8 +1,10 @@
 include module type of BaseCommon 
 
-    
+
 module PMap : module type of BasePMap
 module List : module type of BaseList 
+module Map : module type of BaseMap 
+module Set : module type of BaseSet 
 
 module Char : sig  
     include module type of Char 
