@@ -101,34 +101,6 @@ struct timeval *gettime(void) {
   return ret;
 }
 
-// Fills the input array with the given value
-__global__
-void memFill(int *dev_data, int data_size, int val) {
-  int idx = blockDim.x * blockIdx.x + threadIdx.x;
-  
-  if (idx < data_size) {
-    dev_data[idx] = val;
-  }
-}
-
-// Tests memory read bandwidth
-__global__
-void memReadBw(int *dev_data, int data_size) {
-  int idx = blockDim.x * blockIdx.x + threadIdx.x;
-  int step = gridDim.x * blockDim.x;
-  int step2 = step + step;
-  int step3 = step2 + step;
-  
-  int d1 = dev_data[idx];
-  int d2 = dev_data[idx + step];
-  int d3 = dev_data[idx + step2];
-  int d4 = dev_data[idx + step3];
-  dev_data[idx] = d4;
-  dev_data[idx + step] = d3;
-  dev_data[idx + step2] = d2;
-  dev_data[idx + step3] = d1;
-}
-
 // Assumes that the current GPU device is set
 float time_ram_to_gpu_xfer(void *dev_data, void *ram_data, int data_size) {
   struct timeval *start, *end;
@@ -227,22 +199,6 @@ int main(int argc, char **argv) {
     int *dev_data;
     chkError(cudaSetDevice(i), "Couldn't switch GPU devices");
     chkError(cudaMalloc(&dev_data, data_size), "Couldn't allocate GPU data");
-    
-    // Test GPU <-> Global memory bw
-    // 1. Fill the global memory with a value
-    // 2. Read that value
-    int blockWidth = gpus[i].deviceProp.maxThreadsDim[0] / 4;
-    int numBlocks = data_size / sizeof(int) / blockWidth;
-    memFill<<<numBlocks, blockWidth>>>(dev_data, data_size / sizeof(int), 1);
-    numBlocks /= 4;
-    cudaStreamSynchronize(0);
-    start = gettime();
-    memReadBw<<<numBlocks, blockWidth>>>(dev_data, data_size / sizeof(int));
-    cudaStreamSynchronize(0);
-    end = gettime();
-    float global_mem_bw = data_size / diff_timers(start, end) / (1 << 30);
-    
-    printf("GPU %d Global Memory BW: %f\n", i, global_mem_bw);
     
     // Test RAM <-> GPU bw
     add_xfer_bw(&bws, numBws, 1);

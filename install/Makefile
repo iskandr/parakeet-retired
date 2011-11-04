@@ -292,15 +292,6 @@ machine_probe: machine_probe.cu_o
 gpu_detector: gpu_detector.cu_o
 	gcc -o gpu_detector gpu_detector.cu_o $(INCLUDES) $(LIB)
 
-peer_copy: peer_copy.cu_o
-	gcc -o peer_copy peer_copy.cu_o $(INCLUDES) $(LIB)
-
-mem_xfer: mem_xfer.cu_o base.o
-	gcc -o mem_xfer mem_xfer.cu_o base.o $(INCLUDES) $(LIB)
-
-shmem_bw: shmem_bw.cu_o base.o
-	gcc -o shmem_bw shmem_bw.cu_o base.o $(INCLUDES) $(LIB)
-
 clean:
-	rm -f machine_probe *_o *.o *~
+	rm -f machine_probe gpu_detector *_o *.o *~
 
