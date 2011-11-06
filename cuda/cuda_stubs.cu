@@ -330,27 +330,13 @@ value ocaml_cuda_get_gpu_int8_vec_elt(value ocaml_gpu_vec, value ocaml_idx) {
   cudaError_t rslt = cudaMemcpy(&cval, &gpu_vec[idx],
                                 sizeof(int8_t), cudaMemcpyDeviceToHost);
   if (rslt) {
-<<<<<<< HEAD
-    printf("Error getting element of gpu char vec: %d\n", rslt);
-    exit(1);
-=======
     char msg[100];
     sprintf(msg, "Error getting element of gpu char vec: %d", rslt);  
     caml_failwith(msg); 
->>>>>>> 707e5e528a66b7a6a2bbca05eac459e84335f074
   }
   CAMLreturn(Val_int((int) cval));
 }
 
-<<<<<<< HEAD
-CAMLprim
-value ocaml_cuda_get_gpu_int_vec_elt(value ocaml_gpu_vec, value ocaml_id) {
-  CAMLparam2(ocaml_gpu_vec, ocaml_id);
-  int *gpu_vec = (int*)Int64_val(ocaml_gpu_vec);
-  int val = 0;
-  cudaError_t rslt = cudaMemcpy(&val, gpu_vec + Int_val(ocaml_id),
-                                sizeof(int), cudaMemcpyDeviceToHost);
-=======
 
 
 CAMLprim value 
@@ -361,7 +347,7 @@ ocaml_cuda_get_gpu_int_vec_elt(value ocaml_gpu_vec, value ocaml_idx) {
   int idx = Int_val(ocaml_idx);
   cudaError_t rslt = cudaMemcpy(&val, &gpu_vec[idx],
                                 sizeof(int32_t), cudaMemcpyDeviceToHost);
->>>>>>> 707e5e528a66b7a6a2bbca05eac459e84335f074
+
   if (rslt) {
     char msg[100]; 
     sprintf(msg, "Error getting element of gpu int vec: %d", rslt);
@@ -379,14 +365,9 @@ ocaml_cuda_get_gpu_int32_vec_elt(value ocaml_gpu_vec, value ocaml_idx) {
   cudaError_t rslt = cudaMemcpy(&val, &gpu_vec[idx],
                                 sizeof(int32_t), cudaMemcpyDeviceToHost);
   if (rslt) {
-<<<<<<< HEAD
-    printf("Error getting element of gpu int32 vec: %d\n", rslt);
-    exit(1);
-=======
     char msg[100]; 
     sprintf(msg, "Error getting element of gpu int32 vec: %d", rslt);
     caml_failwith(msg); 
->>>>>>> 707e5e528a66b7a6a2bbca05eac459e84335f074
   }
   CAMLreturn(copy_int32(val));
 }
@@ -422,14 +403,9 @@ ocaml_cuda_get_gpu_float32_vec_elt(value ocaml_gpu_vec, value ocaml_idx) {
     cudaMemcpy(&val, &gpu_vec[idx], sizeof(float), cudaMemcpyDeviceToHost);
     
   if (rslt) {
-<<<<<<< HEAD
-    printf("Error getting element of gpu float32 vec: %d\n", rslt);
-    exit(1);
-=======
     char msg[100]; 
     sprintf(msg, "Error getting element of gpu float32 vec: %d", rslt); 
     caml_failwith(msg); 
->>>>>>> 707e5e528a66b7a6a2bbca05eac459e84335f074
   }
   CAMLreturn(copy_double(val));
 }
@@ -451,14 +427,9 @@ ocaml_cuda_set_gpu_int32_vec_elt(value ocaml_gpu_vec, value ocaml_id,
   arr[0] = Int32_val(ocaml_elt);
   CUresult result = cuMemcpyHtoD(gpu_vec, arr, sizeof(int32_t));
   if (result) {
-<<<<<<< HEAD
-    printf("Error setting int32 element of gpu int32 vec: %d\n", result);
-    exit(1);
-=======
     char msg[100]; 
     sprintf(msg, "Error setting int32 element of gpu int vec: %d", result);
     caml_failwith(msg); 
->>>>>>> 707e5e528a66b7a6a2bbca05eac459e84335f074
   }
   CAMLreturn0;
 }

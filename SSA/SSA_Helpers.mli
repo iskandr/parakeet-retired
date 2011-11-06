@@ -47,9 +47,7 @@ val mk_float64 : ?src:SrcInfo.t -> float -> value_node
 val map_default_types : 
       Type.t list option -> value_node list -> Type.t list 
   
-val mk_app :
-     ?src:SrcInfo.t -> ?types:Type.t list -> value_node -> 
-      value_node list -> exp_node 
+val mk_app : ?src:SrcInfo.t -> value_node -> value_node list -> exp_node 
 
 val mk_primapp : 
      ?src:SrcInfo.t -> Prim.prim -> output_types:Type.t list -> 

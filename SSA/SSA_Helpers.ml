@@ -84,13 +84,8 @@ let map_default_types optTypes values =
     | None -> List.map (fun vNode -> vNode.value_type) values 
     | Some ts -> ts
 
-let mk_app ?src ?types fn args =
-  let retTypes = match types, fn.value_type with 
-    | Some types, _ -> types 
-    | None, Type.FnT(_, types) -> types 
-    | _ -> [Type.BottomT]
-  in 
-  { exp=App(fn,args); exp_src = src; exp_types = retTypes }  
+let mk_app ?src fn args =
+  { exp=App(fn,args); exp_src = src; exp_types = [Type.BottomT] }  
 
 let mk_primapp ?src prim ~output_types args =
   { exp = PrimApp (prim, args); exp_src = src; exp_types = output_types}  
@@ -101,7 +96,7 @@ let mk_arr ?src ?types elts =
      assert (List.length argTypes > 0); 
      assert (List.for_all ((=) (List.hd argTypes)) (List.tl argTypes));
   ENDIF;   
-  { exp=Arr elts; exp_src=src; exp_types = [Type.ArrayT (List.hd argTypes)] } 
+  { exp=Arr elts; exp_src=src; exp_types = [Type.ArrayT (List.hd argTypes, 1)] } 
  
 let mk_val_exp ?src ?ty (v: value) =
   let ty' = match ty with 
@@ -135,11 +130,21 @@ let mk_exp ?src ?types exp =
 let mk_call ?src fnId outTypes args  = 
   { exp = Call(fnId, args); exp_types = outTypes; exp_src=src}
 
+let mk_adverb_args ?(axes=[0]) ?init vals = 
+  {
+    axes = axes;
+    init = init; 
+    args = vals; 
+  } 
+  
+
 let mk_map ?src closure args = 
-  { exp = Map(closure, args); 
-    exp_types = List.map (fun t -> Type.ArrayT t) closure.closure_output_types; 
+  { exp = SSA.Adverb(Prim.Map, closure, mk_adverb_args args); 
+    exp_types = List.map (fun t -> Type.BottomT) closure.closure_output_types; 
     exp_src = src
   } 
+  
+  
 let mk_reduce ?src initClosure reduceClosure initArgs args = 
   { 
     exp = Reduce(initClosure, reduceClosure, initArgs, args); 
