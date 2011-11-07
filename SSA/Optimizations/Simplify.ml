@@ -106,6 +106,5 @@ end
 
 module Simplifer = SSA_Transform.Mk(SimplifyRules)
 
-let simplify_fundef (_ : FnTable.t) fundef = 
-  Simplifer.transform_fundef fundef 
+let simplify_fn (_ : FnTable.t) fn = Simplifer.transform_fundef fn 
   

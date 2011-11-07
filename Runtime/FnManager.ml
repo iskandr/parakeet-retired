@@ -37,30 +37,30 @@ let create () =
 
 let state = create() 
 
-let add_untyped ?(optimize=true) name fundef = 
-  let id = fundef.SSA.fn_id in 
+let add_untyped ?(optimize=true) name fn = 
+  let id = fn.SSA.fn_id in 
   Hashtbl.add state.name_to_untyped_id name id; 
   Hashtbl.add state.untyped_id_to_name id name;
-  FnTable.add ~opt_queue:optimize fundef state.untyped_functions
-  
-let add_untyped_list ?(optimize=true) (fundefList: (string*SSA.fundef) list) =
-  List.iter 
-    (fun (name,fundef) -> add_untyped state ~optimize name fundef) 
-    fundefList
-  
-let add_untyped_map  ?(optimize=true) fundefMap = 
-  String.Map.iter (add_untyped state ~optimize) fundefMap 
+  FnTable.add ~opt_queue:optimize fn state.untyped_functions
+
+let curry2 f (x,y) = f x y 
+
+let add_untyped_list ?(optimize=true) (fnList: (string * SSA.fn) list) =
+  List.iter  (curry2 (add_untyped ~optimize)) fnList 
+
+let add_untyped_map  ?(optimize=true) fnMap = 
+  String.Map.iter (add_untyped ~optimize) fnMap 
 
 let default_untyped_optimizations = 
   [
-    "simplify", Simplify.simplify_fundef;  
+    "simplify", Simplify.simplify_fn;  
     "elim common subexpression", CSE.cse;
-    "inlining", Inline.run_fundef_inliner;  
+    "inlining", Inline.run_fn_inliner;  
   ] 
 
 let optimize_untyped_functions () = 
   Timing.start Timing.untypedOpt; 
-  RunOptimizations.optimize_all_fundefs 
+  RunOptimizations.optimize_all_fns 
     ~maxiters:100 
     state.untyped_functions 
     default_untyped_optimizations
@@ -70,15 +70,15 @@ let optimize_untyped_functions () =
 let default_typed_optimizations = 
   [
     (*"function cloning", TypedFunctionCloning.function_cloning;*)   
-    "simplify", Simplify.simplify_fundef;
+    "simplify", Simplify.simplify_fn;
     "cse", CSE.cse;  
-    "adverb fusion", AdverbFusion.optimize_fundef;
-    "inlining", Inline.run_fundef_inliner;  
+    "adverb fusion", AdverbFusion.optimize_fn;
+    "inlining", Inline.run_fn_inliner;  
   ]  
   
 let optimize_typed_functions () = 
   Timing.start Timing.typedOpt; 
-  RunOptimizations.optimize_all_fundefs 
+  RunOptimizations.optimize_all_fns 
     ~type_check:true
     ~maxiters:100
     state.typed_functions
@@ -97,21 +97,21 @@ let add_specialization
     ?(optimize=true)
     (untypedVal : SSA.value) 
     (signature : Signature.t) 
-    (typedFundef : SSA.fundef) =
-  let fnId = typedFundef.SSA.fn_id in 
+    (typedFn : SSA.fn) =
+  let fnId = typedFn.SSA.fn_id in 
   if FnTable.mem fnId state.typed_functions then (
     (* if function is already in the fntable, don't add it again
        but make sure it really is the same function 
     *) 
     IFDEF DEBUG THEN 
-      assert (FnTable.find fnId state.typed_functions = typedFundef) 
+      assert (FnTable.find fnId state.typed_functions = typedFn) 
     ENDIF; 
     ()
   )
-  else FnTable.add ~opt_queue:optimize typedFundef state.typed_functions
+  else FnTable.add ~opt_queue:optimize typedFn state.typed_functions
   ; 
   let key = (untypedVal, signature) in 
-  Hashtbl.add state.specializations key typedFundef.fn_id; 
+  Hashtbl.add state.specializations key typedFn.fn_id; 
   IFDEF DEBUG THEN
     let untypedValStr = 
       match untypedVal with 
@@ -121,7 +121,7 @@ let add_specialization
           "\"%s\" (untyped %s)" fnName (SSA.value_to_str untypedVal)
       | _ -> SSA.value_to_str untypedVal
     in  
-    let errorLog = TypeCheck.check_fundef typedFundef in
+    let errorLog = TypeCheck.check_fn typedFn in
     if not $ Queue.is_empty errorLog then (
       print_string "\n --- ";
       Printf.printf 
@@ -129,7 +129,7 @@ let add_specialization
         untypedValStr 
         (Signature.to_str signature)
       ; 
-      Printf.printf "%s\n" (SSA.fundef_to_str typedFundef);
+      Printf.printf "%s\n" (SSA.fn_to_str typedFn);
       TypeCheck.print_all_errors errorLog;
       exit 1
     )
@@ -137,7 +137,7 @@ let add_specialization
       Printf.printf "\nSpecialized %s for signature \"%s\": \n %s \n"
       untypedValStr
       (Signature.to_str signature)
-      (SSA.fundef_to_str typedFundef)
+      (SSA.fn_to_str typedFn)
   END 
 
 let maybe_get_specialization v signature = 
@@ -154,7 +154,7 @@ let get_untyped_function untypedId =
 let get_typed_function typedId =
   FnTable.find typedId state.typed_functions 
 
-let get_typed_fundef_from_value = function 
+let get_typed_fn_from_value = function 
   | GlobalFn fnId -> FnTable.find fnId state.typed_functions  
   | _ -> failwith "expected a function" 
 

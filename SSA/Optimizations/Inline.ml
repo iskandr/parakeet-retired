@@ -94,7 +94,7 @@ module Inline_Rules (P:INLINE_PARAMS) = struct
 end 
 
 
-let run_fundef_inliner (functions : FnTable.t) fundef =
+let run_fn_inliner (functions : FnTable.t) fundef =
   let module Params = 
     struct let lookup id  = FnTable.find_option id functions end
   in  

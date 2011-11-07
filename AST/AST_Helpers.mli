@@ -8,10 +8,11 @@ val update_str_node : node -> string -> node
 val mk_block_node : ?info:ast_info -> ?src:SrcInfo.t -> node list -> node
 val update_block_node : node -> node list -> node 
 
-val mk_arr_node : ?info:ast_info -> ?src:SrcInfo.t -> node 
+val mk_arr_node : ?info:ast_info -> ?src:SrcInfo.t -> node list -> node 
 val update_arr_node : node -> node list -> node 
 
-val mk_app_node : ?info:ast_info -> ?src:SrcInfo.t -> node 
+val mk_app_node : ?info:ast_info -> ?src:SrcInfo.t -> node -> node list -> node
+ 
 val update_app_node : node -> node -> node list -> node 
 
 val mk_prim_node : ?info:ast_info -> ?src:SrcInfo.t -> Prim.prim -> node 
@@ -32,7 +33,7 @@ val mk_if_node : ?info:ast_info -> ?src:SrcInfo.t -> node -> node -> node -> nod
 
 val update_if_node : node -> node -> node -> node -> node 
 
-val mk_void_node : ?info:ast_info -> ?src:SrcInfo.t -> node 
+val mk_void_node : ?info:ast_info -> ?src:SrcInfo.t -> unit -> node 
   
 val mk_iftrue_node : ?info:ast_info -> ?src:SrcInfo.t -> node -> node list -> node 
 
@@ -42,7 +43,7 @@ val update_int_node : node -> int -> node
 
 
 (* Array indexing -- special case of App *) 
-val mk_idx_node : ?info:ast_info -> ?src:SrcInfo.t -> node -> node -> node 
+val mk_idx_node : ?info:ast_info -> ?src:SrcInfo.t -> node -> int -> node 
 val mk_eq_node : ?info:ast_info -> ?src:SrcInfo.t -> node -> node -> node 
 val mk_concat_node : ?info:ast_info -> ?src:SrcInfo.t -> node -> node -> node 
 

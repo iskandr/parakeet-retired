@@ -8,4 +8,5 @@ module StmtId = Int
 module StmtSet = StmtId.Set
 module StmtMap = StmtId.Map
 
+let optimize_fn fnTable fn = fn, false 
 

@@ -149,7 +149,7 @@ and check_block (errorLog : errors) (tenv : Type.t ID.Map.t) defined block =
     (fun accDefined stmtNode -> check_stmt errorLog tenv accDefined stmtNode) 
     defined
     block 
-and check_fundef ?(errorLog=Queue.create()) fundef =
+and check_fn ?(errorLog=Queue.create()) fundef =
   let defined = ID.Set.of_list fundef.input_ids in  
   let _ = check_block errorLog fundef.tenv defined fundef.body in 
   errorLog
