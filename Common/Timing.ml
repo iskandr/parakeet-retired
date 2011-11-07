@@ -22,17 +22,21 @@ let timers : (string, timer) Hashtbl.t = Hashtbl.create 13
 let get_time () = Unix.gettimeofday ()
 
 let mk_gpu_timer name =
-  let t = GpuTimer { gpu_start = CudaEvent.cuda_create_event ();
-                     gpu_end = CudaEvent.cuda_create_event ();
-                     gpu_time = 0.0;
-                     gpu_running = false } in
+  let t = 
+    GpuTimer { 
+        gpu_start = CudaEvent.cuda_create_event ();
+        gpu_end = CudaEvent.cuda_create_event ();
+        gpu_time = 0.0;
+        gpu_running = false 
+    } 
+  in
   Hashtbl.replace timers name t;
   t
 
 let mk_cpu_timer name =
-  let timer = CpuTimer { start_time = get_time();
-                         cpu_time = 0.0;
-                         running = false } in
+  let timer = 
+    CpuTimer { start_time = get_time(); cpu_time = 0.0; running = false } 
+  in
   Hashtbl.replace timers name timer;
   timer
 

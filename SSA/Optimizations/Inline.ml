@@ -1,8 +1,9 @@
 (* pp: -parser o pa_macro.cmo *)
 
 open Base
-open SSA 
 open Type 
+open SSA 
+open SSA_Helpers 
 open SSA_Transform 
 
 let do_inline fundef argVals = 
@@ -17,11 +18,11 @@ let do_inline fundef argVals =
   let argAssignments = 
     mk_set 
       freshFundef.input_ids 
-      (SSA.mk_exp ~types:freshFundef.fn_input_types (Values argVals)) 
+      (mk_exp ~types:freshFundef.fn_input_types (Values argVals)) 
   in
   let outputValNodes = 
     List.map2 
-      (fun id t -> SSA.mk_var ~ty:t id) 
+      (fun id t -> mk_var ~ty:t id) 
       freshFundef.output_ids 
       freshFundef.fn_output_types 
   in 
@@ -44,7 +45,7 @@ let do_inline fundef argVals =
   body', outputExp, typesList 
   
 module type INLINE_PARAMS = sig 
-  val lookup : FnId.t -> fundef option 
+  val lookup : FnId.t -> SSA.fn option 
 end 
 
 module Inline_Rules (P:INLINE_PARAMS) = struct

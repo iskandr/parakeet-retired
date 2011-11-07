@@ -1,4 +1,4 @@
-type t = { inputs: DynType.t list; outputs: DynType.t list option } 
+type t = { inputs: Type.t list; outputs: Type.t list option } 
 
 let input_types s = s.inputs
 
@@ -18,10 +18,10 @@ let output_types s = match s.outputs with
 let output_types_option s = s.outputs 
 
 let to_str signature =
-  let inputStr = DynType.type_list_to_str signature.inputs in 
+  let inputStr = Type.type_list_to_str signature.inputs in 
   match signature.outputs with 
       | None -> inputStr
-      | Some outputs -> inputStr ^ " -> " ^ (DynType.type_list_to_str outputs)
+      | Some outputs -> inputStr ^ " -> " ^ (Type.type_list_to_str outputs)
 
 let append_input_types s ts = { inputs = s.inputs @ ts; outputs = s.outputs } 
 let prepend_input_types  ts s = { inputs =ts @ s.inputs; outputs = s.outputs } 

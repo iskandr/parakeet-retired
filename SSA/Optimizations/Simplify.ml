@@ -3,7 +3,9 @@
 open Base
 open Type 
 open SSA
+open SSA_Helpers
 open SSA_Transform
+
 open FindUseCounts
 
  
@@ -53,29 +55,29 @@ module SimplifyRules = struct
         List.partition (fun (id,_) -> is_live cxt id) pairs 
       in
       if deadPairs = [] then NoChange
-      else if livePairs = [] then Update SSA.empty_stmt 
+      else if livePairs = [] then Update empty_stmt 
       else 
         let liveIds, liveValues = List.split livePairs in
         let rhs = {expNode with exp=Values liveValues} in  
-        Update (SSA.mk_set ?src:stmtNode.stmt_src liveIds rhs)      
+        Update (mk_set ?src:stmtNode.stmt_src liveIds rhs)      
     | Set (ids, exp) ->
         let rec any_live = function 
           | [] -> false 
           | id::rest -> (is_live cxt id) || any_live rest
         in 
         if any_live ids then NoChange 
-        else Update SSA.empty_stmt
+        else Update empty_stmt
            
     | If (condVal, tBlock, fBlock, merge) ->
       let get_type id = ID.Map.find id cxt.types in
       begin match condVal.value with 
         | Num (ParNum.Bool b) ->
-            let ids, valNodes = SSA.collect_phi_values b merge in 
+            let ids, valNodes = collect_phi_values b merge in 
             let types = List.map get_type ids in 
             let expNode = 
-              SSA.mk_exp ?src:stmtNode.stmt_src ~types (SSA.Values valNodes) 
+              mk_exp ?src:stmtNode.stmt_src ~types (SSA.Values valNodes) 
             in 
-            Update (SSA.mk_set ?src:stmtNode.stmt_src ids expNode)
+            Update (mk_set ?src:stmtNode.stmt_src ids expNode)
         | _ -> NoChange  
       end
     | WhileLoop (testBlock, testVal, body, header) -> NoChange  

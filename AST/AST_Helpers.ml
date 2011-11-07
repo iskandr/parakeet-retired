@@ -1,3 +1,4 @@
+open Base 
 open AST 
 
 let mk_node ?(info=mk_ast_info()) ?(src=SrcInfo.empty) data =
@@ -70,9 +71,10 @@ let mk_iftrue_node ?(info=mk_ast_info()) ?(src=SrcInfo.empty)
 
 (* Int *) 
 let mk_int_node ?(info=mk_ast_info()) ?(src=SrcInfo.empty) x = 
-  mk_node ~info ~src $ Num (Int32 (Int32.of_int x))  
+  mk_node ~info ~src $ Num (ParNum.coerce_int x Type.Int32T)  
 
-let update_int_node ast x = {ast with data = Num(Int32 (Int32.of_int x)) }
+let update_int_node ast x = 
+  { ast with data = Num (ParNum.coerce_int x Type.Int32T) }
 
 let mk_void_node ?(info=mk_ast_info()) ?(src=SrcInfo.empty) () = 
   mk_node ~info ~src Void 

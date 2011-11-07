@@ -74,7 +74,8 @@ let rec check_stmt
 and check_exp errorLog tenv (defined : ID.Set.t) (expNode : exp_node) : unit = 
   let err msg = Queue.add (expNode.exp_src, msg) errorLog in
   match expNode.exp with 
-  | App (fn, args) -> 
+  | App (fn, args) -> err "Unexpected: Untyped function application"
+  (*
       check_value errorLog tenv defined fn;  
       check_value_list errorLog tenv defined args; 
       let argTypes = List.map (fun v -> v.value_type) args in
@@ -103,7 +104,7 @@ and check_exp errorLog tenv (defined : ID.Set.t) (expNode : exp_node) : unit =
       else err $  
              sprintf "expected a function type, received: %s"
                (Type.to_str fnType)
-   
+  *)
   | Values vs 
   | Arr vs -> check_value_list errorLog tenv defined vs
   | Cast (t, v) -> 
@@ -114,9 +115,7 @@ and check_exp errorLog tenv (defined : ID.Set.t) (expNode : exp_node) : unit =
           (Type.to_str t)  
   | Call (typedFn, args) -> ()
   | PrimApp (typedPrim, args) -> ()  
-  | Map (closure,args) -> ()
-  | Reduce (initClos, reduceClos, initArgs, args) -> ()   
-  | Scan (initClos, scanClos, initArgs, args) -> ()
+  | Adverb _  -> ()
 and check_value (errorLog:errors)(tenv:tenv) (defined : ID.Set.t) vNode : unit = 
  let err msg = Queue.add (vNode.value_src, msg) errorLog in
   match vNode.value with 
@@ -138,9 +137,10 @@ and check_value (errorLog:errors)(tenv:tenv) (defined : ID.Set.t) vNode : unit =
       if not $ Type.is_number vNode.value_type then
         err "number annotated with non-numeric type" 
   | Prim _
-  | GlobalFn _ -> 
-      if not $ Type.is_function vNode.value_type then 
-        err "expected function annotation"  
+  | GlobalFn _ -> () 
+      (*if not $ Type.is_function vNode.value_type then 
+        err "expected function annotation"
+       *)
   | Sym _ | Str _ | Unit  -> ()
 and check_value_list errorLog tenv defined values = 
   List.iter (check_value errorLog tenv defined) values

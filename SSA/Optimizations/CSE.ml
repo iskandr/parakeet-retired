@@ -3,6 +3,7 @@
 open Type 
 open Base
 open SSA 
+open SSA_Helpers
 open SSA_Transform 
 
 (* expressions without side effects *) 
@@ -29,7 +30,7 @@ module CSE_Rules = struct
         let expNode' = 
           mk_vals_exp ?src:expNode.exp_src ~types:expNode.exp_types [rhsVal] 
         in 
-        Update (SSA.mk_set [id] expNode')
+        Update (mk_set [id] expNode')
       ) 
       else (Hashtbl.add env expNode.exp (Var id); NoChange)
     | _ -> NoChange    
