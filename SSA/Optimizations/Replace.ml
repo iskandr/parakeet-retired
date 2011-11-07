@@ -2,7 +2,9 @@
 
 open Base
 open SSA 
+open SSA_Helpers 
 open SSA_Transform 
+
 
 (* doesn't update the type environment, which still refers to the old *)
 (* identifiers! *) 
@@ -54,12 +56,12 @@ module Replace_Rules(P: REPLACE_PARAMS) = struct
         let ids' = replace_id_list idMap ids in
         (* if any changes made, then memory location of ids and ids' *)
         (* will be different *)  
-        if ids != ids' then Update (SSA.mk_set ?src:stmtNode.stmt_src ids' rhs)
+        if ids != ids' then Update (mk_set ?src:stmtNode.stmt_src ids' rhs)
         else NoChange 
     | SetIdx (id, idxs, rhs) ->
         if ID.Map. mem id idMap then 
           let id' = ID.Map.find id idMap in 
-          Update (SSA.mk_stmt ?src:stmtNode.stmt_src (SetIdx(id', idxs, rhs)))
+          Update (mk_stmt ?src:stmtNode.stmt_src (SetIdx(id', idxs, rhs)))
         else NoChange
     | _ -> NoChange
 end

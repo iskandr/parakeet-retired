@@ -176,26 +176,27 @@ let replace_elt_type t s = match t with
   | ArrayT (_, d) -> ArrayT(s,d)
   | ScalarT _ -> ScalarT s 
   | _ -> t  
-(*
-(* what's the return type of multidimensional indexing or slicing *) 
-let rec slice_type arrayType types = match arrayType, types with 
-  (* if we're not slicing an array, just return the same type *)
-  | _, [] -> arrayType
-  | VecT nestedT, (VecT idxT)::rest when is_integer idxT -> 
-      VecT (slice_type nestedT rest)
-  | VecT nestedT, idxT::rest when is_integer idxT ->
-      slice_type nestedT rest 
-  | _ when is_scalar arrayType -> 
-      failwith "[slice_type] indexing into scalar not allowed"
-  | notVec, notIndices -> 
-      failwith (Printf.sprintf "Can't index into %s with indices of type %s"
-        (to_str notVec) (type_list_to_str notIndices))
-*)      
+
+let increase_rank r = function 
+  | ArrayT (elt_t, old_r) -> ArrayT (elt_t, old_r + r)
+  | ScalarT elt_t -> ArrayT (elt_t, r)
+  | other -> failwith ("[Type] Can't increase rank of type " ^ (to_str other))
+
+let maximal_type types =
+  let rec aux highestRank currT = function
+    | [] -> currT
+    | t::ts ->
+      let r = rank t in
+      if r >= highestRank then aux r t ts 
+      else aux highestRank currT ts 
+  in aux 0 BottomT types  
+  
+
 (* only peel types of maximal depth *)           
 let rec peel_maximal types = 
-  let depths = List.map rank types in 
-  let maxDepth = List.fold_left max 0 depths in 
+  let ranks = List.map rank types in 
+  let maxDepth = List.fold_left max 0 ranks in 
   List.map2 
     (fun t depth -> if depth = maxDepth then peel t else t)   
     types 
-    depths   
+    ranks   

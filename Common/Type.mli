@@ -47,6 +47,7 @@ val is_numarray : t -> bool
 val elt_type : t -> elt_t 
 
 val peel : ?num_axes:int -> t -> t
+val increase_rank :  int -> t ->  t 
 val is_scalar_subtype : elt_t -> elt_t -> bool
 val rank : t -> int
 val equiv_type_structure : t -> t -> bool 
@@ -59,4 +60,6 @@ val combine_type_array : t array -> t
 val combine_type_list : t list -> t 
 
 val replace_elt_type : t -> elt_t -> t
+
+val maximal_type : t list -> t 
 val peel_maximal : t list -> t list

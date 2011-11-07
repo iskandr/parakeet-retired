@@ -67,15 +67,19 @@ val mk_exp :  ?src:SrcInfo.t -> ?types:Type.t list -> exp -> exp_node
 val mk_call : 
       ?src:SrcInfo.t -> FnId.t -> Type.t list  -> value_node list ->
          exp_node 
-val mk_map : ?src:SrcInfo.t -> closure -> value_node list -> exp_node 
+        
+  
+val mk_map : 
+   ?src:SrcInfo.t -> closure -> ?axes:int list -> value_node list -> exp_node  
+ 
 val mk_reduce : 
-      ?src:SrcInfo.t -> 
-        closure -> closure -> 
-          value_node list -> value_node list -> exp_node
+    ?src:SrcInfo.t -> closure -> ?axes:int list -> 
+        value_node list -> value_node list -> exp_node  
+       
 val mk_scan : 
-      ?src:SrcInfo.t -> 
-        closure -> closure -> 
-          value_node list -> value_node list -> exp_node
+   ?src:SrcInfo.t -> closure -> ?axes:int list -> 
+        value_node list -> value_node list -> exp_node  
+ 
           
 val mk_closure : fn -> value_node list -> closure 
 

@@ -91,12 +91,17 @@ let mk_primapp ?src prim ~output_types args =
   { exp = PrimApp (prim, args); exp_src = src; exp_types = output_types}  
 
 let mk_arr ?src ?types elts =
-  let argTypes = map_default_types  types elts in
+  let argTypes = map_default_types types elts in
   IFDEF DEBUG THEN 
      assert (List.length argTypes > 0); 
      assert (List.for_all ((=) (List.hd argTypes)) (List.tl argTypes));
   ENDIF;   
-  { exp=Arr elts; exp_src=src; exp_types = [Type.ArrayT (List.hd argTypes, 1)] } 
+  let elt_t = match argTypes with 
+    | [] -> failwith "Can't create empty array"
+    | (Type.ScalarT elt_t)::_ -> elt_t 
+    | _ -> failwith "Can't determine element type of array expression"
+  in  
+  { exp=Arr elts; exp_src=src; exp_types = [Type.ArrayT (elt_t, 1)] } 
  
 let mk_val_exp ?src ?ty (v: value) =
   let ty' = match ty with 
@@ -130,34 +135,35 @@ let mk_exp ?src ?types exp =
 let mk_call ?src fnId outTypes args  = 
   { exp = Call(fnId, args); exp_types = outTypes; exp_src=src}
 
-let mk_adverb_args ?(axes=[0]) ?init vals = 
+
+let mk_adverb ?src adverb closure ?(axes=[0]) ?init args outputTypes =
+  let adverb_args = 
   {
     axes = axes;
     init = init; 
-    args = vals; 
+    args = args; 
   } 
-  
-
-let mk_map ?src closure args = 
-  { exp = SSA.Adverb(Prim.Map, closure, mk_adverb_args args); 
-    exp_types = List.map (fun t -> Type.BottomT) closure.closure_output_types; 
+  in 
+  { 
+    exp = Adverb(adverb, closure, adverb_args); 
+    exp_types = outputTypes; 
     exp_src = src
   } 
+   
+let mk_map ?src closure ?(axes=[0]) args =
+  let n_axes = List.length axes in 
+  let outputTypes = 
+    List.map (Type.increase_rank n_axes) closure.closure_output_types 
+  in   
+  mk_adverb ?src Prim.Map closure ~axes  args outputTypes 
+ 
+let mk_reduce ?src closure ?(axes=[0]) initArgs args =
+  let out_types = closure.closure_output_types in 
+  mk_adverb ?src Prim.Reduce closure ~axes ~init:initArgs args out_types    
   
-  
-let mk_reduce ?src initClosure reduceClosure initArgs args = 
-  { 
-    exp = Reduce(initClosure, reduceClosure, initArgs, args); 
-    exp_types = reduceClosure.closure_output_types; 
-    exp_src = src; 
-  } 
-  
-let mk_scan ?src initClosure scanClosure initArgs args = 
-  { 
-    exp = Scan(initClosure, scanClosure, initArgs, args); 
-    exp_types = scanClosure.closure_output_types; 
-    exp_src = src; 
-  }
+let mk_scan ?src closure ?(axes=[0]) initArgs args =
+  let out_types = closure.closure_output_types in 
+  mk_adverb ?src Prim.Scan closure ~axes ~init:initArgs args out_types 
    
 let mk_closure fundef args = {
   closure_fn = fundef.fn_id; 

@@ -28,7 +28,7 @@ module type ANALYSIS =  sig
     (* should analysis be repeated until environment stops changing? *) 
     val iterative : bool
   
-    val init : fundef -> env 
+    val init : fn -> env 
     val value : env -> value_node -> value_info
     
     val exp : env -> exp_node -> (env, value_info) helpers -> exp_info 
@@ -136,15 +136,18 @@ module MkEvaluator(A : ANALYSIS) = struct
   
   and iter_exp_children env expNode = match expNode.exp with 
       | App(x, xs) ->  ignore $ A.value env x; iter_values env xs
-      | Call(_, xs)
       | Cast(_, v) -> ignore $ A.value env v 
+      | Call(_, xs)
       | PrimApp(_,xs) 
       | Values xs    
       | Arr xs -> iter_values env xs   
       | Adverb (_, {closure_args}, {args; init}) -> 
-          iter_values env closure_args; 
-          (match init with Some inits -> iter_values inits | None -> ())
-          iter_values args 
+        begin  
+          iter_values env closure_args;
+          iter_values env args; 
+          match init with Some inits -> iter_values env inits | None -> () 
+          
+        end  
    
   and iter_values env = function 
     | [] -> () | v::vs -> let _ = A.value env v in iter_values env vs 
