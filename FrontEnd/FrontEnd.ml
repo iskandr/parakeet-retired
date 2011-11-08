@@ -6,9 +6,9 @@ open Printf
 
 let init() =
   let gcParams = Gc.get() in
-  Gc.set { gcParams with Gc.minor_heap_size = 128000; space_overhead = 90 };
-  HardwareInfo.hw_init ();
-  Cuda.init ()
+  Gc.set { gcParams with Gc.minor_heap_size = 128000; space_overhead = 90 }
+  (*HardwareInfo.hw_init ();*)
+  (*Cuda.init ()*)
   
 (* not sure where else to initialize *) 
 let _ = init () 
@@ -18,15 +18,13 @@ let register_untyped_function ~name ~globals ~args astNode =
     Printf.printf "[register_untyped] Received untyped AST: %s (%s)\n %s\n%!"
       name 
       (String.concat ", " args)
-      (AST.node_to_str astNode)
+      (AST.to_str astNode)
   ENDIF;
   let _ = Analyze_AST.analyze_ast astNode in
-  let ssaEnv = 
-    AST_to_SSA.Env.GlobalScope (InterpState.get_untyped_id interpState)  
-  in
+  let ssaEnv = AST_to_SSA.Env.GlobalScope FnManager.get_untyped_id in
   let argNames = globals @ args in  
-  let fn = AST_to_SSA.translate_fn ssaEnv argNames astNode in
-  FnManager.add_untyped ~optimize:true name fn; 
+  let fn = AST_to_SSA.translate_fn ~tenv:ID.Map.empty ssaEnv argNames astNode in 
+  FnManager.add_untyped ~optimize:true name fn;
   fn.SSA.fn_id 
   
 let rec register_untyped_functions = function 
@@ -58,20 +56,12 @@ let run_function untypedId ~globals ~args =
   Timing.clear Timing.gpuExec;
   Timing.clear Timing.gpuMalloc;
   Timing.start Timing.runTemplate;
-  IFDEF DEBUG THEN 
-    Printf.printf "[run_function] received globals: %s\n"
-      (String.concat ", " $ List.map HostVal.to_str globals)
-    ; 
-    Printf.printf "[run_function] received args: %s\n"
-      (String.concat ", " $ List.map HostVal.to_str args)
-    ; 
-  ENDIF;  
   let args = globals @ args in
-  let argTypes = List.map HostVal.get_type args in
+  let argTypes = List.map Data.array_type args in
   let untypedFn = FnManager.get_untyped_function untypedId in
   IFDEF DEBUG THEN
      printf "[run_function] untyped function body: %s\n"
-      (SSA.fundef_to_str untypedFn);
+      (SSA.fn_to_str untypedFn);
   ENDIF;
   let nargs = List.length args in
   let arity = List.length untypedFn.input_ids in
@@ -86,29 +76,27 @@ let run_function untypedId ~globals ~args =
   IFDEF DEBUG THEN 
     printf
       "[run_function] calling specializer for argument types: %s\n"
-      (DynType.type_list_to_str argTypes);      
+      (Type.type_list_to_str argTypes);      
   ENDIF;
   let fnVal = SSA.GlobalFn untypedId in 
   let typedFundef = 
     match FnManager.maybe_get_specialization fnVal signature with
     | Some typedId -> FnManager.get_typed_function typedId  
     | None ->
-      FnManager.optimize_untyped_functions ();   
-      let unoptimizedTyped = Specialize.specialize_function_id untypedId signature
+      FnManager.optimize_untyped_functions ();
+
+      let unoptimizedTyped = Specialize.specialize_fn_id untypedId signature
       in
       (* now optimize the typed fundef and any typed functions it depends on *)
       FnManager.optimize_typed_functions ();   
       FnManager.get_typed_function unoptimizedTyped.SSA.fn_id
   in  
-  let resultVals = Interp.run typedFundef args in
+  let resultVals = 
+    Interp.run typedFundef args 
+  in
   print_all_timers();
   Timing.clear Timing.untypedOpt;
   Pervasives.flush_all (); 
    (* assume only one result can be returns *)
   let result = List.hd resultVals in 
-  IFDEF DEBUG THEN 
-    printf "[run_function] returning value: %s : %s \n%!"
-      (HostVal.to_str result)
-      (DynType.to_str (HostVal.get_type result))
-  ENDIF;   
   Success result 

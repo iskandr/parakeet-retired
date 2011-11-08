@@ -13,6 +13,6 @@ val scan :
   ?axes:int list -> SSA.fn -> fixed:values ->  ?init:values -> values -> values
     
 val all_pairs :
-  ?axes:int list -> SSA.fn -> fixed:values -> value -> value -> value   
+  ?axes:int list -> SSA.fn -> fixed:values -> value -> value -> values   
 
 val array_op : Prim.array_op -> values -> values  

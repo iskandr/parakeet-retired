@@ -11,7 +11,7 @@ open Printf
 let untypedPrimFnCache : (Prim.prim * int, SSA.fn) Hashtbl.t = 
   Hashtbl.create 127  
 
-let mk_untyped_prim_fundef prim arity : SSA.fn =
+let mk_untyped_prim_fn prim arity : SSA.fn =
   let key = (prim,arity) in 
   if Hashtbl.mem untypedPrimFnCache key  then 
     Hashtbl.find untypedPrimFnCache key
@@ -19,11 +19,11 @@ let mk_untyped_prim_fundef prim arity : SSA.fn =
   let inputs = ID.gen_fresh_list arity in 
   let output = ID.gen() in 
   let bottoms = List.map (fun _ -> Type.BottomT) inputs in 
-  let inputVars = List.map (fun id -> SSA.mk_var id) inputs in 
-  let rhs = SSA.mk_app ~types:bottoms (SSA.mk_val (Prim prim)) inputVars in    
-  let body = Block.singleton (SSA.mk_set [output] rhs) in 
-  let fundef = SSA.mk_fundef inputs [output] body in 
-  (Hashtbl.add untypedPrimFnCache key fundef; fundef) 
+  let inputVars = List.map (fun id -> mk_var id) inputs in 
+  let rhs = mk_app (mk_val (Prim prim)) inputVars in    
+  let body = Block.singleton (mk_set [output] rhs) in 
+  let fn = mk_fn inputs [output] body in 
+  (Hashtbl.add untypedPrimFnCache key fn; fn) 
 
 let mk_typed_scalar_prim (op : Prim.scalar_op) ?optOutType argTypes =   
   let reqArgTypes = TypeInfer.required_scalar_op_types op argTypes in 
@@ -46,7 +46,7 @@ let mk_typed_scalar_prim (op : Prim.scalar_op) ?optOutType argTypes =
     done
     ;
     let primAppNode = 
-      SSA.mk_primapp   
+      mk_primapp   
         (Prim.ScalarOp op) 
         [outType] 
         (Array.to_list args) 
@@ -54,12 +54,12 @@ let mk_typed_scalar_prim (op : Prim.scalar_op) ?optOutType argTypes =
     let outputVar = List.hd outputs in 
     codegen#emit [[outputVar] := primAppNode]
 
-let mk_typed_map_fundef ?src nestedFundef inputTypes = 
-  let nestedOutputTypes = nestedFundef.SSA.fn_output_types in 
-  let outTypes = List.map (fun t -> Type.VecT t) nestedOutputTypes in
-  let closure = SSA.mk_closure nestedFundef [] in 
+let mk_typed_map_fn ?src nestedfn inputTypes = 
+  let nestedOutputTypes = nestedfn.SSA.fn_output_types in 
+  let outTypes = Type.increase_ranks 1  nestedOutputTypes in
+  let closure = mk_closure nestedfn [] in 
   SSA_Codegen.mk_codegen_fn inputTypes outTypes $ fun codegen inputs outputs ->
-    codegen#emit [outputs := (SSA.mk_map ?src closure inputs )]  
+    codegen#emit [outputs := (mk_map ?src closure inputs )]  
 
 
 (* 1) some statements (ie, those involving array ops) 
@@ -91,17 +91,17 @@ let rec output_arity closures = function
       let fnVal = Hashtbl.find closures id in 
       output_arity closures fnVal 
   | GlobalFn fnId -> 
-      let fundef = 
+      let fn = 
         if FnManager.is_untyped_function fnId 
         then FnManager.get_untyped_function fnId  
         else FnManager.get_typed_function fnId 
       in  
-      List.length fundef.fn_output_types
+      List.length fn.fn_output_types
   | Prim p -> 1
   | _ -> assert false 
 
     
-let rec specialize_fn fundef signature = 
+let rec specialize_fn fn signature = 
   (* first check to see whether we're mapping a function of scalar operators*)
   (* over vector data. if so, rather than creating a large number of Map nodes *)
   (* and then merging them we directly create a single Map. *) 
@@ -109,16 +109,16 @@ let rec specialize_fn fundef signature =
      vectors of the same rank or scalars. 
    *) 
   let inTypes = Signature.input_types signature in
-  let ranks = List.map Type.nest_depth inTypes in 
+  let ranks = List.map Type.rank inTypes in 
   let maxRank = List.fold_left max 0 ranks in 
   if not (Signature.has_output_types signature) && 
      maxRank > 0 && 
      List.for_all (fun r -> r = 0 || r = maxRank) ranks &&    
-     (is_scalar_block fundef.body = ThreeValuedLogic.Yes) 
-  then scalarize_fundef fundef signature 
+     (is_scalar_block fn.body = ThreeValuedLogic.Yes) 
+  then scalarize_fn fn signature 
   else 
-  let fundef', closureEnv = 
-    CollectPartialApps.collect_partial_apps fundef 
+  let fn', closureEnv = 
+    CollectPartialApps.collect_partial_apps fn 
   in
   
   let outputArity : SSA.value -> int = 
@@ -133,16 +133,16 @@ let rec specialize_fn fundef signature =
       ~specializer:specialize_value 
       ~output_arity:outputArity 
       ~closureEnv 
-      ~fundef:fundef' 
+      ~fn:fn' 
       ~signature 
   in
   let typedFn = 
     RewriteTyped.rewrite_typed 
       ~tenv 
       ~closureEnv 
-      ~specializer 
+      ~specializer:specialize_value 
       ~output_arity:outputArity 
-      ~fundef:fundef' 
+      ~fn:fn' 
   in
   typedFn
      
@@ -152,11 +152,11 @@ and scalarize_fn untyped vecSig =
   let scalarFn = specialize_value (SSA.GlobalFn untyped.fn_id) scalarSig in 
   let scalarOutputTypes = scalarFn.fn_output_types in   
   let outTypes = List.map (Type.increase_rank 1) scalarOutputTypes in  
-  let scalarClosure = SSA.mk_closure scalarFn [] in
+  let scalarClosure = mk_closure scalarFn [] in
   SSA_Codegen.mk_codegen_fn inTypes outTypes (fun codegen inputs outputs ->
-    let outIds = List.map SSA.get_id outputs in  
+    let outIds = List.map SSA_Helpers.get_id outputs in  
     codegen#emit [ 
-      SSA.mk_set outIds (SSA.mk_map scalarClosure inputs)
+      mk_set outIds (mk_map scalarClosure inputs)
     ]    
   ) 
  
@@ -193,7 +193,7 @@ and specialize_value  fnVal signature =
                   Signature.from_types nestedInputTypes [Type.peel outT]
             in
             let nestedFn = specialize_value fnVal nestedSig in
-            mk_typed_map_fundef nestedFn inputTypes
+            mk_typed_map_fn nestedFn inputTypes
           in   
           FnManager.add_specialization ~optimize:false fnVal signature typed; 
           typed
@@ -202,7 +202,7 @@ and specialize_value  fnVal signature =
           let arity = List.length inputTypes in
           assert (arity >= Prim.min_prim_arity p && 
                   arity <= Prim.max_prim_arity p); 
-          let untyped = mk_untyped_prim_fundef p arity in 
+          let untyped = mk_untyped_prim_fn p arity in 
           let typed = specialize_fn untyped signature in
           FnManager.add_specialization ~optimize:false  fnVal signature typed;
           typed

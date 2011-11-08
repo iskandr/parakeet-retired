@@ -13,3 +13,7 @@ type t = {
     shape : Shape.t;
     strides : int array;
 }
+
+val array_type : t -> Type.t 
+val elt_type : t -> Type.elt_t
+val shape : t -> Shape.t  

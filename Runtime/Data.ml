@@ -13,3 +13,8 @@ type t = {
     shape : Shape.t;
     strides : int array;
 }
+
+
+let array_type {array_type} = array_type  
+let elt_type {elt_type} = elt_type 
+let shape {shape} = shape  

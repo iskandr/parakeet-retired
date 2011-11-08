@@ -6,5 +6,6 @@ val gen : unit -> t
 
 val set_name : t -> string -> unit
 val find_name : t -> string
+val find_id : string -> t
 
 module Map : sig include  Map.S with type key = t end  
