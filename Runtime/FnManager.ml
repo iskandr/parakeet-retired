@@ -161,6 +161,5 @@ let get_typed_fn_from_value = function
 let have_untyped_function name = 
   Hashtbl.mem state.name_to_untyped_id name     
 
-let get_untyped_arity state fnId = 
-  let fundef = get_untyped_function fnId in 
-  List.length fundef.input_ids 
+let get_untyped_arity fnId = 
+  List.length (get_untyped_function fnId).input_ids 

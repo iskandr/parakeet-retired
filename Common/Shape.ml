@@ -20,7 +20,6 @@ let set shape idx v = shape.(idx) <- v
 
 let rank shape = Array.length shape
 
-
 let scalar_shape = create 0
 
 let to_str s =
@@ -123,7 +122,7 @@ let split_nested_shapes shapes =
       (shape_list_to_str shapes)
       ; 
   let peeler shape = 
-    if eq shape maxShape then peel_shape shape else shape 
+    if eq shape maxShape then peel shape else shape 
   in 
   get maxShape 0, List.map peeler shapes  
   

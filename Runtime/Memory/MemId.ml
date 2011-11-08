@@ -1,3 +1,4 @@
+open Base 
 
 type t = int
 
@@ -15,10 +16,11 @@ let set_name id name =
         Hashtbl.add rev_names name id
     )  
   
-let get_name id = match find_option names id with 
+let find_name id = match Hashtbl.find_option names id with 
     | None -> failwith $ "Unregister memory space " ^ (string_of_int id)
     | Some name -> name   
 
-module Map  = Map.Make(struct type t = t let compare = compare end)  
+type outer_t = t (* stupid OCaml cyclic type definitions *) 
+module Map  = Map.Make(struct type t = outer_t let compare = compare end)  
 
  

@@ -1,5 +1,6 @@
 open Base
 open SSA
+open SSA_Helpers 
 
 class ssa_codegen =
   object (self : 'a)
@@ -23,7 +24,7 @@ class ssa_codegen =
     method cvt ~to_type ~from_type valNode = 
       if from_type = to_type then valNode 
       else ( 
-        if Type.nest_depth from_type > Type.nest_depth  to_type then 
+        if Type.rank from_type > Type.rank to_type then 
           failwith "Cannot convert from vector to scalar"
         else ( 
           let castNode = 
@@ -78,7 +79,7 @@ let mk_codegen_fn
   in  
   (* allow user provided function to populate the codegen body *) 
   let _ = constr codegen inputVars outputVars in
-  SSA.mk_fn
+  mk_fn
     ~body:codegen#finalize 
     ~tenv:codegen#get_type_env
     ~input_ids:inputIds
@@ -86,7 +87,7 @@ let mk_codegen_fn
     
     
 
-let (:=) xs y = mk_set (List.map SSA.get_id xs) y 
+let (:=) xs y = mk_set (List.map get_id xs) y 
 let (@@) fn args = mk_app fn args  
 let scalar_op op = mk_op (Prim.ScalarOp op)
 let array_op op = mk_op (Prim.ArrayOp op)
@@ -125,44 +126,43 @@ let find = mk_op (Prim.ArrayOp Prim.Find)
 let dimsize = mk_op (Prim.ArrayOp Prim.DimSize) 
 
 
-let value x = SSA.mk_exp $ SSA.Values [x]
-let values xs = SSA.mk_exp $ SSA.Values xs
+let value x = mk_exp $ Values [x]
+let values xs = mk_exp $ Values xs
 
 let len x = dimsize @@ [x; zero]
-let incr (x:ID.t) (y:value_node) = SSA.mk_set [x] (plus @@ [y;one])    
+let incr (x:ID.t) (y:value_node) = mk_set [x] (plus @@ [y;one])    
 let set_int (x:ID.t) (y:Int32.t) = 
-  SSA.mk_set [x] (SSA.mk_vals_exp [SSA.Num (ParNum.Int32 y)])
+  mk_set [x] (mk_vals_exp [Num (ParNum.Int32 y)])
   
 type vars = value_node array 
 (* helper function for creating functions *) 
-let mk_fn 
+
+let fn 
       (nInputs : int) 
       (nOutputs : int) 
       (nLocals : int) 
       (bodyConstructor : vars -> vars -> vars -> stmt_node list) =  
   let inputs = ID.gen_fresh_array nInputs in
-  let inputVars = Array.map SSA.mk_var inputs in 
+  let inputVars = Array.map mk_var inputs in 
   let outputs = ID.gen_fresh_array nOutputs in
-  let outputVars = Array.map SSA.mk_var outputs in
+  let outputVars = Array.map mk_var outputs in
   let locals = ID.gen_fresh_array nLocals in 
-  let localVars = Array.map SSA.mk_var locals in   
-  let body = Block.of_list $ bodyConstructor inputVars outputVars localVars in 
-  mk_fn
-    ~input_ids:(Array.to_list inputs)
-    ~output_ids:(Array.to_list outputs)
-    ~tenv:ID.Map.empty 
-    ~body  
+  let localVars = Array.map mk_var locals in   
+  let body = Block.of_list $ bodyConstructor inputVars outputVars localVars in
+  let inputList = Array.to_list inputs in
+  let outputList = Array.to_list outputs in 
+  mk_fn ~tenv:ID.Map.empty ~input_ids:inputList ~output_ids:outputList ~body  
 
 (* special case for creating function with 1 input, 1 output *) 
 let fn1 constructor =
   let constructorWrapper = 
     fun inputs outputs _ -> constructor inputs.(0) outputs.(0)
   in 
-  mk_fn 1 1 0 constructorWrapper
+  fn 1 1 0 constructorWrapper
   
 (* 2 inputs, 1 output, 0 locals *)   
 let fn2 constructor =
   let constructorWrapper = 
     fun inputs outputs _ -> constructor inputs.(0) inputs.(1) outputs.(0)
   in 
-  mk_fn 2 1 0 constructorWrapper      
+  fn 2 1 0 constructorWrapper      

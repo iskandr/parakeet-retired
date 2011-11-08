@@ -32,7 +32,7 @@ let max = fn1 $ fun x y ->
 let count = fn1 $ fun x y -> 
   [[y] := mk_app (array_op Prim.DimSize) [x; mk_int32 0]]
 
-let avg = mk_fn 1 1 2 $ fun inputs outputs locals -> [
+let avg = fn 1 1 2 $ fun inputs outputs locals -> [
     [locals.(0)] := reduce @@ [plus; mk_int32 0; inputs.(0)];
     [locals.(1)] := dimsize @@ [inputs.(0); mk_int32 0];  
     [outputs.(0)] := div @@ [locals.(0); locals.(1)]
@@ -61,7 +61,7 @@ let _ =
 
 (* K-means specific functions *)
 (* calcCentroid [X;a;i] *) 
-let calcCentroid = mk_fn 3 1 5 $ fun inputs outputs locals -> 
+let calcCentroid = fn 3 1 5 $ fun inputs outputs locals -> 
   let x = inputs.(0) in 
   let a = inputs.(1) in 
   let i = inputs.(2) in 
@@ -81,7 +81,7 @@ let _ =
   FnManager.add_untyped ~optimize:false "parakeet_calc_centroid" calcCentroid
 
 (* calcCentroids[X;a;k] *) 
-let calcCentroids = mk_fn 3 1 2 $ fun inputs outputs locals -> 
+let calcCentroids = fn 3 1 2 $ fun inputs outputs locals -> 
   let cc = 
     mk_globalfn $ FnManager.get_untyped_id "parakeet_calc_centroid" 
   in
@@ -100,7 +100,7 @@ let calcCentroids = mk_fn 3 1 2 $ fun inputs outputs locals ->
 let _ = 
   FnManager.add_untyped ~optimize:false "parakeet_calc_centroids" calcCentroids
 
-let dist_helper = mk_fn 3 1 2 $ fun inputs outputs locals -> 
+let dist_helper = fn 3 1 2 $ fun inputs outputs locals -> 
   [ 
     [locals.(0)] := minus @@ [inputs.(1); inputs.(2)]; 
     [locals.(1)] := mul @@ [locals.(0); locals.(0)];
@@ -109,7 +109,7 @@ let dist_helper = mk_fn 3 1 2 $ fun inputs outputs locals ->
 let _ = 
   FnManager.add_untyped ~optimize:false "parakeet_dist_helper" dist_helper;;
 
-let sqr_dist = mk_fn 2 1 0 $ fun inputs outputs _ -> 
+let sqr_dist = fn 2 1 0 $ fun inputs outputs _ -> 
   let dist_helper = 
     mk_globalfn (FnManager.get_untyped_id "parakeet_dist_helper") 
   in
@@ -121,7 +121,7 @@ let _ =
   FnManager.add_untyped ~optimize:false "parakeet_sqr_dist" sqr_dist;;
        
 
-let dist = mk_fn  2 1 1 $ fun inputs outputs locals -> 
+let dist = fn  2 1 1 $ fun inputs outputs locals -> 
   let dist_helper = 
     mk_globalfn (FnManager.get_untyped_id "parakeet_dist_helper") 
   in
@@ -146,7 +146,7 @@ let _ = FnManager.add_untyped ~optimize:false "parakeet_dist" dist;;
        i = i + 1 
      return minIdx
 *) 
-let minidx = mk_fn 2 1 15 $ fun inputs outputs locals ->
+let minidx = fn 2 1 15 $ fun inputs outputs locals ->
   let dist = mk_globalfn (FnManager.get_untyped_id "parakeet_sqr_dist") in
   let c = inputs.(0) in 
   let x = inputs.(1) in
@@ -208,7 +208,7 @@ let minidx = mk_fn 2 1 15 $ fun inputs outputs locals ->
 let _ = FnManager.add_untyped ~optimize:false "parakeet_minidx" minidx
 
 (* takes as inputs X, number of clusters, and initial assignment *) 
-let kmeans = mk_fn 3 1 2 $ fun inputs outputs locals ->
+let kmeans = fn 3 1 2 $ fun inputs outputs locals ->
   let minIdx = mk_globalfn (FnManager.get_untyped_id "parakeet_minidx") in
   let calcCentroids = 
     mk_globalfn (FnManager.get_untyped_id "parakeet_calc_centroids")

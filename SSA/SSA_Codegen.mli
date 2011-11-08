@@ -74,6 +74,6 @@ val incr : ID.t -> value_node -> stmt_node
 val set_int : ID.t -> Int32.t -> stmt_node 
 
 type vars = value_node array 
-val  mk_fn : int -> int -> int -> (vars -> vars -> vars -> stmt_node list) -> fn
+val fn : int -> int -> int -> (vars -> vars -> vars -> stmt_node list) -> fn
 
 val fn1 : (value_node -> value_node -> stmt_node list) -> fn   

@@ -2,9 +2,10 @@
 
 open Base
 open AST
-open AST_Info
 open SSA
-open SSA_Codegen 
+open SSA_Codegen
+open SSA_Helpers
+ 
 
 
 (* environment mapping strings to SSA IDs or global function IDs *)
@@ -49,27 +50,27 @@ module Env = struct
   let rec lookup env name = match env with 
   | LocalScope (dataEnv, parent) -> 
       if String.Map.mem name dataEnv then 
-        SSA.Var (String.Map.find name dataEnv)
+        Var (String.Map.find name dataEnv)
       else lookup parent name
-  | GlobalScope fnLookup ->  SSA.GlobalFn (fnLookup name)
+  | GlobalScope fnLookup ->  GlobalFn (fnLookup name)
   
   (* assume that we know this name is not of a global function *) 
   let lookup_id env name  = 
     match lookup env name with 
-    | SSA.Var id -> id 
+    | Var id -> id 
     | _ -> assert false 
   
   let rec lookup_opt env name = match env with 
     | LocalScope (map, parent) -> 
         if String.Map.mem name map then 
-          Some (SSA.Var (String.Map.find name map))
+          Some (Var (String.Map.find name map))
         else lookup_opt parent name 
     | GlobalScope fnLookup ->
         (*if the lookup function fails, then name isn't a member of any scope*) 
-        (try Some (SSA.GlobalFn (fnLookup name)) with _ -> None)
+        (try Some (GlobalFn (fnLookup name)) with _ -> None)
   
   let lookup_id_opt env name = match lookup_opt env name with 
-    | Some (SSA.Var id) -> Some id 
+    | Some (Var id) -> Some id 
     | _ -> None 
 
   let has_id env name = (lookup_opt env name) <> None  
@@ -87,7 +88,7 @@ let rec translate_stmt
           (codegen:SSA_Codegen.ssa_codegen) 
           ?(value_id : ID.t option) 
           (node : AST.node) : Env.t =  
-  let mk_stmt s = SSA.mk_stmt ~src:node.AST.src s in
+  let mk_stmt s = mk_stmt ~src:node.AST.src s in
   match node.AST.data with
   | AST.If(cond, trueNode, falseNode) ->
       let condEnv, condVal = translate_value env codegen cond in
@@ -117,7 +118,7 @@ let rec translate_stmt
           let falseIds = 
             falseRetId :: List.map (lookup_id falseEnv) mergeNames 
           in
-          SSA.mk_phi_nodes (valId::mergeIds) trueIds falseIds 
+          mk_phi_nodes (valId::mergeIds) trueIds falseIds 
           
       | None ->
           (* note that here we're not passing any return/value IDs *) 
@@ -125,7 +126,7 @@ let rec translate_stmt
           let trueIds = List.map (lookup_id trueEnv) mergeNames in 
           let falseEnv = translate_stmt condEnv falseCodegen falseNode in
           let falseIds = List.map (lookup_id falseEnv) mergeNames in 
-          SSA.mk_phi_nodes mergeIds trueIds falseIds  
+          mk_phi_nodes mergeIds trueIds falseIds  
       )
       in 
       let trueBlock = trueCodegen#finalize in 
@@ -159,10 +160,10 @@ let rec translate_stmt
       let condId = ID.gen() in  
       let condCodegen = new SSA_Codegen.ssa_codegen in
       let condEnv = translate_stmt exitEnv condCodegen ~value_id:condId cond in
-      let condVal = SSA.mk_var condId in
+      let condVal = mk_var condId in
       let condBlock = condCodegen#finalize in 
       codegen#emit [
-        SSA.mk_stmt $ WhileLoop(condBlock, condVal, ssaBody, header)
+        mk_stmt $ WhileLoop(condBlock, condVal, ssaBody, header)
         
       ];
       condEnv 
@@ -178,18 +179,18 @@ let rec translate_stmt
            - update counter value 
       *)  
       let initCounterId = ID.gen() in
-      let initCounterVar = SSA.mk_var initCounterId in  
+      let initCounterVar = mk_var initCounterId in  
       let startCounterId = ID.gen() in
-      let startCounterVar = SSA.mk_var startCounterId in 
+      let startCounterVar = mk_var startCounterId in 
       let endCounterId = ID.gen() in
-      let endCounterVar = SSA.mk_var endCounterId in         
+      let endCounterVar = mk_var endCounterId in         
       (* initialize loop counter to 1 *)
       codegen#emit [SSA_Codegen.set_int initCounterId 0l];
       let condId = ID.gen() in
       let condBlock = 
         Block.singleton $
-          SSA.mk_set [condId] 
-            (SSA.mk_app SSA_Codegen.lt [startCounterVar; SSA.mk_var upperId])
+          mk_set [condId] 
+            (mk_app SSA_Codegen.lt [startCounterVar; mk_var upperId])
       in 
       let bodyCodegen = new SSA_Codegen.ssa_codegen in 
       (* update the body codegen and generate a loop gate *)
@@ -198,12 +199,12 @@ let rec translate_stmt
       bodyCodegen#emit [SSA_Codegen.incr endCounterId startCounterVar];
       
       let header' = 
-        (SSA.mk_phi startCounterId initCounterVar endCounterVar) :: header
+        (mk_phi startCounterId initCounterVar endCounterVar) :: header
       in 
-      let condVal = SSA.mk_var condId in 
+      let condVal = mk_var condId in 
       let ssaBody = bodyCodegen#finalize in  
       codegen#emit [
-        SSA.mk_stmt $ WhileLoop(condBlock, condVal,  ssaBody, header')
+        mk_stmt $ WhileLoop(condBlock, condVal,  ssaBody, header')
         
       ];
       exitEnv 
@@ -216,7 +217,7 @@ let rec translate_stmt
       );
       env'
 and translate_loop_body envBefore codegen body 
-      : SSA.phi_nodes * Env.t = 
+      : phi_nodes * Env.t = 
   (* FIX: use a better AST_Info without all this local/global junk *) 
   let bodyDefs = defs body in 
   let bodyUses = uses body in 
@@ -244,7 +245,7 @@ and translate_loop_body envBefore codegen body
     let prevId = lookup_id envBefore name in 
     let loopStartId = lookup_id envOverlap name in
     let loopEndId = lookup_id envEnd name in
-    SSA.mk_phi loopStartId (SSA.mk_var prevId) (SSA.mk_var loopEndId)  
+    mk_phi loopStartId (mk_var prevId) (mk_var loopEndId)  
   in      
   let needsPhi = List.filter (mem envBefore) overlapList in     
   let loopHeader = List.map mk_header_phi needsPhi in
@@ -290,7 +291,7 @@ and translate_exp env codegen node =
        
   | AST.Arr args -> 
       let ssaEnv, ssaArgs = translate_args env codegen args in 
-      ssaEnv, SSA.mk_arr ssaArgs
+      ssaEnv, mk_arr ssaArgs
   | AST.If _  -> failwith "unexpected If while converting to SSA"
   | AST.Def _ -> failwith "unexpected Def while converting to SSA"
   | AST.SetIdx _ -> failwith "unexpected SetIdx while converting to SSA"
@@ -336,8 +337,5 @@ and translate_fn parentEnv argNames body =
   let codegen = new ssa_codegen in   
   let _ = translate_stmt initEnv codegen ~value_id:retId body in
   (* make an empty type env since this function hasn't been typed yet *) 
-  SSA.mk_fn
-    ~body:(codegen#finalize) 
-    ~tenv:ID.Map.empty 
-    ~input_ids:argIds 
-    ~output_ids:[retId]  
+  let body = codegen#finalize in 
+  SSA_Helpers.mk_fn ~body  ~input_ids:argIds ~output_ids:[retId]  
