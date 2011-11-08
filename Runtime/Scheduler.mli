@@ -1,7 +1,7 @@
 
 (* Scheduler chooses on which backend to run code *) 
 
-type value = ArrayId.t Value.t 
+type value = DataId.t Value.t 
 type values = value list 
 
 val map : ?axes:int list -> SSA.fn ->  fixed:values ->  values -> values 

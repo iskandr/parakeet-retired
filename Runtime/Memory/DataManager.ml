@@ -1,23 +1,26 @@
 
+open Base
+open Data 
 
 (* map values containing abstract data id's to values containing*)
 (* memory-space specific arrays *) 
 type data_table = (DataId.t Value.t, Data.t) Hashtbl.t 
-let memspace_tables : data_table MemId.Map.t ref = ref (data_table MemId.Map.t)
+
+let memspace_tables : data_table MemId.Map.t ref = ref MemId.Map.empty
 
 (* if we already have a table for the given id then return it, *)
 (* otherwise create a  new one *)   
-let get_memspace_table memid =
-    try MemId.Map.mem memid !memspace_tables with _ -> begin
+let get_memspace_table memid : data_table =
+    try MemId.Map.find memid !memspace_tables with _ -> begin
         let new_table : data_table = Hashtbl.create 1001 in 
         memspace_tables := MemId.Map.add memid new_table !memspace_tables; 
         new_table 
     end  
 
-let register data = 
+let register (data : Data.t) = 
     let table = get_memspace_table data.memspace_id in
     let id = DataId.gen() in 
-    let v = Value.Array id in 
+    let v = Value.Array (id, data.elt_type, shape) in 
     Hashtbl.add table v data;
     v    
 

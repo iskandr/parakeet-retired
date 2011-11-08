@@ -44,6 +44,7 @@ let rec map (f: 'a -> 'b) (x : 'a t) : 'b t = match x with
   | Slice (a, dim, start, stop) -> Slice (map f a, dim, start, stop)
   | Scalar n -> Scalar n 
   | Range (start, stop) -> Range (start, stop)  
+  | Explode (n, s) -> Explode (n,s ) 
   
     
 let to_int = function 
