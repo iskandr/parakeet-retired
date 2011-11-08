@@ -8,19 +8,20 @@ type 'a t =
   | Scalar of ParNum.t
   | Nested of ('a t) array 
   | Explode of ParNum.t * Shape.t           (* scalar, shape *) 
-  | Rotate of 'a t int * int                (* array, dim, offset *) 
-  | Shift of 'a t  int * int * ParNum.t     (* array, dim, offset, default *) 
+  | Rotate of 'a t * int * int                (* array, dim, offset *) 
+  | Shift of 'a t * int * int * ParNum.t     (* array, dim, offset, default *) 
   | Slice of 'a t * int * int * int         (* array, dim, start, end *) 
   | Range of int * int                      (* start, stop *) 
+
 val map : ('a -> 'b) -> 'a t -> 'b t
  
-val to_str : ?array_to_str:('a -> string) -> t -> string 
+val to_str : ?array_to_str:('a -> string) -> 'a t -> string 
 
-val to_int : t -> int 
-val to_bool : t -> bool  
-val to_num : t -> ParNum.t 
+val to_int : 'a t -> int 
+val to_bool : 'a t -> bool  
+val to_num : 'a t -> ParNum.t 
 
-val of_bool : bool -> t  
-val of_int : int -> t 
-val of_float : float -> t 
+val of_bool : bool -> 'a t  
+val of_int : int -> 'a t 
+val of_float : float -> 'a t 
 
