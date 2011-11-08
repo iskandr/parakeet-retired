@@ -30,7 +30,7 @@ let eval_phi_node cond phiNode : unit =
         (ID.to_str id)
         (Value.to_str rhsVal)
   ENDIF; 
-  DataManager.set_binding id rhsVal 
+  Env.set_binding id rhsVal 
     
 let eval_phi_nodes cond phiNodes : unit =
   List.iter (eval_phi_node cond) phiNodes 

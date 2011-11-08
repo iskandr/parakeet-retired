@@ -53,9 +53,12 @@ val rank : t -> int
 val equiv_type_structure : t -> t -> bool 
 val is_structure_subtype : t -> t -> bool  
   
-val relative_rank : t -> t -> int option 
-val common_type : t -> t -> t 
+val relative_rank : t -> t -> int option
 
+val common_elt_type : elt_t -> elt_t -> elt_t 
+val common_elt_type_list : elt_t list -> elt_t 
+ 
+val common_type : t -> t -> t 
 val combine_type_array : t array -> t 
 val combine_type_list : t list -> t 
 

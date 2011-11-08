@@ -4,7 +4,7 @@
  
 
 type 'a t = 
-  | Array of 'a
+  | Array of 'a * Shape.t * Type.elt_t 
   | Scalar of ParNum.t
   | Nested of ('a t) array 
   | Explode of ParNum.t * Shape.t           (* scalar, shape *) 
@@ -24,4 +24,7 @@ val to_num : 'a t -> ParNum.t
 val of_bool : bool -> 'a t  
 val of_int : int -> 'a t 
 val of_float : float -> 'a t 
+
+val get_type : 'a t -> Type.t
+val get_shape : 'a t -> Shape.t 
 

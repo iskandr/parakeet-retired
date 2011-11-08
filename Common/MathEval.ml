@@ -72,19 +72,18 @@ let int32_ops : Int32.t math_ops = {
 }
 
 let eval_pqnum_op op args =
-  let types = List.map ParNum.type_of_num args in  
-  let commonT = DynType.fold_type_list types in 
-  match commonT with 
-    | DynType.Float32T -> 
+  let types = List.map ParNum.type_of args in  
+  match Type.common_elt_type_list types with 
+    | Type.Float32T -> 
       ParNum.Float32 (eval float_ops op (List.map ParNum.to_float args)) 
-    | DynType.Float64T ->
+    | Type.Float64T ->
       ParNum.Float64 (eval float_ops op (List.map ParNum.to_float args)) 
-    | DynType.Int16T -> 
+    | Type.Int16T -> 
       ParNum.Int16 (eval int_ops op (List.map ParNum.to_int args))
-    | DynType.Int32T -> 
+    | Type.Int32T -> 
       ParNum.Int32 (eval int32_ops op (List.map ParNum.to_int32 args))
-    | _ -> 
+    | commonT -> 
       failwith $ Printf.sprintf
         "[MathEval] Evaluation for arguments of type %s not supported"
-        (DynType.to_str commonT)  
+        (Type.elt_to_str commonT)  
 

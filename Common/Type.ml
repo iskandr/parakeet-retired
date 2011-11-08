@@ -143,6 +143,15 @@ let rec relative_rank t1 t2 =
   if diff >= 0 then Some diff
   else None
 
+let common_elt_type t1 t2 = 
+  if t1 = t2 then t1 
+  else if is_scalar_subtype t1 t2 then t2 
+  else t1
+
+let rec common_elt_type_list = function 
+  | [] -> BoolT 
+  | t::ts -> common_elt_type t (common_elt_type_list ts)  
+
 let common_type t1 t2  =
 	if t1 = t2 then t1
   else match t1, t2 with 
@@ -170,6 +179,8 @@ let combine_type_array arr =
 let combine_type_list = function
   | [] -> AnyT 
   | t::ts -> List.fold_left common_type t ts
+
+
 
 
 let replace_elt_type t s = match t with  
