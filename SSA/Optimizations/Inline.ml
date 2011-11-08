@@ -6,42 +6,38 @@ open SSA
 open SSA_Helpers 
 open SSA_Transform 
 
-let do_inline fundef argVals = 
-  let idSet : ID.t MutableSet.t = FindBindingSet.fundef_bindings fundef in 
+let do_inline fn argVals = 
+  let idSet : ID.t MutableSet.t = FindBindingSet.fn_bindings fn in 
   let replaceMap = 
     MutableSet.fold 
       (fun id accMap -> ID.Map.add id (ID.gen()) accMap)
       idSet 
       ID.Map.empty
   in   
-  let freshFundef, _ = Replace.replace_fundef replaceMap fundef in 
-  let argAssignments = 
-    mk_set 
-      freshFundef.input_ids 
-      (mk_exp ~types:freshFundef.fn_input_types (Values argVals)) 
-  in
+  let freshFn, _ = Replace.replace_fn replaceMap fn in
+  let rhs = mk_exp ~types:freshFn.fn_input_types (Values argVals) in  
+  let argAssignments = mk_set freshFn.input_ids rhs  in
+  let outputIds = freshFn.output_ids in 
+  let outputTypes = freshFn.fn_output_types in 
   let outputValNodes = 
-    List.map2 
-      (fun id t -> mk_var ~ty:t id) 
-      freshFundef.output_ids 
-      freshFundef.fn_output_types 
+    List.map2 (fun id t -> mk_var ~ty:t id) outputIds outputTypes    
   in 
   let outputExp = 
-    mk_exp ~types:freshFundef.fn_output_types (Values outputValNodes) 
+    mk_exp ~types:freshFn.fn_output_types (Values outputValNodes) 
   in
   (* list of new ids and their types-- ignore types missing from tenv *) 
   let typesList : (ID.t * Type.t) list =
     MutableSet.fold  
       (fun oldId accList ->
-          if ID.Map.mem oldId fundef.tenv then
+          if ID.Map.mem oldId fn.tenv then
             let newId = ID.Map.find oldId replaceMap in 
-            (newId, ID.Map.find oldId fundef.tenv)::accList
+            (newId, ID.Map.find oldId fn.tenv)::accList
           else accList
       )
       idSet
       [] 
   in 
-  let body' = Block.append (Block.singleton argAssignments) freshFundef.body in  
+  let body' = Block.append (Block.singleton argAssignments) freshFn.body in  
   body', outputExp, typesList 
   
 module type INLINE_PARAMS = sig 
@@ -52,7 +48,7 @@ module Inline_Rules (P:INLINE_PARAMS) = struct
   include P 
    
   type context = (Type.t ID.Map.t) ref
-  let init fundef = ref fundef.tenv   
+  let init fn = ref fn.tenv   
   let finalize _ _ = NoChange 
   let dir = Forward 
   
@@ -70,11 +66,11 @@ module Inline_Rules (P:INLINE_PARAMS) = struct
     | App ({value=GlobalFn fnId}, args) -> 
       (match P.lookup fnId with 
         | None -> NoChange  
-        | Some fundef -> 
+        | Some fn -> 
           (* make sure arity lines up *)
-          if List.length fundef.input_ids <> List.length args then NoChange
+          if List.length fn.input_ids <> List.length args then NoChange
           else 
-          let inlineBlock, outputExp, typesList = do_inline fundef args in
+          let inlineBlock, outputExp, typesList = do_inline fn args in
           let _ = add_types_list envRef typesList in
           IFDEF DEBUG THEN 
             assert (outputExp.exp_types = expNode.exp_types);
@@ -94,11 +90,11 @@ module Inline_Rules (P:INLINE_PARAMS) = struct
 end 
 
 
-let run_fn_inliner (functions : FnTable.t) fundef =
+let run_fn_inliner (functions : FnTable.t) fn =
   let module Params = 
     struct let lookup id  = FnTable.find_option id functions end
   in  
   let module Inliner = SSA_Transform.Mk(Inline_Rules(Params)) in
-  let fundef', changed = Inliner.transform_fundef fundef in 
+  let fn', changed = Inliner.transform_fn fn in 
   let tenv' = !(Inliner.get_context ()) in
-  {fundef' with tenv = tenv' }, changed    
+  {fn' with tenv = tenv' }, changed    

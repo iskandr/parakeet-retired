@@ -28,4 +28,4 @@ module UseCountEval = MkEvaluator(struct
   let stmt env stmtNode helpers = helpers.eval_stmt env stmtNode
 end)
  
-let find_fundef_use_counts f = UseCountEval.eval_fundef f 
+let find_fundef_use_counts f = UseCountEval.eval_fn f 

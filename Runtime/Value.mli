@@ -4,7 +4,7 @@
  
 
 type 'a t = 
-  | Array of 'a * Shape.t * Type.elt_t 
+  | Array of 'a * Type.elt_t * Shape.t  
   | Scalar of ParNum.t
   | Nested of ('a t) array 
   | Explode of ParNum.t * Shape.t           (* scalar, shape *) 

@@ -6,5 +6,4 @@ type closure_env = {
   closure_arity : (ID.t, int) Hashtbl.t; 
 }
  
-val collect_partial_apps 
-   : InterpState.t -> SSA.fn -> SSA.fn * closure_env
+val collect_partial_apps : SSA.fn -> SSA.fn * closure_env

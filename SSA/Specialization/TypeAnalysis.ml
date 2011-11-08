@@ -2,6 +2,7 @@
 open Printf 
 open Base
 open SSA 
+open SSA_Helpers
 open SSA_Analysis
 
 module type TYPE_ANALYSIS_PARAMS = sig 
@@ -75,7 +76,7 @@ module MkAnalysis (P : TYPE_ANALYSIS_PARAMS) = struct
    
   let infer_value_type tenv = function 
     | Var id -> get_type tenv id
-    | Num n -> ParNum.type_of_num n
+    | Num n -> Type.ScalarT (ParNum.type_of n)
     | _ -> Type.AnyT   
   
   let value tenv vNode = infer_value_type tenv vNode.value 
@@ -105,7 +106,7 @@ module MkAnalysis (P : TYPE_ANALYSIS_PARAMS) = struct
         [TypeInfer.infer_simple_array_op arrayOp argTypes]
     | Prim (Prim.ScalarOp scalarOp) -> 
         [TypeInfer.infer_scalar_op scalarOp argTypes] 
-    | Prim (Prim.Q_Op qOp) -> [TypeInfer.infer_q_op qOp argTypes]
+    (*| Prim (Prim.Q_Op qOp) -> [TypeInfer.infer_q_op qOp argTypes]*)
     | GlobalFn _ -> 
         let signature = Signature.from_input_types argTypes in
         P.infer_output_types fnVal signature 
@@ -118,19 +119,21 @@ module MkAnalysis (P : TYPE_ANALYSIS_PARAMS) = struct
 
         
   let infer_higher_order tenv arrayOp args argTypes =
-    match arrayOp, args, argTypes with 
+    match arrayOp, args, argTypes with
+    (* TODO: DEAL WITH AXIS ARGUMENTS! *)  
     | Prim.Map, {value=fnVal}::_, _::dataTypes ->
         if List.for_all Type.is_scalar dataTypes then 
           failwith "expected at least one argument to map to be a vector"
         ; 
         (* we're assuming Map works only along the outermost axis of an array *) 
-        let eltTypes = List.map Type.peel_vec dataTypes in 
+        let eltTypes = List.map Type.peel dataTypes in 
         let eltResultTypes = infer_app tenv fnVal eltTypes in 
-        List.map (fun t -> Type.VecT t) eltResultTypes     
+        Type.increase_ranks 1 eltResultTypes     
+        
     | Prim.Reduce, {value=fnVal}::_, _::argTypes ->
         let arity = P.output_arity fnVal in 
         let initTypes, vecTypes = List.split_nth arity argTypes in
-        let eltTypes = List.map Type.peel_vec vecTypes in 
+        let eltTypes = List.map Type.peel vecTypes in 
         let accTypes = infer_app tenv fnVal (initTypes @ eltTypes) in
         let accTypes' = infer_app tenv fnVal (accTypes @ eltTypes) in 
         if accTypes <> accTypes' then 
@@ -138,25 +141,25 @@ module MkAnalysis (P : TYPE_ANALYSIS_PARAMS) = struct
         ; 
         accTypes 
     | Prim.AllPairs, {value=fnVal}::_, _::argTypes ->  
-        let eltTypes = List.map Type.peel_vec argTypes in 
+        let eltTypes = List.map Type.peel argTypes in 
         let outTypes = infer_app tenv fnVal  eltTypes in
-        List.map (fun t -> Type.VecT (Type.VecT t)) outTypes 
+        Type.increase_ranks 2 outTypes 
         
     | other, _, _ -> failwith (Prim.adverb_to_str other ^ " not impl")     
 
   let exp tenv expNode helpers = match expNode.exp with 
     | App({value=SSA.Prim (Prim.Adverb arrayOp)}, args) ->
         infer_higher_order tenv arrayOp args (helpers.eval_values tenv args)
-    | App(fn, args) ->
-        let fnT = value tenv fn in 
+    | App(lhs, args) ->
+        let lhsT = value tenv lhs in 
         let argTypes = helpers.eval_values tenv args in 
-        if Type.is_vec fnT then   
-          [TypeInfer.infer_simple_array_op Prim.Index (fnT::argTypes)]
-        else infer_app tenv fn.value argTypes   
+        if Type.is_array lhsT 
+        then [TypeInfer.infer_simple_array_op Prim.Index (lhsT::argTypes)]
+        else infer_app tenv lhs.value argTypes   
     | Arr elts -> 
-        let commonT = Type.fold_type_list (helpers.eval_values tenv elts) in
-        assert (commonT <> Type.AnyT); 
-        [Type.VecT commonT]
+        let commonT = Type.combine_type_list (helpers.eval_values tenv elts) in
+        assert (Type.is_scalar commonT);
+        [Type.increase_rank 1 commonT]  
   
     | Values vs -> helpers.eval_values tenv vs  
     | _ -> failwith $ Printf.sprintf 
@@ -197,10 +200,10 @@ module MkAnalysis (P : TYPE_ANALYSIS_PARAMS) = struct
 end
 
 let type_analysis 
-      ~(specializer:SSA.value-> Signature.t -> SSA.fundef) 
+      ~(specializer:SSA.value-> Signature.t -> SSA.fn) 
       ~(output_arity: SSA.value -> int)
       ~(closureEnv:CollectPartialApps.closure_env) 
-      ~(fundef:SSA.fundef) 
+      ~(fn:SSA.fn) 
       ~(signature:Signature.t) =
   let module Params : TYPE_ANALYSIS_PARAMS = struct 
     let closure_val = 
@@ -209,11 +212,10 @@ let type_analysis
       (fun id -> Hashtbl.find closureEnv.CollectPartialApps.closure_args id) 
     let output_arity = output_arity  
     let infer_output_types = 
-      (fun fnVal fnSig -> 
-        let fundef = specializer fnVal fnSig in fundef.fn_output_types)
+      (fun fnVal fnSig -> (specializer fnVal fnSig).fn_output_types)
     let signature = signature  
   end    
   in
   let module TypeEval = MkEvaluator(MkAnalysis(Params)) in 
-  TypeEval.eval_fundef fundef 
+  TypeEval.eval_fn fn 
     

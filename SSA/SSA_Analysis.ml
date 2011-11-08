@@ -162,8 +162,8 @@ module MkEvaluator(A : ANALYSIS) = struct
       iter_exp_children = iter_exp_children;  
   } 
   
-  let eval_fundef fundef = 
-    let env = A.init fundef in
-    let env', _ = eval_block env fundef.body in 
+  let eval_fn fn = 
+    let env = A.init fn in
+    let env', _ = eval_block env fn.body in 
     env'      
 end

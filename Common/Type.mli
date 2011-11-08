@@ -47,12 +47,14 @@ val is_numarray : t -> bool
 val elt_type : t -> elt_t 
 
 val peel : ?num_axes:int -> t -> t
-val increase_rank :  int -> t ->  t 
+val increase_rank :  int -> t ->  t
+val increase_ranks : int -> t list -> t list  
 val is_scalar_subtype : elt_t -> elt_t -> bool
 val rank : t -> int
 val equiv_type_structure : t -> t -> bool 
 val is_structure_subtype : t -> t -> bool  
-  
+val fill_elt_type : t -> elt_t -> t  
+ 
 val relative_rank : t -> t -> int option
 
 val common_elt_type : elt_t -> elt_t -> elt_t 

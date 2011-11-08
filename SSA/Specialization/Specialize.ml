@@ -2,15 +2,16 @@
 
 open Base
 open SSA
+open SSA_Helpers
 open SSA_Codegen 
 open Type
 open Printf 
 
 (* make a fresh function definition whose body is only an untyped prim *) 
-let untypedPrimFnCache : (Prim.prim * int, fundef) Hashtbl.t = 
+let untypedPrimFnCache : (Prim.prim * int, SSA.fn) Hashtbl.t = 
   Hashtbl.create 127  
 
-let mk_untyped_prim_fundef prim arity : fundef =
+let mk_untyped_prim_fundef prim arity : SSA.fn =
   let key = (prim,arity) in 
   if Hashtbl.mem untypedPrimFnCache key  then 
     Hashtbl.find untypedPrimFnCache key
@@ -85,23 +86,22 @@ and is_scalar_block block =
     ThreeValuedLogic.Maybe 
     block 
 
-let rec output_arity interpState closures = function 
+let rec output_arity closures = function 
   | Var id -> 
       let fnVal = Hashtbl.find closures id in 
-      output_arity interpState closures fnVal 
+      output_arity closures fnVal 
   | GlobalFn fnId -> 
       let fundef = 
-        if InterpState.is_untyped_function interpState fnId then
-          InterpState.get_untyped_function interpState fnId  
-        else 
-          InterpState.get_typed_function interpState fnId 
+        if FnManager.is_untyped_function fnId 
+        then FnManager.get_untyped_function fnId  
+        else FnManager.get_typed_function fnId 
       in  
       List.length fundef.fn_output_types
   | Prim p -> 1
   | _ -> assert false 
 
     
-let rec specialize_fundef interpState fundef signature = 
+let rec specialize_fn fundef signature = 
   (* first check to see whether we're mapping a function of scalar operators*)
   (* over vector data. if so, rather than creating a large number of Map nodes *)
   (* and then merging them we directly create a single Map. *) 
@@ -115,23 +115,22 @@ let rec specialize_fundef interpState fundef signature =
      maxRank > 0 && 
      List.for_all (fun r -> r = 0 || r = maxRank) ranks &&    
      (is_scalar_block fundef.body = ThreeValuedLogic.Yes) 
-  then scalarize_fundef interpState fundef signature 
+  then scalarize_fundef fundef signature 
   else 
   let fundef', closureEnv = 
-    CollectPartialApps.collect_partial_apps interpState fundef 
+    CollectPartialApps.collect_partial_apps fundef 
   in
   
   let outputArity : SSA.value -> int = 
-    output_arity interpState closureEnv.CollectPartialApps.closures
+    output_arity closureEnv.CollectPartialApps.closures
   in
-  let specializer = specialize_value interpState in  
   (* to avoid having to make TypeAnalysis and Specialize recursive 
        modules I've untied the recursion by making specialize_value 
        a parameter of TypeAnalysis. 
    *)  
   let tenv = 
     TypeAnalysis.type_analysis 
-      ~specializer 
+      ~specializer:specialize_value 
       ~output_arity:outputArity 
       ~closureEnv 
       ~fundef:fundef' 
@@ -147,17 +146,13 @@ let rec specialize_fundef interpState fundef signature =
   in
   typedFn
      
-and scalarize_fundef interpState untypedFundef vecSig =
+and scalarize_fn untyped vecSig =
   let inTypes = Signature.input_types vecSig in 
-  let scalarSig = 
-    Signature.from_input_types (List.map Type.peel_vec inTypes) 
-  in 
-  let scalarFundef = 
-    specialize_value interpState (SSA.GlobalFn untypedFundef.fn_id) scalarSig
-  in 
-  let scalarOutputTypes = scalarFundef.fn_output_types in   
-  let outTypes = List.map (fun t -> VecT t) scalarOutputTypes in  
-  let scalarClosure = SSA.mk_closure scalarFundef [] in
+  let scalarSig = Signature.from_input_types (List.map Type.peel inTypes) in 
+  let scalarFn = specialize_value (SSA.GlobalFn untyped.fn_id) scalarSig in 
+  let scalarOutputTypes = scalarFn.fn_output_types in   
+  let outTypes = List.map (Type.increase_rank 1) scalarOutputTypes in  
+  let scalarClosure = SSA.mk_closure scalarFn [] in
   SSA_Codegen.mk_codegen_fn inTypes outTypes (fun codegen inputs outputs ->
     let outIds = List.map SSA.get_id outputs in  
     codegen#emit [ 
@@ -165,75 +160,58 @@ and scalarize_fundef interpState untypedFundef vecSig =
     ]    
   ) 
  
-and specialize_value interpState fnVal signature =
-  (*IFDEF DEBUG THEN
+and specialize_value  fnVal signature =
+  IFDEF DEBUG THEN
     Printf.printf "Specialize_Value %s :: %s\n%!"
       (SSA.value_to_str fnVal)
       (Signature.to_str signature)
     ; 
   ENDIF;
-  *)
-  match InterpState.maybe_get_specialization interpState fnVal signature with
-  | Some fnId -> InterpState.get_typed_function interpState fnId
+  match FnManager.maybe_get_specialization fnVal signature with
+  | Some fnId -> FnManager.get_typed_function fnId
   | None ->  
     let inputTypes = Signature.input_types signature in  
     (match fnVal with 
       | SSA.GlobalFn fnId -> 
-        let fundef = InterpState.get_untyped_function interpState fnId in 
-        let typedFundef = specialize_fundef interpState fundef signature in 
-          InterpState.add_specialization 
-            ~optimize:true 
-            interpState 
-            fnVal 
-            signature 
-            typedFundef;
-          typedFundef
+        let untyped = FnManager.get_untyped_function fnId in 
+        let typed = specialize_fn untyped signature in 
+        FnManager.add_specialization ~optimize:true fnVal signature typed;
+        typed
       | SSA.Prim (Prim.ScalarOp op) ->
           let optOutType = 
             Option.map List.hd (Signature.output_types_option signature)
           in
-          let typedFundef = 
+          let typed = 
             if List.for_all Type.is_scalar inputTypes then 
              mk_typed_scalar_prim op ?optOutType inputTypes 
           else
-            let nestedInputTypes = List.map Type.peel_vec inputTypes in 
+            let nestedInputTypes = List.map Type.peel inputTypes in 
             let nestedSig = 
               match optOutType with 
                 | None -> Signature.from_input_types nestedInputTypes
                 | Some outT -> 
-                  Signature.from_types nestedInputTypes [Type.peel_vec outT]
+                  Signature.from_types nestedInputTypes [Type.peel outT]
             in
-            let nestedFundef = specialize_value interpState fnVal nestedSig in
-            mk_typed_map_fundef nestedFundef inputTypes
+            let nestedFn = specialize_value fnVal nestedSig in
+            mk_typed_map_fundef nestedFn inputTypes
           in   
-          InterpState.add_specialization
-            ~optimize:false 
-            interpState 
-            fnVal
-            signature 
-            typedFundef
-          ;
-          typedFundef    
+          FnManager.add_specialization ~optimize:false fnVal signature typed; 
+          typed
 
       | SSA.Prim p -> 
           let arity = List.length inputTypes in
           assert (arity >= Prim.min_prim_arity p && 
                   arity <= Prim.max_prim_arity p); 
-          let fundef = mk_untyped_prim_fundef p arity in 
-          let typedFundef = specialize_fundef interpState fundef signature in
-          InterpState.add_specialization 
-            ~optimize:false 
-            interpState 
-            fnVal 
-            signature 
-            typedFundef;
-          typedFundef
+          let untyped = mk_untyped_prim_fundef p arity in 
+          let typed = specialize_fn untyped signature in
+          FnManager.add_specialization ~optimize:false  fnVal signature typed;
+          typed
       | _ -> assert false 
     )
     
-and specialize_function_id interpState fnId signature = 
+and specialize_fn_id fnId signature = 
   IFDEF DEBUG THEN
     Printf.printf "Specialize_Function_Id...\n%!";
   ENDIF;
-  specialize_value interpState (GlobalFn fnId) signature
+  specialize_value (GlobalFn fnId) signature
     

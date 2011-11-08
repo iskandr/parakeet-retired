@@ -73,6 +73,4 @@ module ConstEval = SSA_Analysis.MkEvaluator(struct
    | _ -> helpers.eval_stmt env stmtNode    
 end)
 
-let find_constants fundef =
-  let fundef' = ConstEval.eval_fundef fundef in 
-  fundef'  
+let find_constants fn = ConstEval.eval_fn fn 

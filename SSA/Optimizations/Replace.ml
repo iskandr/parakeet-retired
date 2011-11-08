@@ -3,7 +3,7 @@
 open Base
 open SSA 
 open SSA_Helpers 
-open SSA_Transform 
+open  SSA_Transform 
 
 
 (* doesn't update the type environment, which still refers to the old *)
@@ -66,8 +66,7 @@ module Replace_Rules(P: REPLACE_PARAMS) = struct
     | _ -> NoChange
 end
 
-let replace_fundef idMap fundef = 
- 
+let replace_fn idMap fn =  
   let module Params = struct let idMap = idMap end in 
-  let module Replacer = Mk(Replace_Rules(Params)) in  
-  Replacer.transform_fundef fundef 
+  let module Replacer = SSA_Transform.Mk(Replace_Rules(Params)) in  
+  Replacer.transform_fn fn 

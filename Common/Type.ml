@@ -101,6 +101,12 @@ let elt_type = function
   | ScalarT t -> t
   | t -> failwith ("Can't get elt type of " ^ (to_str t))
 
+let rec fill_elt_type t e = match t with   
+  | ArrayT (_, r) -> ArrayT(e, r)
+  | ScalarT _ -> ScalarT e 
+  | other -> other   
+
+
 (* reduce the dimensionality of an array by 1 *)  
 (* TODO: ACTUALLY USE AXES! *) 
 let peel ?(num_axes=1) = function 
@@ -192,6 +198,8 @@ let increase_rank r = function
   | ArrayT (elt_t, old_r) -> ArrayT (elt_t, old_r + r)
   | ScalarT elt_t -> ArrayT (elt_t, r)
   | other -> failwith ("[Type] Can't increase rank of type " ^ (to_str other))
+
+let increase_ranks r ts = List.map (increase_rank r) ts 
 
 let maximal_type types =
   let rec aux highestRank currT = function

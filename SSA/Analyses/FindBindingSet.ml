@@ -27,7 +27,7 @@ module BindingSetEval = SSA_Analysis.MkEvaluator(struct
     | _ -> helpers.eval_stmt set stmtNode     
 end)
 
-let fundef_bindings fundef = BindingSetEval.eval_fundef fundef 
+let fn_bindings fn = BindingSetEval.eval_fn fn 
 let block_bindings block = 
   let freshSet = MutableSet.create 17 in 
   BindingSetEval.eval_block freshSet block    

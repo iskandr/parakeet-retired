@@ -60,4 +60,4 @@ end
 
 module CSE_Rewrite = SSA_Transform.Mk(CSE_Rules)
 
-let cse _ = CSE_Rewrite.transform_fundef  
+let cse _ = CSE_Rewrite.transform_fn

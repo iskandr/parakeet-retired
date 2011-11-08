@@ -71,4 +71,4 @@ module CopyEval = MkEvaluator(struct
    | _ -> helpers.eval_stmt env stmtNode     
 end)
 
-let find_copies f = CopyEval.eval_fundef f  
+let find_copies f = CopyEval.eval_fn f  

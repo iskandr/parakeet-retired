@@ -2,7 +2,7 @@ open Base
 
 
 type 'a t = 
-  | Array of 'a * Shape.t * Type.elt_t
+  | Array of 'a  * Type.elt_t * Shape.t
   | Scalar of ParNum.t
   | Nested of ('a t) array 
   | Explode of ParNum.t * Shape.t           (* scalar, shape *) 
@@ -37,7 +37,7 @@ let rec to_str ?(array_to_str=(fun _ -> "<array>")) = function
         Printf.sprintf "range(from=%d, to=%d)" start stop 
 
 let rec map (f: 'a -> 'b) (x : 'a t) : 'b t = match x with 
-  | Array (a, s, t) -> Array (f a, s, t) 
+  | Array (a, t, s) -> Array (f a, t, s) 
   | Nested elts -> Nested (Array.map (map f) elts) 
   | Rotate (a, dim, offset) -> Rotate (map f a, dim, offset)
   | Shift (a, dim, offset, default) -> Shift (map f a, dim, offset, default) 
@@ -70,7 +70,7 @@ let of_int i = Scalar (ParNum.Int32 (Int32.of_int i))
 let of_float f = Scalar (ParNum.Float32 f)
 
 let rec get_type = function 
-  | Array(_, s, elt_t) -> Type.ArrayT (elt_t, Shape.rank s)
+  | Array(_,  elt_t, s) -> Type.ArrayT (elt_t, Shape.rank s)
   | Nested _ -> failwith "nested arrays not supported"
   | Scalar n -> Type.ScalarT (ParNum.type_of n) 
   | Explode (n, s) -> Type.ArrayT (ParNum.type_of n, Shape.rank s) 

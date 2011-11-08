@@ -1,3 +1,5 @@
+open Base 
+
 (* stack of environments which map identifiers to interpreter values*)
 (* while also counting reference counts to distinct pieces of data  *)
  
@@ -13,7 +15,7 @@ let push_env () =
 
 let pop_env () = ignore (Stack.pop envs) 
 
-let lookup memState id =
+let lookup id =
     let env = curr_env () in 
     if ID.Map.mem id env then ID.Map.find id env
     else failwith $ Printf.sprintf "[Env] variable %s not found!" (ID.to_str id) 

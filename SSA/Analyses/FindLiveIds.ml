@@ -29,4 +29,4 @@ module LiveIdEval = MkEvaluator(struct
     
 end)
 
-let find_live_ids fundef = LiveIdEval.eval_fundef fundef  
+let find_live_ids fn = LiveIdEval.eval_fn fn  

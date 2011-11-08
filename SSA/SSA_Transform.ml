@@ -247,17 +247,17 @@ module Mk(R: SIMPLE_TRANSFORM_RULES) = struct
      2) run transformations over all statements in the body 
      3) run a final transformation on the full function definition 
   *) 
-  let transform_fundef fundef =
-    let cxt = R.init fundef in
+  let transform_fn fn =
+    let cxt = R.init fn in
     set_context cxt;     
-    let body', changed = transform_block cxt fundef.body in
-    let fundef' = {fundef with body = body'} in  
-    match R.finalize cxt fundef' with 
-      | NoChange -> fundef', changed
-      | Update fundef'' -> fundef'', true 
-      | UpdateWithStmts (fundef'', stmts) -> 
-        { fundef'' with body = Block.append (Block.of_list stmts) body'}, true   
-      | UpdateWithBlock (fundef'', block) ->
-        { fundef'' with body = Block.append block body' }, true    
+    let body', changed = transform_block cxt fn.body in
+    let fn' = { fn with body = body'} in  
+    match R.finalize cxt fn' with 
+      | NoChange -> fn', changed
+      | Update fn'' -> fn'', true 
+      | UpdateWithStmts (fn'', stmts) -> 
+        { fn'' with body = Block.append (Block.of_list stmts) body'}, true   
+      | UpdateWithBlock (fn'', block) ->
+        { fn'' with body = Block.append block body' }, true    
 end 
    

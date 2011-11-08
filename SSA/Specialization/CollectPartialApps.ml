@@ -2,6 +2,7 @@
 
 open Base
 open SSA
+open SSA_Helpers
 open SSA_Transform
 
 type closure_env = { 
@@ -10,7 +11,7 @@ type closure_env = {
   closure_arity : (ID.t, int) Hashtbl.t; 
 }
  
-module CollectRules(F:sig val interpState: InterpState.t end) = struct 
+module CollectRules = struct  
   type context = closure_env 
 
   let init _ = { 
@@ -25,7 +26,7 @@ module CollectRules(F:sig val interpState: InterpState.t end) = struct
   
   let rec min_arity env = function 
   | Prim op -> Prim.min_prim_arity op
-  | GlobalFn fnId -> InterpState.get_untyped_arity F.interpState fnId
+  | GlobalFn fnId -> FnManager.get_untyped_arity  fnId
   | Var closureId ->
       if Hashtbl.mem env.closure_arity closureId then 
         Hashtbl.find env.closure_arity closureId
@@ -56,8 +57,8 @@ module CollectRules(F:sig val interpState: InterpState.t end) = struct
           Hashtbl.add env.closures closureId f.value;
           Hashtbl.add env.closure_args closureId closureArgNodes; 
           Hashtbl.add env.closure_arity closureId (minArgs - numArgs);
-          let argsExp = SSA.mk_exp ?src:stmtNode.stmt_src (Values args) in
-          Update (SSA.mk_set ?src:stmtNode.stmt_src closureArgIds argsExp) 
+          let argsExp = mk_exp ?src:stmtNode.stmt_src (Values args) in
+          Update (mk_set ?src:stmtNode.stmt_src closureArgIds argsExp) 
     | _ -> NoChange
 
   let phi env phiNode = NoChange                            
@@ -65,22 +66,9 @@ module CollectRules(F:sig val interpState: InterpState.t end) = struct
   let value _ _  = NoChange    
 end 
 
-let collect_partial_apps interpState fundef = 
- let module Collector = 
-  Mk(CollectRules(struct let interpState = interpState end))
- in
-(*
- IFDEF DEBUG THEN 
-   Printf.printf "Collect Partial Apps (before): %s\n%!"
-     (SSA.fundef_to_str fundef);
- ENDIF;
-*)
- let fundef', _ = Collector.transform_fundef fundef in
+module Collector = SSA_Transform.Mk(CollectRules)
+
+let collect_partial_apps fn = 
+ let fn', _ = Collector.transform_fn fn in
  let closureEnv = Collector.get_context () in
-(*
- IFDEF DEBUG THEN 
-   Printf.printf "Collect Partial Apps (after): %s\n%!"
-     (SSA.fundef_to_str fundef');
- ENDIF;
-*)
- fundef', closureEnv 
+ fn', closureEnv 
