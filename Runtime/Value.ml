@@ -46,18 +46,7 @@ let rec map (f: 'a -> 'b) (x : 'a t) : 'b t = match x with
   | Range (start, stop) -> Range (start, stop)  
   | Explode (n, s) -> Explode (n,s ) 
   
-    
-let to_int = function 
-  | Scalar n -> ParNum.to_int n 
-  | other -> failwith $ Printf.sprintf  
-           "Can't get integer from non-scalar interpreter value: %s"
-           (to_str other) 
 
-let to_bool = function 
-  | Scalar (ParNum.Bool b) -> b 
-  | other -> failwith $ Printf.sprintf
-           "Can't get boolean from interpreter value: %s"
-           (to_str other) 
 
 let to_num = function 
   | Scalar n -> n 
@@ -65,9 +54,22 @@ let to_num = function
            "Can't get scalar from interpreter value: %s"
            (to_str other)
 
-let of_bool b = Scalar (ParNum.Bool b) 
-let of_int i = Scalar (ParNum.Int32 (Int32.of_int i))
-let of_float f = Scalar (ParNum.Float32 f)
+let to_bool x = ParNum.to_bool (to_num x)
+let to_char x = ParNum.to_char (to_num x)        
+let to_int x = ParNum.to_int (to_num x)
+let to_int32 x = ParNum.to_int32 (to_num x)
+let to_int64 x = ParNum.to_int64 (to_num x)
+let to_float x = ParNum.to_float (to_num x)
+
+let of_num n = Scalar n
+let of_bool b = of_num (ParNum.of_bool b) 
+let of_char c = of_num (ParNum.of_char c)
+let of_int i = of_num (ParNum.of_int i)
+let of_float f = of_num (ParNum.of_float f)
+let of_int32 i32 = of_num (ParNum.of_int32 i32)
+let of_int64 i64 = of_num (ParNum.of_int64 i64)
+ 
+
 
 let rec get_type = function 
   | Array(_,  elt_t, s) -> Type.ArrayT (elt_t, Shape.rank s)

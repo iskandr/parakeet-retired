@@ -48,6 +48,27 @@ let type_of = function
   | Inf t
   | NegInf t -> t 
 
+
+let coerce_bool b t =
+  let code = if b then 1 else 0 in match t with  
+  | Type.BoolT -> Bool (code > 0)
+  | Type.CharT -> Char (Char.chr code)
+  | Type.Int16T -> Int16 code
+  | Type.Int32T -> Int32 (Int32.of_int code)
+  | Type.Int64T -> Int64 (Int64.of_int code)
+  | Type.Float32T -> Float32 (float_of_int code)
+  | Type.Float64T -> Float64 (float_of_int code)
+
+let coerce_char c t =
+  let code = Char.code c in match t with
+  | Type.BoolT -> Bool (code > 0)
+  | Type.CharT -> Char c   
+  | Type.Int16T -> Int16 code
+  | Type.Int32T -> Int32 (Int32.of_int code)
+  | Type.Int64T -> Int64 (Int64.of_int code)
+  | Type.Float32T -> Float32 (float_of_int code)
+  | Type.Float64T -> Float64 (float_of_int code)
+
 let coerce_int i = function
   | Type.Int16T -> Int16 i  
   | Type.Int32T -> Int32 (Int32.of_int i) 
@@ -133,8 +154,27 @@ let coerce n t =
     | Inf _ -> Inf t 
     | NegInf _ -> NegInf t  
 
+
+
+let of_bool b = Bool b  
+let of_char c = Char c  
 let of_int i = coerce_int i Type.Int32T
-let of_float f = coerce_float f Type.Float64T 
+let of_int32 i32 = Int32 i32 
+let of_int64 i64 = Int64 i64 
+let of_float f = Float64 f
+
+let to_bool = function 
+  | Bool b -> b
+  | Char c -> Char.code c > 0 
+  | Int16 i -> i > 0 
+  | _ -> assert false 
+
+let to_char = function 
+  | Bool b -> Char.chr (Bool.to_int b)
+  | Char c -> c
+  | Int16 i -> Char.chr i 
+  | _ -> assert false 
+
 
 let to_int = function
   | Int16 i -> i 
@@ -157,6 +197,12 @@ let to_int32 = function
   | Char c -> Int32.of_int (Char.code c)
   | Inf _ -> Int32.max_int 
   | NegInf _ -> Int32.min_int
+
+let to_int64 = function 
+  | Int64 i64 -> i64
+  | Float32 f 
+  | Float64 f -> Int64.of_float f 
+  | other -> Int64.of_int32 (to_int32 other)
 
 
 let to_float = function 

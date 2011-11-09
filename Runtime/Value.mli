@@ -17,13 +17,25 @@ val map : ('a -> 'b) -> 'a t -> 'b t
  
 val to_str : ?array_to_str:('a -> string) -> 'a t -> string 
 
-val to_int : 'a t -> int 
-val to_bool : 'a t -> bool  
-val to_num : 'a t -> ParNum.t 
+ 
 
-val of_bool : bool -> 'a t  
+val to_num : 'a t -> ParNum.t
+val to_bool : 'a t -> bool
+val to_char : 'a t -> char 
+val to_int32 : 'a t -> Int32.t 
+val to_int64 : 'a t -> Int64.t 
+val to_int : 'a t -> int
+val to_float : 'a t -> float 
+ 
+
+val of_num : ParNum.t -> 'a t 
+val of_bool : bool -> 'a t
+val of_char : char -> 'a t 
+val of_int32 : Int32.t -> 'a t 
+val of_int64 : Int64.t -> 'a t   
 val of_int : int -> 'a t 
-val of_float : float -> 'a t 
+val of_float : float -> 'a t
+
 
 val get_type : 'a t -> Type.t
 val get_shape : 'a t -> Shape.t 

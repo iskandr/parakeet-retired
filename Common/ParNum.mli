@@ -27,17 +27,26 @@ val is_inf : t -> bool
 val to_str : t -> string
 val type_of : t -> Type.elt_t
 
+val coerce_bool : bool -> Type.elt_t -> t 
+val coerce_char : char -> Type.elt_t -> t
 val coerce_int : int -> Type.elt_t -> t 
 val coerce_int32 :  Int32.t -> Type.elt_t -> t 
 val coerce_int64 : Int64.t -> Type.elt_t -> t 
 val coerce_float : float -> Type.elt_t -> t 
 val coerce : t -> Type.elt_t -> t 
 
+val of_bool : bool -> t 
+val of_char : char -> t
 val of_int : int -> t 
+val of_int32 : Int32.t -> t
+val of_int64 : Int64.t -> t 
 val of_float : float -> t 
 
+val to_bool : t -> bool
+val to_char : t -> char 
 val to_int : t -> int
 val to_int32 : t -> Int32.t 
+val to_int64 : t -> Int64.t 
 val to_float : t -> float 
 
 val is_zero : t -> bool 
