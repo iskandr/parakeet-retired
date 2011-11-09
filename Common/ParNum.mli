@@ -10,6 +10,20 @@ type t =
   | NegInf of Type.elt_t 
 
 
+val is_bool : t -> bool
+val is_char : t -> bool
+val is_int16 : t -> bool
+val is_int32 : t -> bool
+val is_int64 : t -> bool
+val is_float32 : t -> bool
+val is_float64 : t -> bool
+val is_pos_inf : t -> bool
+val is_neg_inf : t -> bool
+
+val is_int : t -> bool
+val is_float : t -> bool
+val is_inf : t -> bool 
+
 val to_str : t -> string
 val type_of : t -> Type.elt_t
 

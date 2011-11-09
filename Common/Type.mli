@@ -22,6 +22,27 @@ val int64 : t
 val float32 : t
 val float64 : t  
 
+val is_int16 : t -> bool 
+val is_int32 : t -> bool
+val is_int64 : t -> bool
+val is_float32 : t -> bool
+val is_float64 : t -> bool
+val is_char : t -> bool
+val is_bool : t -> bool  
+
+val elt_is_int : elt_t -> bool
+val elt_is_float : elt_t -> bool
+val elt_is_number : elt_t ->  bool
+
+val is_int : t -> bool
+val is_float: t -> bool
+val is_number : t -> bool
+val is_scalar : t -> bool
+val is_compound : t -> bool
+val is_array : t -> bool
+val is_num_or_array : t -> bool
+val is_numarray : t -> bool
+
 val elt_to_str : elt_t -> string
 val to_str : t -> string
  
@@ -29,20 +50,6 @@ val type_list_to_str : t list -> string
 val type_array_to_str : t array -> string
  
 val sizeof : elt_t -> int
-
-val elt_is_integer : elt_t -> bool
-val is_integer : t -> bool
-
-val elt_is_floating : elt_t -> bool
-val is_floating : t -> bool
-
-val elt_is_number : elt_t ->  bool
-val is_number : t -> bool
-val is_scalar : t -> bool
-val is_compound : t -> bool
-val is_array : t -> bool
-val is_num_or_array : t -> bool
-val is_numarray : t -> bool
 
 val elt_type : t -> elt_t 
 

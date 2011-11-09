@@ -24,6 +24,62 @@ let int64 = ScalarT Int64T
 let float32 = ScalarT Float32T
 let float64 = ScalarT Float64T 
 
+let is_int16 = function ScalarT Int16T -> true | _ -> false  
+let is_int32 =  function ScalarT Int32T -> true | _ -> false
+let is_int64 =  function ScalarT Int64T -> true | _ -> false
+let is_float32 =  function ScalarT Float32T -> true | _ -> false
+let is_float64 =  function ScalarT Float64T -> true | _ -> false
+let is_char =  function ScalarT CharT -> true | _ -> false
+let is_bool =  function ScalarT BoolT -> true | _ -> false
+
+
+let elt_is_int = function 
+  | BoolT 
+  | CharT 
+  | Int16T
+  | Int32T 
+  | Int64T -> true  
+  | _ -> false
+
+let elt_is_float = function 
+  | Float32T
+  | Float64T -> true
+  | _ -> false  
+
+let elt_is_number t = elt_is_int t || elt_is_float t
+
+let is_int = function 
+  | ScalarT t -> elt_is_int t 
+  | _ -> false 
+
+let is_float = function 
+  | ScalarT t -> elt_is_float t 
+  | _ -> false 
+
+
+let is_number t = is_int t || is_float t
+
+let is_scalar = function 
+  | ScalarT _ -> true
+  | _ -> false  
+
+let is_compound t = not (is_scalar t)
+
+let is_array = function
+    | ArrayT _ -> true
+    | _ -> false
+ 
+let is_num_or_array = function
+  | ScalarT _ 
+  | ArrayT _  -> true
+  | _ -> false 
+  
+let is_numarray = function
+    |  ArrayT (t, _) when elt_is_number t -> true
+    | _ -> false
+
+
+
 let elt_to_str = function 
   | BoolT -> "bool"
   | CharT -> "char"
@@ -51,49 +107,6 @@ let sizeof = function
   | Float32T -> 4
   | Int64T 
   | Float64T -> 8
-
-let elt_is_integer = function 
-  | BoolT 
-  | CharT 
-  | Int16T
-  | Int32T 
-  | Int64T -> true  
-  | _ -> false
-
-let is_integer = function 
-  | ScalarT t -> elt_is_integer t 
-  | _ -> false 
-
-let elt_is_floating = function 
-  | Float32T
-  | Float64T -> true
-  | _ -> false  
-
-let is_floating = function 
-  | ScalarT t -> elt_is_floating t 
-  | _ -> false 
-
-let elt_is_number t = elt_is_integer t || elt_is_floating t 
-let is_number t = is_integer t || is_floating t
-
-let is_scalar = function 
-  | ScalarT _ -> true
-  | _ -> false  
-
-let is_compound t = not (is_scalar t)
-
-let is_array = function
-    | ArrayT _ -> true
-    | _ -> false
- 
-let is_num_or_array = function
-  | ScalarT _ 
-  | ArrayT _  -> true
-  | _ -> false 
-  
-let is_numarray = function
-    |  ArrayT (t, _) when elt_is_number t -> true
-    | _ -> false
 
 
 let elt_type = function
@@ -123,7 +136,7 @@ let peel ?(num_axes=1) = function
 let is_scalar_subtype s1 s2 =
     (s1 = s2) ||   
     (sizeof s1 < sizeof s2)  || 
-    (elt_is_integer s1 && elt_is_floating s2) 
+    (elt_is_int s1 && elt_is_float s2) 
    
 (* how deep is the nesting of vectors in a given type *)
 let rank = function

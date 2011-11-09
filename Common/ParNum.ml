@@ -11,6 +11,21 @@ type t =
   | Inf of Type.elt_t
   | NegInf of Type.elt_t 
 
+
+let is_bool = function Bool _ -> true | _ -> false
+let is_char = function Char _ -> true | _ -> false
+let is_int16 = function Int16 _ -> true | _ -> false
+let is_int32 = function Int32 _ -> true | _ -> false
+let is_int64 = function Int64 _ -> true | _ -> false
+let is_float32 = function Float32 _ -> true | _ -> false
+let is_float64 = function Float64 _ -> true | _ -> false
+let is_pos_inf = function Inf _ -> true | _ -> false
+let is_neg_inf = function NegInf _ -> true | _ -> false
+
+let is_int x = is_bool x || is_char x || is_int16 x || is_int32 x || is_int64 x  
+let is_float x = is_float32 x || is_float64 x 
+let is_inf x = is_pos_inf x || is_neg_inf x  
+
 let to_str = function  
   | Int16 x -> string_of_int x
   | Int32 x -> Int32.to_string x
