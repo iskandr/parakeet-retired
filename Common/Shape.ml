@@ -169,7 +169,11 @@ let slice_shape inputShape dimsList =
     done; 
     resultShape   
  )  
-let to_c_array shape =
+
+let of_array (dims : int array) : t = dims  
+let to_array (shape : t) : int array = shape  
+
+let to_int32_c_array shape =
   let n = rank shape in  
   let cArr = Array1.create int32 c_layout n in 
   for i = 0 to n - 1 do 
@@ -177,7 +181,7 @@ let to_c_array shape =
   done; 
   cArr
   
-let of_c_array cArr = 
+let of_int32_c_array cArr = 
   let n = Array1.dim cArr in 
   let shape = create n in 
   for i = 0 to n - 1 do

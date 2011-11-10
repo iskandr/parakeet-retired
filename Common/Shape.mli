@@ -3,6 +3,8 @@ type t
 (* create a new shape of the given length *) 
 val create : int -> t 
 
+
+
 (* what's the nth value of the shape? *) 
 val get : t -> int -> int 
   
@@ -45,9 +47,10 @@ val split_nested_shapes : t list -> int * t list
 (* remove dims specified int the list of dims *) 
 val slice_shape : t -> int list -> t 
 
-
+val of_array : int array -> t
+val to_array : t -> int array 
 open Bigarray 
-val to_c_array : t -> (int32, int32_elt, c_layout) Array1.t 
-val of_c_array : (int32, int32_elt, c_layout) Array1.t -> t 
+val to_int32_c_array : t -> (int32, int32_elt, c_layout) Array1.t 
+val of_int32_c_array : (int32, int32_elt, c_layout) Array1.t -> t 
 
  

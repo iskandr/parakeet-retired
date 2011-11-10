@@ -2,9 +2,7 @@
 open Base
 open Data 
 
-(* map values containing abstract data id's to values containing*)
-(* memory-space specific arrays *) 
-type data_table = (DataId.t Value.t, Data.t) Hashtbl.t 
+type data_table = (DataId.t, Ptr.t) Hashtbl.t 
 
 let memspace_tables : data_table MemId.Map.t ref = ref MemId.Map.empty
 
@@ -17,36 +15,22 @@ let get_memspace_table memid : data_table =
         new_table 
     end  
 
-let register (data : Data.t) = 
-    let table = get_memspace_table data.memspace_id in
-    let id = DataId.gen() in 
-    let v = Value.Array (id,  data.elt_type,  data.shape) in 
-    Hashtbl.add table v data;
-    v    
-
-let rec from_memspace v = match v with  
-  | Value.Array (data, _, _) -> register data
-  | Value.Rotate (x, dim, amt) -> Value.Rotate(from_memspace x, dim, amt)
-  | Value.Shift(x, dim, amt, default) -> 
-        Value.Shift(from_memspace x, dim, amt, default)
-  | Value.Slice(x, dim, start, stop) -> 
-        Value.Slice(from_memspace x, dim, start, stop)
-  | Value.Range (start, stop) -> Value.Range(start, stop)
-  | Value.Scalar n -> Value.Scalar n 
-  | Value.Explode (n, shape) -> Value.Explode(n, shape)  
-
+let register_ptr (p:Ptr.t) : DataId.t =
+    let memId = p.Ptr.memspace in   
+    let table = get_memspace_table memId in
+    let dataId = DataId.gen() in
+    Hashtbl.add table dataId p; 
+    dataId 
+    
+let from_memspace (v : Ptr.t Value.t) = 
+    Value.map register_ptr v 
+    
 let to_memspace memId v =
-  let table = get_memspace_table memId in 
-  let rec aux v = match v with
-    | Value.Range (start, stop) -> Value.Range(start, stop)  
-    | Value.Scalar n -> Value.Scalar n 
-    | Value.Explode (n, shape) -> Value.Explode (n, shape)
-    | Value.Array (id, elt_t, shape) -> 
-        (match Hashtbl.find_option table v with 
-          | Some data -> Value.Array(data, elt_t, shape)
-          | None -> failwith $ "Could not find " ^ (Value.to_str v)
-        ) 
-    | _ -> assert false
-  in aux v 
+    let table = get_memspace_table memId in 
+    let lookup dataId = 
+        match Hashtbl.find_option table dataId with 
+        | Some ptr ->  ptr  
+        | None -> failwith $ "Could not find data id: " ^ DataId.to_str dataId
+    in 
+    Value.map lookup v 
   
-let dissociate _ = assert false 

@@ -5,9 +5,11 @@ val register_untyped_function :
 val register_untyped_functions : 
   (string * string list * string list * AST.node) list -> unit
   
+  
 type ret_val = 
-  | Success of Data.t (* gpu program succeeded, here's the result *) 
+  | Success of Ptr.t Value.t (*  program succeeded, here's the result *) 
   | Pass (* I don't want to run this function *) 
   | Error of string (* I tried to run this function but failed *) 
   
-val run_function : FnId.t -> globals:Data.t list -> args:Data.t list -> ret_val
+val run_function : 
+    FnId.t -> globals:Ptr.t Value.t list -> args:Ptr.t Value.t list -> ret_val

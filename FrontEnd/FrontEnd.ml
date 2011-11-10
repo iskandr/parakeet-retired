@@ -46,7 +46,7 @@ let print_all_timers () =
   ;
   Pervasives.flush_all()
 
-type ret_val = Success of Data.t | Pass | Error of string
+type ret_val = Success of Ptr.t Value.t | Pass | Error of string
 
 let run_function untypedId ~globals ~args =
   Timing.clear Timing.runTemplate;
@@ -57,7 +57,7 @@ let run_function untypedId ~globals ~args =
   Timing.clear Timing.gpuMalloc;
   Timing.start Timing.runTemplate;
   let args = globals @ args in
-  let argTypes = List.map Data.array_type args in
+  let argTypes = List.map Value.type_of args in
   let untypedFn = FnManager.get_untyped_function untypedId in
   IFDEF DEBUG THEN
      printf "[run_function] untyped function body: %s\n"

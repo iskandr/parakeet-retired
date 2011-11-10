@@ -55,7 +55,7 @@ and eval_exp (expNode : SSA.exp_node) : value list =
   | Values valNodes -> List.map eval_value valNodes
   | Arr elts -> 
       let valArr = Array.of_list (List.map eval_value elts) in
-      let eltT = Type.elt_type (Value.get_type valArr.(0)) in 
+      let eltT = Type.elt_type (Value.type_of valArr.(0)) in 
       let shape = Shape.of_list [Array.length valArr] in  
       failwith "arrays not implemented"
       (*[Value.Array(valArr, eltT, shape)]*)
@@ -104,7 +104,9 @@ and eval_app fundef args =
   Env.push_env(); 
   Env.set_bindings fundef.input_ids args;
   eval_block fundef.body;
-  List.map Env.lookup fundef.output_ids 
+  let outputs = List.map Env.lookup fundef.output_ids in 
+  Env.pop_env (); 
+  outputs  
     
 and eval_scalar_op (op : Prim.scalar_op) (args : value list) =
 (* whether the scalar is a GpuVal, a HostVal or an interpreter scalar, put *)
@@ -124,20 +126,14 @@ and eval_scalar_op (op : Prim.scalar_op) (args : value list) =
         Value.of_bool (ParNum.to_float x >= ParNum.to_float y)
     | Prim.Div, [x; y] -> 
         Value.of_float (ParNum.to_float x /. ParNum.to_float y)
-(* other math operations should return the same type as their inputs, so   *)
-(* use the generic math eval function                                      *)
+    (* other math operations should return the same type as their inputs, so   *)
+    (* use the generic math eval function                                      *)
     | op, _ -> Value.Scalar (MathEval.eval_pqnum_op op nums)
 
-let data_to_value data = Value.Array(data, data.elt_type, data.shape)
-let value_to_data = function 
-  | Array (d, _, _) -> d
-  | _ -> failwith "Can only return arrays"
 
-let run fn (hostData: Data.t list) =
-  let host_inputs = List.map data_to_value hostData in
-  let interp_inputs = List.map DataManager.from_memspace host_inputs in    
+let run fn (hostData: Ptr.t Value.t list) =
+  let interp_inputs = List.map DataManager.from_memspace hostData in    
   let outputVals = eval_app fn interp_inputs in
   let hostMemId = MemId.find_id "host" in 
-  let host_results = List.map (DataManager.to_memspace hostMemId) outputVals in
-  List.map value_to_data host_results  
+  List.map (DataManager.to_memspace hostMemId) outputVals
   

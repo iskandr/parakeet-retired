@@ -1,15 +1,26 @@
 open Base 
 
 
+
+type 'a array_info = { 
+    data : 'a; 
+    array_type : Type.t; 
+    elt_type : Type.elt_t;
+    array_shape : Shape.t; 
+    array_strides : int array; 
+     
+} 
+
 type 'a t = 
-  | Array of 'a  * Type.elt_t * Shape.t
+  | Array of 'a array_info  
   | Scalar of ParNum.t
-  | Nested of ('a t) array 
   | Explode of ParNum.t * Shape.t           (* scalar, shape *) 
-  | Rotate of 'a t * int * int                (* array, dim, offset *) 
-  | Shift of 'a t *  int * int * ParNum.t     (* array, dim, offset, default *) 
+  | Rotate of 'a t * int * int              (* array, dim, offset *) 
+  | Shift of 'a t *  int * int * ParNum.t   (* array, dim, offset, default *) 
   | Slice of 'a t * int * int * int         (* array, dim, start, end *) 
   | Range of int * int                      (* start, stop *) 
+
+
 
 (* since array data is polymorphic it's by default printed as the *)
 (* totally uninformative string '<array>'. If you want something more*)
@@ -17,10 +28,11 @@ type 'a t =
 (* function. *) 
 let rec to_str ?(array_to_str=(fun _ -> "<array>")) = function 
   | Scalar n -> ParNum.to_str n
-  | Array (a, _, _) -> array_to_str a 
-  | Nested elts -> 
+  | Array array_info -> array_to_str array_info  
+  (*| Nested elts -> 
     Printf.sprintf "[%s]" 
-        (String.concat ", " (List.map to_str (Array.to_list elts))) 
+        (String.concat ", " (List.map to_str (Array.to_list elts)))
+  *) 
   | Explode (n, s) -> 
         Printf.sprintf "explode(%s, %s)" (ParNum.to_str n) (Shape.to_str s)  
   | Rotate (a, dim, offset) ->
@@ -36,9 +48,10 @@ let rec to_str ?(array_to_str=(fun _ -> "<array>")) = function
   | Range (start, stop) -> 
         Printf.sprintf "range(from=%d, to=%d)" start stop 
 
+
 let rec map (f: 'a -> 'b) (x : 'a t) : 'b t = match x with 
-  | Array (a, t, s) -> Array (f a, t, s) 
-  | Nested elts -> Nested (Array.map (map f) elts) 
+  | Array array_info -> Array {array_info with data = f array_info.data } 
+  (*| Nested elts -> Nested (Array.map (map f) elts)*) 
   | Rotate (a, dim, offset) -> Rotate (map f a, dim, offset)
   | Shift (a, dim, offset, default) -> Shift (map f a, dim, offset, default) 
   | Slice (a, dim, start, stop) -> Slice (map f a, dim, start, stop)
@@ -46,6 +59,18 @@ let rec map (f: 'a -> 'b) (x : 'a t) : 'b t = match x with
   | Range (start, stop) -> Range (start, stop)  
   | Explode (n, s) -> Explode (n,s ) 
   
+
+let rec type_of = function 
+  | Array {array_type}  -> array_type 
+  (*| Nested _ -> failwith "nested arrays not supported"*)
+  | Scalar n -> Type.ScalarT (ParNum.type_of n) 
+  | Explode (n, s) -> Type.ArrayT (ParNum.type_of n, Shape.rank s) 
+  | Shift (x, _, _, _)
+  | Slice (x, _, _, _) 
+  | Rotate (x, _, _) -> type_of x  
+  | Range _ -> Type.ArrayT(Type.Int32T, 1)
+
+let rec shape_of _ = Shape.of_list []
 
 
 let to_num = function 
@@ -69,16 +94,13 @@ let of_float f = of_num (ParNum.of_float f)
 let of_int32 i32 = of_num (ParNum.of_int32 i32)
 let of_int64 i64 = of_num (ParNum.of_int64 i64)
  
-
-
-let rec get_type = function 
-  | Array(_,  elt_t, s) -> Type.ArrayT (elt_t, Shape.rank s)
-  | Nested _ -> failwith "nested arrays not supported"
-  | Scalar n -> Type.ScalarT (ParNum.type_of n) 
-  | Explode (n, s) -> Type.ArrayT (ParNum.type_of n, Shape.rank s) 
-  | Shift (x, _, _, _)
-  | Slice (x, _, _, _) 
-  | Rotate (x, _, _) -> get_type x  
-  | Range _ -> Type.ArrayT(Type.Int32T, 1)
-
-let rec get_shape _ = Shape.of_list []
+let mk_array (data:'a) (elt_t:Type.elt_t)  (shape:Shape.t) (strides:int array) =
+    let ty = Type.ArrayT(elt_t, Shape.rank shape) in  
+    Array {
+      data = data; 
+      array_type = ty; 
+      elt_type = elt_t; 
+      array_shape = shape; 
+      array_strides = strides; 
+    }  
+   
