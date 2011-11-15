@@ -108,7 +108,8 @@ let sizeof = function
   | Int64T 
   | Float64T -> 8
 
-
+let mk_array_type elt_t rank = ArrayT(elt_t, rank)
+ 
 let elt_type = function
   | ArrayT (t, _) -> t
   | ScalarT t -> t

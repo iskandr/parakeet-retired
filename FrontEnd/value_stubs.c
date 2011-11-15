@@ -12,20 +12,51 @@
 #include <caml/memory.h>
 #include <caml/mlvalues.h>
 
-#include "host_val_stubs.h"
+#include "value_stubs.h"
 
 /** Private members **/
-static host_val build_ocaml_host_scalar(value num);
+//static host_val build_ocaml_host_scalar(value num);
+
+value *value_callback_of_bool = NULL;
+value *value_callback_of_char = NULL;
+value *value_callback_of_int32 = NULL;
+value *value_callback_of_int64 = NULL;
+value *value_callback_of_float32 = NULL;
+value *value_callback_of_float64 = NULL;
+value *value_callback_is_scalar = NULL;
 
 /** Public interface **/
 
-host_val mk_bool(int val) {
+int value_inited = 0;
+void value_init() {
+	if (value_inited == 0) {
+		value_inited = 1;
+		value_callback_of_bool = caml_named_value("value_of_bool");
+		value_callback_of_char = caml_named_value("value_of_char");
+		value_callback_of_int32 = caml_named_value("value_of_int32");
+		value_callback_of_int64 = caml_named_value("value_of_int64");
+		value_callback_of_float32 = caml_named_value("value_of_float32");
+		value_callback_of_float64 = caml_named_value("value_of_float64");
+
+		value_callback_is_scalar = caml_named_value("value_is_scalar");
+
+
+	}
+}
+
+bool value_is_scalar(host_val v) {
+	CAMLparam1(host_val);
+	return Int_val(caml_callback(*value_callback_is_scalar, v));
+}
+
+host_val mk_bool(int b) {
   CAMLparam0();
   CAMLlocal1(num);
-  num = caml_alloc(1, PQNUM_BOOL);
-  Store_field(num, 0, copy_int32(val));
-  CAMLreturnT(host_val, build_ocaml_host_scalar(num));
+  num = caml_callback(*value_callback_of_bool, Val_int(b));
+  caml_register_global_root(&num);
+  CAMLreturn(num);
 }
+
 
 // TODO: Unclear whether this works
 host_val mk_char(char val) {

@@ -16,9 +16,9 @@
 #include <string.h>
 
 #include "ast_stubs.h"
-#include "dyn_type_stubs.h"
+#include "type_stubs.h"
+#include "value_stubs.h"
 #include "front_end_stubs.h"
-#include "host_val_stubs.h"
 
 /** Private members **/
 value *ocaml_register_untyped_function = NULL;
@@ -47,11 +47,8 @@ int register_untyped_function(char *name, char **globals, int num_globals,
   CAMLlocal5(val_name, val_globals, val_args, val_ast, fn_id);
  
 	
-	printf("INTERFACE Name: %s",name);
+  printf("INTERFACE Name: %s",name);
 
-	//int len = strlen(name);
-  //val_name = caml_alloc_string(len);
-  //memcpy(String_val(val_name), name, len);
   val_name = caml_copy_string(name);
 
   val_globals = build_str_list(globals, num_globals);

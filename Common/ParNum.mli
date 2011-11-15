@@ -40,7 +40,9 @@ val of_char : char -> t
 val of_int : int -> t 
 val of_int32 : Int32.t -> t
 val of_int64 : Int64.t -> t 
+val of_float32 : float -> t 
 val of_float : float -> t 
+
 
 val to_bool : t -> bool
 val to_char : t -> char 

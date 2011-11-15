@@ -41,6 +41,9 @@ val of_char : char -> 'a t
 val of_int32 : Int32.t -> 'a t 
 val of_int64 : Int64.t -> 'a t   
 val of_int : int -> 'a t 
+val of_float32 : float -> 'a t 
 val of_float : float -> 'a t
 
-val mk_array : 'a -> Type.elt_t -> Shape.t -> int array -> 'a t 
+val mk_array : 'a -> Type.elt_t -> Shape.t -> int array -> 'a t
+
+val is_scalar : 'a t -> bool 

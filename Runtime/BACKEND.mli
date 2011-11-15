@@ -1,5 +1,5 @@
 
-type data = Data.t Value.t 
+type data = Ptr.t Value.t 
 
 val memspace_id : MemId.t  
    

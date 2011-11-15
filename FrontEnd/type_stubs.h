@@ -12,7 +12,7 @@ void type_init();
 
 /** Creation functions **/
 
-array_type mk_vec(elt_type t, int rank);
+array_type mk_array_type(elt_type t, int rank);
 
 /** Must use to free created types **/
 void free_array_type(array_type t);

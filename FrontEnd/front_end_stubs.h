@@ -11,7 +11,7 @@
 #define _FRONT_END_STUBS_H_
 
 #include "ast_stubs.h"
-#include "host_val_stubs.h"
+#include "value_stubs.h"
 
 typedef enum {
   RET_SUCCESS = 0,

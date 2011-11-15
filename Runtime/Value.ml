@@ -90,6 +90,7 @@ let of_num n = Scalar n
 let of_bool b = of_num (ParNum.of_bool b) 
 let of_char c = of_num (ParNum.of_char c)
 let of_int i = of_num (ParNum.of_int i)
+let of_float32 f = of_num (ParNum.of_float32 f)
 let of_float f = of_num (ParNum.of_float f)
 let of_int32 i32 = of_num (ParNum.of_int32 i32)
 let of_int64 i64 = of_num (ParNum.of_int64 i64)
@@ -104,3 +105,4 @@ let mk_array (data:'a) (elt_t:Type.elt_t)  (shape:Shape.t) (strides:int array) =
       array_strides = strides; 
     }  
    
+let is_scalar x = Type.is_scalar (type_of x)

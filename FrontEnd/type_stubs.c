@@ -7,11 +7,17 @@
 #include "type_stubs.h"
 #include "variants.h"
 
+// PRIVATE
+
 int type_inited = 0;
 
-value *get_elt_type_callback = NULL;
-value *type_rank_callback = NULL;
+value *type_callback_elt_type = NULL;
+value *type_callback_rank = NULL;
+value *type_callback_mk_array = NULL;
+value *type_callback_is_scalar = NULL;
 
+
+// PUBLIC
 array_type parakeet_bool_t;
 elt_type parakeet_bool_elt_t;
 
@@ -33,8 +39,10 @@ elt_type parakeet_float64_elt_t;
 void type_init() {
   if (type_inited == 0) {
      type_inited = 1;
-     get_elt_type_callback = caml_named_value("get_elt_type");
-     type_rank_callback = caml_named_value("type_rank");
+     type_callback_elt_type = caml_named_value("elt_type");
+     type_callback_rank = caml_named_value("type_rank");
+     type_callback_mk_array = caml_named_value("mk_array");
+     type_callback_is_scalar = caml_named_value("type_is_scalar");
 
      parakeet_bool_t = *caml_named_value("bool_t");
      parakeet_bool_elt_t = *caml_named_value("bool_elt_t");
@@ -57,45 +65,35 @@ void type_init() {
 }
 
 /** Public interface **/
-
-
-type mk_array(elt_type elt_type, int rank) {
+array_type mk_array_type(elt_type elt_type, int rank) {
   CAMLparam0();
-  CAMLlocal2(ocaml_vec, ocaml_subtype);
-
-  ocaml_vec = alloc(1, VecT);
-  caml_register_global_root(&ocaml_vec);
-  ocaml_subtype = (value)subtype;
-  Store_field(ocaml_vec, 0, ocaml_subtype);
-  caml_remove_global_root(&ocaml_subtype);
-
-  CAMLreturnT(type, (type)ocaml_vec);
+  CAMLlocal1(arrT);
+  arrT = caml_callback2(*type_callback_mk_array, elt_type, Val_int(rank));
+  caml_register_global_root(&arrT);
+  caml_remove_global_root(&elt_type);
+  CAMLreturn(arrT);
 }
 
 void free_type(array_type t) {
   CAMLparam0();
-  CAMLlocal1(ocaml_type);
-
-  ocaml_type = (value)t;
-  caml_remove_global_root(&ocaml_type);
-
+  caml_remove_global_root(&t);
   CAMLreturn0;
 }
 
 int get_type_rank(array_type t) {
-  return Int_val(caml_callback(*type_rank_callback, t));
+  return Int_val(caml_callback(*type_callback_rank, t));
 }
 
 
 elt_type get_type_element_type(array_type t) {
   CAMLparam1(t);
-  return caml_callback(*get_elt_type_callback, t);
+  CAMLreturn(caml_callback(*type_callback_elt_type, t));
 }
 
 int type_is_scalar(array_type t) {
   CAMLparam0();
-  CAMLlocal1(ocaml_type);
-  ocaml_type = (value)t;
-  CAMLreturnT(int, Is_long(ocaml_type));
+  CAMLlocal1(b);
+  b = caml_callback(*type_callback_is_scalar, t);
+  CAMLreturnT(int, Int_val(b));
 }
 

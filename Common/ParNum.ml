@@ -161,6 +161,7 @@ let of_char c = Char c
 let of_int i = coerce_int i Type.Int32T
 let of_int32 i32 = Int32 i32 
 let of_int64 i64 = Int64 i64 
+let of_float32 f = Float32 f 
 let of_float f = Float64 f
 
 let to_bool = function 

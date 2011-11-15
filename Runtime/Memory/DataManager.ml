@@ -1,6 +1,5 @@
 
-open Base
-open Data 
+open Base 
 
 type data_table = (DataId.t, Ptr.t) Hashtbl.t 
 

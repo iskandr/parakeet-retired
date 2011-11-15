@@ -4,7 +4,6 @@ open Printf
 open Base
 
 open SSA 
-open Data 
 open Value 
  
 type value = DataId.t Value.t  

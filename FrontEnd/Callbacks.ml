@@ -1,3 +1,4 @@
+
 (*** FrontEnd ***)
 let _ = Callback.register "register_untyped_function"
   FrontEnd.register_untyped_function
@@ -15,9 +16,12 @@ let _ = Callback.register "shape_rank" Shape.rank
 let _ = Callback.register "mk_ast_info" AST.mk_ast_info
 
 (*** TYPE ***)
-let _ = Callback.register "sizeof_dyn_type" Type.sizeof 
+let _ = Callback.register "type_sizeof" Type.sizeof 
 let _ = Callback.register "type_rank" Type.rank
-let _ = Callback.register "get_elt_type" Type.elt_type
+let _ = Callback.register "elt_type" Type.elt_type
+let _ = Callback.register "mk_array_type" Type.mk_array_type 
+let _ = Callback.register "type_is_scalar" Type.is_scalar 
+
 
 let _ = Callback.register "bool_elt_t" Type.BoolT
 let _ = Callback.register "bool_t" Type.bool
@@ -48,6 +52,7 @@ let _ = Callback.register "value_of_bool" Value.of_bool
 let _ = Callback.register "value_of_char" Value.of_char
 let _ = Callback.register "value_of_int32" Value.of_int32
 let _ = Callback.register "value_of_int64" Value.of_int64
+let _ = Callback.register "value_of_float32" Value.of_float32 
 let _ = Callback.register "value_of_float64" Value.of_float
 
 let _ = Callback.register "value_to_bool"  Value.to_bool
@@ -57,3 +62,4 @@ let _ = Callback.register "value_to_int64"  Value.to_int64
 let _ = Callback.register "value_to_float64"  Value.to_float
 
 let _ = Callback.register "value_array" Value.mk_array 
+let _ = Callback.register "value_is_scalar" Value.is_scalar

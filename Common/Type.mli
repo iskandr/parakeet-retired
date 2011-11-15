@@ -51,6 +51,7 @@ val type_array_to_str : t array -> string
  
 val sizeof : elt_t -> int
 
+val mk_array_type : elt_t -> int -> t 
 val elt_type : t -> elt_t 
 
 val peel : ?num_axes:int -> t -> t
