@@ -47,27 +47,29 @@ let rec setidx v indices rhs = match v.exp with
   
  
 (* HELPER FUNCTIONS FOR IMP EXPRESSIONS *)
-let typed_exp (t:Type.elt_t)  (e : exp) : exp_node = {exp=e; exp_type=ImpType.ScalarT t}
-let bool_exp : exp->exp_node = typed_exp Type.BoolT
-let int16_exp : exp->exp_node = typed_exp Type.Int16T 
-let int_exp : exp -> exp_node = typed_exp Type.Int32T    
-let f32_exp : exp -> exp_node = typed_exp Type.Float32T 
-let f64_exp : exp -> exp_node = typed_exp Type.Float64T 
+let typed_exp (t:ImpType.t)  (e : exp) : exp_node = {exp=e; exp_type=ImpType.ScalarT t}
+let bool_exp : exp->exp_node = typed_exp ImpType.bool_t
+let int16_exp : exp->exp_node = typed_exp ImpType.int16_t 
+let int_exp : exp -> exp_node = typed_exp ImpType.int32_t    
+let f32_exp : exp -> exp_node = typed_exp ImpType.float32_t
+let f64_exp : exp -> exp_node = typed_exp ImpType.float64_t 
 
 (* CAST AN EXPRESSION TO A NEW TYPE 
    (or leave it alone if it's already that type
 *)
 
-let cast (t:Type.elt_t) expNode =
-  let tOld = ImpType.get_elt_type expNode.exp_type in  
-  if tOld = t then expNode 
+let cast (elt_t:Type.elt_t) expNode =
+	let old_t = expNode.exp_type in 
+	assert (ImpType.is_scalar old_t);  
+	let old_elt_t = ImpType.get_elt_type old_t in
+  if old_elt_t = new_elt_t tNew then expNode 
   else match expNode.exp with 
-    | Const n -> { exp = Const (ParNum.coerce_num n t); exp_type=ImpType.ScalarT t}
-    | _ -> 
-      if Type.is_scalar_subtype tOld t 
-         || Type.sizeof tOld = Type.sizeof t 
-      then 
-         typed_exp t $ Cast(t,expNode) 
+    | Const n -> 
+			  let n' = ParNum.coerce_num n elt_t in 
+				{ exp = Const n'; exp_type=ImpType.ScalarT elt_t }
+    | _ ->
+      	if Type.is_scalar_subtype old_elt_t elt_t || Type.sizeof old_elt_t = Type.sizeof elt_t 
+      	then typed_exp elt_t $ Cast(t,expNode) 
       else failwith $ 
         Printf.sprintf "[imp->cast] cannot create cast from %s to %s : %s"
           (Type.elt_to_str tOld)

@@ -7,11 +7,8 @@ val ifTrue : exp_node -> block -> stmt
 val while_ : exp_node -> block -> stmt 
 val comment : string -> stmt 
 
-
-     
 val set : exp_node -> exp_node -> stmt 
 val setidx : exp_node -> exp_node list -> exp_node -> stmt 
-
  
 val collect_rev_indices_from_node : exp_node -> ID.t * exp_node list 
 val collect_rev_indices : exp -> ID.t  * exp_node list   

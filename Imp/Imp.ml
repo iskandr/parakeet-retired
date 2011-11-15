@@ -9,19 +9,20 @@ type coord = X | Y | Z
 
 type exp = 
   | Var of ID.t
-  | Idx of exp_node list * exp_node
-  | Op of Prim.scalar_op * Type.elt * exp_node list
-  | Select of Type.t * exp_node * exp_node * exp_node
-  | Const of ParNum.t
-  | Cast of Type.t * exp_node
+	| Const of ParNum.t
+  | Idx of exp_node * exp_node list
+  | Op of  Type.elt_t * Prim.scalar_op * exp_node list
+  | Select of ImpType.t * exp_node * exp_node * exp_node
+  | Cast of ImpType.t * exp_node
   | DimSize of exp_node * exp_node
   | CudaInfo of cuda_info * coord
 
 and exp_node = {
   exp : exp;
-  exp_type : Type.t;
+  exp_type : ImpType.t;
 }
-and stmt =
+
+type stmt =
   | If of exp_node * block * block
   | While of exp_node * block
   | Set of ID.t * exp_node 
@@ -32,30 +33,45 @@ and stmt =
   | SPLICE 
 and block = stmt list
    
-and array_storage = 
+type array_storage = 
   | Global
   | Private
   | Shared
   | Slice
-and fn = {
-  input_ids : ID.t array;
-  input_id_set : ID.t MutableSet.t; 
-  input_types : Type.t array;
-          
-  output_ids : ID.t array; 
-  output_id_set : ID.t MutableSet.t; 
-  output_types : Type.t array;
-  
-  local_id_set : ID.t MutableSet.t; 
-  
-  types : (ID.t, Type.t) Hashtbl.t;
-  
-  (* only stores IDs/sizes belonging to arrays *)  
-  sizes:  (ID.t, exp_node list) Hashtbl.t; 
-  array_storage : (ID.t, array_storage) Hashtbl.t;
-   
-  body : block;
+
+type symbolic_shape = exp_node list 
+
+type var_info = { 
+	var_type : ImpType.t; 
+	array_storage : array_storage option;
+	symbolic_shape : symbolic_shape;  
+} 
+
+type fn = {
+	input_ids : ID.t list;
+  output_ids : ID.t list; 
+  local_ids : ID.t list;  
+  var_info : var_info ID.Map.t; 
+	body : block;
 }
+
+let get_var_type (fn:fn) (id:ID.t) = 
+	match ID.Map.find_option id fn.var_info with 
+		| None -> failwith $ "[Imp->get_var_type] Variable " ^ (ID.to_str id) ^ "doesn't exist"
+		| Some {var_type} -> var_type 
+
+let get_var_storage (fn:fn) (id:ID.t) =
+	match ID.Map.find_option id fn.var_info with 
+		| None -> failwith $ "[Imp->get_var_storage] Variable " ^ (ID.to_str id) ^ "doesn't exist"
+		| Some {array_storage=None} -> 
+				failwith $ "[Imp->get_var_storage] Variable " ^ (ID.to_str id) ^ "has no array storage"
+		| Some {array_storage=Some storage} -> storage
+
+let get_var_shape (fn:fn) (id:ID.t) = 
+	match ID.Map.find_option id fn.var_info with 
+		| None -> failwith $ "[Imp->get_var_shape] Variable " ^ (ID.to_str id) ^ "doesn't exist"
+		| Some {symbolic_shape} -> symbolic_shape
+	 
 
 
 (* PRETTY PRINTING *) 
@@ -64,35 +80,38 @@ open Printf
 let coord_to_str = function 
   | X -> "x" | Y -> "y" | Z -> "z"
 
+let cuda_info_to_str = function 
+	| ThreadIdx -> "threadidx" 
+  | BlockIdx -> "blockidx"
+  | BlockDim -> "blockdim"
+  | GridDim -> "griddim"
+
+
 let rec exp_node_to_str e  = exp_to_str e.exp 
 and exp_to_str = function 
   | Var id -> ID.to_str id  
   | Idx (e1, e2) -> sprintf "%s[%s]" (exp_node_to_str e1) (exp_node_to_str e2) 
-  | Op (op, argT, args) -> 
+  | Op (argT, op, args) -> 
     sprintf "%s:%s (%s)" 
       (Prim.scalar_op_to_str op)
-      (Type.to_str argT) 
+      (Type.elt_to_str argT) 
       (exp_node_list_to_str args)
   | Select (t, cond, trueVal, falseVal) -> 
       sprintf "select:%s(%s, %s, %s)" 
-        (Type.to_str t)
+        (ImpType.to_str t)
         (exp_node_to_str cond)
         (exp_node_to_str trueVal)
         (exp_node_to_str falseVal)
   | Const n -> ParNum.num_to_str n 
   | Cast (tNew, e) -> 
-      let tOld = e.exp_type in 
       sprintf "cast %s->%s (%s)" 
-        (Type.to_str tOld) 
-        (Type.to_str tNew) 
+        (ImpType.to_str  e.exp_type) 
+        (ImpType.to_str tNew) 
         (exp_node_to_str e)
   | DimSize (k, e) -> 
-        sprintf "dimsize(%s, %s)" (exp_node_to_str e) (exp_node_to_str k) 
-  | ThreadIdx c -> sprintf "threadidx.%s" (coord_to_str c)
-  | BlockIdx c -> sprintf "blockidx.%s" (coord_to_str c)
-  | BlockDim c -> sprintf "blockdim.%s" (coord_to_str c)
-  | GridDim c -> sprintf "griddim.%s" (coord_to_str c)
-  
+        sprintf "dimsize(%s, %s)" (exp_node_to_str e) (exp_node_to_str k)
+	| CudaInfo(cuda_info, coord) -> 
+				sprintf "%s.%s" (cuda_info_to_str cuda_info) (coord_to_str coord)
 
 and stmt_to_str ?(spaces="") = function 
   | If (cond, tBlock, fBlock) ->
@@ -145,33 +164,18 @@ and array_storage_to_str = function
   | Private -> "private"
   | Shared -> "shared"
   | Slice -> "slice"
-and shared_to_str fn = 
-  let s = ref "" in
-  let extend_string id = 
-    if Hashtbl.mem fn.array_storage id  && 
-       not $ MutableSet.mem fn.input_id_set id then
-        let currStr = 
-          Printf.sprintf "  %s %s :: [%s]"
-            (array_storage_to_str $ Hashtbl.find fn.array_storage id)   
-            (ID.to_str id)
-            (exp_node_list_to_str $ Hashtbl.find fn.sizes id)
-         in s := !s ^"\n" ^ currStr 
-  in
-  if not $ MutableSet.is_empty fn.local_id_set then s := !s ^ "\n"; 
-  MutableSet.iter  extend_string fn.local_id_set;
-  if not $ MutableSet.is_empty fn.local_id_set then s := !s ^ "\n";  
-  !s 
+ 
+	
 let fn_to_str fn =
   let id_to_str id  = 
-    let t = Hashtbl.find fn.types id in 
-    ID.to_str id ^ " : " ^ (Type.to_str t)
+    ID.to_str id ^ " : " ^ (ImpType.to_str (get_var_type fn id))
   in 
-  let inputs = List.map id_to_str (Array.to_list fn.input_ids)  in 
-  let outputs = List.map id_to_str (Array.to_list fn.output_ids) in 
-  let bodyStr = block_to_str  fn.body in 
+  let inputs = List.map id_to_str fn.input_ids  in 
+  let outputs = List.map id_to_str  fn.output_ids in
+	let locals = List.map id_to_str fn.local_ids in  
   sprintf "fn (%s) -> (%s) = {%s\n%s\n}"
     (String.concat ", " inputs) 
     (String.concat ", " outputs)
-    (shared_to_str fn)  
-    bodyStr  
+		(String.concat ", " locals)
+    (block_to_str  fn.body)
               

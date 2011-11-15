@@ -77,7 +77,6 @@ let rec apply_id_map_to_stmt idMap stmt =
        let rhs' = aux_exp rhs in 
        if ID.Map.mem id idMap then  Set(ID.Map.find id idMap, rhs')
        else Set(id, rhs')
-      
   | SetIdx (id,indices,rhs) ->
        let rhs' =  aux_exp rhs in 
        let indices' = List.map  aux_exp indices in

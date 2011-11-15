@@ -8,6 +8,15 @@ type t =
 	| ArrayT of elt_t * int
 	| ShiftT of t
 
+val to_str : t -> string 
 
 val get_elt_type : t -> elt_t
+val is_scalar : t -> bool 
 val rank : t -> int 
+
+val bool_t : t 
+val char_t : t 
+val int32_t : t
+val int64_t : t 
+val float32_t : t
+val float64_t : t 
