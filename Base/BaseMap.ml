@@ -13,6 +13,7 @@ module type S = sig
   val add_list : (key * 'a) list -> 'a t -> 'a t 
   val remove_list : key list -> 'a t -> 'a t
   val of_list : (key * 'a) list -> 'a t 
+  val of_lists : key list -> 'a list -> 'a t 
   val to_list : 'a t -> (key * 'a) list
   val to_array : 'a t -> (key * 'a) array 
   val to_arrays : 'a t -> ((key array) * ('a array)) 
@@ -79,6 +80,8 @@ module Make (M: ORD) = struct
 
   (* construct a map from a list of pairs *)   
   let of_list lst = add_list lst empty  
+  
+  let of_lists l1 l2 = of_list (List.combine l1 l2)
   
   let to_list map = fold (fun k v acc -> (k,v)::acc)  map []
   
