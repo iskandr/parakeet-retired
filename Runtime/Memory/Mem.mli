@@ -10,8 +10,8 @@ val register : string -> Ptr.raw_fns -> MemId.t
 val all_memspace_ids : unit -> MemId.t list 
 
 
-val alloc : int -> Ptr.t
-val unsafe_free : Ptr.t -> unit  
+val alloc : MemId.t -> int -> Ptr.t
+val unsafe_delete : Ptr.t -> unit  
 
 
 val trace_free_ptrs : MemId.t -> unit 

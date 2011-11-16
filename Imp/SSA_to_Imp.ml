@@ -280,7 +280,7 @@ module MkTranslator(P : PARAMS) = struct
 end 
 
 
-let rec translate_fundef fnTable fn =
+let rec translate fnTable fn =
   let fnState = new ImpCodegen.fn_state in
   let inputTypes = fn.SSA.fn_input_types in 
   (* first generate imp ids for inputs, to make sure their order is preserved *)

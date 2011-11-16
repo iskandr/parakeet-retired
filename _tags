@@ -14,6 +14,7 @@
 "Runtime" : include
 "Runtime/Memory" : include
 "Runtime/Cuda" : include
+"Runtime/LLVM" : include
 "Imp" : include
 "Imp/KernelTemplates" : include
 "FrontEnd" : include

@@ -67,6 +67,8 @@ let alloc (memspace_id:MemId.t) (nbytes:int) : Ptr.t =
     | None -> failwith "Allocation failed"
     | Some ptr -> ptr 
 
+let unsafe_delete {memspace; addr} = (get_fns memspace).delete addr 
+
 let pin ptr = GcState.pin (get_gc_state ptr.memspace) ptr 
    
 let unpin ptr = GcState.unpin (get_gc_state ptr.memspace) ptr
