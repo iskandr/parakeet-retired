@@ -27,7 +27,7 @@ and stmt =
   (* used to plug one function into another, shouldn't exist in final code *) 
   | SPLICE 
 
-type block = stmt list
+and block = stmt list
    
 type array_storage = 
   | Global

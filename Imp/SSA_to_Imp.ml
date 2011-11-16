@@ -12,7 +12,8 @@ module type PARAMS = sig
   val translate_fundef : SSA.fundef -> Imp.fn 
 end
 
-module MkTranslator(P : PARAMS) = struct 
+module MkTranslator(P : PARAMS) = struct
+	 
     let get_id ssaId = ID.Map.find ssaId P.idEnv
     
     (* TODO: make this actually work with non-trivial expressions *)
@@ -281,6 +282,7 @@ end
 
 
 let rec translate fnTable fn =
+	
   let fnState = new ImpCodegen.fn_state in
   let inputTypes = fn.SSA.fn_input_types in 
   (* first generate imp ids for inputs, to make sure their order is preserved *)
@@ -329,7 +331,7 @@ let rec translate fnTable fn =
     let idEnv = idEnv
     let sizeEnv = impSizeEnv
     let fnState = fnState 
-    let translate_fundef = (translate_fundef fnTable)
+    let translate_fundef = (translate fnTable)
   end) 
   in 
   Translator.translate_block fnState#main_code_buffer fn.SSA.body; 
