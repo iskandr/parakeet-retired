@@ -7,10 +7,10 @@ let fresh_memspace_id : (unit -> int) = mk_gen ()
 
 let hash_size = 127 
 
-let memspace_fns : (MemId.t, memspace_fns) Hashtbl.t = Hashtb.create hash_size 
+let memspace_fns : (MemId.t, Ptr.raw_fns) Hashtbl.t = Hashtbl.create hash_size 
 
-let get_fns id = match Hashtbl.find_option fns id with 
-  | None -> failwith $ "Unregister memory space " ^ (string_of_int id)
+let get_fns id = match Hashtbl.find_option memspace_fns id with 
+  | None -> failwith $ "Unregister memory space " ^ (MemId.id_to_str id)
   | Some fns -> fns 
 
 let gc_states : (MemId.t, GcState.t) Hashtbl.t = Hashtbl.create hash_size 
@@ -31,7 +31,7 @@ let register name fns =
 let trace_free_ptrs memspace_id  =
     let gc_state = get_gc_state memspace_id in
     let pinned : Int64.Set.t = GcState.pinned_addr_set gc_state in
-    let active_set = Int64.Set.union  (Env.active_addrs memspace_id) pinned in
+    let active_set = Int64.Set.union  (Env.active_addr_set memspace_id) pinned in
     GcState.filter_used_ptrs gc_state (fun p -> Int64.Set.mem p.addr active_set)  
     
 let delete_free_ptrs memspace_id  =
@@ -46,7 +46,14 @@ let direct_alloc memspace_id nbytes : Ptr.t option =
   let fns = get_fns memspace_id in 
   let addr = fns.alloc nbytes in 
   if addr = 0L  then None 
-  else Some {Ptr.addr = addr; size = nbytes; memspace = memspace_id; fns = fns }  
+  else Some {addr = addr; size = nbytes; memspace = memspace_id; fns = fns }  
+
+let rec force_til_some = function 
+	| [] -> None 
+	| x::xs -> 
+			let result = Lazy.force x in 
+			if result = None then force_til_some xs 
+			else result 
 
 let alloc (memspace_id:MemId.t) (nbytes:int) : Ptr.t = 
   let gc_state = get_gc_state memspace_id in 

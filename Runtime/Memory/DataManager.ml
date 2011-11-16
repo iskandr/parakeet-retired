@@ -20,7 +20,20 @@ let register_ptr (p:Ptr.t) : DataId.t =
     let dataId = DataId.gen() in
     Hashtbl.add table dataId p; 
     dataId 
-    
+
+		
+let id_to_ptr_option dataId memId = 
+		let table = get_memspace_table memId in
+		Hashtbl.find_option table dataId 
+		
+let id_on_memspace dataId memId = 
+		let table = get_memspace_table memId in
+		Hashtbl.mem table dataId 
+		
+let id_to_ptr dataId memId =  
+		let table = get_memspace_table memId in
+		Hashtbl.find table dataId 
+
 let from_memspace (v : Ptr.t Value.t) = 
     Value.map register_ptr v 
     

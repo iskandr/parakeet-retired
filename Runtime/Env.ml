@@ -28,3 +28,21 @@ let set_binding id rhs =
 let set_bindings ids vals = 
     let env = Stack.pop envs in
     Stack.push (ID.Map.extend env ids vals) envs  
+
+let active_values () = 
+		let env = curr_env () in 
+		ID.Map.values env  
+		
+let active_data_ids () = Value.collect_list (active_values () )
+
+let active_ptrs memId =
+		let dataIds = active_data_ids() in 
+		let aux ptrs dataId =
+				match DataManager.id_to_ptr_option dataId memId with 
+					| None -> ptrs 
+					| Some ptr -> ptr::ptrs 
+	  in
+		List.fold_left aux [] dataIds 
+
+let active_addrs memId = List.map Ptr.addr (active_ptrs memId)
+let active_addr_set memId = Int64.Set.of_list (active_addrs memId) 		

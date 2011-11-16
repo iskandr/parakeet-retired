@@ -3,12 +3,12 @@
 type raw_fns = { 
     alloc : (int -> Int64.t); 
     delete : (Int64.t -> unit); 
-    idx_bool : (Int64.t -> int -> bool); 
-    idx_char : (Int64.t -> int -> char); 
-    idx_int32 : (Int64.t -> int -> Int32.t);  
-    idx_int64 : (Int64.t -> int -> Int64.t);  
-    idx_float32 : (Int64.t -> int -> float); 
-    idx_float64 : (Int64.t -> int -> float); 
+    get_bool : (Int64.t -> int -> bool); 
+    get_char : (Int64.t -> int -> char); 
+    get_int32 : (Int64.t -> int -> Int32.t);  
+    get_int64 : (Int64.t -> int -> Int64.t);  
+    get_float32 : (Int64.t -> int -> float); 
+    get_float64 : (Int64.t -> int -> float); 
 }
 
 type t = { 
@@ -21,11 +21,14 @@ type t = {
     fns : raw_fns;  
 }
 
+val addr : t -> Int64.t 
+val size : t -> int 
+val memspace : t -> MemId.t 
 val to_str : t -> string 
 
-val idx_bool : t -> int -> bool 
-val idx_char : t -> int -> char  
-val idx_int32 : t -> int -> Int32.t   
-val idx_int64 : t -> int -> Int64.t   
-val idx_float32 : t -> int -> float  
-val idx_float64 : t -> int -> float 
+val get_bool : t -> int -> bool 
+val get_char : t -> int -> char  
+val get_int32 : t -> int -> Int32.t   
+val get_int64 : t -> int -> Int64.t   
+val get_float32 : t -> int -> float  
+val get_float64 : t -> int -> float 

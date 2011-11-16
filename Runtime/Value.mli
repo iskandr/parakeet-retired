@@ -20,6 +20,7 @@ type 'a t =
   | Range of int * int                      (* start, stop *) 
 
 val map : ('a -> 'b) -> 'a t -> 'b t
+
  
 val to_str : ?array_to_str:('a array_info -> string) -> 'a t -> string 
 
@@ -46,4 +47,7 @@ val of_float : float -> 'a t
 
 val mk_array : 'a -> Type.elt_t -> Shape.t -> int array -> 'a t
 
-val is_scalar : 'a t -> bool 
+val is_scalar : 'a t -> bool
+
+val extract : 'a t -> 'a option  
+val collect_list : 'a t list -> 'a list  

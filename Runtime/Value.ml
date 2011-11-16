@@ -106,3 +106,19 @@ let mk_array (data:'a) (elt_t:Type.elt_t)  (shape:Shape.t) (strides:int array) =
     }  
    
 let is_scalar x = Type.is_scalar (type_of x)
+
+
+let rec extract = function
+	  | Rotate (x, _, _)   
+		| Shift (x, _, _, _) 
+  	| Slice (x, _, _, _) -> extract x  
+		| Array {data} -> Some data 
+		| Scalar _ 
+  	| Explode _  
+  	| Range _ -> None 
+
+let rec collect_list = function 
+	| [] -> [] 
+	| x::xs ->
+			let rest = collect_list xs in 
+			(match extract x with None -> rest | Some d -> d :: rest) 

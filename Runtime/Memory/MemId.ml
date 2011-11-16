@@ -5,8 +5,13 @@ type t = int
 let gen = Base.mk_gen()
 
 
-let names = Hashtbl.create 127 
-let rev_names = Hashtbl.create 127 
+
+let names : (int, string) Hashtbl.t = Hashtbl.create 127 
+let rev_names : (string, int) Hashtbl.t = Hashtbl.create 127 
+
+
+
+let id_to_str = string_of_int 
 
 let set_name id name =
     if Hashtbl.mem rev_names name then 
@@ -15,7 +20,16 @@ let set_name id name =
         Hashtbl.add names id name; 
         Hashtbl.add rev_names name id
     )  
-  
+
+
+let register (name : string) = match Hashtbl.find_option rev_names name with 
+	| None ->
+		  let id = gen() in 
+			Hashtbl.add names id name; 
+			Hashtbl.add rev_names name id; 
+			id
+	| Some id -> id 
+
 let find_name id = match Hashtbl.find_option names id with 
     | None -> failwith $ "Unregister memory space " ^ (string_of_int id)
     | Some name -> name   

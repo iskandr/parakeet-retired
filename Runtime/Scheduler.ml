@@ -10,8 +10,13 @@
 type value = DataId.t Value.t 
 type values = value list 
 
+let value_to_host v = DataManager.to_memspace HostMemspace.id v 
+let values_to_host vs = List.map value_to_host vs 
 
-let map ?(axes=[0]) (fn:SSA.fn) ~(fixed:values) (args:values) = assert false 
+let map ?(axes=[0]) (fn:SSA.fn) ~(fixed:values) (args:values) = 
+	let fixed' = values_to_host fixed in 
+	let args' = values_to_host args in 
+	LLVM_Backend.map ~axes ~fn ~fixed:fixed' args'   
 
 let reduce ?(axes=[0]) (fn:SSA.fn) ~(fixed:values) ?init (args:values)
     = assert false 

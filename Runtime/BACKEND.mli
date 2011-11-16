@@ -7,10 +7,10 @@ val map :  axes:int list -> fn:SSA.fn -> fixed:(data list) ->
     data list -> data list
 
 val reduce : axes:int list -> fn:SSA.fn -> fixed:(data list) -> 
-    data list -> data list
+    ?init:data list -> data list -> data list
 
 val scan : axes:int list -> fn:SSA.fn -> fixed:(data list) -> 
-    data list -> data list
+    ?init:data list -> data list -> data list
 
 val all_pairs : axes:int list -> fn:SSA.fn -> fixed:(data list) -> 
     data -> data -> data list
