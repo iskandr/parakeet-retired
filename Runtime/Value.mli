@@ -1,13 +1,12 @@
 (* 'a parameter can either be ArrayId.t when we don't care about what*)
 (*  memory space data actually lives in or it can be Array.t when we do *) 
 
-
 type 'a array_info = { 
-    data : 'a; 
-    array_type : Type.t; 
-    elt_type : Type.elt_t;
-    array_shape : Shape.t; 
-    array_strides : int array;    
+  data : 'a; 
+  array_type : Type.t; 
+  elt_type : Type.elt_t;
+  array_shape : Shape.t; 
+  array_strides : int array;    
 }  
 
 type 'a t = 

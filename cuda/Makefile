@@ -27,9 +27,9 @@ COMMONDIR  := $(ROOTDIR)/../common
 
 # Compilers
 NVCC       := $(CUDA_INSTALL_PATH)/bin/nvcc 
-CXX        := g++-4.3 -fPIC
-CC         := gcc-4.3 -fPIC
-LINK       := g++-4.3 -fPIC
+CXX        := g++-4.4 -fPIC
+CC         := gcc-4.4 -fPIC
+LINK       := g++-4.4 -fPIC
 
 # Includes
 INCLUDES  += -I. -I$(CUDA_INSTALL_PATH)/include -I$(COMMONDIR)/inc
@@ -62,7 +62,7 @@ CWARN_FLAGS := $(CXXWARN_FLAGS) \
 	-Wmain \
 
 # Compiler-specific flags
-NVCCFLAGS := --compiler-bindir=/usr/bin/gcc-4.3
+NVCCFLAGS := --compiler-bindir=/usr/bin/gcc-4.4
 CXXFLAGS  := $(CXXWARN_FLAGS)
 CFLAGS    := $(CWARN_FLAGS)
 

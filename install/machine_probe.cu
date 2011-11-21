@@ -105,13 +105,18 @@ struct timeval *gettime(void) {
 }
 
 // Global state
+const int RAMID = 0;
+const int PINNEDID = 1;
+const int GPUOFFSET = 2;
+mem_xfer_bw_t *bws = NULL;
+int numBws = 0;
+gpu_t *gpus = NULL;
+int numDevices = 0;
 int *ram_data;
 int *pinned_data;
 int **dev_datas;
-int numBws = 0;
-mem_xfer_bw_t *bws = NULL;
+FILE *outfile;
 struct timeval *start, *end;
-int numDevices = 0;
 int debug;
 
 // Test the memory transfer bandwidth between the src and all the destination
@@ -135,7 +140,7 @@ void test_mem_xfer_bw(int *src_data, int data_size, int srcId, int devs,
       chkError(cudaMemcpy(dev_datas[i], src_data, data_size,
                           cudaMemcpyHostToDevice),
                 "Couldn't copy data from RAM to GPU");
-      bws[numBws].dstIds[curDev++] = i;
+      bws[numBws].dstIds[curDev++] = i + GPUOFFSET;
     }
   }
   for (i = 0; i < numDevices; ++i) {
@@ -155,15 +160,10 @@ void test_mem_xfer_bw(int *src_data, int data_size, int srcId, int devs,
       printf("%s to %d GPUs B/W: %f\n",
              src_name, curNumDevs, bws[numBws - 1].bw);
     }
-    fflush(stdout);
   }
 }
 
 int main(int argc, char **argv) {
-  const int RAMID = 0;
-  const int PINNEDID = 1;
-  const int GPUOFFSET = 2;
-
   int i, j;
 
   // Set up program parameters
@@ -177,7 +177,7 @@ int main(int argc, char **argv) {
   // Process command line args
   
   // Open output file
-  FILE *outfile = fopen(outFilename, "w");
+  outfile = fopen(outFilename, "w");
   if (!outfile) {
     printf("Couldn't open output file.\n");
     exit(1);
@@ -191,12 +191,12 @@ int main(int argc, char **argv) {
   }
   
   // Create a gpu_t struct for each device
-  gpu_t *gpus = (gpu_t*)malloc(numDevices * sizeof(gpu_t));
+  gpus = (gpu_t*)malloc(numDevices * sizeof(gpu_t));
   
-  // Create memspace structs for RAM and for each device
+  // Create memspace structs for RAM, pinned RAM and for each device
   memspace_t *memspaces =
-      (memspace_t*)malloc((numDevices + 1) * sizeof(memspace_t));
-  for (i = 0; i < numDevices + 1; ++i) {
+      (memspace_t*)malloc((numDevices + GPUOFFSET) * sizeof(memspace_t));
+  for (i = 0; i < numDevices + GPUOFFSET; ++i) {
     memspaces[i].id = i;
   }
   
@@ -214,11 +214,12 @@ int main(int argc, char **argv) {
     printf("Unable to read RAM info from /proc/meminfo.\n");
     exit(1);
   }
-  memspaces[RAMID].bytes = (uint64_t)atol(buffer);
+  memspaces[RAMID].bytes = (uint64_t)atol(buffer) * 1024;
   if (!memspaces[RAMID].bytes) {
     printf("Unable to convert RAM info to uint64_t.\n");
     exit(1);
   }
+  memspaces[PINNEDID].bytes = memspaces[RAMID].bytes;
   pclose(cmdfile);
   
   // Allocate some memory for doing RAM <-> GPU transfers.
@@ -229,13 +230,14 @@ int main(int argc, char **argv) {
   
   // For each device, get the properties we're interested in
   for (i = 0; i < numDevices; ++i) {
-    // Current memspace ID is i + 1, since RAM is 0
-    int curId = i + GPUOFFSET;
-    
     // Get device properties
     // TODO: Do we need to store this? Could just re-query every time.
     chkError(cudaGetDeviceProperties(&gpus[i].deviceProp, i),
              "Couldn't get properties for device");
+    
+    // Take into account that RAM = 0 and PinnedRam = 1
+    gpus[i].globalMemspace = i + GPUOFFSET;
+    memspaces[i+GPUOFFSET].bytes = gpus[i].deviceProp.totalGlobalMem;
     
     // Store the calculated peak global memory b/w
     // TODO: Assumes that all GPUs use DDR, and so uses a x2 multiplier.
@@ -292,7 +294,7 @@ int main(int argc, char **argv) {
           end = gettime();
           peer_bw = data_size / diff_timers(start, end) / (1 << 30);
           add_xfer_bw(&bws, numBws, 1);
-          bws[numBws].srcId = curId;
+          bws[numBws].srcId = gpus[i].globalMemspace;
           bws[numBws].dstIds[0] = j + GPUOFFSET;
           bws[numBws].bw = peer_bw;
           numBws++;
@@ -316,8 +318,92 @@ int main(int argc, char **argv) {
     
     // Test Pinned RAM <-> GPU bw
     test_mem_xfer_bw(pinned_data, data_size, PINNEDID, devs, "Pinned RAM");
-  }    
+  }
+  
+  // Output XML file with the collected data
+  int outLevel = 0;
+  fprintf(outfile, "<Machine>\n");
+  outLevel++;
+  for (i = 0; i < numDevices; ++i) {
+    fprintf(outfile, "%*s<GPU>\n", outLevel++, "");
+    
+    // Print out the contents of the CUDA device properties struct
+    cudaDeviceProp curProp = gpus[i].deviceProp;
+    fprintf(outfile, "%*s<Id>%d</Id>\n", outLevel, "", i);
+    fprintf(outfile, "%*s<DeviceName>%s</DeviceName>\n", outLevel, "",
+            curProp.name);
+    fprintf(outfile, "%*s<TotalGlobalMemory>%ld</TotalGlobalMemory>\n",
+            outLevel, "", curProp.totalGlobalMem);
+    fprintf(outfile, "%*s<SharedMemPerSM>%ld</SharedMemPerSM>\n",
+            outLevel, "", curProp.sharedMemPerBlock);
+    fprintf(outfile, "%*s<RegsPerBlock>%d</RegsPerBlock>\n",
+            outLevel, "", curProp.regsPerBlock);
+    fprintf(outfile, "%*s<WarpSize>%d</WarpSize>\n",
+            outLevel, "", curProp.warpSize);
+    fprintf(outfile, "%*s<MemPitch>%d</MemPitch>\n",
+            outLevel, "", curProp.memPitch);
+    fprintf(outfile, "%*s<MaxThreadsPerBlock>%d</MaxThreadsPerBlock>\n",
+            outLevel, "", curProp.maxThreadsPerBlock);
+    fprintf(outfile, "%*s<MaxThreadsPerDim>\n", outLevel++, "");
+    fprintf(outfile, "%*s<X>%d</X>\n", outLevel, "", curProp.maxThreadsDim[0]);
+    fprintf(outfile, "%*s<Y>%d</Y>\n", outLevel, "", curProp.maxThreadsDim[1]);
+    fprintf(outfile, "%*s<Z>%d</Z>\n", outLevel, "", curProp.maxThreadsDim[2]);
+    fprintf(outfile, "%*s</MaxThreadsPerDim>\n", --outLevel, "");
+    fprintf(outfile, "%*s<MaxGridSize>\n", outLevel++, "");
+    fprintf(outfile, "%*s<X>%d</X>\n", outLevel, "", curProp.maxGridSize[0]);
+    fprintf(outfile, "%*s<Y>%d</Y>\n", outLevel, "", curProp.maxGridSize[1]);
+    fprintf(outfile, "%*s<Z>%d</Z>\n", outLevel, "", curProp.maxGridSize[2]);
+    fprintf(outfile, "%*s</MaxGridSize>\n", --outLevel, "");
+    fprintf(outfile, "%*s<ClockRate>%f</ClockRate>\n",
+            outLevel, "", curProp.clockRate / 1024.0f / 1024.0f);
+    fprintf(outfile, "%*s<TotalConstMem>%d</TotalConstMem>\n",
+            outLevel, "", curProp.totalConstMem);
+    
+    // Print out the other data
+    if (gpus[i].numAccessiblePeers > 0) {
+      fprintf(outfile, "%*s<AccessiblePeers>\n", outLevel++, "");
+      for (j = 0; j < gpus[i].numAccessiblePeers; ++j) {
+        fprintf(outfile, "%*s<AccessiblePeer>%d</AccessiblePeer>\n",
+                outLevel, "", gpus[i].accessiblePeers[j]);
+      }
+      fprintf(outfile, "%*s</AccessiblePeers>\n", --outLevel, "");
+    }
+    fprintf(outfile, "%*s<GlobalMemspace>%d</GlobalMemspace>\n",
+            outLevel, "", gpus[i].globalMemspace);
+    fprintf(outfile,
+            "%*s<TheoreticalPeakGlobalBW>%f</TheoreticalPeakGlobalBW>\n",
+            outLevel, "", gpus[i].globalPeakBw);
+    
+    fprintf(outfile, "%*s</GPU>\n", --outLevel, "");
+  }
+  
+  // Print out Memspace info
+  for (i = 0; i < numDevices + GPUOFFSET; ++i) {
+    fprintf(outfile, "%*s<MemSpace>\n", outLevel++, "");
+    fprintf(outfile, "%*s<Id>%d</Id>\n", outLevel, "", memspaces[i].id);
+    fprintf(outfile, "%*s<Bytes>%ld</Bytes>\n", outLevel, "",
+            memspaces[i].bytes);
+    fprintf(outfile, "%*s</MemSpace>\n", --outLevel, "");
+  }
+  
+  // Print out Memory Transfer B/W info
+  for (i = 0; i < numBws; ++i) {
+    fprintf(outfile, "%*s<MemXferBW>\n", outLevel++, "");
+    fprintf(outfile, "%*s<SrcId>%d</SrcId>\n", outLevel, "", bws[i].srcId);
+    fprintf(outfile, "%*s<DstIds>\n", outLevel++, "");
+    for (j = 0; j < bws[i].numDsts; ++j) {
+      fprintf(outfile, "%*s<DstId>%d</DstId>\n", outLevel, "",
+              bws[i].dstIds[j]);
+    }
+    fprintf(outfile, "%*s</DstIds>\n", --outLevel, "");
+    fprintf(outfile, "%*s<BW>%f</BW>\n", outLevel, "", bws[i].bw);
+    fprintf(outfile, "%*s</MemXferBW>\n", --outLevel, "");
+  }
 
+  fprintf(outfile, "</Machine>\n");
+  fclose(outfile);
+
+  // Free memory and return
   free(ram_data);
   cudaFree(pinned_data);
   for (i = 0; i < numDevices; ++i) {

@@ -23,30 +23,70 @@ value *value_callback_of_int32 = NULL;
 value *value_callback_of_int64 = NULL;
 value *value_callback_of_float32 = NULL;
 value *value_callback_of_float64 = NULL;
+
+value *value_callback_to_bool = NULL;
+value *value_callback_to_char = NULL;
+value *value_callback_to_int32 = NULL;
+value *value_callback_to_int64 = NULL;
+value *value_callback_to_float64 = NULL;
+
 value *value_callback_is_scalar = NULL;
+value *value_callback_type_of = NULL;
+value *value_callback_get_shape = NULL;
+value *value_callback_get_strides = NULL;
+value *value_callback_extract = NULL;
+
+value *ptr_callback_addr = NULL;
+value *ptr_callback_size = NULL;
 
 /** Public interface **/
 
 int value_inited = 0;
 void value_init() {
-	if (value_inited == 0) {
-		value_inited = 1;
-		value_callback_of_bool = caml_named_value("value_of_bool");
-		value_callback_of_char = caml_named_value("value_of_char");
-		value_callback_of_int32 = caml_named_value("value_of_int32");
-		value_callback_of_int64 = caml_named_value("value_of_int64");
-		value_callback_of_float32 = caml_named_value("value_of_float32");
-		value_callback_of_float64 = caml_named_value("value_of_float64");
+  if (value_inited == 0) {
+    value_inited = 1;
+    value_callback_of_bool = caml_named_value("value_of_bool");
+    value_callback_of_char = caml_named_value("value_of_char");
+    value_callback_of_int32 = caml_named_value("value_of_int32");
+    value_callback_of_int64 = caml_named_value("value_of_int64");
+    value_callback_of_float32 = caml_named_value("value_of_float32");
+    value_callback_of_float64 = caml_named_value("value_of_float64");
 
-		value_callback_is_scalar = caml_named_value("value_is_scalar");
+    value_callback_to_bool = caml_named_value("value_to_bool");
+    value_callback_to_char = caml_named_value("value_to_char");
+    value_callback_to_int32 = caml_named_value("value_to_int32");
+    value_callback_to_int64 = caml_named_value("value_to_int64");
+    value_callback_to_float64 = caml_named_value("value_to_float64");
 
+    value_callback_is_scalar = caml_named_value("value_is_scalar");
+    value_callback_type_of = caml_named_value("value_type_of");
+    value_callback_get_shape = caml_named_value("value_get_shape");
+    value_callback_get_strides = caml_named_value("value_get_strides");
+    value_callback_extract = caml_named_value("value_extract");
 
-	}
+    ptr_callback_addr = caml_named_value("ptr_addr");
+    ptr_callback_size = caml_named_value("ptr_size");
+  }
 }
 
-bool value_is_scalar(host_val v) {
-	CAMLparam1(host_val);
-	return Int_val(caml_callback(*value_callback_is_scalar, v));
+int value_is_scalar(host_val v) {
+  CAMLparam1(v);
+  CAMLreturnT(int, Int_val(caml_callback(*value_callback_is_scalar, v)));
+}
+
+value value_type_of(host_val v) {
+  CAMLparam1(v);
+  CAMLreturn(caml_callback(*value_callback_type_of, v));
+}
+
+value value_get_shape(host_val v) {
+  CAMLparam1(v);
+  CAMLreturn(caml_callback(*value_callback_get_shape, v));
+}
+
+value value_get_strides(host_val v) {
+  CAMLparam1(v);
+  CAMLreturn(caml_callback(*value_callback_get_strides, v));
 }
 
 host_val mk_bool(int b) {
@@ -54,84 +94,51 @@ host_val mk_bool(int b) {
   CAMLlocal1(num);
   num = caml_callback(*value_callback_of_bool, Val_int(b));
   caml_register_global_root(&num);
-  CAMLreturn(num);
+  CAMLreturnT(host_val, num);
 }
-
 
 // TODO: Unclear whether this works
 host_val mk_char(char val) {
   CAMLparam0();
   CAMLlocal1(num);
-  num = caml_alloc(1, PQNUM_CHAR);
-  int i = (int)val;
-  Store_field(num, 0, copy_int32(i));
-  CAMLreturnT(host_val, build_ocaml_host_scalar(num));
-}
-
-host_val mk_uint16(unsigned val) {
-  CAMLparam0();
-  CAMLlocal1(num);
-  num = caml_alloc(1, PQNUM_UINT16);
-  Store_field(num, 0, copy_int32(val));
-  CAMLreturnT(host_val, build_ocaml_host_scalar(num));
-}
-
-host_val mk_int16(int val) {
-  CAMLparam0();
-  CAMLlocal1(num);
-  num = caml_alloc(1, PQNUM_INT16);
-  Store_field(num, 0, copy_int32(val));
-  CAMLreturnT(host_val, build_ocaml_host_scalar(num));
-}
-
-host_val mk_uint32(uint32_t val) {
-  CAMLparam0();
-  CAMLlocal1(num);
-  num = caml_alloc(1, PQNUM_UINT32);
-  Store_field(num, 0, copy_int32(val));
-  CAMLreturnT(host_val, build_ocaml_host_scalar(num));
+  num = caml_callback(*value_callback_of_char, Val_int(val));
+  caml_register_global_root(&num);
+  CAMLreturnT(host_val, num);
 }
 
 host_val mk_int32(int32_t val) {
   CAMLparam0();
   CAMLlocal1(num);
-  num = caml_alloc(1, PQNUM_INT32);
-  Store_field(num, 0, copy_int32(val));
-  CAMLreturnT(host_val, build_ocaml_host_scalar(num));
-}
-
-host_val mk_uint64(uint64_t val) {
-  CAMLparam0();
-  CAMLlocal1(num);
-  num = caml_alloc(1, PQNUM_UINT64);
-  Store_field(num, 0, copy_int64(val));
-  CAMLreturnT(host_val, build_ocaml_host_scalar(num));
+  num = caml_callback(*value_callback_of_int32, caml_copy_int32(val));
+  caml_register_global_root(&num);
+  CAMLreturnT(host_val, num);
 }
 
 host_val mk_int(int64_t val) {
   CAMLparam0();
   CAMLlocal1(num);
-  num = caml_alloc(1, PQNUM_INT64);
-  Store_field(num, 0, copy_int64(val));
-  CAMLreturnT(host_val, build_ocaml_host_scalar(num));
+  num = caml_callback(*value_callback_of_int64, copy_int64(val));
+  caml_register_global_root(&num);
+  CAMLreturnT(host_val, num);
 }
 
 host_val mk_float32(float val) {
   CAMLparam0();
   CAMLlocal1(num);
-  num = caml_alloc(1, PQNUM_FLOAT32);
-  Store_field(num, 0, copy_double(val));
-  CAMLreturnT(host_val, build_ocaml_host_scalar(num));
+  num = caml_callback(*value_callback_of_float32, copy_double(val));
+  caml_register_global_root(&num);
+  CAMLreturnT(host_val, num);
 }
 
 host_val mk_float64(double val) {
   CAMLparam0();
   CAMLlocal1(num);
-  num = caml_alloc(1, PQNUM_FLOAT64);
-  Store_field(num, 0, copy_double(val));
-  CAMLreturnT(host_val, build_ocaml_host_scalar(num));
+  num = caml_callback(*value_callback_of_float64, copy_double(val));
+  caml_register_global_root(&num);
+  CAMLreturnT(host_val, num);
 }
 
+/*
 host_val mk_inf(dyn_type t) {
   CAMLparam0();
   CAMLlocal2(num, ocaml_t);
@@ -149,9 +156,10 @@ host_val mk_neginf(dyn_type t) {
   Store_field(num, 0, ocaml_t);
   CAMLreturnT(host_val, build_ocaml_host_scalar(num));
 }
+*/
 
-host_val mk_host_array(char *data, dyn_type t, int *shape, int shape_len,
-                       int num_bytes) {
+host_val mk_host_array(char *data, array_type t, int *shape, int shape_len,
+                       int *strides, int stride_len, int num_bytes) {
   CAMLparam0();
   CAMLlocal5(ocaml_shape, ocaml_host_ptr, ocaml_num_bytes,
       ocaml_tuple, ocaml_host_val);
@@ -205,26 +213,18 @@ void free_host_val_data(host_val_data_t data) {
 
 int host_val_is_scalar(host_val val) {
   CAMLparam0();
-  CAMLlocal1(ocaml_host_val);
-
-  ocaml_host_val = (value)val;
-  int ret = Tag_val(ocaml_host_val) == HostScalar;
-
-  CAMLreturnT(int, ret);
+  CAMLreturnT(int, Int_val(caml_callback(*value_callback_is_scalar, val)));
 }
 
 /** Scalar Accessors **/
 
 int get_bool(host_val val) {
   CAMLparam0();
-  CAMLlocal1(ocaml_host_val);
-
-  ocaml_host_val = (value)val;
-
-  CAMLreturnT(int, (int)Bool_val(Field(Field(ocaml_host_val, 0), 0)));
+  CAMLreturnT(int, Int_val(caml_callback(*value_to_bool, val)));
 }
 
 /*
+ * TODO: Still don't know exactly what to do about chars.
 char get_char(host_val val);
   CAMLparam0();
   CAMLlocal1(ocaml_host_val);
@@ -235,62 +235,18 @@ char get_char(host_val val);
 }
 */
 
-/*
-uint16_t get_uint16(host_val val);
-  CAMLparam0();
-  CAMLlocal1(ocaml_host_val);
-
-  ocaml_host_val = (value)val;
-
-  CAMLreturnT(uint);
-}
-
-int16_t  get_int16(host_val val);
-  CAMLparam0();
-  CAMLlocal1(ocaml_host_val);
-
-  ocaml_host_val = (value)val;
-
-  CAMLreturnT();
-}
-*/
-
-uint32_t get_uint32(host_val val) {
-  CAMLparam0();
-  CAMLlocal1(ocaml_host_val);
-
-  ocaml_host_val = (value)val;
-
-  CAMLreturnT(uint32_t, Int32_val(Field(Field(ocaml_host_val, 0), 0)));
-}
-
 int32_t get_int32(host_val val) {
   CAMLparam0();
-  CAMLlocal1(ocaml_host_val);
-
-  ocaml_host_val = (value)val;
-
-  CAMLreturnT(int32_t, Int32_val(Field(Field(ocaml_host_val, 0), 0)));
-}
-
-uint64_t get_uint64(host_val val) {
-  CAMLparam0();
-  CAMLlocal1(ocaml_host_val);
-
-  ocaml_host_val = (value)val;
-
-  CAMLreturnT(uint64_t, Int64_val(Field(Field(ocaml_host_val, 0), 0)));
+  CAMLreturnT(int32_t, Int32_val(caml_callback(*value_to_int32, val)));
 }
 
 int64_t  get_int64(host_val val) {
   CAMLparam0();
-  CAMLlocal1(ocaml_host_val);
-
-  ocaml_host_val = (value)val;
-
-  CAMLreturnT(int64_t, Int64_val(Field(Field(ocaml_host_val, 0), 0)));
+  CAMLreturnT(int64_t, Int64_val(caml_callback(*value_to_int64, val)));
 }
 
+/*
+ * TODO: Why don't we support this yet?
 float get_float32(host_val val) {
   CAMLparam0();
   CAMLlocal1(ocaml_host_val);
@@ -299,14 +255,11 @@ float get_float32(host_val val) {
 
   CAMLreturnT(float, (float)Double_val(Field(Field(ocaml_host_val, 0), 0)));
 }
+*/
 
 double get_float64(host_val val) {
   CAMLparam0();
-  CAMLlocal1(ocaml_host_val);
-
-  ocaml_host_val = (value)val;
-
-  CAMLreturnT(double, Double_val(Field(Field(ocaml_host_val, 0), 0)));
+  CAMLreturnT(double, Double_val(caml_callback(*value_to_float64, val)));
 }
 
 /** Non-Scalar Accessors **/
@@ -341,6 +294,14 @@ host_val_data_t get_host_val_array_data(host_val val) {
   ret.num_bytes = Int_val(Field(ocaml_array, 3));
   
   CAMLreturnT(host_val_data_t, ret);
+}
+
+void* get_array_data(host_val array) {
+  CAMLparam0();
+  CAMLlocal1(ocaml_data);
+  
+  ocaml_data = Field(caml_callback(*value_callback_extract, array), 0);
+  CAMLreturnT(void*, Int64_val(caml_callback(*ptr_callback_addr, ocaml_data)));
 }
 
 /** Private members **/

@@ -19,9 +19,11 @@ void init();
 
 typedef struct host_val_data {
   void *data;
+  int  num_bytes;
   int  *shape;
   int  shape_len;
-  int  num_bytes;
+  int  *stride;
+  int  stride_len;
 } host_val_data_t;
 
 /** Scalar creation functions **/
@@ -32,30 +34,33 @@ host_val mk_int64(int64_t val);
 host_val mk_float32(float val);
 host_val mk_float64(double val);
 
+/*
 host_val mk_inf(dyn_type t);
 host_val mk_neginf(dyn_type t);
+*/
 
 /** Array creation function **/
-host_val mk_host_array(char *data, array_type t, int *shape, int shape_len, int num_bytes);
+host_val mk_host_array(char *data, array_type t,
+                       int *shape, int shape_len, int num_bytes);
 
-/** IMPORTANT: Must call to free OCaml host_val **/
+/** IMPORTANT: Must call to free on OCaml host_vals created **/
 void free_host_val(host_val val);
 void free_host_val_data(host_val_data_t data);
+
 int host_val_is_scalar(host_val val);
 
 /** Scalar accessor functions **/
 int      get_bool(host_val val);
-uint32_t get_uint32(host_val val);
 int32_t  get_int32(host_val val);
-uint64_t get_uint64(host_val val);
 int64_t  get_int64(host_val val);
-float    get_float32(host_val val);
+//float    get_float32(host_val val);
 double   get_float64(host_val val);
 
 /** Non-scalar accessor functions **/
 // Gives caller ownership of dyn_type's memory (must call free later)
 // Undefined behavior when called on non-array type
 array_type get_host_val_array_type(host_val val);
+void* get_array_data(host_val array);
 
 //host_val_data_t get_host_val_array_data(host_val val);
 

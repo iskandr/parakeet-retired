@@ -322,9 +322,9 @@ parakeet:
 	gcc -fPIC -c ast_stubs.c -I. $(INCLUDES) -o ast_stubs.o $(LIB)
 	gcc -fPIC -c type_stubs.c -I. $(INCLUDES) -o type_stubs.o $(LIB)
 	gcc -fPIC -c front_end_stubs.c -I. $(INCLUDES) -o front_end_stubs.o $(LIB)
-	gcc -fPIC -c host_val_stubs.c -I. $(INCLUDES) -o host_val_stubs.o $(LIB)
+	gcc -fPIC -c value_stubs.c -I. $(INCLUDES) -o value_stubs.o $(LIB)
 	gcc -fPIC -c parakeet.c -I. $(INCLUDES) -o parakeet.o $(LIB)
-	ar rcs parakeet.a host_stubs.o parakeet.o host_val_stubs.o \
+	ar rcs parakeet.a host_stubs.o parakeet.o value_stubs.o \
 		ast_stubs.o type_stubs.o front_end_stubs.o
 
 clean:

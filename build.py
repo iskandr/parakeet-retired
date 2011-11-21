@@ -73,7 +73,7 @@ build_command = ["ocamlbuild", "-lflags",
                  "-ccopt," + parakeet_path + "/FrontEnd/parakeet.a",
                  "-pp", "camlp4o", "-ppflag", "pa_macro.cmo",
                  "-ocamlyacc", "menhir", 
-                 "-use-ocamlfind"]
+                 ]
 
 # Handle debugging
 os.environ['dbg'] = '0'

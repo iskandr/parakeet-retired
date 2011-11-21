@@ -5,17 +5,22 @@
 #include <caml/mlvalues.h>
 
 #include "type_stubs.h"
-#include "variants.h"
 
 // PRIVATE
 
-int type_inited = 0;
+static int type_inited = 0;
 
-value *type_callback_elt_type = NULL;
-value *type_callback_rank = NULL;
-value *type_callback_mk_array = NULL;
-value *type_callback_is_scalar = NULL;
+static value *type_callback_elt_type = NULL;
+static value *type_callback_rank = NULL;
+static value *type_callback_mk_array = NULL;
+static value *type_callback_is_scalar = NULL;
 
+static value *type_callback_is_bool = NULL;
+static value *type_callback_is_char = NULL;
+static value *type_callback_is_int32 = NULL;
+static value *type_callback_is_int64 = NULL;
+static value *type_callback_is_float32 = NULL;
+static value *type_callback_is_float64 = NULL;
 
 // PUBLIC
 array_type parakeet_bool_t;
@@ -38,30 +43,36 @@ elt_type parakeet_float64_elt_t;
 
 void type_init() {
   if (type_inited == 0) {
-     type_inited = 1;
-     type_callback_elt_type = caml_named_value("elt_type");
-     type_callback_rank = caml_named_value("type_rank");
-     type_callback_mk_array = caml_named_value("mk_array");
-     type_callback_is_scalar = caml_named_value("type_is_scalar");
+    type_inited = 1;
+    type_callback_elt_type = caml_named_value("elt_type");
+    type_callback_rank = caml_named_value("type_rank");
+    type_callback_mk_array = caml_named_value("mk_array");
+    type_callback_is_scalar = caml_named_value("type_is_scalar");
 
-     parakeet_bool_t = *caml_named_value("bool_t");
-     parakeet_bool_elt_t = *caml_named_value("bool_elt_t");
+    parakeet_bool_t = *caml_named_value("bool_t");
+    parakeet_bool_elt_t = *caml_named_value("bool_elt_t");
+    type_callback_is_bool = caml_named_value("type_is_bool");
 
-     parakeet_char_t = *caml_named_value("char_t");
-     parakeet_char_elt_t = *caml_named_value("char_elt_t");
+    parakeet_char_t = *caml_named_value("char_t");
+    parakeet_char_elt_t = *caml_named_value("char_elt_t");
+    type_callback_is_char = caml_named_value("type_is_char");
 
-     parakeet_int32_t = *caml_named_value("int32_t");
-     parakeet_int32_elt_t = *caml_named_value("int32_elt_t");
+    parakeet_int32_t = *caml_named_value("int32_t");
+    parakeet_int32_elt_t = *caml_named_value("int32_elt_t");
+    type_callback_is_int32 = caml_named_value("type_is_int32");
 
-     parakeet_int64_t = *caml_named_value("int64_t");
-     parakeet_int64_elt_t = *caml_named_value("int64_elt_t");
+    parakeet_int64_t = *caml_named_value("int64_t");
+    parakeet_int64_elt_t = *caml_named_value("int64_elt_t");
+    type_callback_is_int64 = caml_named_value("type_is_int64");
 
-     parakeet_float32_t = *caml_named_value("float32_t");
-     parakeet_float32_elt_t = *caml_named_value("float32_elt_t");
+    parakeet_float32_t = *caml_named_value("float32_t");
+    parakeet_float32_elt_t = *caml_named_value("float32_elt_t");
+    type_callback_is_float32 = caml_named_value("type_is_float32");
 
-     parakeet_float64_t = *caml_named_value("float64_t");
-     parakeet_float64_elt_t = *caml_named_value("float64_elt_t");
-   }
+    parakeet_float64_t = *caml_named_value("float64_t");
+    parakeet_float64_elt_t = *caml_named_value("float64_elt_t");
+    type_callback_is_float64 = caml_named_value("type_is_float64");
+  }
 }
 
 /** Public interface **/
@@ -81,19 +92,46 @@ void free_type(array_type t) {
 }
 
 int get_type_rank(array_type t) {
-  return Int_val(caml_callback(*type_callback_rank, t));
+  CAMLparam1(t);
+  CAMLreturnT(int, Int_val(caml_callback(*type_callback_rank, t)));
 }
-
 
 elt_type get_type_element_type(array_type t) {
   CAMLparam1(t);
-  CAMLreturn(caml_callback(*type_callback_elt_type, t));
+  CAMLreturnT(elt_type, caml_callback(*type_callback_elt_type, t));
 }
 
 int type_is_scalar(array_type t) {
-  CAMLparam0();
-  CAMLlocal1(b);
-  b = caml_callback(*type_callback_is_scalar, t);
-  CAMLreturnT(int, Int_val(b));
+  CAMLparam1(t);
+  CAMLreturnT(int, Bool_val(caml_callback(*type_callback_is_scalar, t)));
 }
 
+int type_is_bool(elt_type t) {
+  CAMLparam1(t);
+  CAMLreturnT(int, Bool_val(caml_callback(*type_callback_is_bool, t)));
+}
+
+int type_is_char(elt_type t) {
+  CAMLparam1(t);
+  CAMLreturnT(int, Bool_val(caml_callback(*type_callback_is_char, t)));
+}
+
+int type_is_int32(elt_type t) {
+  CAMLparam1(t);
+  CAMLreturnT(int, Bool_val(caml_callback(*type_callback_is_int32, t)));
+}
+
+int type_is_int64(elt_type t) {
+  CAMLparam1(t);
+  CAMLreturnT(int, Bool_val(caml_callback(*type_callback_is_int64, t)));
+}
+
+int type_is_float32(elt_type t) {
+  CAMLparam1(t);
+  CAMLreturnT(int, Bool_val(caml_callback(*type_callback_is_float32, t)));
+}
+
+int type_is_float64(elt_type t) {
+  CAMLparam1(t);
+  CAMLreturnT(int, Bool_val(caml_callback(*type_callback_is_float64, t)));
+}

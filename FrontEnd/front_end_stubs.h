@@ -11,19 +11,21 @@
 #define _FRONT_END_STUBS_H_
 
 #include "ast_stubs.h"
+#include "type_stubs.h"
 #include "value_stubs.h"
 
 typedef enum {
   RET_SUCCESS = 0,
-  RET_PASS,
-  RET_FAIL
+  RET_FAIL,
+  RET_PASS
 } return_code_t;
 
 typedef struct return_val {
   return_code_t return_code;
   int results_len;
-  dyn_type *ret_types;
+  array_type *ret_types;
   int **shapes;
+  int **strides;
   union {
     char *error_msg;
     void **results;
