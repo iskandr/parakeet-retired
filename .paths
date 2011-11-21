@@ -23,7 +23,6 @@ Q
 Python
 Ptx
 Imp
-Imp/KernelTemplates
 FrontEnd
 Dump
 CostModel
@@ -74,3 +73,5 @@ Runtime/LLVM
 _build/Runtime/LLVM
 _build/Imp
 _build/ShapeInference
+Imp/Old
+Imp/Old/KernelTemplates
