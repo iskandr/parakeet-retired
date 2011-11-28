@@ -27,4 +27,4 @@ val set_bool : Int64.t -> int -> bool -> unit
 
 val id : MemId.t 
 
-	  
+val mk_host_ptr : Int64.t -> int -> DataId.t

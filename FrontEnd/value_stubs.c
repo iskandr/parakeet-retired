@@ -32,8 +32,12 @@ value *value_callback_to_float64 = NULL;
 value *value_callback_mk_array = NULL;
 value *value_callback_is_scalar = NULL;
 value *value_callback_type_of = NULL;
+
+/*
 value *value_callback_get_shape = NULL;
 value *value_callback_get_strides = NULL;
+*/
+
 value *value_callback_extract = NULL;
 
 value *host_memspace_callback_mk_host_ptr = NULL;
@@ -62,8 +66,12 @@ void value_init() {
     value_callback_mk_array = caml_named_value("value_array");
     value_callback_is_scalar = caml_named_value("value_is_scalar");
     value_callback_type_of = caml_named_value("value_type_of");
+    
+    /*
     value_callback_get_shape = caml_named_value("value_get_shape");
     value_callback_get_strides = caml_named_value("value_get_strides");
+    */
+
     value_callback_extract = caml_named_value("value_extract");
 
     host_memspace_callback_mk_host_ptr = caml_named_value("mk_host_ptr");
@@ -82,6 +90,7 @@ value value_type_of(host_val v) {
   CAMLreturn(caml_callback(*value_callback_type_of, v));
 }
 
+/*
 value value_get_shape(host_val v) {
   CAMLparam1(v);
   CAMLreturn(caml_callback(*value_callback_get_shape, v));
@@ -91,6 +100,7 @@ value value_get_strides(host_val v) {
   CAMLparam1(v);
   CAMLreturn(caml_callback(*value_callback_get_strides, v));
 }
+*/
 
 host_val mk_bool(int b) {
   CAMLparam0();

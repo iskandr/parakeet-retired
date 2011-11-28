@@ -98,8 +98,10 @@ let mk_array (data:'a) (elt_t:Type.elt_t) (shape:Shape.t) (strides:int array) =
 
 let is_scalar x = Type.is_scalar (type_of x)
 
+(*
 let get_shape {array_shape} = array_shape
 let get_strides {array_strides} = array_strides
+*)
 
 let rec extract = function
 	| Rotate (x, _, _)
