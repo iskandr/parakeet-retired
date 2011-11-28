@@ -34,12 +34,11 @@ let raw_alloc n : Int64.t =
 
 let memspace_id = MemId.register "gpu"
 
-
 class ptr addr = object
   method free = cuda_free addr 
   method addr = addr  
  
-  method memspace_id =  memspace_id
+  method memspace_id = memspace_id
   
   method get_bool : int -> bool
   method get_char : int -> char
@@ -47,8 +46,6 @@ class ptr addr = object
   method get_int64 : int -> Int64.t 
   method get_float32 : int -> float
   method get_float64 : int -> float
-end 
-  
 end
 
 (* create pointer object and cast to pointer base type *) 

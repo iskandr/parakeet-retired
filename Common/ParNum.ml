@@ -9,8 +9,7 @@ type t =
   | Float32 of float
   | Float64 of float
   | Inf of Type.elt_t
-  | NegInf of Type.elt_t 
-
+  | NegInf of Type.elt_t
 
 let is_bool = function Bool _ -> true | _ -> false
 let is_char = function Char _ -> true | _ -> false
@@ -38,16 +37,15 @@ let to_str = function
   | NegInf t -> Printf.sprintf "-inf : %s" (Type.elt_to_str t)  
 
 let type_of = function 
-  | Int16 _ -> Type.Int16T  
+  | Int16 _ -> Type.Int16T
   | Int32 _ -> Type.Int32T
-  | Int64 _ -> Type.Int64T  
+  | Int64 _ -> Type.Int64T
 	| Float32 _ -> Type.Float32T
-  | Float64 _ -> Type.Float64T 
+  | Float64 _ -> Type.Float64T
 	| Bool _ -> Type.BoolT
-  | Char _ -> Type.CharT 
+  | Char _ -> Type.CharT
   | Inf t
-  | NegInf t -> t 
-
+  | NegInf t -> t
 
 let coerce_bool b t =
   let code = if b then 1 else 0 in match t with  
@@ -85,8 +83,7 @@ let coerce_int i = function
   (*| t -> failwith $ Printf.sprintf 
          "coercion from int to %s not implemented"
          (Type.elt_to_str t)
-  *)
-        
+  *) 
 
 let coerce_int32 i = function 
   | Type.Int32T -> Int32 i
@@ -140,7 +137,6 @@ let coerce_float f = function
   | t -> failwith $ Printf.sprintf  
            "coercion from float to %s not implemented" 
            (Type.elt_to_str t)
-
          
 let coerce n t =
   match n with 
@@ -154,14 +150,12 @@ let coerce n t =
     | Inf _ -> Inf t 
     | NegInf _ -> NegInf t  
 
-
-
-let of_bool b = Bool b  
-let of_char c = Char c  
+let of_bool b = Bool b
+let of_char c = Char c
 let of_int i = coerce_int i Type.Int32T
-let of_int32 i32 = Int32 i32 
-let of_int64 i64 = Int64 i64 
-let of_float32 f = Float32 f 
+let of_int32 i32 = Int32 i32
+let of_int64 i64 = Int64 i64
+let of_float32 f = Float32 f
 let of_float f = Float64 f
 
 let to_bool = function 
@@ -175,7 +169,6 @@ let to_char = function
   | Char c -> c
   | Int16 i -> Char.chr i 
   | _ -> assert false 
-
 
 let to_int = function
   | Int16 i -> i 
@@ -204,7 +197,6 @@ let to_int64 = function
   | Float32 f 
   | Float64 f -> Int64.of_float f 
   | other -> Int64.of_int32 (to_int32 other)
-
 
 let to_float = function 
   | Int32 i -> Int32.to_float i

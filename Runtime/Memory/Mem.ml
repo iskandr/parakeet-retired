@@ -2,7 +2,6 @@
 open Base
 open Ptr 
 
-
 let fresh_memspace_id : (unit -> int) = mk_gen ()
 
 let hash_size = 127 
@@ -21,25 +20,23 @@ let registered = ref []
 
 let all_memspace_ids () = !registered
 
-let register name fns = 
+let register name fns =
     let id = MemId.register name in
-    registered := id ::!registered;  
+    registered := id ::!registered;
     Hashtbl.add memspace_fns id fns;
     Hashtbl.add gc_states id (GcState.create());
-    id   
+    id
 
-let trace_free_ptrs memspace_id  =
+let trace_free_ptrs memspace_id =
     let gc_state = get_gc_state memspace_id in
     let pinned : Int64.Set.t = GcState.pinned_addr_set gc_state in
     let active_set = Int64.Set.union  (Env.active_addr_set memspace_id) pinned in
     GcState.filter_used_ptrs gc_state (fun p -> Int64.Set.mem p.addr active_set)  
     
-let delete_free_ptrs memspace_id  =
+let delete_free_ptrs memspace_id =
   let gc_state = get_gc_state memspace_id in
   GcState.iter_free_ptrs gc_state (fun p -> p.fns.delete p.addr);
-  GcState.clear_free_ptrs gc_state 
-
-
+  GcState.clear_free_ptrs gc_state
 
 (* don't try to reuse space, really allocate new pointer *)  
 let direct_alloc memspace_id nbytes : Ptr.t option = 

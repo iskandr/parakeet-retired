@@ -1,4 +1,4 @@
-
+open Ptr
 
 external c_malloc_impl : int -> Int64.t = "ocaml_malloc"
 
@@ -35,9 +35,8 @@ external set_float64 : Int64.t -> int -> float -> unit = "ocaml_set_double"
 external get_char : Int64.t -> int -> char = "ocaml_get_char"
 external set_char : Int64.t -> int -> char -> unit = "ocaml_set_char"
 
-let get_bool p offset  = Char.code (get_char p offset) > 0  
-let set_bool p offset b = set_char p offset (Char.chr (if b then 1 else 0)) 
-
+let get_bool p offset  = Char.code (get_char p offset) > 0
+let set_bool p offset b = set_char p offset (Char.chr (if b then 1 else 0))
  
 let fns : Ptr.raw_fns = { 
     Ptr.alloc = malloc;  
@@ -51,3 +50,6 @@ let fns : Ptr.raw_fns = {
 }
 
 let id = Mem.register "host" fns  
+
+let mk_host_ptr ptr size =
+  DataManager.register_ptr {addr=ptr; size=size; memspace=id; fns=fns}

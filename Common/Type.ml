@@ -11,57 +11,55 @@ type elt_t =
   | Float64T 
 
 type t  =
-  | ScalarT of elt_t 
+  | ScalarT of elt_t
   | ArrayT of elt_t * int
   | BottomT (* bottom of type lattice for vars whose type is not determined *)
   | AnyT (* top of type lattice, for variables whose type is overdetermined *)
- 
+
 let bool = ScalarT BoolT
 let char = ScalarT CharT
-let int16 = ScalarT Int16T 
-let int32 = ScalarT Int32T 
-let int64 = ScalarT Int64T 
+let int16 = ScalarT Int16T
+let int32 = ScalarT Int32T
+let int64 = ScalarT Int64T
 let float32 = ScalarT Float32T
-let float64 = ScalarT Float64T 
+let float64 = ScalarT Float64T
 
-let is_int16 = function ScalarT Int16T -> true | _ -> false  
-let is_int32 =  function ScalarT Int32T -> true | _ -> false
-let is_int64 =  function ScalarT Int64T -> true | _ -> false
-let is_float32 =  function ScalarT Float32T -> true | _ -> false
-let is_float64 =  function ScalarT Float64T -> true | _ -> false
-let is_char =  function ScalarT CharT -> true | _ -> false
-let is_bool =  function ScalarT BoolT -> true | _ -> false
+let is_int16 = function ScalarT Int16T -> true | _ -> false
+let is_int32 = function ScalarT Int32T -> true | _ -> false
+let is_int64 = function ScalarT Int64T -> true | _ -> false
+let is_float32 = function ScalarT Float32T -> true | _ -> false
+let is_float64 = function ScalarT Float64T -> true | _ -> false
+let is_char = function ScalarT CharT -> true | _ -> false
+let is_bool = function ScalarT BoolT -> true | _ -> false
 
-
-let elt_is_int = function 
-  | BoolT 
-  | CharT 
+let elt_is_int = function
+  | BoolT
+  | CharT
   | Int16T
-  | Int32T 
-  | Int64T -> true  
+  | Int32T
+  | Int64T -> true
   | _ -> false
 
-let elt_is_float = function 
+let elt_is_float = function
   | Float32T
   | Float64T -> true
-  | _ -> false  
+  | _ -> false
 
 let elt_is_number t = elt_is_int t || elt_is_float t
 
-let is_int = function 
-  | ScalarT t -> elt_is_int t 
-  | _ -> false 
+let is_int = function
+  | ScalarT t -> elt_is_int t
+  | _ -> false
 
-let is_float = function 
-  | ScalarT t -> elt_is_float t 
-  | _ -> false 
-
+let is_float = function
+  | ScalarT t -> elt_is_float t
+  | _ -> false
 
 let is_number t = is_int t || is_float t
 
-let is_scalar = function 
+let is_scalar = function
   | ScalarT _ -> true
-  | _ -> false  
+  | _ -> false
 
 let is_compound t = not (is_scalar t)
 
@@ -70,17 +68,15 @@ let is_array = function
     | _ -> false
  
 let is_num_or_array = function
-  | ScalarT _ 
+  | ScalarT _
   | ArrayT _  -> true
-  | _ -> false 
-  
+  | _ -> false
+
 let is_numarray = function
     |  ArrayT (t, _) when elt_is_number t -> true
     | _ -> false
 
-
-
-let elt_to_str = function 
+let elt_to_str = function
   | BoolT -> "bool"
   | CharT -> "char"
   | Int16T -> "int16"
@@ -88,24 +84,23 @@ let elt_to_str = function
   | Int64T -> "int64"
   | Float32T -> "float32"
   | Float64T -> "float64"
-   
-let to_str = function 
+
+let to_str = function
   | BottomT -> "bottom"
   | AnyT -> "any"
   | ScalarT t -> (elt_to_str t)
   | ArrayT (eltT, d) -> (string_of_int d) ^ "D array of " ^ (elt_to_str eltT)
- 
+
 let type_list_to_str ts = String.concat ", " (List.map to_str ts)
 let type_array_to_str ts = type_list_to_str (Array.to_list ts)
  
-
 let sizeof = function
   | CharT
   | BoolT -> 1
-  | Int16T -> 2  
-  | Int32T 
+  | Int16T -> 2
+  | Int32T
   | Float32T -> 4
-  | Int64T 
+  | Int64T
   | Float64T -> 8
 
 let mk_array_type elt_t rank = ArrayT(elt_t, rank)
@@ -120,25 +115,24 @@ let rec fill_elt_type t e = match t with
   | ScalarT _ -> ScalarT e 
   | other -> other   
 
-
 (* reduce the dimensionality of an array by 1 *)  
 (* TODO: ACTUALLY USE AXES! *) 
-let peel ?(num_axes=1) = function 
-  | ArrayT(eltT, d) -> 
-        if d <= num_axes then ScalarT eltT 
-        else ArrayT(eltT, d-num_axes)  
-  | ScalarT t -> ScalarT t  
+let peel ?(num_axes=1) = function
+  | ArrayT(eltT, d) ->
+        if d <= num_axes then ScalarT eltT
+        else ArrayT(eltT, d-num_axes)
+  | ScalarT t -> ScalarT t
   | t -> failwith
-     (Printf.sprintf 
+     (Printf.sprintf
         "[peel] expected array or scalar, got : %s"
         (to_str t)
      )
 
 let is_scalar_subtype s1 s2 =
-    (s1 = s2) ||   
-    (sizeof s1 < sizeof s2)  || 
+    (s1 = s2) ||
+    (sizeof s1 < sizeof s2) || 
     (elt_is_int s1 && elt_is_float s2) 
-   
+
 (* how deep is the nesting of vectors in a given type *)
 let rank = function
   | ArrayT (_, d) -> d
@@ -191,17 +185,14 @@ let common_type t1 t2  =
     | _ -> AnyT   
     
 let combine_type_array arr =
-  if Array.length arr < 1 then AnyT 
-  else 
+  if Array.length arr < 1 then AnyT
+  else
      let base_t = arr.(0) in
      Array.fold_left common_type base_t arr
 
 let combine_type_list = function
   | [] -> AnyT 
   | t::ts -> List.fold_left common_type t ts
-
-
-
 
 let replace_elt_type t s = match t with  
   | ArrayT (_, d) -> ArrayT(s,d)
@@ -222,8 +213,7 @@ let maximal_type types =
       let r = rank t in
       if r >= highestRank then aux r t ts 
       else aux highestRank currT ts 
-  in aux 0 BottomT types  
-  
+  in aux 0 BottomT types
 
 (* only peel types of maximal depth *)           
 let rec peel_maximal types = 
@@ -232,4 +222,4 @@ let rec peel_maximal types =
   List.map2 
     (fun t depth -> if depth = maxDepth then peel t else t)   
     types 
-    ranks   
+    ranks

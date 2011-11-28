@@ -21,18 +21,17 @@ let register_ptr (p:Ptr.t) : DataId.t =
     Hashtbl.add table dataId p; 
     dataId 
 
-		
 let id_to_ptr_option dataId memId = 
-		let table = get_memspace_table memId in
-		Hashtbl.find_option table dataId 
+    let table = get_memspace_table memId in
+    Hashtbl.find_option table dataId 
 		
 let id_on_memspace dataId memId = 
-		let table = get_memspace_table memId in
-		Hashtbl.mem table dataId 
+    let table = get_memspace_table memId in
+    Hashtbl.mem table dataId 
 		
 let id_to_ptr dataId memId =  
-		let table = get_memspace_table memId in
-		Hashtbl.find table dataId 
+    let table = get_memspace_table memId in
+    Hashtbl.find table dataId 
 
 let from_memspace (v : Ptr.t Value.t) = 
     Value.map register_ptr v 
@@ -45,4 +44,3 @@ let to_memspace memId v =
         | None -> failwith $ "Could not find data id: " ^ DataId.to_str dataId
     in 
     Value.map lookup v 
-  

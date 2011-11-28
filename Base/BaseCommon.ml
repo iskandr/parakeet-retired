@@ -40,5 +40,3 @@ end
 
 let safe_div n d =
   (n + d - 1) / d
-    
-

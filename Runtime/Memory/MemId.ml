@@ -39,6 +39,6 @@ let find_id name = match Hashtbl.find_option rev_names name with
     | Some id -> id  
 
 type outer_t = t (* stupid OCaml cyclic type definitions *) 
-module Map  = Map.Make(struct type t = outer_t let compare = compare end)  
+module Map = Map.Make(struct type t = outer_t let compare = compare end)  
 
  

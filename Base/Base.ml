@@ -42,9 +42,7 @@ module Int64 = struct
     let of_bool b = if b then Int64.one else Int64.zero
     let to_bool i = (i > Int64.zero)
     
-    let of_char c = of_int $ Char.code c 
-    
-    
+    let of_char c = of_int $ Char.code c
 end
 
 
@@ -61,7 +59,6 @@ module String = struct
     else s 
 end
 
-
 module Array = BaseArray 
   
 module Hashtbl = struct 
@@ -75,8 +72,7 @@ module Hashtbl = struct
       let find hash x = 
         try find hash x  with _ -> raise (KeyNotFound (dump x))
     ENDIF
-    
-    
+
     let of_list pairs = 
         let hash  = Hashtbl.create (List.length pairs) in 
         let iter_fn (a,b) = Hashtbl.add hash a b in 
@@ -90,6 +86,3 @@ module Hashtbl = struct
       Hashtbl.iter (add h3) h2; 
       h3               
 end 
-
-
-
