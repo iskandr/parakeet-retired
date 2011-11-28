@@ -34,14 +34,11 @@ host_val mk_int64(int64_t val);
 host_val mk_float32(float val);
 host_val mk_float64(double val);
 
-/*
-host_val mk_inf(dyn_type t);
-host_val mk_neginf(dyn_type t);
-*/
-
 /** Array creation function **/
-host_val mk_host_array(char *data, array_type t,
-                       int *shape, int shape_len, int num_bytes);
+host_val mk_host_array(char *data, elt_type t,
+                       int *shape, int shape_len,
+                       int *strides, int strides_len,
+                       int num_bytes);
 
 /** IMPORTANT: Must call to free on OCaml host_vals created **/
 void free_host_val(host_val val);
@@ -65,4 +62,3 @@ void* get_array_data(host_val array);
 //host_val_data_t get_host_val_array_data(host_val val);
 
 #endif
-

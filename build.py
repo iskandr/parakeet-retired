@@ -17,7 +17,7 @@ parser.add_option('-t', '--tests', action='store_true',
 parser.add_option('-c', '--clean', action='store_true',
                     help='Clean tree and exit')
 
-(opts, args ) = parser.parse_args()
+(opts, args) = parser.parse_args()
 opts = opts.__dict__
 print ""
 print "==================================================="

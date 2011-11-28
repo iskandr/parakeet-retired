@@ -25,6 +25,9 @@ PARAKEET_INCLUDES = -I $(BUILDPATH) \
   -I $(BUILDPATH)/ShapeInference \
 	-I $(BUILDPATH)/CostModel \
 	-I $(BUILDPATH)/Runtime \
+  -I $(BUILDPATH)/Runtime/Cuda \
+  -I $(BUILDPATH)/Runtime/LLVM \
+  -I $(BUILDPATH)/Runtime/Memory \
   -I $(BUILDPATH)/FrontEnd
 OCAMLINCLUDES := $(LIB_INCLUDES) $(PARAKEET_INCLUDES)
 
