@@ -7,14 +7,32 @@ open Base
 type cuda_info = ThreadIdx | BlockIdx | BlockDim | GridDim   
 type coord = X | Y | Z
 
+type array_field = 
+  | RangeStart
+  | RangeStop
+  | ShiftData
+  | ShiftAmt
+  | ShiftDim
+  | ShiftDefault
+  | RotData
+  | RotDim
+  | RotAmt
+  | SliceDim
+  | SliceStart
+  | SliceStop
+  | FrozenDim
+  | FrozenIdx
+ 
 type exp = 
   | Var of ID.t
-	| Const of ParNum.t
-  | Idx of exp_node * exp_node list
+  | Const of ParNum.t
   | Op of  Type.elt_t * Prim.scalar_op * exp_node list
   | Select of ImpType.t * exp_node * exp_node * exp_node
   | Cast of ImpType.t * exp_node
-  | DimSize of exp_node * exp_node
+  | Idx of exp_node * exp_node list
+  | DimSize of exp_node * exp_node 
+  | FreezeDim of exp_node * exp_node * exp_node 
+  | ArrayField of array_field * exp_node
   | CudaInfo of cuda_info * coord
 
 and exp_node = {
@@ -30,50 +48,45 @@ type stmt =
   | SyncThreads
   | Comment of string
   (* used to plug one function into another, shouldn't exist in final code *) 
-  | SPLICE 
+  (*
+  | SPLICE
+  *) 
 and block = stmt list
    
-type array_storage = 
+type storage = 
   | Global
   | Private
   | Shared
-  | Slice
+  | Alias
 
 type symbolic_shape = exp_node list 
 
-type var_info = { 
-	var_type : ImpType.t; 
-	array_storage : array_storage option;
-	symbolic_shape : symbolic_shape;  
-} 
-
 type fn = {
-	input_ids : ID.t list;
+  input_ids : ID.t list;
   output_ids : ID.t list; 
-  local_ids : ID.t list;  
-  var_info : var_info ID.Map.t; 
-	body : block;
+  local_ids : ID.t list; 
+  
+  storage : storage ID.Map.t;
+  types : ImpType.t ID.Map.t;
+  shapes : exp list ID.Map.t;
+  
+  body : block;
 }
-
 let get_var_type (fn:fn) (id:ID.t) = 
-	match ID.Map.find_option id fn.var_info with 
+	match ID.Map.find_option id fn.types with 
 		| None -> failwith $ "[Imp->get_var_type] Variable " ^ (ID.to_str id) ^ "doesn't exist"
-		| Some {var_type} -> var_type 
+		| Some var_type -> var_type 
 
 let get_var_storage (fn:fn) (id:ID.t) =
-	match ID.Map.find_option id fn.var_info with 
+	match ID.Map.find_option id fn.storage with 
 		| None -> failwith $ "[Imp->get_var_storage] Variable " ^ (ID.to_str id) ^ "doesn't exist"
-		| Some {array_storage=None} -> 
-				failwith $ "[Imp->get_var_storage] Variable " ^ (ID.to_str id) ^ "has no array storage"
-		| Some {array_storage=Some storage} -> storage
+		| Some storage -> storage
 
 let get_var_shape (fn:fn) (id:ID.t) = 
-	match ID.Map.find_option id fn.var_info with 
+	match ID.Map.find_option id fn.shapes  with 
 		| None -> failwith $ "[Imp->get_var_shape] Variable " ^ (ID.to_str id) ^ "doesn't exist"
-		| Some {symbolic_shape} -> symbolic_shape
+		| Some symbolic_shape -> symbolic_shape
 	 
-
-
 (* PRETTY PRINTING *) 
 open Printf 
 
@@ -163,7 +176,7 @@ and array_storage_to_str = function
   | Global -> "global"
   | Private -> "private"
   | Shared -> "shared"
-  | Slice -> "slice"
+  | Alias -> "alias"
  
 	
 let fn_to_str fn =

@@ -14,7 +14,7 @@ module CompilerInternals = struct
         | Value_integer of int
         | Value_constptr of int 
 
-    type unit_infos =
+    type cmx_unit_info =
     { 
       mutable ui_name: string;              (* Name of unit implemented *)
       mutable ui_symbol: string;            (* Prefix for symbols *)
@@ -37,17 +37,81 @@ module CompilerInternals = struct
                 close_in ic;
                 failwith "bad cmx file format"
             end;
-            let ui = (input_value ic : unit_infos) in
+            let ui = (input_value ic : cmx_unit_info) in
             close_in ic;
             ui
         with End_of_file | Failure _ ->
             close_in ic;
             failwith "error reading file"
+            
+    let cmo_magic_number = "Caml1999O007"
+                            
+   type ident = { stamp: int; name: string; mutable flags: int }
+    type constant = Const_int of int
+    | Const_char of char
+    | Const_string of string
+    | Const_float of string
+    | Const_int32 of int32
+    | Const_int64 of int64
+    | Const_nativeint of nativeint
+  
+    type structured_constant = Const_base of constant
+    | Const_pointer of int
+    | Const_block of int * structured_constant list
+    | Const_float_array of string list
+    | Const_immstring of string
+
+
+    type reloc_info = Reloc_literal of structured_constant    (* structured constant *)
+    | Reloc_getglobal of ident              (* reference to a global *)
+    | Reloc_setglobal of ident              (* definition of a global *)
+    | Reloc_primitive of string               (* C primitive number *)
+ 
+    
+(* Descriptor for compilation units *)
+
+    type cmo_unit_info = { 
+      cu_name: string;                    (* Name of compilation unit *)
+      mutable cu_pos: int;                (* Absolute position in file *)
+      cu_codesize: int;                   (* Size of code block *)
+      cu_reloc: (reloc_info * int) list;  (* Relocation information *)
+      cu_imports: (string * Digest.t) list; (* Names and CRC of intfs imported *)
+      cu_primitives: string list;         (* Primitives declared inside *)
+      mutable cu_force_link: bool;        (* Must be linked even if unref'ed *)
+      mutable cu_debug: int;              (* Position of debugging info, or 0 *)
+      cu_debugsize: int }                 (* Length of debugging info *)
+                                                
+    let read_cmo filename = 
+        let ic = open_in_bin filename in
+        try
+            let buffer = String.create (String.length cmo_magic_number) in
+            really_input ic buffer 0 (String.length cmo_magic_number);
+            if buffer <> cmo_magic_number then begin
+                close_in ic;
+                failwith ("bad cmo file format, magic number = " ^ buffer)
+                 
+            end;
+            Printf.printf "Preparing to seek...\n";
+            let compunit_pos = input_binary_int ic in  (* Go to descriptor *)
+            Printf.printf "Seeking to %d\n" compunit_pos; 
+            seek_in ic compunit_pos;
+            let ui = (input_value ic : cmo_unit_info) in
+            close_in ic;
+            ui
+        with 
+          | End_of_file -> 
+            close_in ic; 
+            failwith "unexpected end of file"
+          
+          | Failure msg ->
+            close_in ic;
+            failwith ("error reading file" ^ filename ^ ": " ^ msg)
+     
 end
 
-type cmx_info = { filename: string; module_name: string; imports: string list }
+type module_info = { filename: string; module_name: string; imports: string list }
 
-let cmx_info_to_str info : string = 
+let module_info_to_str info : string = 
   Printf.sprintf "%s (%s)" 
     info.module_name
     (String.concat ", " info.imports)
@@ -59,6 +123,18 @@ let get_cmx_info filename =
     module_name  = info.CompilerInternals.ui_name;
     imports = List.map fst info.CompilerInternals.ui_imports_cmx;
   }
+  
+let get_cmo_info filename = 
+  let info = CompilerInternals.read_cmo filename in 
+  { 
+    filename = filename; 
+    module_name  = info.CompilerInternals.cu_name;
+    imports = List.map fst info.CompilerInternals.cu_imports;
+  }
+  
+let get_module_info filename = 
+  if Filename.check_suffix filename "cmo" then get_cmo_info filename 
+  else get_cmx_info filename 
 
 let check_dir name = 
     try Sys.is_directory name 
@@ -74,8 +150,8 @@ let dir_contents dirName =
   Array.to_list 
     (Array.map (fun basename -> Filename.concat dirName basename) files)
 
-let topsort cmxInfoList : string list =
-  let moduleNames = List.map (fun info -> info.module_name) cmxInfoList in
+let topsort moduleInfoList : string list =
+  let moduleNames = List.map (fun info -> info.module_name) moduleInfoList in
   let moduleSet = set_from_list moduleNames in
   (* make moduleNames list unique*) 
   (* initialize dependency graph and ready queue *) 
@@ -103,7 +179,7 @@ let topsort cmxInfoList : string list =
     else 
       List.iter (fun pred -> add_edge pred info.module_name) imports
   in 
-  List.iter insert_module cmxInfoList;
+  List.iter insert_module moduleInfoList;
   
   let remove_module (name : string) =
     sorted := name :: !sorted;  
@@ -120,10 +196,6 @@ let topsort cmxInfoList : string list =
   done;
   List.rev !sorted 
     
-let is_native_module name =  
-   (Filename.check_suffix name "cmx") && 
-   (Filename.basename name <> "myocamlbuild.cmx")
-
 (* inefficient O(n^2) algorithm to filter duplicates *) 
 let rec unique_modules = function
   | [] -> []
@@ -141,7 +213,8 @@ let main () =
   let add_dir name = searchDirs := name :: !searchDirs in
   let recursive = ref false in
   let fullpath = ref false in  
-  let excludeSet = ref StringSet.empty in 
+  let excludeSet = ref StringSet.empty in
+  let suffix = ref "cmx" in  
   let opts = [ 
     (
       "-E",
@@ -162,7 +235,12 @@ let main () =
       "-I",
       Arg.String add_dir, 
       "add a directory to the search path"
-    ) 
+    ); 
+    (
+      "-S", 
+      Arg.String (fun s -> suffix := s), 
+      "suffix of files to search for"
+    )
   ] in 
   if !recursive then failwith "Recursive dir search not yet implemented";
   Arg.parse opts (fun _ -> ()) "Usage: depsort <options>";
@@ -170,19 +248,20 @@ let main () =
   if !searchDirs = [] then searchDirs := ["."];  
   let filteredSearchDirs = List.filter check_dir !searchDirs in 
   let allFiles = List.concat (List.map dir_contents filteredSearchDirs) in    
-  let cmxFiles = 
+  let moduleFiles = 
     List.filter 
       (fun s -> 
-           is_native_module s && 
+           Filename.check_suffix s !suffix  &&
+           Filename.basename s <> "myocamlbuild.cmx" &&  
            not (StringSet.mem s !excludeSet) && 
            not (StringSet.mem (Filename.basename s) !excludeSet)
       ) 
       allFiles
   in 
   (*  modules with duplicate names will get dropped *) 
-  let cmxInfoList = unique_modules (List.map get_cmx_info cmxFiles) in
+  let moduleInfoList = unique_modules (List.map get_module_info moduleFiles) in
   
-  let sortedModules = topsort cmxInfoList in
+  let sortedModules = topsort moduleInfoList in
   (* mapping between module names and cmx filenames *) 
   let filenameLookup = 
     List.fold_left 
@@ -193,14 +272,12 @@ let main () =
           StringMap.add info.module_name filename map
       )
       StringMap.empty 
-      cmxInfoList    
+      moduleInfoList    
   in  
   let sortedFiles = 
     List.map (fun name -> StringMap.find name filenameLookup) sortedModules 
   in
   print_string (String.concat " "  sortedFiles)
    
-  
-    
-        
+
 let _ = main () 

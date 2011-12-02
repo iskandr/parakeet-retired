@@ -6,14 +6,22 @@ import optparse, glob, os, shutil, subprocess, sys
 # Python, we can switch that off.
 parser = optparse.OptionParser(description='Parakeet Build System')
 parser.add_option('-q', action='store_true', help='Build Q front end')
-parser.add_option('-p', '--python', action='store_true',
+
+parser.add_option('-p', '--python', action='store_true', default=True, 
                     help='Build Python front end')
+
 parser.add_option('-o', '--opt', action='store_true',
                     help='Disable debug mode')
+
+parser.add_option('-n', '--native', action='store_true', 
+  help = 'Compile OCaml code with ocamlopt instead of ocamlc')
+  
 parser.add_option('-r', '--prof', action='store_true',
                     help='Enable profiling')
+
 parser.add_option('-t', '--tests', action='store_true',
                     help='Build and run unit tests')
+
 parser.add_option('-c', '--clean', action='store_true',
                     help='Clean tree and exit')
 
@@ -24,9 +32,24 @@ print "==================================================="
 print "|                Medium Sized Whale               |"
 print "==================================================="
 print ""
+print opts 
 
-make_command = ["make"]
+if opts['native']:
+  obj_suffix = 'cmx'
+  obj_archive_suffix = 'cmxa'
+  ocaml_compiler = 'ocamlopt'
+else:
+  obj_suffix = 'cmo'
+  obj_archive_suffix = 'cma'
+  ocaml_compiler = 'ocamlc'
 
+make_command = [
+  "make", 
+  "OBJ_SUFFIX="+obj_suffix, 
+  "OBJ_ARCHIVE_SUFFIX="+obj_archive_suffix, 
+  "OCAML_COMPILER="+ocaml_compiler
+] 
+  
 if opts['clean']:
   os.chdir("cuda")
   print
@@ -128,7 +151,7 @@ os.chdir("..")
 
 # Build FrontEnd
 print "\n\n ****** Building Parakeet Front End Interface ******"
-if subprocess.call(build_command + ["Callbacks.cmx", "-no-hygiene"]):
+if subprocess.call(build_command + ["Callbacks." + obj_suffix, "-no-hygiene"]):
   print "Parakeet Front End Callbacks build failed"
   sys.exit(1)
 os.chdir("FrontEnd")
@@ -141,7 +164,7 @@ os.chdir("..")
 if opts['q']:
   print "Building Q Preprocessor and Q Callbacks"
   if subprocess.call(build_command +
-                     ["QCallbacks.cmx", "preprocess.native", "-no-hygiene"]):
+                     ["QCallbacks." + obj_suffix, "preprocess.native", "-no-hygiene"]):
     print "Q Preprocessor build failed"
     exit(1)
   os.chdir("Q")
@@ -156,10 +179,6 @@ if opts['q']:
 
 # Build Python Front End
 if opts['python']:
-  #if subprocess.call(build_command +
-  #                   ["QCallbacks.cmx", "preprocess.native", "-no-hygiene"]):
-  #  print "Q Preprocessor build failed"
-  #  exit(1)
   os.chdir("Python")
   print "Building Python Front End"
   if subprocess.call(make_command):
