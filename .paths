@@ -287,3 +287,5 @@ AST
 .git/branches
 /usr/lib/ocaml
 _build/Imp
+_build/SSA/Specialization
+_build/Tests

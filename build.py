@@ -7,7 +7,7 @@ import optparse, glob, os, shutil, subprocess, sys
 parser = optparse.OptionParser(description='Parakeet Build System')
 parser.add_option('-q', action='store_true', help='Build Q front end')
 
-parser.add_option('-p', '--python', action='store_true', default=True, 
+parser.add_option('-p', '--python', action='store_true',  
                     help='Build Python front end')
 
 parser.add_option('-o', '--opt', action='store_true',
@@ -91,6 +91,7 @@ if 'PARAKEET_PATH' in os.environ:
 build_command = ["ocamlbuild", "-lflags",
                  "-ccopt," + parakeet_path + "/cuda/parakeet_cuda.a," +\
                  "-ccopt,-L/usr/local/cuda/lib," +\
+                 "-ccopt,-L/usr/local/cuda/lib64," +\
                  "-ccopt,-L/usr/lib/nvidia-current," +\
                  "-ccopt,-lcuda,-ccopt,-lcudart," +\
                  "-ccopt," + parakeet_path + "/FrontEnd/parakeet.a",
@@ -108,9 +109,8 @@ if not opts['opt']:
   make_command.append("DEBUG=-g")
   os.environ['dbg'] = '1'
 
-print build_command
 
-print " ".join(build_command)
+print "BUILD COMMAND =", " ".join(build_command)
 
 # Clean _build directory
 for f in glob.glob("_build/*.o"):
@@ -188,3 +188,16 @@ if opts['python']:
     shutil.move(f, "../_build")
   shutil.move("libparakeetpy.so", "../_build")
   os.chdir("..")
+
+if opts['tests']:
+  print "Building tests"
+  if subprocess.call(build_command + ['Tests/tests.native', '-no-hygiene']):
+    print "Test build failed"
+    sys.exit(1)
+  print "Running tests"
+  if subprocess.call('./tests.native'):
+    print "Tests failed"
+    sys.exit(1)
+
+  
+  
