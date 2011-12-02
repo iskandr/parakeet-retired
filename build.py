@@ -13,8 +13,8 @@ parser.add_option('-p', '--python', action='store_true', default=True,
 parser.add_option('-o', '--opt', action='store_true',
                     help='Disable debug mode')
 
-parser.add_option('-n', '--native', action='store_true', 
-  help = 'Compile OCaml code with ocamlopt instead of ocamlc')
+parser.add_option('-b', '--bytecode', action='store_true', 
+  help = 'Compile OCaml code with ocamlc instead of ocamlopt')
   
 parser.add_option('-r', '--prof', action='store_true',
                     help='Enable profiling')
@@ -34,14 +34,14 @@ print "==================================================="
 print ""
 print opts 
 
-if opts['native']:
-  obj_suffix = 'cmx'
-  obj_archive_suffix = 'cmxa'
-  ocaml_compiler = 'ocamlopt'
-else:
+if opts['bytecode']:
   obj_suffix = 'cmo'
   obj_archive_suffix = 'cma'
   ocaml_compiler = 'ocamlc'
+else:
+  obj_suffix = 'cmx'
+  obj_archive_suffix = 'cmxa'
+  ocaml_compiler = 'ocamlopt'
 
 make_command = [
   "make", 

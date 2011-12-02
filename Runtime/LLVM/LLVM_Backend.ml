@@ -1,3 +1,5 @@
+open Imp 
+
 let memspace_id = HostMemspace.id   
   
 let map ~axes ~fn ~fixed args = 

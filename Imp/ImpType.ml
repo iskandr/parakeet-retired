@@ -1,9 +1,11 @@
 
 type elt_t = Type.elt_t 
 type t =
-	| ScalarT of elt_t  
-	| ArrayT of elt_t * int
-	| ShiftT of t 
+    | ScalarT of elt_t  
+    | ArrayT of elt_t * int
+    | ShiftT of t
+    | FixedDimT of t 
+    | Tuple of t array 
 
 let rec to_str = function 
 	| ScalarT elt_t -> Type.elt_to_str elt_t 

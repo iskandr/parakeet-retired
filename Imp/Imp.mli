@@ -3,8 +3,8 @@ type cuda_info = ThreadIdx | BlockIdx | BlockDim | GridDim
 type coord = X | Y | Z
 
 type array_field = 
-  | RangeLeft
-  | RangeRight
+  | RangeStart
+  | RangeStop
   | ShiftData
   | ShiftAmt
   | ShiftDim
@@ -12,15 +12,21 @@ type array_field =
   | RotData
   | RotDim
   | RotAmt
+  | SliceDim
+  | SliceStart
+  | SliceStop
+  | FrozenDim
+  | FrozenIdx
   
 type exp = 
   | Var of ID.t
-	| Const of ParNum.t
-  | Idx of exp_node * exp_node list
+  | Const of ParNum.t
   | Op of  Type.elt_t * Prim.scalar_op * exp_node list
   | Select of ImpType.t * exp_node * exp_node * exp_node
   | Cast of ImpType.t * exp_node
+  | Idx of exp_node * exp_node list
   | DimSize of exp_node * exp_node 
+  | FreezeDim of exp_node * exp_node * exp_node 
   | ArrayField of array_field * exp_node
   | CudaInfo of cuda_info * coord
 
@@ -49,14 +55,6 @@ type storage =
   | Shared
   | Alias
 
-type symbolic_shape = exp_node list 
-
-
-type var_info = { 
-  var_type : ImpType.t; 
-  array_storage : array_storage option;
-  symbolic_shape : symbolic_shape;  
-} 
 
 type fn = {
   input_ids : ID.t list;
@@ -65,14 +63,14 @@ type fn = {
   
   storage : storage ID.Map.t;
   types : ImpType.t ID.Map.t;
-  shapes : exp list ID.Map.t;
+  shapes : exp_node list ID.Map.t;
   
   body : block;
 }
 
 val get_var_type : fn -> ID.t -> ImpType.t 
-val get_var_storage : fn -> ID.t -> array_storage 
-val get_var_shape : fn -> ID.t -> symbolic_shape 
+val get_var_storage : fn -> ID.t -> storage 
+val get_var_shape : fn -> ID.t -> exp_node list  
 
 
 val cuda_info_to_str : cuda_info -> string 

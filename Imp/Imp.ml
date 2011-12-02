@@ -59,7 +59,6 @@ type storage =
   | Shared
   | Alias
 
-type symbolic_shape = exp_node list 
 
 type fn = {
   input_ids : ID.t list;
@@ -68,7 +67,7 @@ type fn = {
   
   storage : storage ID.Map.t;
   types : ImpType.t ID.Map.t;
-  shapes : exp list ID.Map.t;
+  shapes : exp_node list ID.Map.t;
   
   body : block;
 }
@@ -103,7 +102,7 @@ let cuda_info_to_str = function
 let rec exp_node_to_str e  = exp_to_str e.exp 
 and exp_to_str = function 
   | Var id -> ID.to_str id  
-  | Idx (e1, e2) -> sprintf "%s[%s]" (exp_node_to_str e1) (exp_node_to_str e2) 
+  | Idx (arr, args) -> sprintf "%s[%s]" (exp_node_to_str arr) (exp_node_list_to_str args) 
   | Op (argT, op, args) -> 
     sprintf "%s:%s (%s)" 
       (Prim.scalar_op_to_str op)
@@ -115,7 +114,7 @@ and exp_to_str = function
         (exp_node_to_str cond)
         (exp_node_to_str trueVal)
         (exp_node_to_str falseVal)
-  | Const n -> ParNum.num_to_str n 
+  | Const n -> ParNum.to_str n 
   | Cast (tNew, e) -> 
       sprintf "cast %s->%s (%s)" 
         (ImpType.to_str  e.exp_type) 
@@ -167,7 +166,7 @@ and stmt_to_str ?(spaces="") = function
   | SyncThreads -> spaces ^ "syncthreads"
   | Comment s -> spaces ^ "// " ^ s
   (* used to plug one function into another, shouldn't exist in final code *) 
-  | SPLICE -> spaces ^ "SPLICE"
+  (*| SPLICE -> spaces ^ "SPLICE"*)
 and block_to_str ?(spaces="") stmts = 
   String.concat "\n" (List.map (stmt_to_str ~spaces) stmts)
 and exp_node_list_to_str exps = 
@@ -192,3 +191,12 @@ let fn_to_str fn =
 		(String.concat ", " locals)
     (block_to_str  fn.body)
               
+let rec always_const {exp} = match exp with
+  | CudaInfo _ 
+  | DimSize _  
+  | Const _ -> true
+  | Cast (_, arg) -> always_const arg 
+  | Select (_, pred, arg1, arg2) -> always_const pred && always_const arg1 && always_const arg2  
+  | Op (_, _, args) -> List.for_all always_const args 
+  | _ -> false 
+  
