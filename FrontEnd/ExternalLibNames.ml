@@ -53,4 +53,3 @@ let get_prim str = match Hashtbl.find_option prim_names str with
   | None ->
       if FnManager.have_untyped_function str then AST_Helpers.mk_var_node str
       else failwith $ "Couldn't find Parakeet primitive named " ^ str  
-    

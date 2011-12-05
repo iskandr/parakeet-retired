@@ -1,5 +1,5 @@
 
-open Base 
+open Base
 
 type data_table = (DataId.t, Ptr.t) Hashtbl.t 
 
@@ -12,35 +12,35 @@ let get_memspace_table memid : data_table =
         let new_table : data_table = Hashtbl.create 1001 in 
         memspace_tables := MemId.Map.add memid new_table !memspace_tables; 
         new_table 
-    end  
+    end
 
 let register_ptr (p:Ptr.t) : DataId.t =
-    let memId = p.Ptr.memspace in   
+    let memId = p.Ptr.memspace in
     let table = get_memspace_table memId in
     let dataId = DataId.gen() in
-    Hashtbl.add table dataId p; 
-    dataId 
+    Hashtbl.add table dataId p;
+    dataId
 
-let id_to_ptr_option dataId memId = 
+let id_to_ptr_option dataId memId =
     let table = get_memspace_table memId in
-    Hashtbl.find_option table dataId 
-		
-let id_on_memspace dataId memId = 
-    let table = get_memspace_table memId in
-    Hashtbl.mem table dataId 
-		
-let id_to_ptr dataId memId =  
-    let table = get_memspace_table memId in
-    Hashtbl.find table dataId 
+    Hashtbl.find_option table dataId
 
-let from_memspace (v : Ptr.t Value.t) = 
-    Value.map register_ptr v 
-    
+let id_on_memspace dataId memId =
+    let table = get_memspace_table memId in
+    Hashtbl.mem table dataId
+		
+let id_to_ptr dataId memId =
+    let table = get_memspace_table memId in
+    Hashtbl.find table dataId
+
+let from_memspace (v : Ptr.t Value.t) =
+    Value.map register_ptr v
+
 let to_memspace memId v =
-    let table = get_memspace_table memId in 
-    let lookup dataId = 
-        match Hashtbl.find_option table dataId with 
-        | Some ptr ->  ptr  
+    let table = get_memspace_table memId in
+    let lookup dataId =
+        match Hashtbl.find_option table dataId with
+        | Some ptr -> ptr
         | None -> failwith $ "Could not find data id: " ^ DataId.to_str dataId
-    in 
-    Value.map lookup v 
+    in
+    Value.map lookup v

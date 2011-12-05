@@ -36,11 +36,11 @@ def return_type_init():
   LibPar.mk_app.restype = c_void_p
   LibPar.mk_lam.restype = c_void_p
   LibPar.mk_block.restype = c_void_p
-  LibPar.mk_vec.restype = c_void_p
   LibPar.mk_host_array.restype = c_void_p
   LibPar.register_untyped_function.restype = c_int
   LibPar.run_function.restype = return_val_t
   LibPar.mk_int32.restype = c_void_p
+  LibPar.mk_int64.restype = c_void_p
   LibPar.mk_float32.restype = c_void_p
   LibPar.mk_float64.restype = c_void_p
   LibPar.mk_whileloop.restype = c_void_p
@@ -71,12 +71,10 @@ return_type_init()
 #  Global variables
 ###############################################################################
 
-SafeFunctions = {np.all:ast_prim('all'),
+SafeFunctions = {np.all:ast_prim('allpairs'),
                  np.arange:ast_prim('range'),
 #                 np.argmin:ast_prim('argmin'),
-                 map:ast_prim('map'),
-                 np.mean:ast_prim('mean'),
-                 np.sum:ast_prim('sum')}
+                 map:ast_prim('map')}
 BuiltinPrimitives = {'Add':ast_prim('+'),
                      'Sub':ast_prim('-'),
                      'Mult':ast_prim('*'),

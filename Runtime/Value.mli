@@ -33,7 +33,6 @@ val to_int32 : 'a t -> Int32.t
 val to_int64 : 'a t -> Int64.t 
 val to_int : 'a t -> int
 val to_float : 'a t -> float 
- 
 
 val of_num : ParNum.t -> 'a t 
 val of_bool : bool -> 'a t
@@ -47,6 +46,9 @@ val of_float : float -> 'a t
 val mk_array : 'a -> Type.elt_t -> Shape.t -> int array -> 'a t
 
 val is_scalar : 'a t -> bool
+
+val get_shape : 'a t -> Shape.t
+val get_strides : 'a t -> int array
 
 val extract : 'a t -> 'a option  
 val collect_list : 'a t list -> 'a list  

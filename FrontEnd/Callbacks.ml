@@ -67,10 +67,8 @@ let _ = Callback.register "value_array" Value.mk_array
 let _ = Callback.register "value_is_scalar" Value.is_scalar
 let _ = Callback.register "value_type_of" Value.type_of
 
-(*
 let _ = Callback.register "value_get_shape" Value.get_shape
 let _ = Callback.register "value_get_strides" Value.get_strides
-*)
 
 let _ = Callback.register "value_extract" Value.extract
 
