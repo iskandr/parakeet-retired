@@ -73,6 +73,34 @@ value ocaml_set_int32(value ptr, value idx, value v) {
   CAMLreturn(Val_unit);
 }
 
+// int64
+
+value ocaml_cast_int64(value ptr) {
+  CAMLparam1(ptr);
+  CAMLlocal1(ocaml_i64);
+  int64_t i = (int64_t) Int64_val(ptr);
+  ocaml_i64 = copy_int64(i);
+  CAMLreturn (ocaml_i64);
+}
+
+value ocaml_get_int64(value ptr, value idx) {
+  CAMLparam2(ptr, idx);
+  CAMLlocal1(ocaml_i64);
+  int64_t* p = (int64_t*) Int64_val(ptr);
+  int64_t i = p[Int_val(idx)];
+  ocaml_i64 = copy_int64(i);
+  CAMLreturn(ocaml_i64);
+}
+
+value ocaml_set_int64(value ptr, value idx, value v) {
+  CAMLparam3(ptr,idx,v);
+  int64_t* p = (int64_t*) Int64_val(ptr);
+  int cidx = Int_val(idx);
+  int64_t cval = Int64_val(v);
+  printf("base:%p, idx: %d, value: %d\n", p,cidx,cval);
+  p[cidx] = cval;
+  CAMLreturn(Val_unit);
+}
 
 // OCaml's native ints
 

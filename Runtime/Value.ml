@@ -53,7 +53,7 @@ let rec map (f: 'a -> 'b) (x : 'a t) : 'b t = match x with
   | Explode (n, s) -> Explode (n, s)
 
 let rec type_of = function
-  | Array {array_type}  -> array_type
+  | Array {array_type} -> array_type
   (*| Nested _ -> failwith "nested arrays not supported"*)
   | Scalar n -> Type.ScalarT (ParNum.type_of n)
   | Explode (n, s) -> Type.ArrayT (ParNum.type_of n, Shape.rank s)
@@ -98,10 +98,13 @@ let mk_array (data:'a) (elt_t:Type.elt_t) (shape:Shape.t) (strides:int array) =
 
 let is_scalar x = Type.is_scalar (type_of x)
 
-(*
-let get_shape {array_shape} = array_shape
-let get_strides {array_strides} = array_strides
-*)
+let get_shape = function
+  | Array {array_shape} -> array_shape
+  | _ -> failwith "Cannot get shape of non-array"
+
+let get_strides = function
+  | Array {array_strides} -> array_strides
+  | _ -> failwith "Cannot get strides of non-array"
 
 let rec extract = function
 	| Rotate (x, _, _)
