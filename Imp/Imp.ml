@@ -48,10 +48,10 @@ and exp_node = {
 }
 
 type stmt =
-  | If of exp_node * block * block
+  | If of value_node * block * block
   | While of exp_node * block
   | Set of ID.t * exp_node 
-  | SetIdx of ID.t * exp_node list * exp_node
+  | SetIdx of ID.t * value_node list * exp_node
   | SyncThreads
   | Comment of string
   (* used to plug one function into another, shouldn't exist in final code *) 
@@ -74,10 +74,25 @@ type fn = {
   
   storage : storage ID.Map.t;
   types : ImpType.t ID.Map.t;
-  shapes : exp_node list ID.Map.t;
+  shapes : SymbolicShape.t ID.Map.t;
   
   body : block;
 }
+
+let get_var_type (fn:fn) (id:ID.t) = 
+    match ID.Map.find_option id fn.types with 
+        | None -> failwith $ "[Imp->get_var_type] Variable " ^ (ID.to_str id) ^ "doesn't exist"
+        | Some var_type -> var_type 
+
+let get_var_storage (fn:fn) (id:ID.t) =
+    match ID.Map.find_option id fn.storage with 
+        | None -> failwith $ "[Imp->get_var_storage] Variable " ^ (ID.to_str id) ^ "doesn't exist"
+        | Some storage -> storage
+
+let get_var_shape (fn:fn) (id:ID.t) = 
+    match ID.Map.find_option id fn.shapes  with 
+        | None -> failwith $ "[Imp->get_var_shape] Variable " ^ (ID.to_str id) ^ "doesn't exist"
+        | Some symbolic_shape -> symbolic_shape
 	 
 (* PRETTY PRINTING *) 
 open Printf 
@@ -95,6 +110,8 @@ let cuda_info_to_str = function
 let val_to_str = function 
   | Var id -> ID.to_str id
   | Const n -> ParNum.to_str n
+  | CudaInfo(cuda_info, coord) -> 
+     sprintf "%s.%s" (cuda_info_to_str cuda_info) (coord_to_str coord)
 
 let val_node_to_str {value} = val_to_str value
  
@@ -120,16 +137,14 @@ and exp_to_str = function
         (val_node_to_str trueVal)
         (val_node_to_str falseVal)
  
-  | Cast (tNew, e) -> 
+  | Cast (tNew, v) -> 
       sprintf "cast %s->%s (%s)" 
-        (ImpType.to_str  e.exp_type) 
+        (ImpType.to_str  v.value_type) 
         (ImpType.to_str tNew) 
-        (val_node_to_str e)
+        (val_node_to_str v)
   | DimSize (k, e) -> 
-        sprintf "dimsize(%s, %s)" (val_node_to_str e) (val_node_to_str k)
-    | CudaInfo(cuda_info, coord) -> 
-                sprintf "%s.%s" (cuda_info_to_str cuda_info) (coord_to_str coord)
-
+      sprintf "dimsize(%s, %s)" (val_node_to_str e) (val_node_to_str k)
+  
 let rec stmt_to_str ?(spaces="") = function 
   | If (cond, tBlock, fBlock) ->
       let tStr =
@@ -150,7 +165,7 @@ let rec stmt_to_str ?(spaces="") = function
       in       
       sprintf "%s if (%s)%s%s "
         spaces 
-        (exp_node_to_str cond)
+        (val_node_to_str cond)
         tStr 
         fStr
   | While (cond, body) ->
@@ -158,15 +173,15 @@ let rec stmt_to_str ?(spaces="") = function
         if body <> [] then "\n" ^ (block_to_str ~spaces:(spaces ^ "  ") body)
         else ""
       in  
-      sprintf "%s while(%s) { %s }" spaces (exp_node_to_str cond) bodyStr 
-        
+      let condStr = (exp_node_to_str cond) in 
+      sprintf "%s while(%s) { %s }" spaces condStr bodyStr 
   | Set (id, rhs) -> 
       sprintf "%s %s = %s" spaces (ID.to_str id) (exp_node_to_str rhs)  
   | SetIdx (id, indices, rhs) -> 
       sprintf "%s %s[%s] = %s"
         spaces 
         (ID.to_str id) 
-        (exp_node_list_to_str indices) 
+        (val_node_list_to_str indices) 
         (exp_node_to_str rhs)
   | SyncThreads -> spaces ^ "syncthreads"
   | Comment s -> spaces ^ "// " ^ s
@@ -195,23 +210,7 @@ let fn_to_str fn =
 		(String.concat ", " locals)
     (block_to_str  fn.body)
 
-              
-let get_var_type (fn:fn) (id:ID.t) = 
-    match ID.Map.find_option id fn.types with 
-        | None -> failwith $ "[Imp->get_var_type] Variable " ^ (ID.to_str id) ^ "doesn't exist"
-        | Some var_type -> var_type 
-
-let get_var_storage (fn:fn) (id:ID.t) =
-    match ID.Map.find_option id fn.storage with 
-        | None -> failwith $ "[Imp->get_var_storage] Variable " ^ (ID.to_str id) ^ "doesn't exist"
-        | Some storage -> storage
-
-let get_var_shape (fn:fn) (id:ID.t) = 
-    match ID.Map.find_option id fn.shapes  with 
-        | None -> failwith $ "[Imp->get_var_shape] Variable " ^ (ID.to_str id) ^ "doesn't exist"
-        | Some symbolic_shape -> symbolic_shape
-
-                                          
+                                 
 let always_const_val {value} = match value with 
   | CudaInfo _
   | Const _ -> true

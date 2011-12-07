@@ -4,13 +4,13 @@ type dim =
   | Dim of ID.t * int 
   | Op of dim_op * dim * dim 
   
-type shape = dim list 
-type env = shape ID.Map.t 
+type t = dim list 
+type env = t ID.Map.t 
 
 val dim_to_str : dim -> string 
-val to_str : shape -> string
+val to_str : t -> string
 
-val shapes_to_str : shape list -> string 
+val shapes_to_str : t list -> string 
 
 val const : int -> dim 
 val zero : dim 
@@ -23,19 +23,19 @@ val max_ : dim -> dim -> dim
 val max_of_dims : dim list -> dim 
 val prod_of_dims : dim list -> dim 
 
-val scalar : shape
-val is_scalar : shape -> bool 
+val scalar : t
+val is_scalar : t -> bool 
 
-val rank : shape -> int 
-val get_dim : shape -> int -> dim 
-val outer_dim : shape -> dim 
+val rank : t -> int 
+val get_dim : t -> int -> dim 
+val outer_dim : t -> dim 
 
-val peel_outer_dim : shape -> shape
-val peel : ?axes:int list -> shape -> shape   
-val peel_shape_list : ?axes:int list -> shape list -> shape list 
+val peel_outer_dim : t -> t
+val peel : ?axes:int list -> t -> t   
+val peel_shape_list : ?axes:int list -> t list -> t list 
     
-val split_shape : shape -> dim * shape
-val split_shape_list : shape list -> dim list * shape list 
+val split_shape : t -> dim * t
+val split_shape_list : t list -> dim list * t list 
 
 
 (* combines all dims from shapes of max rank,
@@ -43,19 +43,19 @@ val split_shape_list : shape list -> dim list * shape list
    Example: 
    split_max_dim [[2; 4]; [5]]  = 2 * [[4];[5]]
 *)
-val split_max_rank : shape list -> dim * shape list  
+val split_max_rank : t list -> dim * t list  
 
 
-val all_dims : ID.t -> int -> shape 
+val all_dims : ID.t -> int -> t 
  
 (*val largest_ssa_val : SSA.value_node list -> SSA.value_node*) 
-val of_int_list : int list -> shape 
+val of_int_list : int list -> t 
  
-val concat : shape -> shape -> shape
+val concat : t -> t -> t
 
-val rewrite_dim : shape ID.Map.t -> dim -> dim
-val rewrite_shape : shape ID.Map.t -> shape -> shape
-val rewrite_shapes : shape ID.Map.t -> shape list -> shape list 
+val rewrite_dim : t ID.Map.t -> dim -> dim
+val rewrite_shape : t ID.Map.t -> t -> t
+val rewrite_shapes : t ID.Map.t -> t list -> t list 
     
  
 

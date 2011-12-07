@@ -8,9 +8,9 @@ type dim =
   | Dim of ID.t * int 
   | Op of dim_op * dim * dim 
 
-type shape = dim list 
+type t = dim list 
     
-type env = shape ID.Map.t  
+type env = t ID.Map.t  
 
 let rec dim_to_str = function 
   | Const c -> string_of_int c 
@@ -137,7 +137,7 @@ let split_max_rank shapes =
   maxDim, peeledShapes
                  
 
-let all_dims ( id : ID.t) (rank : int) : shape  =
+let all_dims ( id : ID.t) (rank : int) : t  =
   List.map (fun i -> Dim(id,i)) (List.range 0 (rank - 1))
 
 let rec of_int_list = function 
