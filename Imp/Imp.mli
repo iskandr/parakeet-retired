@@ -18,18 +18,25 @@ type array_field =
   | FrozenDim
   | FrozenIdx
   
-type exp = 
+type value =  
   | Var of ID.t
   | Const of ParNum.t
-  | Op of  Type.elt_t * Prim.scalar_op * exp_node list
-  | Select of ImpType.t * exp_node * exp_node * exp_node
-  | Cast of ImpType.t * exp_node
-  | Idx of exp_node * exp_node list
-  | DimSize of exp_node * exp_node 
-  | FreezeDim of exp_node * exp_node * exp_node 
-  | ArrayField of array_field * exp_node
   | CudaInfo of cuda_info * coord
+and value_node = { 
+  value : value; 
+  value_type : ImpType.t;  
+}
 
+type exp =
+  | Val of value_node  
+  | Op of  Type.elt_t * Prim.scalar_op * value_node list
+  | Select of ImpType.t * value_node * value_node * value_node
+  | Cast of ImpType.t * value_node
+  | Idx of value_node * value_node list
+  | DimSize of value_node * value_node 
+  | FreezeDim of value_node * value_node * value_node 
+  | ArrayField of array_field * value_node
+  
 and exp_node = {
   exp : exp;
   exp_type : ImpType.t;
@@ -63,7 +70,7 @@ type fn = {
   
   storage : storage ID.Map.t;
   types : ImpType.t ID.Map.t;
-  shapes : exp_node list ID.Map.t;
+  shapes : SymbolicShape.shape ID.Map.t;
   
   body : block;
 }

@@ -3,13 +3,28 @@
 open Base
 open Imp 
 
-type dim = exp_node 
-type shape = dim list
+type dim_op = Mult | Add | Max 
+type dim = 
+  | Const of int 
+  | Dim of ID.t * int 
+  | Op of dim_op * dim * dim 
+
+type shape = dim list 
+    
 type env = shape ID.Map.t  
 
-let to_str shape = "[" ^ Imp.exp_node_list_to_str shape ^ "]"
-        
-        
+
+let rec dim_to_str = function 
+  | Const c -> string_of_int c 
+  | Dim (x, d) -> (ID.to_str x) ^ "[" ^ (string_of_int d) ^ "]"
+  | Op(Mult, d1, d2) -> (dim_to_str d1) ^ " * " ^ (dim_to_str d2) 
+  | Op(Add, d1, d2) -> (dim_to_str d1) ^ " + " ^ (dim_to_str d2) 
+  | Op(Max, d1, d2) -> "max(" ^ (dim_to_str d1) ^ ", " ^ (dim_to_str d2) ^ ")" 
+
+let dim_list_to_str dims = String.concat ", " (List.map dim_to_str dims) 
+
+let to_str shape = "[" ^ (dim_list_to_str dims) ^ "]"
+                
 let scalar = [] 
 
 let is_scalar s = (s=[])
@@ -22,11 +37,23 @@ let get_dim shape d =
   
 let outer_dim shape = get_dim shape 0 
  
-let peel_shape = function 
-  | [] -> [] 
-  | _::tailDims -> tailDims 
 
-let peel_shape_list shapes = List.map peel_shape shapes
+let peel_outer_dim = function 
+  | [] -> []
+  | _::tail -> tail  
+
+let peel ?(axes=[0]) shape =
+  if axes = [0] then peel_outer_dim shape 
+  else 
+    let rec aux i = function 
+      | [] -> []
+      | d::ds -> 
+          if List.mem i axes then aux (i+1) ds 
+          else d :: (aux (i+1) ds)
+    in 
+    aux i shape  
+  
+let peel_shape_list ?(axes=[0]) shapes = List.map (peel ~axes) shapes
     
 let split_shape = function 
   | [] -> assert false 
@@ -65,31 +92,12 @@ let shape_to_str shape = "[" ^ (exp_node_list_to_str shape) ^ "]"
 let shapes_to_str shapes = String.concat ", " (List.map shape_to_str shapes) 
 
 (* get a list of all the dimensions of an Imp array *) 
-let all_dims ( x : exp_node) : exp_node list =
-  let ndims = Type.nest_depth x.exp_type in  
-  List.map (fun i -> dim i x) (List.range 0 (ndims-1))
-
-let rec largest_ssa_val = function 
-  | [] -> assert false
-  | [x] -> x
-  | x::xs -> 
-      let restMax = largest_ssa_val xs in 
-      let restRank = Type.nest_depth restMax.SSA.value_type in 
-      let currRank = Type.nest_depth x.SSA.value_type in   
-      if  restRank > currRank then restMax else x   
-      
-(* return list of dimsizes for value of largest type in the given array *)
-let largest_val ( exps : exp_node array ) : exp_node = 
-  let maxExp = ref exps.(0) in   
-  for i = 1 to Array.length exps - 1 do
-    if Type.is_structure_subtype !maxExp.exp_type exps.(i).exp_type then 
-      maxExp := exps.(i)
-  done; 
-  !maxExp
+let all_dims ( id : ID.t) (rank : int) : shape  =
+  List.map (fun i -> Dim(id,i)) (List.range 0 (rank - 1))
 
 let rec of_int_list = function 
   | [] -> [] 
-  | i::rest -> (Imp.int i) :: of_int_list rest
+  | i::rest -> (Const i) :: of_int_list rest
 
 
 let rec rewrite_dim_helper env expNode = match expNode.Imp.exp with 

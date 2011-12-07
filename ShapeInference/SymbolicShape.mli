@@ -1,5 +1,10 @@
-type dim = Imp.exp_node
-type shape = Imp.exp_node list 
+type dim_op = Mult | Add | Max 
+type dim = 
+  | Const of int 
+  | Dim of ID.t * int 
+  | Op of dim_op * dim * dim 
+  
+type shape = dim list 
 type env = shape ID.Map.t 
 
 val scalar : shape
@@ -9,9 +14,10 @@ val rank : shape -> int
 val get_dim : shape -> int -> dim 
 val outer_dim : shape -> dim 
 
-val peel_shape : shape -> shape  
-val peel_shape_list : shape list -> shape list 
-
+val peel_outer_dim : shape -> shape
+val peel : axes:int list -> shape -> shape   
+val peel_shape_list : axes:int list -> shape list -> shape list 
+    
 val split_shape : shape -> dim * shape
 val split_shape_list : shape list -> dim list * shape list 
 
@@ -23,14 +29,13 @@ val split_shape_list : shape list -> dim list * shape list
 *)
 val split_max_rank : shape list -> dim * shape list  
 
-val nelts : shape -> Imp.exp_node  
+val nelts : shape -> dim
 
 val shape_to_str : shape -> string 
 val shapes_to_str : shape list -> string 
-val all_dims : Imp.exp_node -> shape 
+val all_dims : ID.t -> int -> shape 
  
 val largest_ssa_val : SSA.value_node list -> SSA.value_node 
-val largest_val : Imp.exp_node array ->  Imp.exp_node
 val of_int_list : int list -> shape 
  
 val concat : shape -> shape -> shape
