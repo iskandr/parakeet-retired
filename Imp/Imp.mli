@@ -75,20 +75,26 @@ type fn = {
   body : block;
 }
 
-val get_var_type : fn -> ID.t -> ImpType.t 
-val get_var_storage : fn -> ID.t -> storage 
-val get_var_shape : fn -> ID.t -> exp_node list  
-
 
 val cuda_info_to_str : cuda_info -> string 
-val coord_to_str : coord -> string 
+val coord_to_str : coord -> string
+ 
+val val_to_str : value -> string 
+val val_node_to_str : value_node -> string
+val val_node_list_to_str : exp_node list -> string
+
+val exp_to_str : exp -> string
 val exp_node_to_str : exp_node -> string 
-val exp_to_str : exp -> string   
-val exp_node_list_to_str : exp_node list -> string 
+ 
 val stmt_to_str : ?spaces:string -> stmt -> string 
 val block_to_str : ?spaces:string -> stmt list -> string 
 val fn_to_str : fn -> string
 
-val always_const : exp_node -> bool 
 
+val get_var_type : fn -> ID.t -> ImpType.t 
+val get_var_storage : fn -> ID.t -> storage 
+val get_var_shape : fn -> ID.t -> exp_node list  
+
+val always_const : value_node -> bool 
+val always_const_exp : exp_node -> bool 
 

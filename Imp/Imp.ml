@@ -78,20 +78,6 @@ type fn = {
   
   body : block;
 }
-let get_var_type (fn:fn) (id:ID.t) = 
-	match ID.Map.find_option id fn.types with 
-		| None -> failwith $ "[Imp->get_var_type] Variable " ^ (ID.to_str id) ^ "doesn't exist"
-		| Some var_type -> var_type 
-
-let get_var_storage (fn:fn) (id:ID.t) =
-	match ID.Map.find_option id fn.storage with 
-		| None -> failwith $ "[Imp->get_var_storage] Variable " ^ (ID.to_str id) ^ "doesn't exist"
-		| Some storage -> storage
-
-let get_var_shape (fn:fn) (id:ID.t) = 
-	match ID.Map.find_option id fn.shapes  with 
-		| None -> failwith $ "[Imp->get_var_shape] Variable " ^ (ID.to_str id) ^ "doesn't exist"
-		| Some symbolic_shape -> symbolic_shape
 	 
 (* PRETTY PRINTING *) 
 open Printf 
@@ -110,8 +96,9 @@ let val_to_str = function
   | Var id -> ID.to_str id
   | Const n -> ParNum.to_str n
 
-and val_node_to_str {value} = val_to_str value 
-and val_node_list_to_str exps = 
+let val_node_to_str {value} = val_to_str value
+ 
+let val_node_list_to_str exps = 
   String.concat ", " (List.map val_node_to_str exps)
 
 let rec exp_node_to_str e  = exp_to_str e.exp 
@@ -207,7 +194,24 @@ let fn_to_str fn =
     (String.concat ", " outputs)
 		(String.concat ", " locals)
     (block_to_str  fn.body)
+
               
+let get_var_type (fn:fn) (id:ID.t) = 
+    match ID.Map.find_option id fn.types with 
+        | None -> failwith $ "[Imp->get_var_type] Variable " ^ (ID.to_str id) ^ "doesn't exist"
+        | Some var_type -> var_type 
+
+let get_var_storage (fn:fn) (id:ID.t) =
+    match ID.Map.find_option id fn.storage with 
+        | None -> failwith $ "[Imp->get_var_storage] Variable " ^ (ID.to_str id) ^ "doesn't exist"
+        | Some storage -> storage
+
+let get_var_shape (fn:fn) (id:ID.t) = 
+    match ID.Map.find_option id fn.shapes  with 
+        | None -> failwith $ "[Imp->get_var_shape] Variable " ^ (ID.to_str id) ^ "doesn't exist"
+        | Some symbolic_shape -> symbolic_shape
+
+                                          
 let always_const_val {value} = match value with 
   | CudaInfo _
   | Const _ -> true

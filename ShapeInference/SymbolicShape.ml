@@ -1,7 +1,6 @@
 (* pp: -parser o pa_macro.cmo *)
 
 open Base
-open Imp 
 
 type dim_op = Mult | Add | Max 
 type dim = 
@@ -13,7 +12,6 @@ type shape = dim list
     
 type env = shape ID.Map.t  
 
-
 let rec dim_to_str = function 
   | Const c -> string_of_int c 
   | Dim (x, d) -> (ID.to_str x) ^ "[" ^ (string_of_int d) ^ "]"
@@ -23,11 +21,61 @@ let rec dim_to_str = function
 
 let dim_list_to_str dims = String.concat ", " (List.map dim_to_str dims) 
 
-let to_str shape = "[" ^ (dim_list_to_str dims) ^ "]"
+let to_str shape = "[" ^ (dim_list_to_str shape) ^ "]"
+
+let shapes_to_str shapes = String.concat ", " (List.map to_str shapes) 
                 
 let scalar = [] 
 
 let is_scalar s = (s=[])
+
+let const i = 
+  assert (i >= 0); 
+  Const i 
+
+let zero = Const 0
+let one = Const 1 
+  
+let dim x i = 
+  assert (i >= 0); 
+  Dim(x, i)
+
+let add d1 d2 = match (d1,d2) with 
+  | Const 0, _ -> d2
+  | _, Const 0 -> d2 
+  | Const x, Const y -> Const (x+y)
+  | _  -> Op(Add, d1, d2)
+
+let mult d1 d2 = match (d1, d2) with 
+  | Const 0, _ 
+  | _, Const 0 -> Const 0
+  | _, Const 1 -> d1 
+  | Const 1, d2 -> d2 
+  | Const x, Const y -> Const (x*y)
+  | _ -> Op(Mult, d1, d2)
+
+
+let max_ d1 d2 = match (d1,d2) with 
+    | Const 0, _ -> d2 
+    | _, Const 0 -> d1 
+    | Const x, Const y -> 
+      if x > y then Const x 
+      else Const y 
+    | _ -> if d1 = d2 then d1 else Op(Max, d1, d2)  
+
+let rec simplify_dim = function
+  | Op(op, d1, d2) ->
+    let d1' = simplify_dim d1 in 
+    let d2' = simplify_dim d2 in 
+    begin match op with 
+      | Add -> add d1' d2' 
+      | Mult -> mult d1' d2' 
+      | Max -> max_ d1' d2' 
+    end 
+  | other -> other 
+
+let max_of_dims shape = List.fold_left max_ zero shape 
+let prod_of_dims shape = List.fold_left mult one shape 
 
 let rank shape = List.length shape 
 
@@ -51,7 +99,7 @@ let peel ?(axes=[0]) shape =
           if List.mem i axes then aux (i+1) ds 
           else d :: (aux (i+1) ds)
     in 
-    aux i shape  
+    aux 0 shape  
   
 let peel_shape_list ?(axes=[0]) shapes = List.map (peel ~axes) shapes
     
@@ -70,7 +118,7 @@ let rec split_shape_list = function
 (* peels the maximum dim off shapes of maximal rank, leaving others
    untouched. combine all the maxdims into a single expression *) 
 let split_max_rank shapes = 
-  let ranks = List.map rank shapes in 
+  let ranks : int list = List.map rank shapes in 
   let maxRank = List.fold_left max 0 ranks in
   IFDEF DEBUG THEN 
     if maxRank <= 0 then failwith $ 
@@ -80,18 +128,15 @@ let split_max_rank shapes =
   ENDIF; 
   let peeledShapes =
     List.map2 
-      (fun s r -> if r = maxRank then peel_shape s else s) 
+      (fun s r -> if r = maxRank then peel s else s) 
       shapes
       ranks
   in
   let maxShapes = List.filter (fun s -> rank s = maxRank) shapes in
-  let maxDim = Imp.max_exp_node_list (List.map outer_dim maxShapes) in 
+  let maxDim = max_of_dims (List.map outer_dim maxShapes) in 
   maxDim, peeledShapes
                  
-let shape_to_str shape = "[" ^ (exp_node_list_to_str shape) ^ "]"
-let shapes_to_str shapes = String.concat ", " (List.map shape_to_str shapes) 
 
-(* get a list of all the dimensions of an Imp array *) 
 let all_dims ( id : ID.t) (rank : int) : shape  =
   List.map (fun i -> Dim(id,i)) (List.range 0 (rank - 1))
 
@@ -100,34 +145,23 @@ let rec of_int_list = function
   | i::rest -> (Const i) :: of_int_list rest
 
 
-let rec rewrite_dim_helper env expNode = match expNode.Imp.exp with 
-  | Imp.DimSize (d, {Imp.exp = Imp.Var id}) -> 
+let rec rewrite_dim_helper (env:env) dim = match dim with 
+  | Dim (id, d) -> 
       if ID.Map.mem id env then 
         let shape = ID.Map.find id env in
         get_dim shape d 
-      else expNode 
-  | Imp.Op(op, t, args) ->
-      let args' = List.map (rewrite_dim_helper env) args in 
-      {expNode with Imp.exp = Imp.Op(op,t,args') }
-  | _  -> expNode    
+      else dim
+  | Op(op, d1, d2) -> 
+      let d1' = rewrite_dim_helper env d1 in 
+      let d2' = rewrite_dim_helper env d2 in 
+      Op(op, d1', d2')
+  | _  -> dim 
 
-let rewrite_dim env d = 
-  let d' = rewrite_dim_helper env d in 
-  ImpSimplify.simplify_arith d' 
+let rewrite_dim env d = simplify_dim (rewrite_dim_helper env d)  
 
 let rewrite_shape env shape = List.map (rewrite_dim env) shape   
 let rewrite_shapes env shapes = List.map (rewrite_shape env) shapes 
 
 let concat s1 s2 = s1 @ s2 
-let nelts = Imp.prod_exp_node_list 
+ 
 
-
-let get_call_output_shapes fn (inputs : shape list) =  
-  let replaceMap = 
-    ID.Map.extend ID.Map.empty (Array.to_list fn.input_ids) inputs 
-  in
-  let rawOutputShapes = 
-    List.map (Hashtbl.find fn.sizes) (Array.to_list fn.output_ids)
-  in
-  rewrite_shapes replaceMap rawOutputShapes
-                

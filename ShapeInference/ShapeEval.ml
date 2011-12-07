@@ -77,3 +77,15 @@ let eval_ssa_shape_env
   in
   (* evaluate symbolic shapes to get concrete shapes *)  
   ID.Map.map (eval_shape initShapeEnv) symShapes 
+
+
+
+let get_call_output_shapes fn (inputs : shape list) =  
+  let replaceMap = 
+    ID.Map.extend ID.Map.empty (Array.to_list fn.input_ids) inputs 
+  in
+  let rawOutputShapes = 
+    List.map (fun id -> ID.Map.find id fn.shapes) fn.output_ids
+  in
+  rewrite_shapes replaceMap rawOutputShapes
+                

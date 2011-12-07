@@ -290,3 +290,4 @@ _build/Imp
 _build/SSA/Specialization
 _build/Tests
 Runtime/LLVM/toy
+_build/ShapeInference
