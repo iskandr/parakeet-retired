@@ -10,6 +10,8 @@
 type value = DataId.t Value.t
 type values = value list
 
+let machine_model = MachineModel.build_machine_model
+
 let value_to_host v = DataManager.to_memspace HostMemspace.id v
 
 let map ?(axes=[0]) (fn:SSA.fn) ~(fixed:values) (args:values) =

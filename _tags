@@ -19,3 +19,4 @@
 "Imp/KernelTemplates" : include
 "FrontEnd" : include
 "stubs" : include
+"/usr/local/lib/ocaml" : include

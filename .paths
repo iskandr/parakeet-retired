@@ -290,3 +290,10 @@ _build/Imp
 _build/SSA/Specialization
 _build/Tests
 Runtime/LLVM/toy
+Runtime/LLVM/toy
+_build/Imp
+_build/Runtime/Cuda
+_build/Runtime/LLVM
+_build/SSA/Analyses
+_build/SSA/Optimizations
+_build/SSA/Specialization
