@@ -254,7 +254,16 @@ let rec fold_exp_node_list f default = function
   | [e] -> e 
   | e::es -> f e (fold_exp_node_list f default es)
 
+
+
 let max_exp_node_list es = fold_exp_node_list max_simplify neg_infinity es
 let sum_exp_node_list es = fold_exp_node_list add_simplify zero es 
 let prod_exp_node_list es = fold_exp_node_list mul_simplify one es 
-  
+
+let highest_rank_exp ( exps : exp_node array ) : exp_node = 
+  let maxExp = ref exps.(0) in   
+  for i = 1 to Array.length exps - 1 do
+    if Type.is_structure_subtype !maxExp.exp_type exps.(i).exp_type then 
+      maxExp := exps.(i)
+  done; 
+  !maxExp  

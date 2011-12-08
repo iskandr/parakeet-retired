@@ -290,6 +290,7 @@ _build/Imp
 _build/SSA/Specialization
 _build/Tests
 Runtime/LLVM/toy
+<<<<<<< HEAD
 Runtime/LLVM/toy
 _build/Imp
 _build/Runtime/Cuda
@@ -297,3 +298,6 @@ _build/Runtime/LLVM
 _build/SSA/Analyses
 _build/SSA/Optimizations
 _build/SSA/Specialization
+=======
+_build/ShapeInference
+>>>>>>> 3994a8a70ec2890ef9c3e70be16c5ce2de15027c

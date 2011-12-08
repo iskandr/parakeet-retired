@@ -1,4 +1,6 @@
 
+
+
 (* given a shape environment, evaluate a single imp expression*)
 (* which is expected to only refer to variables by their dimsize *) 
 val eval_exp_as_int :  Shape.t ID.Map.t -> Imp.exp_node -> int 
@@ -12,5 +14,7 @@ val eval_ssa_output_shapes :
       FnTable.t -> SSA.fundef -> Shape.t list -> Shape.t list
        
 val eval_ssa_shape_env 
-      : FnTable.t -> SSA.fundef -> Shape.t list -> Shape.t ID.Map.t  
+      : FnTable.t -> SSA.fundef -> Shape.t list -> Shape.t ID.Map.t
+      
+val get_call_output_shapes : Imp.fn -> shape list -> shape list    
       

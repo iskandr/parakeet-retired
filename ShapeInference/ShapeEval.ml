@@ -4,64 +4,56 @@ open Base
 open Imp 
 open MathEval 
 
-let _ = Printexc.record_backtrace true 
 
-let rec eval_exp (m : 'a math_ops) (shapeEnv:Shape.t ID.Map.t) expNode : 'a  =
-  let recur (e : Imp.exp_node) : 'a  = eval_exp m shapeEnv e in   
-  match expNode.exp with
-  | Op (scalarOp, _, args) -> MathEval.eval m scalarOp (List.map recur args)  
-  | Const n -> m.of_pqnum n
-  | DimSize(dim, {exp=Var id}) -> 
-    if ID.Map.mem id shapeEnv then 
-      let shape = ID.Map.find id shapeEnv in 
-      m.of_int (Shape.get shape dim)
-    else failwith $ Printf.sprintf  
-      "[ShapeEval] shape not found for %s" (ID.to_str id)    
-  | Cast(_, expNode') -> recur expNode'    
-  | other -> failwith $ 
-      Printf.sprintf "[ShapeEval] Unexpected expression: %s"
-        (Imp.exp_to_str other)
+let eval_dim_as_int shapeEnv = function 
+  | Const i -> i  
+  | Dim (id, idx) -> 
+      if ID.Map.mem id shapeEnv then 
+        SymbolicShape.get_dim (ID.Map.find id shapeEnv) idx
+      else 
+        failwith $ Printf.sprintf  
+          "[ShapeEval] shape not found for %s" (ID.to_str id)   
+  | Op (op, x, y) ->
+      let fn = match op with 
+        | Add -> (+)
+        | Mult ->  ( * ) 
+        | Max -> max 
+      in fn (eval_dim_as_int shapeEnv x) (eval_dim_as_int shapeEnv y) 
+       
+let eval_dim_as_float shapeEnv = function 
+  | Const i -> float_of_int i 
+  | Dim (id, idx) -> 
+      if ID.Map.mem id shapeEnv then
+        let shape = ID.Map.find id shapeEnv in 
+        float_of_int (SymbolicShape.get_dim shape idx)
+      else 
+        failwith $ Printf.sprintf  
+          "[ShapeEval] shape not found for %s" (ID.to_str id)   
+  | Op (op, x, y) ->
+      let fn = match op with 
+        | Add -> (+.)
+        | Mult ->  ( *. ) 
+        | Max -> max 
+      in fn (eval_dim_as_float shapeEnv x) (eval_dim_as_float shapeEnv y) 
+       
 
-
-let eval_exp_as_int = (eval_exp MathEval.int_ops)
-let eval_exp_as_float = (eval_exp MathEval.float_ops)   
-
-let eval_shape shapeEnv expNodeList : Shape.t = 
-  Shape.of_list (List.map (eval_exp_as_int shapeEnv) expNodeList)
+let eval_shape shapeEnv (symShape : SymbolicShape.t) : Shape.t = 
+  Shape.of_list (List.map (eval_dim_as_int shapeEnv) symShape)
   
 let eval_imp_shape_env (fn:Imp.fn) (inputShapes : Shape.t list) =
-  (*
-  IFDEF DEBUG THEN
-    Printf.printf 
-      "[ShapeEval] Inferring shapes for fn (%s)->(%s) with input shapes %s\n"
-      (String.concat ", " (Array.to_list (Array.map ID.to_str fn.input_ids)))
-      (String.concat ", " (Array.to_list (Array.map ID.to_str fn.output_ids)))
-      (String.concat ", " (List.map Shape.to_str inputShapes)) 
-    ;
-  ENDIF;
-  *) 
   (* shapes of all inputs *) 
   let inputEnv = 
-    Array.fold_left2 
+    List.fold_left2  
       (fun accEnv id shape -> ID.Map.add id shape accEnv)
       ID.Map.empty
       fn.input_ids
-      (Array.of_list inputShapes)
+      inputShapes
   in
-  let aux id sizeExpressions shapeEnv  =
-    let dims = List.map (eval_exp_as_int shapeEnv) sizeExpressions in
-    let shape = Shape.of_list dims in
-    (*   
-    IFDEF DEBUG THEN 
-      Printf.printf "[ShapeEval] Inferred shape for %s: %s  \n"
-        (ID.to_str id)
-        (Shape.to_str shape);
-    ENDIF;
-    *) 
+  let aux id symShape shapeEnv  =
+    let shape = eval_shape shapeEnv symShape in 
     ID.Map.add id shape shapeEnv     
   in
-  Hashtbl.fold aux fn.sizes inputEnv 
-    
+  ID.Map.fold aux fn.shapes inputEnv 
 
 let eval_ssa_output_shapes 
       (fnTable:FnTable.t) 
@@ -85,3 +77,15 @@ let eval_ssa_shape_env
   in
   (* evaluate symbolic shapes to get concrete shapes *)  
   ID.Map.map (eval_shape initShapeEnv) symShapes 
+
+
+
+let get_call_output_shapes fn (inputs : shape list) =  
+  let replaceMap = 
+    ID.Map.extend ID.Map.empty (Array.to_list fn.input_ids) inputs 
+  in
+  let rawOutputShapes = 
+    List.map (fun id -> ID.Map.find id fn.shapes) fn.output_ids
+  in
+  rewrite_shapes replaceMap rawOutputShapes
+                

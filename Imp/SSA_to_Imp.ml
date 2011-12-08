@@ -1,3 +1,23 @@
+open Imp 
+open ImpHelpers 
+
+type stmts_and_info = { 
+    stmts : Imp.stmt list; 
+    new_ids : ID.t list; 
+    new_types : ImpType.t list;
+    new_shapes : SymbolicShape.shape list;
+}
+
+
+let translate_map ?(axes=[0]) ~(fn:SSA.fn) ~(args:SSA.value list) : stmts_and_info  =
+  let fn' = ImpReplace.fresh_fn fn in  
+  let allIds = (fn.input_ids@fn.output_ids@fn.local_ids) in 
+  let types = List.map (fun id -> ID.Map.find id fn'.types) allIds in
+  let shapes = List.map (fun id -> ID.Map.find id fn'.shapes) allIds in 
+  let loop = while_
+ 
+    
+
 (*type fn = {
   body: block;
   tenv : tenv;
@@ -34,13 +54,16 @@ let rec translate_block (tenv:ImpType.t ID.Map.t) (block:SSA.block) =
 
 module Analysis = struct 
     type env = Imp.fn
+    
     type exp_info = { 
-        stmts : Imp.stmt list; 
-        new_ids : ID.t list; 
-        new_types : ImpType.t list;
-        new_shapes : SymbolicShape.shape list
-        result : 
-    type value_info
+      stmts : Imp.stmt list; 
+      new_ids : ID.t list; 
+      new_types : ImpType.t list;
+      new_shapes : SymbolicShape.shape list;
+      rhs : Imp.exp_node; 
+    } 
+    
+    type value_info = Imp.exp_node
     
     val dir : direction
   
