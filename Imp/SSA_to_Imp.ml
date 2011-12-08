@@ -8,13 +8,30 @@ type stmts_and_info = {
     new_shapes : SymbolicShape.shape list;
 }
 
+class codegen = object (self)
+  val mutable types : ImpType.t ID.Map.t = ID.Map.empty 
+  val mutable shapes : SymbolicShape.t ID.Map.t  = ID.Map.empty
+   
+  method var ?(shape=SymbolicShape.scalar) ty = 
+    assert (ImpType.rank ty = SymbolicShape.rank shape); 
+    let id = ID.gen() in
+    types <- ID.Map.add id ty types; 
+    shapes <- ID.Map.add id shape shapes; 
+    ImpHelpers.var_val ~t:ty id
+    
+  method var_exp ?(shape=SymbolicShape.scalar) ty = 
+    ImpHelpers.exp_of_val (self#var ~shape ty)
+     
+    
+end
 
 let translate_map ?(axes=[0]) ~(fn:SSA.fn) ~(args:SSA.value list) : stmts_and_info  =
   let fn' = ImpReplace.fresh_fn fn in  
   let allIds = (fn.input_ids@fn.output_ids@fn.local_ids) in 
   let types = List.map (fun id -> ID.Map.find id fn'.types) allIds in
-  let shapes = List.map (fun id -> ID.Map.find id fn'.shapes) allIds in 
-  let loop = while_
+  let shapes = List.map (fun id -> ID.Map.find id fn'.shapes) allIds in
+  let keepGoing = codegen#var ImpType.bool_t  
+  let loop = while_ 
  
     
 

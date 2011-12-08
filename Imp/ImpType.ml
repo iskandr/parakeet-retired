@@ -26,7 +26,8 @@ let rec rank = function
 	| ShiftT x -> rank x
 
 let bool_t = ScalarT Type.BoolT 
-let char_t = ScalarT Type.CharT 
+let char_t = ScalarT Type.CharT
+let int16_t = ScalarT Type.Int16T  
 let int32_t = ScalarT Type.Int32T
 let int64_t = ScalarT Type.Int64T
 let float32_t = ScalarT Type.Float32T

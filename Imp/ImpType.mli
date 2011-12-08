@@ -18,6 +18,7 @@ val rank : t -> int
 
 val bool_t : t 
 val char_t : t 
+val int16_t : t 
 val int32_t : t
 val int64_t : t 
 val float32_t : t
