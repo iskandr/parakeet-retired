@@ -88,13 +88,17 @@ if opts['clean']:
 parakeet_path = ".."
 if 'PARAKEET_PATH' in os.environ:
   parakeet_path = os.environ['PARAKEET_PATH']
-build_command = ["ocamlbuild", "-lflags",
+build_command = ["ocamlbuild",
+                 "-cflags",
+                 "-I,/usr/local/lib/ocaml",
+                 "-lflags",
                  "-ccopt," + parakeet_path + "/cuda/parakeet_cuda.a," +\
                  "-ccopt,-L/usr/local/cuda/lib," +\
                  "-ccopt,-L/usr/local/cuda/lib64," +\
                  "-ccopt,-L/usr/lib/nvidia-current," +\
                  "-ccopt,-lcuda,-ccopt,-lcudart," +\
-                 "-ccopt," + parakeet_path + "/FrontEnd/parakeet.a",
+                 "-ccopt," + parakeet_path + "/FrontEnd/parakeet.a" +\
+                 "-I,/usr/local/lib/ocaml",
                  "-pp", "camlp4o", "-ppflag", "pa_macro.cmo",
                  "-ocamlyacc", "menhir", 
                  ]

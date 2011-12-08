@@ -1,4 +1,5 @@
 open Imp
+open Llvm
 
 let memspace_id = HostMemspace.id
 

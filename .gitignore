@@ -17,3 +17,4 @@ papers/PLDI11/PLDI11.pdf
 papers/ICFP11/ICFP11.pdf
 *.blg
 *.backup
+.paths
