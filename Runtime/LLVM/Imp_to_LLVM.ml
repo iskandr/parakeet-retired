@@ -1,3 +1,22 @@
+let array_field_to_idx = function  
+  | RangeStart -> 0
+  | RangeStop -> 1
+  | ShiftData -> 0
+  | ShiftAmt -> 1
+  | ShiftDim -> 2
+  | ShiftDefault -> 3 
+  | RotData -> 0
+  | RotDim -> 1
+  | RotAmt -> 2
+  | SliceData -> 0
+  | SliceDim -> 1
+  | SliceStart -> 2
+  | SliceStop -> 3
+  | FrozenData -> 0
+  | FrozenDim -> 1
+  | FrozenIdx -> 2
+
+
 let named_values:(string, llvalue) Hashtbl.t = Hashtble.create 10 in
   let rec compile_stmt_seq types body = 
     match body with
@@ -9,7 +28,7 @@ let named_values:(string, llvalue) Hashtbl.t = Hashtble.create 10 in
     | Some node ->
       begin
         try match node with
-        | Imp.If cond t_b f_b -> assert false
+        | Imp.If (cond, t_b, f_b) -> assert false
         | Imp.While exp b -> assert false
         | Imp.Set id exp -> assert false
           let val_ = compile_expr types exp in
