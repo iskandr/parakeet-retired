@@ -17,7 +17,8 @@ let array_field_to_idx = function
   | FrozenIdx -> 2
 
 
-let named_values:(string, llvalue) Hashtbl.t = Hashtble.create 10 in
+
+let named_values : (string, llvalue) Hashtbl.t = Hashtble.create 10 in
   let rec compile_stmt_seq types body = 
     match body with
     | [] -> []
