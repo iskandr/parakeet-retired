@@ -19,7 +19,6 @@ let rec to_lltype = function
   | ArrayT (eltT, _) ->
      let data = Llvm.pointer_type  (scalar_to_lltype eltT) in 
      Llvm.struct_type context [|data; int_ptr_type; int_ptr_type|]
-       
   | ShiftT t ->
      let nested = to_lltype t in 
      Llvm.struct_type context [|nested; i32_type; i32_type; i32_type|]
