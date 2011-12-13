@@ -82,13 +82,13 @@ class ptx_codegen = object (self)
   val instructions : instruction DynArray.t = DynArray.create ()
   method emit newInstructions =
     DynArray.append (DynArray.of_list newInstructions) instructions
-  
-  (* VARIABLE DECLARATIONS *) 
+
+  (* VARIABLE DECLARATIONS *)
   val local_allocations : (PtxVal.symid, Ptx.var_decl) Hashtbl.t =
      Hashtbl.create initialNumRegs
-  val global_allocations : (PtxVal.symid, Ptx.var_decl) Hashtbl.t = 
-     Hashtbl.create 13 
-  
+  val global_allocations : (PtxVal.symid, Ptx.var_decl) Hashtbl.t =
+     Hashtbl.create 13
+
   method private add_local_alloc id newAlloc = 
     Hashtbl.add local_allocations id newAlloc 
   

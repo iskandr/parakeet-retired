@@ -60,19 +60,19 @@ and geom = Tex1D | Tex2D | Tex3D
 and ptx_op =
   | Unop of ptx_unop * PtxType.ty
   | Binop of ptx_binop * PtxType.ty
-  | Mad of ptx_bits * PtxType.ty  
+  | Mad of ptx_bits * PtxType.ty
   | Mad24 of ptx_bits * PtxType.ty
-  | FloatMad of PtxType.ty   
+  | FloatMad of PtxType.ty
   | Cvt of PtxType.ty * PtxType.ty
-  | Ld of ptx_space * PtxType.ty * int 
-  | Selp of PtxType.ty 
-  | Slct of PtxType.ty * PtxType.ty  
-  | St of ptx_space * PtxType.ty * int 
-  | Mov of PtxType.ty 
+  | Ld of ptx_space * PtxType.ty * int
+  | Selp of PtxType.ty
+  | Slct of PtxType.ty * PtxType.ty
+  | St of ptx_space * PtxType.ty * int
+  | Mov of PtxType.ty
   | Bra of label
-  | Comment of string 
-  | Exit 
-  | Bar of int 
+  | Comment of string
+  | Exit
+  | Bar of int
   | Tex of geom * ty
  
 and var_decl = {
@@ -85,16 +85,16 @@ and var_decl = {
    its negation, or not at all
 *) 
 and guard = IfTrue of PtxVal.value | IfFalse of PtxVal.value | NoGuard  
-and instruction = { 
-  op: ptx_op; 
+and instruction = {
+  op: ptx_op;
   sat : bool;
   ftz : bool;
-  rounding : ptx_rounding_mode option; 
-  args : PtxVal.value array; 
-	label : label option; 
+  rounding : ptx_rounding_mode option;
+  args : PtxVal.value array;
+	label : label option;
 	pred : guard
 }
-  
+
 and kernel = {
   params: (symid * PtxType.ty) array;
   local_decls: (symid, var_decl) Hashtbl.t;
@@ -111,11 +111,11 @@ and ptx_module = {
 }
 
 let module_from_named_kernels (kernels : (string * kernel) list) =
-  (* TODO: rename the textures for global consistency *) 
-  { 
-    kernels = PMap.of_enum (List.enum kernels);   
+  (* TODO: rename the textures for global consistency *)
+  {
+    kernels = PMap.of_enum (List.enum kernels);
     compute_capability = SM_13
-  } 
+  }
 
 let is_float_rounding_mode = function 
   | RoundNearest | RoundZero | RoundNegInf | RoundPosInf -> true 

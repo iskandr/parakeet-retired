@@ -4,9 +4,9 @@ external c_malloc_impl : int -> Int64.t = "ocaml_malloc"
 
 exception HostOutOfMemory
 let malloc nbytes =
-    let ptr = c_malloc_impl nbytes in
-    if ptr = Int64.zero then raise HostOutOfMemory
-    else ptr
+  let ptr = c_malloc_impl nbytes in
+  if ptr = Int64.zero then raise HostOutOfMemory
+  else ptr
 
 external free : Int64.t -> unit = "ocaml_free"
 external memcpy : Int64.t -> Int64.t -> int -> unit = "ocaml_memcpy"    

@@ -1,6 +1,8 @@
 open BaseCommon
 include ExtArray.Array
 
+external to_c_int_array : int array -> Int64.t = "ocaml_to_c_int_array"
+
 let remove_mask data bools =
   let len = Array.length data in
   if len = 0 then data else if length bools <> len

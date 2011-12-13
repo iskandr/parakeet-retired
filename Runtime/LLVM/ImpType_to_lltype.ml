@@ -1,10 +1,10 @@
+open ImpType
+open Llvm
 open Type
-open ImpType 
-open Llvm 
 
 let context = Llvm.global_context()
-let int_ptr_type  = Llvm.pointer_type i32_type 
- 
+let int_ptr_type  = Llvm.pointer_type i32_type
+
 let scalar_to_lltype = function 
   | BoolT 
   | CharT
@@ -23,5 +23,3 @@ let rec to_lltype = function
   | ShiftT t ->
      let nested = to_lltype t in 
      Llvm.struct_type context [|nested; i32_type; i32_type; i32_type|]
-    
-      
