@@ -19,7 +19,7 @@ let array_field_to_idx = function
 
 let context = Llvm.global_context ()
 let the_module = Llvm.create_module context "my_module"
-let named_values : (ID.t, llvalue) Hashtbl.t = Hashtbl.create 10
+let named_values : (string, llvalue) Hashtbl.t = Hashtbl.create 10
 type function_record = { vars: ID.t list;
                          types: Llvm.lltype list;
                          builder: Llvm.llbuilder}
