@@ -3,6 +3,8 @@ open Llvm
 
 let context = global_context ()
 
+let align_to size alignment = (size + alignment - 1) / alignment
+
 let parnum_to_generic = function
   | Bool b -> 
   	if b then of_int 1 8
@@ -41,7 +43,7 @@ let rec to_llvm = function
       let el_size = Type.sizeof el_t in
       (* The following ensures that the struct is 8-byte aligned, as all C *)
       (* structs need to be on 64-bit platforms. *)
-      let mem_size = (8 + 4 + 4 + el_size + 7) / 8 in
+      let mem_size = align_to (8 + 4 + 4 + el_size) 8 in
       let ptr = HostMemspace.malloc mem_size in
       let a = to_llvm v in
       (* As above, we treat int32s as "half-int64s", etc., in order to get *)
@@ -59,8 +61,7 @@ let rec to_llvm = function
         | _ -> failwith "Unsupported array element type for LLVM conversion");
       ptr)
   | Value.Slice (v, dim, start, stop) -> (
-      (* Need to pad the struct to make it 8-byte aligned. *)
-      let ptr = HostMemspace.malloc (8 + 4 + 4 + 4 + 4) in
+      let ptr = HostMemspace.malloc (align_to (8 + 4 + 4 + 4) 8) in
       let a = to_llvm v in
       HostMemspace.set_int64 ptr 0 a;
       HostMemspace.set_int32 ptr 2 dim;
