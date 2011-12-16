@@ -36,7 +36,7 @@ let codegen_proto llvmVars llvmTypes name =
   let ft = Llvm.function_type Llvm.void llvmTypes in
   let f = Llvm.declare_function name ft the_module in
   let params = Array.to_list Llvm.params f in
-  List.iter2 (var param ->
+  List.iter2 (fun var param ->
     let varName = ID.to_str var in
     Llvm.set_value_name varName param;
     Hashtbl.add named_values varName param
@@ -45,7 +45,7 @@ let codegen_proto llvmVars llvmTypes name =
 
 let create_argument_allocas theFunction llvmVars llvmTypes =
   let params = Array.to_list Llvm.params theFunction in
-  List.iter2 (var param ->
+  List.iter2 (fun var param ->
     let varName = ID.to_str var in
     let alloca = Llvm.create_entry_block_alloca theFunction varName in
     ignore(Llvm.build_store param alloca builder);
@@ -53,87 +53,78 @@ let create_argument_allocas theFunction llvmVars llvmTypes =
   ) (llvmVars params)
 
 let init_compiled_fn llvmVars llvmTypes name builder =
-  Hashtbl.clear named_values
+  Hashtbl.clear named_values; 
   let theFunction = codegen_proto llvmVars llvmTypes name in
   let bb = Llvm.append_block context "entry" theFunction in
   Llvm.position_at_end bb builder;
-  try
+  begin try
     create_argument_allocas theFunction llvmVars llvmTypes
   with e ->
-    Llvm.delete_function the_function;
+    Llvm.delete_function theFunction;
     raise e
-  bb;
+  end; 
+  bb
 
-let rec compile_stmt_seq fnInfo currBB = 
-  match body with
+let compile_val (impVal:Imp.value_node) = match impVal.value with
+  | Imp.Var id ->
+      let v = try Hashtbl.find named_values (ID.to_str id) with
+      | Not_found -> failwith "unknown variable name"
+      in
+      v
+  | Imp.Const const -> Value_to_llvalue.to_llvm const
+  | _ -> assert false
+
+let compile_expr fnInfo (impExpr:Imp.exp_node) = 
+  match impExpr.exp with
+  | Imp.Val valNode -> compile_val valNode 
+  | Imp.Op (t, op, vals) ->
+      let vals' =  List.map compile_val vals in 
+      ( match op, vals' with
+        | Prim.Add, [ x; y ] ->
+          begin match t with
+          | Type.Int16T
+          | Type.Int32T
+          | Type.Int64T -> Llvm.build_add x y "addtmp" fnInfo.builder
+          | Type.Float32T
+          | Type.Float64T -> Llvm.build_fadd x y "addftmp" fnInfo.builder
+          end
+        | Prim.Sub, [ x; y ] ->
+          begin match t with
+          | Type.Int16T
+          | Type.Int32T
+          | Type.Int64T -> Llvm.build_sub x y "subtmp" fnInfo.builder
+          | Type.Float32T
+          | Type.Float64T -> Llvm.build_fsub x y "subftmp" fnInfo.builder
+          end
+        | Prim.Mult, [ x; y ] ->
+          begin match t with
+          | Type.Int16T
+          | Type.Int32T
+          | Type.Int64T -> Llvm.build_mul x rhs "multmp" fnInfo.builder
+          | Type.Float32T
+          | Type.Float64T -> Llvm.build_fmul y rhs "mulftmp" fnInfo.builder
+          end
+        | Prim.Div, [ x; y ] -> Llvm.build_sdiv x y "sdivtmp" fnInfo.builder
+      )
+ | _ -> assert false
+
+
+let rec compile_stmt_seq fnInfo currBB = function 
   | [] -> currBB
   | head :: tail ->
     let newBB = compile_stmt fnInfo currBB head in
     compile_stmt_seq fnInfo newBB tail
-and rec compile_stmt fnInfo currBB = function
+    
+and compile_stmt fnInfo currBB = function
   | Imp.Set (id, exp) ->
     let rhs = compile_expr fnInfo exp in
-    (* Alex: why don't I need a begin/end here? *)
     let variable = try Hashtbl.find named_values (ID.to_str id) with
     | Not_found -> raise (Error "unknown variable name " ^ (ID.to_str id))
     in
     ignore(Llvm.build_store rhs variable fnInfo.builder);
     currBB
   | _ -> assert false
-and compile_expr fnInfo impExpr = match impExpr with
-  | Imp.Val (valNode) -> compile_val valNode
-  | Imp.Op (t, op, vals) ->
-  begin
-    match op, vals with
-    | Prim.Add [ lVal; rVal ] ->
-    let lhs = compile_val lVal in
-    let rhs = compile_val rVal in
-    begin
-      match t with
-      | Type.Int16T
-      | Type.Int32T
-      | Type.Int64T -> Llvm.build_add lhs rhs "addtmp" fnInfo.builder
-      | Type.Float32T
-      | Type.Float64T -> Llvm.build_fadd lhs rhs "addftmp" fnInfo.builder
-    end;
-    | Prim.Sub [ lVal; rVal ] ->
-    let lhs = compile_val lVal in
-    let rhs = compile_val rVal in
-    begin
-      match t with
-      | Type.Int16T
-      | Type.Int32T
-      | Type.Int64T -> Llvm.build_sub lhs rhs "subtmp" fnInfo.builder
-      | Type.Float32T
-      | Type.Float64T -> Llvm.build_fsub lhs rhs "subftmp" fnInfo.builder
-    end;
-    | Prim.mul [ lVal; rVal ] ->
-    let lhs = compile_val lVal in
-    let rhs = compile_val rVal in
-    begin
-      match t with
-      | Type.Int16T
-      | Type.Int32T
-      | Type.Int64T -> Llvm.build_mul lhs rhs "multmp" fnInfo.builder
-      | Type.Float32T
-      | Type.Float64T -> Llvm.build_fmul lhs rhs "mulftmp" fnInfo.builder
-    end;
-    | Prim.add [ lVal; rVal ] ->
-    let lhs = compile_val lVal in
-    let rhs = compile_val rVal in
-    Llvm.build_udiv lhs rhs "addudiv" fnInfo.builder
-  end;
-  _ -> assert false
-and compile impVal = match impVal with
-  | Imp.Var (id) ->
-    begin (* Alex: begin necessary here? *)
-      let v = try Hashtbl.find named_values (ID.to_str id) with
-      | Not_found -> raise (Error "unknown variable name")
-      in
-      v
-    end;
-  | Imp.Const (const) -> Value_to_llvalue.to_llvm const
-  | _ -> assert false
+
 
 let compile_fn fn =
   let builder = Llvm.builder context in
