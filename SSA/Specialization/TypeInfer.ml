@@ -47,7 +47,6 @@ let infer_select predT t1 t2 =
 
 let infer_scalar_op op argTypes = match op, argTypes with 
   | op, [t1;t2] when Prim.is_binop op -> infer_binop op t1 t2  
-     
   | op, [t] when Prim.is_unop op -> infer_unop op t 
   | Prim.Select, [predT; t1; t2] -> infer_select predT t1 t2  
   | other, types -> 

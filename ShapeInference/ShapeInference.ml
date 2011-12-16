@@ -34,6 +34,7 @@ module ShapeAnalysis (P: PARAMS) =  struct
     let init fundef = 
       List.fold_left 
         (fun accEnv id -> 
+          
           let varNode = Imp.var ~t:(ID.Map.find id fundef.SSA.tenv) id in 
           ID.Map.add id (all_dims varNode)  accEnv
         )

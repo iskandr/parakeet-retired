@@ -10,7 +10,7 @@ let apply_id_map_to_val idMap valNode = match valNode.value with
 
 (* FIND/REPLACE identifiers in Imp expression *)  
 let rec apply_id_map_to_exp idMap expNode = 
-  let aux_val : Imp.value_node -> Imp.value_node = apply_id_map idMap in 
+  let aux_val : Imp.value_node -> Imp.value_node = apply_id_map_to_val idMap in 
   let exp' = match expNode.exp with  
   | Val v ->  aux_val v  
   | Idx (v1, v2) -> Idx (aux_val e1, aux_val v2)  
