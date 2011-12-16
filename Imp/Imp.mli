@@ -12,9 +12,11 @@ type array_field =
   | RotData
   | RotDim
   | RotAmt
+  | SliceData
   | SliceDim
   | SliceStart
   | SliceStop
+  | FrozenData
   | FrozenDim
   | FrozenIdx
   

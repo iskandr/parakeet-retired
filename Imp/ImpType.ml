@@ -3,7 +3,6 @@ type elt_t = Type.elt_t
 type t =
     | ScalarT of elt_t
     | ArrayT of elt_t * int
-    | ExplodeT of 
     | ShiftT of t
     | FixedDimT of t
     | Tuple of t array
