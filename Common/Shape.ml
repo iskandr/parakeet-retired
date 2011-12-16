@@ -44,7 +44,6 @@ let of_list l =
   List.iter2 (fun dim idx -> set s idx dim) l (List.til n);
   s
 
-
 (* the product of the elements in a shape vector is the number of elements
    in an array
 *)
@@ -94,7 +93,6 @@ let max_shape_list lst =
   in  
   List.fold_left aux (Some scalar_shape) lst
 
- 
 let peel ?(axes=[0]) shape = 
   let n = rank shape in
   let num_axes = List.length axes in
@@ -125,8 +123,7 @@ let split_nested_shapes shapes =
     if eq shape maxShape then peel shape else shape 
   in 
   get maxShape 0, List.map peeler shapes  
-  
-    
+ 
 let append shape1 shape2 = 
   let m = rank shape1 in 
   let n = rank shape2 in 
@@ -147,10 +144,10 @@ let append_dim dim shape =
     set shape' (i+1) (get shape i)
   done; 
   shape'  
-  
+
 let append_dims dims shape = 
   append (of_list dims) shape 
-  
+
 let slice_shape inputShape dimsList = 
   let n = rank inputShape in 
   let nRemoved = List.length dimsList in
@@ -168,7 +165,7 @@ let slice_shape inputShape dimsList =
       end
     done; 
     resultShape   
- )  
+  )  
 
 let of_array (dims : int array) : t = dims  
 let to_array (shape : t) : int array = shape  
@@ -180,7 +177,7 @@ let to_int32_c_array shape =
     cArr.{i} <- Int32.of_int (get shape i)
   done; 
   cArr
-  
+
 let of_int32_c_array cArr = 
   let n = Array1.dim cArr in 
   let shape = create n in 

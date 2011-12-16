@@ -1,10 +1,10 @@
+open ImpType
+open Llvm
 open Type
-open ImpType 
-open Llvm 
 
 let context = Llvm.global_context()
-let int_ptr_type  = Llvm.pointer_type i32_type 
- 
+let int_ptr_type  = Llvm.pointer_type i32_type
+
 let scalar_to_lltype = function 
   | BoolT 
   | CharT

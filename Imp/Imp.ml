@@ -43,7 +43,7 @@ type exp =
   | DimSize of value_node * value_node 
   | FreezeDim of value_node * value_node * value_node 
   | ArrayField of array_field * value_node
-  
+
 and exp_node = {
   exp : exp;
   exp_type : ImpType.t;
@@ -67,7 +67,6 @@ type storage =
   | Private
   | Shared
   | Alias
-
 
 type fn = {
   input_ids : ID.t list;
@@ -107,7 +106,6 @@ let cuda_info_to_str = function
   | BlockIdx -> "blockidx"
   | BlockDim -> "blockdim"
   | GridDim -> "griddim"
-
 
 let val_to_str = function 
   | Var id -> ID.to_str id
@@ -197,8 +195,7 @@ let array_storage_to_str = function
   | Private -> "private"
   | Shared -> "shared"
   | Alias -> "alias"
- 
-	
+
 let fn_to_str fn =
   let id_to_str id  = 
     ID.to_str id ^ " : " ^ (ImpType.to_str (get_var_type fn id))
@@ -211,8 +208,7 @@ let fn_to_str fn =
     (String.concat ", " outputs)
 		(String.concat ", " locals)
     (block_to_str  fn.body)
-
-                                 
+                      
 let always_const_val {value} = match value with 
   | CudaInfo _
   | Const _ -> true
@@ -225,4 +221,3 @@ let rec always_const_exp {exp} = match exp with
   | Select (_, pred, arg1, arg2) -> always_const_val pred && always_const_val arg1 && always_const_val arg2  
   | Op (_, _, args) -> List.for_all always_const_val args 
   | _ -> false 
-  

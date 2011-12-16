@@ -69,7 +69,7 @@ let rec compile_stmt_seq fnInfo currBB =
   | [] -> currBB
   | head :: tail ->
     let newBB = compile_stmt fnInfo currBB head in
-    compoile_stmt_seq fnInfo newBB tail
+    compile_stmt_seq fnInfo newBB tail
 and rec compile_stmt fnInfo currBB = function
   | Imp.Set (id, exp) ->
     let rhs = compile_expr fnInfo exp in

@@ -16,7 +16,7 @@ type 'a t =
   | Rotate of 'a t * int * int              (* array, dim, offset *) 
   | Shift of 'a t *  int * int * ParNum.t   (* array, dim, offset, default *) 
   | Slice of 'a t * int * int * int         (* array, dim, start, end *) 
-  | Range of int * int                      (* start, stop *) 
+  | Range of int * int * int                (* start, stop, step *) 
 
 val map : ('a -> 'b) -> 'a t -> 'b t
 

@@ -13,9 +13,9 @@ type 'a t =
   | Scalar of ParNum.t
   | Explode of ParNum.t * Shape.t           (* scalar, shape *)
   | Rotate of 'a t * int * int              (* array, dim, offset *)
-  | Shift of 'a t *  int * int * ParNum.t   (* array, dim, offset, default *)
+  | Shift of 'a t * int * int * ParNum.t    (* array, dim, offset, default *)
   | Slice of 'a t * int * int * int         (* array, dim, start, end *)
-  | Range of int * int                      (* start, stop *)
+  | Range of int * int * int                (* start, stop; step *)
 
 (* since array data is polymorphic it's by default printed as the *)
 (* totally uninformative string '<array>'. If you want something more*)
@@ -39,8 +39,8 @@ let rec to_str ?(array_to_str=(fun _ -> "<array>")) = function
   | Slice (a, dim, start, stop) ->
         Printf.sprintf "slice(%s, dim=%d, start=%d, stop=%d)"
             (to_str ~array_to_str a)  dim start stop
-  | Range (start, stop) ->
-        Printf.sprintf "range(from=%d, to=%d)" start stop
+  | Range (start, stop, step) ->
+        Printf.sprintf "range(from=%d, to=%d, step=%d)" start stop step
 
 let rec map (f: 'a -> 'b) (x : 'a t) : 'b t = match x with 
   | Array array_info -> Array {array_info with data = f array_info.data } 
@@ -49,7 +49,7 @@ let rec map (f: 'a -> 'b) (x : 'a t) : 'b t = match x with
   | Shift (a, dim, offset, default) -> Shift (map f a, dim, offset, default) 
   | Slice (a, dim, start, stop) -> Slice (map f a, dim, start, stop)
   | Scalar n -> Scalar n
-  | Range (start, stop) -> Range (start, stop)
+  | Range (start, stop, step) -> Range (start, stop, step)
   | Explode (n, s) -> Explode (n, s)
 
 let rec type_of = function
