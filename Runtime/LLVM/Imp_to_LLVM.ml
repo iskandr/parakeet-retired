@@ -19,19 +19,19 @@ let array_field_to_idx = function
 
 let context = Llvm.global_context ()
 let the_module = Llvm.create_module context "my_module"
-let named_values : (string, llvalue) Hashtbl.t = Hashtbl.create 10
-type function_record = { vars: ID.t list;
+let named_values : (string, Llvm.llvalue) Hashtbl.t = Hashtbl.create 10
+type fn_record = { vars: ID.t list;
                          types: Llvm.lltype list;
                          inputVars: ID.t list;
                          inputTypes: Llvm.lltype list;
                          builder: Llvm.llbuilder}
 
 
-let create_llvm_vars inputs locals outputs = 
-  List.concat [(*inputs;*)locals;outputs]
+let create_llvm_vars locals outputs = 
+  List.concat [locals;outputs]
 
-let create_llvm_types inputTypes localTypes outputTypes = 
-  let impTypes = List.concat [(*inputTypes;*)localTypes;outputTypes] in
+let create_llvm_types localTypes outputTypes = 
+  let impTypes = List.concat [localTypes;outputTypes] in
   List.map (fun impType -> ImpType_to_lltype.to_lltype impType) impTypes
 
 let codegen_proto llvmVars llvmTypes name =
@@ -45,13 +45,13 @@ let codegen_proto llvmVars llvmTypes name =
   ) (llvmVars params);
   f
 
-let create_entry_block_alloca theFunction [varName;varType] = 
+let create_entry_block_alloca theFunction (varName, varType) = 
   let builder = Llvm.builder_at context (Llvm.instr_begin (Llvm.entry_block theFunction)) in
   Llvm.build_alloca varType varName builder
 
 let create_argument_allocas theFunction llvmVars llvmTypes =
   let params = Array.to_list Llvm.params theFunction in
-  let llvmVarInfo = List.map2 (fun x y -> [ID.to_str x;y]) llvmVars llvmTypes
+  let llvmVarInfo = List.map2 (fun x y -> (ID.to_str x, y)) llvmVars llvmTypes
   List.iter2 (fun var param ->
     let alloca = Llvm.create_entry_block_alloca theFunction llvmVarInfo in
     ignore(Llvm.build_store param alloca builder);
@@ -80,6 +80,7 @@ let init_compiled_fn llvmVars llvmTypes fnInfo name builder =
   create_local_allocas theFunction fnInfo.Vars fnInfo.Types
   bb
 
+(* Change to function? *)
 let compile_val (impVal:Imp.value_node) = match impVal.value with
   | Imp.Var id ->
       let v = try Hashtbl.find named_values (ID.to_str id) with
@@ -89,6 +90,7 @@ let compile_val (impVal:Imp.value_node) = match impVal.value with
   | Imp.Const const -> Value_to_llvalue.to_llvm const
   | _ -> assert false
 
+(* Change to function? *)
 let compile_expr fnInfo (impExpr:Imp.exp_node) = 
   match impExpr.exp with
   | Imp.Val valNode -> compile_val valNode 
@@ -147,8 +149,8 @@ let compile_fn fn =
   let localTypes = List.map (fun id -> ID.Map.find id fn.types) fn.local_ids in
   let outputTypes = List.map (fun id -> ID.Map.find id fn.types) fn.output_ids in
   
-  let llvmVars = create_llvm_vars fn.input_ids fn.local_ids fn.output_ids in
-  let llvmTypes = create_llvm_types inputTypes localTypes outputTypes in
+  let llvmVars = create_llvm_vars fn.local_ids fn.output_ids in
+  let llvmTypes = create_llvm_types localTypes outputTypes in
   let fnInfo = { vars = llvmVars; types = llvmTypes; 
                  inputVars = fn.input_ids; inputTypes = List.map 
                  (fun impType -> ImpType_to_lltype.to_lltype impType) inputTypes;
