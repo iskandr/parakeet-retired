@@ -22,14 +22,16 @@ let the_module = Llvm.create_module context "my_module"
 let named_values : (string, llvalue) Hashtbl.t = Hashtbl.create 10
 type function_record = { vars: ID.t list;
                          types: Llvm.lltype list;
+                         inputVars: ID.t list;
+                         inputTypes: Llvm.lltype list;
                          builder: Llvm.llbuilder}
 
 
 let create_llvm_vars inputs locals outputs = 
-  List.concat [inputs;locals;outputs]
+  List.concat [(*inputs;*)locals;outputs]
 
 let create_llvm_types inputTypes localTypes outputTypes = 
-  let impTypes = List.concat [inputTypes;localTypes;outputTypes] in
+  let impTypes = List.concat [(*inputTypes;*)localTypes;outputTypes] in
   List.map (fun impType -> ImpType_to_lltype.to_lltype impType) impTypes
 
 let codegen_proto llvmVars llvmTypes name =
@@ -43,26 +45,39 @@ let codegen_proto llvmVars llvmTypes name =
   ) (llvmVars params);
   f
 
+let create_entry_block_alloca theFunction [varName;varType] = 
+  let builder = Llvm.builder_at context (Llvm.instr_begin (Llvm.entry_block theFunction)) in
+  Llvm.build_alloca varType varName builder
+
 let create_argument_allocas theFunction llvmVars llvmTypes =
   let params = Array.to_list Llvm.params theFunction in
+  let llvmVarInfo = List.map2 (fun x y -> [ID.to_str x;y]) llvmVars llvmTypes
   List.iter2 (fun var param ->
-    let varName = ID.to_str var in
-    let alloca = Llvm.create_entry_block_alloca theFunction varName in
+    let alloca = Llvm.create_entry_block_alloca theFunction llvmVarInfo in
     ignore(Llvm.build_store param alloca builder);
     Hashtbl.add named_values varName alloca;
-  ) (llvmVars params)
+  ) (llvmVarInfo params)
 
-let init_compiled_fn llvmVars llvmTypes name builder =
+let create_local_allocas theFunction llvmVars llvmTypes = 
+  List.iter2 (fun var typ ->
+    let varName = ID.to_str var in
+    let builder = Llvm.builder_at context (Llvm.instr_begin (Llvm.entry_block theFunction)) in
+    let alloca = Llvm.build_alloca varType varName builder in
+    Hashtbl.add named_values varName alloca;
+  ) (llvmVars llvmTypes) 
+
+let init_compiled_fn llvmVars llvmTypes fnInfo name builder =
   Hashtbl.clear named_values; 
-  let theFunction = codegen_proto llvmVars llvmTypes name in
+  let theFunction = codegen_proto fnInfo.inputVars fnInfo.inputTypes name in
   let bb = Llvm.append_block context "entry" theFunction in
   Llvm.position_at_end bb builder;
   begin try
-    create_argument_allocas theFunction llvmVars llvmTypes
+    create_argument_allocas theFunction fnInfo.inputVars fnInfo.inputTypes
   with e ->
     Llvm.delete_function theFunction;
     raise e
   end; 
+  create_local_allocas theFunction fnInfo.Vars fnInfo.Types
   bb
 
 let compile_val (impVal:Imp.value_node) = match impVal.value with
@@ -134,7 +149,10 @@ let compile_fn fn =
   
   let llvmVars = create_llvm_vars fn.input_ids fn.local_ids fn.output_ids in
   let llvmTypes = create_llvm_types inputTypes localTypes outputTypes in
-  let fnInfo = { vars = llvmVars; types = llvmTypes; builder = builder } in
-  let initBasicBlock = init_compiled_fn llvmVars llvmTypes (FnId.to_str fn.id) builder in
+  let fnInfo = { vars = llvmVars; types = llvmTypes; 
+                 inputVars = fn.input_ids; inputTypes = List.map 
+                 (fun impType -> ImpType_to_lltype.to_lltype impType) inputTypes;
+                 builder = builder } in
+  let initBasicBlock = init_compiled_fn fnInfo (FnId.to_str fn.id) builder in
   let firstBasicBlock = compile_stmt_seq fnInfo initBasicBlock in
   firstBasicBlock
