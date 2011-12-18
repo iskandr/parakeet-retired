@@ -157,10 +157,14 @@ let compile_fn fn =
   
   let llvmVars = create_llvm_vars fn.local_ids fn.output_ids in
   let llvmTypes = create_llvm_types localTypes outputTypes in
-  let fnInfo = { vars = llvmVars; types = llvmTypes; 
-                 inputVars = fn.input_ids; inputTypes = List.map 
-                 (fun impType -> ImpType_to_lltype.to_lltype impType) inputTypes;
-                 builder = builder } in
+  let fnInfo = { 
+    vars = llvmVars; 
+    types = llvmTypes; 
+    inputVars = fn.input_ids; 
+    inputTypes = List.map (fun impType -> ImpType_to_lltype.to_lltype impType) inputTypes;
+    builder = builder 
+  } 
+  in
   let initBasicBlock = init_compiled_fn fnInfo (FnId.to_str fn.id) builder in
   let firstBasicBlock = compile_stmt_seq fnInfo initBasicBlock in
   firstBasicBlock
