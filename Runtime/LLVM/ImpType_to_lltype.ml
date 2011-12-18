@@ -1,24 +1,21 @@
-open ImpType
-open Llvm
-open Type
-
-let context = Llvm.global_context()
-let int_ptr_type  = Llvm.pointer_type i32_type
+open LLVM_Types 
 
 let scalar_to_lltype = function 
-  | BoolT 
-  | CharT
-  | Int16T
-  | Int32T -> i32_type 
-  | Int64T -> i64_type 
-  | Float32T -> float_type 
-  | Float64T -> double_type
+  | Type.BoolT 
+  | Type.CharT
+  | Type.Int16T -> int16_t
+  | Type.Int32T -> int32_t 
+  | Type.Int64T -> int64_t 
+  | Type.Float32T -> float32_t
+  | Type.Float64T -> float64_t
+
+let context = Llvm.global_context () 
 
 let rec to_lltype = function 
-  | ScalarT eltT -> scalar_to_lltype eltT
-  | ArrayT (eltT, _) ->
+  | ImpType.ScalarT eltT -> scalar_to_lltype eltT
+  | ImpType.ArrayT (eltT, _) ->
      let data = Llvm.pointer_type  (scalar_to_lltype eltT) in 
-     Llvm.struct_type context [|data; int_ptr_type; int_ptr_type|]
-  | ShiftT t ->
+     Llvm.struct_type context [|data; int32_ptr_t; int32_ptr_t|]
+  | ImpType.ShiftT t ->
      let nested = to_lltype t in 
-     Llvm.struct_type context [|nested; i32_type; i32_type; i32_type|]
+     Llvm.struct_type context [|nested; int32_t; int32_t; int32_t|]

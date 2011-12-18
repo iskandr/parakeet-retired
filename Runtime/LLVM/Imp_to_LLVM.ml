@@ -1,3 +1,6 @@
+open Imp 
+open LLVM_Types 
+
 let array_field_to_idx = function  
   | RangeStart -> 0
   | RangeStop -> 1
@@ -38,7 +41,7 @@ let create_llvm_types localTypes outputTypes =
   List.map (fun impType -> ImpType_to_lltype.to_lltype impType) impTypes
 
 let codegen_proto llvmVars llvmTypes name =
-  let ft = Llvm.function_type Llvm.void llvmTypes in
+  let ft = Llvm.function_type void_t llvmTypes in
   let f = Llvm.declare_function name ft the_module in
   let params = Array.to_list Llvm.params f in
   List.iter2 (fun var param ->
