@@ -20,11 +20,14 @@ let array_field_to_idx = function
 let context = Llvm.global_context ()
 let the_module = Llvm.create_module context "my_module"
 let named_values : (string, Llvm.llvalue) Hashtbl.t = Hashtbl.create 10
-type fn_record = { vars: ID.t list;
-                         types: Llvm.lltype list;
-                         inputVars: ID.t list;
-                         inputTypes: Llvm.lltype list;
-                         builder: Llvm.llbuilder}
+
+type fn_record = { 
+  vars: ID.t list;
+  types: Llvm.lltype list;
+  inputVars: ID.t list;
+  inputTypes: Llvm.lltype list;
+  builder: Llvm.llbuilder
+}
 
 
 let create_llvm_vars locals outputs = 
@@ -51,7 +54,7 @@ let create_entry_block_alloca theFunction (varName, varType) =
 
 let create_argument_allocas theFunction llvmVars llvmTypes =
   let params = Array.to_list Llvm.params theFunction in
-  let llvmVarInfo = List.map2 (fun x y -> (ID.to_str x, y)) llvmVars llvmTypes
+  let llvmVarInfo = List.map2 (fun x y -> (ID.to_str x, y)) llvmVars llvmTypes in 
   List.iter2 (fun var param ->
     let alloca = Llvm.create_entry_block_alloca theFunction llvmVarInfo in
     ignore(Llvm.build_store param alloca builder);
@@ -77,7 +80,7 @@ let init_compiled_fn llvmVars llvmTypes fnInfo name builder =
     Llvm.delete_function theFunction;
     raise e
   end; 
-  create_local_allocas theFunction fnInfo.Vars fnInfo.Types
+  create_local_allocas theFunction fnInfo.vars fnInfo.types; 
   bb
 
 (* Change to function? *)
