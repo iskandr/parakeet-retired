@@ -40,41 +40,41 @@ let create_llvm_types localTypes outputTypes =
   let impTypes = List.concat [localTypes;outputTypes] in
   List.map (fun impType -> ImpType_to_lltype.to_lltype impType) impTypes
 
-let codegen_proto llvmVars llvmTypes name =
+let codegen_proto (llvmVars : ID.t list) (llvmTypes : Llvm.lltype array) (name : string) : Llvm.llvalue =
   let ft = Llvm.function_type void_t llvmTypes in
   let f = Llvm.declare_function name ft the_module in
-  let params = Array.to_list Llvm.params f in
+  let params = Array.to_list  (Llvm.params f) in
   List.iter2 (fun var param ->
     let varName = ID.to_str var in
     Llvm.set_value_name varName param;
     Hashtbl.add named_values varName param
-  ) (llvmVars params);
+  ) llvmVars params
+  ;
   f
 
-let create_entry_block_alloca theFunction (varName, varType) = 
+let create_argument_allocas theFunction (vars : ID.t list) (llvmTypes:Llvm.lltype list) : unit =
   let builder = Llvm.builder_at context (Llvm.instr_begin (Llvm.entry_block theFunction)) in
-  Llvm.build_alloca varType varName builder
-
-let create_argument_allocas theFunction llvmVars llvmTypes =
-  let params = Array.to_list Llvm.params theFunction in
-  let llvmVarInfo = List.map2 (fun x y -> (ID.to_str x, y)) llvmVars llvmTypes in 
-  List.iter2 (fun var param ->
-    let alloca = Llvm.create_entry_block_alloca theFunction llvmVarInfo in
-    ignore(Llvm.build_store param alloca builder);
+  let params : Llvm.llvalue list = Array.to_list (Llvm.params theFunction) in
+  List.iter2 (fun (var, varType) param ->
+    let varName = ID.to_str var in  
+    let alloca = Llvm.build_alloca varType varName builder in
+    ignore (Llvm.build_store param alloca builder);
     Hashtbl.add named_values varName alloca;
-  ) (llvmVarInfo params)
+  ) (List.combine vars llvmTypes)  params
 
-let create_local_allocas theFunction llvmVars llvmTypes = 
+let create_local_allocas theFunction (vars : ID.t list) (llvmTypes : Llvm.lltype list) = 
+  let builder = Llvm.builder_at context (Llvm.instr_begin (Llvm.entry_block theFunction)) in
   List.iter2 (fun var typ ->
     let varName = ID.to_str var in
-    let builder = Llvm.builder_at context (Llvm.instr_begin (Llvm.entry_block theFunction)) in
-    let alloca = Llvm.build_alloca varType varName builder in
+    let alloca = Llvm.build_alloca typ varName builder in
     Hashtbl.add named_values varName alloca;
-  ) (llvmVars llvmTypes) 
+  ) vars llvmTypes 
 
 let init_compiled_fn llvmVars llvmTypes fnInfo name builder =
   Hashtbl.clear named_values; 
-  let theFunction = codegen_proto fnInfo.inputVars fnInfo.inputTypes name in
+  let theFunction = 
+    codegen_proto fnInfo.inputVars (Array.of_list fnInfo.inputTypes) name 
+  in
   let bb = Llvm.append_block context "entry" theFunction in
   Llvm.position_at_end bb builder;
   begin try
@@ -86,14 +86,14 @@ let init_compiled_fn llvmVars llvmTypes fnInfo name builder =
   create_local_allocas theFunction fnInfo.vars fnInfo.types; 
   bb
 
-(* Change to function? *)
-let compile_val (impVal:Imp.value_node) = match impVal.value with
+let compile_val (impVal:Imp.value_node) : Llvm.llvalue = 
+  match impVal.value with
   | Imp.Var id ->
       let v = try Hashtbl.find named_values (ID.to_str id) with
       | Not_found -> failwith "unknown variable name"
       in
       v
-  | Imp.Const const -> Value_to_llvalue.to_llvm const
+  | Imp.Const const -> Value_to_llvalue.parnum_to_llvm const
   | _ -> assert false
 
 (* Change to function? *)
@@ -123,9 +123,9 @@ let compile_expr fnInfo (impExpr:Imp.exp_node) =
           begin match t with
           | Type.Int16T
           | Type.Int32T
-          | Type.Int64T -> Llvm.build_mul x rhs "multmp" fnInfo.builder
+          | Type.Int64T -> Llvm.build_mul x y "multmp" fnInfo.builder
           | Type.Float32T
-          | Type.Float64T -> Llvm.build_fmul y rhs "mulftmp" fnInfo.builder
+          | Type.Float64T -> Llvm.build_fmul x y "mulftmp" fnInfo.builder
           end
         | Prim.Div, [ x; y ] -> Llvm.build_sdiv x y "sdivtmp" fnInfo.builder
       )
@@ -142,7 +142,7 @@ and compile_stmt fnInfo currBB = function
   | Imp.Set (id, exp) ->
     let rhs = compile_expr fnInfo exp in
     let variable = try Hashtbl.find named_values (ID.to_str id) with
-    | Not_found -> raise (Error "unknown variable name " ^ (ID.to_str id))
+    | Not_found -> failwith  ("unknown variable name " ^ (ID.to_str id))
     in
     ignore(Llvm.build_store rhs variable fnInfo.builder);
     currBB

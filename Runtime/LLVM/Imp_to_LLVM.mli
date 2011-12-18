@@ -5,9 +5,7 @@ val create_llvm_Vars : ID.t list -> ID.t list -> ID.t list
 val create_llvm_types: ImpType.t list -> ImpType.t list -> Llvm.lltype list
 
 (* Returns function llvalue *)
-val codegen_proto: ID.t list -> Llvm.lltype list -> string -> Llvm.llvalue
-
-val create_entry_block_alloca : Llvm.llvalue -> (string, Llvm.lltype) Hashtbl.t -> Llvm.llvalue
+val codegen_proto: ID.t list -> Llvm.lltype array -> string -> Llvm.llvalue
 
 val create_argument_allocas : Llvm.llvalue -> ID.t list -> Llvm.lltype list -> unit
 
