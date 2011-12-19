@@ -1,13 +1,7 @@
+open Base
 open Imp 
      
-let always_const expNode = match expNode.exp with
-  | Const _  
-  | DimSize _   
-  | ThreadIdx _   
-  | BlockIdx _  
-  | BlockDim _  
-  | GridDim _ -> true 
-  | _ -> false  
+
 
 (* IMP STATEMENTS *)
 let syncthreads = SyncThreads
@@ -78,27 +72,26 @@ let f64_exp : exp -> exp_node = typed_exp ImpType.float64_t
    (or leave it alone if it's already that type
 *)
 
-let cast (elt_t:Type.elt_t) valNode =
-	let old_t = valNode.value_type in 
-	assert (ImpType.is_scalar old_t);  
-	let old_elt_t = ImpType.get_elt_type old_t in
-  if old_elt_t = new_elt_t then valNode 
+let cast (elt_t:Type.elt_t) (valNode:value_node) : exp_node =
+  let old_t = valNode.value_type in 
+  assert (ImpType.is_scalar old_t);  
+  let old_elt_t : Type.elt_t = ImpType.get_elt_type old_t in
+  if old_elt_t = elt_t then {exp = Val valNode; exp_type = valNode.value_type}
   else 
     let ty = ImpType.ScalarT elt_t in 
     match valNode.value with 
     | Const n -> 
-			  let n' = ParNum.coerce_num n elt_t in 
-				{ exp = Val { value = Const n'; value_type = ty}}
+      let n' = ParNum.coerce n elt_t in 
+      { exp = Val { value = Const n'; value_type = ty}; exp_type = ty }
     | _ ->
-      	if Type.is_scalar_subtype old_elt_t elt_t || Type.sizeof old_elt_t = Type.sizeof elt_t 
-      	then {exp_type = ty; exp = Cast(ty,valNode)} 
+      if Type.is_scalar_subtype old_elt_t elt_t || Type.sizeof old_elt_t = Type.sizeof elt_t 
+      then {exp_type = ty; exp = Cast(ty,valNode)} 
       else failwith $ 
         Printf.sprintf "[imp->cast] cannot create cast from %s to %s : %s"
-          (Type.to_str old_t)
-          (Type.to_str ty)
+          (ImpType.to_str old_t)
+          (ImpType.to_str ty)
           (val_node_to_str valNode)
  
-
 let common_type ?t (args : value_node list) =
  match t with 
  | Some t -> t 
@@ -128,9 +121,9 @@ let typed_op op ?t args =
 let cmp_op op ?t args =
   let argType = common_type ?t args in 
   assert (Type.is_scalar argType);
-  let eltT = Type.elt_type argType in
   let args' = List.map (cast argType) args' in      
-  bool_exp $ Op (op, argType, args')
+  let eltT = Type.elt_type argType in
+  bool_exp $ Op (op, eltT, args')
 
 (* CUDA stuff *)
 type vec3 = { x: value_node; y: value_node; z: value_node}
