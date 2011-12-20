@@ -5,8 +5,6 @@ open Ptr
 open Value 
 open Llvm_executionengine 
 
-let context = Llvm.global_context ()
-
 let align_to size alignment = (size + alignment - 1) / alignment
 
 let int16 (i:int) = GenericValue.of_int LLVM_Types.int16_t i 

@@ -1,16 +1,15 @@
-open Base 
-open Llvm
+open Base
+open ParNum
+open Llvm_executionengine
 
-let context = global_context ()
-
-let generic_to_parnum (g_val:GenericValue.t) (impt:ImpType.t) : ParNum.t = match impt with
-  | Type.BoolT -> Parnum.Bool (as_int g_val <> 0)
-  | Type.CharT -> Parnum.Char (Char.chr (as_int g_val))
-  | Type.Int16T -> Parnum.Int16 (as_int g_val)
-  | Type.Int32T -> Parnum.Int32 (as_int32 g_val)
-  | Type.Int64T -> Parnum.Int64 (as_int64 g_val)
-  | Type.Float32T -> Parnum.Float32(as_float (float_type context) g_val)
-  | Type.Float64T -> Parnum.Float64(as_float (double_type context) g_val)
+let generic_to_parnum (g_val:GenericValue.t) (impt:Type.elt_t) : ParNum.t = match impt with
+  | Type.BoolT -> Bool (GenericValue.as_int g_val <> 0)
+  | Type.CharT -> Char (Char.chr (GenericValue.as_int g_val))
+  | Type.Int16T -> Int16 (GenericValue.as_int g_val)
+  | Type.Int32T -> Int32 (GenericValue.as_int32 g_val)
+  | Type.Int64T -> Int64 (GenericValue.as_int64 g_val)
+  | Type.Float32T -> Float32(GenericValue.as_float LLVM_Types.float32_t g_val)
+  | Type.Float64T -> Float64(GenericValue.as_float LLVM_Types.float64_t g_val)
   | _ -> assert false
 
 let generic_to_imp (g_val:GenericValue.t) = function 
