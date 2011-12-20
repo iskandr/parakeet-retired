@@ -8,20 +8,30 @@ type stmts_and_info = {
     new_shapes : SymbolicShape.shape list;
 }
 
-class codegen = object (self)
+class codegen  = object (self)
   val mutable types : ImpType.t ID.Map.t = ID.Map.empty 
   val mutable shapes : SymbolicShape.t ID.Map.t  = ID.Map.empty
-   
-  method var ?(shape=SymbolicShape.scalar) ty = 
+  
+  method fresh_id ?(shape=SymbolicShape.scalar) (ty:ImpType.t) : ID.t = 
     assert (ImpType.rank ty = SymbolicShape.rank shape); 
     let id = ID.gen() in
     types <- ID.Map.add id ty types; 
-    shapes <- ID.Map.add id shape shapes; 
-    ImpHelpers.var_val ~t:ty id
+    shapes <- ID.Map.add id shape shapes;
+    id  
+  
+  method var ?(shape=SymbolicShape.scalar) (ty:ImpType.t) : value_node =
+    let id = self#fresh_id ~shape ty in  
+    ImpHelpers.var ~t:ty id
     
   method var_exp ?(shape=SymbolicShape.scalar) ty = 
     ImpHelpers.exp_of_val (self#var ~shape ty)
-     
+  
+  method cast (v:value_node) (ty:ImpType.t) : value_node = 
+    if v.value_type = ty then v 
+    else
+      let id = self#fresh_id ty in 
+      self#set id  
+  
     
 end
 
