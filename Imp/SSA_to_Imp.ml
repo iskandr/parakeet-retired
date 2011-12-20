@@ -8,6 +8,7 @@ type stmts_and_info = {
     new_shapes : SymbolicShape.shape list;
 }
 
+(*
 class codegen  = object (self)
   val mutable types : ImpType.t ID.Map.t = ID.Map.empty 
   val mutable shapes : SymbolicShape.t ID.Map.t  = ID.Map.empty
@@ -119,3 +120,5 @@ let translate (fnTable:FnTable.t) (fn:SSA.fn) (inputTypes:ImpType.t list) : Imp.
         shapes = senv;  
         body = body;       
     }
+    
+ *) 

@@ -11,6 +11,9 @@ val get_array3_ptr : ('a,'b,'c) Bigarray.Array3.t -> Int64.t
 val get_int32 : Int64.t -> int -> Int32.t
 val set_int32 : Int64.t -> int -> Int32.t -> unit 
 
+val get_int64 : Int64.t -> int -> Int64.t
+val set_int64 : Int64.t -> int -> Int64.t -> unit
+
 val get_float32 : Int64.t -> int -> float 
 val set_float32 : Int64.t -> int -> float -> unit
 

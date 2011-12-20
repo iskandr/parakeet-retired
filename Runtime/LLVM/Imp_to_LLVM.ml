@@ -21,7 +21,7 @@ let array_field_to_idx = function
 
 
 let context = Llvm.global_context ()
-let the_module = Llvm.create_module context "my_module"
+let global_module = Llvm.create_module context "my_module"
 
 type fn_info = { 
   named_values : (string, Llvm.llvalue) Hashtbl.t;  
@@ -38,7 +38,7 @@ let create_fn_info (fnId:FnId.t) = {
 
 let codegen_proto (fnInfo:fn_info) (llvmVars : ID.t list) (llvmTypes : Llvm.lltype array)  : Llvm.llvalue =
   let ft = Llvm.function_type void_t llvmTypes in
-  let f = Llvm.declare_function fnInfo.name ft the_module in
+  let f = Llvm.declare_function fnInfo.name ft global_module in
   let params = Array.to_list  (Llvm.params f) in
   List.iter2 (fun var param ->
     let varName = ID.to_str var in
