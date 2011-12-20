@@ -143,6 +143,16 @@ let init_compiled_fn fnInfo ~local_ids ~local_types ~input_ids ~input_types =
   theFunction
 
 
+let add_output_return fnInfo output_ids = 
+  if List.length output_ids == 1 then
+    let output_id = List.hd output_ids in
+    let variable = try Hashtbl.find fnInfo.named_values (ID.to_str output_id) with
+    | Not_found -> failwith  ("unknown variable name " ^ (ID.to_str output_id))
+    in
+    Llvm.build_ret variable fnInfo.builder
+  else
+    failwith "multiple returns are not supported"
+
 let compile_fn (fn : Imp.fn) : Llvm.llvalue =
   let inputImpTypes = List.map (fun id -> ID.Map.find id fn.types) fn.input_ids in
   let localImpTypes = List.map (fun id -> ID.Map.find id fn.types) fn.local_ids in
@@ -166,4 +176,5 @@ let compile_fn (fn : Imp.fn) : Llvm.llvalue =
   in 
   let initBasicBlock : Llvm.llbasicblock = Llvm.entry_block llvmFn in 
   let _ = compile_stmt_seq fnInfo initBasicBlock in
+  add_output_return fnInfo fn.output_ids;
   llvmFn 
