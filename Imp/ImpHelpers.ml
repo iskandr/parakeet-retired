@@ -75,7 +75,7 @@ let f64_exp : exp -> exp_node = typed_exp ImpType.float64_t
 let cast (elt_t:Type.elt_t) (valNode:value_node) : exp_node =
   let old_t = valNode.value_type in 
   assert (ImpType.is_scalar old_t);  
-  let old_elt_t : Type.elt_t = ImpType.get_elt_type old_t in
+  let old_elt_t : Type.elt_t = ImpType.elt_type old_t in
   if old_elt_t = elt_t then {exp = Val valNode; exp_type = valNode.value_type}
   else 
     let ty = ImpType.ScalarT elt_t in 
@@ -94,45 +94,32 @@ let cast (elt_t:Type.elt_t) (valNode:value_node) : exp_node =
  
 let common_type ?t (args : value_node list) =
  match t with 
- | Some t -> t 
+ | Some t -> ImpType.ScalarT t 
  | None -> 
      let types = List.map (fun node -> node.value_type) args in
-     let properCommonType = Type.fold_type_list types in
-     (* special case: cast mix of signed and unsigned 32-bit integers 
-        to signed
-     *)
-     if List.for_all (fun t -> Type.sizeof t = 4) types 
-       && Type.sizeof properCommonType > 4  then Type.Int32T 
-     else properCommonType 
+     ImpType.combine_type_list types
 
-(* arguments are either of the type explicitly passed as an argument or 
-   you get the greatest common type between them. 
-   Cast each argument to this greatest type, and then create a node 
-   for the given operation. 
-*)
-let typed_op op ?t args =
+let typed_op op ?t (args : value_node list) : exp_node =
   let argType = common_type ?t args in 
-  assert (Type.is_scalar argType);    
-  let eltT = Type.elt_type argType in 
-  let args' =  List.map (cast eltT) args in 
-  wrap_exp (Op (op, eltT, args')) argType 
+  assert (ImpType.is_scalar argType);    
+  let eltT = ImpType.elt_type argType in 
+  wrap_exp (Op (eltT, op, args)) argType 
 
 (* Same as typed_op, but with comparison operators which always return bools *) 
 let cmp_op op ?t args =
   let argType = common_type ?t args in 
-  assert (Type.is_scalar argType);
-  let args' = List.map (cast argType) args' in      
-  let eltT = Type.elt_type argType in
-  bool_exp $ Op (op, eltT, args')
+  assert (ImpType.is_scalar argType);
+  let eltT = ImpType.elt_type argType in
+  wrap_bool_exp $ Op (eltT, op, args)
 
 (* CUDA stuff *)
 type vec3 = { x: value_node; y: value_node; z: value_node}
 let mk_vec3 (f : coord -> value_node) : vec3  = { x = f X; y = f Y; z = f Z} 
 
-let threadIdx = mk_vec3 (fun coord -> int16_val $ ThreadIdx coord)
-let blockIdx = mk_vec3 (fun coord -> int16_val $ BlockIdx coord) 
-let blockDim = mk_vec3 (fun coord -> int16_val $ BlockDim coord)
-let gridDim = mk_vec3 (fun coord -> int16_val $ GridDim coord)
+let threadIdx = mk_vec3 (fun coord -> wrap_int16_val $ CudaInfo(ThreadIdx, coord))
+let blockIdx = mk_vec3 (fun coord -> wrap_int16_val $ CudaInfo(BlockIdx, coord)) 
+let blockDim = mk_vec3 (fun coord -> wrap_int16_val $ CudaInfo(BlockDim, coord))
+let gridDim = mk_vec3 (fun coord -> wrap_int16_val $ CudaInfo (GridDim, coord))
 
 
 (* GENERAL IMP EXPRESSIONS *)
@@ -167,20 +154,21 @@ let neg_infinity =
 
 let select cond t f = 
   assert (t.value_type = f.value_type); 
-  { exp = Select(t.value_type, cond, tNode, fNode); 
+  { exp = Select(t.value_type, cond, f, f); 
     exp_type = t.value_type
   } 
-    
-let idx arr indices =
-  let indices' = List.map (cast Type.Int32T) indices in
-  let arrT = arr.value_type in 
-  assert (Type.is_array arrT); 
-  let eltT = Type.peel ~num_axes:(List.length indices') arrT in  
-  { exp = Idx(arr, indices'); exp_type= eltT }
 
-let dim (arr:value_node) (idx:value_node) = int_exp $ (DimSize(int n, x))
+let idx arr indices =
+  let arrT = arr.value_type in 
+  assert (ImpType.is_array arrT); 
+  let numIndices = List.length indices in 
+  assert (numIndices = ImpType.rank arrT); 
+  let eltT = ImpType.elt_type arrT in   
+  { exp = Idx(arr, indices); exp_type = ImpType.ScalarT eltT }
+
+let dim (arr:value_node) (idx:value_node) = wrap_int32_exp $ (DimSize(idx, arr))
  
-let len x = dim 0 x 
+let len x = dim (int 0) x 
 
 let max_ ?t x y = typed_op Prim.Max ?t [x;y]
 let min_ ?t x y = typed_op Prim.Min ?t [x;y]  
@@ -236,59 +224,61 @@ let sqrt64 x = typed_op Prim.Sqrt ~t:Type.Float64T [x]
 let ln_32 x = typed_op Prim.Log ~t:Type.Float32T [x]
 let ln_64 x = typed_op Prim.Log ~t:Type.Float64T [x] 
 
-let id_of = function 
-  | {exp=Var id} -> id 
+let id_of_val valNode = match valNode.value with 
+  | Var id -> id
+  | _ -> assert false 
+ 
+let id_of_exp (expNode:exp_node) = match expNode.exp with 
+  | Val v -> id_of_val v  
   | _ -> failwith "Imp: expected variable" 
 
-let var ?(t=Type.BottomT) id = { exp = Var id; exp_type = t}
+let var ~ty id =  {value = Var id; value_type = ty}
+let var_exp ~ty id = exp_of_val (var ~ty id) 
 
+let max_simplify (d1:value_node) (d2:value_node) : exp_node = 
+  if d1.value = d2.value then exp_of_val d1  else max_ d1 d2
 
-let max_simplify d1 d2 = if d1.exp = d2.exp then d1 else max_ d1 d2
-
-let mul_simplify d1 d2 = match d1.exp, d2.exp with 
-  | Const n1, _ when ParNum.is_inf n1 -> infinity
-  | _, Const n2 when ParNum.is_inf n2 -> infinity 
-  | Const n1, _ when ParNum.is_zero n1 -> zero
-  | _, Const n2 when ParNum.is_zero n2 -> zero
-  | Const n1, _ when ParNum.is_one n1 -> d2
-  | _, Const n2 when ParNum.is_one n2 -> d1
+let mul_simplify (d1:value_node) (d2:value_node) = 
+  match d1.value, d2.value with 
+  | Const n1, _ when ParNum.is_zero n1 -> zero_exp
+  | _, Const n2 when ParNum.is_zero n2 -> zero_exp
+  | Const n1, _ when ParNum.is_one n1 -> exp_of_val d2
+  | _, Const n2 when ParNum.is_one n2 -> exp_of_val d1
   | Const (ParNum.Int16 x), Const (ParNum.Int16 y) -> 
-    {d1  with exp =  Const (ParNum.Int16 (x * y)) }
+    exp_of_val {d1  with value =  Const (ParNum.Int16 (x * y)) }
   | Const (ParNum.Int32 x), (Const ParNum.Int32 y) -> 
-    {d1  with exp =  Const (ParNum.Int32 (Int32.mul x y)) }
+    exp_of_val {d1  with value =  Const (ParNum.Int32 (Int32.mul x y)) }
   | Const (ParNum.Float32 x), (Const ParNum.Float32 y) -> 
-    {d1  with exp =  Const (ParNum.Float32 (x *. y)) }
+    exp_of_val {d1  with value =  Const (ParNum.Float32 (x *. y)) }
   | Const (ParNum.Float64 x), (Const ParNum.Float64 y) -> 
-    {d1  with exp =  Const (ParNum.Float64 (x *. y)) }
+    exp_of_val {d1  with value =  Const (ParNum.Float64 (x *. y)) }
   | _ -> mul d1 d2 
 
-let add_simplify d1 d2 = match d1.exp, d2.exp with 
-  | Const n1, _ when ParNum.is_inf n1 -> infinity
-  | _, Const n2 when ParNum.is_inf n2 -> infinity 
-  | Const n1, _ when ParNum.is_zero n1 -> d2 
-  | _, Const n2 when ParNum.is_zero n2 -> d1
+let add_simplify (d1:value_node) (d2:value_node) = 
+  match d1.value, d2.value with 
+  | Const n1, _ when ParNum.is_zero n1 -> exp_of_val d2 
+  | _, Const n2 when ParNum.is_zero n2 -> exp_of_val d1
   | Const (ParNum.Int16 x), Const (ParNum.Int16 y) -> 
-    {d1  with exp = Const (ParNum.Int16 (x + y)) }
+    exp_of_val {d1  with value = Const (ParNum.Int16 (x + y)) }
   | Const (ParNum.Int32 x), (Const ParNum.Int32 y) -> 
-    {d1  with exp =  Const (ParNum.Int32 (Int32.add x y)) }
+    exp_of_val {d1  with value =  Const (ParNum.Int32 (Int32.add x y)) }
   | Const (ParNum.Float32 x), (Const ParNum.Float32 y) -> 
-    {d1  with exp = Const (ParNum.Float32 (x +. y)) }
+    exp_of_val {d1  with value = Const (ParNum.Float32 (x +. y)) }
   | Const (ParNum.Float64 x), (Const ParNum.Float64 y) -> 
-    {d1 with exp = Const (ParNum.Float64 (x +. y)) } 
+    exp_of_val {d1 with value = Const (ParNum.Float64 (x +. y)) } 
   | _ -> add d1 d2 
-
-
-let rec fold_exp_node_list f default = function 
+(*
+let rec fold_val_node_list f (default : exp_node) = function 
   | [] -> default
-  | [e] -> e 
-  | e::es -> f e (fold_exp_node_list f default es)
+  | [v] -> exp_of_val v 
+  | v::vs -> f v (fold_exp_node_list f default es)
+*)
 
-
-
+(*
 let max_exp_node_list es = fold_exp_node_list max_simplify neg_infinity es
 let sum_exp_node_list es = fold_exp_node_list add_simplify zero es 
 let prod_exp_node_list es = fold_exp_node_list mul_simplify one es 
-
+*)
 (*
 let highest_rank_exp ( exps : exp_node array ) : exp_node = 
   let maxExp = ref exps.(0) in   

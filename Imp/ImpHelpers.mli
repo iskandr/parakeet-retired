@@ -9,15 +9,8 @@ val while_ : exp_node -> block -> stmt
 val comment : string -> stmt 
 
 val set : exp_node -> exp_node -> stmt 
-val setidx : exp_node -> exp_node list -> exp_node -> stmt 
+val setidx : exp_node -> value_node list -> exp_node -> stmt 
  
-(*
-val collect_rev_indices_from_node : exp_node -> ID.t * exp_node list 
-val collect_rev_indices : exp -> ID.t  * exp_node list   
-val collect_indices_from_node : exp_node -> ID.t * exp_node list
-val collect_indices : exp -> ID.t * exp_node list 
-*) 
-
 (* HELPER FUNCTIONS FOR IMP EXPRESSIONS *)
 val wrap_bool_val : value -> value_node 
 val wrap_char_val : value -> value_node 
@@ -28,6 +21,15 @@ val wrap_float32_val : value -> value_node
 val wrap_float64_val : value -> value_node 
 
 val exp_of_val : value_node -> exp_node  
+
+val wrap_exp : exp -> ImpType.t -> exp_node 
+val wrap_bool_exp : exp -> exp_node 
+val wrap_char_exp : exp -> exp_node 
+val wrap_int16_exp : exp -> exp_node 
+val wrap_int32_exp : exp -> exp_node
+val wrap_int64_exp : exp -> exp_node 
+val wrap_float32_exp : exp -> exp_node 
+val wrap_float64_exp : exp -> exp_node 
 
 (*
 val typed_exp : Type.elt_t -> exp -> exp_node
@@ -43,13 +45,13 @@ val f64_exp : exp -> exp_node
 
 val cast : Type.elt_t -> value_node -> exp_node 
 
-val common_type : ?t:ImpType.t -> value_node list -> ImpType.t  
+val common_type : ?t:Type.elt_t -> value_node list -> ImpType.t  
 
 
-val typed_op : Prim.scalar_op -> ?t:Type.t -> value_node list -> exp_node 
+val typed_op : Prim.scalar_op -> ?t:Type.elt_t -> value_node list -> exp_node 
 
 (* Same as typed_op, but with comparison operators which always return bools *) 
-val cmp_op : Prim.scalar_op -> ?t:Type.t -> value_node list -> exp_node 
+val cmp_op : Prim.scalar_op -> ?t:Type.elt_t -> value_node list -> exp_node 
 
 (* CUDA stuff *)
 type vec3 = { x: value_node; y: value_node; z: value_node}
@@ -74,7 +76,7 @@ val zero_exp : exp_node
 val one : value_node
 val one_exp : exp_node 
  
-val infinity : value_node 
+(*val infinity : value_node*) 
     
 val float : float -> value_node
 val float_exp : float -> exp_node
@@ -87,11 +89,9 @@ val bool_exp : bool -> exp_node
 
 val select : value_node -> value_node -> value_node -> exp_node
 val idx : value_node -> value_node list -> exp_node 
-val dim : int -> exp_node -> exp_node 
+val dim : value_node -> value_node -> exp_node     
+val len : value_node -> exp_node
  
-    
-    
-val len : exp_node -> exp_node 
 val max_ : ?t:Type.elt_t -> value_node -> value_node -> exp_node 
 val min_ : ?t:Type.elt_t -> value_node -> value_node -> exp_node   
 
@@ -149,17 +149,18 @@ val ln_64 : value_node -> exp_node
 val id_of_val : value_node -> ID.t
 val id_of_exp : exp_node -> ID.t 
  
-val var : ?ty:ImpType.t -> ID.t -> value_node
-val var_exp : ?ty:ImpType.t -> ID.t -> exp_node 
+val var : ty:ImpType.t -> ID.t -> value_node
+val var_exp : ty:ImpType.t -> ID.t -> exp_node 
 
-
+(*
 val max_simplify : exp_node -> exp_node -> exp_node
 val mul_simplify : exp_node -> exp_node -> exp_node
 val add_simplify : exp_node -> exp_node -> exp_node 
 
 val max_exp_node_list : exp_node list -> exp_node
 val prod_exp_node_list : exp_node list -> exp_node
-val sum_exp_node_list : exp_node list -> exp_node  
+val sum_exp_node_list : exp_node list -> exp_node
+*)  
 (*
 val highest_rank_exp :  exp_node array -> exp_node
 *) 
