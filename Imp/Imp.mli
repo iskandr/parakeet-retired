@@ -66,6 +66,7 @@ type storage =
 
 
 type fn = {
+  id : FnId.t; 
   input_ids : ID.t list;
   output_ids : ID.t list; 
   local_ids : ID.t list; 

@@ -22,74 +22,54 @@ let array_field_to_idx = function
 
 let context = Llvm.global_context ()
 let the_module = Llvm.create_module context "my_module"
-let named_values : (string, Llvm.llvalue) Hashtbl.t = Hashtbl.create 10
 
-type fn_record = { 
-  vars: ID.t list;
-  types: Llvm.lltype list;
-  inputVars: ID.t list;
-  inputTypes: Llvm.lltype list;
-  builder: Llvm.llbuilder
+type fn_info = { 
+  named_values : (string, Llvm.llvalue) Hashtbl.t;  
+  builder: Llvm.llbuilder;
+  name : string;  
 }
 
+let create_fn_info (fnId:FnId.t) = {
+  named_values = Hashtbl.create 13;
+  builder = Llvm.builder context; 
+  name = FnId.to_str fnId;
+}
+  
 
-let create_llvm_vars locals outputs = 
-  List.concat [locals;outputs]
-
-let create_llvm_types localTypes outputTypes = 
-  let impTypes = List.concat [localTypes;outputTypes] in
-  List.map (fun impType -> ImpType_to_lltype.to_lltype impType) impTypes
-
-let codegen_proto (llvmVars : ID.t list) (llvmTypes : Llvm.lltype array) (name : string) : Llvm.llvalue =
+let codegen_proto (fnInfo:fn_info) (llvmVars : ID.t list) (llvmTypes : Llvm.lltype array)  : Llvm.llvalue =
   let ft = Llvm.function_type void_t llvmTypes in
-  let f = Llvm.declare_function name ft the_module in
+  let f = Llvm.declare_function fnInfo.name ft the_module in
   let params = Array.to_list  (Llvm.params f) in
   List.iter2 (fun var param ->
     let varName = ID.to_str var in
     Llvm.set_value_name varName param;
-    Hashtbl.add named_values varName param
+    Hashtbl.add fnInfo.named_values varName param
   ) llvmVars params
   ;
   f
 
-let create_argument_allocas theFunction (vars : ID.t list) (llvmTypes:Llvm.lltype list) : unit =
-  let builder = Llvm.builder_at context (Llvm.instr_begin (Llvm.entry_block theFunction)) in
+let create_argument_allocas theFunction (fnInfo:fn_info) (vars : ID.t list) (llvmTypes:Llvm.lltype list) : unit =
+  Llvm.position_builder (Llvm.instr_begin (Llvm.entry_block theFunction)) fnInfo.builder;  
   let params : Llvm.llvalue list = Array.to_list (Llvm.params theFunction) in
   List.iter2 (fun (var, varType) param ->
     let varName = ID.to_str var in  
-    let alloca = Llvm.build_alloca varType varName builder in
-    ignore (Llvm.build_store param alloca builder);
-    Hashtbl.add named_values varName alloca;
+    let alloca = Llvm.build_alloca varType varName fnInfo.builder in
+    ignore (Llvm.build_store param alloca fnInfo.builder);
+    Hashtbl.add fnInfo.named_values varName alloca;
   ) (List.combine vars llvmTypes)  params
 
-let create_local_allocas theFunction (vars : ID.t list) (llvmTypes : Llvm.lltype list) = 
+let create_local_allocas theFunction (fnInfo:fn_info) (vars : ID.t list) (llvmTypes : Llvm.lltype list) = 
   let builder = Llvm.builder_at context (Llvm.instr_begin (Llvm.entry_block theFunction)) in
   List.iter2 (fun var typ ->
     let varName = ID.to_str var in
     let alloca = Llvm.build_alloca typ varName builder in
-    Hashtbl.add named_values varName alloca;
+    Hashtbl.add fnInfo.named_values varName alloca;
   ) vars llvmTypes 
 
-let init_compiled_fn llvmVars llvmTypes fnInfo name builder =
-  Hashtbl.clear named_values; 
-  let theFunction = 
-    codegen_proto fnInfo.inputVars (Array.of_list fnInfo.inputTypes) name 
-  in
-  let bb = Llvm.append_block context "entry" theFunction in
-  Llvm.position_at_end bb builder;
-  begin try
-    create_argument_allocas theFunction fnInfo.inputVars fnInfo.inputTypes
-  with e ->
-    Llvm.delete_function theFunction;
-    raise e
-  end; 
-  create_local_allocas theFunction fnInfo.vars fnInfo.types; 
-  bb
-
-let compile_val (impVal:Imp.value_node) : Llvm.llvalue = 
+let compile_val (fnInfo:fn_info) (impVal:Imp.value_node) : Llvm.llvalue = 
   match impVal.value with
   | Imp.Var id ->
-      let v = try Hashtbl.find named_values (ID.to_str id) with
+      let v = try Hashtbl.find fnInfo.named_values (ID.to_str id) with
       | Not_found -> failwith "unknown variable name"
       in
       v
@@ -99,9 +79,9 @@ let compile_val (impVal:Imp.value_node) : Llvm.llvalue =
 (* Change to function? *)
 let compile_expr fnInfo (impExpr:Imp.exp_node) = 
   match impExpr.exp with
-  | Imp.Val valNode -> compile_val valNode 
+  | Imp.Val valNode -> compile_val fnInfo valNode 
   | Imp.Op (t, op, vals) ->
-      let vals' =  List.map compile_val vals in 
+      let vals' =  List.map (compile_val fnInfo) vals in 
       ( match op, vals' with
         | Prim.Add, [ x; y ] ->
           begin match t with
@@ -141,7 +121,7 @@ let rec compile_stmt_seq fnInfo currBB = function
 and compile_stmt fnInfo currBB = function
   | Imp.Set (id, exp) ->
     let rhs = compile_expr fnInfo exp in
-    let variable = try Hashtbl.find named_values (ID.to_str id) with
+    let variable = try Hashtbl.find fnInfo.named_values (ID.to_str id) with
     | Not_found -> failwith  ("unknown variable name " ^ (ID.to_str id))
     in
     ignore(Llvm.build_store rhs variable fnInfo.builder);
@@ -149,22 +129,41 @@ and compile_stmt fnInfo currBB = function
   | _ -> assert false
 
 
-let compile_fn fn =
-  let builder = Llvm.builder context in
-  let inputTypes = List.map (fun id -> ID.Map.find id fn.types) fn.input_ids in
-  let localTypes = List.map (fun id -> ID.Map.find id fn.types) fn.local_ids in
-  let outputTypes = List.map (fun id -> ID.Map.find id fn.types) fn.output_ids in
-  
-  let llvmVars = create_llvm_vars fn.local_ids fn.output_ids in
-  let llvmTypes = create_llvm_types localTypes outputTypes in
-  let fnInfo = { 
-    vars = llvmVars; 
-    types = llvmTypes; 
-    inputVars = fn.input_ids; 
-    inputTypes = List.map (fun impType -> ImpType_to_lltype.to_lltype impType) inputTypes;
-    builder = builder 
-  } 
+let init_compiled_fn fnInfo ~local_ids ~local_types ~input_ids ~input_types =
+  let theFunction = codegen_proto fnInfo input_ids (Array.of_list input_types)  in
+  let bb = Llvm.append_block context "entry" theFunction in
+  Llvm.position_at_end bb fnInfo.builder;
+  begin try
+    create_argument_allocas theFunction fnInfo input_ids input_types
+  with e ->
+    Llvm.delete_function theFunction;
+    raise e
+  end; 
+  create_local_allocas theFunction fnInfo local_ids local_types; 
+  theFunction
+
+
+let compile_fn (fn : Imp.fn) : Llvm.llvalue =
+  let inputImpTypes = List.map (fun id -> ID.Map.find id fn.types) fn.input_ids in
+  let localImpTypes = List.map (fun id -> ID.Map.find id fn.types) fn.local_ids in
+  let outputImpTypes = List.map (fun id -> ID.Map.find id fn.types) fn.output_ids in
+  (* concat true locals and local version of output vars *) 
+  let localVarIds : ID.t list = fn.local_ids @ fn.output_ids in
+  let localTypes : Llvm.lltype list = 
+    List.map (fun impType -> ImpType_to_lltype.to_lltype impType) (localImpTypes @ outputImpTypes)
+  in 
+  let inputTypes : Llvm.lltype list = 
+    List.map (fun impType -> ImpType_to_lltype.to_lltype impType) inputImpTypes 
   in
-  let initBasicBlock = init_compiled_fn fnInfo (FnId.to_str fn.id) builder in
-  let firstBasicBlock = compile_stmt_seq fnInfo initBasicBlock in
-  firstBasicBlock
+  let fnInfo = create_fn_info fn.id in  
+  let llvmFn : Llvm.llvalue = 
+    init_compiled_fn 
+      fnInfo
+      ~input_ids:fn.input_ids
+      ~input_types:inputTypes  
+      ~local_ids:localVarIds
+      ~local_types:localTypes
+  in 
+  let initBasicBlock : Llvm.llbasicblock = Llvm.entry_block llvmFn in 
+  let _ = compile_stmt_seq fnInfo initBasicBlock in
+  llvmFn 
