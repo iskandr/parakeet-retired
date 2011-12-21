@@ -46,3 +46,8 @@ let rec combine_type_list = function
   | [] -> failwith "Can't combine empty type list"
   | [t] -> t
   | t::ts -> common_type t (combine_type_list ts)  
+
+let rec type_of_value = function 
+  | Value.Scalar n -> ScalarT (ParNum.type_of n)
+  | Value.Array a -> ArrayT (a.Value.elt_type, Shape.rank a.Value.shape)
+  | Value.Shift nested -> ShiftT (type_of_value nested) 

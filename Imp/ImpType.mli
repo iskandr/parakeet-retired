@@ -26,3 +26,5 @@ val float64_t : t
 
 val common_type : t -> t -> t
 val combine_type_list : t list -> t 
+
+val type_of_value : 'a Value.t -> t 
