@@ -72,26 +72,26 @@ let f64_exp : exp -> exp_node = typed_exp ImpType.float64_t
    (or leave it alone if it's already that type
 *)
 
-let cast (elt_t:Type.elt_t) (valNode:value_node) : exp_node =
-  let old_t = valNode.value_type in 
-  assert (ImpType.is_scalar old_t);  
-  let old_elt_t : Type.elt_t = ImpType.elt_type old_t in
-  if old_elt_t = elt_t then {exp = Val valNode; exp_type = valNode.value_type}
-  else 
-    let ty = ImpType.ScalarT elt_t in 
+let cast (t:ImpType.t) (valNode:value_node) : exp_node =
+  let old_t = valNode.value_type in
+  if old_t = t then {exp = Val valNode; exp_type = t}
+  else (   
+    assert (ImpType.is_scalar old_t);  
+    let elt_t : Type.elt_t = ImpType.elt_type t in
+    let old_elt_t : Type.elt_t = ImpType.elt_type old_t in 
     match valNode.value with 
     | Const n -> 
       let n' = ParNum.coerce n elt_t in 
-      { exp = Val { value = Const n'; value_type = ty}; exp_type = ty }
+      { exp = Val { value = Const n'; value_type = t}; exp_type = t }
     | _ ->
       if Type.is_scalar_subtype old_elt_t elt_t || Type.sizeof old_elt_t = Type.sizeof elt_t 
-      then {exp_type = ty; exp = Cast(ty,valNode)} 
+      then {exp_type = t; exp = Cast(t, valNode)} 
       else failwith $ 
         Printf.sprintf "[imp->cast] cannot create cast from %s to %s : %s"
           (ImpType.to_str old_t)
-          (ImpType.to_str ty)
+          (ImpType.to_str t)
           (val_node_to_str valNode)
- 
+ )
 let common_type ?t (args : value_node list) =
  match t with 
  | Some t -> ImpType.ScalarT t 

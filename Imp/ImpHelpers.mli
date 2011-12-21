@@ -43,7 +43,7 @@ val f64_exp : exp -> exp_node
    (or leave it alone if it's already that type
 *)
 
-val cast : Type.elt_t -> value_node -> exp_node 
+val cast : ImpType.t -> value_node -> exp_node 
 
 val common_type : ?t:Type.elt_t -> value_node list -> ImpType.t  
 

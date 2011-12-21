@@ -49,5 +49,5 @@ let rec combine_type_list = function
 
 let rec type_of_value = function 
   | Value.Scalar n -> ScalarT (ParNum.type_of n)
-  | Value.Array a -> ArrayT (a.Value.elt_type, Shape.rank a.Value.shape)
-  | Value.Shift nested -> ShiftT (type_of_value nested) 
+  | Value.Array a -> ArrayT (a.Value.elt_type, Shape.rank a.Value.array_shape)
+  | Value.Shift (nested, _, _, _) -> ShiftT (type_of_value nested) 

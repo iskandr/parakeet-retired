@@ -1,41 +1,13 @@
 open Imp 
 open ImpHelpers 
+open ImpCodegen 
 
-type stmts_and_info = { 
-    stmts : Imp.stmt list; 
-    new_ids : ID.t list; 
-    new_types : ImpType.t list;
-    new_shapes : SymbolicShape.shape list;
-}
+
+let translate ssaFn impTypes = assert false 
+  
+
 
 (*
-class codegen  = object (self)
-  val mutable types : ImpType.t ID.Map.t = ID.Map.empty 
-  val mutable shapes : SymbolicShape.t ID.Map.t  = ID.Map.empty
-  
-  method fresh_id ?(shape=SymbolicShape.scalar) (ty:ImpType.t) : ID.t = 
-    assert (ImpType.rank ty = SymbolicShape.rank shape); 
-    let id = ID.gen() in
-    types <- ID.Map.add id ty types; 
-    shapes <- ID.Map.add id shape shapes;
-    id  
-  
-  method var ?(shape=SymbolicShape.scalar) (ty:ImpType.t) : value_node =
-    let id = self#fresh_id ~shape ty in  
-    ImpHelpers.var ~t:ty id
-    
-  method var_exp ?(shape=SymbolicShape.scalar) ty = 
-    ImpHelpers.exp_of_val (self#var ~shape ty)
-  
-  method cast (v:value_node) (ty:ImpType.t) : value_node = 
-    if v.value_type = ty then v 
-    else
-      let id = self#fresh_id ty in 
-      self#set id  
-  
-    
-end
-
 let translate_map ?(axes=[0]) ~(fn:SSA.fn) ~(args:SSA.value list) : stmts_and_info  =
   let fn' = ImpReplace.fresh_fn fn in  
   let allIds = (fn.input_ids@fn.output_ids@fn.local_ids) in 
@@ -44,7 +16,7 @@ let translate_map ?(axes=[0]) ~(fn:SSA.fn) ~(args:SSA.value list) : stmts_and_in
   let keepGoing = codegen#var ImpType.bool_t  
   let loop = while_ 
  
-    
+*)  
 
 (*type fn = {
   body: block;
@@ -68,7 +40,7 @@ type fn = {
   body : block;
 }
 *)
-
+(*
 let rec block_folder (tenv:ImpType.t ID.Map.t) (acc : Imp.stmt list) (ssaStmt : SSA.stmt_node) = 
     match ssaStmt.SSA.stmt with 
       | SSA.Set ([id], rhs) -> 
@@ -78,8 +50,8 @@ let rec block_folder (tenv:ImpType.t ID.Map.t) (acc : Imp.stmt list) (ssaStmt : 
 let rec translate_block (tenv:ImpType.t ID.Map.t) (block:SSA.block) = 
   Block.fold_backward (block_folder tenv) [] block  
 
-
-
+*)
+(*
 module Analysis = struct 
     type env = Imp.fn
     
