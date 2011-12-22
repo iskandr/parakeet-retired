@@ -9,7 +9,10 @@ LDFLAGS = -lpthread -lm -lrt
 CC = gcc
 DEBUG =
 OCAMLCFLAGS = -ccopt -fPIC
-LIB_INCLUDES = -I /usr/local/lib/ocaml -I /usr/local/lib/ocaml/extlib -I /usr/lib/ocaml -I /usr/lib/ocaml/extlib
+LIB_INCLUDES = -I /usr/local/lib/ocaml -I /usr/local/lib/ocaml/extlib \
+               -I /usr/local/lib/ocaml/site-lib/extlib \
+	       -I /usr/lib/ocaml -I /usr/lib/ocaml/extlib \
+               -I /usr/lib/ocaml/site-lib/extlib
 PARAKEET_INCLUDES = -I $(BUILDPATH) \
 	-I $(BUILDPATH)/Imp \
 	-I $(BUILDPATH)/ShapeInference \
