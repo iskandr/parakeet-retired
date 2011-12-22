@@ -35,6 +35,9 @@ host_val mk_float32(float val);
 host_val mk_float64(double val);
 
 /** Array creation function **/
+/** This function doesn't copy the data; rather, the caller and Parakeet share
+ *  this copy of the data.  Thus, the caller can't delete this copy of the data
+ *  until after Parakeet is sure to be finished with it. **/
 host_val mk_host_array(char *data, elt_type t,
                        int *shape, int shape_len,
                        int *strides, int strides_len,

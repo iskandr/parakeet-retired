@@ -64,14 +64,14 @@ let rec type_of = function
 
 let rec shape_of _ = Shape.of_list []
 
-let to_num = function 
-  | Scalar n -> n 
+let to_num = function
+  | Scalar n -> n
   | other -> failwith $ Printf.sprintf
                  "Can't get scalar from interpreter value: %s"
                  (to_str other)
 
 let to_bool x = ParNum.to_bool (to_num x)
-let to_char x = ParNum.to_char (to_num x)        
+let to_char x = ParNum.to_char (to_num x)
 let to_int x = ParNum.to_int (to_num x)
 let to_int32 x = ParNum.to_int32 (to_num x)
 let to_int64 x = ParNum.to_int64 (to_num x)
@@ -85,16 +85,16 @@ let of_float32 f = of_num (ParNum.of_float32 f)
 let of_float f = of_num (ParNum.of_float f)
 let of_int32 i32 = of_num (ParNum.of_int32 i32)
 let of_int64 i64 = of_num (ParNum.of_int64 i64)
- 
+
 let mk_array (data:'a) (elt_t:Type.elt_t) (shape:Shape.t) (strides:int array) =
-  let ty = Type.ArrayT(elt_t, Shape.rank shape) in  
+  let ty = Type.ArrayT(elt_t, Shape.rank shape) in
   Array {
-    data = data; 
-    array_type = ty; 
-    elt_type = elt_t; 
-    array_shape = shape; 
-    array_strides = strides; 
-  }  
+    data = data;
+    array_type = ty;
+    elt_type = elt_t;
+    array_shape = shape;
+    array_strides = strides;
+  }
 
 let is_scalar x = Type.is_scalar (type_of x)
 

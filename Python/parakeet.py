@@ -22,7 +22,7 @@ class return_val_t(Structure):
               ("ret_types",POINTER(c_void_p)),
               ("shapes",POINTER(POINTER(c_int))),
               ("data",_U)]
-  
+
 #Return type initialization
 #Small fix: Can set default return type to c_void_p?
 def return_type_init():
@@ -474,14 +474,18 @@ def python_value_to_parakeet(arg):
     inputShape = arg.ctypes.shape_as(c_int32)      
     if rank > 1 and not arg.flags['C_CONTIGUOUS']:
       # until we have a proper interface for telling parakeet this data is 
-      # column-major, we have to manually transpose it  
+      # column-major, we have to manually transpose it 
+      # TODO: wouldn't strides be enough to handle this?
       arg = np.transpose(arg).copy()
     npType = arg.dtype.type
-    if (npType not in NumpyTypeToCtype) or (npType not in NumpyTypeToParakeetType):
+    if ((npType not in NumpyTypeToCtype) or
+        (npType not in NumpyTypeToParakeetType)):
       raise Exception("Numpy element type unsupported: " + str(npType))
     ctype = NumpyTypeToCtype[npType]
     parakeetType = NumpyTypeToParakeetType[npType]
     dataPtr = arg.ctypes.data_as(POINTER(ctype))
+    # TODO: This probably doesn't work for more than 2D - need recursion
+    # TODO: mk_vec no longer exists
     for z in range(len(arg.shape)):
       parakeetType = c_void_p(LibPar.mk_vec(parakeetType))
     parakeetVal = LibPar.mk_host_array(dataPtr,parakeetType,inputShape,rank,
@@ -523,7 +527,7 @@ def parakeet_value_to_python(data, shapePtr, ty):
     npResult = np.ctypeslib.as_array(resultArray)
     npResult.shape = shape
     return npResult
-      
+
 def run_function(func,args):
   numArgs = len(args)
   inputArr = []
@@ -533,7 +537,7 @@ def run_function(func,args):
   inputs = INPUTLIST()
   for i in range(numArgs):
     inputs[i] = python_value_to_parakeet(args[i])
-  #Med fix: assume there are no globals now
+  # TODO: assume there are no globals now
   ret = LibPar.run_function(func, None, 0, inputs, numArgs)
   if (ret.return_code == 0):
     data = ret.data.results[0]

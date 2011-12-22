@@ -11,13 +11,12 @@ DEBUG =
 OCAMLCFLAGS = -ccopt -fPIC
 EXTLIB_DIR=$(shell ocamlfind query extlib)
 LLVM_DIR = /usr/local/lib/ocaml
-LIB_INCLUDES = -I $(EXTLIB_DIR)
+LIB_INCLUDES = -I $(EXTLIB_DIR) -I $(LLVM_DIR)
 #-I $(BUILDPATH)/Imp/KernelTemplates \
 #-I $(BUILDPATH)/CostModel \
 #-I $(BUILDPATH)/Python \
 #-I $(BUILDPATH)/Ptx \   
 PARAKEET_INCLUDES = -I $(BUILDPATH) \
-	-I $(LLVM_DIR) \
 	-I $(BUILDPATH)/Imp \
 	-I $(BUILDPATH)/ShapeInference \
 	-I $(BUILDPATH)/Base \
@@ -27,7 +26,7 @@ PARAKEET_INCLUDES = -I $(BUILDPATH) \
 	-I $(BUILDPATH)/SSA/Optimizations \
  	-I $(BUILDPATH)/SSA/Analyses \
 	-I $(BUILDPATH)/SSA/Specialization \
-  	-I $(BUILDPATH)/Runtime \
+  -I $(BUILDPATH)/Runtime \
 	-I $(BUILDPATH)/Runtime/Cuda \
 	-I $(BUILDPATH)/Runtime/LLVM \
 	-I $(BUILDPATH)/Runtime/Memory \
@@ -43,14 +42,15 @@ COBJS = -ccopt -L/usr/lib/nvidia-current \
 	-ccopt -lcuda \
         -ccopt -L/usr/local/cuda/lib \
         -ccopt -L/usr/local/cuda/lib64 \
-        -ccopt -lcudart 
- 
+        -ccopt -lcudart
 
 OCAML_LIB_OBJECTS := bigarray.$(OBJ_ARCHIVE_SUFFIX) \
   unix.$(OBJ_ARCHIVE_SUFFIX) \
   str.$(OBJ_ARCHIVE_SUFFIX) \
   extLib.$(OBJ_ARCHIVE_SUFFIX) \
-  xml-light.$(OBJ_ARCHIVE_SUFFIX)
+  xml-light.$(OBJ_ARCHIVE_SUFFIX) \
+  llvm.$(OBJ_ARCHIVE_SUFFIX) \
+  llvm_executionengine.$(OBJ_ARCHIVE_SUFFIX)
 
 $(shell ocamlopt unix.cmxa ../FrontEnd/depsort.ml -o ../FrontEnd/depsort)
 #$(echo Determining OCaml module dependencies)

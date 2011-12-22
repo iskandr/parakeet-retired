@@ -14,5 +14,5 @@ let generic_to_parnum (g_val:GenericValue.t) (impt:Type.elt_t) : ParNum.t = matc
 
 let generic_to_imp (g_val:GenericValue.t) = function 
   | ImpType.ScalarT t -> generic_to_parnum g_val t
-  | ImpType.ArrayT _ -> assert false
+  | ImpType.ArrayT _ -> 
   | _ -> assert false

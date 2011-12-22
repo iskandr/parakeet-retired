@@ -5,7 +5,7 @@ open Ptr
 open Value 
 open Llvm_executionengine 
 
-let align_to size alignment = (size + alignment - 1) / alignment
+let pad_to size alignment = (size + alignment - 1) / alignment
 
 let int16 (i:int) = GenericValue.of_int LLVM_Types.int16_t i 
 let int32 (i:Int32.t) = GenericValue.of_int32 LLVM_Types.int32_t i 
@@ -22,7 +22,6 @@ let parnum_to_generic = function
   | Float32 f -> float32 f
   | Float64 f -> float64 f 
   | _ -> assert false
-
 
 let rec to_llvm = function
   | Value.Scalar s -> parnum_to_generic s
@@ -57,9 +56,9 @@ let rec to_llvm = function
   | Value.Shift (v, dim, offset, default) -> 
       let el_t = ParNum.type_of default in
       let el_size = Type.sizeof el_t in
-      (* The following ensures that the struct is 8-byte aligned, as all C *)
-      (* structs need to be on 64-bit platforms. *)
-      let mem_size = align_to (8 + 4 + 4 + el_size) 8 in
+      (* The following ensures that the struct is a multiple of 8 bytes, as *)
+      (* all C structs need to be on 64-bit platforms. *)
+      let mem_size = pad_to (8 + 4 + 4 + el_size) 8 in
       let ptr = HostMemspace.malloc mem_size in
       let a = to_llvm v in
       (* As above, we treat int32s as "half-int64s", etc., in order to get *)
@@ -77,7 +76,7 @@ let rec to_llvm = function
         | _ -> failwith "Unsupported array element type for LLVM conversion");
       int64 ptr
   | Value.Slice (v, dim, start, stop) -> 
-      let ptr = HostMemspace.malloc (align_to (8 + 4 + 4 + 4) 8) in
+      let ptr = HostMemspace.malloc (pad_to (8 + 4 + 4 + 4) 8) in
       let a = to_llvm v in
       HostMemspace.set_int64 ptr 0 (GenericValue.as_int64 a);
       HostMemspace.set_int32 ptr 2 (Int32.of_int dim);
@@ -85,7 +84,7 @@ let rec to_llvm = function
       HostMemspace.set_int32 ptr 4 (Int32.of_int stop);
       int64 ptr
   | Value.Range (start, stop, step) -> 
-      let ptr = HostMemspace.malloc (align_to (4 + 4 + 4) 8) in
+      let ptr = HostMemspace.malloc (pad_to (4 + 4 + 4) 8) in
       HostMemspace.set_int32 ptr 0 (Int32.of_int start);
       HostMemspace.set_int32 ptr 1 (Int32.of_int stop);
       HostMemspace.set_int32 ptr 2 (Int32.of_int step);
@@ -94,7 +93,7 @@ let rec to_llvm = function
 
 let rec delete_llvm_gv (gv:GenericValue.t) = function
   | ImpType.ScalarT _ -> ()
-  | ImpType.ArrayT _ 
+  | ImpType.ArrayT _
   | ImpType.ShiftT _ -> HostMemspace.free (GenericValue.as_int64 gv)
-  (* MEMORY LEAK!!!! Not recursively destroying the struct elements *) 
+  (* MEMORY LEAK!!!! Not recursively destroying the struct elements *)
   | _ -> failwith "Unsupported ImpType for LLVM deletion"
