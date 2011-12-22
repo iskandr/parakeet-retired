@@ -486,8 +486,8 @@ def python_value_to_parakeet(arg):
     dataPtr = arg.ctypes.data_as(POINTER(ctype))
     # TODO: This probably doesn't work for more than 2D - need recursion
     # TODO: mk_vec no longer exists
-    for z in range(len(arg.shape)):
-      parakeetType = c_void_p(LibPar.mk_vec(parakeetType))
+    #for z in range(len(arg.shape)):
+    #  parakeetType = c_void_p(LibPar.mk_vec(parakeetType))
     parakeetVal = LibPar.mk_host_array(dataPtr,parakeetType,inputShape,rank,
                                        arg.nbytes)
     return c_void_p(parakeetVal)

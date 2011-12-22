@@ -174,8 +174,24 @@ value ocaml_set_float(value ptr, value idx, value v) {
   CAMLreturn(Val_unit);
 }
 
+// BigArray
 
 value get_bigarray_ptr(value bigarray) {
   CAMLparam1(bigarray);
   CAMLreturn(caml_copy_int64((int64_t)Data_bigarray_val(bigarray)));
+}
+
+// BaseArray
+// This passes ownership off to the caller, but the OCaml garbage collector
+// isn't made aware of it.  Thus the caller is responsible for eventually
+// calling a free() on the memory.
+value ocaml_to_c_int_array(value intarray) {
+  CAMLparam1(intarray);
+  int len = Wosize_val(intarray);
+  int *carray = (int*)malloc(len * sizeof(int));
+  int i;
+  for (i = 0; i < len; ++i) {
+    carray[i] = Int_val(Field(intarray, i));
+  }
+  CAMLreturn(caml_copy_int64((int64_t)carray));
 }
