@@ -10,15 +10,16 @@ CC = gcc
 DEBUG =
 OCAMLCFLAGS = -ccopt -fPIC
 EXTLIB_DIR=$(shell ocamlfind query extlib)
-
+LLVM_DIR = /usr/local/lib/ocaml
 LIB_INCLUDES = -I $(EXTLIB_DIR)
-#-I $(BUILDPATH)/Imp \
 #-I $(BUILDPATH)/Imp/KernelTemplates \
-#-I $(BUILDPATH)/ShapeInference \
 #-I $(BUILDPATH)/CostModel \
 #-I $(BUILDPATH)/Python \
 #-I $(BUILDPATH)/Ptx \   
 PARAKEET_INCLUDES = -I $(BUILDPATH) \
+	-I $(LLVM_DIR) \
+	-I $(BUILDPATH)/Imp \
+	-I $(BUILDPATH)/ShapeInference \
 	-I $(BUILDPATH)/Base \
 	-I $(BUILDPATH)/Common \
 	-I $(BUILDPATH)/AST   \
@@ -26,11 +27,11 @@ PARAKEET_INCLUDES = -I $(BUILDPATH) \
 	-I $(BUILDPATH)/SSA/Optimizations \
  	-I $(BUILDPATH)/SSA/Analyses \
 	-I $(BUILDPATH)/SSA/Specialization \
-  -I $(BUILDPATH)/Runtime \
-  -I $(BUILDPATH)/Runtime/Cuda \
-  -I $(BUILDPATH)/Runtime/LLVM \
-  -I $(BUILDPATH)/Runtime/Memory \
-  -I $(BUILDPATH)/FrontEnd
+  	-I $(BUILDPATH)/Runtime \
+	-I $(BUILDPATH)/Runtime/Cuda \
+	-I $(BUILDPATH)/Runtime/LLVM \
+	-I $(BUILDPATH)/Runtime/Memory \
+	-I $(BUILDPATH)/FrontEnd
   
 OCAMLINCLUDES := $(LIB_INCLUDES) $(PARAKEET_INCLUDES)
 
