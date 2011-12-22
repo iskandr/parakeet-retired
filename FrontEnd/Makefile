@@ -68,7 +68,8 @@ LINK       := g++ -fPIC
 
 # Includes
 INCLUDES  += -I. -I$(CUDA_INSTALL_PATH)/include -I$(COMMONDIR)/inc
-INCLUDES  += -I/usr/lib/ocaml -I../CQInterface
+INCLUDES  += -I/usr/lib/ocaml -I/usr/local/lib/ocaml -I../CQInterface
+
 
 # architecture flag for cubin build
 CUBIN_ARCH_FLAG := -m64

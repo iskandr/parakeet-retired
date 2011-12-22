@@ -9,13 +9,7 @@ LDFLAGS = -lpthread -lm -lrt
 CC = gcc
 DEBUG =
 OCAMLCFLAGS = -ccopt -fPIC
-EXTLIB_DIR=$(shell ocamlfind query extlib)
-LLVM_DIR = /usr/local/lib/ocaml
-LIB_INCLUDES = -I $(EXTLIB_DIR) -I $(LLVM_DIR)
-#-I $(BUILDPATH)/Imp/KernelTemplates \
-#-I $(BUILDPATH)/CostModel \
-#-I $(BUILDPATH)/Python \
-#-I $(BUILDPATH)/Ptx \   
+LIB_INCLUDES = -I /usr/local/lib/ocaml -I /usr/local/lib/ocaml/extlib -I /usr/lib/ocaml -I /usr/lib/ocaml/extlib
 PARAKEET_INCLUDES = -I $(BUILDPATH) \
 	-I $(BUILDPATH)/Imp \
 	-I $(BUILDPATH)/ShapeInference \
@@ -26,7 +20,7 @@ PARAKEET_INCLUDES = -I $(BUILDPATH) \
 	-I $(BUILDPATH)/SSA/Optimizations \
  	-I $(BUILDPATH)/SSA/Analyses \
 	-I $(BUILDPATH)/SSA/Specialization \
-  -I $(BUILDPATH)/Runtime \
+	-I $(BUILDPATH)/Runtime \
 	-I $(BUILDPATH)/Runtime/Cuda \
 	-I $(BUILDPATH)/Runtime/LLVM \
 	-I $(BUILDPATH)/Runtime/Memory \
