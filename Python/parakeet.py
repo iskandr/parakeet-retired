@@ -1,9 +1,8 @@
-import numpy as np
-import functools as ft
-import ast
 from ctypes import *
+import ast, os, sys
+import functools as ft
+import numpy as np
 import PrettyAST
-import os
 
 ###############################################################################
 #  Initializations
@@ -13,15 +12,16 @@ Debug = 0
 
 #Return type struct
 class _U(Union):
-  _fields_ = [("error_msg",c_char_p),
-              ("results",POINTER(c_void_p))]
+  _fields_ = [("error_msg", c_char_p),
+              ("results", POINTER(c_void_p))]
 
 class return_val_t(Structure):
-  _fields_ = [("return_code",c_int),
-              ("results_len",c_int),
-              ("ret_types",POINTER(c_void_p)),
-              ("shapes",POINTER(POINTER(c_int))),
-              ("data",_U)]
+  _fields_ = [("return_code", c_int),
+              ("results_len", c_int),
+              ("ret_types", POINTER(c_void_p)),
+              ("shapes", POINTER(POINTER(c_int))),
+              ("strides", POINTER(POINTER(c_int))),
+              ("data", _U)]
 
 #Return type initialization
 #Small fix: Can set default return type to c_void_p?
@@ -115,7 +115,7 @@ NumpyTypeToCtype = {
   np.float32: c_float,
   np.float64: c_double,
   np.bool: c_bool,
-  }
+}
 
 NumpyTypeToParakeetType = {
   np.int32: LibPar.int32_t,
@@ -123,16 +123,16 @@ NumpyTypeToParakeetType = {
   np.float32: LibPar.float32_t,
   np.float64: LibPar.float64_t,
   np.bool: LibPar.bool_t
-  }
+}
 
 ParakeetTypeToCtype = {
-    LibPar.int32_t: c_int32,
-    LibPar.int64_t: c_int64,  
-    LibPar.float32_t: c_float, 
-    LibPar.float64_t: c_double,
-    LibPar.bool_t: c_int,
-    LibPar.char_t: c_char
-  }
+  LibPar.int32_t: c_int32,
+  LibPar.int64_t: c_int64,  
+  LibPar.float32_t: c_float, 
+  LibPar.float64_t: c_double,
+  LibPar.bool_t: c_int,
+  LibPar.char_t: c_char
+}
 
 ###############################################################################
 #  Helper functions
@@ -466,8 +466,7 @@ def fun_visit(func,new_f):
       VisitedFunctions[func] = funID
       VisitedFunctions[new_f] = funID
       
-# given a numpy array or a scalar, construct 
-# the equivalent parakeet value 
+# given a numpy array or a scalar, construct the equivalent parakeet value 
 def python_value_to_parakeet(arg):
   if isinstance(arg, np.ndarray):
     rank = len(arg.shape)
@@ -488,7 +487,7 @@ def python_value_to_parakeet(arg):
     # TODO: mk_vec no longer exists
     #for z in range(len(arg.shape)):
     #  parakeetType = c_void_p(LibPar.mk_vec(parakeetType))
-    parakeetVal = LibPar.mk_host_array(dataPtr,parakeetType,inputShape,rank,
+    parakeetVal = LibPar.mk_host_array(dataPtr, parakeetType, inputShape, rank,
                                        arg.nbytes)
     return c_void_p(parakeetVal)
   elif np.isscalar(arg):
@@ -501,7 +500,7 @@ def python_value_to_parakeet(arg):
   else:
     raise Exception ("Input not supported by Parakeet: " + str(arg))
   
-def array_from_memory(pointer,shape,dtype):
+def array_from_memory(pointer, shape, dtype):
   from_memory = ctypes.pythonapi.PyBuffer_FromReadWriteMemory
   from_memory.restype = ctypes.py_object
   arr = np.empty(shape=shape,dtype=dtype)
@@ -509,9 +508,12 @@ def array_from_memory(pointer,shape,dtype):
   return arr
 
 def parakeet_value_to_python(data, shapePtr, ty):
-  parakeetEltType = LibPar.get_dyn_type_element_type(ty)
+  print "In parakeet_value_to_python"
+  sys.stdout.flush()
+  parakeetEltType = LibPar.get_type_element_type(ty)
   cEltType = ParakeetTypeToCtype[parakeetEltType]
-  rank = LibPar.get_dyn_type_rank(ty)
+  rank = LibPar.get_type_rank(ty)
+  print "Got rank"
   if rank == 0:
     resultPtr = cast(data,POINTER(cEltType))
     return resultPtr[0]
@@ -528,7 +530,7 @@ def parakeet_value_to_python(data, shapePtr, ty):
     npResult.shape = shape
     return npResult
 
-def run_function(func,args):
+def run_function(func, args):
   numArgs = len(args)
   inputArr = []
   INPUTLIST = c_void_p*numArgs
@@ -540,7 +542,10 @@ def run_function(func,args):
   # TODO: assume there are no globals now
   ret = LibPar.run_function(func, None, 0, inputs, numArgs)
   if (ret.return_code == 0):
+    print "Return code good"
     data = ret.data.results[0]
+    print "Got data"
+    sys.stdout.flush()
     ty = c_void_p(ret.ret_types[0])
     shape = ret.shapes[0]
     return parakeet_value_to_python(data, shape, ty)
@@ -548,12 +553,12 @@ def run_function(func,args):
     raise Exception("run_function failed")
   pass
 
-def GPU(func):
+def PAR(func):
   def new_f(*args, **kwds):
-    return run_function(funID,args)
+    return run_function(funID, args)
   new_f.__name__ = func.__name__
   new_f.__module__ = func.__module__
   if not (VisitedFunctions.has_key(new_f)):
-    fun_visit(func,new_f)
+    fun_visit(func, new_f)
   funID = VisitedFunctions[new_f]
   return new_f

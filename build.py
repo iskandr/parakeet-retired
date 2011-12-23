@@ -2,12 +2,10 @@
 
 import optparse, glob, os, shutil, subprocess, sys
 
-# For now, I'm setting a -q flag to default to True, but once we move to
-# Python, we can switch that off.
 parser = optparse.OptionParser(description='Parakeet Build System')
 parser.add_option('-q', action='store_true', help='Build Q front end')
 
-parser.add_option('-p', '--python', action='store_true',  
+parser.add_option('-p', '--python', action='store_true', default=True,
                     help='Build Python front end')
 
 parser.add_option('-o', '--opt', action='store_true',

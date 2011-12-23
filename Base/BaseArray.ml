@@ -2,6 +2,8 @@ open BaseCommon
 include ExtArray.Array
 
 external to_c_int_array : int array -> Int64.t = "ocaml_to_c_int_array"
+external from_c_int_array : Int64.t -> int -> int array =
+  "ocaml_from_c_int_array"
 
 let remove_mask data bools =
   let len = Array.length data in

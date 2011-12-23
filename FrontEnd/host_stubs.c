@@ -195,3 +195,17 @@ value ocaml_to_c_int_array(value intarray) {
   }
   CAMLreturn(caml_copy_int64((int64_t)carray));
 }
+
+// Doesn't take ownership of C array - caller still responsible for freeing it.
+value ocaml_from_c_int_array(value ocaml_carray, value ocaml_len) {
+  CAMLparam2(ocaml_carray, ocaml_len);
+  CAMLlocal1(intarray);
+  int *carray = (int*)Int64_val(ocaml_carray);
+  int len = Int_val(ocaml_len);
+  intarray = caml_alloc_tuple(len);
+  int i;
+  for (i = 0; i < len; ++i) {
+    Store_field(intarray, i, carray[i]);
+  }
+  CAMLreturn(intarray);
+}

@@ -1,14 +1,14 @@
 open Base
-open Printf 
+open Printf
 
-type elt_t = 
+type elt_t =
   | BoolT
   | CharT
   | Int16T
   | Int32T
   | Int64T
   | Float32T
-  | Float64T 
+  | Float64T
 
 type t  =
   | ScalarT of elt_t

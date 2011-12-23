@@ -47,8 +47,7 @@ int register_untyped_function(char *name, char **globals, int num_globals,
   CAMLparam0();
   CAMLlocal5(val_name, val_globals, val_args, val_ast, fn_id);
  
-	
-  printf("INTERFACE Name: %s",name);
+  printf("INTERFACE Name: %s\n",name);
 
   val_name = caml_copy_string(name);
 
@@ -80,6 +79,7 @@ return_val_t run_function(int id, host_val *globals, int num_globals,
   ocaml_rslt = caml_callback3(*ocaml_run_function, ocaml_id,
                               ocaml_globals, ocaml_args);
 
+  printf("Called run function.\n");
   return_val_t ret;
   host_val v = (host_val)Field(ocaml_rslt, 0);
   int i;
@@ -91,6 +91,7 @@ return_val_t run_function(int id, host_val *globals, int num_globals,
   ret.shapes = (int**)malloc(sizeof(int*));
   ret.ret_types = (array_type*)malloc(sizeof(array_type));
   ret.data.results = (void**)malloc(sizeof(void*));
+  printf("results: %p\n", ret.data.results);
   array_type t = value_type_of(v);
   ret.ret_types[0] = t;
 
@@ -112,16 +113,18 @@ return_val_t run_function(int id, host_val *globals, int num_globals,
         // on the heap, it should be manually deleted by the
         // host frontend
         
-        if (t == parakeet_bool_t) {
+        printf("Placing scalar result in return struct.\n");
+        if (type_is_bool(t)) {
           ret.data.results[0] = malloc(sizeof(int));
           *((int*)ret.data.results[0]) = get_bool(v);
-        } else if (t == parakeet_int32_t) {
+        } else if (type_is_int32(t)) {
+          printf("Got a 32-bit int result: %d\n", get_int32(v));
           ret.data.results[0] = malloc(sizeof(int32_t));
           *((int32_t*)ret.data.results[0]) = get_int32(v);
-        } else if (type_is_int64) {
+        } else if (type_is_int64(t)) {
           ret.data.results[0] = malloc(sizeof(int64_t));
           *((int64_t*)ret.data.results[0]) = get_int64(v);
-        } else if (type_is_float64) {
+        } else if (type_is_float64(t)) {
           ret.data.results[0] = malloc(sizeof(double));
           *((double*)ret.data.results[0]) = get_float64(v);
         } else {
@@ -158,6 +161,7 @@ return_val_t run_function(int id, host_val *globals, int num_globals,
     caml_failwith("Unknown return code from run_function. Aborting.");
   }
 
+  printf("Got to end of run function.\n");
   CAMLreturnT(return_val_t, ret);
 }
 

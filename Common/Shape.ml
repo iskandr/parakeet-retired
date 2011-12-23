@@ -148,40 +148,40 @@ let append_dim dim shape =
 let append_dims dims shape = 
   append (of_list dims) shape 
 
-let slice_shape inputShape dimsList = 
-  let n = rank inputShape in 
+let slice_shape inputShape dimsList =
+  let n = rank inputShape in
   let nRemoved = List.length dimsList in
   let sliceRank = n - nRemoved in
-  assert (sliceRank >= 0);  
-  if sliceRank = 0 then scalar_shape 
+  assert (sliceRank >= 0);
+  if sliceRank = 0 then scalar_shape
   else (
-    let resultShape = create sliceRank in 
-    let idx = ref 0 in 
+    let resultShape = create sliceRank in
+    let idx = ref 0 in
     for i = 0 to n - 1 do
-      (* if this dim hasn't been removed, add it to the result *)  
-      if not (List.mem i dimsList) then begin  
+      (* if this dim hasn't been removed, add it to the result *)
+      if not (List.mem i dimsList) then begin
         set resultShape !idx (get inputShape i);
         idx := !idx + 1
       end
-    done; 
-    resultShape   
-  )  
+    done;
+    resultShape
+  )
 
-let of_array (dims : int array) : t = dims  
-let to_array (shape : t) : int array = shape  
+let of_array (dims : int array) : t = dims
+let to_array (shape : t) : int array = shape
 
 let to_int32_c_array shape =
-  let n = rank shape in  
-  let cArr = Array1.create int32 c_layout n in 
-  for i = 0 to n - 1 do 
+  let n = rank shape in
+  let cArr = Array1.create int32 c_layout n in
+  for i = 0 to n - 1 do
     cArr.{i} <- Int32.of_int (get shape i)
-  done; 
+  done;
   cArr
 
-let of_int32_c_array cArr = 
-  let n = Array1.dim cArr in 
-  let shape = create n in 
+let of_int32_c_array cArr =
+  let n = Array1.dim cArr in
+  let shape = create n in
   for i = 0 to n - 1 do
-    set shape  i (Int32.to_int cArr.{i})
+    set shape i (Int32.to_int cArr.{i})
   done;
-  shape 
+  shape

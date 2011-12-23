@@ -1,14 +1,17 @@
 from numpy import *
-from parakeet import GPU
+from parakeet import PAR
+import sys
 
-@GPU
+@PAR
 def identity(x):
   return x
 
 def test_scalar_id():
+  print "Testing scalar Identity"
+  sys.stdout.flush()
   assert 3 == identity(3)
 
-def test_array_id():
+def array_id():
   multi_test = reshape(arange(12, dtype=int32), (3,4))
   print "Input:", multi_test
   print "Input Shape:", shape(multi_test)

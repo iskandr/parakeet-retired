@@ -1,9 +1,9 @@
 open Base
-open Type
+open Llvm_executionengine
 open ParNum
-open Ptr  
-open Value 
-open Llvm_executionengine 
+open Ptr
+open Type
+open Value
 
 let pad_to size alignment = (size + alignment - 1) / alignment
 
@@ -41,6 +41,7 @@ let rec to_llvm = function
         | Int64T -> HostMemspace.set_int64 ptr 0 (ParNum.to_int64 scalar)
         | Float32T -> HostMemspace.set_float32 ptr 0 (ParNum.to_float scalar)
         | Float64T -> HostMemspace.set_float64 ptr 0 (ParNum.to_float scalar)
+        | _ -> failwith "Unsupported scalar type"
       );
       HostMemspace.set_int64 ptr 1 cshape;
       int64 ptr
@@ -91,9 +92,27 @@ let rec to_llvm = function
       int64 ptr
   | _ -> assert false
 
-let rec delete_llvm_gv (gv:GenericValue.t) = function
+let rec delete_llvm_ptr ptr = function
   | ImpType.ScalarT _ -> ()
-  | ImpType.ArrayT _
-  | ImpType.ShiftT _ -> HostMemspace.free (GenericValue.as_int64 gv)
-  (* MEMORY LEAK!!!! Not recursively destroying the struct elements *)
-  | _ -> failwith "Unsupported ImpType for LLVM deletion"
+  | ImpType.ArrayT _ ->
+    let shapeptr = HostMemspace.get_int64 ptr 1 in
+    let strideptr = HostMemspace.get_int64 ptr 2 in
+    HostMemspace.free shapeptr;
+    HostMemspace.free strideptr;
+    HostMemspace.free ptr
+  | ImpType.ExplodeT _ ->
+    let shapeptr = HostMemspace.get_int64 ptr 1 in
+    HostMemspace.free shapeptr;
+    HostMemspace.free ptr
+  | ImpType.RotateT _
+  | ImpType.ShiftT _
+  | ImpType.SliceT _ ->
+    let data = HostMemspace.get_int64 ptr 0 in
+    delete_llvm_ptr data;
+    HostMemspace.free ptr
+  | ImpType.RangeT _ -> HostMemspace.free ptr
+
+(* Note: this doesn't delete the data, only the gv struct *)
+let delete_llvm_gv (gv:GenericValue.t) (impt:ImpType.t) =
+  let ptr = GenericValue.as_int64 gv in
+  delete_llvm_ptr ptr impt

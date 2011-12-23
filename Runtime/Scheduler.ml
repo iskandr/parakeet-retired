@@ -1,13 +1,11 @@
 (* pp: -parser o pa_macro.cmo *)
 
-(* TODO: Get rid of GPU/Host distinction and replace with arbitrary number*)
+(* TODO: Get rid of GPU/Host distinction and replace with arbitrary number *)
 (* of backends/memspaces *)
 
 (* the cost model function expect arguments to be described by triplets  *)
 (* of their type, shape, and a boolean indicating whether that argument  *)
 (* is on the gpu.                                                        *)
-
-
 
 type value = DataId.t Value.t
 type values = value list

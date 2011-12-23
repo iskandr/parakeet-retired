@@ -2,9 +2,13 @@
 type elt_t = Type.elt_t
 
 type t =
-	| ScalarT of elt_t
 	| ArrayT of elt_t * int
+  | ScalarT of elt_t
+  | ExplodeT of elt_t
+  | RotateT of t
 	| ShiftT of t
+  | SliceT of t
+  | RangeT of elt_t
 
 val to_str : t -> string
 

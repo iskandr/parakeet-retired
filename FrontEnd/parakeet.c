@@ -13,7 +13,7 @@ void parakeet_init(void) {
   if (parakeet_inited) return;
 
   parakeet_inited = 1;
-  
+
   char *argv[] = {"argv", 0};
   caml_startup(argv);
 
@@ -21,5 +21,4 @@ void parakeet_init(void) {
   type_init();
   value_init();
   front_end_init();
-
 }

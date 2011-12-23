@@ -1,17 +1,17 @@
 
 open Base
 
-type data_table = (DataId.t, Ptr.t) Hashtbl.t 
+type data_table = (DataId.t, Ptr.t) Hashtbl.t
 
 let memspace_tables : data_table MemId.Map.t ref = ref MemId.Map.empty
 
 (* if we already have a table for the given id then return it, *)
-(* otherwise create a  new one *)   
+(* otherwise create a  new one *)
 let get_memspace_table memid : data_table =
     try MemId.Map.find memid !memspace_tables with _ -> begin
-        let new_table : data_table = Hashtbl.create 1001 in 
-        memspace_tables := MemId.Map.add memid new_table !memspace_tables; 
-        new_table 
+        let new_table : data_table = Hashtbl.create 1001 in
+        memspace_tables := MemId.Map.add memid new_table !memspace_tables;
+        new_table
     end
 
 let register_ptr (p:Ptr.t) : DataId.t =
@@ -28,7 +28,7 @@ let id_to_ptr_option dataId memId =
 let id_on_memspace dataId memId =
     let table = get_memspace_table memId in
     Hashtbl.mem table dataId
-		
+
 let id_to_ptr dataId memId =
     let table = get_memspace_table memId in
     Hashtbl.find table dataId

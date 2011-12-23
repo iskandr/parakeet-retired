@@ -34,5 +34,4 @@ type t = {
 let build_machine_model =
   let x =
       Xml.parse_file "/home/erik/workspace/parakeet/install/parakeetconf.xml" in
-  Printf.printf "%s\n" (Xml.to_string_fmt x);
   x
