@@ -21,3 +21,6 @@ def array_id():
   print "Output Shape:", shape(res)
   print "Output Type:", res.dtype
   assert res == multi_test
+
+if __name__ == '__main__':
+    test_scalar_id()

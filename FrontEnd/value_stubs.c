@@ -5,6 +5,7 @@
  *
  * (c) Eric Hielscher and Alex Rubinsteyn, 2011.
  */
+#include <assert.h> 
 
 #include <caml/alloc.h>
 #include <caml/bigarray.h>
@@ -76,13 +77,17 @@ void value_init() {
   }
 }
 
+/* 
+  Inspect value fields
+*/ 
 int value_is_scalar(host_val v) {
   CAMLparam1(v);
   CAMLreturnT(int, Int_val(caml_callback(*value_callback_is_scalar, v)));
 }
 
-value value_type_of(host_val v) {
+array_type value_type_of(host_val v) {
   CAMLparam1(v);
+  assert(value_callback_type_of != NULL); 
   CAMLreturn(caml_callback(*value_callback_type_of, v));
 }
 
@@ -95,6 +100,11 @@ value value_get_strides(host_val v) {
   CAMLparam1(v);
   CAMLreturn(caml_callback(*value_callback_get_strides, v));
 }
+
+
+/* 
+  Construct Values
+*/ 
 
 host_val mk_bool(int b) {
   CAMLparam0();
@@ -190,20 +200,6 @@ void free_host_val(host_val val) {
 
   CAMLreturn0;
 }
-
-void free_host_val_data(host_val_data_t data) {
-  // TODO: do we need to free the data field? Does Parakeet lose ownership of
-  //       it when it passes it back to the Front End language?
-  //       For now, I'm not freeing it, but perhaps I should be.
-
-  if (data.shape) free(data.shape);
-}
-
-int host_val_is_scalar(host_val val) {
-  CAMLparam0();
-  CAMLreturnT(int, Int_val(caml_callback(*value_callback_is_scalar, val)));
-}
-
 /** Scalar Accessors **/
 
 int get_bool(host_val val) {
@@ -252,39 +248,6 @@ double get_float64(host_val val) {
 }
 
 /** Non-Scalar Accessors **/
-array_type get_host_val_array_type(host_val val) {
-  CAMLparam0();
-  CAMLlocal2(ocaml_host_val, ocaml_dyn_type);
-
-  ocaml_host_val = (value)val;
-
-  caml_register_global_root(&ocaml_dyn_type);
-  ocaml_dyn_type = Field(Field(ocaml_host_val, 0), 1);
-  CAMLreturnT(array_type, (array_type)ocaml_dyn_type);
-}
-
-host_val_data_t get_host_val_array_data(host_val val) {
-  CAMLparam0();
-  CAMLlocal3(ocaml_host_val, ocaml_array, ocaml_shape);
-
-  ocaml_host_val = (value)val;
-  ocaml_array    = Field(ocaml_host_val, 0);
-  ocaml_shape    = Field(ocaml_array, 2);
-
-  host_val_data_t ret;
-  ret.data      = (void*)Int64_val(Field(ocaml_array, 0));
-  ret.shape_len = Wosize_val(ocaml_shape);
-  ret.shape = (int*)malloc(sizeof(int) * ret.shape_len);
-  int i;
-  for (i = 0; i < ret.shape_len; ++i) {
-    ret.shape[i] = Int_val(Field(ocaml_shape, i));
-  }
-  
-  ret.num_bytes = Int_val(Field(ocaml_array, 3));
-  
-  CAMLreturnT(host_val_data_t, ret);
-}
-
 void* get_array_data(host_val array) {
   CAMLparam0();
   CAMLlocal1(ocaml_data);

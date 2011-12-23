@@ -3,6 +3,8 @@
 #include <caml/callback.h>
 #include <caml/memory.h>
 #include <caml/mlvalues.h>
+#include <stdio.h> 
+#include <assert.h>
 
 #include "type_stubs.h"
 
@@ -106,32 +108,34 @@ int type_is_scalar(array_type t) {
   CAMLreturnT(int, Bool_val(caml_callback(*type_callback_is_scalar, t)));
 }
 
-int type_is_bool(elt_type t) {
+int type_is_bool(array_type t) {
   CAMLparam1(t);
+  assert(type_callback_is_bool); 
+  assert(type_inited); 
   CAMLreturnT(int, Bool_val(caml_callback(*type_callback_is_bool, t)));
 }
 
-int type_is_char(elt_type t) {
+int type_is_char(array_type t) {
   CAMLparam1(t);
   CAMLreturnT(int, Bool_val(caml_callback(*type_callback_is_char, t)));
 }
 
-int type_is_int32(elt_type t) {
+int type_is_int32(array_type t) {
   CAMLparam1(t);
   CAMLreturnT(int, Bool_val(caml_callback(*type_callback_is_int32, t)));
 }
 
-int type_is_int64(elt_type t) {
+int type_is_int64(array_type t) {
   CAMLparam1(t);
   CAMLreturnT(int, Bool_val(caml_callback(*type_callback_is_int64, t)));
 }
 
-int type_is_float32(elt_type t) {
+int type_is_float32(array_type t) {
   CAMLparam1(t);
   CAMLreturnT(int, Bool_val(caml_callback(*type_callback_is_float32, t)));
 }
 
-int type_is_float64(elt_type t) {
+int type_is_float64(array_type t) {
   CAMLparam1(t);
   CAMLreturnT(int, Bool_val(caml_callback(*type_callback_is_float64, t)));
 }
