@@ -20,16 +20,36 @@ typedef enum {
   RET_PASS
 } return_code_t;
 
+typedef struct {
+  elt_type ret_type;
+  union {
+    int       boolean;
+    int32_t   int32;
+    int64_t   int64;
+    double    float64;
+  } ret_scalar_value;
+} scalar_ret_t;
+
+typedef struct {
+  array_type ret_type;
+  void *data;
+  int  *shape;
+  int  *strides;
+} array_ret_t;
+
+typedef struct {
+  union {
+    array_ret_t array;
+    scalar_ret_t scalar;
+  } data;
+  int is_scalar;
+} ret_t;
+
 typedef struct return_val {
   return_code_t return_code;
   int results_len;
-  array_type *ret_types;
-  int **shapes;
-  int **strides;
-  union {
-    char *error_msg;
-    void **results;
-  } data;
+  char *error_msg;
+  ret_t *results;
 } return_val_t;
 
 /** Initialization function - call before using any other functions **/
