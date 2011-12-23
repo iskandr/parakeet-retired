@@ -7,13 +7,15 @@
  * (c) Eric Hielscher and Alex Rubinsteyn, 2009-2011.
  */
 
+#include <stdio.h>
+#include <string.h>
+#include <assert.h> 
+
 #include <caml/alloc.h>
 #include <caml/bigarray.h>
 #include <caml/callback.h>
 #include <caml/memory.h>
 #include <caml/mlvalues.h>
-#include <stdio.h>
-#include <string.h>
 
 #include "ast_stubs.h"
 #include "type_stubs.h"
@@ -114,6 +116,7 @@ return_val_t run_function(int id, host_val *globals, int num_globals,
         // host frontend
         
         printf("Placing scalar result in return struct.\n");
+        assert(t); 
         if (type_is_bool(t)) {
           ret.data.results[0] = malloc(sizeof(int));
           *((int*)ret.data.results[0]) = get_bool(v);

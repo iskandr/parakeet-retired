@@ -30,7 +30,10 @@ let is_int64 = function ScalarT Int64T -> true | _ -> false
 let is_float32 = function ScalarT Float32T -> true | _ -> false
 let is_float64 = function ScalarT Float64T -> true | _ -> false
 let is_char = function ScalarT CharT -> true | _ -> false
-let is_bool = function ScalarT BoolT -> true | _ -> false
+
+let is_bool b = 
+  Printf.printf "In OCaml\n";
+  match b with ScalarT BoolT -> true | _ -> false
 
 let elt_is_int = function
   | BoolT

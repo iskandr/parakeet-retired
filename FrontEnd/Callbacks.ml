@@ -29,6 +29,7 @@ let _ = Callback.register "bool_elt_t" Type.BoolT
 let _ = Callback.register "bool_t" Type.bool
 let _ = Callback.register "type_is_bool" Type.is_bool
 
+
 let _ = Callback.register "char_elt_t" Type.CharT
 let _ = Callback.register "char_t" Type.char
 let _ = Callback.register "type_is_char" Type.is_char

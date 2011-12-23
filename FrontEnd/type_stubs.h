@@ -37,12 +37,12 @@ void free_array_type(array_type t);
 int get_type_rank(array_type t);
 elt_type get_element_type(array_type t);
 int type_is_scalar(array_type t);
-int type_is_bool(elt_type t);
-int type_is_char(elt_type t);
-int type_is_int32(elt_type t);
-int type_is_int64(elt_type t);
-int type_is_float32(elt_type t);
-int type_is_float64(elt_type t);
+int type_is_bool(array_type t);
+int type_is_char(array_type t);
+int type_is_int32(array_type t);
+int type_is_int64(array_type t);
+int type_is_float32(array_type t);
+int type_is_float64(array_type t);
 
 // Undefined behavior if called on a scalar type
 // Gives ownership over the subtype's memory to the caller
