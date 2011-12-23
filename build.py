@@ -126,7 +126,8 @@ for f in glob.glob("_build/*.o"):
 # Clean installation directory
 for f in glob.glob(opts['install_dir'] + "/*.so"):
   os.remove(f)
-os.remove(opts['install_dir'] + "/parakeetconf.xml")
+for f in glob.glob(opts['install_dir'] + "/parakeetconf.xml"):
+  os.remove(f)
 
 # Clean Common directory
 os.chdir("Common")
