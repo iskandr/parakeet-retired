@@ -23,6 +23,9 @@ parser.add_option('-t', '--tests', action='store_true',
 parser.add_option('-c', '--clean', action='store_true',
                     help='Clean tree and exit')
 
+parser.add_option('-i', '--install_dir', help='Installation directory',
+                  default=os.getenv("HOME")+'/.parakeet')
+
 (opts, args) = parser.parse_args()
 opts = opts.__dict__
 print ""
@@ -31,6 +34,9 @@ print "|                Medium Sized Whale               |"
 print "==================================================="
 print ""
 print opts 
+
+if not os.path.exists(opts['install_dir']):
+  os.mkdir(opts['install_dir'])
 
 if opts['bytecode']:
   obj_suffix = 'cmo'
@@ -117,8 +123,10 @@ print "BUILD COMMAND =", " ".join(build_command)
 # Clean _build directory
 for f in glob.glob("_build/*.o"):
   os.remove(f)
-for f in glob.glob("_build/*.so"):
+# Clean installation directory
+for f in glob.glob(opts['install_dir'] + "/*.so"):
   os.remove(f)
+os.remove(opts['install_dir'] + "/parakeetconf.xml")
 
 # Clean Common directory
 os.chdir("Common")
@@ -127,6 +135,11 @@ os.chdir("..")
 
 # Clean FrontEnd directory
 os.chdir("FrontEnd")
+subprocess.call(["make", "clean"])
+os.chdir("..")
+
+# Clean install directory
+os.chdir("install")
 subprocess.call(["make", "clean"])
 os.chdir("..")
 
@@ -162,11 +175,24 @@ if subprocess.call(make_command):
   sys.exit(1)
 os.chdir("..")
 
+# Build installation
+print "\n\n ****** Probing machine for hardware ******"
+os.chdir("install")
+if subprocess.call(["make"]):
+  print "Installation build failed"
+  sys.exit(1)
+if subprocess.call(["./machine_probe"]):
+  print "Machine probe failed"
+  sys.exit(1)
+shutil.move("parakeetconf.xml", opts['install_dir'])
+os.chdir("..")
+
 # Build Q Front End
 if opts['q']:
   print "Building Q Preprocessor and Q Callbacks"
   if subprocess.call(build_command +
-                     ["QCallbacks." + obj_suffix, "preprocess.native", "-no-hygiene"]):
+                     ["QCallbacks." + obj_suffix, "preprocess.native",
+                      "-no-hygiene"]):
     print "Q Preprocessor build failed"
     exit(1)
   os.chdir("Q")
@@ -176,7 +202,7 @@ if opts['q']:
     sys.exit(1)
   for f in glob.glob("*.o"):
     shutil.move(f, "../_build")
-  shutil.move("libparakeetq.so", "../_build")
+  shutil.move("libparakeetq.so", opts['install_dir'])
   os.chdir("..")
 
 # Build Python Front End
@@ -188,7 +214,7 @@ if opts['python']:
     sys.exit(1)
   for f in glob.glob("*.o"):
     shutil.move(f, "../_build")
-  shutil.move("libparakeetpy.so", "../_build")
+  shutil.move("libparakeetpy.so", opts['install_dir'])
   os.chdir("..")
 
 if opts['tests']:

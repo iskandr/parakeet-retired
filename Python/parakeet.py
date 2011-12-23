@@ -64,7 +64,7 @@ def ast_prim(sym):
   return c_void_p(LibPar.get_prim(sym))
 
 #Load libraries, basic initialization
-LibPar = cdll.LoadLibrary(os.getcwd() + '/../_build/libparakeetpy.so')
+LibPar = cdll.LoadLibrary(os.getenv('HOME') + '/.parakeet/libparakeetpy.so')
 return_type_init()
 
 ###############################################################################
