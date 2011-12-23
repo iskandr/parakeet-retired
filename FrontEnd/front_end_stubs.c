@@ -7,15 +7,13 @@
  * (c) Eric Hielscher and Alex Rubinsteyn, 2009-2011.
  */
 
-#include <stdio.h>
-#include <string.h>
-#include <assert.h> 
-
 #include <caml/alloc.h>
 #include <caml/bigarray.h>
 #include <caml/callback.h>
 #include <caml/memory.h>
 #include <caml/mlvalues.h>
+#include <stdio.h>
+#include <string.h>
 
 #include "ast_stubs.h"
 #include "type_stubs.h"
@@ -81,7 +79,6 @@ return_val_t run_function(int id, host_val *globals, int num_globals,
   ocaml_rslt = caml_callback3(*ocaml_run_function, ocaml_id,
                               ocaml_globals, ocaml_args);
 
-  printf("Called run function.\n");
   return_val_t ret;
   host_val v = (host_val)Field(ocaml_rslt, 0);
   int i;
@@ -114,11 +111,9 @@ return_val_t run_function(int id, host_val *globals, int num_globals,
         // host frontend
         
         printf("Placing scalar result in return struct.\n");
-        assert(t); 
         if (type_is_bool(t)) {
           ret.results[0].data.scalar.ret_scalar_value.boolean = get_bool(v);
         } else if (type_is_int32(t)) {
-          printf("Got a 32-bit int result: %d\n", get_int32(v));
           ret.results[0].data.scalar.ret_scalar_value.int32 = get_int32(v);
         } else if (type_is_int64(t)) {
           ret.results[0].data.scalar.ret_scalar_value.int64 = get_int64(v);
@@ -164,7 +159,6 @@ return_val_t run_function(int id, host_val *globals, int num_globals,
     caml_failwith("Unknown return code from run_function. Aborting.");
   }
 
-  printf("Got to end of run function.\n");
   CAMLreturnT(return_val_t, ret);
 }
 

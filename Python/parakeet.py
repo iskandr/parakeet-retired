@@ -526,7 +526,6 @@ def array_from_memory(pointer, shape, dtype):
   return arr
 
 def parakeet_value_to_python(val):
-  print "In parakeet_value_to_python"
   if val.is_scalar:
     cEltType = ParakeetTypeToCtype[val.data.scalar.ret_type]
     result = 0
@@ -535,9 +534,9 @@ def parakeet_value_to_python(val):
     elif cEltType == c_int:
       result = val.data.scalar.ret_scalar_value.int32
     elif cEltType == c_int64:
-      result = val.data.scalar.ret_scalar_value.int64, cEltType
+      result = val.data.scalar.ret_scalar_value.int64
     elif cEltType == c_double:
-      result = val.data.scalar.ret_scalar_value.float64, cEltType
+      result = val.data.scalar.ret_scalar_value.float64
     else:
       raise Exception ("Return type not supported by Parakeet: " +
                        str(cEltType))
@@ -567,7 +566,6 @@ def run_function(func, args):
   # TODO: assume there are no globals now
   ret = LibPar.run_function(func, None, 0, inputs, numArgs)
   if (ret.return_code == 0):
-    print "Return code good"
     # TODO: again, we assume only one return val
     return parakeet_value_to_python(ret.results[0])
   else:
