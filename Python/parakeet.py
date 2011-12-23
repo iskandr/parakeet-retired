@@ -512,9 +512,9 @@ def python_value_to_parakeet(arg):
     if type(arg) == int:
       return c_void_p(LibPar.mk_int32(arg))
     elif type(arg) == float:
+      return c_void_p(LibPar.mk_float64(c_double(arg)))
+    elif type(arg) == np.float32:
       return c_void_p(LibPar.mk_float32(c_float(arg)))
-    elif type(arg) == np.float64:
-      return c_void_p(LibPar.mk_double64(c_double(arg)))
   else:
     raise Exception ("Input not supported by Parakeet: " + str(arg))
   

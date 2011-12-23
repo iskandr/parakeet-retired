@@ -9,7 +9,7 @@ def identity(x):
 def test_scalar_id():
   print "Testing scalar Identity"
   sys.stdout.flush()
-  assert 3 == identity(3)
+  assert 3.0 == identity(3.0)
 
 def array_id():
   multi_test = reshape(arange(12, dtype=int32), (3,4))
