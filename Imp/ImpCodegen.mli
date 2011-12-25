@@ -20,8 +20,8 @@ end
 
 class fn_codegen : object 
   inherit codegen 
-  method named_input : ID.t -> ?shape:SymbolicShape.t -> ImpType.t -> value_node  
-  method fresh_input : ?shape:SymbolicShape.t -> ImpType.t -> value_node 
+  method named_input : ID.t ->  ImpType.t -> value_node  
+  method fresh_input : ImpType.t -> value_node 
   method named_output : ID.t -> ?shape:SymbolicShape.t -> ImpType.t -> value_node
   method fresh_output : ?shape:SymbolicShape.t -> ImpType.t -> value_node
   method finalize_fn :  fn 

@@ -64,13 +64,14 @@ class fn_codegen = object (self)
   val mutable output_types : ImpType.t list = []
   val mutable output_shapes : SymbolicShape.t list = [] 
  
-  method named_input (id:ID.t) ?(shape=SymbolicShape.scalar) (t:ImpType.t) : value_node = 
+  method named_input (id:ID.t) (t:ImpType.t) : value_node = 
     input_ids <- id :: input_ids; 
-    input_types <- t::input_types; 
+    input_types <- t::input_types;
+    let shape = SymbolicShape.all_dims id (ImpType.rank t) in  
     input_shapes <- shape::input_shapes; 
     ImpHelpers.var t id 
       
-  method fresh_input ?(shape=SymbolicShape.scalar) (t:ImpType.t) : value_node =
+  method fresh_input (t:ImpType.t) : value_node =
     let id = ID.gen() in 
     self#named_input id ~shape t 
   

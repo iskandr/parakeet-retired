@@ -44,9 +44,10 @@ and exp_node = {
   exp_type : ImpType.t;
 }
 
+
 and stmt = 
   | If of value_node * block * block
-  | While of exp_node * block
+  | While of exp_node * block (* test, body *)   
   | Set of ID.t * exp_node 
   | SetIdx of ID.t * value_node list * exp_node
   | SyncThreads
@@ -78,6 +79,7 @@ type fn = {
   body : block;
 }
 
+val empty_fn : fn 
 
 val get_var_type : fn -> ID.t -> ImpType.t 
 val get_var_storage : fn -> ID.t -> storage 

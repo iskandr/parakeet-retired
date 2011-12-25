@@ -51,7 +51,7 @@ and exp_node = {
 
 type stmt =
   | If of value_node * block * block
-  | While of exp_node * block
+  | While of exp_node * block (* test, body *)   
   | Set of ID.t * exp_node 
   | SetIdx of ID.t * value_node list * exp_node
   | SyncThreads
@@ -79,6 +79,17 @@ type fn = {
   shapes : SymbolicShape.t ID.Map.t;
   
   body : block;
+}
+
+let empty_fn = { 
+  id = FnId.gen(); 
+  input_ids = []; 
+  output_ids = []; 
+  body = []; 
+  local_ids = []; 
+  storage = ID.Map.empty; 
+  types = ID.Map.empty; 
+  shapes=ID.Map.empty  
 }
 
 let get_var_type (fn:fn) (id:ID.t) = 

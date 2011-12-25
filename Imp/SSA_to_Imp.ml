@@ -2,9 +2,97 @@ open Imp
 open ImpHelpers 
 open ImpCodegen 
 
+(* are these necessary? or should we just register each SSA variable with its existing name as an imp variable*)
+(* and then implicitly keep this information on the codegen object? *) 
+type env = { 
+  id_env : Imp.value_node ID.Map.t; 
+  type_env : ImpType.t ID.Map.t; 
+  shape_env : SymbolicShape.t ID.Map.t; 
+}
 
+let rec build_loop_nests codegen (descrs : loop_descr list) (body:Imp.block) =
+  match descr with 
+    | [] -> body
+    | d::ds ->
+        let nested = build_loop_nests codegen ds body in  
+        let test = 
+          ImpHelpers.cmp_op d.loop_test_cmp d.loop_var d.loop_test_val 
+        in
+        let next = ImpHelpers.typed_op d.loop_incr_op [d.loop_var; d.loop_incr] in  
+        let update = codegen#set d.loop_var next in
+        [
+          codegen#set d.loop_var d.loop_start; 
+          Imp.While ([], test ,nested, [update])   
+        ]
+
+let translate_value idEnv valNode = match valNode.value with 
+  | SSA.Var id -> ID.Map.find id idEnv 
+  | SSA.Num n -> {value = Imp.Const n; value_type = ImpType.ScalarT (ParNum.type_of n)}
+  | _ -> assert false 
+
+let translate_exp codegen idEnv expNode = match expNode.exp with 
+  | SSA.Values [v] -> ImpHelpers.exp_of_val (translate_value idEnv v)
+  | SSA.Values _ -> failwith "multiple value expressions not supported"
+  | _ -> assert false 
+
+type loop_descr = {
+  loop_var_type : ImpType.t;  
+  loop_var : value_node; 
+  loop_start : value_node; 
+  loop_test_val : value_node; 
+  loop_test_cmp : Prim.scalar_op; 
+  loop_incr : value_node; 
+  loop_incr_op : Prim.scalar_op; 
+} 
+
+let mk_simple_loop_descr codegen ?(down=false) ?(start=ImpHelpers.zero) ~(stop:Imp.value_node) = 
+  { loop_var = codegen#var int32_t; 
+    loop_start = start; 
+    loop_test_val = stop; 
+    loop_test_cmp = (if down then Prim.Lt else Prim.Gt); 
+    loop_incr = (if down then ImpHelpers.int (-1) else ImpHelpers.one);
+    loop_incr_op = Prim.Add;  
+  }
+
+
+
+let rec translate_block codegen (idEnv:id_env) block : id_env = 
+  Block.fold_forward (translate_stmt codegen) idEnv block
+and translate_stmt codegen (idEnv : id_env) stmtNode : id_env = 
+  match stmtNode.stmt with
+    | SSA.Set([id], rhs) -> 
+      let rhs' = translate_exp codegen idEnv rhs in
+      let impVar = codegen#var rhs'.exp_type in
+      let idEnv' = ID.Map.add id impVar idEnv in 
+      codegen#set impVar rhs'; 
+      idEnv   
+    | SSA.Set _ -> failwith "multiple assignment not supported" 
+    | _ -> assert false 
+   
+let translate  (ssaFn:SSA.fn) (impInputTypes:ImpType.t list) : Imp.fn = 
+  let codegen = new ImpCodegen.fn_codegen in
+  let shapeEnv : SymbolicShape.env  = 
+    ShapeInference.infer_normalized_shape_env (FnManager.get_typed_function_table ()) ssaFn 
+  in
+  let impInputs = List.map2 codegen#named_input ssaFn.SSA.input_ids impInputTypes in
+  let impTyEnv = InferImpTypes.infer ssaFn impInputTypes in 
+  let register_output id = 
+    let symShape = ID.Map.find id shapeEnv in
+    let impType = ID.Map.find id impTyEnv in   
+    codegen#named_output id ~shape:symShape impType 
+  in 
+  let impOutputs = List.map register_output ssaFn.SSA.output_ids in   
+  let idEnv = 
+    ID.Map.of_lists  (ssaFn.SSA.input_ids @ ssaFn.SSA.output_ids) (impInputs @ impOutputs) 
+  in 
+  (* do something for outputs? *)      
+  translate_block codegen idEnv ssaFn.SSA.body  
+    
+            
+                
+(*
 let translate ssaFn impTypes = assert false 
-  
+*)
 
 
 (*
@@ -52,33 +140,6 @@ let rec translate_block (tenv:ImpType.t ID.Map.t) (block:SSA.block) =
 
 *)
 (*
-module Analysis = struct 
-    type env = Imp.fn
-    
-    type exp_info = { 
-      stmts : Imp.stmt list; 
-      new_ids : ID.t list; 
-      new_types : ImpType.t list;
-      new_shapes : SymbolicShape.shape list;
-      rhs : Imp.exp_node; 
-    } 
-    
-    type value_info = Imp.exp_node
-    
-    val dir : direction
-  
-    (* should analysis be repeated until environment stops changing? *) 
-    val iterative : bool
-  
-    val init : fn -> env 
-    val value : env -> value_node -> value_info
-    
-    val exp : env -> exp_node -> (env, value_info) helpers -> exp_info 
-    val stmt : env -> stmt_node -> (env, value_info) helpers -> env option
-    
-    val phi_set : env -> ID.t -> value_info -> env option 
-    val phi_merge : env -> ID.t -> value_info -> value_info -> env option 
-end
 
 let translate (fnTable:FnTable.t) (fn:SSA.fn) (inputTypes:ImpType.t list) : Imp.fn = 
     let tenv = InferImpTypes.infer fn inputTypes in
