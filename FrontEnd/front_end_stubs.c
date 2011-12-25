@@ -7,15 +7,13 @@
  * (c) Eric Hielscher and Alex Rubinsteyn, 2009-2011.
  */
 
-#include <stdio.h>
-#include <string.h>
-#include <assert.h> 
-
 #include <caml/alloc.h>
 #include <caml/bigarray.h>
 #include <caml/callback.h>
 #include <caml/memory.h>
 #include <caml/mlvalues.h>
+#include <stdio.h>
+#include <string.h>
 
 #include "ast_stubs.h"
 #include "type_stubs.h"
@@ -81,7 +79,6 @@ return_val_t run_function(int id, host_val *globals, int num_globals,
   ocaml_rslt = caml_callback3(*ocaml_run_function, ocaml_id,
                               ocaml_globals, ocaml_args);
 
-  printf("Called run function.\n");
   return_val_t ret;
   host_val v = (host_val)Field(ocaml_rslt, 0);
   int i;
@@ -90,12 +87,8 @@ return_val_t run_function(int id, host_val *globals, int num_globals,
   //       to add support for that to OCaml, and then loop over all the values
   //       returned with the following code.
   ret.results_len = 1;
-  ret.shapes = (int**)malloc(sizeof(int*));
-  ret.ret_types = (array_type*)malloc(sizeof(array_type));
-  ret.data.results = (void**)malloc(sizeof(void*));
-  printf("results: %p\n", ret.data.results);
+  ret.results = (ret_t*)malloc(sizeof(ret_t) * ret.results_len);
   array_type t = value_type_of(v);
-  ret.ret_types[0] = t;
 
   if (Is_long(ocaml_rslt)) {
     // In this case, we know that the return code must have been Pass,
@@ -107,6 +100,8 @@ return_val_t run_function(int id, host_val *globals, int num_globals,
 
       // returning a scalar
       if (value_is_scalar(v)) {
+        ret.results[0].is_scalar = 1;
+        ret.results[0].data.scalar.ret_type = get_type_element_type(t);
         
         // WARNING:
         // Tiny Memory Leak Ahead
@@ -116,55 +111,54 @@ return_val_t run_function(int id, host_val *globals, int num_globals,
         // host frontend
         
         printf("Placing scalar result in return struct.\n");
-        assert(t); 
         if (type_is_bool(t)) {
-          ret.data.results[0] = malloc(sizeof(int));
-          *((int*)ret.data.results[0]) = get_bool(v);
+          ret.results[0].data.scalar.ret_scalar_value.boolean = get_bool(v);
         } else if (type_is_int32(t)) {
-          printf("Got a 32-bit int result: %d\n", get_int32(v));
-          ret.data.results[0] = malloc(sizeof(int32_t));
-          *((int32_t*)ret.data.results[0]) = get_int32(v);
+          ret.results[0].data.scalar.ret_scalar_value.int32 = get_int32(v);
         } else if (type_is_int64(t)) {
-          ret.data.results[0] = malloc(sizeof(int64_t));
-          *((int64_t*)ret.data.results[0]) = get_int64(v);
+          ret.results[0].data.scalar.ret_scalar_value.int64 = get_int64(v);
         } else if (type_is_float64(t)) {
-          ret.data.results[0] = malloc(sizeof(double));
-          *((double*)ret.data.results[0]) = get_float64(v);
+          ret.results[0].data.scalar.ret_scalar_value.float64 = get_float64(v);
         } else {
           caml_failwith("Unable to return scalar of this type\n");
         }
       } else {
-        // Build the results array
-        ret.data.results[0] = get_array_data(v);
+        // Pass the type
+        ret.results[0].is_scalar = 0;
+        ret.results[0].data.array.ret_type = t;
+        
+        // Pass the data
+        ret.results[0].data.array.data = get_array_data(v);
 
-        // Build the shapes array
+        // Build the shape array
         ocaml_shape = value_get_shape(v);
         int shape_len = Wosize_val(ocaml_shape);
 
-        ret.shapes[0] = (int*)malloc(shape_len);
+        int *shape = ret.results[0].data.array.shape;
+        shape = (int*)malloc(shape_len);
         for (i = 0; i < shape_len; ++i) {
-          ret.shapes[0][i] = Int_val(Field(ocaml_shape, i));
+          shape[i] = Int_val(Field(ocaml_shape, i));
         }
         
         // Build the strides array
         ocaml_strides = value_get_strides(v);
         int strides_len = Wosize_val(ocaml_strides);
         
-        ret.strides[0] = (int*)malloc(strides_len);
+        int *strides = ret.results[0].data.array.strides;
+        strides = (int*)malloc(strides_len);
         for (i = 0; i < strides_len; ++i) {
-          ret.strides[0][i] = Int_val(Field(ocaml_strides, i));
+          strides[i] = Int_val(Field(ocaml_strides, i));
         }
       }
   } else if (Tag_val(ocaml_rslt) == RET_FAIL) {
     ret.return_code = RET_FAIL;
     ret.results_len = caml_string_length(Field(ocaml_rslt, 0));
-    ret.data.error_msg = malloc(ret.results_len);
-    strcpy(ret.data.error_msg, String_val(Field(ocaml_rslt, 0)));
+    ret.error_msg = malloc(ret.results_len);
+    strcpy(ret.error_msg, String_val(Field(ocaml_rslt, 0)));
   } else {
     caml_failwith("Unknown return code from run_function. Aborting.");
   }
 
-  printf("Got to end of run function.\n");
   CAMLreturnT(return_val_t, ret);
 }
 
@@ -174,18 +168,19 @@ void free_return_val(return_val_t ret_val) {
   
   int i;
 
-  // Free the return types
-  free(ret_val.ret_types);
-
-  // Free the shapes
-  for (i = 0; i < ret_val.results_len; ++i) {
-    free(ret_val.shapes[i]);
-  }
-  free(ret_val.shapes);
-
-  // Free error msg if necessary
-  if (ret_val.return_code == RET_FAIL) {
-    free(ret_val.data.error_msg);
+  // Free the results
+  if (ret_val.results) {
+    for (i = 0; i < ret_val.results_len; ++i) {
+      if (!ret_val.results[i].is_scalar) {
+        free(ret_val.results[i].data.array.data);
+        free(ret_val.results[i].data.array.shape);
+        free(ret_val.results[i].data.array.strides);
+      }
+    }
+    free(ret_val.results);
+  } else if (ret_val.error_msg) {
+    // Free the error msg
+    free(ret_val.error_msg);
   }
 
   CAMLreturn0;

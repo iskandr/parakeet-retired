@@ -11,17 +11,35 @@ Verbose = 1
 Debug = 0
 
 #Return type struct
-class _U(Union):
-  _fields_ = [("error_msg", c_char_p),
-              ("results", POINTER(c_void_p))]
+class _ret_scalar_value(Union):
+  _fields_ = [("boolean", c_int),
+              ("int32", c_int),
+              ("int64", c_int64),
+              ("float64", c_double)]
 
+class _scalar_ret_t(Structure):
+  _fields_ = [("ret_type", c_void_p),
+              ("ret_scalar_value", _ret_scalar_value)]
+
+class _array_ret_t(Structure):
+  _fields_ = [("ret_type", c_void_p),
+              ("data", c_void_p),
+              ("shape", POINTER(c_int)),
+              ("strides", POINTER(c_int))]
+
+class _ret_data(Union):
+  _fields_ = [("array", _array_ret_t),
+              ("scalar", _scalar_ret_t)]
+
+class _ret_t(Structure):
+  _fields_ = [("data", _ret_data),
+              ("is_scalar", c_int)]
+              
 class return_val_t(Structure):
   _fields_ = [("return_code", c_int),
               ("results_len", c_int),
-              ("ret_types", POINTER(c_void_p)),
-              ("shapes", POINTER(POINTER(c_int))),
-              ("strides", POINTER(POINTER(c_int))),
-              ("data", _U)]
+              ("error_msg", c_char_p),
+              ("results", POINTER(_ret_t))]
 
 #Return type initialization
 #Small fix: Can set default return type to c_void_p?
@@ -52,12 +70,12 @@ def return_type_init():
   LibPar.mk_bool.restype = c_void_p
   
   #get global values for parakeet types
-  LibPar.bool_t = c_int.in_dll(LibPar, "parakeet_bool_t").value
-  LibPar.char_t = c_int.in_dll(LibPar, "parakeet_char_t").value
-  LibPar.int32_t = c_int.in_dll(LibPar, "parakeet_int32_t").value
-  LibPar.int64_t = c_int.in_dll(LibPar, "parakeet_int64_t").value
-  LibPar.float32_t = c_int.in_dll(LibPar, "parakeet_float32_t").value
-  LibPar.float64_t = c_int.in_dll(LibPar, "parakeet_float64_t").value
+  LibPar.bool_t = c_int.in_dll(LibPar, "parakeet_bool_elt_t").value
+  LibPar.char_t = c_int.in_dll(LibPar, "parakeet_char_elt_t").value
+  LibPar.int32_t = c_int.in_dll(LibPar, "parakeet_int32_elt_t").value
+  LibPar.int64_t = c_int.in_dll(LibPar, "parakeet_int64_elt_t").value
+  LibPar.float32_t = c_int.in_dll(LibPar, "parakeet_float32_elt_t").value
+  LibPar.float64_t = c_int.in_dll(LibPar, "parakeet_float64_elt_t").value
 
 #Function to get ast node(s) for built-in functions/primitives
 def ast_prim(sym):
@@ -494,9 +512,9 @@ def python_value_to_parakeet(arg):
     if type(arg) == int:
       return c_void_p(LibPar.mk_int32(arg))
     elif type(arg) == float:
+      return c_void_p(LibPar.mk_float64(c_double(arg)))
+    elif type(arg) == np.float32:
       return c_void_p(LibPar.mk_float32(c_float(arg)))
-    elif type(arg) == np.float64:
-      return c_void_p(LibPar.mk_double64(c_double(arg)))
   else:
     raise Exception ("Input not supported by Parakeet: " + str(arg))
   
@@ -507,16 +525,22 @@ def array_from_memory(pointer, shape, dtype):
   arr.data = from_memory(pointer,arr.nbytes)
   return arr
 
-def parakeet_value_to_python(data, shapePtr, ty):
-  print "In parakeet_value_to_python"
-  sys.stdout.flush()
-  parakeetEltType = LibPar.get_type_element_type(ty)
-  cEltType = ParakeetTypeToCtype[parakeetEltType]
-  rank = LibPar.get_type_rank(ty)
-  print "Got rank"
-  if rank == 0:
-    resultPtr = cast(data,POINTER(cEltType))
-    return resultPtr[0]
+def parakeet_value_to_python(val):
+  if val.is_scalar:
+    cEltType = ParakeetTypeToCtype[val.data.scalar.ret_type]
+    result = 0
+    if cEltType == c_bool:
+      result = val.data.scalar.ret_scalar_value.boolean
+    elif cEltType == c_int:
+      result = val.data.scalar.ret_scalar_value.int32
+    elif cEltType == c_int64:
+      result = val.data.scalar.ret_scalar_value.int64
+    elif cEltType == c_double:
+      result = val.data.scalar.ret_scalar_value.float64
+    else:
+      raise Exception ("Return type not supported by Parakeet: " +
+                       str(cEltType))
+    return result
   else:
     shape = []
     nelts = 1
@@ -542,13 +566,8 @@ def run_function(func, args):
   # TODO: assume there are no globals now
   ret = LibPar.run_function(func, None, 0, inputs, numArgs)
   if (ret.return_code == 0):
-    print "Return code good"
-    data = ret.data.results[0]
-    print "Got data"
-    sys.stdout.flush()
-    ty = c_void_p(ret.ret_types[0])
-    shape = ret.shapes[0]
-    return parakeet_value_to_python(data, shape, ty)
+    # TODO: again, we assume only one return val
+    return parakeet_value_to_python(ret.results[0])
   else:
     raise Exception("run_function failed")
   pass
