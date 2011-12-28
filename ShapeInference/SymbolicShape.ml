@@ -63,8 +63,11 @@ let max_ d1 d2 = match (d1,d2) with
       else Const y 
     | _ -> if d1 = d2 then d1 else Op(Max, d1, d2)  
 
+
 let rec simplify_dim = function
-  | Op(op, d1, d2) ->
+  | Op(op, d1, d2) -> simplify_op op d1 d2 
+  | other -> other 
+and simplify_op op d1 d2 = 
     let d1' = simplify_dim d1 in 
     let d2' = simplify_dim d2 in 
     begin match op with 
@@ -72,7 +75,6 @@ let rec simplify_dim = function
       | Mult -> mult d1' d2' 
       | Max -> max_ d1' d2' 
     end 
-  | other -> other 
 
 let max_of_dims shape = List.fold_left max_ zero shape 
 let prod_of_dims shape = List.fold_left mult one shape 

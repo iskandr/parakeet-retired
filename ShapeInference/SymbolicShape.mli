@@ -20,6 +20,9 @@ val add : dim -> dim -> dim
 val mult : dim -> dim -> dim 
 val max_ : dim -> dim -> dim 
 
+val simplify_dim : dim -> dim 
+val simplify_op : dim_op -> dim -> dim -> dim 
+
 val max_of_dims : dim list -> dim 
 val prod_of_dims : dim list -> dim 
 

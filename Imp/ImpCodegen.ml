@@ -73,7 +73,7 @@ class fn_codegen = object (self)
       
   method fresh_input (t:ImpType.t) : value_node =
     let id = ID.gen() in 
-    self#named_input id ~shape t 
+    self#named_input id t 
   
   method named_output (id:ID.t) ?(shape=SymbolicShape.scalar) (t:ImpType.t) : value_node = 
     output_ids <- id :: input_ids; 

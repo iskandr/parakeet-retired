@@ -1,7 +1,5 @@
 (* pp: -parser o pa_macro.cmo *)
 
-let _ = Printexc.record_backtrace true 
-
 open Base 
 open Base
 open SSA
@@ -13,13 +11,13 @@ open SymbolicShape
 *)  
 
 exception ShapeInferenceFailure of string
-
+type env = SymbolicShape.t ID.Map.t 
 module type PARAMS = sig 
-  val output_shapes : FnId.t -> shape list -> shape list  
+  val output_shapes : FnId.t -> SymbolicShape.t list -> SymbolicShape.t list  
 end 
 
 module ShapeAnalysis (P: PARAMS) =  struct
-    type value_info = shape
+    type value_info = SymbolicShape.t 
     type exp_info = value_info list    
     type env = value_info ID.Map.t 
     
@@ -34,15 +32,15 @@ module ShapeAnalysis (P: PARAMS) =  struct
     let init fundef = 
       List.fold_left 
         (fun accEnv id -> 
-          
-          let varNode = Imp.var ~t:(ID.Map.find id fundef.SSA.tenv) id in 
-          ID.Map.add id (all_dims varNode)  accEnv
+          let rank = Type.rank (ID.Map.find id fundef.SSA.tenv) in 
+          let shape = SymbolicShape.all_dims id rank in 
+          ID.Map.add id shape accEnv
         )
         ID.Map.empty 
         fundef.input_ids 
    
     let value env valNode = match valNode.value with 
-      | SSA.Var id -> all_dims (Imp.var ~t:valNode.value_type id)  
+      | SSA.Var id -> SymbolicShape.all_dims id (Type.rank valNode.SSA.value_type)   
       | _ -> [] (* empty list indicates a scalar *) 
     
     let phi_set env id shape = 
@@ -80,7 +78,7 @@ module ShapeAnalysis (P: PARAMS) =  struct
         else ( 
           assert (nIndices = 1); 
           let idxShape = List.hd indexShapes  in  
-          [SymbolicShape.concat idxShape (SymbolicShape.peel_shape arrayShape)]
+          [SymbolicShape.concat idxShape (SymbolicShape.peel arrayShape)]
              
         )
       | SSA.PrimApp (Prim.ArrayOp Prim.Where, [array]) ->
@@ -88,7 +86,7 @@ module ShapeAnalysis (P: PARAMS) =  struct
            for now fail if we can't be exact 
          *)
          let arrayShape = value env array in
-         let n = SymbolicShape.nelts arrayShape in
+         let n = SymbolicShape.prod_of_dims arrayShape in
          [[n]]
       | SSA.PrimApp (Prim.ArrayOp Prim.DimSize, [_; _]) 
       | SSA.PrimApp (Prim.ArrayOp Prim.Find, [_; _]) -> [SymbolicShape.scalar]
@@ -99,10 +97,11 @@ module ShapeAnalysis (P: PARAMS) =  struct
         let eltShapes = List.map (value env) elts in
         (* TODO: check that elt shapes actually match each other *) 
         let n = List.length eltShapes in
-        [Imp.int n :: (List.hd eltShapes)]             
+        [SymbolicShape.Const n :: (List.hd eltShapes)]             
       | SSA.Cast (t, v) ->  [value env v] 
       | SSA.Values vs -> List.map (value env) vs  
-      | SSA.Map(closure, args) -> 
+      | SSA.Adverb (adverb, closure, args) -> 
+          (* 
           let closArgShapes : shape list = 
             List.map (value env) closure.closure_args 
           in 
@@ -113,34 +112,9 @@ module ShapeAnalysis (P: PARAMS) =  struct
           (* collect only args of maximal rank *) 
           let vecOutShapes = 
             List.map (fun outShape -> maxDim :: outShape) eltOutShapes
-          in  
-          (*
-          IFDEF DEBUG THEN 
-            Printf.printf "\t [ShapeInference] MAP (%s)(%s)\n"
-              (SSA.closure_to_str closure)
-              (SSA.value_nodes_to_str args)
-            ; 
-         
-            Printf.printf "\t\t fn input shapes: %s\n" 
-              (shapes_to_str eltInShapes)
-            ; 
-            Printf.printf "\t\t fn output shapes: %s\n" 
-              (shapes_to_str eltOutShapes)
-            ; 
-            Printf.printf "\t\t maxDim: %s\n" (Imp.exp_node_to_str maxDim);
-            Printf.printf "\t\t final output shapes: %s\n"
-              (shapes_to_str vecOutShapes); 
-          ENDIF;
-          *)  
-          vecOutShapes
-          
-      | SSA.Reduce(initClos, clos, initArgs, args) -> 
-          let initClosArgShapes = get_shapes initClos.closure_args in 
-          let initShapes  = get_shapes initArgs in 
-          let argShapes = get_shapes args in
-          let _, eltShapes = SymbolicShape.split_max_rank argShapes in 
-          let allInputs = initClosArgShapes @ initShapes @ eltShapes in  
-          P.output_shapes initClos.SSA.closure_fn allInputs    
+          in
+          *)
+          assert false   
       | other -> 
           let expStr = SSA.exp_to_str expNode in 
           failwith (Printf.sprintf "[shape_infer] not implemented: %s\n" expStr) 
@@ -174,44 +148,31 @@ end
 
 (* given a dim expression (one elt of a shape) which may reference 
    intermediate variables, "normalize" it to only refer to input variables
-*)   
-let rec normalize_dim inputSet rawShapeEnv normalizedEnv expNode
-        : Imp.exp_node * shape ID.Map.t  = 
-  match expNode.Imp.exp with  
-  | Imp.Op (op, t, args) ->
-      (* a list of dims and a shape are the same thing, so just reuse the
-         normalize_shape function for a list of dim arguments 
-      *) 
-      let args', normalizedEnv' = 
-        normalize_shape inputSet rawShapeEnv normalizedEnv args 
+*)
+
+let rec normalize_dim 
+          (inputSet: ID.Set.t) 
+          (rawShapeEnv: SymbolicShape.t ID.Map.t)
+          (normalizedEnv: SymbolicShape.t ID.Map.t)  = function 
+  | Dim (id, idx) when not (ID.Set.mem id inputSet) -> 
+    if ID.Map.mem id normalizedEnv then
+      let shape = ID.Map.find id normalizedEnv in 
+      SymbolicShape.get_dim shape idx, normalizedEnv
+    else 
+      let rawShape = ID.Map.find id rawShapeEnv in 
+      let normalizedShape, normalizedEnv' = 
+        normalize_shape inputSet rawShapeEnv normalizedEnv rawShape
       in 
-      let expNode' = {expNode with Imp.exp = Imp.Op(op, t, args') } in
-      ImpSimplify.simplify_arith expNode', normalizedEnv'   
-  | Imp.Const n -> expNode, normalizedEnv   
-  | Imp.DimSize (d, {Imp.exp=Imp.Var id}) ->
-      if ID.Set.mem id inputSet then expNode, normalizedEnv 
-      else  
-        let shape, normalizedEnv' = 
-          if ID.Map.mem id normalizedEnv then 
-            ID.Map.find id normalizedEnv, normalizedEnv  
-          else   
-            (* if some local variable's shape has not yet been normalized,
-               do so recursively 
-            *) 
-            
-            let rawShape = ID.Map.find id rawShapeEnv in
-            let normalizedShape, normalizedEnv' = 
-              normalize_shape inputSet rawShapeEnv normalizedEnv rawShape 
-            in
-            normalizedShape, ID.Map.add id normalizedShape normalizedEnv'
-        in  
-        SymbolicShape.get_dim shape d, normalizedEnv' 
-          
-  | Imp.Var id -> failwith "variables should only appear in dimsize expressions"
-  | _ ->failwith ("unexpected Imp expression: " ^ (Imp.exp_node_to_str expNode))
-  
+      let normalizedEnv'' = ID.Map.add id normalizedShape normalizedEnv' in 
+      SymbolicShape.get_dim normalizedShape idx, normalizedEnv''
+  | Op (op, x, y) -> 
+    let x', normalizedEnv' = normalize_dim inputSet rawShapeEnv normalizedEnv x in
+    let y', normalizedEnv'' = normalize_dim inputSet rawShapeEnv normalizedEnv' y in 
+    let resultDim = SymbolicShape.simplify_op op x' y' in 
+    resultDim, normalizedEnv''
+  | other -> other, normalizedEnv 
 and normalize_shape inputSet rawShapeEnv normalizedEnv shape 
-    : shape * shape ID.Map.t  =
+    : SymbolicShape.t * SymbolicShape.t ID.Map.t  =
   let foldFn (revDims, normalizedEnv) currDim = 
     let currDim', normalizedEnv' = 
       normalize_dim inputSet rawShapeEnv normalizedEnv currDim 
@@ -239,7 +200,7 @@ let rec normalize_shape_list inputSet rawShapeEnv normalizedEnv = function
    means the expressions refer to input IDs, which need to be replaced by some 
    input expression later
 *)
-let normalizedOutputShapeCache : (FnId.t, shape list) Hashtbl.t = 
+let normalizedOutputShapeCache : (FnId.t, SymbolicShape.t list) Hashtbl.t = 
   Hashtbl.create 127
   
 let shapeEnvCache : (FnId.t, SymbolicShape.env) Hashtbl.t = Hashtbl.create 127
@@ -250,7 +211,7 @@ let normalizedShapeEnvCache : (FnId.t, SymbolicShape.env) Hashtbl.t =
   Hashtbl.create 127 
   
   
-let rec infer_shape_env (fnTable:FnTable.t) (fundef : SSA.fundef) =
+let rec infer_shape_env (fnTable:FnTable.t) (fundef : SSA.fn) =
   let fnId = fundef.SSA.fn_id in
   (*
   IFDEF DEBUG THEN 
@@ -268,11 +229,11 @@ let rec infer_shape_env (fnTable:FnTable.t) (fundef : SSA.fundef) =
     end 
     in 
     let module ShapeEval = SSA_Analysis.MkEvaluator(ShapeAnalysis(Params)) in 
-    let shapeEnv = ShapeEval.eval_fundef fundef in
+    let shapeEnv = ShapeEval.eval_fn fundef in
     Hashtbl.add shapeEnvCache fnId shapeEnv;   
     shapeEnv 
     
-and infer_normalized_shape_env (fnTable : FnTable.t) (fundef : SSA.fundef) = 
+and infer_normalized_shape_env (fnTable : FnTable.t) (fundef : SSA.fn) = 
   let fnId = fundef.SSA.fn_id in
   try 
     Hashtbl.find normalizedShapeEnvCache fnId 
@@ -293,7 +254,7 @@ and infer_normalized_shape_env (fnTable : FnTable.t) (fundef : SSA.fundef) =
     normalizedEnv 
  end   
 
-and infer_normalized_output_shapes (fnTable : FnTable.t) (fundef : SSA.fundef) = 
+and infer_normalized_output_shapes (fnTable : FnTable.t) (fundef : SSA.fn) = 
   let fnId = fundef.SSA.fn_id in 
   try Hashtbl.find normalizedOutputShapeCache fnId 
   with _ -> begin 
@@ -314,7 +275,7 @@ and infer_call_result_shapes fnTable fundef argShapes =
   (* once the shape expressions only refer to input IDs, 
      remap those input IDs argument expressions 
    *)  
-  let argEnv : shape ID.Map.t = 
+  let argEnv : SymbolicShape.t ID.Map.t = 
     List.fold_left2 
       (fun env id argShape -> ID.Map.add id argShape env)
       ID.Map.empty 

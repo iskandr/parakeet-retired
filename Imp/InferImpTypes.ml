@@ -5,7 +5,7 @@ type tenv = ImpType.t ID.Map.t
 
 
 
-let infer_value (tenv:tenv) {value; value_type} =
+let infer_value (tenv:tenv) {value; value_type} : ImpType.t =
     match value_type with 
     | Type.ScalarT elt_t -> ImpType.ScalarT elt_t
     | _ -> failwith "non-scalar types not yet implemented"
