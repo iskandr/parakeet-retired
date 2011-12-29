@@ -1,42 +1,22 @@
-open Imp 
+open Imp
+open ImpType 
 open ImpHelpers 
 open ImpCodegen 
 
 (* are these necessary? or should we just register each SSA variable with its existing name as an imp variable*)
 (* and then implicitly keep this information on the codegen object? *) 
+
+type id_env = Imp.value_node ID.Map.t
+type type_env = ImpType.t ID.Map.t 
+type shape_env = SymbolicShape.t ID.Map.t 
+
 type env = { 
-  id_env : Imp.value_node ID.Map.t; 
-  type_env : ImpType.t ID.Map.t; 
-  shape_env : SymbolicShape.t ID.Map.t; 
+  id_env : id_env; 
+  type_env : type_env; 
+  shape_env : shape_env; 
 }
 
-let rec build_loop_nests codegen (descrs : loop_descr list) (body:Imp.block) =
-  match descr with 
-    | [] -> body
-    | d::ds ->
-        let nested = build_loop_nests codegen ds body in  
-        let test = 
-          ImpHelpers.cmp_op d.loop_test_cmp d.loop_var d.loop_test_val 
-        in
-        let next = ImpHelpers.typed_op d.loop_incr_op [d.loop_var; d.loop_incr] in  
-        let update = codegen#set d.loop_var next in
-        [
-          codegen#set d.loop_var d.loop_start; 
-          Imp.While ([], test ,nested, [update])   
-        ]
-
-let translate_value idEnv valNode = match valNode.value with 
-  | SSA.Var id -> ID.Map.find id idEnv 
-  | SSA.Num n -> {value = Imp.Const n; value_type = ImpType.ScalarT (ParNum.type_of n)}
-  | _ -> assert false 
-
-let translate_exp codegen idEnv expNode = match expNode.exp with 
-  | SSA.Values [v] -> ImpHelpers.exp_of_val (translate_value idEnv v)
-  | SSA.Values _ -> failwith "multiple value expressions not supported"
-  | _ -> assert false 
-
 type loop_descr = {
-  loop_var_type : ImpType.t;  
   loop_var : value_node; 
   loop_start : value_node; 
   loop_test_val : value_node; 
@@ -44,6 +24,38 @@ type loop_descr = {
   loop_incr : value_node; 
   loop_incr_op : Prim.scalar_op; 
 } 
+
+let rec build_loop_nests codegen (descrs : loop_descr list) (body:Imp.block) =
+  match descrs with 
+    | [] -> body
+    | d::ds ->
+        let nested = build_loop_nests codegen ds body in  
+        let testEltT = ImpType.elt_type d.loop_var.value_type in 
+        let test = {
+          exp = Imp.Op(testEltT, d.loop_test_cmp, [d.loop_var; d.loop_test_val]); 
+          exp_type = ImpType.bool_t
+        }
+        in
+        let next = {
+           exp = Imp.Op(testEltT, d.loop_incr_op, [d.loop_var; d.loop_incr]); 
+           exp_type = d.loop_var.value_type;
+        }
+        in  
+        let update = codegen#set d.loop_var next in
+        [
+          codegen#set_val d.loop_var d.loop_start; 
+          Imp.While (test , nested @ [update])   
+        ]
+
+let translate_value idEnv valNode = match valNode.SSA.value with 
+  | SSA.Var id -> ID.Map.find id idEnv 
+  | SSA.Num n -> {value = Imp.Const n; value_type = ImpType.ScalarT (ParNum.type_of n)}
+  | _ -> assert false 
+
+let translate_exp codegen idEnv expNode = match expNode.SSA.exp with 
+  | SSA.Values [v] -> ImpHelpers.exp_of_val (translate_value idEnv v)
+  | SSA.Values _ -> failwith "multiple value expressions not supported"
+  | _ -> assert false 
 
 let mk_simple_loop_descr codegen ?(down=false) ?(start=ImpHelpers.zero) ~(stop:Imp.value_node) = 
   { loop_var = codegen#var int32_t; 
@@ -55,11 +67,10 @@ let mk_simple_loop_descr codegen ?(down=false) ?(start=ImpHelpers.zero) ~(stop:I
   }
 
 
-
 let rec translate_block codegen (idEnv:id_env) block : id_env = 
   Block.fold_forward (translate_stmt codegen) idEnv block
 and translate_stmt codegen (idEnv : id_env) stmtNode : id_env = 
-  match stmtNode.stmt with
+  match stmtNode.SSA.stmt with
     | SSA.Set([id], rhs) -> 
       let rhs' = translate_exp codegen idEnv rhs in
       let impVar = codegen#var rhs'.exp_type in
