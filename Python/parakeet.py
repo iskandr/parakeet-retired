@@ -24,8 +24,10 @@ class _scalar_ret_t(Structure):
 class _array_ret_t(Structure):
   _fields_ = [("ret_type", c_void_p),
               ("data", c_void_p),
-              ("shape", POINTER(c_int)),
-              ("strides", POINTER(c_int))]
+              ("shape", c_void_p),
+              ("shape_len", c_int),
+              ("strides", c_void_p),
+              ("strides_len", c_int)]
 
 class _ret_data(Union):
   _fields_ = [("array", _array_ret_t),
@@ -488,7 +490,8 @@ def fun_visit(func,new_f):
 def python_value_to_parakeet(arg):
   if isinstance(arg, np.ndarray):
     rank = len(arg.shape)
-    inputShape = arg.ctypes.shape_as(c_int32)      
+    inputShape = arg.ctypes.shape_as(c_int32)
+    inputStrides = arg.ctypes.strides_as(c_int32)
     if rank > 1 and not arg.flags['C_CONTIGUOUS']:
       # until we have a proper interface for telling parakeet this data is 
       # column-major, we have to manually transpose it 
@@ -506,12 +509,12 @@ def python_value_to_parakeet(arg):
     #for z in range(len(arg.shape)):
     #  parakeetType = c_void_p(LibPar.mk_vec(parakeetType))
     parakeetVal = LibPar.mk_host_array(dataPtr, parakeetType, inputShape, rank,
-                                       arg.nbytes)
+                                       inputStrides, rank, arg.nbytes)
     return c_void_p(parakeetVal)
   elif np.isscalar(arg):
     if type(arg) == int:
       return c_void_p(LibPar.mk_int32(arg))
-    elif type(arg) == float:
+    elif type(arg) == float or type(arg) == np.float64:
       return c_void_p(LibPar.mk_float64(c_double(arg)))
     elif type(arg) == np.float32:
       return c_void_p(LibPar.mk_float32(c_float(arg)))
@@ -542,19 +545,30 @@ def parakeet_value_to_python(val):
                        str(cEltType))
     return result
   else:
-    shape = []
     nelts = 1
-    for index in range(rank):
-      dim = shapePtr[index]
-      nelts *= dim
-      shape.append(dim)
+    rank = val.data.array.shape_len
+    shape_type = c_int * rank
+    cshape = shape_type.from_address(val.data.array.shape)
+    shape = []
+    for s in cshape:
+      shape.append(s)
+      nelts *= s
+    strides_type = c_int * val.data.array.strides_len
+    cstrides = strides_type.from_address(val.data.array.strides)
+    strides = []
+    for s in cstrides:
+      strides.append(s)
+    par_elt_type = LibPar.get_element_type(val.data.array.ret_type)
+    cEltType = ParakeetTypeToCtype[par_elt_type]
     arrayType = cEltType * nelts
-    resultArray = arrayType.from_address(data)
+    resultArray = arrayType.from_address(val.data.array.data)
     npResult = np.ctypeslib.as_array(resultArray)
     npResult.shape = shape
+    npResult.strides = strides
     return npResult
 
 def run_function(func, args):
+  sys.stdout.flush()
   numArgs = len(args)
   inputArr = []
   INPUTLIST = c_void_p*numArgs

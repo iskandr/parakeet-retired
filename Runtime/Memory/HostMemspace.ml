@@ -52,4 +52,5 @@ let fns : Ptr.raw_fns = {
 let id = Mem.register "host" fns
 
 let mk_host_ptr ptr size =
-  DataManager.register_ptr {addr=ptr; size=size; memspace=id; fns=fns}
+  {addr=ptr; size=size; memspace=id; fns=fns}
+

@@ -22,8 +22,8 @@ let register_untyped_function ~name ~globals ~args astNode =
   ENDIF;
   let _ = Analyze_AST.analyze_ast astNode in
   let ssaEnv = AST_to_SSA.Env.GlobalScope FnManager.get_untyped_id in
-  let argNames = globals @ args in  
-  let fn = AST_to_SSA.translate_fn ~tenv:ID.Map.empty ssaEnv argNames astNode in 
+  let argNames = globals @ args in
+  let fn = AST_to_SSA.translate_fn ~tenv:ID.Map.empty ssaEnv argNames astNode in
   FnManager.add_untyped ~optimize:true name fn;
   fn.SSA.fn_id 
   
@@ -65,38 +65,38 @@ let run_function untypedId ~globals ~args =
   ENDIF;
   let nargs = List.length args in
   let arity = List.length untypedFn.input_ids in
-  if nargs <> arity then 
+  if nargs <> arity then
     failwith $
-      Printf.sprintf 
-        "[Parakeet] arity mismatch-- expected %d, got %d" 
-        arity 
+      Printf.sprintf
+        "[Parakeet] arity mismatch-- expected %d, got %d"
+        arity
         nargs
   else
   let signature = Signature.from_input_types argTypes in
-  IFDEF DEBUG THEN 
+  IFDEF DEBUG THEN
     printf
       "[run_function] calling specializer for argument types: %s\n"
       (Type.type_list_to_str argTypes);      
   ENDIF;
-  let fnVal = SSA.GlobalFn untypedId in 
-  let typedFundef = 
+  let fnVal = SSA.GlobalFn untypedId in
+  let typedFundef =
     match FnManager.maybe_get_specialization fnVal signature with
-    | Some typedId -> FnManager.get_typed_function typedId  
+    | Some typedId -> FnManager.get_typed_function typedId
     | None ->
       FnManager.optimize_untyped_functions ();
-
       let unoptimizedTyped = Specialize.specialize_fn_id untypedId signature
       in
       (* now optimize the typed fundef and any typed functions it depends on *)
-      FnManager.optimize_typed_functions ();   
+      FnManager.optimize_typed_functions ();
       FnManager.get_typed_function unoptimizedTyped.SSA.fn_id
-  in  
-  let resultVals = 
-    Interp.run typedFundef args 
+  in
+  let resultVals =
+    Interp.run typedFundef args
   in
   print_all_timers();
   Timing.clear Timing.untypedOpt;
-  Pervasives.flush_all (); 
+  Pervasives.flush_all ();
    (* assume only one result can be returns *)
-  let result = List.hd resultVals in 
-  Success result 
+  let result = List.hd resultVals in
+  Success result
+

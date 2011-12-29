@@ -34,7 +34,9 @@ typedef struct {
   array_type ret_type;
   void *data;
   int  *shape;
+  int  shape_len;
   int  *strides;
+  int  strides_len;
 } array_ret_t;
 
 typedef struct {

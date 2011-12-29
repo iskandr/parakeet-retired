@@ -43,7 +43,7 @@ let rec to_str ?(array_to_str=(fun _ -> "<array>")) = function
         Printf.sprintf "range(from=%d, to=%d, step=%d)" start stop step
 
 let rec map (f: 'a -> 'b) (x : 'a t) : 'b t = match x with 
-  | Array array_info -> Array {array_info with data = f array_info.data } 
+  | Array array_info -> Array {array_info with data = f array_info.data}
   (*| Nested elts -> Nested (Array.map (map f) elts)*) 
   | Rotate (a, dim, offset) -> Rotate (map f a, dim, offset)
   | Shift (a, dim, offset, default) -> Shift (map f a, dim, offset, default) 
