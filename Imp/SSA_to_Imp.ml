@@ -58,7 +58,7 @@ let translate_exp codegen idEnv expNode = match expNode.SSA.exp with
   | _ -> assert false 
 
 let mk_simple_loop_descr codegen ?(down=false) ?(start=ImpHelpers.zero) ~(stop:Imp.value_node) = 
-  { loop_var = codegen#var int32_t; 
+  { loop_var = codegen#var ~shape:[] int32_t; 
     loop_start = start; 
     loop_test_val = stop; 
     loop_test_cmp = (if down then Prim.Lt else Prim.Gt); 
@@ -67,7 +67,7 @@ let mk_simple_loop_descr codegen ?(down=false) ?(start=ImpHelpers.zero) ~(stop:I
   }
 
 
-let rec translate_block codegen (idEnv:id_env) block : id_env = 
+let rec translate_block (codegen : ImpCodegen.codegen) (idEnv:id_env) block : id_env = 
   Block.fold_forward (translate_stmt codegen) idEnv block
 and translate_stmt codegen (idEnv : id_env) stmtNode : id_env = 
   match stmtNode.SSA.stmt with
@@ -97,7 +97,8 @@ let translate  (ssaFn:SSA.fn) (impInputTypes:ImpType.t list) : Imp.fn =
     ID.Map.of_lists  (ssaFn.SSA.input_ids @ ssaFn.SSA.output_ids) (impInputs @ impOutputs) 
   in 
   (* do something for outputs? *)      
-  translate_block codegen idEnv ssaFn.SSA.body  
+  translate_block (codegen :> ImpCodegen.codegen) idEnv ssaFn.SSA.body;
+  codegen#finalize_fn  
     
             
                 
