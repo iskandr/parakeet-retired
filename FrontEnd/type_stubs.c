@@ -98,7 +98,7 @@ int get_type_rank(array_type t) {
   CAMLreturnT(int, Int_val(caml_callback(*type_callback_rank, t)));
 }
 
-elt_type get_type_element_type(array_type t) {
+elt_type get_element_type(array_type t) {
   CAMLparam1(t);
   CAMLreturnT(elt_type, caml_callback(*type_callback_elt_type, t));
 }

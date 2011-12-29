@@ -12,6 +12,7 @@
 #include <caml/callback.h>
 #include <caml/memory.h>
 #include <caml/mlvalues.h>
+#include <stdio.h>
 
 #include "value_stubs.h"
 
@@ -159,7 +160,7 @@ host_val mk_host_array(char *data, elt_type t, int *shape, int shape_len,
                        int *strides, int strides_len, int num_bytes) {
   CAMLparam0();
   CAMLlocal4(ocaml_host_array, ocaml_host_ptr, ocaml_shape, ocaml_strides);
-  CAMLlocal1(ocaml_mk_array_args);
+  CAMLlocalN(mk_array_args, 4);
 
   // Create and register a host ptr with the Parakeet Data Manager
   ocaml_host_ptr = caml_callback2(*host_memspace_callback_mk_host_ptr,
@@ -180,7 +181,6 @@ host_val mk_host_array(char *data, elt_type t, int *shape, int shape_len,
   }
 
   // Create the final host array Value and return it
-  value mk_array_args[4];
   mk_array_args[0] = ocaml_host_ptr;
   mk_array_args[1] = (value)t;
   mk_array_args[2] = ocaml_shape;
@@ -256,3 +256,4 @@ void* get_array_data(host_val array) {
   CAMLreturnT(void*,
               (void*)Int64_val(caml_callback(*ptr_callback_addr, ocaml_data)));
 }
+

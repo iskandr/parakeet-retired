@@ -47,8 +47,6 @@ int register_untyped_function(char *name, char **globals, int num_globals,
   CAMLparam0();
   CAMLlocal5(val_name, val_globals, val_args, val_ast, fn_id);
  
-  printf("INTERFACE Name: %s\n",name);
-
   val_name = caml_copy_string(name);
 
   val_globals = build_str_list(globals, num_globals);
@@ -101,7 +99,7 @@ return_val_t run_function(int id, host_val *globals, int num_globals,
       // returning a scalar
       if (value_is_scalar(v)) {
         ret.results[0].is_scalar = 1;
-        ret.results[0].data.scalar.ret_type = get_type_element_type(t);
+        ret.results[0].data.scalar.ret_type = get_element_type(t);
         
         // WARNING:
         // Tiny Memory Leak Ahead
@@ -110,7 +108,6 @@ return_val_t run_function(int id, host_val *globals, int num_globals,
         // on the heap, it should be manually deleted by the
         // host frontend
         
-        printf("Placing scalar result in return struct.\n");
         if (type_is_bool(t)) {
           ret.results[0].data.scalar.ret_scalar_value.boolean = get_bool(v);
         } else if (type_is_int32(t)) {
@@ -134,20 +131,22 @@ return_val_t run_function(int id, host_val *globals, int num_globals,
         ocaml_shape = value_get_shape(v);
         int shape_len = Wosize_val(ocaml_shape);
 
-        int *shape = ret.results[0].data.array.shape;
-        shape = (int*)malloc(shape_len);
+        ret.results[0].data.array.shape = (int*)malloc(shape_len * sizeof(int));
+        ret.results[0].data.array.shape_len = shape_len;
         for (i = 0; i < shape_len; ++i) {
-          shape[i] = Int_val(Field(ocaml_shape, i));
+          ret.results[0].data.array.shape[i] = Int_val(Field(ocaml_shape, i));
         }
         
         // Build the strides array
         ocaml_strides = value_get_strides(v);
         int strides_len = Wosize_val(ocaml_strides);
         
-        int *strides = ret.results[0].data.array.strides;
-        strides = (int*)malloc(strides_len);
+        ret.results[0].data.array.strides_len = strides_len;
+        ret.results[0].data.array.strides =
+            (int*)malloc(strides_len * sizeof(int));
         for (i = 0; i < strides_len; ++i) {
-          strides[i] = Int_val(Field(ocaml_strides, i));
+          ret.results[0].data.array.strides[i] =
+              Int_val(Field(ocaml_strides, i));
         }
       }
   } else if (Tag_val(ocaml_rslt) == RET_FAIL) {
