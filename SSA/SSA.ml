@@ -78,7 +78,7 @@ and phi_nodes = phi_node list
 type fn = {
   body: block;
   tenv : tenv;
-  input_ids:ID.t list;
+  input_ids: ID.t list;
   output_ids: ID.t list; 
   fn_input_types : Type.t list;
   fn_output_types : Type.t list;

@@ -6,15 +6,6 @@ open ImpCodegen
 (* are these necessary? or should we just register each SSA variable with its existing name as an imp variable*)
 (* and then implicitly keep this information on the codegen object? *) 
 
-type id_env = Imp.value_node ID.Map.t
-type type_env = ImpType.t ID.Map.t 
-type shape_env = SymbolicShape.t ID.Map.t 
-
-type env = { 
-  id_env : id_env; 
-  type_env : type_env; 
-  shape_env : shape_env; 
-}
 
 type loop_descr = {
   loop_var : value_node; 
@@ -25,7 +16,7 @@ type loop_descr = {
   loop_incr_op : Prim.scalar_op; 
 } 
 
-let rec build_loop_nests codegen (descrs : loop_descr list) (body:Imp.block) =
+let rec build_loop_nests (codegen:ImpCodegen.codegen) (descrs : loop_descr list) (body:Imp.block) =
   match descrs with 
     | [] -> body
     | d::ds ->
@@ -47,18 +38,22 @@ let rec build_loop_nests codegen (descrs : loop_descr list) (body:Imp.block) =
           Imp.While (test , nested @ [update])   
         ]
 
-let translate_value idEnv valNode = match valNode.SSA.value with 
-  | SSA.Var id -> ID.Map.find id idEnv 
+let translate_value (codegen:ImpCodegen.codegen) valNode = match valNode.SSA.value with 
+  | SSA.Var id -> codegen#var id 
   | SSA.Num n -> {value = Imp.Const n; value_type = ImpType.ScalarT (ParNum.type_of n)}
   | _ -> assert false 
 
-let translate_exp codegen idEnv expNode = match expNode.SSA.exp with 
-  | SSA.Values [v] -> ImpHelpers.exp_of_val (translate_value idEnv v)
+let translate_exp (codegen:ImpCodegen.codegen) expNode = match expNode.SSA.exp with 
+  | SSA.Values [v] -> ImpHelpers.exp_of_val (translate_value codegen v)
   | SSA.Values _ -> failwith "multiple value expressions not supported"
   | _ -> assert false 
 
-let mk_simple_loop_descr codegen ?(down=false) ?(start=ImpHelpers.zero) ~(stop:Imp.value_node) = 
-  { loop_var = codegen#var ~shape:[] int32_t; 
+let mk_simple_loop_descr 
+        (codegen:ImpCodegen.codegen) 
+        ?(down=false) 
+        ?(start=ImpHelpers.zero) 
+        ~(stop:Imp.value_node) = 
+  { loop_var = codegen#var int32_t; 
     loop_start = start; 
     loop_test_val = stop; 
     loop_test_cmp = (if down then Prim.Lt else Prim.Gt); 
@@ -67,41 +62,43 @@ let mk_simple_loop_descr codegen ?(down=false) ?(start=ImpHelpers.zero) ~(stop:I
   }
 
 
-let rec translate_block (codegen : ImpCodegen.codegen) (idEnv:id_env) block : id_env = 
-  Block.fold_forward (translate_stmt codegen) idEnv block
-and translate_stmt codegen (idEnv : id_env) stmtNode : id_env = 
+let rec translate_block (codegen : ImpCodegen.codegen) block : unit = 
+  Block.iter_forward (translate_stmt codegen) block
+and translate_stmt (codegen : ImpCodegen.codegen) stmtNode : unit = 
   match stmtNode.SSA.stmt with
     | SSA.Set([id], rhs) -> 
       let rhs' = translate_exp codegen idEnv rhs in
-      let impVar = codegen#var rhs'.exp_type in
-      let idEnv' = ID.Map.add id impVar idEnv in 
-      codegen#set impVar rhs'; 
-      idEnv   
+      let impVar = codegen#var id in
+      codegen#set impVar rhs' 
     | SSA.Set _ -> failwith "multiple assignment not supported" 
     | _ -> assert false 
    
 let translate  (ssaFn:SSA.fn) (impInputTypes:ImpType.t list) : Imp.fn = 
   let codegen = new ImpCodegen.fn_codegen in
+  let impTyEnv = InferImpTypes.infer ssaFn impInputTypes in 
   let shapeEnv : SymbolicShape.env  = 
     ShapeInference.infer_normalized_shape_env (FnManager.get_typed_function_table ()) ssaFn 
   in
-  let impInputs = List.map2 codegen#named_input ssaFn.SSA.input_ids impInputTypes in
-  let impTyEnv = InferImpTypes.infer ssaFn impInputTypes in 
-  let register_output id = 
-    let symShape = ID.Map.find id shapeEnv in
-    let impType = ID.Map.find id impTyEnv in   
-    codegen#named_output id ~shape:symShape impType 
+  let declare_var (id, impType) : unit = 
+    if List.mem id ssaFn.SSA.input_ids then 
+      codegen#declare_input id impType
+    else ( 
+      (* inputs all have the trivial shape 
+          SHAPE(x) = [dim(x,0), dim(x,1), etc...]
+         but outputs and locals actually have non-trivial
+         shapes which need to be declared
+      *) 
+      let symShape = ID.Map.find id shapeEnv in
+      if List.mem id ssaFn.SSA.output_ids then    
+        codegen#declare_output id ~shape:symShape impType 
+      else 
+        codegen#declare_local id ~shape:symShape impType
+    ) 
   in 
-  let impOutputs = List.map register_output ssaFn.SSA.output_ids in   
-  let idEnv = 
-    ID.Map.of_lists  (ssaFn.SSA.input_ids @ ssaFn.SSA.output_ids) (impInputs @ impOutputs) 
-  in 
-  (* do something for outputs? *)      
-  translate_block (codegen :> ImpCodegen.codegen) idEnv ssaFn.SSA.body;
+  Enum.iter declare_var (ID.Map.enum impTyEnv);  
+  translate_block (codegen :> ImpCodegen.codegen) ssaFn.SSA.body;
   codegen#finalize_fn  
     
-            
-                
 (*
 let translate ssaFn impTypes = assert false 
 *)

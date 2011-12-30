@@ -1,3 +1,4 @@
+open Base 
 open Imp 
 
 type block_info = { 
@@ -8,25 +9,36 @@ type block_info = {
 }
 
 class codegen  = object (self)
-  val mutable ids : ID.t list = [] 
+  val mutable ids : ID.Set.t = ID.Set.empty 
   val mutable types : ImpType.t ID.Map.t = ID.Map.empty 
   val mutable shapes : SymbolicShape.t ID.Map.t  = ID.Map.empty
   val mutable rev_body : Imp.stmt list = []
   
-  method fresh_id ?(shape=SymbolicShape.scalar) (ty:ImpType.t) : ID.t = 
-    assert (ImpType.rank ty = SymbolicShape.rank shape); 
-    let id = ID.gen() in
-    ids <- id :: ids; 
+  method declare_local (id:ID.t) ?(shape=SymbolicShape.scalar) (ty:ImpType.t) : unit = 
+    assert (ImpType.rank ty = SymbolicShape.rank shape);
+    assert (not (List.mem id ids)); 
+    ids <- ID.Set.add id ids; 
     types <- ID.Map.add id ty types; 
-    shapes <- ID.Map.add id shape shapes;
-    id  
+    shapes <- ID.Map.add id shape shapes
   
-  method var ?(shape=SymbolicShape.scalar) (ty:ImpType.t) : value_node =
-    let id = self#fresh_id ~shape ty in  
-    ImpHelpers.var ty id
+  method fresh_local_id ?(shape=SymbolicShape.scalar) (ty:ImpType.t) : ID.t = 
+    let id = ID.gen() in
+    self#declare_local id ~shape ty;
+    id  
+   
+  method fresh_local ?(shape=SymbolicShape.scalar) (ty:ImpType.t) : value_node =
+    let id = ID.gen() in   
+    self#declare_local id ~shape ty;
+    ImpHelpers.var ty id   
     
-  method var_exp ?(shape=SymbolicShape.scalar) ty = 
-    ImpHelpers.exp_of_val (self#var ~shape ty)
+  method var (id:ID.t) : value_node = 
+    assert (ID.Set.mem id ids); 
+    let ty = ID.Map.find id types; 
+    { value = Imp.Var id; value_type = ty } 
+    
+  method var_exp (id:ID.t) : exp_node =
+    let valNode = self#var id in  
+    { exp = Imp.Val valNode; exp_type = valNode.value_type }
 
   method set_id (id:ID.t) (rhs:exp_node) =
     rev_body <- Imp.Set(id, rhs) :: rev_body 
@@ -49,7 +61,7 @@ class codegen  = object (self)
   method finalize_block : block_info = 
     { 
       stmts = List.rev rev_body;
-      block_ids = ids;
+      block_ids = ID.Set.enumerate ids;
       block_types = types; 
       block_shapes = shapes; 
     }      
@@ -64,27 +76,28 @@ class fn_codegen = object (self)
   val mutable output_types : ImpType.t list = []
   val mutable output_shapes : SymbolicShape.t list = [] 
  
-  method named_input (id:ID.t) (t:ImpType.t) : value_node = 
+  method declare_input (id:ID.t) (t:ImpType.t) : unit = 
     input_ids <- id :: input_ids; 
     input_types <- t::input_types;
     let shape = SymbolicShape.all_dims id (ImpType.rank t) in  
-    input_shapes <- shape::input_shapes; 
-    ImpHelpers.var t id 
+    input_shapes <- shape::input_shapes
       
   method fresh_input (t:ImpType.t) : value_node =
     let id = ID.gen() in 
-    self#named_input id t 
+    self#declare_input id t;
+    ImpHelpers.var t id  
   
-  method named_output (id:ID.t) ?(shape=SymbolicShape.scalar) (t:ImpType.t) : value_node = 
+  method declare_output (id:ID.t) ?(shape=SymbolicShape.scalar) (t:ImpType.t) : unit = 
     output_ids <- id :: input_ids; 
     output_types <- t::input_types; 
-    output_shapes <- shape::input_shapes; 
-    ImpHelpers.var t id 
+    output_shapes <- shape::input_shapes
+    
   
   method fresh_output ?(shape=SymbolicShape.scalar) (t:ImpType.t) : value_node =
     let id = ID.gen() in 
-    self#named_output id ~shape t   
-    
+    self#declare_output id ~shape t;
+    ImpHelpers.var t id     
+  
   method finalize_fn = 
     let blockInfo = self#finalize_block in
     let nonlocals = input_ids @ output_ids in 
@@ -98,7 +111,7 @@ class fn_codegen = object (self)
       id = FnId.gen(); 
       input_ids = input_ids; 
       output_ids = output_ids;  
-      local_ids = blockInfo.block_ids;  
+      local_ids = local_ids @ blockInfo.block_ids;  
       storage = ID.Map.empty; 
       types = typeEnv; 
       shapes = shapeEnv; 

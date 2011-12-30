@@ -8,9 +8,13 @@ type block_info = {
 }
 
 class codegen : object 
-  method fresh_id : ?shape:SymbolicShape.t -> ImpType.t -> ID.t 
-  method var : ?shape:SymbolicShape.t -> ImpType.t -> value_node 
-  method var_exp : ?shape:SymbolicShape.t -> ImpType.t -> exp_node 
+  (*method fresh_id : ?shape:SymbolicShape.t -> ImpType.t -> ID.t*)
+  method declare_local : ID.t -> ?shape:SymbolicShape.t -> ImpType.t -> unit
+  method fresh_local_id : ?shape:SymbolicShape.t -> ImpType.t -> ID.t
+  method fresh_local : ?shape:SymbolicShape.t -> ImpType.t -> value_node
+
+  method var : ID.t -> value_node
+  method var_exp : ID.t -> exp_node
   method set_id : ID.t -> exp_node -> unit 
   method set : value_node -> exp_node -> unit 
   method set_val : value_node -> value_node -> unit 
@@ -20,9 +24,9 @@ end
 
 class fn_codegen : object 
   inherit codegen 
-  method named_input : ID.t ->  ImpType.t -> value_node  
+  method declare_input : ID.t ->  ImpType.t -> unit  
   method fresh_input : ImpType.t -> value_node 
-  method named_output : ID.t -> ?shape:SymbolicShape.t -> ImpType.t -> value_node
+  method declare_output : ID.t -> ?shape:SymbolicShape.t -> ImpType.t -> unit
   method fresh_output : ?shape:SymbolicShape.t -> ImpType.t -> value_node
   method finalize_fn :  fn 
 end
