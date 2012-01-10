@@ -16,7 +16,7 @@ class codegen  = object (self)
   
   method declare_local (id:ID.t) ?(shape=SymbolicShape.scalar) (ty:ImpType.t) : unit = 
     assert (ImpType.rank ty = SymbolicShape.rank shape);
-    assert (not (List.mem id ids)); 
+    assert (not (ID.Set.mem id ids)); 
     ids <- ID.Set.add id ids; 
     types <- ID.Map.add id ty types; 
     shapes <- ID.Map.add id shape shapes
@@ -33,7 +33,7 @@ class codegen  = object (self)
     
   method var (id:ID.t) : value_node = 
     assert (ID.Set.mem id ids); 
-    let ty = ID.Map.find id types; 
+    let ty = ID.Map.find id types in  
     { value = Imp.Var id; value_type = ty } 
     
   method var_exp (id:ID.t) : exp_node =
@@ -53,7 +53,7 @@ class codegen  = object (self)
   method cast (v:value_node) (ty:ImpType.t) : value_node = 
     if v.value_type = ty then v 
     else
-      let temp = self#var ty in 
+      let temp : Imp.value_node = self#fresh_local ty in 
       (
         self#set temp (ImpHelpers.cast ty v); 
         temp
@@ -61,7 +61,7 @@ class codegen  = object (self)
   method finalize_block : block_info = 
     { 
       stmts = List.rev rev_body;
-      block_ids = ID.Set.enumerate ids;
+      block_ids = ID.Set.to_list ids;
       block_types = types; 
       block_shapes = shapes; 
     }      
@@ -111,7 +111,7 @@ class fn_codegen = object (self)
       id = FnId.gen(); 
       input_ids = input_ids; 
       output_ids = output_ids;  
-      local_ids = local_ids @ blockInfo.block_ids;  
+      local_ids = blockInfo.block_ids;  
       storage = ID.Map.empty; 
       types = typeEnv; 
       shapes = shapeEnv; 

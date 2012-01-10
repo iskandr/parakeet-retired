@@ -1,7 +1,7 @@
 open Imp 
 
 type block_info = { 
-    stmts : Imp.stmt list;
+    (*stmts : Imp.stmt list;*)
     block_ids : ID.t list;  
     block_types : ImpType.t ID.Map.t; 
     block_shapes : SymbolicShape.t ID.Map.t; 
@@ -15,11 +15,11 @@ class codegen : object
 
   method var : ID.t -> value_node
   method var_exp : ID.t -> exp_node
-  method set_id : ID.t -> exp_node -> unit 
-  method set : value_node -> exp_node -> unit 
-  method set_val : value_node -> value_node -> unit 
+  method set_id : ID.t -> exp_node -> Imp.stmt (*unit*) 
+  method set : value_node -> exp_node -> Imp.stmt (*unit *)
+  method set_val : value_node -> value_node -> Imp.stmt (*unit*) 
   method cast : value_node -> ImpType.t -> value_node 
-  method finalize_block : block_info      
+  method info : block_info      
 end
 
 class fn_codegen : object 
@@ -28,5 +28,5 @@ class fn_codegen : object
   method fresh_input : ImpType.t -> value_node 
   method declare_output : ID.t -> ?shape:SymbolicShape.t -> ImpType.t -> unit
   method fresh_output : ?shape:SymbolicShape.t -> ImpType.t -> value_node
-  method finalize_fn :  fn 
+  method finalize_fn : Imp.block ->  fn 
 end
