@@ -27,16 +27,17 @@ let collect_indices exp =
 let collect_indices_from_node node = collect_indices node.exp  
 *)  
      
-let set v rhs = match v.exp with 
-  | Val {value=Var id} -> Set(id,rhs)
-  | Idx ({value=Var id}, indices) -> SetIdx(id, indices,rhs)
+let exp_of_val (v : value_node) : exp_node = { exp_type = v.value_type; exp = Val v} 
+
+let set v rhs = match v.value  with 
+  | Var id -> Set(id,rhs)
   | _ -> assert false 
+
+let set_val v rhs = set v (exp_of_val rhs)
   
-let rec setidx v indices rhs = match v.exp with 
-  | Val {value=Var id} -> SetIdx(id, indices, rhs)
-  | Idx ({value=Var id}, indices') -> SetIdx(id, indices' @ indices, rhs) 
+let rec setidx v indices rhs = match v.value with 
+  | Var id -> SetIdx(id, indices, rhs)
   | other -> assert false 
-  
  
 (* HELPER FUNCTIONS FOR IMP EXPRESSIONS *)
 let wrap_bool_val (v : value) : value_node = {value=v; value_type = ImpType.bool_t}
@@ -47,7 +48,6 @@ let wrap_int64_val (v : value) : value_node = { value=v; value_type = ImpType.in
 let wrap_float32_val (v : value) : value_node = { value=v; value_type = ImpType.float32_t}
 let wrap_float64_val (v : value) : value_node = { value=v; value_type = ImpType.float64_t}
 
-let exp_of_val (v : value_node) : exp_node = { exp_type = v.value_type; exp = Val v} 
 
 let wrap_exp (e:exp) (ty:ImpType.t) = { exp = e; exp_type = ty } 
 let wrap_bool_exp (e:exp) = {exp = e; exp_type = ImpType.bool_t}
@@ -91,7 +91,7 @@ let cast (t:ImpType.t) (valNode:value_node) : exp_node =
           (ImpType.to_str old_t)
           (ImpType.to_str t)
           (val_node_to_str valNode)
- )
+   )
 let common_type ?t (args : value_node list) =
  match t with 
  | Some t -> ImpType.ScalarT t 

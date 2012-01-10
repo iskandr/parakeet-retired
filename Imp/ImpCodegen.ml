@@ -2,7 +2,7 @@ open Base
 open Imp 
 
 type block_info = { 
-    stmts : Imp.stmt list;
+    (*stmts : Imp.stmt list;*)
     block_ids : ID.t list;  
     block_types : ImpType.t ID.Map.t; 
     block_shapes : SymbolicShape.t ID.Map.t; 
@@ -12,7 +12,7 @@ class codegen  = object (self)
   val mutable ids : ID.Set.t = ID.Set.empty 
   val mutable types : ImpType.t ID.Map.t = ID.Map.empty 
   val mutable shapes : SymbolicShape.t ID.Map.t  = ID.Map.empty
-  val mutable rev_body : Imp.stmt list = []
+  (*val mutable rev_body : Imp.stmt list = []*)
   
   method declare_local (id:ID.t) ?(shape=SymbolicShape.scalar) (ty:ImpType.t) : unit = 
     assert (ImpType.rank ty = SymbolicShape.rank shape);
@@ -39,28 +39,15 @@ class codegen  = object (self)
   method var_exp (id:ID.t) : exp_node =
     let valNode = self#var id in  
     { exp = Imp.Val valNode; exp_type = valNode.value_type }
-
-  method set_id (id:ID.t) (rhs:exp_node) =
-    rev_body <- Imp.Set(id, rhs) :: rev_body 
-    
-  method set (lhs:value_node) (rhs:exp_node) = 
-    let id = ImpHelpers.id_of_val lhs in
-    self#set_id id rhs
-  
-  method set_val (lhs:value_node) (rhs:value_node) = 
-    self#set lhs (ImpHelpers.exp_of_val rhs)
-    
-  method cast (v:value_node) (ty:ImpType.t) : value_node = 
-    if v.value_type = ty then v 
+ 
+  method cast (v:value_node) (ty:ImpType.t) : value_node * stmt list = 
+    if v.value_type = ty then v, [] 
     else
       let temp : Imp.value_node = self#fresh_local ty in 
-      (
-        self#set temp (ImpHelpers.cast ty v); 
-        temp
-      )
-  method finalize_block : block_info = 
+      temp, [ImpHelpers.set temp (ImpHelpers.cast ty v)] 
+  
+  method info : block_info = 
     { 
-      stmts = List.rev rev_body;
       block_ids = ID.Set.to_list ids;
       block_types = types; 
       block_shapes = shapes; 
@@ -98,8 +85,8 @@ class fn_codegen = object (self)
     self#declare_output id ~shape t;
     ImpHelpers.var t id     
   
-  method finalize_fn = 
-    let blockInfo = self#finalize_block in
+  method finalize_fn stmts = 
+    let blockInfo = self#info in
     let nonlocals = input_ids @ output_ids in 
     let typeEnv = 
       ID.Map.extend blockInfo.block_types nonlocals (input_types @ output_types)
@@ -115,6 +102,6 @@ class fn_codegen = object (self)
       storage = ID.Map.empty; 
       types = typeEnv; 
       shapes = shapeEnv; 
-      body = blockInfo.stmts; 
+      body = stmts; 
     }  
 end

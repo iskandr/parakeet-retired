@@ -32,9 +32,9 @@ let rec build_loop_nests (codegen:ImpCodegen.codegen) (descrs : loop_descr list)
            exp_type = d.loop_var.value_type;
         }
         in  
-        let update = codegen#set d.loop_var next in
+        let update = set d.loop_var next in
         [
-          codegen#set_val d.loop_var d.loop_start; 
+          set_val d.loop_var d.loop_start; 
           Imp.While (test , nested @ [update])   
         ]
 
@@ -53,7 +53,7 @@ let mk_simple_loop_descr
         ?(down=false) 
         ?(start=ImpHelpers.zero) 
         ~(stop:Imp.value_node) = 
-  { loop_var = codegen#var int32_t; 
+  { loop_var = codegen#fresh_local int32_t; 
     loop_start = start; 
     loop_test_val = stop; 
     loop_test_cmp = (if down then Prim.Lt else Prim.Gt); 
@@ -62,14 +62,14 @@ let mk_simple_loop_descr
   }
 
 
-let rec translate_block (codegen : ImpCodegen.codegen) block : unit = 
-  Block.iter_forward (translate_stmt codegen) block
-and translate_stmt (codegen : ImpCodegen.codegen) stmtNode : unit = 
+let rec translate_block (codegen : ImpCodegen.codegen) block : Imp.stmt list = 
+  Block.fold_forward (fun acc stmt -> acc @ (translate_stmt codegen stmt)) [] block
+and translate_stmt (codegen : ImpCodegen.codegen) stmtNode : Imp.stmt list  = 
   match stmtNode.SSA.stmt with
     | SSA.Set([id], rhs) -> 
-      let rhs' = translate_exp codegen idEnv rhs in
+      let rhs' = translate_exp codegen rhs in
       let impVar = codegen#var id in
-      codegen#set impVar rhs' 
+      [set impVar rhs'] 
     | SSA.Set _ -> failwith "multiple assignment not supported" 
     | _ -> assert false 
    
@@ -95,9 +95,9 @@ let translate  (ssaFn:SSA.fn) (impInputTypes:ImpType.t list) : Imp.fn =
         codegen#declare_local id ~shape:symShape impType
     ) 
   in 
-  Enum.iter declare_var (ID.Map.enum impTyEnv);  
-  translate_block (codegen :> ImpCodegen.codegen) ssaFn.SSA.body;
-  codegen#finalize_fn  
+  List.iter declare_var (ID.Map.to_list impTyEnv);  
+  let body = translate_block (codegen :> ImpCodegen.codegen) ssaFn.SSA.body in 
+  codegen#finalize_fn body
     
 (*
 let translate ssaFn impTypes = assert false 

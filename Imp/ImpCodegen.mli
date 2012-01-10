@@ -8,17 +8,13 @@ type block_info = {
 }
 
 class codegen : object 
-  (*method fresh_id : ?shape:SymbolicShape.t -> ImpType.t -> ID.t*)
   method declare_local : ID.t -> ?shape:SymbolicShape.t -> ImpType.t -> unit
   method fresh_local_id : ?shape:SymbolicShape.t -> ImpType.t -> ID.t
   method fresh_local : ?shape:SymbolicShape.t -> ImpType.t -> value_node
 
   method var : ID.t -> value_node
   method var_exp : ID.t -> exp_node
-  method set_id : ID.t -> exp_node -> Imp.stmt (*unit*) 
-  method set : value_node -> exp_node -> Imp.stmt (*unit *)
-  method set_val : value_node -> value_node -> Imp.stmt (*unit*) 
-  method cast : value_node -> ImpType.t -> value_node 
+  method cast : value_node -> ImpType.t -> value_node * (stmt list)  
   method info : block_info      
 end
 
