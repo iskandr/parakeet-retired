@@ -131,7 +131,7 @@ and eval_scalar_op (op : Prim.scalar_op) (args : value list) =
 
 let run fn (hostData: Ptr.t Value.t list) =
   let interp_inputs = List.map DataManager.from_memspace hostData in
-  let outputVals = eval_app fn interp_inputs in
+  let outputVals = Scheduler.call fn interp_inputs in (*eval_app fn interp_inputs in*)
   let hostMemId = MemId.find_id "host" in 
   List.map (DataManager.to_memspace hostMemId) outputVals
  

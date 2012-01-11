@@ -7,6 +7,8 @@
 type value = DataId.t Value.t 
 type values = value list 
 
+val call : SSA.fn -> values -> values 
+
 val map : ?axes:int list -> SSA.fn ->  fixed:values ->  values -> values 
 
 val reduce : 

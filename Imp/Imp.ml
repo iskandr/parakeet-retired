@@ -81,6 +81,7 @@ type fn = {
   body : block;
 }
 
+
 let empty_fn = { 
   id = FnId.gen(); 
   input_ids = []; 
@@ -91,6 +92,9 @@ let empty_fn = {
   types = ID.Map.empty; 
   shapes=ID.Map.empty  
 }
+
+let input_types fn = List.map (fun id -> ID.Map.find id fn.types) fn.input_ids 
+let output_types fn = List.map (fun id -> ID.Map.find id fn.types) fn.output_ids 
 
 let get_var_type (fn:fn) (id:ID.t) = 
     match ID.Map.find_option id fn.types with 
