@@ -20,6 +20,7 @@ let call_imp_fn (impFn : Imp.fn) (args : Ptr.t Value.t list) : Ptr.t Value.t lis
 let call (fn:SSA.fn) args =
   let inputTypes = List.map ImpType.type_of_value args in
   let impFn : Imp.fn = (*Imp.empty_fn*) SSA_to_Imp.translate fn inputTypes in
+  Printf.printf "[LLVM_Backend.call] Created Imp function: %s\n" (Imp.fn_to_str impFn);  
   call_imp_fn impFn args 
 
 let map ~axes ~fn ~fixed args =
