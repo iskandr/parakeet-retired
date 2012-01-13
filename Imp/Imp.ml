@@ -2,8 +2,6 @@
 
 open Base 
 
-
-
 type cuda_info = ThreadIdx | BlockIdx | BlockDim | GridDim   
 type coord = X | Y | Z
 
@@ -29,6 +27,7 @@ type value =
   | Var of ID.t
   | Const of ParNum.t
   | CudaInfo of cuda_info * coord
+
 and value_node = { 
   value : value; 
   value_type : ImpType.t;  
@@ -103,13 +102,13 @@ let get_var_type (fn:fn) (id:ID.t) =
 
 let get_var_storage (fn:fn) (id:ID.t) =
     match ID.Map.find_option id fn.storage with 
-        | None -> failwith $ "[Imp->get_var_storage] Variable " ^ (ID.to_str id) ^ "doesn't exist"
-        | Some storage -> storage
+    | None -> failwith $ "[Imp->get_var_storage] Variable " ^ (ID.to_str id) ^ "doesn't exist"
+    | Some storage -> storage
 
 let get_var_shape (fn:fn) (id:ID.t) = 
     match ID.Map.find_option id fn.shapes  with 
-        | None -> failwith $ "[Imp->get_var_shape] Variable " ^ (ID.to_str id) ^ "doesn't exist"
-        | Some symbolic_shape -> symbolic_shape
+    | None -> failwith $ "[Imp->get_var_shape] Variable " ^ (ID.to_str id) ^ "doesn't exist"
+    | Some symbolic_shape -> symbolic_shape
 	 
 (* PRETTY PRINTING *) 
 open Printf 

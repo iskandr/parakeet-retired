@@ -24,6 +24,7 @@ type value =
   | Var of ID.t
   | Const of ParNum.t
   | CudaInfo of cuda_info * coord
+  
 and value_node = { 
   value : value; 
   value_type : ImpType.t;  

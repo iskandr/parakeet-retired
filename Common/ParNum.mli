@@ -9,7 +9,6 @@ type t =
   | Inf of Type.elt_t
   | NegInf of Type.elt_t 
 
-
 val is_bool : t -> bool
 val is_char : t -> bool
 val is_int16 : t -> bool
@@ -43,7 +42,6 @@ val of_int64 : Int64.t -> t
 val of_float32 : float -> t 
 val of_float : float -> t 
 
-
 val to_bool : t -> bool
 val to_char : t -> char 
 val to_int : t -> int
@@ -54,5 +52,3 @@ val to_float : t -> float
 val is_zero : t -> bool 
 val is_one : t -> bool 
 val is_inf : t -> bool 
-  
- 
