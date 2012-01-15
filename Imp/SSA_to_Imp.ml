@@ -93,7 +93,7 @@ let translate  (ssaFn:SSA.fn) (impInputTypes:ImpType.t list) : Imp.fn =
       if List.mem id ssaFn.SSA.output_ids then    
         codegen#declare_output id ~shape:symShape impType 
       else 
-        codegen#declare_local id ~shape:symShape impType
+        codegen#declare id ~shape:symShape impType
     ) 
   in 
   List.iter declare_var (ID.Map.to_list impTyEnv);  

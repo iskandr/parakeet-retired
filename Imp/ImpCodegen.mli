@@ -8,7 +8,7 @@ type block_info = {
 }
 
 class codegen : object 
-  method declare_local : ID.t -> ?shape:SymbolicShape.t -> ImpType.t -> unit
+  method declare : ID.t -> ?shape:SymbolicShape.t -> ImpType.t -> unit
   method fresh_local_id : ?shape:SymbolicShape.t -> ImpType.t -> ID.t
   method fresh_local : ?shape:SymbolicShape.t -> ImpType.t -> value_node
 
