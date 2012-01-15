@@ -1,3 +1,4 @@
+open Base 
 open Imp
 open ImpType 
 open ImpHelpers 
@@ -41,12 +42,12 @@ let rec build_loop_nests (codegen:ImpCodegen.codegen) (descrs : loop_descr list)
 let translate_value (codegen:ImpCodegen.codegen) valNode = match valNode.SSA.value with 
   | SSA.Var id -> codegen#var id 
   | SSA.Num n -> {value = Imp.Const n; value_type = ImpType.ScalarT (ParNum.type_of n)}
-  | _ -> assert false 
+  | other -> failwith $ "[ssa->imp] unrecognized value: " ^ (SSA.value_to_str other) 
 
 let translate_exp (codegen:ImpCodegen.codegen) expNode = match expNode.SSA.exp with 
   | SSA.Values [v] -> ImpHelpers.exp_of_val (translate_value codegen v)
   | SSA.Values _ -> failwith "multiple value expressions not supported"
-  | _ -> assert false 
+  | _ -> failwith $ "[ssa->imp] unrecognized exp: " ^ (SSA.exp_to_str expNode)  
 
 let mk_simple_loop_descr 
         (codegen:ImpCodegen.codegen) 

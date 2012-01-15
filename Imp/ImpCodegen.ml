@@ -32,7 +32,9 @@ class codegen  = object (self)
     ImpHelpers.var ty id   
     
   method var (id:ID.t) : value_node = 
-    assert (ID.Set.mem id ids); 
+    if not $ ID.Set.mem id ids 
+    then failwith $ "[ImpCodegen] ID not found: " ^ ID.to_str id 
+    else 
     let ty = ID.Map.find id types in  
     { value = Imp.Var id; value_type = ty } 
     
