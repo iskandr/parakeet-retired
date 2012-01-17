@@ -159,8 +159,9 @@ let compile_fn (fn : Imp.fn) : Llvm.llvalue =
   let outputImpTypes = List.map (fun id -> ID.Map.find id fn.types) fn.output_ids in
   (* concat true locals and local version of output vars *) 
   let localVarIds : ID.t list = fn.local_ids @ fn.output_ids in
+  let impTypes = localImpTypes @ outputImpTypes in 
   let localTypes : Llvm.lltype list = 
-    List.map (fun impType -> ImpType_to_lltype.to_lltype impType) (localImpTypes @ outputImpTypes)
+    List.map (fun impType -> ImpType_to_lltype.to_lltype impType) impTypes
   in 
   let inputTypes : Llvm.lltype list = 
     List.map (fun impType -> ImpType_to_lltype.to_lltype impType) inputImpTypes 
