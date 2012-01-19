@@ -163,7 +163,9 @@ let add_output_return fnInfo output_ids =
     let variable = try Hashtbl.find fnInfo.named_values (ID.to_str output_id) with
     | Not_found -> failwith  ("unknown variable name " ^ (ID.to_str output_id))
     in
-    Llvm.build_ret variable fnInfo.builder
+		let tempName = (ID.to_str output_id) ^ "_value" in
+    let ret_val = build_load variable tempName fnInfo.builder in
+    Llvm.build_ret ret_val fnInfo.builder
   else
     failwith "multiple returns are not supported"
 
