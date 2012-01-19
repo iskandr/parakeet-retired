@@ -72,7 +72,7 @@ class fn_codegen = object (self)
     let shape = SymbolicShape.all_dims id (ImpType.rank t) in
     input_shapes <- input_shapes @ [shape]; 
     self#declare id ~shape t 
-      
+    
   method fresh_input (t:ImpType.t) : value_node =
     let id = ID.gen() in 
     self#declare_input id t;

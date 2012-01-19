@@ -11,6 +11,8 @@ let execution_engine = LLE.create Imp_to_LLVM.global_module
 
 let call_imp_fn (impFn : Imp.fn) (args : Ptr.t Value.t list) : Ptr.t Value.t list = 
   let llvmFn : Llvm.llvalue = Imp_to_LLVM.compile_fn impFn in
+  print_endline  "[LLVM_Backend.call_imp_fn] Generated LLVM function";
+  Llvm.dump_value llvmFn;
   let llvmArgs = List.map Value_to_GenericValue.to_llvm args in
   let gv = LLE.run_function llvmFn (Array.of_list llvmArgs) execution_engine in
   let gvs = [gv] in
@@ -19,8 +21,8 @@ let call_imp_fn (impFn : Imp.fn) (args : Ptr.t Value.t list) : Ptr.t Value.t lis
 
 let call (fn:SSA.fn) args =
   let inputTypes = List.map ImpType.type_of_value args in
-  let impFn : Imp.fn = (*Imp.empty_fn*) SSA_to_Imp.translate fn inputTypes in
-  Printf.printf "[LLVM_Backend.call] Created Imp function: %s\n" (Imp.fn_to_str impFn);  
+  let impFn : Imp.fn = SSA_to_Imp.translate fn inputTypes in
+  Printf.printf "\n[LLVM_Backend.call] Created Imp function: %s\n" (Imp.fn_to_str impFn);  
   call_imp_fn impFn args 
 
 let map ~axes ~fn ~fixed args =
