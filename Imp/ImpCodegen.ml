@@ -2,7 +2,6 @@ open Base
 open Imp 
 
 type block_info = { 
-    (*stmts : Imp.stmt list;*)
     block_ids : ID.t list;  
     block_types : ImpType.t ID.Map.t; 
     block_shapes : SymbolicShape.t ID.Map.t; 
@@ -100,11 +99,13 @@ class fn_codegen = object (self)
     let shapeEnv = 
       ID.Map.extend blockInfo.block_shapes nonlocals (input_shapes @ output_shapes) 
     in
+    
+    let localIds = List.filter (fun id -> not $ List.mem id nonlocals)  blockInfo.block_ids in 
     {
       id = FnId.gen(); 
       input_ids = input_ids; 
       output_ids = output_ids;  
-      local_ids = blockInfo.block_ids;  
+      local_ids =  localIds;  
       storage = ID.Map.empty; 
       types = typeEnv; 
       shapes = shapeEnv; 

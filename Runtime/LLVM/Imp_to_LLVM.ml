@@ -1,4 +1,6 @@
+open Base 
 open Imp 
+open Llvm 
 open LLVM_Types 
 
 let array_field_to_idx = function  
@@ -22,6 +24,7 @@ let array_field_to_idx = function
 
 let context = Llvm.global_context ()
 let global_module = Llvm.create_module context "my_module"
+
 
 type fn_info = { 
   named_values : (string, Llvm.llvalue) Hashtbl.t;  
@@ -47,14 +50,17 @@ let codegen_proto (fnInfo:fn_info) (llvmVars : ID.t list) (llvmTypes : Llvm.llty
   ) llvmVars params
   ;
   f
-
+  
 let create_argument_allocas theFunction (fnInfo:fn_info) (vars : ID.t list) (llvmTypes:Llvm.lltype list) : unit =
   Llvm.position_builder (Llvm.instr_begin (Llvm.entry_block theFunction)) fnInfo.builder;  
   let params : Llvm.llvalue list = Array.to_list (Llvm.params theFunction) in
   List.iter2 (fun (var, varType) param ->
     let varName = ID.to_str var in  
     let alloca = Llvm.build_alloca varType varName fnInfo.builder in
-    ignore (Llvm.build_store param alloca fnInfo.builder);
+    let instr = Llvm.build_store param alloca fnInfo.builder in
+    print_endline $ "[create_argument_allocas] generating store for " ^ (ID.to_str var);    
+    dump_value instr;  
+
     Hashtbl.add fnInfo.named_values varName alloca;
   ) (List.combine vars llvmTypes)  params
 
@@ -63,16 +69,20 @@ let create_local_allocas theFunction (fnInfo:fn_info) (vars : ID.t list) (llvmTy
   List.iter2 (fun var typ ->
     let varName = ID.to_str var in
     let alloca = Llvm.build_alloca typ varName builder in
+    print_endline $ "[create_local_allocas] generating store for " ^ (ID.to_str var);    
+    dump_value alloca;  
+    
     Hashtbl.add fnInfo.named_values varName alloca;
   ) vars llvmTypes 
 
 let compile_val (fnInfo:fn_info) (impVal:Imp.value_node) : Llvm.llvalue = 
   match impVal.value with
   | Imp.Var id ->
-      let v = try Hashtbl.find fnInfo.named_values (ID.to_str id) with
+      let ptr = try Hashtbl.find fnInfo.named_values (ID.to_str id) with
       | Not_found -> failwith "unknown variable name"
       in
-      v
+      let tempName = (ID.to_str id) ^ "_value" in 
+      build_load ptr tempName fnInfo.builder  
   | Imp.Const const -> Value_to_llvalue.parnum_to_llvm const
   | _ -> assert false
 
@@ -118,13 +128,17 @@ let rec compile_stmt_seq fnInfo currBB = function
     let newBB = compile_stmt fnInfo currBB head in
     compile_stmt_seq fnInfo newBB tail
     
-and compile_stmt fnInfo currBB = function
+and compile_stmt fnInfo currBB stmt = match stmt with 
   | Imp.Set (id, exp) ->
+
     let rhs = compile_expr fnInfo exp in
     let variable = try Hashtbl.find fnInfo.named_values (ID.to_str id) with
     | Not_found -> failwith  ("unknown variable name " ^ (ID.to_str id))
     in
-    ignore(Llvm.build_store rhs variable fnInfo.builder);
+    let instr = Llvm.build_store rhs variable fnInfo.builder in 
+    print_endline $ "generating store for " ^  (Imp.stmt_to_str stmt); 
+    dump_value rhs; 
+    dump_value instr; 
     currBB
   | _ -> assert false
 
@@ -176,6 +190,6 @@ let compile_fn (fn : Imp.fn) : Llvm.llvalue =
       ~local_types:localTypes
   in 
   let initBasicBlock : Llvm.llbasicblock = Llvm.entry_block llvmFn in 
-  let _ = compile_stmt_seq fnInfo initBasicBlock in
+  let _ : Llvm.llbasicblock = compile_stmt_seq fnInfo initBasicBlock fn.body in
   add_output_return fnInfo fn.output_ids;
   llvmFn 
