@@ -9,7 +9,9 @@ def identity(x):
 def test_scalar_id():
   print "Testing scalar Identity"
   sys.stdout.flush()
-  assert 3.0 == identity(3.0)
+  x = identity(3.0)
+  print "Expected 3.0, got", x 
+  assert 3.0 == x
 
 def array_id():
   multi_test = reshape(arange(12, dtype=int64), (3,4))
@@ -24,3 +26,4 @@ def array_id():
 
 if __name__ == '__main__':
     test_scalar_id()
+    test_array_id()
