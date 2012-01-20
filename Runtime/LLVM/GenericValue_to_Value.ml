@@ -21,6 +21,7 @@ let generic_value_to_parnum (g_val:GenericValue.t) (impt:Type.elt_t) : ParNum.t 
   | Type.Float64T -> Float64 (GenericValue.as_float LLVM_Types.float64_t g_val)
   | _ -> assert false
 
+
 let of_generic_value (g_val:GenericValue.t) = function 
   | ImpType.ScalarT t -> Scalar (generic_value_to_parnum g_val t)
   | ImpType.ArrayT (elt_t, len) ->
