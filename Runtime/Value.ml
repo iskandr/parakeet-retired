@@ -22,7 +22,7 @@ type 'a t =
 (* specific than that, you'll have to supply your own array printing *)
 (* function. *) 
 let rec to_str ?(array_to_str=(fun _ -> "<array>")) = function 
-  | Scalar n -> ParNum.to_str n
+  | Scalar n -> (ParNum.to_str n) ^  " : " ^ (Type.elt_to_str (ParNum.type_of n))
   | Array array_info -> array_to_str array_info  
   (*| Nested elts -> 
     Printf.sprintf "[%s]" 
