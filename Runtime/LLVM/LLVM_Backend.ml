@@ -17,7 +17,11 @@ let call_imp_fn (impFn : Imp.fn) (args : Ptr.t Value.t list) : Ptr.t Value.t lis
   let gv = LLE.run_function llvmFn (Array.of_list llvmArgs) execution_engine in
   let gvs = [gv] in
   let outTypes = Imp.output_types impFn in  
-  List.map2 GenericValue_to_Value.of_generic_value gvs outTypes 
+  let results = 
+    List.map2 GenericValue_to_Value.of_generic_value gvs outTypes
+  in 
+  Printf.printf "Got function results: %s" (String.concat ", " (List.map Value.to_str results)); 
+  results  
 
 let call (fn:SSA.fn) args =
   let inputTypes = List.map ImpType.type_of_value args in
