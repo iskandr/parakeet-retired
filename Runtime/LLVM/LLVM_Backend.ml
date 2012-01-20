@@ -13,6 +13,7 @@ let call_imp_fn (impFn : Imp.fn) (args : Ptr.t Value.t list) : Ptr.t Value.t lis
   let llvmFn : Llvm.llvalue = Imp_to_LLVM.compile_fn impFn in
   print_endline  "[LLVM_Backend.call_imp_fn] Generated LLVM function";
   Llvm.dump_value llvmFn;
+  Printf.printf "[LLVM_Backend.call_imp_fn] Running function with arguments %s\n" (Value.list_to_str args); 
   let llvmArgs = List.map Value_to_GenericValue.to_llvm args in
   let gv = LLE.run_function llvmFn (Array.of_list llvmArgs) execution_engine in
   let gvs = [gv] in
@@ -20,7 +21,7 @@ let call_imp_fn (impFn : Imp.fn) (args : Ptr.t Value.t list) : Ptr.t Value.t lis
   let results = 
     List.map2 GenericValue_to_Value.of_generic_value gvs outTypes
   in 
-  Printf.printf "Got function results: %s" (String.concat ", " (List.map Value.to_str results)); 
+  Printf.printf "Got function results: %s" (Value.list_to_str results);  
   results  
 
 let call (fn:SSA.fn) args =

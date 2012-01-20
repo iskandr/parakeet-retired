@@ -44,9 +44,17 @@ let translate_value (codegen:ImpCodegen.codegen) valNode = match valNode.SSA.val
   | SSA.Num n -> {value = Imp.Const n; value_type = ImpType.ScalarT (ParNum.type_of n)}
   | other -> failwith $ "[ssa->imp] unrecognized value: " ^ (SSA.value_to_str other) 
 
-let translate_exp (codegen:ImpCodegen.codegen) expNode = match expNode.SSA.exp with 
+let translate_exp (codegen:ImpCodegen.codegen) expNode : Imp.exp_node  = 
+  match expNode.SSA.exp with 
   | SSA.Values [v] -> ImpHelpers.exp_of_val (translate_value codegen v)
   | SSA.Values _ -> failwith "multiple value expressions not supported"
+  | SSA.PrimApp (Prim.ScalarOp op, args) -> 
+    let args' = List.map (translate_value codegen) args in 
+    let eltT = Type.elt_type (List.hd expNode.SSA.exp_types) in 
+    { exp = Op( eltT, op, args'); exp_type = ImpType.ScalarT eltT }
+  | SSA.PrimApp _ -> failwith "unsupported primitive" 
+    
+     
   | _ -> failwith $ "[ssa->imp] unrecognized exp: " ^ (SSA.exp_to_str expNode)  
 
 let mk_simple_loop_descr 
