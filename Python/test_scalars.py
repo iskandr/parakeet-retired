@@ -23,6 +23,15 @@ def test_add_3_of_2_args():
   assert (x == 4)
 
 @PAR 
+def mult_three_args(x,y,z):
+  return  1 * 1 * x
+
+def test_mult_three_args():
+  x = mult_three_args(2,4,6)
+  print "mult_three_args(2,4,6) =", x
+  assert (x == 48)
+
+@PAR 
 def add_all_args2(x,y):
   return x+y
 
@@ -52,14 +61,21 @@ def test_add_const():
 
  
 @PAR 
-def double(x): 
+def double_add(x): 
   return x + x
 
+@PAR 
+def double_mult(x):
+  return 2 * x
+
 def test_double():
-  x = double(10)
+  x = double_add(10)
   print "double(10) =", x
   assert (x == 20)
-  x = double(4.0)
+  x = double_mult(10)
+  print "double_mult(10) = ", x
+  assert (x==20)
+  x = double_add(4.0)
   print "double(4.0) =", x
   assert (x == 8.0)
 
