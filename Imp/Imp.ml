@@ -217,8 +217,8 @@ let fn_to_str fn =
   in 
   let inputs = List.map id_to_str fn.input_ids  in 
   let outputs = List.map id_to_str  fn.output_ids in
-	let locals = List.map id_to_str fn.local_ids in  
-  sprintf "fn (%s) -> (%s) = { \n\t[local vars]\n\t%s\n[body]\n%s\n}"
+  let locals = List.map id_to_str fn.local_ids in  
+  sprintf "fn (%s) -> (%s) = { \n[local vars]\n%s\n[body]\n%s\n}"
     (String.concat ", " inputs) 
     (String.concat ", " outputs)
 		(String.concat ", " locals)

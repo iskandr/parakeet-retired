@@ -21,7 +21,7 @@ let call_imp_fn (impFn : Imp.fn) (args : Ptr.t Value.t list) : Ptr.t Value.t lis
   let results = 
     List.map2 GenericValue_to_Value.of_generic_value gvs outTypes
   in 
-  Printf.printf "Got function results: %s" (Value.list_to_str results);  
+  Printf.printf "Got function results: %s\n" (Value.list_to_str results);  
   results  
 
 let call (fn:SSA.fn) args =
