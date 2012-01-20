@@ -4,9 +4,9 @@ open Imp_to_LLVM
 open Llvm
 
 module LLE = Llvm_executionengine.ExecutionEngine
-let _ = LLE.initialize_native_target() 
 
-let optimize_module llvmModule : unit =  
+
+let optimize_module llvmModule llvmFn : unit =  
   let the_fpm = PassManager.create_function llvmModule in 
   (* Set up the optimizer pipeline.  Start with registering info about how the
    * target lays out data structures. *)
@@ -14,17 +14,19 @@ let optimize_module llvmModule : unit =
 
   (* Promote allocas to registers. *)
   add_memory_to_register_promotion the_fpm;
-  PassManager.run_module llvmModule;
+  let modified = PassManager.run_function llvmModule llvmFn in 
+  Printf.printf "Optimizer modified: %b" modified; 
   PassManager.finalize the_fpm; 
   PassManager.dispose the_fpm
 
 let memspace_id = HostMemspace.id
 
 let execution_engine = LLE.create Imp_to_LLVM.global_module
+let _ = LLE.initialize_native_target() 
 
 let call_imp_fn (impFn : Imp.fn) (args : Ptr.t Value.t list) : Ptr.t Value.t list = 
   let llvmFn : Llvm.llvalue = Imp_to_LLVM.compile_fn impFn in
-  optimize_module Imp_to_LLVM.global_module; 
+  optimize_module Imp_to_LLVM.global_module llvmFn; 
   print_endline  "[LLVM_Backend.call_imp_fn] Generated LLVM function";
   Llvm.dump_value llvmFn;
   Printf.printf "[LLVM_Backend.call_imp_fn] Running function with arguments %s\n" (Value.list_to_str args); 
