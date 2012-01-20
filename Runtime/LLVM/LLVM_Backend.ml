@@ -13,6 +13,7 @@ let call_imp_fn (impFn : Imp.fn) (args : Ptr.t Value.t list) : Ptr.t Value.t lis
   let llvmFn : Llvm.llvalue = Imp_to_LLVM.compile_fn impFn in
   print_endline  "[LLVM_Backend.call_imp_fn] Generated LLVM function";
   Llvm.dump_value llvmFn;
+  Printf.printf "Calling LLVM function with arguments: " 
   let llvmArgs = List.map Value_to_GenericValue.to_llvm args in
   let gv = LLE.run_function llvmFn (Array.of_list llvmArgs) execution_engine in
   let gvs = [gv] in
