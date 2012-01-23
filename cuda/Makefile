@@ -33,7 +33,7 @@ LINK       := g++-4.4 -fPIC
 
 # Includes
 INCLUDES  += -I. -I$(CUDA_INSTALL_PATH)/include -I$(COMMONDIR)/inc
-INCLUDES  += -I/usr/lib/ocaml -I$(THRUST_DIR)
+INCLUDES  += -I/usr/lib/ocaml -I/usr/local/lib/ocaml -I$(THRUST_DIR)
 
 # architecture flag for cubin build
 CUBIN_ARCH_FLAG := -m64

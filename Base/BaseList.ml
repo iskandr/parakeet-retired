@@ -45,6 +45,15 @@ include ExtList.List
       x::xs, y::ys, z::zs
   
   
+  let rec iter3 f xs ys zs = 
+    match xs, ys, zs with 
+      | [], [], [] -> ()
+      | x::xs, y::ys, z::zs ->
+        f x y z;
+        iter3 f xs ys zs
+      | _ -> failwith "iter3 - mismatched list lengths"
+
+
   let rec map3 f xs ys zs = 
     match xs,ys,zs with 
       | [], [], [] -> [] 
