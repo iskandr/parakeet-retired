@@ -49,7 +49,8 @@ OCAML_LIB_OBJECTS := bigarray.$(OBJ_ARCHIVE_SUFFIX) \
   llvm.$(OBJ_ARCHIVE_SUFFIX) \
   llvm_executionengine.$(OBJ_ARCHIVE_SUFFIX) \
   llvm_target.$(OBJ_ARCHIVE_SUFFIX) \
-  llvm_scalar_opts.$(OBJ_ARCHIVE_SUFFIX) 
+  llvm_scalar_opts.$(OBJ_ARCHIVE_SUFFIX) \
+  llvm_analysis.$(OBJ_ARCHIVE_SUFFIX) 
 
 $(shell ocamlopt unix.cmxa ../FrontEnd/depsort.ml -o ../FrontEnd/depsort)
 #$(echo Determining OCaml module dependencies)

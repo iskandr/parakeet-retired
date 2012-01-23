@@ -211,17 +211,21 @@ let array_storage_to_str = function
   | Shared -> "shared"
   | Alias -> "alias"
 
+
+  
+
 let fn_to_str fn =
   let id_to_str id  = 
     ID.to_str id ^ " : " ^ (ImpType.to_str (get_var_type fn id))
   in 
   let inputs = List.map id_to_str fn.input_ids  in 
   let outputs = List.map id_to_str  fn.output_ids in
-  let locals = List.map id_to_str fn.local_ids in  
-  sprintf "fn (%s) -> (%s) = { \n[local vars]\n%s\n[body]\n%s\n}"
+  let decl_str id =  "local " ^ (id_to_str id) in 
+  let localDeclStr = String.concat "\n" (List.map decl_str fn.local_ids) in 
+  sprintf "fn (%s) -> (%s) = { \n%s%s\n}"
     (String.concat ", " inputs) 
     (String.concat ", " outputs)
-		(String.concat ", " locals)
+    (if String.length localDeclStr > 0 then localDeclStr ^ "\n" else "")
     (block_to_str  fn.body)
                       
 let always_const_val {value} = match value with 

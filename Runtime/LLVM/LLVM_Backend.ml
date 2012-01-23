@@ -6,7 +6,7 @@ open Llvm
 module LLE = Llvm_executionengine.ExecutionEngine
 
 
-let _ = Llvm_executionengine.initialize_native_target() 
+(*let _ = Llvm_executionengine.initialize_native_target() *)
 let execution_engine = LLE.create Imp_to_LLVM.global_module
 
 let optimize_module llvmModule llvmFn : unit =  
@@ -16,9 +16,9 @@ let optimize_module llvmModule llvmFn : unit =
   Llvm_target.TargetData.add (LLE.target_data execution_engine) the_fpm;
 
   (* Promote allocas to registers. *)
-  Llvm_scalar_opts.add_memory_to_register_promotion the_fpm;
+  (*Llvm_scalar_opts.add_memory_to_register_promotion the_fpm;*)
   let modified = PassManager.run_function llvmFn the_fpm in 
-  Printf.printf "Optimizer modified: %b" modified; 
+  Printf.printf "Optimizer modified code: %b\n" modified; 
   PassManager.finalize the_fpm; 
   PassManager.dispose the_fpm
 
@@ -30,6 +30,7 @@ let call_imp_fn (impFn : Imp.fn) (args : Ptr.t Value.t list) : Ptr.t Value.t lis
   optimize_module Imp_to_LLVM.global_module llvmFn; 
   print_endline  "[LLVM_Backend.call_imp_fn] Generated LLVM function";
   Llvm.dump_value llvmFn;
+  Llvm_analysis.assert_valid_function llvmFn; 
   Printf.printf "[LLVM_Backend.call_imp_fn] Running function with arguments %s\n" (Value.list_to_str args); 
   let llvmArgs = List.map Value_to_GenericValue.to_llvm args in
   let gv = LLE.run_function llvmFn (Array.of_list llvmArgs) execution_engine in
