@@ -5,48 +5,50 @@ open Llvm
 
 module LLE = Llvm_executionengine.ExecutionEngine
 
+let execution_engine =
+  let _ = Llvm_executionengine.initialize_native_target() in
+  LLE.create Imp_to_LLVM.global_module
 
-(*let _ = Llvm_executionengine.initialize_native_target() *)
-let execution_engine = LLE.create Imp_to_LLVM.global_module
-
-let optimize_module llvmModule llvmFn : unit =  
-  let the_fpm = PassManager.create_function llvmModule in 
+let optimize_module llvmModule llvmFn : unit =
+  let the_fpm = PassManager.create_function llvmModule in
   (* Set up the optimizer pipeline.  Start with registering info about how the
    * target lays out data structures. *)
   Llvm_target.TargetData.add (LLE.target_data execution_engine) the_fpm;
 
   (* Promote allocas to registers. *)
   (*Llvm_scalar_opts.add_memory_to_register_promotion the_fpm;*)
-  let modified = PassManager.run_function llvmFn the_fpm in 
-  Printf.printf "Optimizer modified code: %b\n" modified; 
-  PassManager.finalize the_fpm; 
+  let modified = PassManager.run_function llvmFn the_fpm in
+  Printf.printf "Optimizer modified code: %b\n" modified;
+  PassManager.finalize the_fpm;
   PassManager.dispose the_fpm
 
 let memspace_id = HostMemspace.id
 
-
-let call_imp_fn (impFn : Imp.fn) (args : Ptr.t Value.t list) : Ptr.t Value.t list = 
+let call_imp_fn (impFn:Imp.fn) (args:Ptr.t Value.t list) : Ptr.t Value.t list =
   let llvmFn : Llvm.llvalue = Imp_to_LLVM.compile_fn impFn in
-  optimize_module Imp_to_LLVM.global_module llvmFn; 
+  optimize_module Imp_to_LLVM.global_module llvmFn;
   print_endline  "[LLVM_Backend.call_imp_fn] Generated LLVM function";
   Llvm.dump_value llvmFn;
-  Llvm_analysis.assert_valid_function llvmFn; 
-  Printf.printf "[LLVM_Backend.call_imp_fn] Running function with arguments %s\n" (Value.list_to_str args); 
+  Llvm_analysis.assert_valid_function llvmFn;
+  Printf.printf
+    "[LLVM_Backend.call_imp_fn] Running function with arguments %s\n%!"
+    (Value.list_to_str args); 
   let llvmArgs = List.map Value_to_GenericValue.to_llvm args in
   let gv = LLE.run_function llvmFn (Array.of_list llvmArgs) execution_engine in
   let gvs = [gv] in
-  let outTypes = Imp.output_types impFn in  
-  let results = 
+  let outTypes = Imp.output_types impFn in
+  let results =
     List.map2 GenericValue_to_Value.of_generic_value gvs outTypes
-  in 
-  Printf.printf "Got function results: %s\n" (Value.list_to_str results);  
-  results  
+  in
+  Printf.printf "Got function results: %s\n%!" (Value.list_to_str results);
+  results
 
 let call (fn:SSA.fn) args =
   let inputTypes = List.map ImpType.type_of_value args in
   let impFn : Imp.fn = SSA_to_Imp.translate fn inputTypes in
-  Printf.printf "\n[LLVM_Backend.call] Created Imp function: %s\n" (Imp.fn_to_str impFn);  
-  call_imp_fn impFn args 
+  Printf.printf "\n[LLVM_Backend.call] Created Imp function: %s\n%!"
+                (Imp.fn_to_str impFn);
+  call_imp_fn impFn args
 
 let map ~axes ~fn ~fixed args =
   (*let fn : SSA.fn  = { 
