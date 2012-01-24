@@ -7,7 +7,7 @@ module LLE = Llvm_executionengine.ExecutionEngine
 module GV = Llvm_executionengine.GenericValue 
 
 let execution_engine =
-  let _ = Llvm_executionengine.initialize_native_target() in
+  (*let _ = Llvm_executionengine.initialize_native_target() in*)
   LLE.create Imp_to_LLVM.global_module
 
 let optimize_module llvmModule llvmFn : unit =
@@ -18,68 +18,71 @@ let optimize_module llvmModule llvmFn : unit =
 
   (* Promote allocas to registers. *)
   (*Llvm_scalar_opts.add_memory_to_register_promotion the_fpm;*)
-  let modified = PassManager.run_function llvmFn the_fpm in 
-  Printf.printf "Optimizer modified code: %b\n" modified; 
-  let _ : bool = PassManager.finalize the_fpm in  
+  let modified = PassManager.run_function llvmFn the_fpm in
+  Printf.printf "Optimizer modified code: %b\n" modified;
+  let _ : bool = PassManager.finalize the_fpm in
   PassManager.dispose the_fpm
 
 let memspace_id = HostMemspace.id
 
-let alloc_output = function 
-  | ImpType.ScalarT eltT -> Value.Scalar (ParNum.zero eltT) 
-  | _ -> failwith "Can't yet preallocate arrays" 
+let alloc_output = function
+  | ImpType.ScalarT eltT -> Value.Scalar (ParNum.zero eltT)
+  | _ -> failwith "Can't yet preallocate arrays"
 
-let allocate_output impT : GV.t = 
-  let eltT = ImpType.elt_type impT in 
-  let sz : int  = Type.sizeof eltT in 
+let allocate_output impT : GV.t =
+  let eltT = ImpType.elt_type impT in
+  let sz : int  = Type.sizeof eltT in
   let ptr : Int64.t = HostMemspace.malloc sz in
-  Printf.printf "  Allocated %d-byte output of type %s at addr %LX\n%!" sz (Type.elt_to_str eltT) ptr;
-  HostMemspace.set_scalar ptr (ParNum.zero eltT); 
-  Printf.printf "  Stored 0 in memory location\n%!"; 
+  Printf.printf "  Allocated %d-byte output of type %s at addr %LX\n%!"
+                sz (Type.elt_to_str eltT) ptr;
+  HostMemspace.set_scalar ptr (ParNum.zero eltT);
+  Printf.printf "  Stored 0 in memory location\n%!";
   Printf.printf "  Dereferenced value: %s\n%!"
-    (ParNum.to_str (HostMemspace.deref_scalar ptr eltT)); 
-  let llvmT : Llvm.lltype = ImpType_to_lltype.to_lltype impT in  
-  let llvmPtrT = Llvm.pointer_type llvmT in 
-  GV.of_int64 llvmPtrT ptr  
-     
-let allocate_outputs impTypes = List.map allocate_output impTypes  
+    (ParNum.to_str (HostMemspace.deref_scalar ptr eltT));
+  let llvmT : Llvm.lltype = ImpType_to_lltype.to_lltype impT in
+  let llvmPtrT = Llvm.pointer_type llvmT in
+  GV.of_int64 llvmPtrT ptr
 
+let allocate_outputs impTypes = List.map allocate_output impTypes
 
-let free_scalar_output impT (gv:GV.t) : unit = 
-  if ImpType.is_scalar impT then HostMemspace.free (GV.as_int64 gv) 
+let free_scalar_output impT (gv:GV.t) : unit =
+  if ImpType.is_scalar impT then HostMemspace.free (GV.as_int64 gv)
 
-let free_scalar_outputs impTypes gvs = List.map2 free_scalar_output impTypes gvs 
+let free_scalar_outputs impTypes gvs = List.map2 free_scalar_output impTypes gvs
   
-let call_imp_fn (impFn : Imp.fn) (args : Ptr.t Value.t list) : Ptr.t Value.t list = 
+let call_imp_fn (impFn:Imp.fn) (args:Ptr.t Value.t list) : Ptr.t Value.t list =
   let llvmFn : Llvm.llvalue = Imp_to_LLVM.compile_fn impFn in
   optimize_module Imp_to_LLVM.global_module llvmFn;
   print_endline  "[LLVM_Backend.call_imp_fn] Generated LLVM function";
   Llvm.dump_value llvmFn;
-  Llvm_analysis.assert_valid_function llvmFn; 
-  Printf.printf "Preallocating outputs...\n"; 
+  Llvm_analysis.assert_valid_function llvmFn;
+  Printf.printf "Preallocating outputs...\n";
   let llvmInputs : GV.t list = List.map Value_to_GenericValue.to_llvm args in
   let impOutputTypes = Imp.output_types impFn in
-  let llvmOutputs = allocate_outputs impOutputTypes in 
+  let llvmOutputs = allocate_outputs impOutputTypes in
   Printf.printf "[LLVM_Backend.call_imp_fn] Running function\n%!";
-  let impInputTypes = Imp.input_types impFn in  
-  Printf.printf "  -- input params: %s\n%!" 
-     (Value.list_to_str 
-       (List.map2 (GenericValue_to_Value.of_generic_value ~boxed_scalars:false) llvmInputs impInputTypes)
-     ); 
-  Printf.printf "  -- output params: %s\n%!" 
-    (Value.list_to_str 
-      (List.map2 GenericValue_to_Value.of_generic_value llvmOutputs impOutputTypes))
-  ;  
+  let impInputTypes = Imp.input_types impFn in
+  Printf.printf "  -- input params: %s\n%!"
+     (Value.list_to_str
+       (List.map2 (GenericValue_to_Value.of_generic_value ~boxed_scalars:false)
+                  llvmInputs impInputTypes)
+     );
+  Printf.printf "  -- output params: %s\n%!"
+    (Value.list_to_str
+      (List.map2 GenericValue_to_Value.of_generic_value
+                 llvmOutputs impOutputTypes))
+  ;
   let params : GV.t array = Array.of_list (llvmInputs @ llvmOutputs) in
   let _ = LLE.run_function llvmFn params execution_engine in
   Printf.printf " :: function completed\n%!";
-  
-  let outputs = 
+
+  let outputs =
     List.map2 GenericValue_to_Value.of_generic_value llvmOutputs impOutputTypes  
-  in    
-  Printf.printf " :: deallocating output cells\n%!"; 
-  free_scalar_outputs impOutputTypes llvmOutputs; 
-  Printf.printf "[LLVM_Backend.call_imp_fn] Got function results: %s\n%!" (Value.list_to_str outputs);
+  in
+  Printf.printf " :: deallocating output cells\n%!";
+  free_scalar_outputs impOutputTypes llvmOutputs;
+  Printf.printf "[LLVM_Backend.call_imp_fn] Got function results: %s\n%!"
+                (Value.list_to_str outputs);
   outputs
 
 let call (fn:SSA.fn) args =
