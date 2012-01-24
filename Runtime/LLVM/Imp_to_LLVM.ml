@@ -42,33 +42,31 @@ type fn_info = {
   name : string;  
 }
 
-let create_fn_info (fn : Imp.fn) = 
+let create_fn_info (fn:Imp.fn) =
   let inputImpTypes = List.map (Imp.get_var_type fn) fn.Imp.input_ids in
-  let localImpTypes = List.map (Imp.get_var_type fn) fn.Imp.local_ids in 
+  let localImpTypes = List.map (Imp.get_var_type fn) fn.Imp.local_ids in
   let outputImpTypes = List.map (Imp.get_var_type fn) fn.Imp.output_ids in
   {
-    input_ids = fn.Imp.input_ids; 
-    local_ids = fn.Imp.local_ids; 
-    output_ids = fn.Imp.output_ids; 
-    
-    input_imp_types = inputImpTypes; 
-    local_imp_types = localImpTypes; 
-    output_imp_types =  outputImpTypes;
-    
-    input_llvm_types = List.map ImpType_to_lltype.to_lltype inputImpTypes; 
-    local_llvm_types =  List.map ImpType_to_lltype.to_lltype localImpTypes;
-    (* IMPORTANT: outputs are allocated outside the functiona and the*)
-    (* addresses of their locations are passed in *) 
-    output_llvm_types =
-       List.map Llvm.pointer_type 
-         (List.map ImpType_to_lltype.to_lltype outputImpTypes);   
-      
-    named_values = Hashtbl.create 13;
-    builder = Llvm.builder context; 
-    name = FnId.to_str fn.Imp.id; 
-  }
->>>>>>> b018b4be68ce2c4c558c453f51d51be281c6082f
+    input_ids = fn.Imp.input_ids;
+    local_ids = fn.Imp.local_ids;
+    output_ids = fn.Imp.output_ids;
 
+    input_imp_types = inputImpTypes;
+    local_imp_types = localImpTypes;
+    output_imp_types = outputImpTypes;
+
+    input_llvm_types = List.map ImpType_to_lltype.to_lltype inputImpTypes;
+    local_llvm_types = List.map ImpType_to_lltype.to_lltype localImpTypes;
+    (* IMPORTANT: outputs are allocated outside the functiona and the *)
+    (* addresses of their locations are passed in *)
+    output_llvm_types =
+       List.map Llvm.pointer_type
+         (List.map ImpType_to_lltype.to_lltype outputImpTypes);
+
+    named_values = Hashtbl.create 13;
+    builder = Llvm.builder context;
+    name = FnId.to_str fn.Imp.id;
+  }
 
 let compile_val (fnInfo:fn_info) (impVal:Imp.value_node) : Llvm.llvalue = 
   match impVal.value with
@@ -135,49 +133,47 @@ and compile_stmt fnInfo currBB stmt = match stmt with
     currBB
   | _ -> assert false
 
- 
 let init_compiled_fn (fnInfo:fn_info) =
-  let paramTypes = fnInfo.input_llvm_types @ fnInfo.output_llvm_types in 
+  let paramTypes = fnInfo.input_llvm_types @ fnInfo.output_llvm_types in
   let fnT = Llvm.function_type void_t (Array.of_list paramTypes) in
   let llvmFn = Llvm.declare_function fnInfo.name fnT global_module in
   let bb = Llvm.append_block context "entry" llvmFn in
   Llvm.position_at_end bb fnInfo.builder;
   (* To avoid having to manually encode phi-nodes around the *)
-  (* use of mutable variables, we instead allocate stack space*)
-  (* for every input and local variable at the beginning of the*)
+  (* use of mutable variables, we instead allocate stack space *)
+  (* for every input and local variable at the beginning of the *)
   (* function. We don't need to allocate space for inputs since *)
-  (* are already given to us as pointers. *) 
-  let init_param_var (id:ID.t) (t:Llvm.lltype) (param:Llvm.llvalue) = 
-    let varName = ID.to_str id in  
-    if List.mem id fnInfo.input_ids then 
+  (* they are already given to us as pointers. *)
+  let init_param_var (id:ID.t) (t:Llvm.lltype) (param:Llvm.llvalue) =
+    let varName = ID.to_str id in
+    if List.mem id fnInfo.input_ids then
       let pointer = Llvm.build_alloca t varName fnInfo.builder in
       let _ = Llvm.build_store param pointer fnInfo.builder in
       Hashtbl.add fnInfo.named_values varName pointer
     else
-      (* outputs get mapped directly *) 
+      (* outputs get mapped directly *)
       Hashtbl.add fnInfo.named_values varName param
-  in 
+  in
   List.iter3 init_param_var
-    (fnInfo.input_ids @ fnInfo.output_ids) 
+    (fnInfo.input_ids @ fnInfo.output_ids)
     (fnInfo.input_llvm_types @ fnInfo.output_llvm_types)
     (Array.to_list (Llvm.params llvmFn))
-  ;  
+  ;
   let init_local_var (id:ID.t) (t:Llvm.lltype) =
     let varName = ID.to_str id in
     let pointer = Llvm.build_alloca t varName fnInfo.builder in
     Hashtbl.add fnInfo.named_values varName pointer
-  in  
+  in
   List.iter2 init_local_var fnInfo.local_ids fnInfo.local_llvm_types
   ;
   llvmFn
-  
-let compile_fn (fn : Imp.fn) : Llvm.llvalue =
-  let fnInfo = create_fn_info fn in  
-  let llvmFn : Llvm.llvalue =   init_compiled_fn fnInfo in  
-  let initBasicBlock : Llvm.llbasicblock = Llvm.entry_block llvmFn in 
-  let _ : Llvm.llbasicblock = compile_stmt_seq fnInfo initBasicBlock fn.body in
-  (* we implement multiple return values by passing the output addresses as parameters *)
-  (* so there's nothing left to return *) 
-  Llvm.build_ret_void fnInfo.builder; 
-  llvmFn
 
+let compile_fn (fn : Imp.fn) : Llvm.llvalue =
+  let fnInfo = create_fn_info fn in
+  let llvmFn : Llvm.llvalue =   init_compiled_fn fnInfo in
+  let initBasicBlock : Llvm.llbasicblock = Llvm.entry_block llvmFn in
+  let _ : Llvm.llbasicblock = compile_stmt_seq fnInfo initBasicBlock fn.body in
+  (* we implement multiple return values by passing the output addresses as *)
+  (* parameters so there's nothing left to return *)
+  Llvm.build_ret_void fnInfo.builder;
+  llvmFn
