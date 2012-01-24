@@ -6,9 +6,8 @@ open Llvm
 module LLE = Llvm_executionengine.ExecutionEngine
 module GV = Llvm_executionengine.GenericValue 
 
-let execution_engine =
-  (*let _ = Llvm_executionengine.initialize_native_target() in*)
-  LLE.create Imp_to_LLVM.global_module
+(*let _ = Llvm_executionengine.initialize_native_target()*) 
+let execution_engine = LLE.create Imp_to_LLVM.global_module
 
 let optimize_module llvmModule llvmFn : unit =
   let the_fpm = PassManager.create_function llvmModule in
@@ -38,15 +37,17 @@ let allocate_output impT : GV.t =
   HostMemspace.set_scalar ptr (ParNum.zero eltT);
   Printf.printf "  Stored 0 in memory location\n%!";
   Printf.printf "  Dereferenced value: %s\n%!"
-    (ParNum.to_str (HostMemspace.deref_scalar ptr eltT));
-  let llvmT : Llvm.lltype = ImpType_to_lltype.to_lltype impT in
-  let llvmPtrT = Llvm.pointer_type llvmT in
-  GV.of_int64 llvmPtrT ptr
+    (ParNum.to_str (HostMemspace.deref_scalar ptr eltT)); 
+  let llvmT : Llvm.lltype = ImpType_to_lltype.to_lltype impT in  
+  let llvmPtrT = Llvm.pointer_type llvmT in 
+  Printf.printf "  Created output param with lltype : %s\n%!"
+                (Llvm.string_of_lltype llvmPtrT); 
+  GV.of_int64 llvmPtrT ptr  
+     
+let allocate_outputs impTypes = List.map allocate_output impTypes  
 
-let allocate_outputs impTypes = List.map allocate_output impTypes
-
-let free_scalar_output impT (gv:GV.t) : unit =
-  if ImpType.is_scalar impT then HostMemspace.free (GV.as_int64 gv)
+let free_scalar_output impT (gv:GV.t) : unit = 
+  if ImpType.is_scalar impT then HostMemspace.free (GV.as_int64 gv) 
 
 let free_scalar_outputs impTypes gvs = List.map2 free_scalar_output impTypes gvs
   

@@ -146,6 +146,7 @@ let init_compiled_fn (fnInfo:fn_info) =
   (* they are already given to us as pointers. *)
   let init_param_var (id:ID.t) (t:Llvm.lltype) (param:Llvm.llvalue) =
     let varName = ID.to_str id in
+    Llvm.set_value_name varName param;
     if List.mem id fnInfo.input_ids then
       let pointer = Llvm.build_alloca t varName fnInfo.builder in
       let _ = Llvm.build_store param pointer fnInfo.builder in
