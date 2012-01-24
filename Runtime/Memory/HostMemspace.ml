@@ -48,7 +48,15 @@ let deref_scalar (addr:Int64.t) (eltT:Type.elt_t) : ParNum.t =
   | Type.Int64T -> ParNum.Int64 (get_int64 addr 0)
   | Type.Float32T -> ParNum.Float32 (get_float32 addr 0)
   | Type.Float64T -> ParNum.Float64 (get_float64 addr 0) 
- 
+
+let set_scalar (addr:Int64.t) = function 
+  | ParNum.Bool b -> set_bool addr 0 b 
+  | ParNum.Char c -> set_char addr 0 c
+  | ParNum.Int16 _ -> assert false
+  | ParNum.Int32 i32 -> set_int32 addr 0 i32 
+  | ParNum.Int64 i64 -> set_int64 addr 0 i64
+  | ParNum.Float32 f -> set_float32 addr 0 f
+  | ParNum.Float64 f -> set_float64 addr 0 f  
 
  
 let fns : Ptr.raw_fns = {
@@ -64,6 +72,5 @@ let fns : Ptr.raw_fns = {
 
 let id = Mem.register "host" fns
 
-let mk_host_ptr ptr size =
-  {addr=ptr; size=size; memspace=id; fns=fns}
+let mk_host_ptr ptr size = {addr=ptr; size=size; memspace=id; fns=fns}
 

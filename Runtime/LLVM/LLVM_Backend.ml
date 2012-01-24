@@ -17,7 +17,7 @@ let optimize_module llvmModule llvmFn : unit =
   Llvm_target.TargetData.add (LLE.target_data execution_engine) the_fpm;
 
   (* Promote allocas to registers. *)
-  Llvm_scalar_opts.add_memory_to_register_promotion the_fpm;
+  (*Llvm_scalar_opts.add_memory_to_register_promotion the_fpm;*)
   let modified = PassManager.run_function llvmFn the_fpm in 
   Printf.printf "Optimizer modified code: %b\n" modified; 
   let _ : bool = PassManager.finalize the_fpm in  
@@ -34,7 +34,11 @@ let allocate_output impT : GV.t =
   let eltT = ImpType.elt_type impT in 
   let sz : int  = Type.sizeof eltT in 
   let ptr : Int64.t = HostMemspace.malloc sz in
-  Printf.printf "  Allocated %d-byte output of type %s at addr %LX\n%!" sz (Type.elt_to_str eltT) ptr; 
+  Printf.printf "  Allocated %d-byte output of type %s at addr %LX\n%!" sz (Type.elt_to_str eltT) ptr;
+  HostMemspace.set_scalar ptr (ParNum.zero eltT); 
+  Printf.printf "  Stored 0 in memory location\n%!"; 
+  Printf.printf "  Dereferenced value: %s\n%!"
+    (ParNum.to_str (HostMemspace.deref_scalar ptr eltT)); 
   let llvmT : Llvm.lltype = ImpType_to_lltype.to_lltype impT in  
   let llvmPtrT = Llvm.pointer_type llvmT in 
   GV.of_int64 llvmPtrT ptr  
@@ -53,14 +57,21 @@ let call_imp_fn (impFn : Imp.fn) (args : Ptr.t Value.t list) : Ptr.t Value.t lis
   print_endline  "[LLVM_Backend.call_imp_fn] Generated LLVM function";
   Llvm.dump_value llvmFn;
   Llvm_analysis.assert_valid_function llvmFn; 
-  Printf.printf "[LLVM_Backend.call_imp_fn] Running function with inputs: %s\n%!" (Value.list_to_str args);
   Printf.printf "Preallocating outputs...\n"; 
   let llvmInputs : GV.t list = List.map Value_to_GenericValue.to_llvm args in
   let impOutputTypes = Imp.output_types impFn in
   let llvmOutputs = allocate_outputs impOutputTypes in 
-  let params : GV.t array = Array.of_list (llvmInputs @ llvmOutputs) in
-  (* function returns void so ignore its value *)  
-  let _ = LLE.run_function llvmFn params execution_engine in
+  let params : GV.t list = llvmInputs @ llvmOutputs in
+  Printf.printf "[LLVM_Backend.call_imp_fn] Running function with params: %s\n%!" 
+    (Value.list_to_str 
+      (List.map2 
+        GenericValue_to_Value.of_generic_value 
+        params
+        (Imp.input_types impFn @ impOutputTypes)         
+      )
+     )
+  ; 
+  let _ = LLE.run_function llvmFn (Array.of_list params) execution_engine in
   Printf.printf " :: function completed\n%!";
   
   let outputs = 
