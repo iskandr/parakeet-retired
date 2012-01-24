@@ -22,8 +22,13 @@ let generic_value_to_parnum (g_val:GenericValue.t) (impt:Type.elt_t) : ParNum.t 
   | _ -> assert false
 
 
-let of_generic_value (g_val:GenericValue.t) = function 
-  | ImpType.ScalarT t -> Scalar (generic_value_to_parnum g_val t)
+let of_generic_value ?(boxed_scalars=true) (g_val:GenericValue.t) = function 
+  | ImpType.ScalarT t -> 
+      if boxed_scalars then 
+        let addr = GenericValue.as_int64 g_val in 
+        Scalar (HostMemspace.deref_scalar addr t)
+      else 
+        Scalar (generic_value_to_parnum g_val t)
   | ImpType.ArrayT (elt_t, len) ->
     let gv_ptr : Int64.t = GenericValue.as_pointer g_val in
     let data_addr : Int64.t = HostMemspace.get_int64 gv_ptr 0 in

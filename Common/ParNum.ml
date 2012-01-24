@@ -223,3 +223,13 @@ let is_inf = function
   | Inf _  
   | NegInf _ -> true
   | _ -> false
+
+let zero = function 
+  | Type.Float32T -> Float32 0.0
+  | Type.Float64T -> Float64 0.0
+  | Type.Int16T -> Int16 0 
+  | Type.Int32T -> Int32 Int32.zero
+  | Type.Int64T -> Int64 Int64.zero 
+  | Type.CharT -> Char (Char.chr 0)
+  | Type.BoolT -> Bool false 
+  

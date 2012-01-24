@@ -3,6 +3,19 @@ from parakeet import PAR
 import sys
 
 @PAR
+def float_const():
+  return 1.0 
+
+@PAR 
+def int_const():
+  return 1
+
+
+def test_const():
+  assert 1.0 == float_const()
+  assert 1 == int_const()
+
+@PAR
 def identity(x):
   return x
 
@@ -25,6 +38,7 @@ def array_id():
   assert ndarray.__eq__(res, multi_test).all()
 
 if __name__ == '__main__':
+  test_const()
   test_scalar_id()
   test_array_id()
 

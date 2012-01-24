@@ -86,6 +86,16 @@ let elt_to_str = function
   | Float32T -> "float32"
   | Float64T -> "float64"
 
+let elt_to_short_str = function 
+  | BoolT -> "b"
+  | CharT -> "c"
+  | Int16T -> "s"
+  | Int32T -> ""
+  | Int64T -> "L"
+  | Float32T -> "f"
+  | Float64T -> ""
+ 
+
 let to_str = function
   | BottomT -> "bottom"
   | AnyT -> "any"

@@ -83,7 +83,7 @@ type fn = {
 
 let empty_fn = { 
   id = FnId.gen(); 
-  input_ids = []; 
+  input_ids = [];
   output_ids = []; 
   body = []; 
   local_ids = []; 
@@ -94,7 +94,8 @@ let empty_fn = {
 
 let input_types fn = List.map (fun id -> ID.Map.find id fn.types) fn.input_ids 
 let output_types fn = List.map (fun id -> ID.Map.find id fn.types) fn.output_ids 
-
+let local_types fn = List.map (fun id -> ID.Map.find id fn.types) fn.local_ids 
+ 
 let get_var_type (fn:fn) (id:ID.t) = 
     match ID.Map.find_option id fn.types with 
         | None -> failwith $ "[Imp->get_var_type] Variable " ^ (ID.to_str id) ^ "doesn't exist"
