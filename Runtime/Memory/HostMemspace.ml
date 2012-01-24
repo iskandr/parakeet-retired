@@ -8,6 +8,7 @@ let malloc nbytes =
   if ptr = Int64.zero then raise HostOutOfMemory
   else ptr
 
+
 external free : Int64.t -> unit = "ocaml_free"
 external memcpy : Int64.t -> Int64.t -> int -> unit = "ocaml_memcpy"    
     
@@ -37,6 +38,18 @@ external set_char : Int64.t -> int -> char -> unit = "ocaml_set_char"
 
 let get_bool p offset  = Char.code (get_char p offset) > 0
 let set_bool p offset b = set_char p offset (Char.chr (if b then 1 else 0))
+
+let deref_scalar (addr:Int64.t) (eltT:Type.elt_t) : ParNum.t =
+  match eltT with  
+  | Type.BoolT -> ParNum.Bool (get_bool addr 0) 
+  | Type.CharT -> ParNum.Char (get_char addr 0)
+  | Type.Int16T -> assert false 
+  | Type.Int32T -> ParNum.Int32 (get_int32 addr 0)
+  | Type.Int64T -> ParNum.Int64 (get_int64 addr 0)
+  | Type.Float32T -> ParNum.Float32 (get_float32 addr 0)
+  | Type.Float64T -> ParNum.Float64 (get_float64 addr 0) 
+ 
+
  
 let fns : Ptr.raw_fns = {
     Ptr.alloc = malloc;

@@ -44,6 +44,7 @@ val is_num_or_array : t -> bool
 val is_numarray : t -> bool
 
 val elt_to_str : elt_t -> string
+val elt_to_short_str : elt_t -> string 
 val to_str : t -> string
  
 val type_list_to_str : t list -> string

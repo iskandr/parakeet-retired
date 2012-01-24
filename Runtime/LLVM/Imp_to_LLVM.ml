@@ -43,9 +43,9 @@ type fn_info = {
 }
 
 let create_fn_info (fn : Imp.fn) = 
-  let inputImpTypes = List.map (Imp.get_var_type fn) fn.Imp.input_ids in
-  let localImpTypes = List.map (Imp.get_var_type fn) fn.Imp.local_ids in 
-  let outputImpTypes = List.map (Imp.get_var_type fn) fn.Imp.output_ids in
+  let inputImpTypes = Imp.input_types fn in
+  let localImpTypes = Imp.local_types fn in  
+  let outputImpTypes = Imp.output_types fn in 
   {
     input_ids = fn.Imp.input_ids; 
     local_ids = fn.Imp.local_ids; 

@@ -92,6 +92,12 @@ let rec to_llvm = function
       int64 ptr
   | _ -> assert false
 
+
+(* acts like to_llvm but maps scalars to their addresses *) 
+let to_llvm_pointer = function  
+  | Value.Scalar s -> Obj.magic s 
+  | other -> to_llvm other
+
 let rec delete_llvm_ptr ptr = function
   | ImpType.ScalarT _ -> ()
   | ImpType.ArrayT _ ->

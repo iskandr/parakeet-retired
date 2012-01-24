@@ -10,6 +10,7 @@ let int_array_of_addr addr len =
   done; 
   res
 
+(* used for unboxed scalars, which we never encounter any more *) 
 let generic_value_to_parnum (g_val:GenericValue.t) (impt:Type.elt_t) : ParNum.t =
   match impt with
   | Type.BoolT -> Bool (GenericValue.as_int g_val <> 0)
@@ -23,7 +24,10 @@ let generic_value_to_parnum (g_val:GenericValue.t) (impt:Type.elt_t) : ParNum.t 
 
 
 let of_generic_value (g_val:GenericValue.t) = function 
-  | ImpType.ScalarT t -> Scalar (generic_value_to_parnum g_val t)
+  | ImpType.ScalarT t -> 
+    (* IMPORTANT: Assume any scalars are boxed and have to be dereferenced *)
+    let addr = GenericValue.as_int64 g_val in 
+    Scalar (HostMemspace.deref_scalar addr t)
   | ImpType.ArrayT (elt_t, len) ->
     let gv_ptr : Int64.t = GenericValue.as_pointer g_val in
     let data_addr : Int64.t = HostMemspace.get_int64 gv_ptr 0 in
