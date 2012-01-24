@@ -25,5 +25,6 @@ def array_id():
   assert ndarray.__eq__(res, multi_test).all()
 
 if __name__ == '__main__':
-    test_scalar_id()
-    test_array_id()
+  test_scalar_id()
+  test_array_id()
+
