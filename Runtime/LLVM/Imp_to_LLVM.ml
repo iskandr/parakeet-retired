@@ -1,15 +1,15 @@
-open Base 
-open Imp 
-open Llvm 
-open LLVM_Types 
+open Base
+open Imp
+open Llvm
+open LLVM_Types
 
-let array_field_to_idx = function  
+let array_field_to_idx = function
   | RangeStart -> 0
   | RangeStop -> 1
   | ShiftData -> 0
   | ShiftAmt -> 1
   | ShiftDim -> 2
-  | ShiftDefault -> 3 
+  | ShiftDefault -> 3
   | RotData -> 0
   | RotDim -> 1
   | RotAmt -> 2
@@ -22,24 +22,24 @@ let array_field_to_idx = function
   | FrozenIdx -> 2
 
 let context = Llvm.global_context ()
-let global_module = Llvm.create_module context "my_module"
+let global_module = Llvm.create_module context "parakeet_module"
 
 type fn_info = {
-  input_ids : ID.t list; 
-  local_ids : ID.t list; 
-  output_ids : ID.t list; 
-  
-  input_imp_types : ImpType.t list; 
-  local_imp_types : ImpType.t list; 
+  input_ids : ID.t list;
+  local_ids : ID.t list;
+  output_ids : ID.t list;
+
+  input_imp_types : ImpType.t list;
+  local_imp_types : ImpType.t list;
   output_imp_types : ImpType.t list;
-  
+
   input_llvm_types : Llvm.lltype list;
-  local_llvm_types : Llvm.lltype list; 
-  output_llvm_types : Llvm.lltype list;  
-    
-  named_values : (string, Llvm.llvalue) Hashtbl.t;  
+  local_llvm_types : Llvm.lltype list;
+  output_llvm_types : Llvm.lltype list;
+
+  named_values : (string, Llvm.llvalue) Hashtbl.t;
   builder: Llvm.llbuilder;
-  name : string;  
+  name : string;
 }
 
 let create_fn_info (fn:Imp.fn) =
