@@ -6,12 +6,11 @@ open Llvm
 module LLE = Llvm_executionengine.ExecutionEngine
 module GV = Llvm_executionengine.GenericValue 
 
-
 (*let _ = Llvm_executionengine.initialize_native_target()*) 
 let execution_engine = LLE.create Imp_to_LLVM.global_module
 
-let optimize_module llvmModule llvmFn : unit =  
-  let the_fpm = PassManager.create_function llvmModule in 
+let optimize_module llvmModule llvmFn : unit =
+  let the_fpm = PassManager.create_function llvmModule in
   (* Set up the optimizer pipeline.  Start with registering info about how the
    * target lays out data structures. *)
   Llvm_target.TargetData.add (LLE.target_data execution_engine) the_fpm;
@@ -24,7 +23,6 @@ let optimize_module llvmModule llvmFn : unit =
   PassManager.dispose the_fpm
 
 let memspace_id = HostMemspace.id
-
 
 let alloc_output = function 
   | ImpType.ScalarT eltT -> Value.Scalar (ParNum.zero eltT) 
@@ -53,7 +51,7 @@ let free_scalar_outputs impTypes gvs = List.map2 free_scalar_output impTypes gvs
   
 let call_imp_fn (impFn : Imp.fn) (args : Ptr.t Value.t list) : Ptr.t Value.t list = 
   let llvmFn : Llvm.llvalue = Imp_to_LLVM.compile_fn impFn in
-  optimize_module Imp_to_LLVM.global_module llvmFn; 
+  optimize_module Imp_to_LLVM.global_module llvmFn;
   print_endline  "[LLVM_Backend.call_imp_fn] Generated LLVM function";
   Llvm.dump_value llvmFn;
   Llvm_analysis.assert_valid_function llvmFn; 
@@ -86,8 +84,9 @@ let call_imp_fn (impFn : Imp.fn) (args : Ptr.t Value.t list) : Ptr.t Value.t lis
 let call (fn:SSA.fn) args =
   let inputTypes = List.map ImpType.type_of_value args in
   let impFn : Imp.fn = SSA_to_Imp.translate fn inputTypes in
-  Printf.printf "\n[LLVM_Backend.call] Created Imp function: %s\n" (Imp.fn_to_str impFn);  
-  call_imp_fn impFn args 
+  Printf.printf "\n[LLVM_Backend.call] Created Imp function: %s\n%!"
+                (Imp.fn_to_str impFn);
+  call_imp_fn impFn args
 
 let map ~axes ~fn ~fixed args =
   (*let fn : SSA.fn  = { 
