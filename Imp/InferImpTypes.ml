@@ -4,6 +4,12 @@ open SSA
 
 type tenv = ImpType.t ID.Map.t  
 
+let combine t1 t2 = 
+  if t1 = t2 then t1
+  else failwith $ Printf.sprintf "[InferImpTypes] Can't combine %s and %s"
+         (ImpType.to_str t1)
+         (ImpType.to_str t2) 
+
 let scalar_imp_type t = ImpType.ScalarT (Type.elt_type t)
 
 let infer_value (tenv:tenv) {value; value_type} : ImpType.t =
@@ -27,10 +33,35 @@ let infer_exp (tenv:tenv) {exp; exp_types} : ImpType.t list =
   | Call (fnId, args) -> failwith "[InferImpTypes] Typed function calls not implemented" 
   | PrimApp (prim, args) -> failwith "[InferImpTypes] Unexpected non-scalar primitive"  
   | Adverb (adverb, closure, adverb_args) -> failwith "[InferImpTypes] adverbs not implemented"
-   
+
+let add_binding tenv id t = 
+  if ID.Map.mem id tenv then 
+    ID.Map.add id (combine t (ID.Map.find id tenv)) tenv 
+  else 
+    ID.Map.add id t tenv 
+
+let add_bindings tenv ids ts = 
+  List.fold_left2 add_binding tenv ids ts 
+
+let infer_phi_node tenv phiNode : tenv =
+  let tLeft : ImpType.t = infer_value tenv phiNode.SSA.phi_left in 
+  let tRight : ImpType.t  = infer_value tenv phiNode.SSA.phi_right in 
+  let t : ImpType.t  = combine tLeft tRight in 
+  add_binding tenv phiNode.SSA.phi_id t 
+
+let rec infer_phi_nodes tenv = function 
+  | [] -> tenv 
+  | p::ps -> 
+    let tenv' : tenv = infer_phi_node tenv p in 
+    infer_phi_nodes tenv' ps 
+
 let rec infer_stmt (tenv:tenv) {stmt} = match stmt with 
-  | SSA.Set(ids, rhs) -> ID.Map.extend tenv ids (infer_exp tenv rhs)
-  | other -> failwith $ "SSA statement not implemented yet"
+  | SSA.Set(ids, rhs) -> add_bindings tenv ids (infer_exp tenv rhs)
+  | SSA.If(cond, tBlock, fBlock, phiNodes) ->
+      let tenv = infer_block tenv tBlock in 
+      let tenv = infer_block tenv fBlock in 
+      infer_phi_nodes tenv phiNodes 
+       
 
 and infer_block (tenv:tenv) block = 
   Block.fold_forward infer_stmt tenv block 
