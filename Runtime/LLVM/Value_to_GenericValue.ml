@@ -7,20 +7,20 @@ open Value
 
 let pad_to size alignment = (size + alignment - 1) / alignment
 
-let int16 (i:int) = GenericValue.of_int LLVM_Types.int16_t i 
-let int32 (i:Int32.t) = GenericValue.of_int32 LLVM_Types.int32_t i 
+let int16 (i:int) = GenericValue.of_int LLVM_Types.int16_t i
+let int32 (i:Int32.t) = GenericValue.of_int32 LLVM_Types.int32_t i
 let int64 (i:Int64.t) = GenericValue.of_int64 LLVM_Types.int64_t i
 let float32 f = GenericValue.of_float LLVM_Types.float32_t f
-let float64 f = GenericValue.of_float LLVM_Types.float64_t f 
+let float64 f = GenericValue.of_float LLVM_Types.float64_t f
 
 let parnum_to_generic = function
-  | Bool b -> if b then int16 1 else int16 0 
+  | Bool b -> if b then int16 1 else int16 0
   | Char c -> int16 (Char.code c)
   | Int16 i -> int16 i
   | Int32 i -> int32 i
   | Int64 i -> int64 i
   | Float32 f -> float32 f
-  | Float64 f -> float64 f 
+  | Float64 f -> float64 f
   | _ -> assert false
 
 let rec to_llvm = function
@@ -91,7 +91,6 @@ let rec to_llvm = function
       HostMemspace.set_int32 ptr 2 (Int32.of_int step);
       int64 ptr
   | _ -> assert false
-
 
 (* acts like to_llvm but maps scalars to their addresses *) 
 let to_llvm_pointer = function  

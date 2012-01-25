@@ -37,20 +37,20 @@ let allocate_output impT : GV.t =
   HostMemspace.set_scalar ptr (ParNum.zero eltT);
   Printf.printf "  Stored 0 in memory location\n%!";
   Printf.printf "  Dereferenced value: %s\n%!"
-    (ParNum.to_str (HostMemspace.deref_scalar ptr eltT)); 
-  let llvmT : Llvm.lltype = ImpType_to_lltype.to_lltype impT in  
-  let llvmPtrT = Llvm.pointer_type llvmT in 
+    (ParNum.to_str (HostMemspace.deref_scalar ptr eltT));
+  let llvmT : Llvm.lltype = ImpType_to_lltype.to_lltype impT in
+  let llvmPtrT = Llvm.pointer_type llvmT in
   Printf.printf "  Created output param with lltype : %s\n%!"
-                (Llvm.string_of_lltype llvmPtrT); 
-  GV.of_int64 llvmPtrT ptr  
-     
-let allocate_outputs impTypes = List.map allocate_output impTypes  
+                (Llvm.string_of_lltype llvmPtrT);
+  GV.of_int64 llvmPtrT ptr
 
-let free_scalar_output impT (gv:GV.t) : unit = 
-  if ImpType.is_scalar impT then HostMemspace.free (GV.as_int64 gv) 
+let allocate_outputs impTypes = List.map allocate_output impTypes
+
+let free_scalar_output impT (gv:GV.t) : unit =
+  if ImpType.is_scalar impT then HostMemspace.free (GV.as_int64 gv)
 
 let free_scalar_outputs impTypes gvs = List.map2 free_scalar_output impTypes gvs
-  
+
 let call_imp_fn (impFn:Imp.fn) (args:Ptr.t Value.t list) : Ptr.t Value.t list =
   let llvmFn : Llvm.llvalue = Imp_to_LLVM.compile_fn impFn in
   optimize_module Imp_to_LLVM.global_module llvmFn;
