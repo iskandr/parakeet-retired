@@ -110,7 +110,7 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
   let clear_coercions () = coercions := [] 
    
   let collect_coercions stmtNode = 
-    let stmts = List.rev $ (stmtNode :: get_coercions()) in 
+    let stmts = stmtNode :: get_coercions()  in 
     clear_coercions ();  
     stmts 
   
