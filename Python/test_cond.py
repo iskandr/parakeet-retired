@@ -7,8 +7,10 @@ def simple_if(x):
   a = 0
   if x:
     a = 1
+    a = 2
   else:
     a = 0
+    a = 3
   return a
 
 def test_if():
