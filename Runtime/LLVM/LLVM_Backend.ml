@@ -45,11 +45,13 @@ let allocate_output impT : GV.t =
      
 let allocate_outputs impTypes = List.map allocate_output impTypes  
 
-let free_scalar_output impT (gv:GV.t) : unit = 
-  if ImpType.is_scalar impT then HostMemspace.free (GV.as_int64 gv) 
+let allocate_outputs impTypes = List.map allocate_output impTypes
+
+let free_scalar_output impT (gv:GV.t) : unit =
+  if ImpType.is_scalar impT then HostMemspace.free (GV.as_int64 gv)
 
 let free_scalar_outputs impTypes gvs = List.map2 free_scalar_output impTypes gvs
-  
+
 let call_imp_fn (impFn:Imp.fn) (args:Ptr.t Value.t list) : Ptr.t Value.t list =
   let llvmFn : Llvm.llvalue = Imp_to_LLVM.compile_fn impFn in
   optimize_module Imp_to_LLVM.global_module llvmFn;
