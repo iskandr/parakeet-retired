@@ -223,7 +223,7 @@ paranode mk_if(paranode cond_node, paranode true_node, paranode false_node,
                source_info_t *src_info) {
   CAMLparam0();
   CAMLlocal4(val_cond, val_true, val_false, if_node);
-  CAMLlocal1(final_node);
+  //CAMLlocal1(final_node);
 
   val_cond  = get_value_and_remove_root(cond_node);
   val_true  = get_value_and_remove_root(true_node);
@@ -234,8 +234,8 @@ paranode mk_if(paranode cond_node, paranode true_node, paranode false_node,
   Store_field(if_node, 1, val_true);
   Store_field(if_node, 2, val_false);
 
-  final_node = mk_node(if_node, src_info);
-  printf("Cond: %p, thenBB: %p, elseBB: %p, if_node: %p, final_node: %p\n",
+  paranode final_node = mk_node(if_node, src_info);
+  printf("Cond: %u, thenBB: %u, elseBB: %u, if_node: %u, final_node: %u\n",
          cond_node, true_node, false_node, if_node, final_node);
 
   CAMLreturnT(paranode, final_node);
