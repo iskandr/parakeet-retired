@@ -26,3 +26,9 @@ let replace_pointer_with_int64 ty =
 
 let replace_pointers tyList =
   List.map replace_pointer_with_int64 tyList
+
+let adjust_output_pointer outTy = 
+  if is_pointer outTy then
+    outTy
+  else
+    Llvm.pointer_type outTy
