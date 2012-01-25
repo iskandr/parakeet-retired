@@ -15,6 +15,7 @@ class _ret_scalar_value(Union):
   _fields_ = [("boolean", c_int),
               ("int32", c_int),
               ("int64", c_int64),
+              ("float32", c_float),
               ("float64", c_double)]
 
 class _scalar_ret_t(Structure):
@@ -538,6 +539,8 @@ def parakeet_value_to_python(val):
       result = val.data.scalar.ret_scalar_value.int32
     elif cEltType == c_int64:
       result = val.data.scalar.ret_scalar_value.int64
+    elif cEltType == c_float:
+      result = val.data.scalar.ret_scalar_value.float32
     elif cEltType == c_double:
       result = val.data.scalar.ret_scalar_value.float64
     else:

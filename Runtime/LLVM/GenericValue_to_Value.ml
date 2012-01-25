@@ -3,6 +3,7 @@ open Llvm_executionengine
 open ParNum
 open Value
 
+
 let int_array_of_addr addr len = 
   let res = Array.make len 0 in 
   for i = 0 to len - 1 do 
@@ -22,15 +23,15 @@ let generic_value_to_parnum (g_val:GenericValue.t) (impt:Type.elt_t) : ParNum.t
   | Type.Float64T -> Float64 (GenericValue.as_float LLVM_Types.float64_t g_val)
   | _ -> assert false
 
-let of_generic_value ?(boxed_scalars=true) (g_val:GenericValue.t) = function
+let of_generic_value ?(boxed_scalars=true) (gv:GenericValue.t) = function
   | ImpType.ScalarT t ->
       if boxed_scalars then
-        let addr = GenericValue.as_int64 g_val in
+        let addr : Int64.t = GenericValue.as_int64 gv in
         Scalar (HostMemspace.deref_scalar addr t)
       else
-        Scalar (generic_value_to_parnum g_val t)
+        Scalar (generic_value_to_parnum gv t)
   | ImpType.ArrayT (elt_t, len) ->
-    let gv_ptr : Int64.t = GenericValue.as_pointer g_val in
+    let gv_ptr : Int64.t = GenericValue.as_pointer gv in
     let data_addr : Int64.t = HostMemspace.get_int64 gv_ptr 0 in
     let shape_addr : Int64.t = HostMemspace.get_int64 gv_ptr 1 in
     let shape : Shape.t = Shape.of_array (int_array_of_addr shape_addr len) in
@@ -46,3 +47,4 @@ let of_generic_value ?(boxed_scalars=true) (g_val:GenericValue.t) = function
       array_strides=strides
     }
   | _ -> assert false
+

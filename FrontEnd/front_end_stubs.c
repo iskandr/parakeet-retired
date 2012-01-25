@@ -114,6 +114,8 @@ return_val_t run_function(int id, host_val *globals, int num_globals,
           ret.results[0].data.scalar.ret_scalar_value.int32 = get_int32(v);
         } else if (type_is_int64(t)) {
           ret.results[0].data.scalar.ret_scalar_value.int64 = get_int64(v);
+        } else if (type_is_float32(t)) { 
+          ret.results[0].data.scalar.ret_scalar_value.float32 = get_float64(v);
         } else if (type_is_float64(t)) {
           ret.results[0].data.scalar.ret_scalar_value.float64 = get_float64(v);
         } else {

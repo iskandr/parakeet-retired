@@ -134,7 +134,12 @@ and compile_stmt fnInfo currBB stmt = match stmt with
   | _ -> assert false
 
 let init_compiled_fn (fnInfo:fn_info) =
-  let paramTypes = fnInfo.input_llvm_types @ fnInfo.output_llvm_types in
+  (* since we have to pass output address as int64s, convert them all*)
+  (* in the signature *) 
+  let outputParamInts =
+    List.map (fun _ -> LLVM_Types.int64_t) fnInfo.output_llvm_types 
+  in  
+  let paramTypes = fnInfo.input_llvm_types @ outputParamInts in
   let fnT = Llvm.function_type void_t (Array.of_list paramTypes) in
   let llvmFn = Llvm.declare_function fnInfo.name fnT global_module in
   let bb = Llvm.append_block context "entry" llvmFn in
@@ -152,8 +157,11 @@ let init_compiled_fn (fnInfo:fn_info) =
       let _ = Llvm.build_store param pointer fnInfo.builder in
       Hashtbl.add fnInfo.named_values varName pointer
     else
-      (* outputs get mapped directly *)
-      Hashtbl.add fnInfo.named_values varName param
+      (* Due to the bizarre layout of GenericValues, we pass *)
+      (* in pointers as int64s and then have to cast them to their*)
+      (* actual pointer types inside the code *) 
+      let pointer = Llvm.build_inttoptr param t (varName^"_ptr") fnInfo.builder in  
+      Hashtbl.add fnInfo.named_values varName pointer
   in
   List.iter3 init_param_var
     (fnInfo.input_ids @ fnInfo.output_ids)

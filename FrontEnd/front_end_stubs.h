@@ -26,6 +26,7 @@ typedef struct {
     int       boolean;
     int32_t   int32;
     int64_t   int64;
+    float     float32;
     double    float64;
   } ret_scalar_value;
 } scalar_ret_t;

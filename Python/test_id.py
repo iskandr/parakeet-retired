@@ -12,8 +12,8 @@ def int_const():
 
 
 def test_const():
-  assert 1.0 == float_const()
   assert 1 == int_const()
+  assert 1.0 == float_const()
 
 @PAR
 def identity(x):
@@ -26,7 +26,7 @@ def test_scalar_id():
   print "Expected 3.0, got", x 
   assert 3.0 == x
 
-def array_id():
+def test_array_id():
   multi_test = reshape(arange(12, dtype=int64), (3,4))
   print "Input:", multi_test
   print "Input Shape:", shape(multi_test)
@@ -41,4 +41,5 @@ if __name__ == '__main__':
   test_const()
   test_scalar_id()
   test_array_id()
+
 
