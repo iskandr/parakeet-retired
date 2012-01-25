@@ -54,3 +54,4 @@ val is_one : t -> bool
 val is_inf : t -> bool 
 
 val zero : Type.elt_t -> t 
+val one : Type.elt_t -> t 

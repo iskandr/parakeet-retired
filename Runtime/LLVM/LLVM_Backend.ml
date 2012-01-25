@@ -6,7 +6,7 @@ open Llvm
 module LLE = Llvm_executionengine.ExecutionEngine
 module GV = Llvm_executionengine.GenericValue 
 
-(*let _ = Llvm_executionengine.initialize_native_target()*) 
+let _ = Llvm_executionengine.initialize_native_target() 
 let execution_engine = LLE.create Imp_to_LLVM.global_module
 
 let optimize_module llvmModule llvmFn : unit =
@@ -16,7 +16,7 @@ let optimize_module llvmModule llvmFn : unit =
   Llvm_target.TargetData.add (LLE.target_data execution_engine) the_fpm;
 
   (* Promote allocas to registers. *)
-  (*Llvm_scalar_opts.add_memory_to_register_promotion the_fpm;*)
+  Llvm_scalar_opts.add_memory_to_register_promotion the_fpm;
   let modified = PassManager.run_function llvmFn the_fpm in 
   Printf.printf "Optimizer modified code: %b\n" modified; 
   let _ : bool = PassManager.finalize the_fpm in  
@@ -33,14 +33,11 @@ let allocate_output impT : GV.t =
   let sz : int  = Type.sizeof eltT in 
   let ptr : Int64.t = HostMemspace.malloc sz in
   Printf.printf "  Allocated %d-byte output of type %s at addr %LX\n%!" sz (Type.elt_to_str eltT) ptr;
-  HostMemspace.set_scalar ptr (ParNum.zero eltT); 
+  HostMemspace.set_scalar ptr (ParNum.one eltT); 
   Printf.printf "  Stored 0 in memory location\n%!"; 
   Printf.printf "  Dereferenced value: %s\n%!"
     (ParNum.to_str (HostMemspace.deref_scalar ptr eltT)); 
-  let llvmT : Llvm.lltype = ImpType_to_lltype.to_lltype impT in  
-  let llvmPtrT = Llvm.pointer_type llvmT in 
-  Printf.printf "  Created output param with lltype : %s\n%!" (Llvm.string_of_lltype llvmPtrT); 
-  GV.of_int64 llvmPtrT ptr  
+  GV.of_int64 LLVM_Types.int64_t ptr  
      
 let allocate_outputs impTypes = List.map allocate_output impTypes  
 

@@ -232,4 +232,14 @@ let zero = function
   | Type.Int64T -> Int64 Int64.zero 
   | Type.CharT -> Char (Char.chr 0)
   | Type.BoolT -> Bool false 
+
+
+let one = function 
+  | Type.Float32T -> Float32 1.0
+  | Type.Float64T -> Float64 1.0
+  | Type.Int16T -> Int16 1
+  | Type.Int32T -> Int32 Int32.one
+  | Type.Int64T -> Int64 Int64.one 
+  | Type.CharT -> Char (Char.chr 1)
+  | Type.BoolT -> Bool true 
   
