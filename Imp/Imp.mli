@@ -66,7 +66,6 @@ type storage =
   | Shared
   | Alias
 
-
 type fn = {
   id : FnId.t; 
   input_ids : ID.t list;

@@ -81,7 +81,8 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
     if valNode.value_type = t then valNode    
     else match valNode.value with 
       | Num n -> 
-        mk_num ?src:valNode.value_src ~ty:t (ParNum.coerce n (Type.elt_type t))  
+        let n' = ParNum.coerce n (Type.elt_type t) in 
+        mk_num ?src:valNode.value_src ~ty:t n'
       | Var id ->   
         let t' = get_type id in
         if t = t' then {valNode with value_type = t } 
@@ -109,14 +110,14 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
   let clear_coercions () = coercions := [] 
    
   let collect_coercions stmtNode = 
-    let stmts = List.rev $ (stmtNode :: get_coercions()) in 
+    let stmts = stmtNode :: get_coercions()  in 
     clear_coercions ();  
     stmts 
   
   let coerce_value (t:Type.t) (valNode:SSA.value_node) =
     if valNode.value_type = t then valNode
     else match valNode.value with 
-      | Var id -> 
+    | Var id -> 
         let t' = get_type id in
         if t = t' then {valNode with value_type = t } 
         else 
@@ -124,7 +125,7 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
         let id' =  fresh_id t in 
         add_coercion (mk_set [id'] coerceExp);    
         mk_var ~ty:t id'
-      | _ -> rewrite_value t valNode 
+    | _ -> rewrite_value t valNode
 
   let coerce_values t vs = List.map (coerce_value t) vs  
 
@@ -202,8 +203,22 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
     match fnVal with
     | Prim ((Prim.ScalarOp op) as p) -> 
       let outT = TypeInfer.infer_scalar_op op argTypes in
-      if Type.is_scalar outT then  mk_primapp p [outT] argNodes
-      else rewrite_adverb src Prim.Map fnVal argNodes argTypes 
+      if Type.is_array outT then
+        rewrite_adverb src Prim.Map fnVal argNodes argTypes
+      else
+        (* most scalar ops expect all their arguments to be of the same*)
+        (* type, except for Select, whose first argument is always a bool *)
+        let sameTypeArgNodes : SSA.value_node list = 
+          match op, argNodes, argTypes with 
+          | Prim.Select, boolArg::otherArgs, _::otherTypes ->
+            let inT = Type.combine_type_list otherTypes in 
+            boolArg :: (List.map (coerce_value inT) argNodes)    
+          | _ ->  
+            let inT = Type.combine_type_list argTypes in 
+            List.map (coerce_value inT) argNodes    
+        in 
+        SSA_Helpers.mk_primapp p [outT] sameTypeArgNodes 
+        
     | Prim (Prim.ArrayOp op) -> rewrite_array_op src op argNodes argTypes
     | Prim (Prim.Adverb adverb) -> 
       begin match argNodes, argTypes with 
@@ -242,8 +257,7 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
     let right = rewrite_value t phiNode.phi_right in  
     {phiNode with phi_type = t; phi_left = left; phi_right = right }
 
-  let rewrite_phi_nodes phiNodes = 
-    List.map rewrite_phi phiNodes 
+  let rewrite_phi_nodes phiNodes = List.map rewrite_phi phiNodes 
 
   let rec stmt stmtNode : stmt_node list =
     match stmtNode.stmt with
@@ -256,22 +270,24 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
     | SetIdx (arrayId, indices, rhs) -> failwith "setidx not implemented"
  
     | If(cond, tBlock, fBlock, phiNodes) -> 
-        let cond' = coerce_value Type.bool cond in
+        let typedCond = annotate_value cond in 
+        let boolCond = coerce_value Type.bool typedCond in
         let tBlock' = transform_block tBlock in 
         let fBlock' = transform_block fBlock in
         let phiNodes' = rewrite_phi_nodes phiNodes in 
         let stmtNode' =
-          {stmtNode with stmt = If(cond', tBlock', fBlock', phiNodes')}
+          {stmtNode with stmt = If(boolCond, tBlock', fBlock', phiNodes')}
         in 
         collect_coercions stmtNode' 
 
     | WhileLoop(testBlock, testVal, body, header) -> 
         let body' = transform_block body in
         let testBlock' = transform_block testBlock in
-        let testVal' = coerce_value Type.bool testVal in  
+        let typedTestVal = annotate_value testVal in
+        let boolTestVal = coerce_value Type.bool typedTestVal in  
         let header' = rewrite_phi_nodes header in 
-        let stmtNode' =  { stmtNode with 
-            stmt =WhileLoop(testBlock', testVal', body', header')
+        let stmtNode' =  { stmtNode with
+            stmt = WhileLoop(testBlock', boolTestVal, body', header')
         }
         in collect_coercions stmtNode' 
         

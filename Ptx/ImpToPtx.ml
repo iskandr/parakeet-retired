@@ -387,34 +387,34 @@ let rec gen_stmt codegen stmt =
   (* simple conditionals should be translated to predicates *) 
   | Imp.If (cond, tBlock, fBlock)
     when 
-    List.shorter_than tBlock 6 && 
-    List.shorter_than fBlock 6 && 
-    List.for_all is_simple_assignment tBlock && 
+    List.shorter_than tBlock 6 &&
+    List.shorter_than fBlock 6 &&
+    List.for_all is_simple_assignment tBlock &&
     List.for_all is_simple_assignment fBlock ->
-      codegen#emit [comment "simple conditional"];  
-      let predReg = gen_exp codegen cond in 
-      let emit_simple_assignment guard = function 
+      codegen#emit [comment "simple conditional"];
+      let predReg = gen_exp codegen cond in
+      let emit_simple_assignment guard = function
         | Imp.Set(id, rhs) ->
           let destReg = codegen#imp_reg id in
           let rhsReg = translate_simple_exp codegen rhs.exp in
-          let movInstr = Ptx.mov destReg rhsReg in 
+          let movInstr = Ptx.mov destReg rhsReg in
           codegen#emit [{ movInstr with Ptx.pred = guard} ]
         | _ -> assert false
-      in   
-      List.iter (emit_simple_assignment (Ptx.IfTrue predReg)) tBlock; 
-      List.iter (emit_simple_assignment (Ptx.IfFalse predReg)) fBlock 
-        
+      in
+      List.iter (emit_simple_assignment (Ptx.IfTrue predReg)) tBlock;
+      List.iter (emit_simple_assignment (Ptx.IfFalse predReg)) fBlock
+
   | Imp.If (cond, tBlock, fBlock) ->
-      let predReg = gen_exp codegen cond in  
-      let endLabel = codegen#fresh_label in 
-      let trueLabel = codegen#fresh_label in 
+      let predReg = gen_exp codegen cond in
+      let endLabel = codegen#fresh_label in
+      let trueLabel = codegen#fresh_label in
       codegen#emit [pred predReg (bra trueLabel)];
-      gen_block codegen fBlock; 
-      codegen#emit [bra endLabel; label trueLabel (comment "true branch")]; 
+      gen_block codegen fBlock;
+      codegen#emit [bra endLabel; label trueLabel (comment "true branch")];
       gen_block codegen tBlock;
       codegen#emit [label endLabel (comment "branches of if-stmt converge")]
   | Imp.SPLICE -> failwith "unexpected SPLICE stmt in Imp code"
- 
+
 and gen_block codegen  block = 
   List.iter (gen_stmt codegen) block
    

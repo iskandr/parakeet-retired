@@ -148,8 +148,8 @@ NumpyTypeToParakeetType = {
 
 ParakeetTypeToCtype = {
   LibPar.int32_t: c_int32,
-  LibPar.int64_t: c_int64,  
-  LibPar.float32_t: c_float, 
+  LibPar.int64_t: c_int64,
+  LibPar.float32_t: c_float,
   LibPar.float64_t: c_double,
   LibPar.bool_t: c_int,
   LibPar.char_t: c_char
@@ -159,13 +159,13 @@ ParakeetTypeToCtype = {
 #  Helper functions
 ###############################################################################
 #Builds a ctypes list of the type out of the input_list
-def list_to_ctypes_array(inputList,type):
+def list_to_ctypes_array(inputList, t):
   numElements = len(inputList)
-  listStructure = type * numElements
-  list = listStructure()
+  listStructure = t * numElements # Description of a ctypes array
+  l = listStructure()
   for i in range(numElements):
-    list[i] = inputList[i]
-  return list
+    l[i] = inputList[i]
+  return l
 
 def read_file(fileName):
   try:
@@ -232,14 +232,13 @@ def function_info(functionObj):
 #  Converter
 ###############################################################################
 class ASTConverter():
-  
   def __init__(self,funcGlobals):
     #Should really be a set?
     self.functionCalls = {} #curr_function
     self.varList = []
     self.evilFunction = ""
     self.functionGlobalVariables = funcGlobals
-    
+
   def visit(self,node,currContext,currRightAssignment):
     nodeType = type(node).__name__
     if nodeType == 'Print':
@@ -251,7 +250,8 @@ class ASTConverter():
       if nodeType == 'Str':
         self.evilFunction = "strings are not supported"
       elif nodeType == 'List' or nodeType == 'Tuple':
-        self.evilFunction = "lists and tuples are not supported outside of numpy arrays"
+        self.evilFunction = \
+          "lists and tuples are not supported outside of numpy arrays"
     if self.evilFunction:
       return
     parakeetNodeChildren = []
@@ -260,32 +260,31 @@ class ASTConverter():
         #######################################################################
         #  Single AST Node
         #######################################################################
-          if nodeType == 'Call' and fieldName == 'func':
-            continue 
-          #The only non-list child of Assign is the RHS
-          if nodeType == 'Assign':
-            nextRightAssignment = 1
-          else:
-            nextRightAssignment = currRightAssignment
-        
-          parakeetNodeChildren.append(self.visit(childNode,currContext,
-                                                 currRightAssignment))
-        
+        if nodeType == 'Call' and fieldName == 'func':
+          continue 
+        #The only non-list child of Assign is the RHS
+        if nodeType == 'Assign':
+          nextRightAssignment = 1
+        else:
+          nextRightAssignment = currRightAssignment
+
+        parakeetNodeChildren.append(self.visit(childNode,currContext,
+                                               currRightAssignment))
+
         #######################################################################
         #  List of AST Nodes
         #######################################################################
       elif type(childNode) == list:# and isinstance(childNode[0],ast.AST):
-#          print "LISTTTTTTTTTTTT",childNode,node
-          listParakeetNodeChildren = []
-          for child in childNode:
-            if nodeType == 'Assign':
-              nextContext = 'assignment'
-            else:
-              nextContext = currContext
-            listParakeetNodeChildren.append(self.visit(child,nextContext,
-                                                       currRightAssignment))
-            currContext = ''
-          parakeetNodeChildren += [listParakeetNodeChildren]
+        listParakeetNodeChildren = []
+        for child in childNode:
+          if nodeType == 'Assign':
+            nextContext = 'assignment'
+          else:
+            nextContext = currContext
+          listParakeetNodeChildren.append(self.visit(child,nextContext,
+                                                     currRightAssignment))
+          currContext = ''
+        parakeetNodeChildren += [listParakeetNodeChildren]
       else:
         #######################################################################
         #  Literal
@@ -294,11 +293,11 @@ class ASTConverter():
           if not str(childNode) in self.varList:
             if nodeType == 'Name':
               self.evilFunction = str(childNode) + " is a global variable"
-        
+
         parakeetNodeChildren.append(str(childNode))
-    
+
     return self.paranodes(node, parakeetNodeChildren)
-  
+
   def paranodes(self,node,args):
     #args is the children nodes in the correct type (i.e. node or literal) 
     nodeType = type(node).__name__
@@ -414,6 +413,20 @@ class ASTConverter():
       numArgs = len(args[0])
       block = list_to_ctypes_array(args[0],c_void_p)
       retNode = c_void_p(LibPar.mk_block(block,numArgs,None))
+    elif nodeType == 'If':
+      print args
+      verbString = "if("+str(args[0])+",thenbb("+str(args[1])+"), elsebb(" + \
+                   str(args[2]) + "))"
+      cThenBB = list_to_ctypes_array(args[1], c_void_p)
+      cElseBB = list_to_ctypes_array(args[2], c_void_p)
+      thenAddr = LibPar.mk_block(cThenBB, len(args[1]), None)
+      thenBB = c_void_p(thenAddr)
+      elseBB = c_void_p(LibPar.mk_block(cElseBB, len(args[2]), None))
+      retAddr = LibPar.mk_if(args[0], thenBB, elseBB, None)
+      retNode = c_void_p(retAddr)
+      print "\n thenBB: %u, %u, %s\n" % (thenAddr, thenBB.value, str(thenBB))
+      print "\nRetnode: %u, %u, %s\n" %(retAddr, retNode.value, str(retNode))
+
     elif nodeType == 'While':
       verbString = "while("+str(args[0])+",block("+str(args[1]+"))")
       numStmt = len(args[1])
@@ -439,11 +452,11 @@ class ASTConverter():
     if Verbose:
       print verbString
     return retNode
-      
+
 ###############################################################################
 #  Running function
 ###############################################################################
-     
+
 def fun_visit(func,new_f):
   funInfo = function_info(func)
   if funInfo:
@@ -461,9 +474,9 @@ def fun_visit(func,new_f):
       #Med fix: right now, I assume there aren't any globals
         #Fix: functionGlobals[func] = globalVars      
       globList = list_to_ctypes_array([],c_char_p)
-        
+
       varList = list_to_ctypes_array(funInfo[0],c_char_p)
-          
+
       for key in AST.functionCalls.keys():
         if not (VisitedFunctions.has_key(key)):
           #Possible fix:and not function_names?
@@ -472,8 +485,7 @@ def fun_visit(func,new_f):
           fun_visit(key,key)
           if Verbose:
             print "Visited",key.__name__
-      
-    
+
       funID = c_int(LibPar.register_untyped_function(c_char_p(func.__module__+
                                                     "."+func.__name__),
                                                     globList,
@@ -481,12 +493,12 @@ def fun_visit(func,new_f):
                                                     varList,
                                                     len(funInfo[0]),
                                                     finalTree))
-      
+
       if Verbose:
         print "Registered",func.__name__
       VisitedFunctions[func] = funID
       VisitedFunctions[new_f] = funID
-      
+
 # given a numpy array or a scalar, construct the equivalent parakeet value 
 def python_value_to_parakeet(arg):
   if isinstance(arg, np.ndarray):
