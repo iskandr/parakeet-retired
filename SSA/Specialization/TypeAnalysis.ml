@@ -16,7 +16,6 @@ end
 let get_type tenv id = Hashtbl.find_default tenv id Type.BottomT  
 let add_type tenv id t = Hashtbl.add tenv id t; tenv 
 
-
 (* TODO: make this complete for all SSA statements *) 
 let rec is_scalar_stmt = function
   | SSA.Set(_, {exp=SSA.App({value=SSA.Prim (Prim.ScalarOp _)}, _)})
@@ -97,19 +96,19 @@ module MkAnalysis (P : TYPE_ANALYSIS_PARAMS) = struct
            
   let rec infer_app tenv fnVal (argTypes:Type.t list) = match fnVal with
     | Var id ->
-        (* if the identifier would evaluate to a function value...*) 
-        let fnVal' = P.closure_val id in
-        let closureArgNodes = P.closure_args id in  
-        let closureArgTypes = List.map (value tenv) closureArgNodes in
-        infer_app tenv fnVal' (closureArgTypes @ argTypes)   
+      (* if the identifier would evaluate to a function value...*) 
+      let fnVal' = P.closure_val id in
+      let closureArgNodes = P.closure_args id in  
+      let closureArgTypes = List.map (value tenv) closureArgNodes in
+      infer_app tenv fnVal' (closureArgTypes @ argTypes)   
     | Prim (Prim.ArrayOp arrayOp) ->
-        [TypeInfer.infer_simple_array_op arrayOp argTypes]
+      [TypeInfer.infer_simple_array_op arrayOp argTypes]
     | Prim (Prim.ScalarOp scalarOp) -> 
-        [TypeInfer.infer_scalar_op scalarOp argTypes] 
+      [TypeInfer.infer_scalar_op scalarOp argTypes] 
     (*| Prim (Prim.Q_Op qOp) -> [TypeInfer.infer_q_op qOp argTypes]*)
     | GlobalFn _ -> 
-        let signature = Signature.from_input_types argTypes in
-        P.infer_output_types fnVal signature 
+      let signature = Signature.from_input_types argTypes in
+      P.infer_output_types fnVal signature 
              
     | _ -> 
        failwith $ 
@@ -168,7 +167,7 @@ module MkAnalysis (P : TYPE_ANALYSIS_PARAMS) = struct
 
   let stmt tenv stmtNode helpers = match stmtNode.stmt with 
     | Set(ids, rhs) ->
-      let types = exp tenv rhs helpers in   
+      let types : Type.t list = exp tenv rhs helpers in   
       IFDEF DEBUG THEN
         if List.length ids <> List.length types then 
           failwith $ sprintf 
@@ -191,12 +190,6 @@ module MkAnalysis (P : TYPE_ANALYSIS_PARAMS) = struct
       in  
       if changed then Some tenv' else None 
    | _ -> helpers.eval_stmt tenv stmtNode 
-    (* 
-    (*| If (cond, tBlock, fBlock, merge) ->*)  
-    | _ -> failwith $ Printf.sprintf 
-            "Type analysis not implemented for statement: %s"
-            (SSA.stmt_node_to_str stmtNode)
-    *)
 end
 
 let type_analysis 

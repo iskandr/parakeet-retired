@@ -81,7 +81,8 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
     if valNode.value_type = t then valNode    
     else match valNode.value with 
       | Num n -> 
-        mk_num ?src:valNode.value_src ~ty:t (ParNum.coerce n (Type.elt_type t))  
+        let n' = ParNum.coerce n (Type.elt_type t) in 
+        mk_num ?src:valNode.value_src ~ty:t n'
       | Var id ->   
         let t' = get_type id in
         if t = t' then {valNode with value_type = t } 
@@ -116,7 +117,7 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
   let coerce_value (t:Type.t) (valNode:SSA.value_node) =
     if valNode.value_type = t then valNode
     else match valNode.value with 
-      | Var id -> 
+    | Var id -> 
         let t' = get_type id in
         if t = t' then {valNode with value_type = t } 
         else 
@@ -124,7 +125,7 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
         let id' =  fresh_id t in 
         add_coercion (mk_set [id'] coerceExp);    
         mk_var ~ty:t id'
-      | _ -> rewrite_value t valNode 
+    | _ -> rewrite_value t valNode
 
   let coerce_values t vs = List.map (coerce_value t) vs  
 
@@ -202,8 +203,22 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
     match fnVal with
     | Prim ((Prim.ScalarOp op) as p) -> 
       let outT = TypeInfer.infer_scalar_op op argTypes in
-      if Type.is_scalar outT then  mk_primapp p [outT] argNodes
-      else rewrite_adverb src Prim.Map fnVal argNodes argTypes 
+      if Type.is_array outT then
+        rewrite_adverb src Prim.Map fnVal argNodes argTypes
+      else
+        (* most scalar ops expect all their arguments to be of the same*)
+        (* type, except for Select, whose first argument is always a bool *)
+        let sameTypeArgNodes : SSA.value_node list = 
+          match op, argNodes, argTypes with 
+          | Prim.Select, boolArg::otherArgs, _::otherTypes ->
+            let inT = Type.combine_type_list otherTypes in 
+            boolArg :: (List.map (coerce_value inT) argNodes)    
+          | _ ->  
+            let inT = Type.combine_type_list argTypes in 
+            List.map (coerce_value inT) argNodes    
+        in 
+        SSA_Helpers.mk_primapp p [outT] sameTypeArgNodes 
+        
     | Prim (Prim.ArrayOp op) -> rewrite_array_op src op argNodes argTypes
     | Prim (Prim.Adverb adverb) -> 
       begin match argNodes, argTypes with 
@@ -242,8 +257,7 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
     let right = rewrite_value t phiNode.phi_right in  
     {phiNode with phi_type = t; phi_left = left; phi_right = right }
 
-  let rewrite_phi_nodes phiNodes = 
-    List.map rewrite_phi phiNodes 
+  let rewrite_phi_nodes phiNodes = List.map rewrite_phi phiNodes 
 
   let rec stmt stmtNode : stmt_node list =
     match stmtNode.stmt with
