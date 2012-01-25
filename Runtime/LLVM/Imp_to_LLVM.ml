@@ -121,6 +121,22 @@ let rec compile_stmt_seq fnInfo currBB = function
     compile_stmt_seq fnInfo newBB tail
 
 and compile_stmt fnInfo currBB stmt = match stmt with
+  | Imp.If (cond, then_, else_) ->
+    let llCond = compile_val fnInfo cond in
+    let zero = Llvm.const_int int64_t 0 in
+    let cond_val =
+      Llvm.build_icmp Llvm.Icmp.Ne llCond zero "ifcond" fnInfo.builder
+    in
+    let the_function = Llvm.block_parent currBB in
+    let then_bb = Llvm.append_block context "then" the_function in
+    Llvm.position_at_end then_bb fnInfo.builder;
+    let new_then_bb = compile_stmt_seq fnInfo then_bb then_ in
+    let else_bb = Llvm.append_block context "else" the_function in
+    Llvm.position_at_end else_bb fnInfo.builder;
+    let new_else_bb = compile_stmt_seq fnInfo else_bb else_ in
+    Llvm.position_at_end currBB fnInfo.builder;
+    Llvm.build_cond_br cond_val then_bb else_bb fnInfo.builder;
+    currBB
   | Imp.Set (id, exp) ->
     let rhs = compile_expr fnInfo exp in
     let variable = try Hashtbl.find fnInfo.named_values (ID.to_str id) with
@@ -135,10 +151,10 @@ and compile_stmt fnInfo currBB stmt = match stmt with
 
 let init_compiled_fn (fnInfo:fn_info) =
   (* since we have to pass output address as int64s, convert them all*)
-  (* in the signature *) 
+  (* in the signature *)
   let outputParamInts =
-    List.map (fun _ -> LLVM_Types.int64_t) fnInfo.output_llvm_types 
-  in  
+    List.map (fun _ -> LLVM_Types.int64_t) fnInfo.output_llvm_types
+  in
   let paramTypes = fnInfo.input_llvm_types @ outputParamInts in
   let fnT = Llvm.function_type void_t (Array.of_list paramTypes) in
   let llvmFn = Llvm.declare_function fnInfo.name fnT global_module in
@@ -158,9 +174,10 @@ let init_compiled_fn (fnInfo:fn_info) =
       Hashtbl.add fnInfo.named_values varName pointer
     else
       (* Due to the bizarre layout of GenericValues, we pass *)
-      (* in pointers as int64s and then have to cast them to their*)
-      (* actual pointer types inside the code *) 
-      let pointer = Llvm.build_inttoptr param t (varName^"_ptr") fnInfo.builder in  
+      (* in pointers as int64s and then have to cast them to their *)
+      (* actual pointer types inside the code *)
+      let pointer = Llvm.build_inttoptr param t (varName^"_ptr") fnInfo.builder
+      in  
       Hashtbl.add fnInfo.named_values varName pointer
   in
   List.iter3 init_param_var

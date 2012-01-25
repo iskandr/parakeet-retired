@@ -414,6 +414,14 @@ class ASTConverter():
       numArgs = len(args[0])
       block = list_to_ctypes_array(args[0],c_void_p)
       retNode = c_void_p(LibPar.mk_block(block,numArgs,None))
+    elif nodeType == 'If':
+      verbString = "if("+str(args[0])+",thenbb("+str(args[1])+"), elsebb(" + \
+                   str(args[2]) + "))"
+      cThenBB = list_to_ctypes_array(args[1], c_void_p)
+      cElseBB = list_to_ctypes_array(args[2], c_void_p)
+      thenBB = c_void_p(LibPar.mk_block(cThenBB, len(args[1]), None))
+      elseBB = c_void_p(LibPar.mk_block(cElseBB, len(args[2]), None))
+      retNode = c_void_p(LibPar.mk_if(args[0], thenBB, elseBB, None))
     elif nodeType == 'While':
       verbString = "while("+str(args[0])+",block("+str(args[1]+"))")
       numStmt = len(args[1])

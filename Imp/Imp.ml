@@ -1,11 +1,11 @@
 (* pp: -parser o pa_macro.cmo *)
 
-open Base 
+open Base
 
 type cuda_info = ThreadIdx | BlockIdx | BlockDim | GridDim   
 type coord = X | Y | Z
 
-type array_field = 
+type array_field =
   | RangeStart
   | RangeStop
   | ShiftData
@@ -23,24 +23,24 @@ type array_field =
   | FrozenDim
   | FrozenIdx
 
-type value =  
+type value =
   | Var of ID.t
   | Const of ParNum.t
   | CudaInfo of cuda_info * coord
 
-and value_node = { 
-  value : value; 
-  value_type : ImpType.t;  
+and value_node = {
+  value : value;
+  value_type : ImpType.t;
 }
 
 type exp =
-  | Val of value_node  
+  | Val of value_node
   | Op of  Type.elt_t * Prim.scalar_op * value_node list
   | Select of ImpType.t * value_node * value_node * value_node
   | Cast of ImpType.t * value_node
   | Idx of value_node * value_node list
-  | DimSize of value_node * value_node 
-  | FreezeDim of value_node * value_node * value_node 
+  | DimSize of value_node * value_node
+  | FreezeDim of value_node * value_node * value_node
   | ArrayField of array_field * value_node
 
 and exp_node = {
@@ -50,17 +50,17 @@ and exp_node = {
 
 type stmt =
   | If of value_node * block * block
-  | While of exp_node * block (* test, body *)   
-  | Set of ID.t * exp_node 
+  | While of exp_node * block (* test, body *)
+  | Set of ID.t * exp_node
   | SetIdx of ID.t * value_node list * exp_node
   | SyncThreads
   | Comment of string
-  (* used to plug one function into another, shouldn't exist in final code *) 
+  (* used to plug one function into another, shouldn't exist in final code *)
   (*
   | SPLICE
-  *) 
+  *)
 and block = stmt list
-   
+
 type storage = 
   | Global
   | Private
@@ -80,7 +80,6 @@ type fn = {
   body : block;
 }
 
-
 let empty_fn = { 
   id = FnId.gen(); 
   input_ids = [];
@@ -95,38 +94,41 @@ let empty_fn = {
 let input_types fn = List.map (fun id -> ID.Map.find id fn.types) fn.input_ids 
 let output_types fn = List.map (fun id -> ID.Map.find id fn.types) fn.output_ids 
 let local_types fn = List.map (fun id -> ID.Map.find id fn.types) fn.local_ids 
- 
+
 let get_var_type (fn:fn) (id:ID.t) = 
-    match ID.Map.find_option id fn.types with 
-        | None -> failwith $ "[Imp->get_var_type] Variable " ^ (ID.to_str id) ^ "doesn't exist"
-        | Some var_type -> var_type 
+  match ID.Map.find_option id fn.types with 
+  | None -> failwith $ "[Imp->get_var_type] Variable " ^ (ID.to_str id) ^
+                       "doesn't exist"
+  | Some var_type -> var_type 
 
 let get_var_storage (fn:fn) (id:ID.t) =
-    match ID.Map.find_option id fn.storage with 
-    | None -> failwith $ "[Imp->get_var_storage] Variable " ^ (ID.to_str id) ^ "doesn't exist"
-    | Some storage -> storage
+  match ID.Map.find_option id fn.storage with 
+  | None -> failwith $ "[Imp->get_var_storage] Variable " ^ (ID.to_str id) ^
+                       "doesn't exist"
+  | Some storage -> storage
 
 let get_var_shape (fn:fn) (id:ID.t) = 
-    match ID.Map.find_option id fn.shapes  with 
-    | None -> failwith $ "[Imp->get_var_shape] Variable " ^ (ID.to_str id) ^ "doesn't exist"
-    | Some symbolic_shape -> symbolic_shape
+  match ID.Map.find_option id fn.shapes with 
+  | None -> failwith $ "[Imp->get_var_shape] Variable " ^ (ID.to_str id) ^
+                       "doesn't exist"
+  | Some symbolic_shape -> symbolic_shape
 	 
-(* PRETTY PRINTING *) 
-open Printf 
+(* PRETTY PRINTING *)
+open Printf
 
-let coord_to_str = function 
+let coord_to_str = function
   | X -> "x" | Y -> "y" | Z -> "z"
 
-let cuda_info_to_str = function 
-	| ThreadIdx -> "threadidx" 
+let cuda_info_to_str = function
+	| ThreadIdx -> "threadidx"
   | BlockIdx -> "blockidx"
   | BlockDim -> "blockdim"
   | GridDim -> "griddim"
 
-let val_to_str = function 
+let val_to_str = function
   | Var id -> ID.to_str id
   | Const n -> ParNum.to_str n
-  | CudaInfo(cuda_info, coord) -> 
+  | CudaInfo(cuda_info, coord) ->
      sprintf "%s.%s" (cuda_info_to_str cuda_info) (coord_to_str coord)
 
 let val_node_to_str {value} = val_to_str value
