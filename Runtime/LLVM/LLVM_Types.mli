@@ -15,3 +15,4 @@ val float64_ptr_t  : Llvm.lltype
 val is_pointer : Llvm.lltype -> bool
 val replace_pointer_with_int64 : Llvm.lltype -> Llvm.lltype
 val replace_pointers : Llvm.lltype list -> Llvm.lltype list
+val adjust_output_pointer : Llvm.lltype -> Llvm.lltype

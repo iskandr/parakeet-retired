@@ -60,7 +60,7 @@ let create_fn_info (fn : Imp.fn) =
     (* IMPORTANT: outputs are allocated outside the functiona and the *)
     (* addresses of their locations are passed in *)
     output_llvm_types =
-       List.map Llvm.pointer_type
+       List.map adjust_output_pointer
          (List.map ImpType_to_lltype.to_lltype outputImpTypes);
 
     named_values = Hashtbl.create 13;
@@ -74,7 +74,7 @@ let compile_val (fnInfo:fn_info) (impVal:Imp.value_node) : Llvm.llvalue =
       let ptr = try Hashtbl.find fnInfo.named_values (ID.to_str id) with
       | Not_found -> failwith "unknown variable name"
       in
-      if ImpType.is_scalar impVal.value_type then
+      if ImpType.is_scalar impVal.value_type then 
         let tempName = (ID.to_str id) ^ "_value" in 
         build_load ptr tempName fnInfo.builder
       else
