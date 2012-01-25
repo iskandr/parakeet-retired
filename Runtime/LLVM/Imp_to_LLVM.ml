@@ -74,8 +74,11 @@ let compile_val (fnInfo:fn_info) (impVal:Imp.value_node) : Llvm.llvalue =
       let ptr = try Hashtbl.find fnInfo.named_values (ID.to_str id) with
       | Not_found -> failwith "unknown variable name"
       in
-      let tempName = (ID.to_str id) ^ "_value" in 
-      build_load ptr tempName fnInfo.builder  
+      if ImpType.is_scalar impVal.value_type then
+        let tempName = (ID.to_str id) ^ "_value" in 
+        build_load ptr tempName fnInfo.builder
+      else
+        ptr
   | Imp.Const const -> Value_to_llvalue.parnum_to_llvm const
   | _ -> assert false
 
@@ -128,15 +131,30 @@ and compile_stmt fnInfo currBB stmt = match stmt with
       Llvm.build_icmp Llvm.Icmp.Ne llCond zero "ifcond" fnInfo.builder
     in
     let the_function = Llvm.block_parent currBB in
+    (* Return a new basic block that's empty and positioned after the if *)
+    let after_bb = Llvm.append_block context "afterif" the_function in
     let then_bb = Llvm.append_block context "then" the_function in
     Llvm.position_at_end then_bb fnInfo.builder;
     let new_then_bb = compile_stmt_seq fnInfo then_bb then_ in
+    Llvm.build_br after_bb fnInfo.builder;
     let else_bb = Llvm.append_block context "else" the_function in
     Llvm.position_at_end else_bb fnInfo.builder;
     let new_else_bb = compile_stmt_seq fnInfo else_bb else_ in
+    Llvm.build_br after_bb fnInfo.builder;
     Llvm.position_at_end currBB fnInfo.builder;
     Llvm.build_cond_br cond_val then_bb else_bb fnInfo.builder;
-    currBB
+    Llvm.position_at_end after_bb fnInfo.builder;
+    after_bb
+  (*
+  | Imp.While (exp, bb) ->
+    let the_function = Llvm.block_parent currBB in
+    let loop_bb = Llvm.append_block context "loop" the_function in
+    Llvm.build_br loop_bb fnInfo.builder;
+    let after_bb = Llvm.append_block context "after" the_function in
+    Llvm.position_at_end loop_bb fnInfo.builder;
+    let llCond = compile_expr fnInfo exp in
+    let zero = Llvm.const_int int64_t 0 in
+  *)    
   | Imp.Set (id, exp) ->
     let rhs = compile_expr fnInfo exp in
     let variable = try Hashtbl.find fnInfo.named_values (ID.to_str id) with
@@ -149,15 +167,11 @@ and compile_stmt fnInfo currBB stmt = match stmt with
     currBB
   | _ -> assert false
 
-
-
 let init_compiled_fn (fnInfo:fn_info) =
   (* since we have to pass output address as int64s, convert them all*)
-  (* in the signature *)
-  let outputParamInts =
-    List.map (fun _ -> LLVM_Types.int64_t) fnInfo.output_llvm_types
-  in
-  let paramTypes = fnInfo.input_llvm_types @ outputParamInts in
+  (* in the signature *) 
+  let paramTypes = replace_pointers
+    (fnInfo.input_llvm_types @ fnInfo.output_llvm_types) in
   let fnT = Llvm.function_type void_t (Array.of_list paramTypes) in
   let llvmFn = Llvm.declare_function fnInfo.name fnT global_module in
   let bb = Llvm.append_block context "entry" llvmFn in
@@ -170,7 +184,7 @@ let init_compiled_fn (fnInfo:fn_info) =
   let init_param_var (id:ID.t) (t:Llvm.lltype) (param:Llvm.llvalue) =
     let varName = ID.to_str id in
     Llvm.set_value_name varName param;
-    if List.mem id fnInfo.input_ids then
+    if List.mem id fnInfo.input_ids && not (is_pointer t) then
       let pointer = Llvm.build_alloca t varName fnInfo.builder in
       let _ = Llvm.build_store param pointer fnInfo.builder in
       Hashtbl.add fnInfo.named_values varName pointer
