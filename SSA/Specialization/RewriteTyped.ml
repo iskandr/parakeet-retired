@@ -270,22 +270,24 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
     | SetIdx (arrayId, indices, rhs) -> failwith "setidx not implemented"
  
     | If(cond, tBlock, fBlock, phiNodes) -> 
-        let cond' = coerce_value Type.bool cond in
+        let typedCond = annotate_value cond in 
+        let boolCond = coerce_value Type.bool typedCond in
         let tBlock' = transform_block tBlock in 
         let fBlock' = transform_block fBlock in
         let phiNodes' = rewrite_phi_nodes phiNodes in 
         let stmtNode' =
-          {stmtNode with stmt = If(cond', tBlock', fBlock', phiNodes')}
+          {stmtNode with stmt = If(boolCond, tBlock', fBlock', phiNodes')}
         in 
         collect_coercions stmtNode' 
 
     | WhileLoop(testBlock, testVal, body, header) -> 
         let body' = transform_block body in
         let testBlock' = transform_block testBlock in
-        let testVal' = coerce_value Type.bool testVal in  
+        let typedTestVal = annotate_value testVal in
+        let boolTestVal = coerce_value Type.bool typedTestVal in  
         let header' = rewrite_phi_nodes header in 
-        let stmtNode' =  { stmtNode with 
-            stmt =WhileLoop(testBlock', testVal', body', header')
+        let stmtNode' =  { stmtNode with
+            stmt = WhileLoop(testBlock', boolTestVal, body', header')
         }
         in collect_coercions stmtNode' 
         
