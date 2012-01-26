@@ -31,7 +31,7 @@ let of_generic_value ?(boxed_scalars=true) (gv:GenericValue.t) = function
       else
         Scalar (generic_value_to_parnum gv t)
   | ImpType.ArrayT (elt_t, len) ->
-    let gv_ptr : Int64.t = GenericValue.as_pointer gv in
+    let gv_ptr : Int64.t = GenericValue.as_int64 gv in
     let data_addr : Int64.t = HostMemspace.get_int64 gv_ptr 0 in
     let shape_addr : Int64.t = HostMemspace.get_int64 gv_ptr 1 in
     let shape : Shape.t = Shape.of_array (int_array_of_addr shape_addr len) in

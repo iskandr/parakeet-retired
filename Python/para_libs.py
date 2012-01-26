@@ -1,3 +1,4 @@
+# Add fixed arg to scan and reduce
 # pseudo-python with simpler array syntax
 # map(sqrt, [1 4 9]) == [1 2 3]
 # map(sum, [[1 2 3], [4 5 6]], axis = 0) == [6 15]
