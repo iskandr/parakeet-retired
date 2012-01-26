@@ -42,7 +42,6 @@ let allocate_output impT : GV.t =
     (ParNum.to_str (HostMemspace.deref_scalar ptr eltT));
   GV.of_int64 LLVM_Types.int64_t ptr
 
-
 let allocate_outputs impTypes = List.map allocate_output impTypes
 
 let allocate_outputs impTypes = List.map allocate_output impTypes
