@@ -1,4 +1,3 @@
-
 type scalar_op =
   | Add
   | Sub
@@ -72,7 +71,7 @@ type q_op =
   | Q_WriteOrLoadText
   | Q_WriteOrLoadBinary
   | Q_Question
-  |  Q_Dollar
+  | Q_Dollar
 
 type prim =
   | ScalarOp of scalar_op

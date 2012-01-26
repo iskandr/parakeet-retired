@@ -1,8 +1,8 @@
 open Base
 open Imp
-open ImpType
-open ImpHelpers
 open ImpCodegen
+open ImpHelpers
+open ImpType
 
 (* are these necessary? or should we just register each SSA variable with its *)
 (* existing name as an imp variable and then implicitly keep this information *)
@@ -48,7 +48,8 @@ let mk_simple_loop_descr
         ?(down=false)
         ?(start=ImpHelpers.zero)
         ~(stop:Imp.value_node) =
-  { loop_var = codegen#fresh_local int32_t;
+  {
+    loop_var = codegen#fresh_local int32_t;
     loop_start = start;
     loop_test_val = stop;
     loop_test_cmp = (if down then Prim.Lt else Prim.Gt);
@@ -56,12 +57,13 @@ let mk_simple_loop_descr
     loop_incr_op = Prim.Add;
   }
 
-
 let translate_value (codegen:ImpCodegen.codegen) valNode : Imp.value_node =
   match valNode.SSA.value with
   | SSA.Var id -> codegen#var id
-  | SSA.Num n -> {value = Imp.Const n; value_type = ImpType.ScalarT (ParNum.type_of n)}
-  | other -> failwith $ "[ssa->imp] unrecognized value: " ^ (SSA.value_to_str other)
+  | SSA.Num n -> {value = Imp.Const n;
+                  value_type = ImpType.ScalarT (ParNum.type_of n)}
+  | other -> failwith $
+      "[ssa->imp] unrecognized value: " ^ (SSA.value_to_str other)
 
 let translate_exp (codegen:ImpCodegen.codegen) expNode : Imp.exp_node  =
   match expNode.SSA.exp with
@@ -82,7 +84,6 @@ let translate_exp (codegen:ImpCodegen.codegen) expNode : Imp.exp_node  =
       }
   | _ -> failwith $ "[ssa->imp] unrecognized exp: " ^ (SSA.exp_to_str expNode)
 
-
 let mk_set_val codegen (id:ID.t) (v:SSA.value_node) =
   let impVar = codegen#var id in
   let impVal = translate_value codegen v in
@@ -93,7 +94,6 @@ let mk_set_exp codegen (id:ID.t) (e:SSA.exp_node) =
   let impVar : Imp.value_node = codegen#var id in
   set impVar impExp
 
-
 let translate_true_phi_node codegen phiNode =
   let rhs = translate_value codegen phiNode.SSA.phi_left in
   Imp.Set(phiNode.SSA.phi_id, ImpHelpers.exp_of_val rhs)
@@ -103,11 +103,12 @@ let translate_false_phi_node codegen phiNode =
   Imp.Set(phiNode.SSA.phi_id, ImpHelpers.exp_of_val rhs)
 
 let rec translate_block (codegen : ImpCodegen.codegen) block : Imp.stmt list =
-  Block.fold_forward (fun acc stmt -> acc @ (translate_stmt codegen stmt)) [] block
+  Block.fold_forward (fun acc stmt -> acc @ (translate_stmt codegen stmt))
+                     [] block
 and translate_stmt (codegen : ImpCodegen.codegen) stmtNode : Imp.stmt list  =
   match stmtNode.SSA.stmt with
 	| SSA.Set([id], rhs) -> [mk_set_exp codegen id rhs]
-  | SSA.Set(ids, {SSA.exp= SSA.Values vs} ) ->
+  | SSA.Set(ids, {SSA.exp = SSA.Values vs}) ->
     List.map2 (mk_set_val codegen) ids vs
 	| SSA.Set _ -> failwith "multiple assignment not supported"
   | SSA.If(cond, tBlock, fBlock, phiNodes) ->
@@ -133,12 +134,12 @@ and translate_stmt (codegen : ImpCodegen.codegen) stmtNode : Imp.stmt list  =
     failwith $ Printf.sprintf "[Imp_to_SSA] Not yet implemented: %s"
       (SSA.stmt_node_to_str stmtNode)
 
-
 let translate  (ssaFn:SSA.fn) (impInputTypes:ImpType.t list) : Imp.fn =
   let codegen = new ImpCodegen.fn_codegen in
   let impTyEnv = InferImpTypes.infer ssaFn impInputTypes in
   let shapeEnv : SymbolicShape.env  =
-    ShapeInference.infer_normalized_shape_env (FnManager.get_typed_function_table ()) ssaFn
+    ShapeInference.infer_normalized_shape_env
+        (FnManager.get_typed_function_table ()) ssaFn
   in
   let declare_var (id, impType) : unit =
     if List.mem id ssaFn.SSA.input_ids then
@@ -159,4 +160,3 @@ let translate  (ssaFn:SSA.fn) (impInputTypes:ImpType.t list) : Imp.fn =
   List.iter declare_var (ID.Map.to_list impTyEnv);
   let body = translate_block (codegen :> ImpCodegen.codegen) ssaFn.SSA.body in
   codegen#finalize_fn body
-
