@@ -1,4 +1,3 @@
-
 type scalar_op =
   | Add
   | Sub
@@ -55,6 +54,7 @@ type array_op =
   | DimSize
   | ArgMin
   | ArgMax
+  | Slice
 
 type adverb =
   | Map
@@ -172,6 +172,7 @@ let min_prim_arity = function
   | ArrayOp Index -> 2
   | Adverb Map -> 2
   | Adverb _ -> 3
+  | ArrayOp Slice -> 4
   | ImpureOp Print  -> 1
   | ImpureOp _ -> 0
   | Q_Op _ -> 2
@@ -237,6 +238,7 @@ let array_op_to_str = function
   | Find -> "?"
   | ArgMin -> "argmin"
   | ArgMax -> "argmax"
+  | Slice -> "slice"
 
 let adverb_to_str = function
   | Map -> "each"
