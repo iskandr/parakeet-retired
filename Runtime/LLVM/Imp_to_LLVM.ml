@@ -42,10 +42,10 @@ type fn_info = {
   name : string;
 }
 
-let create_fn_info (fn : Imp.fn) = 
+let create_fn_info (fn : Imp.fn) =
   let inputImpTypes = Imp.input_types fn in
-  let localImpTypes = Imp.local_types fn in  
-  let outputImpTypes = Imp.output_types fn in 
+  let localImpTypes = Imp.local_types fn in
+  let outputImpTypes = Imp.output_types fn in
   {
     input_ids = fn.Imp.input_ids;
     local_ids = fn.Imp.local_ids;
@@ -69,9 +69,9 @@ let create_fn_info (fn : Imp.fn) =
   }
 
 
-let compile_const (t:ImpType.t) (n:ParNum.t) = 
-  let t' : lltype = ImpType_to_lltype.to_lltype t in 
-  match n with 
+let compile_const (t:ImpType.t) (n:ParNum.t) =
+  let t' : lltype = ImpType_to_lltype.to_lltype t in
+  match n with
   | ParNum.Bool b -> const_int t' (if b then 1 else 0)
   | ParNum.Char c -> const_int t' (Char.code c)
   | ParNum.Int16 i -> const_int t' i
@@ -80,16 +80,16 @@ let compile_const (t:ImpType.t) (n:ParNum.t) =
   | ParNum.Float32 f -> const_float t' f
   | ParNum.Float64 f -> const_float t' f
   | _ -> assert false
-  
 
-let compile_val (fnInfo:fn_info) (impVal:Imp.value_node) : Llvm.llvalue = 
+
+let compile_val (fnInfo:fn_info) (impVal:Imp.value_node) : Llvm.llvalue =
   match impVal.value with
   | Imp.Var id ->
       let ptr = try Hashtbl.find fnInfo.named_values (ID.to_str id) with
       | Not_found -> failwith "unknown variable name"
       in
-      if ImpType.is_scalar impVal.value_type then 
-        let tempName = (ID.to_str id) ^ "_value" in 
+      if ImpType.is_scalar impVal.value_type then
+        let tempName = (ID.to_str id) ^ "_value" in
         build_load ptr tempName fnInfo.builder
       else
         ptr
@@ -98,32 +98,66 @@ let compile_val (fnInfo:fn_info) (impVal:Imp.value_node) : Llvm.llvalue =
 
 let compile_cast (fnInfo:fn_info) original (srcT:ImpType.t) (destT:ImpType.t) =
   if srcT = destT then original
-  else begin  
-    let srcEltT : Type.elt_t = ImpType.elt_type srcT in 
-    let destEltT : Type.elt_t = ImpType.elt_type destT in 
-    let destLlvmType : lltype = ImpType_to_lltype.scalar_to_lltype destEltT in 
+  else begin
+    let srcEltT : Type.elt_t = ImpType.elt_type srcT in
+    let destEltT : Type.elt_t = ImpType.elt_type destT in
+    let destLlvmType : lltype = ImpType_to_lltype.scalar_to_lltype destEltT in
     assert (ImpType.is_scalar destT);
-    (* if both ints *) 
-    let castFn : llvalue -> lltype -> string -> llbuilder -> llvalue = 
+    (* if both ints *)
+    let castFn : llvalue -> lltype -> string -> llbuilder -> llvalue =
       if ImpType.is_int srcT && ImpType.is_int destT then (
         if Type.sizeof srcEltT < Type.sizeof destEltT
-        then Llvm.build_sext else Llvm.build_trunc    
-      ) 
+        then Llvm.build_sext else Llvm.build_trunc
+      )
       else if ImpType.is_float srcT && ImpType.is_float destT then (
         if Type.sizeof srcEltT < Type.sizeof destEltT
-        then Llvm.build_fpext else Llvm.build_fptrunc  
-      ) 
-      else if ImpType.is_float srcT && ImpType.is_int destT 
+        then Llvm.build_fpext else Llvm.build_fptrunc
+      )
+      else if ImpType.is_float srcT && ImpType.is_int destT
            then Llvm.build_fptosi
-      else if ImpType.is_int srcT && ImpType.is_float destT 
+      else if ImpType.is_int srcT && ImpType.is_float destT
            then Llvm.build_sitofp
-      else failwith $ 
+      else failwith $
         Printf.sprintf "Unsupported cast from %s to %s\n"
-          (ImpType.to_str srcT) (ImpType.to_str destT) 
-    in 
+          (ImpType.to_str srcT) (ImpType.to_str destT)
+    in
     castFn original destLlvmType "cast_tmp" fnInfo.builder
-  end   
-  
+  end
+
+let compile_cmp (t:Type.elt_t) op (vals:llvalue list) builder =
+  let cmpBit = match op, vals with
+    | Prim.Eq, [x;y] ->
+      if Type.elt_is_int t then
+        Llvm.build_icmp Llvm.Icmp.Eq x y "ieqtmp" builder
+      else
+        Llvm.build_fcmp Llvm.Fcmp.Oeq x y "feqtmp" builder
+
+    | _ ->
+      failwith $ Printf.sprintf "Unsupported cmp op %s with %d args"
+        (Prim.scalar_op_to_str op) (List.length vals)
+  in
+  let boolRepr = ImpType_to_lltype.scalar_to_lltype Type.BoolT in
+  Llvm.build_zext cmpBit boolRepr "cmp" builder
+
+let compile_math_op (t:Type.elt_t) op (vals:llvalue list) builder =
+  match op, vals with
+	| Prim.Add, [ x; y ] ->
+    if Type.elt_is_int t then Llvm.build_add x y "addtmp" builder
+	  else Llvm.build_fadd x y "addftmp" builder
+	| Prim.Sub, [ x; y ] ->
+    if Type.elt_is_int t then Llvm.build_sub x y "subtmp" builder
+    else Llvm.build_fsub x y "subftmp" builder
+	| Prim.Mult, [ x; y ] ->
+	  if Type.elt_is_int t then Llvm.build_mul x y "multmp" builder
+	  else Llvm.build_fmul x y "mulftmp" builder
+	| Prim.Div, [ x; y ] ->
+     if Type.elt_is_int t then Llvm.build_sdiv x y "sdivtmp" builder
+    else Llvm.build_fdiv x y "fdivtmp" builder
+  | _ ->
+    failwith $ Printf.sprintf "Unsupported math op %s with %d args"
+      (Prim.scalar_op_to_str op) (List.length vals)
+
+
 
 (* Change to function? *)
 let compile_expr fnInfo (impExpr:Imp.exp_node) =
@@ -131,39 +165,16 @@ let compile_expr fnInfo (impExpr:Imp.exp_node) =
   | Imp.Val valNode -> compile_val fnInfo valNode
   | Imp.Op (t, op, vals) ->
       let vals' =  List.map (compile_val fnInfo) vals in
-      ( match op, vals' with
-        | Prim.Add, [ x; y ] ->
-          begin match t with
-          | Type.Int16T
-          | Type.Int32T
-          | Type.Int64T -> Llvm.build_add x y "addtmp" fnInfo.builder
-          | Type.Float32T
-          | Type.Float64T -> Llvm.build_fadd x y "addftmp" fnInfo.builder
-          end
-        | Prim.Sub, [ x; y ] ->
-          begin match t with
-          | Type.Int16T
-          | Type.Int32T
-          | Type.Int64T -> Llvm.build_sub x y "subtmp" fnInfo.builder
-          | Type.Float32T
-          | Type.Float64T -> Llvm.build_fsub x y "subftmp" fnInfo.builder
-          end
-        | Prim.Mult, [ x; y ] ->
-          begin match t with
-          | Type.Int16T
-          | Type.Int32T
-          | Type.Int64T -> Llvm.build_mul x y "multmp" fnInfo.builder
-          | Type.Float32T
-          | Type.Float64T -> Llvm.build_fmul x y "mulftmp" fnInfo.builder
-          end
-        | Prim.Div, [ x; y ] -> Llvm.build_sdiv x y "sdivtmp" fnInfo.builder
-      )
- | Imp.Cast(t, v) ->  
+      if Prim.is_comparison op then
+        compile_cmp t op vals' fnInfo.builder
+      else
+        compile_math_op t op vals' fnInfo.builder
+ | Imp.Cast(t, v) ->
     let original = compile_val fnInfo v in
-    compile_cast fnInfo original v.Imp.value_type t  
- | other -> 
-    failwith $ Printf.sprintf "[Imp_to_LLVM] Not implemented %s\n" 
-      (Imp.exp_to_str other) 
+    compile_cast fnInfo original v.Imp.value_type t
+ | other ->
+    failwith $ Printf.sprintf "[Imp_to_LLVM] Not implemented %s\n"
+      (Imp.exp_to_str other)
 
 let rec compile_stmt_seq fnInfo currBB = function
   | [] -> currBB
@@ -188,9 +199,9 @@ and compile_stmt fnInfo currBB stmt = match stmt with
     let else_bb = Llvm.append_block context "else" the_function in
     Llvm.position_at_end else_bb fnInfo.builder;
     let new_else_bb = compile_stmt_seq fnInfo else_bb else_ in
-    let _ = Llvm.build_br after_bb fnInfo.builder in  
+    let _ = Llvm.build_br after_bb fnInfo.builder in
     Llvm.position_at_end currBB fnInfo.builder;
-    let _ = Llvm.build_cond_br cond_val then_bb else_bb fnInfo.builder in 
+    let _ = Llvm.build_cond_br cond_val then_bb else_bb fnInfo.builder in
     Llvm.position_at_end after_bb fnInfo.builder;
     after_bb
   | Imp.While (exp, bb) ->
@@ -198,17 +209,17 @@ and compile_stmt fnInfo currBB stmt = match stmt with
     let after_bb = Llvm.append_block context "after" the_function in
     let loop_bb = Llvm.append_block context "loop" the_function in
     let cond_bb = Llvm.append_block context "cond" the_function in
-    let _ = Llvm.build_br cond_bb fnInfo.builder in 
+    let _ = Llvm.build_br cond_bb fnInfo.builder in
     Llvm.position_at_end cond_bb fnInfo.builder;
     let llCond = compile_expr fnInfo exp in
-    let zero = Llvm.const_int (Llvm.type_of llCond) 0 in 
+    let zero = Llvm.const_int (Llvm.type_of llCond) 0 in
     let cond_val =
       Llvm.build_icmp Llvm.Icmp.Ne llCond zero "whilecond" fnInfo.builder
     in
-    let _ = Llvm.build_cond_br cond_val loop_bb cond_bb fnInfo.builder in 
+    let _ = Llvm.build_cond_br cond_val loop_bb cond_bb fnInfo.builder in
     Llvm.position_at_end loop_bb fnInfo.builder;
     let new_loop_bb = compile_stmt_seq fnInfo loop_bb bb in
-    let _ = Llvm.build_br cond_bb fnInfo.builder in 
+    let _ = Llvm.build_br cond_bb fnInfo.builder in
     Llvm.position_at_end after_bb fnInfo.builder;
     after_bb
   | Imp.Set (id, exp) ->
@@ -225,7 +236,7 @@ and compile_stmt fnInfo currBB stmt = match stmt with
 
 let init_compiled_fn (fnInfo:fn_info) =
   (* since we have to pass output address as int64s, convert them all*)
-  (* in the signature *) 
+  (* in the signature *)
   let paramTypes = replace_pointers
     (fnInfo.input_llvm_types @ fnInfo.output_llvm_types) in
   let fnT = Llvm.function_type void_t (Array.of_list paramTypes) in
@@ -249,7 +260,7 @@ let init_compiled_fn (fnInfo:fn_info) =
       (* in pointers as int64s and then have to cast them to their *)
       (* actual pointer types inside the code *)
       let pointer = Llvm.build_inttoptr param t (varName^"_ptr") fnInfo.builder
-      in  
+      in
       Hashtbl.add fnInfo.named_values varName pointer
   in
   List.iter3 init_param_var
