@@ -1,12 +1,12 @@
 open Imp
 open ImpHelpers
-open Imp_to_LLVM 
+open Imp_to_LLVM
 open Llvm
 
 module LLE = Llvm_executionengine.ExecutionEngine
-module GV = Llvm_executionengine.GenericValue 
+module GV = Llvm_executionengine.GenericValue
 
-let _ = Llvm_executionengine.initialize_native_target() 
+let _ = Llvm_executionengine.initialize_native_target()
 let execution_engine = LLE.create Imp_to_LLVM.global_module
 
 let optimize_module llvmModule llvmFn : unit =
@@ -17,9 +17,9 @@ let optimize_module llvmModule llvmFn : unit =
 
   (* Promote allocas to registers. *)
   Llvm_scalar_opts.add_memory_to_register_promotion the_fpm;
-  let modified = PassManager.run_function llvmFn the_fpm in 
-  Printf.printf "Optimizer modified code: %b\n" modified; 
-  let _ : bool = PassManager.finalize the_fpm in  
+  let modified = PassManager.run_function llvmFn the_fpm in
+  Printf.printf "Optimizer modified code: %b\n" modified;
+  let _ : bool = PassManager.finalize the_fpm in
   PassManager.dispose the_fpm
 
 let memspace_id = HostMemspace.id
@@ -32,18 +32,18 @@ let allocate_output impT : GV.t =
   let eltT = ImpType.elt_type impT in
   let sz : int  = Type.sizeof eltT in
   let ptr : Int64.t = HostMemspace.malloc sz in
-  Printf.printf "  Allocated %d-byte output of type %s at addr %LX\n%!" 
-    sz 
-    (Type.elt_to_str eltT) 
+  Printf.printf "  Allocated %d-byte output of type %s at addr %LX\n%!"
+    sz
+    (Type.elt_to_str eltT)
     ptr;
   HostMemspace.set_scalar ptr (ParNum.one eltT);
   Printf.printf "  Stored 0 in memory location\n%!";
   Printf.printf "  Dereferenced value: %s\n%!"
-    (ParNum.to_str (HostMemspace.deref_scalar ptr eltT)); 
+    (ParNum.to_str (HostMemspace.deref_scalar ptr eltT));
   GV.of_int64 LLVM_Types.int64_t ptr
 
-     
-let allocate_outputs impTypes = List.map allocate_output impTypes  
+
+let allocate_outputs impTypes = List.map allocate_output impTypes
 
 let allocate_outputs impTypes = List.map allocate_output impTypes
 
@@ -79,7 +79,7 @@ let call_imp_fn (impFn:Imp.fn) (args:Ptr.t Value.t list) : Ptr.t Value.t list =
   Printf.printf " :: function completed\n%!";
 
   let outputs =
-    List.map2 GenericValue_to_Value.of_generic_value llvmOutputs impOutputTypes  
+    List.map2 GenericValue_to_Value.of_generic_value llvmOutputs impOutputTypes
   in
   Printf.printf " :: deallocating output cells\n%!";
   free_scalar_outputs impOutputTypes llvmOutputs;
@@ -95,24 +95,24 @@ let call (fn:SSA.fn) args =
   call_imp_fn impFn args
 
 let map ~axes ~fn ~fixed args =
-  (*let fn : SSA.fn  = { 
-    SSA.fn_input_types = []; 
-    fn_output_types = []; 
-    body = Block.empty; 
-    tenv = ID.Map.empty; 
+  (*let fn : SSA.fn  = {
+    SSA.fn_input_types = [];
+    fn_output_types = [];
+    body = Block.empty;
+    tenv = ID.Map.empty;
     fn_id = FnId.of_int 0;
   } *)
-  
+
   (*let fn = SSA_to_Imp.translate fn in*)
   (*let outType = ImpType.ArrayT (Type.Float64T, 100) in
   let gv = call fn args in
-  let value = GenericValue_to_Value.of_generic_value gv outType in 
+  let value = GenericValue_to_Value.of_generic_value gv outType in
   *)assert false
 
 let reduce ~axes ~fn ~fixed ?init args = assert false
- 
+
 let scan ~axes ~fn ~fixed ?init args = assert false
- 
+
 let all_pairs ~axes ~fn ~fixed x y = assert false
- 
+
 let array_op p args = assert false

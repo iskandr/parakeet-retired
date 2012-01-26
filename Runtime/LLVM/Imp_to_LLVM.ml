@@ -152,7 +152,7 @@ and compile_stmt fnInfo currBB stmt = match stmt with
     let cond_bb = Llvm.append_block context "cond" the_function in
     Llvm.build_br cond_bb fnInfo.builder;
     Llvm.position_at_end cond_bb fnInfo.builder;
-    let llCond = compile_val fnInfo exp in
+    let llCond = compile_expr fnInfo exp in
     let zero = Llvm.const_int int64_t 0 in (* Fix this *)
     let cond_val =
       Llvm.build_icmp Llvm.Icmp.Ne llCond zero "whilecond" fnInfo.builder
