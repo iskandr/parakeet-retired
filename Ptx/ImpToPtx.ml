@@ -2,11 +2,11 @@
 
 open Base
 open Imp
+open Printf
 open Ptx
 open PtxCodegen
 open PtxType
 open PtxVal
-open Printf
 
 let num_to_ptx_const = function
   | ParNum.Char c -> int $  Char.code c
