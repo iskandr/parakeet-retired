@@ -43,54 +43,29 @@ type scalar_op =
       *)
 
 type array_op =
-  | Zip
-  | Concat
-  | Enlist (* make array from one element *)
-  | Til
-  | Rand
   | Index
-  | Where
   | Find
+  | Where
   | DimSize
   | ArgMin
   | ArgMax
   | Slice
+  | Range
 
 type adverb =
   | Map
-  | EachLeft (* each left *)
-  | EachRight (* each right *)
   | Scan
   | Reduce
-  | AllPairs (* each left / each right *)
-  | AllPairsRight  (* each right / each left *)
+  | AllPairs
 
 type impure_op = ResetTimer | GetTimer | Print
-
-type q_op =
-  | Q_WriteOrLoadText
-  | Q_WriteOrLoadBinary
-  | Q_Question
-  | Q_Dollar
 
 type prim =
   | ScalarOp of scalar_op
   | ArrayOp of array_op
   | Adverb of adverb
   | ImpureOp of impure_op
-  | Q_Op of q_op
 
-(*
-let is_adverb = function
-  | Map
-  | EachLeft (* each left *)
-  | EachRight (* each right *)
-  | Scan
-  | Reduce
-  | AllPairs (* each left / each right *)
-  | AllPairsRight  (* each right / each left *) -> true
-  | _ -> false
-*)
 let is_binop = function
   | Add
   | Sub
@@ -161,12 +136,8 @@ let min_prim_arity = function
   | ScalarOp _ -> 1
   | ArrayOp ArgMin
   | ArrayOp ArgMax
-  | ArrayOp Til
   | ArrayOp Where
-  | ArrayOp Enlist -> 1
-  | ArrayOp Concat
-  | ArrayOp Zip
-  | ArrayOp Rand
+  | ArrayOp Range -> 1
   | ArrayOp DimSize
   | ArrayOp Find
   | ArrayOp Index -> 2
@@ -175,11 +146,8 @@ let min_prim_arity = function
   | ArrayOp Slice -> 4
   | ImpureOp Print  -> 1
   | ImpureOp _ -> 0
-  | Q_Op _ -> 2
 
 let max_prim_arity = function
-  | ArrayOp Concat
-  | ArrayOp Zip
   | Adverb Map
   | Adverb Reduce -> max_int
   | other -> min_prim_arity other
@@ -188,7 +156,7 @@ let scalar_op_to_str = function
   | Add -> "+"
   | Sub -> "-"
   | Mult -> "*"
-  | Div -> "%"
+  | Div -> "/"
   | SafeDiv -> "safediv"
   | Mod -> "mod"
   | Min -> "min"
@@ -223,31 +191,24 @@ let scalar_op_to_str = function
   | Ln -> "log"
   | Lg2 -> "lg2"
   | Log10 -> "log10"
-  | Select -> "?"
+  | Select -> "select"
 
 
 let array_op_to_str = function
-  | Zip -> "zip"
-  | Concat -> ","
-  | Enlist -> "enlist"
-  | Til -> "til"
-  | Rand -> "rand"
-  | Index -> "@"
-  | Where -> "where"
+  | Index -> "index"
   | DimSize -> "dimsize"
-  | Find -> "?"
+  | Find -> "find"
   | ArgMin -> "argmin"
   | ArgMax -> "argmax"
   | Slice -> "slice"
+  | Where -> "where"
+  | Range -> "range"
 
 let adverb_to_str = function
   | Map -> "each"
-  | EachLeft -> "/:"
-  | EachRight -> "\\:"
-  | Reduce -> "/"
-  | Scan -> "\\"
-  | AllPairs -> "/:\\:"
-  | AllPairsRight -> "\\:/:"
+  | Reduce -> "reduce"
+  | Scan -> "scan"
+  | AllPairs -> "allpairs"
 
 
 let impure_op_to_str = function
@@ -255,20 +216,12 @@ let impure_op_to_str = function
   | GetTimer -> "get_timer"
   | Print -> "print"
 
-let q_op_to_str = function
-  | Q_WriteOrLoadText -> "0:"
-  | Q_WriteOrLoadBinary -> "1:"
-  | Q_Question -> "?"
-  | Q_Dollar -> "$"
-
-let prim_to_str = function
+let to_str = function
   | ScalarOp op -> scalar_op_to_str op
   | ArrayOp op ->  array_op_to_str op
   | Adverb op -> adverb_to_str op
   | ImpureOp op -> impure_op_to_str op
-  | Q_Op op -> q_op_to_str op
 
 let is_pure_op  = function
-  | Q_Op op -> op = Q_Dollar || op = Q_Question
   | ImpureOp _ -> false
   | _ -> true
