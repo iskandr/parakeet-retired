@@ -1,4 +1,4 @@
-# pseudo-python with simpler array syntax 
+# pseudo-python with simpler array syntax
 # map(sqrt, [1 4 9]) == [1 2 3]
 # map(sum, [[1 2 3], [4 5 6]], axis = 0) == [6 15]
 # map(sum, [[1 2 3], [4 5 6]], axis = 1) == [5 7 9]
@@ -31,7 +31,7 @@ def map(function, *args, **kwargs):
     split_arrays.append(array_split)
   result = []
   fin_shape = ()
-  
+
   axes.sort()
   axes.reverse()
   for axis in axes:
@@ -39,8 +39,12 @@ def map(function, *args, **kwargs):
       del shape[axis]
       if not shape:
         shape.append(1)
+  try:
+    fixed = kwargs['fixed']
+  except KeyError:
+    fixed = []
   for index in range(len(split_arrays[0])):
-    args = []
+    args = fixed[:]
     for array_index, array_split in enumerate(split_arrays):
       args.append(array_split[index].reshape(shapes[array_index]))
     ans = function(*args)
@@ -77,7 +81,7 @@ def reduce(function, *args, **kwargs):
         array_split = np.array_split(array, shape[axis], axis=axis)
     split_arrays.append(array_split)
   result = []
-  
+
   fin_shape = ()
   axes.sort()
   axes.reverse()
@@ -165,19 +169,20 @@ def scan(function, *args, **kwargs):
   return np_result
 
 
-import math
-print map(math.sqrt, np.array([1,4,9,16,25]), axis=[0])
-print map(sum, np.array([[1,2,3],[4,5,6]]), axis=[0])
-print map(sum, np.array([[1,2,3],[4,5,6]]), axis=[1])
-print map(sum, np.array([[1,2,3],[4,5,6]]), axis=[0,1])
+if __name__ == "__main__":
+  import math
+  print map(math.sqrt, np.array([1,4,9,16,25]), axis=[0])
+  print map(sum, np.array([[1,2,3],[4,5,6]]), axis=[0])
+  print map(sum, np.array([[1,2,3],[4,5,6]]), axis=[1])
+  print map(sum, np.array([[1,2,3],[4,5,6]]), axis=[0,1])
 
-def add(x,init=0):
-  return init + x
+  def add(x,init=0):
+    return init + x
 
-#print map(add, np.array([[1,2,3],[4,5,6]]),np.array([[1,3,5],[2,4,6]]),
-#          np.array([[1,2,4],[3,5,6]]))
+  #print map(add, np.array([[1,2,3],[4,5,6]]),np.array([[1,3,5],[2,4,6]]),
+  #          np.array([[1,2,4],[3,5,6]]))
 
-print reduce(add, np.array([[1,2,3],[4,5,6]]), axis = [0])
-print reduce(add, np.array([[1,2,3],[4,5,6]]), axis = [1])
-print scan(add, np.array([[1,2,3],[4,5,6]]), axis = [0])
-print scan(add, np.array([[1,2,3],[4,5,6]]), axis = [1])
+  print reduce(add, np.array([[1,2,3],[4,5,6]]), axis = [0])
+  print reduce(add, np.array([[1,2,3],[4,5,6]]), axis = [1])
+  print scan(add, np.array([[1,2,3],[4,5,6]]), axis = [0])
+  print scan(add, np.array([[1,2,3],[4,5,6]]), axis = [1])
