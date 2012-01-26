@@ -184,25 +184,33 @@ and compile_stmt fnInfo currBB stmt = match stmt with
     let then_bb = Llvm.append_block context "then" the_function in
     Llvm.position_at_end then_bb fnInfo.builder;
     let new_then_bb = compile_stmt_seq fnInfo then_bb then_ in
-    Llvm.build_br after_bb fnInfo.builder;
+    let _ = Llvm.build_br after_bb fnInfo.builder in
     let else_bb = Llvm.append_block context "else" the_function in
     Llvm.position_at_end else_bb fnInfo.builder;
     let new_else_bb = compile_stmt_seq fnInfo else_bb else_ in
-    Llvm.build_br after_bb fnInfo.builder;
+    let _ = Llvm.build_br after_bb fnInfo.builder in  
     Llvm.position_at_end currBB fnInfo.builder;
-    Llvm.build_cond_br cond_val then_bb else_bb fnInfo.builder;
+    let _ = Llvm.build_cond_br cond_val then_bb else_bb fnInfo.builder in 
     Llvm.position_at_end after_bb fnInfo.builder;
     after_bb
-  (*
   | Imp.While (exp, bb) ->
     let the_function = Llvm.block_parent currBB in
-    let loop_bb = Llvm.append_block context "loop" the_function in
-    Llvm.build_br loop_bb fnInfo.builder;
     let after_bb = Llvm.append_block context "after" the_function in
-    Llvm.position_at_end loop_bb fnInfo.builder;
+    let loop_bb = Llvm.append_block context "loop" the_function in
+    let cond_bb = Llvm.append_block context "cond" the_function in
+    let _ = Llvm.build_br cond_bb fnInfo.builder in 
+    Llvm.position_at_end cond_bb fnInfo.builder;
     let llCond = compile_expr fnInfo exp in
-    let zero = Llvm.const_int int64_t 0 in
-  *)    
+    let zero = Llvm.const_int (Llvm.type_of llCond) 0 in 
+    let cond_val =
+      Llvm.build_icmp Llvm.Icmp.Ne llCond zero "whilecond" fnInfo.builder
+    in
+    let _ = Llvm.build_cond_br cond_val loop_bb cond_bb fnInfo.builder in 
+    Llvm.position_at_end loop_bb fnInfo.builder;
+    let new_loop_bb = compile_stmt_seq fnInfo loop_bb bb in
+    let _ = Llvm.build_br cond_bb fnInfo.builder in 
+    Llvm.position_at_end after_bb fnInfo.builder;
+    after_bb
   | Imp.Set (id, exp) ->
     let rhs = compile_expr fnInfo exp in
     let variable = try Hashtbl.find fnInfo.named_values (ID.to_str id) with
