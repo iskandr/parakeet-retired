@@ -6,7 +6,7 @@ open Value
 let int_array_of_addr addr len =
   let res = Array.make len 0 in
   for i = 0 to len - 1 do
-    res.(i) <- Int64.to_int (HostMemspace.get_int64 addr i)
+    res.(i) <- Int32.to_int (HostMemspace.get_int32 addr i)
   done;
   res
 

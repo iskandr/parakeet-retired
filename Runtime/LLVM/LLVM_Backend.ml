@@ -30,7 +30,7 @@ let alloc_output = function
 
 let allocate_output impT : GV.t =
   let eltT = ImpType.elt_type impT in
-  let sz : int  = Type.sizeof eltT in
+  let sz : int = Type.sizeof eltT in
   let ptr : Int64.t = HostMemspace.malloc sz in
   Printf.printf "  Allocated %d-byte output of type %s at addr %LX\n%!"
     sz
@@ -64,15 +64,9 @@ let call_imp_fn (impFn:Imp.fn) (args:Ptr.t Value.t list) : Ptr.t Value.t list =
   Printf.printf "[LLVM_Backend.call_imp_fn] Running function\n%!";
   let impInputTypes = Imp.input_types impFn in
   Printf.printf "  -- input params: %s\n%!"
-     (Value.list_to_str
-       (List.map2 (GenericValue_to_Value.of_generic_value ~boxed_scalars:false)
-                  llvmInputs impInputTypes)
-     );
-  Printf.printf "  -- output params: %s\n%!"
     (Value.list_to_str
-      (List.map2 GenericValue_to_Value.of_generic_value
-                 llvmOutputs impOutputTypes))
-  ;
+      (List.map2 (GenericValue_to_Value.of_generic_value ~boxed_scalars:false)
+                  llvmInputs impInputTypes));
   let params : GV.t array = Array.of_list (llvmInputs @ llvmOutputs) in
   let _ = LLE.run_function llvmFn params execution_engine in
   Printf.printf " :: function completed\n%!";

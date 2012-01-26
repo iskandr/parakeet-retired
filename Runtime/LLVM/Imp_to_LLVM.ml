@@ -86,11 +86,8 @@ let compile_val (fnInfo:fn_info) (impVal:Imp.value_node) : Llvm.llvalue =
       let ptr = try Hashtbl.find fnInfo.named_values (ID.to_str id) with
       | Not_found -> failwith "unknown variable name"
       in
-      if ImpType.is_scalar impVal.value_type then
-        let tempName = (ID.to_str id) ^ "_value" in
-        build_load ptr tempName fnInfo.builder
-      else
-        ptr
+      let tempName = (ID.to_str id) ^ "_value" in
+      build_load ptr tempName fnInfo.builder
   | Imp.Const const -> compile_const impVal.Imp.value_type const
   | _ -> assert false
 
@@ -251,10 +248,11 @@ and compile_stmt fnInfo currBB stmt = match stmt with
   | _ -> assert false
 
 let init_compiled_fn (fnInfo:fn_info) =
-  (* since we have to pass output address as int64s, convert them all*)
+  (* since we have to pass output address as int64s, convert them all *)
   (* in the signature *)
-  let paramTypes = replace_pointers
-    (fnInfo.input_llvm_types @ fnInfo.output_llvm_types) in
+  let paramTypes =
+    replace_pointers (fnInfo.input_llvm_types @ fnInfo.output_llvm_types)
+  in
   let fnT = Llvm.function_type void_t (Array.of_list paramTypes) in
   let llvmFn = Llvm.declare_function fnInfo.name fnT global_module in
   let bb = Llvm.append_block context "entry" llvmFn in
@@ -295,7 +293,7 @@ let init_compiled_fn (fnInfo:fn_info) =
 
 let compile_fn (fn : Imp.fn) : Llvm.llvalue =
   let fnInfo = create_fn_info fn in
-  let llvmFn : Llvm.llvalue =   init_compiled_fn fnInfo in
+  let llvmFn : Llvm.llvalue = init_compiled_fn fnInfo in
   let initBasicBlock : Llvm.llbasicblock = Llvm.entry_block llvmFn in
   let _ : Llvm.llbasicblock = compile_stmt_seq fnInfo initBasicBlock fn.body in
   (* we implement multiple return values by passing the output addresses as *)
