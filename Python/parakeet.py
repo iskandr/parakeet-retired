@@ -333,9 +333,8 @@ class ASTConverter():
       retNode = c_void_p(LibPar.mk_app(operation,unaryArg,1,None))
     elif nodeType == 'Compare':
       #Not sure when there are multiple ops or multiple comparators?
-      
-      verbString = "app("+type(node.ops[0]).__name__+",["+str(args[0]) \
-                    +","+str(args[2][0])+"])"
+      verbString = "app("+type(node.ops[0]).__name__+",["+str(args[0])+\
+                   ","+str(args[2][0])+"])"
       compArgs = list_to_ctypes_array([args[0],args[2][0]],c_void_p)
       operation = BuiltinPrimitives[type(node.ops[0]).__name__]
       retNode = c_void_p(LibPar.mk_app(operation,compArgs,2,None))

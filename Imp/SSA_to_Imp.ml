@@ -4,10 +4,9 @@ open ImpType
 open ImpHelpers
 open ImpCodegen
 
-
-
-(* are these necessary? or should we just register each SSA variable with its existing name as an imp variable*)
-(* and then implicitly keep this information on the codegen object? *)
+(* are these necessary? or should we just register each SSA variable with its *)
+(* existing name as an imp variable and then implicitly keep this information *)
+(* on the codegen object? *)
 
 type loop_descr = {
   loop_var : value_node;
@@ -28,7 +27,8 @@ let rec build_loop_nests
         let nested = build_loop_nests codegen ds body in
         let testEltT = ImpType.elt_type d.loop_var.value_type in
         let test = {
-          exp = Imp.Op(testEltT, d.loop_test_cmp, [d.loop_var; d.loop_test_val]);
+          exp = Imp.Op(testEltT, d.loop_test_cmp,
+                       [d.loop_var; d.loop_test_val]);
           exp_type = ImpType.bool_t
         }
         in
@@ -159,3 +159,4 @@ let translate  (ssaFn:SSA.fn) (impInputTypes:ImpType.t list) : Imp.fn =
   List.iter declare_var (ID.Map.to_list impTyEnv);
   let body = translate_block (codegen :> ImpCodegen.codegen) ssaFn.SSA.body in
   codegen#finalize_fn body
+

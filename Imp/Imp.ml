@@ -214,9 +214,6 @@ let array_storage_to_str = function
   | Shared -> "shared"
   | Alias -> "alias"
 
-
-
-
 let fn_to_str fn =
   let id_to_str id  =
     ID.to_str id ^ " : " ^ (ImpType.to_str (get_var_type fn id))

@@ -68,7 +68,6 @@ let create_fn_info (fn : Imp.fn) =
     name = FnId.to_str fn.Imp.id;
   }
 
-
 let compile_const (t:ImpType.t) (n:ParNum.t) =
   let t' : lltype = ImpType_to_lltype.to_lltype t in
   match n with
@@ -80,7 +79,6 @@ let compile_const (t:ImpType.t) (n:ParNum.t) =
   | ParNum.Float32 f -> const_float t' f
   | ParNum.Float64 f -> const_float t' f
   | _ -> assert false
-
 
 let compile_val (fnInfo:fn_info) (impVal:Imp.value_node) : Llvm.llvalue =
   match impVal.value with
@@ -171,7 +169,7 @@ let compile_math_op (t:Type.elt_t) op (vals:llvalue list) builder =
 	  if Type.elt_is_int t then Llvm.build_mul x y "multmp" builder
 	  else Llvm.build_fmul x y "mulftmp" builder
 	| Prim.Div, [ x; y ] ->
-     if Type.elt_is_int t then Llvm.build_sdiv x y "sdivtmp" builder
+    if Type.elt_is_int t then Llvm.build_sdiv x y "sdivtmp" builder
     else Llvm.build_fdiv x y "fdivtmp" builder
   | _ ->
     failwith $ Printf.sprintf "Unsupported math op %s with %d args"
