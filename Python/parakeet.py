@@ -334,10 +334,10 @@ class ASTConverter():
     elif nodeType == 'Compare':
       #Not sure when there are multiple ops or multiple comparators?
       verbString = "app("+type(node.ops[0]).__name__+",["+str(args[0])+\
-                    +","+str(args[2][0])+"])"
+                   ","+str(args[2][0])+"])"
       compArgs = list_to_ctypes_array([args[0],args[2][0]],c_void_p)
       operation = BuiltinPrimitives[type(node.ops[0]).__name__]
-      retNode = c_void_p(LibPar.mk_app(operation,comp_args,2,None))
+      retNode = c_void_p(LibPar.mk_app(operation,compArgs,2,None))
     elif nodeType == 'Num':
       num = eval(args[0])
       if type(num) == int:
@@ -428,7 +428,7 @@ class ASTConverter():
       print "\nRetnode: %u, %u, %s\n" %(retAddr, retNode.value, str(retNode))
 
     elif nodeType == 'While':
-      verbString = "while("+str(args[0])+",block("+str(args[1]+"))")
+      verbString = "while("+str(args[0])+",block("+ str(args[1])+ "))"
       numStmt = len(args[1])
       blockArgs = list_to_ctypes_array(args[1],c_void_p)
       block = c_void_p(LibPar.mk_block(blockArgs,numStmt,None))

@@ -2,7 +2,7 @@
 
 open Base
 
-type cuda_info = ThreadIdx | BlockIdx | BlockDim | GridDim   
+type cuda_info = ThreadIdx | BlockIdx | BlockDim | GridDim
 type coord = X | Y | Z
 
 type array_field =
@@ -61,58 +61,58 @@ type stmt =
   *)
 and block = stmt list
 
-type storage = 
+type storage =
   | Global
   | Private
   | Shared
   | Alias
 
 type fn = {
-  id : FnId.t; 
+  id : FnId.t;
   input_ids : ID.t list;
-  output_ids : ID.t list; 
-  local_ids : ID.t list; 
-  
+  output_ids : ID.t list;
+  local_ids : ID.t list;
+
   storage : storage ID.Map.t;
   types : ImpType.t ID.Map.t;
   shapes : SymbolicShape.t ID.Map.t;
-  
+
   body : block;
 }
 
-let empty_fn = { 
-  id = FnId.gen(); 
+let empty_fn = {
+  id = FnId.gen();
   input_ids = [];
-  output_ids = []; 
-  body = []; 
-  local_ids = []; 
-  storage = ID.Map.empty; 
-  types = ID.Map.empty; 
-  shapes=ID.Map.empty  
+  output_ids = [];
+  body = [];
+  local_ids = [];
+  storage = ID.Map.empty;
+  types = ID.Map.empty;
+  shapes=ID.Map.empty
 }
 
-let input_types fn = List.map (fun id -> ID.Map.find id fn.types) fn.input_ids 
-let output_types fn = List.map (fun id -> ID.Map.find id fn.types) fn.output_ids 
-let local_types fn = List.map (fun id -> ID.Map.find id fn.types) fn.local_ids 
+let input_types fn = List.map (fun id -> ID.Map.find id fn.types) fn.input_ids
+let output_types fn = List.map (fun id -> ID.Map.find id fn.types) fn.output_ids
+let local_types fn = List.map (fun id -> ID.Map.find id fn.types) fn.local_ids
 
-let get_var_type (fn:fn) (id:ID.t) = 
-  match ID.Map.find_option id fn.types with 
+let get_var_type (fn:fn) (id:ID.t) =
+  match ID.Map.find_option id fn.types with
   | None -> failwith $ "[Imp->get_var_type] Variable " ^ (ID.to_str id) ^
                        "doesn't exist"
-  | Some var_type -> var_type 
+  | Some var_type -> var_type
 
 let get_var_storage (fn:fn) (id:ID.t) =
-  match ID.Map.find_option id fn.storage with 
+  match ID.Map.find_option id fn.storage with
   | None -> failwith $ "[Imp->get_var_storage] Variable " ^ (ID.to_str id) ^
                        "doesn't exist"
   | Some storage -> storage
 
-let get_var_shape (fn:fn) (id:ID.t) = 
-  match ID.Map.find_option id fn.shapes with 
+let get_var_shape (fn:fn) (id:ID.t) =
+  match ID.Map.find_option id fn.shapes with
   | None -> failwith $ "[Imp->get_var_shape] Variable " ^ (ID.to_str id) ^
                        "doesn't exist"
   | Some symbolic_shape -> symbolic_shape
-	 
+
 (* PRETTY PRINTING *)
 open Printf
 
@@ -132,114 +132,111 @@ let val_to_str = function
      sprintf "%s.%s" (cuda_info_to_str cuda_info) (coord_to_str coord)
 
 let val_node_to_str {value} = val_to_str value
- 
-let val_node_list_to_str exps = 
+
+let val_node_list_to_str exps =
   String.concat ", " (List.map val_node_to_str exps)
 
-let rec exp_node_to_str e  = exp_to_str e.exp 
-and exp_to_str = function 
-  | Val v -> val_node_to_str v  
-  | Idx (arr, args) -> 
-    sprintf "%s[%s]" 
-      (val_node_to_str arr) 
-      (val_node_list_to_str args) 
-  | Op (argT, op, args) -> 
-    sprintf "%s:%s (%s)" 
-      (Prim.scalar_op_to_str op)
-      (Type.elt_to_str argT) 
+let rec exp_node_to_str e  = exp_to_str e.exp
+and exp_to_str = function
+  | Val v -> val_node_to_str v
+  | Idx (arr, args) ->
+    sprintf "%s[%s]"
+      (val_node_to_str arr)
       (val_node_list_to_str args)
-  | Select (t, cond, trueVal, falseVal) -> 
-      sprintf "select:%s(%s, %s, %s)" 
+  | Op (argT, op, args) ->
+    sprintf "%s:%s (%s)"
+      (Prim.scalar_op_to_str op)
+      (Type.elt_to_str argT)
+      (val_node_list_to_str args)
+  | Select (t, cond, trueVal, falseVal) ->
+      sprintf "select:%s(%s, %s, %s)"
         (ImpType.to_str t)
         (val_node_to_str cond)
         (val_node_to_str trueVal)
         (val_node_to_str falseVal)
- 
-  | Cast (tNew, v) -> 
-      sprintf "cast %s->%s (%s)" 
-        (ImpType.to_str  v.value_type) 
-        (ImpType.to_str tNew) 
+
+  | Cast (tNew, v) ->
+      sprintf "cast %s->%s (%s)"
+        (ImpType.to_str  v.value_type)
+        (ImpType.to_str tNew)
         (val_node_to_str v)
-  | DimSize (k, e) -> 
+  | DimSize (k, e) ->
       sprintf "dimsize(%s, %s)" (val_node_to_str e) (val_node_to_str k)
-  
-let rec stmt_to_str ?(spaces="") = function 
+
+let rec stmt_to_str ?(spaces="") = function
   | If (cond, tBlock, fBlock) ->
       let tStr =
-        if List.length tBlock > 1 then 
-          Printf.sprintf " then {\n%s\n%s }\n%s" 
+        if List.length tBlock > 1 then
+          Printf.sprintf " then {\n%s\n%s }\n%s"
             (block_to_str ~spaces:(spaces ^ "  ") tBlock)
             spaces
             spaces
         else Printf.sprintf " then { %s } " (block_to_str tBlock)
-      in    
+      in
       let fStr =
-        if List.length fBlock > 1 then 
+        if List.length fBlock > 1 then
           Printf.sprintf "\n%selse {\n%s\n%s }"
-            spaces 
-            (block_to_str ~spaces:(spaces ^ "  ") fBlock) 
             spaces
-        else Printf.sprintf " else { %s }" (block_to_str fBlock) 
-      in       
+            (block_to_str ~spaces:(spaces ^ "  ") fBlock)
+            spaces
+        else Printf.sprintf " else { %s }" (block_to_str fBlock)
+      in
       sprintf "%s if (%s)%s%s "
-        spaces 
+        spaces
         (val_node_to_str cond)
-        tStr 
+        tStr
         fStr
   | While (cond, body) ->
-      let bodyStr = 
+      let bodyStr =
         if body <> [] then "\n" ^ (block_to_str ~spaces:(spaces ^ "  ") body)
         else ""
-      in  
-      let condStr = (exp_node_to_str cond) in 
-      sprintf "%s while(%s) { %s }" spaces condStr bodyStr 
-  | Set (id, rhs) -> 
-      sprintf "%s %s = %s" spaces (ID.to_str id) (exp_node_to_str rhs)  
-  | SetIdx (id, indices, rhs) -> 
+      in
+      let condStr = (exp_node_to_str cond) in
+      sprintf "%s while(%s) { %s }" spaces condStr bodyStr
+  | Set (id, rhs) ->
+      sprintf "%s %s = %s" spaces (ID.to_str id) (exp_node_to_str rhs)
+  | SetIdx (id, indices, rhs) ->
       sprintf "%s %s[%s] = %s"
-        spaces 
-        (ID.to_str id) 
-        (val_node_list_to_str indices) 
+        spaces
+        (ID.to_str id)
+        (val_node_list_to_str indices)
         (exp_node_to_str rhs)
   | SyncThreads -> spaces ^ "syncthreads"
   | Comment s -> spaces ^ "// " ^ s
-  (* used to plug one function into another, shouldn't exist in final code *) 
+  (* used to plug one function into another, shouldn't exist in final code *)
   (*| SPLICE -> spaces ^ "SPLICE"*)
-and block_to_str ?(spaces="") stmts = 
+and block_to_str ?(spaces="") stmts =
   String.concat "\n" (List.map (stmt_to_str ~spaces) stmts)
 
-let array_storage_to_str = function 
+let array_storage_to_str = function
   | Global -> "global"
   | Private -> "private"
   | Shared -> "shared"
   | Alias -> "alias"
 
-
-  
-
 let fn_to_str fn =
-  let id_to_str id  = 
+  let id_to_str id  =
     ID.to_str id ^ " : " ^ (ImpType.to_str (get_var_type fn id))
-  in 
-  let inputs = List.map id_to_str fn.input_ids  in 
+  in
+  let inputs = List.map id_to_str fn.input_ids  in
   let outputs = List.map id_to_str  fn.output_ids in
-  let decl_str id =  "local " ^ (id_to_str id) in 
-  let localDeclStr = String.concat "\n" (List.map decl_str fn.local_ids) in 
+  let decl_str id =  "local " ^ (id_to_str id) in
+  let localDeclStr = String.concat "\n" (List.map decl_str fn.local_ids) in
   sprintf "fn (%s) -> (%s) = { \n%s%s\n}"
-    (String.concat ", " inputs) 
+    (String.concat ", " inputs)
     (String.concat ", " outputs)
     (if String.length localDeclStr > 0 then localDeclStr ^ "\n" else "")
     (block_to_str  fn.body)
-                      
-let always_const_val {value} = match value with 
+
+let always_const_val {value} = match value with
   | CudaInfo _
   | Const _ -> true
-  | _ -> false 
+  | _ -> false
 
 let rec always_const_exp {exp} = match exp with
-  | DimSize _ -> true   
-  | Val v -> always_const_val v 
-  | Cast (_, arg) -> always_const_val arg 
-  | Select (_, pred, arg1, arg2) -> always_const_val pred && always_const_val arg1 && always_const_val arg2  
-  | Op (_, _, args) -> List.for_all always_const_val args 
-  | _ -> false 
+  | DimSize _ -> true
+  | Val v -> always_const_val v
+  | Cast (_, arg) -> always_const_val arg
+  | Select (_, pred, arg1, arg2) -> always_const_val pred && always_const_val arg1 && always_const_val arg2
+  | Op (_, _, args) -> List.for_all always_const_val args
+  | _ -> false

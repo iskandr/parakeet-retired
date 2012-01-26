@@ -3,12 +3,11 @@ open Llvm_executionengine
 open ParNum
 open Value
 
-
-let int_array_of_addr addr len = 
-  let res = Array.make len 0 in 
-  for i = 0 to len - 1 do 
-    res.(i) <- Int64.to_int (HostMemspace.get_int64 addr i) 
-  done; 
+let int_array_of_addr addr len =
+  let res = Array.make len 0 in
+  for i = 0 to len - 1 do
+    res.(i) <- Int64.to_int (HostMemspace.get_int64 addr i)
+  done;
   res
 
 let generic_value_to_parnum (g_val:GenericValue.t) (impt:Type.elt_t) : ParNum.t
@@ -47,4 +46,3 @@ let of_generic_value ?(boxed_scalars=true) (gv:GenericValue.t) = function
       array_strides=strides
     }
   | _ -> assert false
-

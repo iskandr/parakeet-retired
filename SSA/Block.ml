@@ -34,23 +34,24 @@ let fold_forward f init block =
   done; 
   !acc
    
-let fold_backward f init block = 
-  let acc = ref init in 
-  let n = length block in 
-  for i = n-1 downto 0 do 
+let fold_backward f init block =
+  let acc = ref init in
+  let n = length block in
+  for i = n-1 downto 0 do
     acc := f !acc (idx block i)
-  done; 
+  done;
   !acc
 
-let for_all f block  = 
+let for_all f block =
   let b = ref true in
-  let i = ref 0 in 
-  let n = length block in  
+  let i = ref 0 in
+  let n = length block in
   while !b && !i < n do
-    let currStmtNode = idx block !i  in  
-    b := !b && (f currStmtNode); 
-    i := !i + 1;  
-  done; 
+    let currStmtNode = idx block !i in
+    b := !b && (f currStmtNode);
+    i := !i + 1;
+  done;
   !b
-  
-let to_str f block = fold_forward (fun s x -> s ^ "\n" ^ (f x)) "" block   
+
+let to_str f block = fold_forward (fun s x -> s ^ "\n" ^ (f x)) "" block
+ 
