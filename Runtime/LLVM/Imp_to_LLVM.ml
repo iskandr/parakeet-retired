@@ -157,8 +157,6 @@ let compile_math_op (t:Type.elt_t) op (vals:llvalue list) builder =
     failwith $ Printf.sprintf "Unsupported math op %s with %d args"
       (Prim.scalar_op_to_str op) (List.length vals)
 
-
-
 (* Change to function? *)
 let compile_expr fnInfo (impExpr:Imp.exp_node) =
   match impExpr.exp with
