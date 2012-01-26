@@ -428,7 +428,7 @@ class ASTConverter():
       print "\nRetnode: %u, %u, %s\n" %(retAddr, retNode.value, str(retNode))
 
     elif nodeType == 'While':
-      verbString = "while("+str(args[0])+",block("+str(args[1])+"))"
+      verbString = "while("+str(args[0])+",block("+ str(args[1])+ "))"
       numStmt = len(args[1])
       blockArgs = list_to_ctypes_array(args[1],c_void_p)
       block = c_void_p(LibPar.mk_block(blockArgs,numStmt,None))

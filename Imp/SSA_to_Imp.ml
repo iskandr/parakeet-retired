@@ -17,9 +17,11 @@ type loop_descr = {
   loop_incr_op : Prim.scalar_op;
 }
 
-let rec build_loop_nests (codegen:ImpCodegen.codegen) (descrs : loop_descr list)
-                         (body:Imp.block) =
-  match descrs with
+let rec build_loop_nests 
+          (codegen:ImpCodegen.codegen) 
+          (descrs : loop_descr list) 
+          (body:Imp.block) =
+  match descrs with 
     | [] -> body
     | d::ds ->
         let nested = build_loop_nests codegen ds body in
@@ -57,8 +59,18 @@ let translate_exp (codegen:ImpCodegen.codegen) expNode : Imp.exp_node =
     let args' = List.map (translate_value codegen) args in
     let eltT = Type.elt_type (List.hd expNode.SSA.exp_types) in
     { exp = Op( eltT, op, args'); exp_type = ImpType.ScalarT eltT }
-  | SSA.PrimApp _ -> failwith "unsupported primitive"     
-  | _ -> failwith $ "[ssa->imp] unrecognized exp: " ^ (SSA.exp_to_str expNode)
+  | SSA.PrimApp _ -> failwith "unsupported primitive" 
+  | SSA.Cast(t, src) ->
+      (* cast only operates on scalar types! *) 
+      let eltT = Type.elt_type t in
+      let impT = ImpType.ScalarT eltT in 
+      { 
+        exp = Imp.Cast(impT, translate_value codegen src); 
+        exp_type = impT
+      } 
+      
+     
+  | _ -> failwith $ "[ssa->imp] unrecognized exp: " ^ (SSA.exp_to_str expNode)  
 
 let mk_simple_loop_descr
         (codegen:ImpCodegen.codegen)
@@ -72,20 +84,37 @@ let mk_simple_loop_descr
     loop_incr = (if down then ImpHelpers.int (-1) else ImpHelpers.one);
     loop_incr_op = Prim.Add;
   }
+  
+let translate_true_phi_node codegen phiNode =
+  let rhs = translate_value codegen phiNode.SSA.phi_left in
+  Imp.Set(phiNode.SSA.phi_id, ImpHelpers.exp_of_val rhs)
 
-let rec translate_block (codegen : ImpCodegen.codegen) block : Imp.stmt list =
+let translate_false_phi_node codegen phiNode =
+  let rhs = translate_value codegen phiNode.SSA.phi_right in 
+  Imp.Set(phiNode.SSA.phi_id, ImpHelpers.exp_of_val rhs)
+
+let rec translate_block (codegen : ImpCodegen.codegen) block : Imp.stmt list = 
   Block.fold_forward (fun acc stmt -> acc @ (translate_stmt codegen stmt))
                      [] block
-and translate_stmt (codegen : ImpCodegen.codegen) stmtNode : Imp.stmt list =
+and translate_stmt (codegen : ImpCodegen.codegen) stmtNode : Imp.stmt list  = 
   match stmtNode.SSA.stmt with
     | SSA.Set([id], rhs) ->
       let rhs' = translate_exp codegen rhs in
       let impVar = codegen#var id in
-      [set impVar rhs']
+      [set impVar rhs'] 
     | SSA.Set _ -> failwith "multiple assignment not supported"
-    | _ -> assert false
-
-let translate  (ssaFn:SSA.fn) (impInputTypes:ImpType.t list) : Imp.fn =
+    | SSA.If(cond, tBlock, fBlock, phiNodes) ->  
+      let cond' : Imp.value_node = translate_value codegen cond in
+      let tBlock' : Imp.block = translate_block codegen tBlock in 
+      let fBlock' : Imp.block = translate_block codegen fBlock in 
+      let trueMerge = List.map (translate_true_phi_node codegen) phiNodes in
+      let falseMerge = List.map (translate_false_phi_node codegen) phiNodes in
+      let tBlock' = tBlock' @ trueMerge in 
+      let fBlock' = fBlock' @ falseMerge in   
+      [Imp.If(cond', tBlock', fBlock')]
+    | _ -> assert false 
+   
+let translate  (ssaFn:SSA.fn) (impInputTypes:ImpType.t list) : Imp.fn = 
   let codegen = new ImpCodegen.fn_codegen in
   let impTyEnv = InferImpTypes.infer ssaFn impInputTypes in
   let shapeEnv : SymbolicShape.env =
@@ -111,3 +140,4 @@ let translate  (ssaFn:SSA.fn) (impInputTypes:ImpType.t list) : Imp.fn =
   List.iter declare_var (ID.Map.to_list impTyEnv);
   let body = translate_block (codegen :> ImpCodegen.codegen) ssaFn.SSA.body in
   codegen#finalize_fn body
+
