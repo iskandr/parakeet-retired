@@ -68,6 +68,20 @@ let create_fn_info (fn : Imp.fn) =
     name = FnId.to_str fn.Imp.id;
   }
 
+
+let compile_const (t:ImpType.t) (n:ParNum.t) = 
+  let t' : lltype = ImpType_to_lltype.to_lltype t in 
+  match n with 
+  | ParNum.Bool b -> const_int t' (if b then 1 else 0)
+  | ParNum.Char c -> const_int t' (Char.code c)
+  | ParNum.Int16 i -> const_int t' i
+  | ParNum.Int32 i32 -> const_int t' (Int32.to_int i32)
+  | ParNum.Int64 i64 -> const_of_int64 t' i64 true
+  | ParNum.Float32 f -> const_float t' f
+  | ParNum.Float64 f -> const_float t' f
+  | _ -> assert false
+  
+
 let compile_val (fnInfo:fn_info) (impVal:Imp.value_node) : Llvm.llvalue = 
   match impVal.value with
   | Imp.Var id ->
@@ -79,8 +93,37 @@ let compile_val (fnInfo:fn_info) (impVal:Imp.value_node) : Llvm.llvalue =
         build_load ptr tempName fnInfo.builder
       else
         ptr
-  | Imp.Const const -> Value_to_llvalue.parnum_to_llvm const
+  | Imp.Const const -> compile_const impVal.Imp.value_type const
   | _ -> assert false
+
+let compile_cast (fnInfo:fn_info) original (srcT:ImpType.t) (destT:ImpType.t) =
+  if srcT = destT then original
+  else begin  
+    let srcEltT : Type.elt_t = ImpType.elt_type srcT in 
+    let destEltT : Type.elt_t = ImpType.elt_type destT in 
+    let destLlvmType : lltype = ImpType_to_lltype.scalar_to_lltype destEltT in 
+    assert (ImpType.is_scalar destT);
+    (* if both ints *) 
+    let castFn : llvalue -> lltype -> string -> llbuilder -> llvalue = 
+      if ImpType.is_int srcT && ImpType.is_int destT then (
+        if Type.sizeof srcEltT < Type.sizeof destEltT
+        then Llvm.build_sext else Llvm.build_trunc    
+      ) 
+      else if ImpType.is_float srcT && ImpType.is_float destT then (
+        if Type.sizeof srcEltT < Type.sizeof destEltT
+        then Llvm.build_fpext else Llvm.build_fptrunc  
+      ) 
+      else if ImpType.is_float srcT && ImpType.is_int destT 
+           then Llvm.build_fptosi
+      else if ImpType.is_int srcT && ImpType.is_float destT 
+           then Llvm.build_sitofp
+      else failwith $ 
+        Printf.sprintf "Unsupported cast from %s to %s\n"
+          (ImpType.to_str srcT) (ImpType.to_str destT) 
+    in 
+    castFn original destLlvmType "cast_tmp" fnInfo.builder
+  end   
+  
 
 (* Change to function? *)
 let compile_expr fnInfo (impExpr:Imp.exp_node) =
@@ -115,7 +158,12 @@ let compile_expr fnInfo (impExpr:Imp.exp_node) =
           end
         | Prim.Div, [ x; y ] -> Llvm.build_sdiv x y "sdivtmp" fnInfo.builder
       )
- | _ -> assert false
+ | Imp.Cast(t, v) ->  
+    let original = compile_val fnInfo v in
+    compile_cast fnInfo original v.Imp.value_type t  
+ | other -> 
+    failwith $ Printf.sprintf "[Imp_to_LLVM] Not implemented %s\n" 
+      (Imp.exp_to_str other) 
 
 let rec compile_stmt_seq fnInfo currBB = function
   | [] -> currBB
@@ -126,7 +174,7 @@ let rec compile_stmt_seq fnInfo currBB = function
 and compile_stmt fnInfo currBB stmt = match stmt with
   | Imp.If (cond, then_, else_) ->
     let llCond = compile_val fnInfo cond in
-    let zero = Llvm.const_int int64_t 0 in
+    let zero = Llvm.const_int (Llvm.type_of llCond) 0 in
     let cond_val =
       Llvm.build_icmp Llvm.Icmp.Ne llCond zero "ifcond" fnInfo.builder
     in

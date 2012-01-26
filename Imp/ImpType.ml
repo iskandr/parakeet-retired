@@ -24,6 +24,20 @@ let is_scalar = function
 	| ScalarT _ -> true
 	| _ -> false
 
+let is_int = function 
+  | ScalarT Type.BoolT 
+  | ScalarT Type.CharT 
+  | ScalarT Type.Int16T 
+  | ScalarT Type.Int32T
+  | ScalarT Type.Int64T -> true 
+  | _ -> false 
+
+
+let is_float = function
+  | ScalarT Type.Float32T 
+  | ScalarT Type.Float64T -> true
+  | _ -> false  
+
 let is_array = function 
   | ArrayT _ -> true
   | _ -> false 

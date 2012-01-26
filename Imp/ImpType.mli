@@ -14,6 +14,8 @@ val to_str : t -> string
 
 val elt_type : t -> elt_t
 val is_scalar : t -> bool
+val is_int : t -> bool 
+val is_float : t -> bool 
 val is_array : t -> bool
 val rank : t -> int
 
