@@ -25,15 +25,16 @@ let parnum_to_generic = function
 
 let rec to_llvm = function
   | Value.Scalar s -> parnum_to_generic s
-  | Value.Array a -> 
+  | Value.Array a ->
       let ptr = HostMemspace.malloc (8 + 8 + 8) in
       let cshape = Array.to_c_int_array (Shape.to_array a.array_shape) in
       let cstrides = Array.to_c_int_array a.array_strides in
       HostMemspace.set_int64 ptr 0 a.data.addr;
       HostMemspace.set_int64 ptr 1 cshape;
       HostMemspace.set_int64 ptr 2 cstrides;
+      Printf.printf "Set strides to %Ld\n%!" cstrides;
       int64 ptr
-  | Value.Explode (scalar, shape) -> 
+  | Value.Explode (scalar, shape) ->
       let ptr = HostMemspace.malloc (8 + 8) in
       let cshape = Array.to_c_int_array (Shape.to_array shape) in
       (match ParNum.type_of scalar with
@@ -45,7 +46,7 @@ let rec to_llvm = function
       );
       HostMemspace.set_int64 ptr 1 cshape;
       int64 ptr
-  | Value.Rotate (v, dim, offset) -> 
+  | Value.Rotate (v, dim, offset) ->
       let ptr : Int64.t = HostMemspace.malloc (8 + 4 + 4) in
       (* Note: the following call makes use of the knowledge that a pointer *)
       (*       is twice as long as an int *)
@@ -54,7 +55,7 @@ let rec to_llvm = function
       HostMemspace.set_int32 ptr 2 (Int32.of_int dim);
       HostMemspace.set_int32 ptr 3 (Int32.of_int offset);
       int64 ptr
-  | Value.Shift (v, dim, offset, default) -> 
+  | Value.Shift (v, dim, offset, default) ->
       let el_t = ParNum.type_of default in
       let el_size = Type.sizeof el_t in
       (* The following ensures that the struct is a multiple of 8 bytes, as *)
@@ -76,7 +77,7 @@ let rec to_llvm = function
         | Float64T -> HostMemspace.set_float64 ptr 2 (ParNum.to_float default)
         | _ -> failwith "Unsupported array element type for LLVM conversion");
       int64 ptr
-  | Value.Slice (v, dim, start, stop) -> 
+  | Value.Slice (v, dim, start, stop) ->
       let ptr = HostMemspace.malloc (pad_to (8 + 4 + 4 + 4) 8) in
       let a = to_llvm v in
       HostMemspace.set_int64 ptr 0 (GenericValue.as_int64 a);
@@ -84,7 +85,7 @@ let rec to_llvm = function
       HostMemspace.set_int32 ptr 3 (Int32.of_int start);
       HostMemspace.set_int32 ptr 4 (Int32.of_int stop);
       int64 ptr
-  | Value.Range (start, stop, step) -> 
+  | Value.Range (start, stop, step) ->
       let ptr = HostMemspace.malloc (pad_to (4 + 4 + 4) 8) in
       HostMemspace.set_int32 ptr 0 (Int32.of_int start);
       HostMemspace.set_int32 ptr 1 (Int32.of_int stop);
@@ -92,9 +93,9 @@ let rec to_llvm = function
       int64 ptr
   | _ -> assert false
 
-(* acts like to_llvm but maps scalars to their addresses *) 
-let to_llvm_pointer = function  
-  | Value.Scalar s -> Obj.magic s 
+(* acts like to_llvm but maps scalars to their addresses *)
+let to_llvm_pointer = function
+  | Value.Scalar s -> Obj.magic s
   | other -> to_llvm other
 
 let rec delete_llvm_ptr ptr = function
