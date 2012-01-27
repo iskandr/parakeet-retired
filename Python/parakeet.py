@@ -276,7 +276,7 @@ class ASTConverter():
       if 'array' in contextSet:
         children = ast.iter_child_nodes(node)
         array_elts = self.build_arg_list(children, contextSet)
-        self.build_parakeet_array(array_elts)
+        return self.build_parakeet_array(array_elts)
       else:
         raise ParakeetUnsupported("lists and tuples are not supported outside of numpy arrays")
     elif nodeType == 'Call':
@@ -284,17 +284,12 @@ class ASTConverter():
       childContext = set(contextSet)
       if funRef == np.array:
         childContext.add('array')
-      args = self.build_arg_list(ast.iter_child_nodes(node), childContext)
-      LOG("Call(%s, %s)" % (funRef, args))
-      assert False
-      """
-      elif type(node.func).__name__ == 'Name':
-
-        return self.build_call(funRef, args[1])
-      # have a module path, so function args are at a different position
-      else
-        return self.build_call(funRef, args[2])
-      """
+        assert len(node.args) == 1
+        return self.visit(node.args[0], childContext)
+      else:
+        funArgs = self.build_arg_list(node.args, childContext)
+        return self.build_call(funRef, funArgs)
+    
     parakeetNodeChildren = []
     for childName, childNode in ast.iter_fields(node):
       #######################################################################
@@ -398,8 +393,8 @@ class ASTConverter():
   def build_parakeet_node(self,node,args):
     #args is the children nodes in the correct type (i.e. node or literal)
     nodeType = type(node).__name__
-    LOG("HANDLING %s: %s" % (nodeType,args))
     # either variable name or bool literal
+    print "build_parakeet_node", node, args 
     if nodeType == 'Name':
       #Special case for booleans
       if args[0] == 'True':
@@ -463,8 +458,10 @@ class ASTConverter():
       LOG("Index %s" % str(args))
       return args[0]
     elif nodeType == 'Attribute':
+      LOG("Attribute %s " % str(args))
       return args[1]
     elif nodeType == 'Return':
+      LOG("Return %s" % str(args))
       return args[0]
     else:
       print "[Parakeet]", nodeType, "with args", str(args), "not handled"
