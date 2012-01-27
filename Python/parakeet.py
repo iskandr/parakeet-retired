@@ -498,7 +498,7 @@ def fun_visit(func,new_f):
     fun_name = func.__module__ + "." + func.__name__
     c_str = c_char_p(fun_name)
     register = LibPar.register_untyped_function
-    LibPar.print_ast_node(finalTree)
+    #LibPar.print_ast_node(finalTree)
     funID = c_int(register(c_str,
                            global_vars_array,
                            len(global_vars),
