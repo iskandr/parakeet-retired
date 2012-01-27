@@ -116,3 +116,8 @@ let rec to_str ast = match ast.data with
       sprintf "repeat %s do %s" (to_str count) (to_str body)
 
 and args_to_str ?(delim="; ") args = String.concat delim (List.map to_str  args)
+
+let print_ast_node n =
+  Printf.printf "%s\n" (to_str n)
+
+let _ = Callback.register "print_ast_node" print_ast_node

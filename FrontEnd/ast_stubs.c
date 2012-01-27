@@ -21,6 +21,8 @@
 /** Private members **/
 value *ocaml_mk_ast_info = NULL;
 value *ocaml_get_prim = NULL;
+value *ocaml_print_ast_node = NULL; 
+
 static int ast_inited = 0;
 static CAMLprim value mk_src_info(source_info_t *src_info);
 static paranode mk_node(value exp, source_info_t *src_info);
@@ -37,6 +39,7 @@ void ast_init(void) {
   ast_inited = 1;
 
   ocaml_mk_ast_info = caml_named_value("mk_ast_info");
+  ocaml_print_ast_node = caml_named_value("print_ast_node"); 
   ocaml_get_prim = caml_named_value("get_prim");
 }
 
@@ -439,3 +442,8 @@ paranode get_prim(char* prim_name) {
   CAMLreturnT(paranode, prim);
 }
 
+void print_ast_node(paranode n) { 
+  CAMLparam1(n); 
+  caml_callback(*ocaml_print_ast_node, n);
+  return; 
+}
