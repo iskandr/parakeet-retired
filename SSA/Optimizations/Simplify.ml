@@ -23,7 +23,7 @@ module SimplifyRules = struct
       constants = FindConstants.find_constants fn;
       copies = FindCopies.find_copies fn;
       use_counts = FindUseCounts.find_fundef_use_counts fn;
-      types = fundef.tenv;
+      types = fn.tenv;
     }
 
   (* since all outputs are considered used, dummy assignments leading to an *)
