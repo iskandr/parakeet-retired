@@ -121,7 +121,7 @@ let value_to_str = function
   | Str s -> "\""^s ^"\""
   | Sym s -> "`" ^ s
   | Unit -> "()"
-  | Prim p -> "PRIM(" ^ (Prim.prim_to_str p) ^ ")"
+  | Prim p -> "PRIM(" ^ (Prim.to_str p) ^ ")"
 
 let value_node_to_str vNode =
   let valStr = value_to_str vNode.value in
@@ -151,7 +151,7 @@ let exp_to_str expNode =
   match expNode.exp with
   | Values vs -> value_nodes_to_str vs
   | App ({value=Prim op}, args) ->
-    sprintf "%s(%s) {{untyped}}" (Prim.prim_to_str op) (value_node_list_to_str args)
+    sprintf "%s(%s) {{untyped}}" (Prim.to_str op) (value_node_list_to_str args)
   | App (fn, args) ->
     sprintf "%s(%s)" (value_node_to_str fn)  (value_node_list_to_str args)
   | Arr elts -> "[" ^ (value_node_list_to_str ~sep:";" elts) ^ "]"
@@ -162,7 +162,7 @@ let exp_to_str expNode =
       sprintf "%s(%s)" (FnId.to_str fnId) (value_nodes_to_str args)
   | PrimApp (p, args) ->
       sprintf "prim{%s}(%s)"
-        (Prim.prim_to_str p)
+        (Prim.to_str p)
         (value_nodes_to_str args)
   | Adverb(adverb, closure, adverb_args) ->
       sprintf

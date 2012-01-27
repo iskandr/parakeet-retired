@@ -1,3 +1,5 @@
+(* pp: -parser o pa_macro.cmo *)
+
 open Base
 open Imp
 open ImpCodegen
@@ -65,24 +67,46 @@ let translate_value (codegen:ImpCodegen.codegen) valNode : Imp.value_node =
   | other -> failwith $
       "[ssa->imp] unrecognized value: " ^ (SSA.value_to_str other)
 
+let rec translate_values codegen valNodes : Imp.value_node list =
+  List.map (translate_value codegen) valNodes
+
+let translate_array_op codegen (op:Prim.array_op) (args:Imp.value_node list) =
+  match op, args with
+    | Prim.Index, array::indices ->
+      let arrayT = array.Imp.value_type  in
+      IFDEF DEBUG THEN
+        let nIndices = List.length indices in
+        let rank = ImpType.rank arrayT in
+        if rank <> nIndices then
+          failwith $ Printf.sprintf
+            "[SSA_to_Imp] Mismatch between # dims (%d) and # of indices (%d)"
+            rank
+            nIndices
+      ENDIF;
+      let resultT =  ImpType.elt_type arrayT in
+      { exp = Imp.Idx(array, indices); exp_type = ImpType.ScalarT resultT }
+    | other, _ -> failwith $
+      Printf.sprintf
+        "[SSA_to_Imp] Unsupported array op: %s"
+        (Prim.array_op_to_str other)
+
 let translate_exp (codegen:ImpCodegen.codegen) expNode : Imp.exp_node  =
   match expNode.SSA.exp with
-  | SSA.Values [v] -> ImpHelpers.exp_of_val (translate_value codegen v)
-  | SSA.Values _ -> failwith "multiple value expressions not supported"
-  | SSA.PrimApp (Prim.ScalarOp op, args) ->
-    let args' = List.map (translate_value codegen) args in
-    let eltT = Type.elt_type (List.hd expNode.SSA.exp_types) in
-    { exp = Op( eltT, op, args'); exp_type = ImpType.ScalarT eltT }
-  | SSA.PrimApp _ -> failwith "unsupported primitive"
-  | SSA.Cast(t, src) ->
+    | SSA.Values [v] -> ImpHelpers.exp_of_val (translate_value codegen v)
+    | SSA.Values _ -> failwith "multiple value expressions not supported"
+    | SSA.PrimApp (Prim.ScalarOp op, args) ->
+      let args' = translate_values codegen args in
+      let eltT = Type.elt_type (List.hd expNode.SSA.exp_types) in
+      { exp = Op( eltT, op, args'); exp_type = ImpType.ScalarT eltT }
+    | SSA.PrimApp (Prim.ArrayOp op, args) ->
+      let impArgs = translate_values codegen args in
+      translate_array_op codegen op impArgs
+    | SSA.Cast(t, src) ->
       (* cast only operates on scalar types! *)
       let eltT = Type.elt_type t in
       let impT = ImpType.ScalarT eltT in
-      {
-        exp = Imp.Cast(impT, translate_value codegen src);
-        exp_type = impT
-      }
-  | _ -> failwith $ "[ssa->imp] unrecognized exp: " ^ (SSA.exp_to_str expNode)
+      { exp = Imp.Cast(impT, translate_value codegen src); exp_type = impT }
+    | _ -> failwith $ "[ssa->imp] unrecognized exp: " ^ (SSA.exp_to_str expNode)
 
 let mk_set_val codegen (id:ID.t) (v:SSA.value_node) =
   let impVar = codegen#var id in

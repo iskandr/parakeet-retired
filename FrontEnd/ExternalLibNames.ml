@@ -35,18 +35,13 @@ let prim_names =  Hashtbl.of_list [
 
     "select", ScalarOp Select;
     "map", Adverb Map;
-    "each-left", Adverb EachLeft;
-    "each-right", Adverb EachRight;
     "allpairs", Adverb AllPairs;
     "scan", Adverb Scan;
     "reduce", Adverb Reduce;
 
-    "where", ArrayOp Where;
-    "enlist", ArrayOp Enlist;
     "index",  ArrayOp Index;
-    "range", ArrayOp Til;
-    "concat", ArrayOp Concat;
     "slice", ArrayOp Slice;
+    "range", ArrayOp Range;
 ]
 
 let get_prim str = match Hashtbl.find_option prim_names str with

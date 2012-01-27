@@ -71,5 +71,8 @@ def test_double():
   assert (x == 8.0)
 
 if __name__ == '__main__':
-    unittest.main()
-
+  test_thrice()
+  test_mult_three_args()
+  test_add_all_args()
+  test_add_const()
+  test_double()
