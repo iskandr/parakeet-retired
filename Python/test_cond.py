@@ -2,7 +2,7 @@ from numpy import *
 from parakeet import PAR
 import sys
 
-@PAR 
+@PAR
 def simple_if(x):
   a = 0
   if x:
@@ -30,7 +30,7 @@ def test_if():
   print "Expected 0, got", y
   assert 0 == y
 
-def test_complex_if(): 
+def test_complex_if():
   x_complex = complex_if(3)
   print "Expected 1, got", x_complex
   assert 1 == x_complex

@@ -53,7 +53,7 @@ def return_type_init(LibPar):
   LibPar.parakeet_init()
   #NOTE: can set default to c_void_p, much less initialization?
   LibPar.mk_array.restype = c_void_p
-  LibPar.mk_def.restype = c_void_p
+  LibPar.mk_assign.restype = c_void_p
   LibPar.mk_int32_paranode.restype = c_void_p
   LibPar.mk_int64_paranode.restype = c_void_p
   LibPar.mk_var.restype = c_void_p
@@ -170,9 +170,7 @@ def list_to_ctypes_array(inputList, t):
   numElements = len(inputList)
   listStructure = t * numElements # Description of a ctypes array
   l = listStructure()
-  print "NE", numElements, inputList
   for i in range(numElements):
-    print "IN LOOP", inputList[i], l[i]
     l[i] = inputList[i]
   return l
 
@@ -289,7 +287,7 @@ class ASTConverter():
       else:
         funArgs = self.build_arg_list(node.args, childContext)
         return self.build_call(funRef, funArgs)
-    
+
     parakeetNodeChildren = []
     for childName, childNode in ast.iter_fields(node):
       #######################################################################
@@ -394,7 +392,7 @@ class ASTConverter():
     #args is the children nodes in the correct type (i.e. node or literal)
     nodeType = type(node).__name__
     # either variable name or bool literal
-    print "build_parakeet_node", node, args 
+    print "build_parakeet_node", node, args
     if nodeType == 'Name':
       #Special case for booleans
       if args[0] == 'True':
@@ -408,9 +406,11 @@ class ASTConverter():
         LOG("var(%s)" % args[0])
         return LibPar.mk_var(c_char_p(args[0]),None)
     elif nodeType == 'Assign':
-      LOG("def(%s, %s)" % (node.targets[0].id, args[1]))
+      print "Assign args", args
+      LOG("assign(%s, %s)" % (args[0][0], args[1]))
       #Only support assigning a value to 1 variable at a time now
-      return LibPar.mk_def(c_char_p(node.targets[0].id),args[1],0)
+      return LibPar.mk_assign(args[0][0],args[1],0)
+    #Mk a def where the target is the index node
     elif nodeType == 'BinOp':
       LOG("app(%s, [%s, %s])" % (type(node.op).__name__, args[0], args[2]))
       binArgs = list_to_ctypes_array([args[0],args[2]],c_void_p)
@@ -445,7 +445,7 @@ class ASTConverter():
       LOG("if(%s, %s, %s)" % (args[0], args[1], args[2]))
       thenBlock = self.build_parakeet_block(args[1])
       elseBlock = self.build_parakeet_block(args[2])
-      return LibPar.mk_if(args[0], thenBB, elseBB, None)
+      return LibPar.mk_if(args[0], thenBlock, elseBlock, None)
     elif nodeType == 'While':
       LOG("while(%s, %s)" % (args[0], args[1]))
       block = self.build_parakeet_block(args[1])
@@ -483,13 +483,12 @@ def fun_visit(func,new_f):
     AST.varList = funInfo[2]
     finalTree = AST.visit(node,set([]))
 
-    LOG(PrettyAST.printAst(node))
+    #LOG(PrettyAST.printAst(node))
     #Med fix: right now, I assume there aren't any globals
       #Fix: functionGlobals[func] = globalVars
     global_vars = []
     global_vars_array = list_to_ctypes_array(global_vars,c_char_p)
     var_list = list_to_ctypes_array(funInfo[0],c_char_p)
-
     for key in AST.seen_functions:
       if not (VisitedFunctions.has_key(key)):
         #Possible fix:and not function_names?
@@ -499,6 +498,7 @@ def fun_visit(func,new_f):
     fun_name = func.__module__ + "." + func.__name__
     c_str = c_char_p(fun_name)
     register = LibPar.register_untyped_function
+    LibPar.print_ast_node(finalTree)
     funID = c_int(register(c_str,
                            global_vars_array,
                            len(global_vars),
