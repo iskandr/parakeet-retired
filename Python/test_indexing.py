@@ -6,6 +6,10 @@ def fourthElement(x):
   return x[3]
 
 @PAR
+def secondThirdElement(x):
+  return x[1][2]
+
+@PAR
 def arrElements(x,y):
   return x[y]
 
@@ -16,6 +20,14 @@ def test_const_index():
   res = fourthElement(arr_test)
   print "Expected %d, got %d" % (arr_test[3], res)
   assert res == arr_test[3]
+
+def test_multi_index():
+  arr_test = array([[1,2,3,4],[5,6,7,8],[10,10,10,12]], dtype = int64)
+  print "Testing indexing by 2 constants"
+  print "Input: ", arr_test
+  res = secondThirdElement(arr_test)
+  print "Expected %d, got %d" % (arr_test[1][2], res)
+  assert res == arr_test[1][2]
 
 def test_arr_index():
   arr_test = array([1,2,3,4,5,6,7,8,9,10], dtype = int64)
@@ -30,5 +42,6 @@ def test_arr_index():
 
 if __name__ == '__main__':
   test_const_index()
+  test_multi_index()
   #test_arr_index()
 
