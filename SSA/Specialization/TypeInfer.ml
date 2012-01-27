@@ -57,6 +57,21 @@ let infer_scalar_op op argTypes = match op, argTypes with
           (Type.type_list_to_str types))
 
 
+let infer_indexing_result eltT rank indexTypes =
+  let nIndices = List.length indexTypes in
+  let resultRank = rank - nIndices in
+  (* this will be the result if we're indexing only scalars *)
+  if List.for_all Type.is_scalar indexTypes then
+    Type.mk_array_type eltT resultRank
+  else match indexTypes with
+    | [Type.ArrayT(BoolT, 1)]
+    | [Type.ArrayT(Int32T, 1)] -> Type.ArrayT(eltT, rank)
+    | _ ->
+      failwith $ Printf.sprintf
+        "[TypeInfer] unsupported indices: %s"
+        (Type.type_list_to_str indexTypes)
+
+
 let infer_simple_array_op op argTypes = match op, argTypes with
 
   | Prim.Range, [t] when Type.is_scalar t  ->
@@ -66,19 +81,8 @@ let infer_simple_array_op op argTypes = match op, argTypes with
   | Prim.Range, _ -> raise WrongArity
   | Prim.Where, [Type.ArrayT(BoolT, 1)] -> Type.ArrayT(Int32T, 1)
   | Prim.Where, _ -> failwith "operator 'where' expects a vector of booleans"
-  | Prim.Index, [Type.ArrayT(elt_t, 1); indexType] ->
-    (* can index by any subtype of Int32 or a vector of ints,
-       or a vector of bools
-     *)
-    (match Type.common_type indexType Type.int32 with
-      | Type.ScalarT Int32T -> Type.ScalarT elt_t
-      | Type.ArrayT(BoolT, 1)
-      | Type.ArrayT(Int32T, 1) -> Type.ArrayT(elt_t, 1)
-      | _ ->
-        failwith $ Printf.sprintf
-          "[TypeInfer] wrong index type passed to operator 'index': %s"
-          (Type.to_str indexType)
-    )
+  | Prim.Index, Type.ArrayT(eltT, rank)::indexTypes ->
+      infer_indexing_result eltT rank indexTypes
   | Prim.Index, [t; _] when Type.is_scalar t ->
     failwith "[TypeInfer] can't index into a scalar"
   | Prim.DimSize, _ -> Type.ScalarT Int32T
@@ -87,7 +91,7 @@ let infer_simple_array_op op argTypes = match op, argTypes with
         Type.ScalarT elt_t1
   | _ ->
      failwith $ sprintf
-        "[core_type_infer] Could not infer type for %s\n"
+        "[core_type_infer] Could not infer type for %s"
             (Prim.array_op_to_str op)
 
 let infer_adverb op inputTypes =
