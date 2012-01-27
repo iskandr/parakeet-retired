@@ -3,12 +3,13 @@ import ast, os, sys
 import functools as ft
 import numpy as np
 import PrettyAST
+import para_libs
 
 ###############################################################################
 #  Initializations
 ###############################################################################
 Verbose = 1
-Debug = 0
+Debug = 1
 
 #Return type struct
 class _ret_scalar_value(Union):
@@ -95,7 +96,8 @@ return_type_init()
 SafeFunctions = {np.all:ast_prim('allpairs'),
                  np.arange:ast_prim('range'),
 #                 np.argmin:ast_prim('argmin'),
-                 map:ast_prim('map')}
+                 para_libs.map:ast_prim('map'),
+                 para_libs.reduce:ast_prim('reduce')}
 BuiltinPrimitives = {'Add':ast_prim('+'),
                      'Sub':ast_prim('-'),
                      'Mult':ast_prim('*'),
@@ -164,8 +166,7 @@ def list_to_ctypes_array(inputList, t):
   numElements = len(inputList)
   listStructure = t * numElements # Description of a ctypes array
   l = listStructure()
-  if numElements == 3:
-    print "NE", numElements, inputList
+  print "NE", numElements, inputList
   for i in range(numElements):
     print "IN LOOP", inputList[i], l[i]
     l[i] = inputList[i]
@@ -439,6 +440,8 @@ class ASTConverter():
       verbString = "app("+type(node.slice).__name__+"["+str(args[0])+","+\
                    str(args[1])+"])"
       operation = BuiltinPrimitives[type(node.slice).__name__]
+      #BROKEN, ignores children of node.slice
+      #print "debuggy", args[0], node.slice.u, args[2]
       arrayArgs = list_to_ctypes_array([args[0],args[1]],c_void_p)
       retNode = c_void_p(LibPar.mk_app(operation,arrayArgs,2,None))
     elif nodeType == 'Index':
