@@ -7,8 +7,10 @@ import PrettyAST
 ###############################################################################
 #  Initializations
 ###############################################################################
-Verbose = 1
-Debug = 0
+verbose = True
+debug = False
+def LOG(msg):
+  if verbose: print "[Parakeet]", msg
 
 #Return type struct
 class _ret_scalar_value(Union):
@@ -46,9 +48,10 @@ class return_val_t(Structure):
 
 #Return type initialization
 #Small fix: Can set default return type to c_void_p?
-def return_type_init():
+def return_type_init(LibPar):
   LibPar.parakeet_init()
   #NOTE: can set default to c_void_p, much less initialization?
+  LibPar.mk_array.restype = c_void_p
   LibPar.mk_def.restype = c_void_p
   LibPar.mk_int32_paranode.restype = c_void_p
   LibPar.mk_int64_paranode.restype = c_void_p
@@ -86,7 +89,7 @@ def ast_prim(sym):
 
 #Load libraries, basic initialization
 LibPar = cdll.LoadLibrary(os.getenv('HOME') + '/.parakeet/libparakeetpy.so')
-return_type_init()
+return_type_init(LibPar)
 
 ###############################################################################
 #  Global variables
@@ -232,6 +235,13 @@ def function_info(functionObj):
     lineNo += 1
   return args, outString, variableList
 
+class ParakeetUnsupported(Exception):
+  def __init__(self, value):
+    self.value = value
+  def __str__(self):
+    return repr(self.value)
+
+
 ###############################################################################
 #  Converter
 ###############################################################################
@@ -240,126 +250,129 @@ class ASTConverter():
     #Should really be a set?
     self.functionCalls = {} #curr_function
     self.varList = []
-    self.evilFunction = ""
     self.functionGlobalVariables = funcGlobals
 
-  def visit(self,node,currContext,currRightAssignment):
+  # currContext is a set of strings telling us which nodes are parents
+  # of the current one in the syntax tree
+  def visit(self, node, contextSet):
     nodeType = type(node).__name__
-    if nodeType == 'Print':
-      self.evilFunction == "printing is not allowed"
-    if currContext == 'assignment':
-      if nodeType == 'Attribute':
-        self.evilFunction = "changing a field is not allowed"
-    if currRightAssignment:
-      if nodeType == 'Str':
-        self.evilFunction = "strings are not supported"
-      elif nodeType == 'List' or nodeType == 'Tuple':
-        self.evilFunction = \
-          "lists and tuples are not supported outside of numpy arrays"
-    if self.evilFunction:
-      return
+    if nodeType == 'Print': 
+      raise ParakeetUnsupported("printing is not allowed")
+    if 'lhs' in contextSet and nodeType == 'Attribute': 
+      raise ParakeetUnsupported("changing a field is not allowed")
+    if 'rhs' in contextSet and nodeType == 'Str':
+      raise ParakeetUnsupported("strings are not supported")
+    elif nodeType == 'List' or nodeType == 'Tuple':
+      if 'array' in contextSet:
+        array_elts = [self.visit(n, currContext) for n in ast.iter_child_nodes(node)]
+        self.build_parakeet_array(array_elts)
+      else: 
+        raise ParakeetUnsupported("lists and tuples are not supported outside of numpy arrays")
     parakeetNodeChildren = []
-    for fieldName,childNode in ast.iter_fields(node):
-      if isinstance(childNode,ast.AST):
-        #######################################################################
-        #  Single AST Node
-        #######################################################################
-        if nodeType == 'Call' and fieldName == 'func':
-          continue
-        #The only non-list child of Assign is the RHS
-        if nodeType == 'Assign':
-          nextRightAssignment = 1
-        else:
-          nextRightAssignment = currRightAssignment
+    for childName, childNode in ast.iter_fields(node):
+      #######################################################################
+      #  Single AST Node
+      #######################################################################
+      if isinstance(childNode, ast.AST):
+        # Don't need to visit the function node since 
+        # it will be handled directly by 'build_parakeet_node'
+        if nodeType == 'Call' and childName == 'func': continue
+        childContext = set(contextSet)
+        # if you're a single child whose parent's nodeType is assign
+        # then you're the RHS
+        if nodeType == 'Assign': 
+          childContext.add('rhs')
+        parakeetNodeChildren.append(self.visit(childNode,childContext))
 
-        parakeetNodeChildren.append(self.visit(childNode,currContext,
-                                               currRightAssignment))
-
-        #######################################################################
-        #  List of AST Nodes
-        #######################################################################
-      elif type(childNode) == list:# and isinstance(childNode[0],ast.AST):
-        listParakeetNodeChildren = []
+      #######################################################################
+      #  List of AST Nodes
+      #######################################################################
+      elif type(childNode) == list:
+        childResults = []
+        childContext = set(contextSet) 
+        # if your parent's nodeType is 'Assign' and you're in a list of 
+        # children then you're the LHS         
+        if nodeType == 'Assign': 
+          childContext.add('lhs')
         for child in childNode:
-          if nodeType == 'Assign':
-            nextContext = 'assignment'
-          else:
-            nextContext = currContext
-          listParakeetNodeChildren.append(self.visit(child,nextContext,
-                                                     currRightAssignment))
-          currContext = ''
-        parakeetNodeChildren += [listParakeetNodeChildren]
+          childResults.append(self.visit(child,childContext))
+    
+        parakeetNodeChildren.append(childResults)
       else:
         #######################################################################
         #  Literal
         #######################################################################
-        if currContext == 'assignment':
+        if 'lhs' in contextSet:
           if not str(childNode) in self.varList:
-            if nodeType == 'Name':
-              self.evilFunction = str(childNode) + " is a global variable"
-
+            if nodeType == 'Name': 
+              raise ParakeetUnsupported(str(childNode) + " is a global variable")
+        # assume last arg to build_parakeet_node for literals is a string
         parakeetNodeChildren.append(str(childNode))
+    return self.build_parakeet_node(node, parakeetNodeChildren)
 
-    return self.paranodes(node, parakeetNodeChildren)
 
-  def paranodes(self,node,args):
+  def build_parakeet_array(self, elts):
+    c_array = list_to_ctypes_array(elts, c_void_p)
+    return LibPar.mk_array(c_array, len(elts), None)
+  
+  def build_parakeet_block(self, stmts): 
+    c_array = list_to_ctypes_array(stmts, c_void_p)
+    return LibPar.mk_block(c_array, len(stmts), None) 
+
+
+  # everything except arrays 
+  def build_parakeet_node(self,node,args):
     #args is the children nodes in the correct type (i.e. node or literal)
     nodeType = type(node).__name__
-    verbString = 'Python Note: '+nodeType+" has no verbString"
-    if Verbose and Debug:
-      print "HANDLING",nodeType,args
+    LOG("HANDLING %s: %s" % (nodeType,args))
+    # either variable name or bool literal
     if nodeType == 'Name':
       #Special case for booleans
       if args[0] == 'True':
-        verbString = "bool(True)"
-        retNode = c_void_p(LibPar.mk_bool_paranode(1,None))
+	LOG("bool(True)")
+        return LibPar.mk_bool_paranode(1,None)
       elif args[0] == 'False':
-        verbString = "bool(False)"
-        retNode = c_void_p(LibPar.mk_bool_paranode(0,None))
+        LOG("bool(False)")
+        return LibPar.mk_bool_paranode(0,None)
       #Normal case
       else:
-        verbString = "var(" + str(args[0]) + ")"
-        retNode = c_void_p(LibPar.mk_var(c_char_p(args[0]),None))
+        LOG("var(%s)" % args[0])
+        return LibPar.mk_var(c_char_p(args[0]),None)
     elif nodeType == 'Assign':
-      verbString = "def(" +str(node.targets[0].id) + "," + str(args[1]) + ")"
+      LOG("def(%s, %s)" % (node.targets[0].id, args[1]))
       #Only support assigning a value to 1 variable at a time now
-      retNode = c_void_p(LibPar.mk_def(c_char_p(node.targets[0].id),args[1],0))
+      return LibPar.mk_def(c_char_p(node.targets[0].id),args[1],0)
     elif nodeType == 'BinOp':
-      verbString = "app(" + type(node.op).__name__ + ",[" + str(args[0]) + \
-                   "," + str(args[2]) + "])"
+      LOG("app(%s, [%s, %s])" % (type(node.op).__name__, args[0], args[2]))
       binArgs = list_to_ctypes_array([args[0],args[2]],c_void_p)
       operation = BuiltinPrimitives[type(node.op).__name__]
-      retNode = c_void_p(LibPar.mk_app(operation,binArgs,2,None))
+      return LibPar.mk_app(operation,binArgs,2,None)
     elif nodeType == 'UnaryOp':
-      verbString = "app("+type(node.op).__name__+",["+str(args[1])+"])"
+      LOG("app(%s, [%s])" % (type(node.op).__name__, args[1]))
       unaryArg = list_to_ctypes_array([args[1]],c_void_p)
       operation = BuiltinPrimitives[type(node.op).__name__]
-      retNode = c_void_p(LibPar.mk_app(operation,unaryArg,1,None))
+      return LibPar.mk_app(operation,unaryArg,1,None)
     elif nodeType == 'Compare':
       #Not sure when there are multiple ops or multiple comparators?
-      verbString = "app("+type(node.ops[0]).__name__+",["+str(args[0])+\
-                   ","+str(args[2][0])+"])"
+      LOG("app(%s, [%s, %s])" % (type(node.ops[0]).__name__, args[0], args[2][0]))
       compArgs = list_to_ctypes_array([args[0],args[2][0]],c_void_p)
       operation = BuiltinPrimitives[type(node.ops[0]).__name__]
-      retNode = c_void_p(LibPar.mk_app(operation,compArgs,2,None))
+      return LibPar.mk_app(operation,compArgs,2,None)
     elif nodeType == 'Num':
       num = eval(args[0])
-      if type(num) == int:
-        verbString = "int32("+args[0]+")"
-        retNode = c_void_p(LibPar.mk_int32_paranode(num,None))
-      elif type(num) == float:
-        verbString = "float32("+args[0]+")"
-        retNode = c_void_p(LibPar.mk_float_paranode(c_float(num),None))
+      LOG("%s(%s)" %(type(num), num))
+      if type(num) == int: return LibPar.mk_int32_paranode(num,None)
+      elif type(num) == float: return LibPar.mk_float_paranode(c_float(num),None)
     elif nodeType == 'Call':
       #Simple function call
       if type(node.func).__name__ == 'Name':
         funName = node.func.id
-        verbString = "app("+str(funName)+","+str(args[0])+")"
+        LOG("app(%s, %s)" % (funName,  args[0]))
         #Special case for partial
         if funName == 'partial':
           funName = node.args[0].id
           args[1] = args[1][1:]
-          verbString = "PARTIAL("+verbString+")"
+          LOG("partial function application")
         try:
           try:
             funRef = self.functionGlobalVariables[funName]
@@ -367,8 +380,8 @@ class ASTConverter():
             #It could still be a built-in
             funRef = __builtins__[funName]
         except:
-          print "Python Error: Couldn't find:",funName
-        self.functionCalls[funRef] = 1
+          LOG("Python Error: Couldn't find:" + funName)
+          self.functionCalls[funRef] = 1
         try:
           funNode = SafeFunctions[funRef]
         except:
@@ -376,7 +389,7 @@ class ASTConverter():
             funNode = c_void_p(LibPar.mk_var(c_char_p(funRef.__module__+"."+
                                                       funRef.__name__),None))
           except:
-            print "Temp: we need this for calling",funName
+            LOG("Temp: we need this for calling " + funName)
             funNode = c_void_p(LibPar.mk_var(c_char_p(funRef.__module__+"."+
                                                       funName),None))
         funArgs = list_to_ctypes_array(args[1],c_void_p)
@@ -402,58 +415,43 @@ class ASTConverter():
             funNode = c_void_p(LibPar.mk_var(c_char_p(funRef.__module__+"."+
                                                       funRef.__name__),None))
           except:
-            print "Temp: we need this for calling",funName
+            LOG("Temp: we need this for calling " + funName)
             funNode = c_void_p(LibPar.mk_var(c_char_p(funRef.__module__+"."+
                                                       funName),None))
         #Bug fix: Arguments get stored in args[2] instead
         funArgs = list_to_ctypes_array(args[2],c_void_p)
         numArgs = len(arsg[2])
       else:
-        print "Python Error: Call.func shouldn't be",type(node.func).__name__
-      verbString = "app("+str(funNode)+","+str(funArgs)+","+str(numArgs)+")"
-      retNode = c_void_p(LibPar.mk_app(funNode,funArgs,numArgs,None))
+        print "[Parakeet] Python Error: Call.func shouldn't be",type(node.func).__name__
+        LOG("app(%s, %s, %s)" % (funNode, funArgs, numArgs))
+      return LibPar.mk_app(funNode,funArgs,numArgs,None)
     elif nodeType == 'Module':
-      verbString = "block("+str(args[0])+")"
-      numArgs = len(args[0])
-      print "VS", verbString, args
-      block = list_to_ctypes_array(args[0],c_void_p)
-      retNode = c_void_p(LibPar.mk_block(block,numArgs,None))
+      LOG("block(%s)" % str(args))
+      return self.build_parakeet_block(args[0])
     elif nodeType == 'If':
-      print args
-      verbString = "if("+str(args[0])+",thenbb("+str(args[1])+"), elsebb(" + \
-                   str(args[2]) + "))"
-      cThenBB = list_to_ctypes_array(args[1], c_void_p)
-      cElseBB = list_to_ctypes_array(args[2], c_void_p)
-      thenAddr = LibPar.mk_block(cThenBB, len(args[1]), None)
-      thenBB = c_void_p(thenAddr)
-      elseBB = c_void_p(LibPar.mk_block(cElseBB, len(args[2]), None))
-      retAddr = LibPar.mk_if(args[0], thenBB, elseBB, None)
-      retNode = c_void_p(retAddr)
+      LOG("if(%s, %s, %s)" % (args[0], args[1], args[2]))
+      thenBlock = self.build_parakeet_block(args[1])
+      elseBlock = self.build_parakeet_block(args[2])
+      return LibPar.mk_if(args[0], thenBB, elseBB, None)
     elif nodeType == 'While':
-      verbString = "while("+str(args[0])+",block("+str(args[1])+"))"
-      numStmt = len(args[1])
-      blockArgs = list_to_ctypes_array(args[1],c_void_p)
-      block = c_void_p(LibPar.mk_block(blockArgs,numStmt,None))
-      retNode = c_void_p(LibPar.mk_whileloop(args[0],block,None))
+      LOG("while(%s, %s)" % (args[0], args[1]))
+      block = self.build_parakeet_block(args[1]) 
+      return LibPar.mk_whileloop(args[0],block,None)
     elif nodeType == 'Subscript':
-      verbString = "app("+type(node.slice).__name__+"["+str(args[0])+","+\
-                   str(args[1])+"])"
+      LOG("app(%s, %s, %s)" % (type(node.slice).__name__, args[0], args[1]))
       operation = BuiltinPrimitives[type(node.slice).__name__]
       arrayArgs = list_to_ctypes_array([args[0],args[1]],c_void_p)
-      retNode = c_void_p(LibPar.mk_app(operation,arrayArgs,2,None))
+      return LibPar.mk_app(operation,arrayArgs,2,None)
     elif nodeType == 'Index':
-      print args
-      retNode = args[0]
+      LOG("Index %s" % str(args))
+      return args[0]
     elif nodeType == 'Attribute':
-      retNode = args[1]
+      return args[1]
     elif nodeType == 'Return':
       return args[0]
     else:
-      print "Python note:",nodeType,"not handled specially"
+      print "[Parakeet]", nodeType, "with args", str(args), "not handled"
       return nodeType
-    if Verbose:
-      print verbString
-    return retNode
 
 ###############################################################################
 #  Running function
@@ -466,40 +464,34 @@ def fun_visit(func,new_f):
     node = ast.parse(funInfo[1])
     AST = ASTConverter(func.func_globals)
     AST.varList = funInfo[2]
-    finalTree = AST.visit(node,0,0)
-    if AST.evilFunction:
-      print func.__name__,"is evil because:",AST.evilFunction
-      return
-    else:
-      if Verbose:
-        PrettyAST.printAst(node)
-      #Med fix: right now, I assume there aren't any globals
-        #Fix: functionGlobals[func] = globalVars
-      globList = list_to_ctypes_array([],c_char_p)
+    finalTree = AST.visit(node,set([]))
 
-      varList = list_to_ctypes_array(funInfo[0],c_char_p)
+    LOG(PrettyAST.printAst(node))
+    #Med fix: right now, I assume there aren't any globals
+      #Fix: functionGlobals[func] = globalVars
+    global_vars = []
+    global_vars_array = list_to_ctypes_array(global_vars,c_char_p)
+    var_list = list_to_ctypes_array(funInfo[0],c_char_p)
 
-      for key in AST.functionCalls.keys():
-        if not (VisitedFunctions.has_key(key)):
-          #Possible fix:and not function_names?
-          if Verbose:
-            print "Visiting",key.__name__#,VisitedFunctions,key
-          fun_visit(key,key)
-          if Verbose:
-            print "Visited",key.__name__
+    for key in AST.functionCalls.keys():
+      if not (VisitedFunctions.has_key(key)):
+        #Possible fix:and not function_names?
+        LOG("Visiting %s" % key.__name__)
+        fun_visit(key,key)
+        LOG("Visited %s" % key.__name__)
+    fun_name = func.__module__ + "." + func.__name__
+    c_str = c_char_p(fun_name)
+    register = LibPar.register_untyped_function
+    funID = c_int(register(c_str, 
+                           global_vars_array, 
+                           len(global_vars), 
+                           var_list, 
+                           len(funInfo[0]), 
+                           finalTree))
 
-      funID = c_int(LibPar.register_untyped_function(c_char_p(func.__module__+
-                                                    "."+func.__name__),
-                                                    globList,
-                                                    0, #len(globalVars)
-                                                    varList,
-                                                    len(funInfo[0]),
-                                                    finalTree))
-
-      if Verbose:
-        print "Registered",func.__name__
-      VisitedFunctions[func] = funID
-      VisitedFunctions[new_f] = funID
+    LOG("Registered %s" % func.__name__)
+    VisitedFunctions[func] = funID
+    VisitedFunctions[new_f] = funID
 
 # given a numpy array or a scalar, construct the equivalent parakeet value
 def python_value_to_parakeet(arg):
@@ -528,11 +520,11 @@ def python_value_to_parakeet(arg):
     return c_void_p(parakeetVal)
   elif np.isscalar(arg):
     if type(arg) == int:
-      return c_void_p(LibPar.mk_int32(arg))
+      return LibPar.mk_int32(arg)
     elif type(arg) == float or type(arg) == np.float64:
-      return c_void_p(LibPar.mk_float64(c_double(arg)))
+      return LibPar.mk_float64(c_double(arg))
     elif type(arg) == np.float32:
-      return c_void_p(LibPar.mk_float32(c_float(arg)))
+      return LibPar.mk_float32(c_float(arg))
   else:
     raise Exception ("Input not supported by Parakeet: " + str(arg))
 

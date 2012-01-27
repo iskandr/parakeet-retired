@@ -207,15 +207,12 @@ paranode mk_app(paranode fun, paranode *args, int num_args,
   CAMLreturnT(paranode, mk_node(app, src_info));
 }
 
-paranode mk_arr(paranode nodes, source_info_t *src_info) {
+paranode mk_array(paranode *elts, int num_elts, source_info_t *src_info) {
   CAMLparam0();
-  CAMLlocal2(val_nodes, arr);
-
-  val_nodes = get_value_and_remove_root(nodes);
+  CAMLlocal1(arr);
 
   arr = caml_alloc(1, Exp_Arr);
-  Store_field(arr, 0, val_nodes);
-
+  Store_field(arr, 0, mk_val_list(elts, num_elts));
   CAMLreturnT(paranode, mk_node(arr, src_info));
 }
 

@@ -6,8 +6,6 @@ open SSA
 open SSA_Codegen
 open SSA_Helpers
 
-
-
 (* environment mapping strings to SSA IDs or global function IDs *)
 module Env = struct
 
@@ -320,7 +318,6 @@ and translate_args env codegen = function
     let currEnv, v = translate_value env codegen arg in
     let restEnv, vs = translate_args currEnv codegen args in
     restEnv, v :: vs
-
 
 (* given the arg names and AST body of function, generate its SSA fundef *)
 and translate_fn parentEnv argNames body =
