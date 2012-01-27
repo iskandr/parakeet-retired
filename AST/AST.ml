@@ -118,6 +118,6 @@ let rec to_str ast = match ast.data with
 and args_to_str ?(delim="; ") args = String.concat delim (List.map to_str  args)
 
 let print_ast_node n =
-  Printf.printf "%s\n" (to_str n)
+  Printf.printf "[AST] %s\n%!" (to_str n)
 
 let _ = Callback.register "print_ast_node" print_ast_node
