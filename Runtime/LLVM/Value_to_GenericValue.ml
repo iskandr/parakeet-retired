@@ -32,7 +32,6 @@ let rec to_llvm = function
       HostMemspace.set_int64 ptr 0 a.data.addr;
       HostMemspace.set_int64 ptr 1 cshape;
       HostMemspace.set_int64 ptr 2 cstrides;
-      Printf.printf "Set strides to %Ld\n%!" cstrides;
       int64 ptr
   | Value.Explode (scalar, shape) ->
       let ptr = HostMemspace.malloc (8 + 8) in

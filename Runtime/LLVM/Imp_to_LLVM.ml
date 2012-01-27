@@ -80,14 +80,18 @@ let compile_const (t:ImpType.t) (n:ParNum.t) =
   | ParNum.Float64 f -> const_float t' f
   | _ -> assert false
 
-let compile_val (fnInfo:fn_info) (impVal:Imp.value_node) : Llvm.llvalue =
+let compile_val ?(doLoad=true) (fnInfo:fn_info) (impVal:Imp.value_node) :
+    Llvm.llvalue =
   match impVal.value with
   | Imp.Var id ->
       let ptr = try Hashtbl.find fnInfo.named_values (ID.to_str id) with
       | Not_found -> failwith "unknown variable name"
       in
-      let tempName = (ID.to_str id) ^ "_value" in
-      build_load ptr tempName fnInfo.builder
+      if doLoad then
+        let tempName = (ID.to_str id) ^ "_value" in
+        build_load ptr tempName fnInfo.builder
+      else
+        ptr
   | Imp.Const const -> compile_const impVal.Imp.value_type const
   | _ -> assert false
 
@@ -177,15 +181,57 @@ let compile_exp fnInfo (impexp:Imp.exp_node) =
   match impexp.exp with
   | Imp.Val valNode -> compile_val fnInfo valNode
   | Imp.Op (t, op, vals) ->
-      let vals' =  List.map (compile_val fnInfo) vals in
-      if Prim.is_comparison op then
-        compile_cmp t op vals' fnInfo.builder
-      else
-        compile_math_op t op vals' fnInfo.builder
- | Imp.Cast(t, v) ->
+    let vals' =  List.map (compile_val fnInfo) vals in
+    if Prim.is_comparison op then
+      compile_cmp t op vals' fnInfo.builder
+    else
+      compile_math_op t op vals' fnInfo.builder
+  | Imp.Cast(t, v) ->
     let original = compile_val fnInfo v in
     compile_cast fnInfo original v.Imp.value_type t
- | other ->
+  | Imp.Idx(arr, args) ->
+    let argVals = List.map (compile_val fnInfo) args in
+    let zero = Llvm.const_int LLVM_Types.int32_t 0 in
+    let strideIdx = Llvm.const_int LLVM_Types.int32_t 2 in
+    let arrVal = compile_val ~doLoad:false fnInfo arr in
+    let stridesPtr =
+      Llvm.build_gep arrVal [|zero;strideIdx|] "gep_stride" fnInfo.builder
+    in
+    let strides = Llvm.build_load stridesPtr "strides" fnInfo.builder in
+    let dataIdx = Llvm.const_int LLVM_Types.int32_t 0 in
+    let dataPtr =
+      Llvm.build_gep arrVal [|zero;dataIdx|] "gep_data" fnInfo.builder
+    in
+    let addr = Llvm.build_load dataPtr "data" fnInfo.builder in
+    let intaddr =
+      Llvm.build_ptrtoint addr LLVM_Types.int64_t "intaddr" fnInfo.builder
+    in
+    let rec computeIdxAddr = (fun i curAddr args ->
+      match args with
+      | arg :: tail ->
+        let idxVal = Llvm.const_int LLVM_Types.int32_t i in
+        let stridePtr =
+          Llvm.build_gep strides [|idxVal|] "gep_strideidx" fnInfo.builder
+        in
+        let strideVal = Llvm.build_load stridePtr "stride" fnInfo.builder in
+        let offset = Llvm.build_mul strideVal arg "offset" fnInfo.builder in
+        let offset64 =
+          Llvm.build_sext offset LLVM_Types.int64_t "offset64" fnInfo.builder
+        in
+        let newAddr =
+          Llvm.build_add curAddr offset64 "add_offset" fnInfo.builder
+        in
+        computeIdxAddr (i+1) newAddr tail
+      | [] -> curAddr
+    ) in
+    let idxInt = computeIdxAddr 0 intaddr argVals in
+    let eltType = ImpType_to_lltype.to_lltype impexp.exp_type in
+    let eltPtrType = Llvm.pointer_type eltType in
+    let idxAddr =
+      Llvm.build_inttoptr idxInt eltPtrType "idxAddr" fnInfo.builder
+    in
+    Llvm.build_load idxAddr "ret" fnInfo.builder
+    | other ->
     failwith $ Printf.sprintf "[Imp_to_LLVM] Not implemented %s\n"
       (Imp.exp_to_str other)
 

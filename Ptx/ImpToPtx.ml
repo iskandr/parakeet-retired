@@ -132,7 +132,6 @@ let prim_to_ptx_op codegen destReg args op t =
           (Prim.scalar_op_to_str op)
           (PtxType.to_str t)
 
-
 let same_type t1 t2 =
   if t1 <> t2 then  debug $ Printf.sprintf "Expected same types, got %s and %s "
     (PtxType.to_str t1) (PtxType.to_str t2)

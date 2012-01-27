@@ -154,7 +154,6 @@ and exp_to_str = function
         (val_node_to_str cond)
         (val_node_to_str trueVal)
         (val_node_to_str falseVal)
-
   | Cast (tNew, v) ->
       sprintf "cast %s->%s (%s)"
         (ImpType.to_str  v.value_type)
@@ -215,7 +214,7 @@ let array_storage_to_str = function
   | Alias -> "alias"
 
 let fn_to_str fn =
-  let id_to_str id  =
+  let id_to_str id =
     ID.to_str id ^ " : " ^ (ImpType.to_str (get_var_type fn id))
   in
   let inputs = List.map id_to_str fn.input_ids  in
