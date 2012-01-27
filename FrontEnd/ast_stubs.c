@@ -237,7 +237,7 @@ paranode mk_if(paranode cond_node, paranode true_node, paranode false_node,
 }
 
 paranode mk_assign(paranode lhs, paranode rhs, source_info_t *src_info) {
-  CAMLparam2(lhs, rhs);
+  CAMLparam0(); 
   CAMLlocal3(val_lhs, val_rhs, assignment);
 
   val_lhs = get_value_and_remove_root(lhs); 
@@ -445,5 +445,5 @@ paranode get_prim(char* prim_name) {
 void print_ast_node(paranode n) { 
   CAMLparam1(n); 
   caml_callback(*ocaml_print_ast_node, n);
-  return; 
+  CAMLreturn0; 
 }
