@@ -37,7 +37,7 @@ class _ret_data(Union):
 class _ret_t(Structure):
   _fields_ = [("data", _ret_data),
               ("is_scalar", c_int)]
-              
+
 class return_val_t(Structure):
   _fields_ = [("return_code", c_int),
               ("results_len", c_int),
@@ -48,7 +48,7 @@ class return_val_t(Structure):
 #Small fix: Can set default return type to c_void_p?
 def return_type_init():
   LibPar.parakeet_init()
-  #NOTE: can set default to c_void_p, much less initialization?                
+  #NOTE: can set default to c_void_p, much less initialization?
   LibPar.mk_def.restype = c_void_p
   LibPar.mk_int32_paranode.restype = c_void_p
   LibPar.mk_int64_paranode.restype = c_void_p
@@ -71,7 +71,7 @@ def return_type_init():
   LibPar.mk_float_paranode.restype = c_void_p
   LibPar.mk_double_paranode.restype = c_void_p
   LibPar.mk_bool.restype = c_void_p
-  
+
   #get global values for parakeet types
   LibPar.bool_t = c_int.in_dll(LibPar, "parakeet_bool_elt_t").value
   LibPar.char_t = c_int.in_dll(LibPar, "parakeet_char_elt_t").value
@@ -122,7 +122,8 @@ BuiltinPrimitives = {'Add':ast_prim('+'),
                      'IsNot':'Not yet implemented',
                      'In':'Not yet implemented',
                      'NotIn':'Not yet implemented',
-                     'Index':ast_prim('index')}
+                     'Index':ast_prim('index'),
+                     'Slice':ast_prim('slice')}
 #Keeps track of the user-made functions that have been made and the built-ins
 VisitedFunctions = SafeFunctions.copy()
 
@@ -163,7 +164,10 @@ def list_to_ctypes_array(inputList, t):
   numElements = len(inputList)
   listStructure = t * numElements # Description of a ctypes array
   l = listStructure()
+  if numElements == 3:
+    print "NE", numElements, inputList
   for i in range(numElements):
+    print "IN LOOP", inputList[i], l[i]
     l[i] = inputList[i]
   return l
 
@@ -261,7 +265,7 @@ class ASTConverter():
         #  Single AST Node
         #######################################################################
         if nodeType == 'Call' and fieldName == 'func':
-          continue 
+          continue
         #The only non-list child of Assign is the RHS
         if nodeType == 'Assign':
           nextRightAssignment = 1
@@ -299,7 +303,7 @@ class ASTConverter():
     return self.paranodes(node, parakeetNodeChildren)
 
   def paranodes(self,node,args):
-    #args is the children nodes in the correct type (i.e. node or literal) 
+    #args is the children nodes in the correct type (i.e. node or literal)
     nodeType = type(node).__name__
     verbString = 'Python Note: '+nodeType+" has no verbString"
     if Verbose and Debug:
@@ -411,6 +415,7 @@ class ASTConverter():
     elif nodeType == 'Module':
       verbString = "block("+str(args[0])+")"
       numArgs = len(args[0])
+      print "VS", verbString, args
       block = list_to_ctypes_array(args[0],c_void_p)
       retNode = c_void_p(LibPar.mk_block(block,numArgs,None))
     elif nodeType == 'If':
@@ -469,7 +474,7 @@ def fun_visit(func,new_f):
       if Verbose:
         PrettyAST.printAst(node)
       #Med fix: right now, I assume there aren't any globals
-        #Fix: functionGlobals[func] = globalVars      
+        #Fix: functionGlobals[func] = globalVars
       globList = list_to_ctypes_array([],c_char_p)
 
       varList = list_to_ctypes_array(funInfo[0],c_char_p)
@@ -496,15 +501,15 @@ def fun_visit(func,new_f):
       VisitedFunctions[func] = funID
       VisitedFunctions[new_f] = funID
 
-# given a numpy array or a scalar, construct the equivalent parakeet value 
+# given a numpy array or a scalar, construct the equivalent parakeet value
 def python_value_to_parakeet(arg):
   if isinstance(arg, np.ndarray):
     rank = len(arg.shape)
     inputShape = arg.ctypes.shape_as(c_int32)
     inputStrides = arg.ctypes.strides_as(c_int32)
     if rank > 1 and not arg.flags['C_CONTIGUOUS']:
-      # until we have a proper interface for telling parakeet this data is 
-      # column-major, we have to manually transpose it 
+      # until we have a proper interface for telling parakeet this data is
+      # column-major, we have to manually transpose it
       # TODO: wouldn't strides be enough to handle this?
       arg = np.transpose(arg).copy()
     npType = arg.dtype.type
@@ -530,7 +535,7 @@ def python_value_to_parakeet(arg):
       return c_void_p(LibPar.mk_float32(c_float(arg)))
   else:
     raise Exception ("Input not supported by Parakeet: " + str(arg))
-  
+
 def array_from_memory(pointer, shape, dtype):
   from_memory = ctypes.pythonapi.PyBuffer_FromReadWriteMemory
   from_memory.restype = ctypes.py_object
