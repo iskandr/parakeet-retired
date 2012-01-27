@@ -237,7 +237,7 @@ paranode mk_if(paranode cond_node, paranode true_node, paranode false_node,
 }
 
 paranode mk_assign(paranode lhs, paranode rhs, source_info_t *src_info) {
-  CAMLparam0();
+  CAMLparam2(lhs, rhs);
   CAMLlocal3(val_lhs, val_rhs, assignment);
 
   val_rhs = get_value_and_remove_root(lhs); 
