@@ -403,7 +403,7 @@ class ASTConverter():
     if nodeType == 'Name':
       #Special case for booleans
       if args[0] == 'True':
-	LOG("bool(True)")
+        LOG("bool(True)")
         return LibPar.mk_bool_paranode(1,None)
       elif args[0] == 'False':
         LOG("bool(False)")
@@ -428,15 +428,18 @@ class ASTConverter():
       return LibPar.mk_app(operation,unaryArg,1,None)
     elif nodeType == 'Compare':
       #Not sure when there are multiple ops or multiple comparators?
-      LOG("app(%s, [%s, %s])" % (type(node.ops[0]).__name__, args[0], args[2][0]))
+      LOG("app(%s, [%s, %s])" % \
+          (type(node.ops[0]).__name__, args[0], args[2][0]))
       compArgs = list_to_ctypes_array([args[0],args[2][0]],c_void_p)
       operation = BuiltinPrimitives[type(node.ops[0]).__name__]
       return LibPar.mk_app(operation,compArgs,2,None)
     elif nodeType == 'Num':
       num = eval(args[0])
       LOG("%s(%s)" %(type(num), num))
-      if type(num) == int: return LibPar.mk_int32_paranode(num,None)
-      elif type(num) == float: return LibPar.mk_float_paranode(c_float(num),None)
+      if type(num) == int:
+        return LibPar.mk_int32_paranode(num,None)
+      elif type(num) == float:
+        return LibPar.mk_float_paranode(c_float(num),None)
     elif nodeType == 'Call':
       raise RuntimeError ('[Parakeet] Unexpected Call node')
 
