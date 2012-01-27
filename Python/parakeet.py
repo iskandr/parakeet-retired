@@ -164,6 +164,7 @@ ParakeetTypeToCtype = {
 ###############################################################################
 #Builds a ctypes list of the type out of the input_list
 def list_to_ctypes_array(inputList, t):
+  print "[list_to_ctypes_array]", inputList
   numElements = len(inputList)
   listStructure = t * numElements # Description of a ctypes array
   l = listStructure()
@@ -241,6 +242,14 @@ class ParakeetUnsupported(Exception):
   def __str__(self):
     return repr(self.value)
 
+# always assume functions have a module but 
+# always 
+def global_fn_name(fn, default_name="<unknown_function>"):
+  if hasattr(fn, '__name__'): 
+    return fn.__module__ + "." + fn.__name__
+  else:
+    return fn.__module__ + "." + default_name
+
 
 ###############################################################################
 #  Converter
@@ -248,7 +257,7 @@ class ParakeetUnsupported(Exception):
 class ASTConverter():
   def __init__(self,funcGlobals):
     #Should really be a set?
-    self.functionCalls = {} #curr_function
+    self.seen_functions = set([]) #curr_function
     self.varList = []
     self.functionGlobalVariables = funcGlobals
 
@@ -264,10 +273,27 @@ class ASTConverter():
       raise ParakeetUnsupported("strings are not supported")
     elif nodeType == 'List' or nodeType == 'Tuple':
       if 'array' in contextSet:
-        array_elts = [self.visit(n, currContext) for n in ast.iter_child_nodes(node)]
+        children = ast.iter_child_nodes(node)
+        array_elts = self.build_arg_list(children, contextSet)
         self.build_parakeet_array(array_elts)
       else: 
         raise ParakeetUnsupported("lists and tuples are not supported outside of numpy arrays")
+    elif nodeType == 'Call':
+      funRef = self.get_function_ref(node)
+      childContext = set(contextSet)
+      if funRef == np.array:
+        childContext.add('array')
+      args = self.build_arg_list(ast.iter_child_nodes(node), childContext)
+      LOG("Call(%s, %s)" % (funRef, args))     
+      assert False
+      """    
+      elif type(node.func).__name__ == 'Name':
+
+        return self.build_call(funRef, args[1])
+      # have a module path, so function args are at a different position
+      else 
+        return self.build_call(funRef, args[2])
+      """   
     parakeetNodeChildren = []
     for childName, childNode in ast.iter_fields(node):
       #######################################################################
@@ -294,10 +320,9 @@ class ASTConverter():
         # children then you're the LHS         
         if nodeType == 'Assign': 
           childContext.add('lhs')
-        for child in childNode:
-          childResults.append(self.visit(child,childContext))
-    
-        parakeetNodeChildren.append(childResults)
+        results = self.build_arg_list(childNode, childContext)
+        parakeetNodeChildren.append(results)
+       
       else:
         #######################################################################
         #  Literal
@@ -310,7 +335,15 @@ class ASTConverter():
         parakeetNodeChildren.append(str(childNode))
     return self.build_parakeet_node(node, parakeetNodeChildren)
 
-
+  def build_arg_list(self, python_nodes,  contextSet):
+    results = []
+    for node in python_nodes:
+      result = self.visit(node, contextSet)
+      if result is not None: 
+        results.append(result)
+    return results 
+    
+    
   def build_parakeet_array(self, elts):
     c_array = list_to_ctypes_array(elts, c_void_p)
     return LibPar.mk_array(c_array, len(elts), None)
@@ -319,7 +352,47 @@ class ASTConverter():
     c_array = list_to_ctypes_array(stmts, c_void_p)
     return LibPar.mk_block(c_array, len(stmts), None) 
 
+  def get_function_ref(self, node): 
+    name = type(node.func).__name__
+    if name == 'Name':
+      funName = node.func.id
+      if funName in self.functionGlobalVariables:
+        funRef = self.functionGlobalVariables[funName]
+      elif funName in __builtins__:
+        funRef = __builtins__[funName]
+      else:
+        raise RuntimeError("[Parakeet] Couldn't find:" + funName)
+    elif name == 'Attribute':
+      #For function calls like mod1.mod2.mod4.fun()
+      moduleList = []
+      nextNode = node.func
+      funName = node.func.attr
+      #Get a list of the chain of modules
 
+      while type(nextNode).__name__ == 'Attribute':
+        moduleList = [nextNode.attr] + moduleList
+        nextNode = nextNode.value
+
+      currModule = self.functionGlobalVariables[nextNode.id]
+
+      for m in moduleList:
+        currModule = currModule.__dict__[m]
+
+      funRef = currModule
+    else:
+      raise RuntimeError("[Parakeet] Call.func shouldn't be", name)
+    self.seen_functions.add(funRef)
+    return funRef 
+  
+  def build_call(self, funRef, args):
+    if funRef in SafeFunctions:
+      funNode = SafeFunctions[funRef]
+    else:
+      c_name = c_char_p(global_fn_name(funRef, funName))
+      funNode = LibPar.mk_var(c_name, None)
+    funArgs = list_to_ctypes_array(args,c_void_p)
+    return LibPar.mk_app(funNode, funArgs, len(funArgs), None)
+    
   # everything except arrays 
   def build_parakeet_node(self,node,args):
     #args is the children nodes in the correct type (i.e. node or literal)
@@ -364,67 +437,8 @@ class ASTConverter():
       if type(num) == int: return LibPar.mk_int32_paranode(num,None)
       elif type(num) == float: return LibPar.mk_float_paranode(c_float(num),None)
     elif nodeType == 'Call':
-      #Simple function call
-      if type(node.func).__name__ == 'Name':
-        funName = node.func.id
-        LOG("app(%s, %s)" % (funName,  args[0]))
-        #Special case for partial
-        if funName == 'partial':
-          funName = node.args[0].id
-          args[1] = args[1][1:]
-          LOG("partial function application")
-        try:
-          try:
-            funRef = self.functionGlobalVariables[funName]
-          except:
-            #It could still be a built-in
-            funRef = __builtins__[funName]
-        except:
-          LOG("Python Error: Couldn't find:" + funName)
-          self.functionCalls[funRef] = 1
-        try:
-          funNode = SafeFunctions[funRef]
-        except:
-          try:
-            funNode = c_void_p(LibPar.mk_var(c_char_p(funRef.__module__+"."+
-                                                      funRef.__name__),None))
-          except:
-            LOG("Temp: we need this for calling " + funName)
-            funNode = c_void_p(LibPar.mk_var(c_char_p(funRef.__module__+"."+
-                                                      funName),None))
-        funArgs = list_to_ctypes_array(args[1],c_void_p)
-        numArgs = len(args[1])
-      elif type(node.func).__name__ == 'Attribute':
-        #For function calls like mod1.mod2.mod4.fun()
-        moduleList = []
-        nextNode = node.func
-        funName = node.func.attr
-        #Get a list of the chain of modules
-        while type(nextNode).__name__ == 'Attribute':
-          nextNode = nextNode.value
-          moduleList = [nextNode.attr] + moduleList
-        nextModu = self.functionGlobalVariables[nextNode.value.id]
-        for modu in moduleList:
-          nextModu = nextModu.__dict__[modu]
-        funRef = nextModu.__dict__[funName]
-        self.functionCalls[funRef] = 1
-        try:
-          funNode = SafeFunctions[funRef]
-        except:
-          try:
-            funNode = c_void_p(LibPar.mk_var(c_char_p(funRef.__module__+"."+
-                                                      funRef.__name__),None))
-          except:
-            LOG("Temp: we need this for calling " + funName)
-            funNode = c_void_p(LibPar.mk_var(c_char_p(funRef.__module__+"."+
-                                                      funName),None))
-        #Bug fix: Arguments get stored in args[2] instead
-        funArgs = list_to_ctypes_array(args[2],c_void_p)
-        numArgs = len(arsg[2])
-      else:
-        print "[Parakeet] Python Error: Call.func shouldn't be",type(node.func).__name__
-        LOG("app(%s, %s, %s)" % (funNode, funArgs, numArgs))
-      return LibPar.mk_app(funNode,funArgs,numArgs,None)
+      raise RuntimeError ('[Parakeet] Unexpected Call node')
+      
     elif nodeType == 'Module':
       LOG("block(%s)" % str(args))
       return self.build_parakeet_block(args[0])
@@ -451,7 +465,7 @@ class ASTConverter():
       return args[0]
     else:
       print "[Parakeet]", nodeType, "with args", str(args), "not handled"
-      return nodeType
+      return None
 
 ###############################################################################
 #  Running function
@@ -473,7 +487,7 @@ def fun_visit(func,new_f):
     global_vars_array = list_to_ctypes_array(global_vars,c_char_p)
     var_list = list_to_ctypes_array(funInfo[0],c_char_p)
 
-    for key in AST.functionCalls.keys():
+    for key in AST.seen_functions:
       if not (VisitedFunctions.has_key(key)):
         #Possible fix:and not function_names?
         LOG("Visiting %s" % key.__name__)
