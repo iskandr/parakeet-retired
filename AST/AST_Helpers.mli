@@ -21,8 +21,8 @@ val update_prim_node : node -> Prim.prim -> node
 val mk_var_node : ?info:ast_info -> ?src:SrcInfo.t -> string -> node
 val update_var_node : node -> string -> node
 
-val mk_def_node : ?info:ast_info -> ?src:SrcInfo.t -> string -> node -> node
-val update_def_node : node -> string -> node -> node
+val mk_assign_node : ?info:ast_info -> ?src:SrcInfo.t -> node -> node -> node
+val update_assign_node : node -> node -> node -> node
 
 val mk_lam_node :
     ?info:ast_info -> ?src:SrcInfo.t -> string list -> node -> node

@@ -233,24 +233,21 @@ paranode mk_if(paranode cond_node, paranode true_node, paranode false_node,
   CAMLreturnT(paranode, mk_node(if_node, src_info));
 }
 
-paranode mk_def(char *name, paranode rhs, source_info_t *src_info) {
+paranode mk_assign(paranode lhs, paranode rhs, source_info_t *src_info) {
   CAMLparam0();
-  CAMLlocal3(ocaml_name, val_rhs, def);
+  CAMLlocal3(val_lhs, val_rhs, assignment);
 
+  val_rhs = get_value_and_remove_root(lhs); 
   val_rhs = get_value_and_remove_root(rhs);
 
-  int len = strlen(name);
-  ocaml_name = caml_alloc_string(len);
-  memcpy(String_val(ocaml_name), name, len);
+  assignment = caml_alloc(2, Exp_Assign);
+  Store_field(assignment, 0, val_lhs);
+  Store_field(assignment, 1, val_rhs);
 
-  def = caml_alloc(2, Exp_Def);
-  Store_field(def, 0, ocaml_name);
-  Store_field(def, 1, val_rhs);
-
-  CAMLreturnT(paranode, mk_node(def, src_info));
+  CAMLreturnT(paranode, mk_node(assignment, src_info));
 }
-
-paranode mk_setidx(char *arr_name, paranode idxs, paranode rhs,
+/*
+paranode mk_setidx(char *arr_name, paranode* indices, int n_indices, paranode rhs)
                    source_info_t *src_info) {
   CAMLparam0();
   CAMLlocal4(ocaml_arr_name, val_idxs, val_rhs, setidx);
@@ -269,7 +266,7 @@ paranode mk_setidx(char *arr_name, paranode idxs, paranode rhs,
 
   CAMLreturnT(paranode, mk_node(setidx, src_info));
 }
-
+*/ 
 paranode mk_block(paranode *stmts, int num_stmts, source_info_t *src_info) {
   CAMLparam0();
   CAMLlocal1(block);

@@ -130,7 +130,7 @@ let rec translate_stmt
       codegen#emit [mk_stmt $ If(condVal,trueBlock,falseBlock, phiNodes)];
       add_list env mergeNames mergeIds
 
-  | AST.Def(name, rhs) ->
+  | AST.Assign({AST.data=AST.Var name}, rhs) ->
       let id = ID.gen_named name in
       let rhsEnv, rhsExp = translate_exp env codegen rhs in
       (match value_id with
@@ -142,9 +142,7 @@ let rec translate_stmt
       );
       add rhsEnv name id
 
-
   | AST.Block nodes  -> translate_block env codegen ?value_id nodes
-  | AST.SetIdx(name, indices, rhs) -> failwith "setidx not implemented"
   | AST.WhileLoop(cond,body) ->
         (* FIX: I don't think this properly handles SSA gates for variables
            modified in the cond block
@@ -288,8 +286,7 @@ and translate_exp env codegen node =
       let ssaEnv, ssaArgs = translate_args env codegen args in
       ssaEnv, mk_arr ssaArgs
   | AST.If _  -> failwith "unexpected If while converting to SSA"
-  | AST.Def _ -> failwith "unexpected Def while converting to SSA"
-  | AST.SetIdx _ -> failwith "unexpected SetIdx while converting to SSA"
+  | AST.Assign _ -> failwith "unexpected Assign while converting to SSA"
   | AST.Block _  -> failwith "unexpected Block while converting to SSA"
   | AST.WhileLoop _ -> failwith "unexpected WhileLoop while converting to SSA"
   | AST.CountLoop _ -> failwith "unexpected CountLoop while converting to SSA"

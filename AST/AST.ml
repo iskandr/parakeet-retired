@@ -70,9 +70,7 @@ type exp =
     | App of node * node list
     | Arr of node list
     | If of node * node * node
-    | Def of string * node
-    | SetIdx of string * (node list) * node
-
+    | Assign of node * node
     | Block of node list
     | WhileLoop of node * node
     | CountLoop of node * node
@@ -104,10 +102,7 @@ let rec to_str ast = match ast.data with
   | App (fn, args) ->
         sprintf "%s(%s)" (to_str fn) (args_to_str ~delim:", " args)
   | Arr elts ->   "[" ^ (args_to_str ~delim:", " elts) ^ "]"
-  | Def (name, rhs) -> name ^ " := " ^ (to_str rhs)
-  | SetIdx (name, indices, rhs) ->
-        let argsStr = args_to_str ~delim:", " indices in
-        sprintf "%s[%s] := %s" name argsStr (to_str rhs)
+  | Assign (lhs, rhs) -> (to_str lhs) ^ " := " ^ (to_str rhs)
   | Block nodes -> sprintf "{ %s }" (args_to_str nodes)
 
   | If(test, tNode, fNode) ->

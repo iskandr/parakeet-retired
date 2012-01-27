@@ -23,8 +23,7 @@ enum ast_exp_data {
   Exp_App,
   Exp_Arr,
   Exp_If,
-  Exp_Def,
-  Exp_SetIdx,
+  Exp_Assign,
   Exp_Block,
   Exp_WhileLoop,
   Exp_CountLoop

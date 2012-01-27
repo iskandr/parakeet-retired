@@ -61,10 +61,7 @@ paranode mk_array(paranode *elts, int num_stmts, source_info_t *src_info);
 paranode mk_if(paranode cond_node, paranode true_node, paranode false_node,
                source_info_t *src_info);
 
-paranode mk_def(char *name, paranode rhs, source_info_t *src_info);
-
-paranode mk_setidx(char *arr_name, paranode idxs, paranode rhs,
-                   source_info_t *src_info);
+paranode mk_assign(paranode lhs, paranode rhs, source_info_t *src_info);
 
 paranode mk_block(paranode *stmts, int num_stmts, source_info_t *src_info);
 
