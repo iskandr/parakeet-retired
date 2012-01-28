@@ -125,6 +125,8 @@ let is_float_binop = function
   | Div | Log -> true
   | _ -> false
 
+let is_float_op op = (is_float_unop op) || (is_float_binop op)
+
 module PrimOrd = struct type t = prim let compare = compare end
 module PrimSet = Set.Make(PrimOrd)
 module PrimMap = Map.Make(PrimOrd)

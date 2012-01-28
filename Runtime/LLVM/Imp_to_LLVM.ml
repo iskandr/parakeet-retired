@@ -186,7 +186,7 @@ let compile_math_op (t:Type.elt_t) op (vals:llvalue list) builder =
       | Type.Float32T -> Llvm.build_fpext x float64_t "sqrtfparg" builder
       | _ -> x
     in
-    Llvm.build_call sqrt [|arg|] "sqrt" builder 
+    Llvm.build_call sqrt [|arg|] "sqrt" builder
   | _ ->
     failwith $ Printf.sprintf "Unsupported math op %s with %d args"
       (Prim.scalar_op_to_str op) (List.length vals)
