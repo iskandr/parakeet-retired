@@ -112,19 +112,18 @@ let is_unop = function
 
 (* binary operators which preserve the greatest type of their args *)
 let is_comparison = function
-  | Eq | Neq | Lt  | Lte | Gt  | Gte -> true
+  | Eq | Neq | Lt | Lte | Gt | Gte -> true
   | _ -> false
 
 (* unary operators which turn numeric types into floats *)
 let is_float_unop = function
-  | Sqrt  | Lg2 | Ln | Log10 | Cos | Sin | Tan | Cosh | Sinh | Tanh
+  | Sqrt | Lg2 | Ln | Log10 | Cos | Sin | Tan | Cosh | Sinh | Tanh
   | Reciprocal | Exp -> true
   | _ -> false
 
 let is_float_binop = function
   | Div | Log -> true
   | _ -> false
-
 
 module PrimOrd = struct type t = prim let compare = compare end
 module PrimSet = Set.Make(PrimOrd)
@@ -193,7 +192,6 @@ let scalar_op_to_str = function
   | Log10 -> "log10"
   | Select -> "select"
 
-
 let array_op_to_str = function
   | Index -> "index"
   | DimSize -> "dimsize"
@@ -210,7 +208,6 @@ let adverb_to_str = function
   | Scan -> "scan"
   | AllPairs -> "allpairs"
 
-
 let impure_op_to_str = function
   | ResetTimer -> "reset_timer"
   | GetTimer -> "get_timer"
@@ -225,3 +222,4 @@ let to_str = function
 let is_pure_op  = function
   | ImpureOp _ -> false
   | _ -> true
+
