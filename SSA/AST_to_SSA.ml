@@ -1,7 +1,7 @@
 (* pp: -parser o pa_macro.cmo *)
 
-open Base
 open AST
+open Base
 open SSA
 open SSA_Codegen
 open SSA_Helpers
@@ -18,7 +18,6 @@ module Env = struct
   type t =
   | GlobalScope of (string -> FnId.t)
   | LocalScope of (ID.t String.Map.t) * t
-
 
   let rec mem env name = match env with
   | GlobalScope fnLookup ->
@@ -49,7 +48,7 @@ module Env = struct
   | LocalScope (dataEnv, parent) ->
     if String.Map.mem name dataEnv then Var (String.Map.find name dataEnv)
     else lookup parent name
-  | GlobalScope fnLookup ->  GlobalFn (fnLookup name)
+  | GlobalScope fnLookup -> GlobalFn (fnLookup name)
 
   (* assume that we know this name is not of a global function *)
   let lookup_id env name  =
@@ -74,7 +73,6 @@ module Env = struct
 end
 
 open Env
-
 
 (* value_id is an optional parameter, if it's provided then the generated
    statements must set retId to the last value
@@ -265,7 +263,6 @@ and translate_exp env codegen node =
       }
     in
     env, expNode
-
   in
   match node.data with
   | AST.Var name -> value $ lookup env name
@@ -290,7 +287,6 @@ and translate_exp env codegen node =
   | AST.Block _  -> failwith "unexpected Block while converting to SSA"
   | AST.WhileLoop _ -> failwith "unexpected WhileLoop while converting to SSA"
   | AST.CountLoop _ -> failwith "unexpected CountLoop while converting to SSA"
-
 
 and translate_value env codegen node =
   (* simple values generate no statements and don't modify the environment *)
@@ -328,4 +324,5 @@ and translate_fn parentEnv argNames body =
   let _ = translate_stmt initEnv codegen ~value_id:retId body in
   (* make an empty type env since this function hasn't been typed yet *)
   let body = codegen#finalize in
-  SSA_Helpers.mk_fn ~body  ~input_ids:argIds ~output_ids:[retId]
+  SSA_Helpers.mk_fn ~body ~input_ids:argIds ~output_ids:[retId]
+
