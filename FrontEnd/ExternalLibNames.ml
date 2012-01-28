@@ -28,6 +28,9 @@ let prim_names =  Hashtbl.of_list [
     "neg", ScalarOp Neg;
     "sign", ScalarOp Sign;
 
+    "and", ScalarOp And;
+    "or", ScalarOp Or;
+
     "reciprocal", ScalarOp Reciprocal;
     "floor", ScalarOp Floor;
     "ceil", ScalarOp Ceil;

@@ -7,7 +7,7 @@ def fourthElement(x):
 
 @PAR
 def secondThirdElement(x):
-  return x[1][2]
+  return x[1,2]
 
 @PAR
 def arrElements(x,y):
