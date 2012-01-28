@@ -1,3 +1,7 @@
+#Map(function, [arrays], [fixed], [axes], [def]?)
+#Default to void except default fixed to []
+
+
 from ctypes import *
 import ast, os, sys
 import functools as ft
@@ -75,6 +79,7 @@ def return_type_init(LibPar):
   LibPar.mk_float_paranode.restype = c_void_p
   LibPar.mk_double_paranode.restype = c_void_p
   LibPar.mk_bool.restype = c_void_p
+  LibPar.mk_void.restype = c_void_p
 
   #get global values for parakeet types
   LibPar.bool_t = c_int.in_dll(LibPar, "parakeet_bool_elt_t").value
@@ -284,6 +289,47 @@ class ASTConverter():
         childContext.add('array')
         assert len(node.args) == 1
         return self.visit(node.args[0], childContext)
+
+      elif funRef == para_libs.map:
+        fun_arg = node.args[0]
+        arr_args = []
+        for arg in node.args[1:]:
+          arr_args.append(self.visit(arg, childContext))
+        kw_args = {'fixed': self.build_parakeet_array([]),
+                   'axis': LibPar.mk_void()
+                  }
+        childContext.add('rhs')
+        for kw_arg in node.keywords:
+          kw = kw_arg.arg
+          val = self.visit(kw_arg.value, childContext)
+          kw_args[kw] = val
+        args = [fun_arg]
+        args.append(arr_args)
+        args.append(kw_args['fixed'])
+        args.append(kw_args['axis'])
+        #self.build_call(funRef, args)
+        return args
+      elif funRef == para_libs.reduce:
+        run_arg = node.args[0]
+        arr_args = []
+        for arg in node.args[1:]:
+          arr_args.append(self.visit(arg, childContext))
+        kw_args = {'fixed': self.build_parakeet_array([]), #How do we represent an empty list?
+                   'axis': LibPar.mk_void(),
+                   'default': LibPar.mk_void()
+                   }
+        childContext.add('rhs')
+        for kw_arg in node.keywords:
+          kw = kw_arg.arg
+          val = self.visit(kw_arg.value, childContext)
+          kw_args[kw] = val
+        args = [fun_arg]
+        args.append(arr_args)
+        args.append(kw_args['fixed'])
+        args.append(kw_args['axis'])
+        args.append(kw_args['default'])
+        self.build_call(funRef, args)
+        return args
       else:
         funArgs = self.build_arg_list(node.args, childContext)
         return self.build_call(funRef, funArgs)
