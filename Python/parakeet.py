@@ -1,6 +1,4 @@
-#Map(function, [arrays], [fixed], [axes], [def]?)
-#Default to void except default fixed to []
-
+#Supoprt for tuples as index arguments
 
 from ctypes import *
 import ast, os, sys
@@ -291,45 +289,61 @@ class ASTConverter():
         return self.visit(node.args[0], childContext)
 
       elif funRef == para_libs.map:
-        fun_arg = node.args[0]
+        fun_arg = self.visit(node.args[0], childContext)
         arr_args = []
         for arg in node.args[1:]:
           arr_args.append(self.visit(arg, childContext))
         kw_args = {'fixed': self.build_parakeet_array([]),
-                   'axis': LibPar.mk_void()
+                   'axis': LibPar.mk_void(None)
                   }
         childContext.add('rhs')
+        childContext.add('array')
         for kw_arg in node.keywords:
           kw = kw_arg.arg
-          val = self.visit(kw_arg.value, childContext)
-          kw_args[kw] = val
+          val = kw_arg.value
+          if type(val).__name__ == 'List':
+            val_args = []
+            for v_arg in val.elts():
+              val_args.append(self.visit(v_arg, childContext))
+            kw_args[kw] = self.build_parakeet_array(val_args)
+          else:
+            val = self.visit(kw_arg.value, childContext)
+            kw_args[kw] = self.build_parakeet_array([val])
         args = [fun_arg]
-        args.append(arr_args)
+        para_arr_args = self.build_parakeet_array(arr_args)
+        args.append(para_arr_args)
         args.append(kw_args['fixed'])
         args.append(kw_args['axis'])
-        #self.build_call(funRef, args)
-        return args
+        return self.build_call(funRef, args)
       elif funRef == para_libs.reduce:
-        run_arg = node.args[0]
+        fun_arg = self.visit(node.args[0], childContext)
         arr_args = []
         for arg in node.args[1:]:
           arr_args.append(self.visit(arg, childContext))
-        kw_args = {'fixed': self.build_parakeet_array([]), #How do we represent an empty list?
-                   'axis': LibPar.mk_void(),
-                   'default': LibPar.mk_void()
-                   }
+        kw_args = {'fixed': self.build_parakeet_array([]),
+                   'axis': LibPar.mk_void(None),
+                   'default':LibPar.mk_void(None)
+                  }
         childContext.add('rhs')
+        childContext.add('array')
         for kw_arg in node.keywords:
           kw = kw_arg.arg
-          val = self.visit(kw_arg.value, childContext)
-          kw_args[kw] = val
+          val = kw_arg.value
+          if type(val).__name__ == 'List':
+            val_args = []
+            for v_arg in val.elts():
+              val_args.append(self.visit(v_arg, childContext))
+            kw_args[kw] = self.build_parakeet_array(val_args)
+          else:
+            val = self.visit(kw_arg.value, childContext)
+            kw_args[kw] = self.build_parakeet_array([val])
         args = [fun_arg]
-        args.append(arr_args)
+        para_arr_args = self.build_parakeet_array(arr_args)
+        args.append(para_arr_args)
         args.append(kw_args['fixed'])
         args.append(kw_args['axis'])
         args.append(kw_args['default'])
-        self.build_call(funRef, args)
-        return args
+        return self.build_call(funRef, args)
       else:
         funArgs = self.build_arg_list(node.args, childContext)
         return self.build_call(funRef, funArgs)
@@ -373,6 +387,7 @@ class ASTConverter():
               raise ParakeetUnsupported(str(childNode) + " is a global variable")
         # assume last arg to build_parakeet_node for literals is a string
         parakeetNodeChildren.append(str(childNode))
+
     return self.build_parakeet_node(node, parakeetNodeChildren)
 
   def build_arg_list(self, python_nodes,  contextSet):
@@ -500,7 +515,8 @@ class ASTConverter():
       LOG("app(%s, %s, %s)" % (type(node.slice).__name__, args[0], args[1]))
       operation = BuiltinPrimitives[type(node.slice).__name__]
       #BROKEN, ignores children of node.slice
-      #print "debuggy", args[0], node.slice.u, args[2]
+      #args[1]...[n+1] is what's inside the tuple, not the tuple itself
+      #[args[0], args[1],....,args[n+1]]
       arrayArgs = list_to_ctypes_array([args[0],args[1]],c_void_p)
       return LibPar.mk_app(operation,arrayArgs,2,None)
     elif nodeType == 'Index':
