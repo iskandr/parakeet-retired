@@ -61,10 +61,10 @@ and block = stmt list
 
 
 type storage =
-  | Global
-  | Private
-  | Shared
+  | Stack
+  | HeapAlloc
   | Alias
+  | CudaShared
 
 type fn = {
   id : FnId.t;

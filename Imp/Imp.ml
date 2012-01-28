@@ -62,10 +62,10 @@ type stmt =
 and block = stmt list
 
 type storage =
-  | Global
-  | Private
-  | Shared
+  | Stack
+  | HeapAlloc
   | Alias
+  | CudaShared
 
 type fn = {
   id : FnId.t;
@@ -208,10 +208,10 @@ and block_to_str ?(spaces="") stmts =
   String.concat "\n" (List.map (stmt_to_str ~spaces) stmts)
 
 let array_storage_to_str = function
-  | Global -> "global"
-  | Private -> "private"
-  | Shared -> "shared"
+  | Stack -> "stack"
+  | HeapAlloc -> "heap"
   | Alias -> "alias"
+  | CudaShared -> "shared"
 
 let fn_to_str fn =
   let id_to_str id =

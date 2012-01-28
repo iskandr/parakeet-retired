@@ -96,12 +96,15 @@ let mk_arr ?src ?types elts =
      assert (List.length argTypes > 0);
      assert (List.for_all ((=) (List.hd argTypes)) (List.tl argTypes));
   ENDIF;
-  let elt_t = match argTypes with
+  let resultT = match argTypes with
     | [] -> failwith "Can't create empty array"
-    | (Type.ScalarT elt_t)::_ -> elt_t
-    | _ -> failwith "Can't determine element type of array expression"
+    | (Type.ScalarT elt_t)::_ -> Type.ArrayT(elt_t, 1)
+    | Type.BottomT::_ -> Type.BottomT
+    | others -> failwith $ Printf.sprintf
+        "Invalid array element types: %s"
+        (Type.type_list_to_str others)
   in
-  { exp=Arr elts; exp_src=src; exp_types = [Type.ArrayT (elt_t, 1)] }
+  { exp=Arr elts; exp_src=src; exp_types = [resultT] }
 
 let mk_val_exp ?src ?ty (v: value) =
   let ty' = match ty with

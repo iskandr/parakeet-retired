@@ -53,26 +53,22 @@ module ImpTypeAnalysis(P:IMP_TYPE_PARAMS) = struct
     List.map simple_conversion retTypes
 
   let exp tenv {exp; exp_types} helpers : ImpType.t list =
-    if List.for_all Type.is_scalar exp_types
-    then List.map simple_conversion exp_types
-    else  match exp with
+    match exp with
     | Values vs -> List.map (value tenv) vs
+    | Cast _
+    | PrimApp (Prim.ScalarOp _, _)
+    | Adverb _
+    | Arr _ -> List.map simple_conversion exp_types
+    | PrimApp (Prim.ArrayOp op, args) -> infer_array_prim op args exp_types
     | App _ ->
       failwith "[InferImpTypes] Unexpected untyped function application"
-    | Arr vs ->
-      failwith "[InferImpTypes] Array literals not yet implemented"
-    | Cast (t, v) ->
-      failwith "[InferImpTypes] Unexpected non-scalar cast"
     | Call (fnId, args) ->
       failwith "[InferImpTypes] Typed function calls not implemented"
-    | PrimApp (Prim.ArrayOp op, args) -> infer_array_prim op args exp_types
     | PrimApp (p, args) ->
       failwith $ Printf.sprintf
         "[InferImpTypes] Unsupported primitive: %s (with args %s)"
         (Prim.to_str p)
         (SSA.value_nodes_to_str args)
-    | Adverb (adverb, closure, adverb_args) ->
-      failwith "[InferImpTypes] adverbs not implemented"
 
   let phi_set tenv id rhs = Some (add_binding tenv id rhs)
   let phi_merge tenv id _ right = Some (add_binding tenv id right)

@@ -90,6 +90,26 @@ let translate_array_op codegen (op:Prim.array_op) (args:Imp.value_node list) =
         "[SSA_to_Imp] Unsupported array op: %s"
         (Prim.array_op_to_str other)
 
+
+let translate_array_literal
+      (codegen:ImpCodegen.codegen)
+      (lhsId:ID.t)
+      (elts:SSA.value_node list)  =
+  let ssaTypes = List.map (fun {SSA.value_type} -> value_type) elts in
+  if not (List.for_all Type.is_scalar ssaTypes) then
+    failwith "[SSA_to_Imp] Nested arrays not yet implemented"
+  else
+    let n = List.length elts in
+    let firstType = List.hd ssaTypes in
+    let impType = ImpType.ArrayT (Type.elt_type firstType, 1) in
+    let shape = SymbolicShape.Const n in
+    let lhs = codegen#var lhsId in
+    let impElts : Imp.value_node list = translate_values codegen elts in
+    let assign_elt idx rhs =
+      ImpHelpers.setidx lhs [ImpHelpers.int idx] (ImpHelpers.exp_of_val rhs)
+    in
+    List.mapi assign_elt impElts
+
 let translate_exp (codegen:ImpCodegen.codegen) expNode : Imp.exp_node  =
   match expNode.SSA.exp with
     | SSA.Values [v] -> ImpHelpers.exp_of_val (translate_value codegen v)
@@ -106,6 +126,7 @@ let translate_exp (codegen:ImpCodegen.codegen) expNode : Imp.exp_node  =
       let eltT = Type.elt_type t in
       let impT = ImpType.ScalarT eltT in
       { exp = Imp.Cast(impT, translate_value codegen src); exp_type = impT }
+    | SSA.Arr _ -> failwith "[SSA_to_Imp] Unexpected array expression"
     | _ -> failwith $ "[ssa->imp] unrecognized exp: " ^ (SSA.exp_to_str expNode)
 
 let mk_set_val codegen (id:ID.t) (v:SSA.value_node) =
@@ -131,29 +152,35 @@ let rec translate_block (codegen : ImpCodegen.codegen) block : Imp.stmt list =
                      [] block
 and translate_stmt (codegen : ImpCodegen.codegen) stmtNode : Imp.stmt list  =
   match stmtNode.SSA.stmt with
-	| SSA.Set([id], rhs) -> [mk_set_exp codegen id rhs]
-  | SSA.Set(ids, {SSA.exp = SSA.Values vs}) ->
-    List.map2 (mk_set_val codegen) ids vs
-	| SSA.Set _ -> failwith "multiple assignment not supported"
-  | SSA.If(cond, tBlock, fBlock, phiNodes) ->
-	  let cond' : Imp.value_node = translate_value codegen cond in
-	  let tBlock' : Imp.block = translate_block codegen tBlock in
-	  let fBlock' : Imp.block = translate_block codegen fBlock in
-	  let trueMerge = List.map (translate_true_phi_node codegen) phiNodes in
-	  let falseMerge = List.map (translate_false_phi_node codegen) phiNodes in
-	  let tBlock' = tBlock' @ trueMerge in
-	  let fBlock' = fBlock' @ falseMerge in
-	  [Imp.If(cond', tBlock', fBlock')]
-  | SSA.WhileLoop(condBlock, condVal, body, phiNodes) ->
-    let inits : Imp.block =
-      List.map (translate_true_phi_node codegen) phiNodes
-    in
-    let condBlock : Imp.block  = translate_block codegen condBlock in
-    let condVal : Imp.value_node = translate_value codegen condVal in
-    let body : Imp.block = translate_block codegen body in
-    let finals = List.map (translate_false_phi_node codegen) phiNodes in
-    let fullBody = body @ finals @ condBlock in
-    inits @ condBlock @ [Imp.While(ImpHelpers.exp_of_val condVal, fullBody)]
+    (* array literals get treated differently from other expressions since*)
+    (* they require a block of code rather than simply translating from *)
+    (* SSA.exp_node to Imp.exp_node *)
+    | SSA.Set([id], {SSA.exp = SSA.Arr elts}) ->
+      translate_array_literal codegen id elts
+    (* all assignments other than those with an array literal RHS *)
+	  | SSA.Set([id], rhs) -> [mk_set_exp codegen id rhs]
+    | SSA.Set(ids, {SSA.exp = SSA.Values vs}) ->
+      List.map2 (mk_set_val codegen) ids vs
+	  | SSA.Set _ -> failwith "multiple assignment not supported"
+    | SSA.If(cond, tBlock, fBlock, phiNodes) ->
+	    let cond' : Imp.value_node = translate_value codegen cond in
+	    let tBlock' : Imp.block = translate_block codegen tBlock in
+	    let fBlock' : Imp.block = translate_block codegen fBlock in
+	    let trueMerge = List.map (translate_true_phi_node codegen) phiNodes in
+	    let falseMerge = List.map (translate_false_phi_node codegen) phiNodes in
+	    let tBlock' = tBlock' @ trueMerge in
+	    let fBlock' = fBlock' @ falseMerge in
+	    [Imp.If(cond', tBlock', fBlock')]
+    | SSA.WhileLoop(condBlock, condVal, body, phiNodes) ->
+      let inits : Imp.block =
+        List.map (translate_true_phi_node codegen) phiNodes
+      in
+      let condBlock : Imp.block  = translate_block codegen condBlock in
+      let condVal : Imp.value_node = translate_value codegen condVal in
+      let body : Imp.block = translate_block codegen body in
+      let finals = List.map (translate_false_phi_node codegen) phiNodes in
+      let fullBody = body @ finals @ condBlock in
+      inits @ condBlock @ [Imp.While(ImpHelpers.exp_of_val condVal, fullBody)]
   | _ ->
     failwith $ Printf.sprintf "[Imp_to_SSA] Not yet implemented: %s"
       (SSA.stmt_node_to_str stmtNode)
