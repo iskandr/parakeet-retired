@@ -21,6 +21,8 @@ let array_field_to_idx = function
   | FrozenDim -> 1
   | FrozenIdx -> 2
 
+let zero_i32 = Llvm.const_int LLVM_Types.int32_t 0
+
 let context = Llvm.global_context ()
 let global_module = Llvm.create_module context "parakeet_module"
 
@@ -191,6 +193,70 @@ let compile_math_op (t:Type.elt_t) op (vals:llvalue list) builder =
     failwith $ Printf.sprintf "Unsupported math op %s with %d args"
       (Prim.scalar_op_to_str op) (List.length vals)
 
+let compile_arr_idx (arr:Imp.value_node) (argVals:Llvm.llvalue list)
+                    (imp_elt_t:Type.elt_t ) (fnInfo:fn_info) =
+	let strideIdx = Llvm.const_int LLVM_Types.int32_t 2 in
+	let arrVal = compile_val ~doLoad:false fnInfo arr in
+	let stridesPtr =
+	  Llvm.build_gep arrVal [|zero_i32;strideIdx|] "gep_stride" fnInfo.builder
+	in
+	let strides = Llvm.build_load stridesPtr "strides" fnInfo.builder in
+	let dataIdx = Llvm.const_int LLVM_Types.int32_t 0 in
+	let dataPtr =
+	  Llvm.build_gep arrVal [|zero_i32;dataIdx|] "gep_data" fnInfo.builder
+	in
+	let addr = Llvm.build_load dataPtr "data" fnInfo.builder in
+	let intaddr =
+	  Llvm.build_ptrtoint addr LLVM_Types.int64_t "intaddr" fnInfo.builder
+	in
+	let rec computeIdxAddr = (fun i curAddr args ->
+	  match args with
+	  | arg :: tail ->
+	    let idxVal = Llvm.const_int LLVM_Types.int32_t i in
+	    let stridePtr =
+	      Llvm.build_gep strides [|idxVal|] "gep_strideidx" fnInfo.builder
+	    in
+	    let strideVal = Llvm.build_load stridePtr "stride" fnInfo.builder in
+	    let offset = Llvm.build_mul strideVal arg "offset" fnInfo.builder in
+	    let offset64 =
+	      Llvm.build_sext offset LLVM_Types.int64_t "offset64" fnInfo.builder
+	    in
+	    let newAddr =
+	      Llvm.build_add curAddr offset64 "add_offset" fnInfo.builder
+	    in
+	    computeIdxAddr (i+1) newAddr tail
+	  | [] -> curAddr
+	) in
+	let idxInt = computeIdxAddr 0 intaddr argVals in
+	let eltType = ImpType_to_lltype.scalar_to_lltype imp_elt_t in
+	let eltPtrType = Llvm.pointer_type eltType in
+	let idxAddr =
+	  Llvm.build_inttoptr idxInt eltPtrType "idxAddr" fnInfo.builder
+	in
+	Llvm.build_load idxAddr "ret" fnInfo.builder
+
+
+let compile_range_idx (arr:Imp.value_node) (argVals:Llvm.llvalue list)
+                      (imp_elt_t:Type.elt_t ) (fnInfo:fn_info) =
+	let startIdx = Llvm.const_int LLVM_Types.int32_t 0 in
+	let arrVal = compile_val ~doLoad:false fnInfo arr in
+	let startPtr =
+	  Llvm.build_gep arrVal [|zero_i32;startIdx|] "gep_start" fnInfo.builder
+	in
+	let start = Llvm.build_load startPtr "start" fnInfo.builder in
+	let idxInt = match argVals with
+	  | [arg] ->
+	    Llvm.build_add start arg "rangeAdd" fnInfo.builder
+	  | _ -> failwith $ Printf.sprintf
+	    "[Imp_to_LLVM] Calling range with multiple arguments"
+	in
+	let eltType = ImpType_to_lltype.scalar_to_lltype imp_elt_t in
+	let eltPtrType = Llvm.pointer_type eltType in
+	let idxAddr =
+	  Llvm.build_inttoptr idxInt eltPtrType "idxAddr" fnInfo.builder
+	in
+	Llvm.build_load idxAddr "ret" fnInfo.builder
+
 (* Change to function? *)
 let compile_exp fnInfo (impexp:Imp.exp_node) =
   match impexp.exp with
@@ -206,49 +272,15 @@ let compile_exp fnInfo (impexp:Imp.exp_node) =
     compile_cast fnInfo original v.Imp.value_type t
   | Imp.Idx(arr, args) ->
     let argVals = List.map (compile_val fnInfo) args in
-    let zero = Llvm.const_int LLVM_Types.int32_t 0 in
-    let strideIdx = Llvm.const_int LLVM_Types.int32_t 2 in
-    let arrVal = compile_val ~doLoad:false fnInfo arr in
-    let stridesPtr =
-      Llvm.build_gep arrVal [|zero;strideIdx|] "gep_stride" fnInfo.builder
-    in
-    let strides = Llvm.build_load stridesPtr "strides" fnInfo.builder in
-    let dataIdx = Llvm.const_int LLVM_Types.int32_t 0 in
-    let dataPtr =
-      Llvm.build_gep arrVal [|zero;dataIdx|] "gep_data" fnInfo.builder
-    in
-    let addr = Llvm.build_load dataPtr "data" fnInfo.builder in
-    let intaddr =
-      Llvm.build_ptrtoint addr LLVM_Types.int64_t "intaddr" fnInfo.builder
-    in
-    let rec computeIdxAddr = (fun i curAddr args ->
-      match args with
-      | arg :: tail ->
-        let idxVal = Llvm.const_int LLVM_Types.int32_t i in
-        let stridePtr =
-          Llvm.build_gep strides [|idxVal|] "gep_strideidx" fnInfo.builder
-        in
-        let strideVal = Llvm.build_load stridePtr "stride" fnInfo.builder in
-        let offset = Llvm.build_mul strideVal arg "offset" fnInfo.builder in
-        let offset64 =
-          Llvm.build_sext offset LLVM_Types.int64_t "offset64" fnInfo.builder
-        in
-        let newAddr =
-          Llvm.build_add curAddr offset64 "add_offset" fnInfo.builder
-        in
-        computeIdxAddr (i+1) newAddr tail
-      | [] -> curAddr
-    ) in
-    let idxInt = computeIdxAddr 0 intaddr argVals in
-    let eltType = ImpType_to_lltype.to_lltype impexp.exp_type in
-    let eltPtrType = Llvm.pointer_type eltType in
-    let idxAddr =
-      Llvm.build_inttoptr idxInt eltPtrType "idxAddr" fnInfo.builder
-    in
-    Llvm.build_load idxAddr "ret" fnInfo.builder
-    | other ->
-    failwith $ Printf.sprintf "[Imp_to_LLVM] Not implemented %s\n"
-      (Imp.exp_to_str other)
+    begin match arr.value_type with
+      | ImpType.RangeT imp_elt_t ->
+        compile_range_idx arr argVals imp_elt_t fnInfo
+      | ImpType.ArrayT (imp_elt_t, imp_int) ->
+        compile_arr_idx arr argVals imp_elt_t fnInfo
+      end
+	| other ->
+	failwith $ Printf.sprintf "[Imp_to_LLVM] Not implemented %s\n"
+	  (Imp.exp_to_str other)
 
 let rec compile_stmt_seq fnInfo currBB = function
   | [] -> currBB

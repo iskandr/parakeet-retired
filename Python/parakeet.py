@@ -104,7 +104,8 @@ SafeFunctions = {np.all:ast_prim('allpairs'),
                  math.exp:ast_prim('exp'),
                  math.sqrt:ast_prim('sqrt'),
                  para_libs.map:ast_prim('map'),
-                 para_libs.reduce:ast_prim('reduce')}
+                 para_libs.reduce:ast_prim('reduce')
+                 }
 BuiltinPrimitives = {'Add':ast_prim('+'),
                      'Sub':ast_prim('-'),
                      'Mult':ast_prim('*'),
@@ -119,6 +120,8 @@ BuiltinPrimitives = {'Add':ast_prim('+'),
                      'FloorDiv':'Not yet implemented',
                      'Invert':'Not yet implemented (bit-wise inverse)',
                      'Not':ast_prim('not'),
+                     'And':ast_prim('and'),
+                     'Or':ast_prim('or'),
                      'Uadd':'Not yet implemented',
                      'Usub':ast_prim('neg'),
                      'Eq':ast_prim('eq'),
@@ -282,7 +285,7 @@ class ASTConverter():
         raise ParakeetUnsupported(
             "lists and tuples are not supported outside of numpy arrays")
     elif nodeType == 'Call':
-      funRef = self.get_function_ref(node)
+      funRef = self.get_function_ref(node.func)
       childContext = set(contextSet)
       if funRef == np.array:
         childContext.add('array')
@@ -290,10 +293,8 @@ class ASTConverter():
         return self.visit(node.args[0], childContext)
 
       elif funRef == para_libs.map:
-        fun_arg = self.visit(node.args[0], childContext)
-        arr_args = []
-        for arg in node.args[1:]:
-          arr_args.append(self.visit(arg, childContext))
+        fun_arg = self.build_arg_list([node.args[0]], childContext)
+        arr_args = self.build_arg_list(node.args[1:], childContext)
         kw_args = {'fixed': self.build_parakeet_array([]),
                    'axis': LibPar.mk_void(None)
                   }
@@ -304,23 +305,22 @@ class ASTConverter():
           val = kw_arg.value
           if type(val).__name__ == 'List':
             val_args = []
-            for v_arg in val.elts():
+            for v_arg in val.elts:
               val_args.append(self.visit(v_arg, childContext))
             kw_args[kw] = self.build_parakeet_array(val_args)
           else:
             val = self.visit(kw_arg.value, childContext)
             kw_args[kw] = self.build_parakeet_array([val])
-        args = [fun_arg]
+        args = fun_arg
         para_arr_args = self.build_parakeet_array(arr_args)
         args.append(para_arr_args)
         args.append(kw_args['fixed'])
         args.append(kw_args['axis'])
         return self.build_call(funRef, args)
       elif funRef == para_libs.reduce:
-        fun_arg = self.visit(node.args[0], childContext)
-        arr_args = []
-        for arg in node.args[1:]:
-          arr_args.append(self.visit(arg, childContext))
+        fun_arg = self.build_arg_list([node.args[0]], childContext)
+        arr_args = self.build_arg_list(node.args[1:], childContext)
+        print arr_args
         kw_args = {'fixed': self.build_parakeet_array([]),
                    'axis': LibPar.mk_void(None),
                    'default':LibPar.mk_void(None)
@@ -332,13 +332,13 @@ class ASTConverter():
           val = kw_arg.value
           if type(val).__name__ == 'List':
             val_args = []
-            for v_arg in val.elts():
+            for v_arg in val.elts:
               val_args.append(self.visit(v_arg, childContext))
             kw_args[kw] = self.build_parakeet_array(val_args)
           else:
             val = self.visit(kw_arg.value, childContext)
             kw_args[kw] = self.build_parakeet_array([val])
-        args = [fun_arg]
+        args = fun_arg
         para_arr_args = self.build_parakeet_array(arr_args)
         args.append(para_arr_args)
         args.append(kw_args['fixed'])
@@ -413,9 +413,16 @@ class ASTConverter():
   def build_arg_list(self, python_nodes,  contextSet):
     results = []
     for node in python_nodes:
-      result = self.visit(node, contextSet)
-      if result is not None:
-        results.append(result)
+      funRef = self.register_if_function(node)
+      if funRef is not None:
+        funName = funRef.__module__ + "." + funRef.__name__
+        print "registering", funName
+        parName = LibPar.mk_var(c_char_p(funName),None)
+        results.append(parName)
+      else:
+        result = self.visit(node, contextSet)
+        if result is not None:
+          results.append(result)
     return results
 
 
@@ -427,10 +434,16 @@ class ASTConverter():
     c_array = list_to_ctypes_array(stmts, c_void_p)
     return LibPar.mk_block(c_array, len(stmts), None)
 
+  def register_if_function(self, node):
+    try:
+      return self.get_function_ref(node)
+    except RuntimeError:
+      return None
+
   def get_function_ref(self, node):
-    name = type(node.func).__name__
+    name = type(node).__name__
     if name == 'Name':
-      funName = node.func.id
+      funName = node.id
       if funName in self.functionGlobalVariables:
         funRef = self.functionGlobalVariables[funName]
       elif funName in __builtins__:
@@ -440,8 +453,8 @@ class ASTConverter():
     elif name == 'Attribute':
       #For function calls like mod1.mod2.mod4.fun()
       moduleList = []
-      nextNode = node.func
-      funName = node.func.attr
+      nextNode = node
+      funName = node.attr
       #Get a list of the chain of modules
 
       while type(nextNode).__name__ == 'Attribute':

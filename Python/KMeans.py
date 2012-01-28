@@ -1,14 +1,13 @@
 from numpy import array, argmin, arange
 from functools import *
 import para_libs
-#from parakeet import PAR
-
+from parakeet import PAR
 
 def sqr_dist(x,y):
     return para_libs.sum((x-y) * (x-y))
 
 def minidx(C,x):
-    return argmin(para_libs.map(sqr_dist,array(C),fixed=[x]))
+    return argmin(para_libs.map(sqr_dist,C,fixed=[x]))
 
 def calc_centroid(X,a,i):
     return para_libs.mean(X[a == i], 0)
@@ -19,7 +18,7 @@ def kmeans(X,assign,k):
     while not converged:
         lastAssign = assign
         assign = para_libs.map(minidx, X, fixed=[C])
-        converged = all(assign == lastAssign)
+        converged = para_libs.all(assign == lastAssign)
         C = para_libs.map(calc_centroid, arange(k), fixed=[X, assign])
     return C
 

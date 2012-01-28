@@ -1,4 +1,9 @@
 #-----Library functions
+def And(x,y):
+  return x and y
+
+def all(x):
+  return reduce(And,x,default=1)
 
 def add(x,y):
   return x+y
