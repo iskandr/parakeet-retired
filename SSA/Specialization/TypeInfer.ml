@@ -1,17 +1,17 @@
 (* pp: -parser o pa_macro.cmo *)
 
 open Base
-open Type
-open SSA
 open Printf
+open SSA
+open Type
 
 exception WrongArity
 
 let infer_unop op t =
-    let resultScalarT = Type.common_elt_type (Type.elt_type t) Float32T in
-    if Prim.is_float_unop op then Type.fill_elt_type t resultScalarT
-    else if op = Prim.Not then fill_elt_type t BoolT
-    else t
+  let resultScalarT = Type.common_elt_type (Type.elt_type t) Float32T in
+  if Prim.is_float_unop op then Type.fill_elt_type t resultScalarT
+  else if op = Prim.Not then fill_elt_type t BoolT
+  else t
 
 let infer_binop op t1 t2 =
   match Type.common_type t1 t2 with

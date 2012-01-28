@@ -31,15 +31,15 @@ module SimplifyRules = struct
   (* at the end of a function *)
   let finalize cxt fundef =
     let inputIdSet = ID.Set.of_list fundef.input_ids in
-    let outputIds =
-      List.map
-      (fun id -> match ID.Map.find id cxt.copies with
-        | FindCopies.CopyLattice.Copy prevId ->
-            (* an ID can't be both input and output *)
-            if ID.Set.mem prevId inputIdSet then id else prevId
-        | _ -> id)
-      fundef.output_ids
+    let aux id =
+      match ID.Map.find_option id cxt.copies with
+        | None -> failwith $ "[Simplify] Couldn't find " ^ (ID.to_str id)
+        | Some (FindCopies.CopyLattice.Copy prevId) ->
+          (* an ID can't be both input and output *)
+           if ID.Set.mem prevId inputIdSet then id else prevId
+        | Some _ -> id
     in
+    let outputIds = List.map aux fundef.output_ids in
     if List.eq_elts outputIds fundef.output_ids then NoChange
     else Update {fundef with output_ids = outputIds }
 

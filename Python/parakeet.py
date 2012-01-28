@@ -1,11 +1,9 @@
-#Supoprt for tuples as index arguments
-
 from ctypes import *
-import ast, os, sys
+import ast, math, os, sys
 import functools as ft
 import numpy as np
-import PrettyAST
 import para_libs
+import PrettyAST
 
 ###############################################################################
 #  Initializations
@@ -102,6 +100,9 @@ return_type_init(LibPar)
 SafeFunctions = {np.all:ast_prim('allpairs'),
                  np.arange:ast_prim('range'),
 #                 np.argmin:ast_prim('argmin'),
+                 math.log:ast_prim('log'),
+                 math.exp:ast_prim('exp'),
+                 math.sqrt:ast_prim('sqrt'),
                  para_libs.map:ast_prim('map'),
                  para_libs.reduce:ast_prim('reduce')}
 BuiltinPrimitives = {'Add':ast_prim('+'),
@@ -245,7 +246,6 @@ class ParakeetUnsupported(Exception):
     return repr(self.value)
 
 # always assume functions have a module but
-# always
 def global_fn_name(fn, default_name="<unknown_function>"):
   if hasattr(fn, '__name__'):
     return fn.__module__ + "." + fn.__name__
@@ -279,7 +279,8 @@ class ASTConverter():
         array_elts = self.build_arg_list(children, contextSet)
         return self.build_parakeet_array(array_elts)
       else:
-        raise ParakeetUnsupported("lists and tuples are not supported outside of numpy arrays")
+        raise ParakeetUnsupported(
+            "lists and tuples are not supported outside of numpy arrays")
     elif nodeType == 'Call':
       funRef = self.get_function_ref(node)
       childContext = set(contextSet)
@@ -384,7 +385,8 @@ class ASTConverter():
         if 'lhs' in contextSet:
           if not str(childNode) in self.varList:
             if nodeType == 'Name':
-              raise ParakeetUnsupported(str(childNode) + " is a global variable")
+              raise ParakeetUnsupported(str(childNode) +
+                                        " is a global variable")
         # assume last arg to build_parakeet_node for literals is a string
         parakeetNodeChildren.append(str(childNode))
 
@@ -443,7 +445,7 @@ class ASTConverter():
     if funRef in SafeFunctions:
       funNode = SafeFunctions[funRef]
     else:
-      c_name = c_char_p(global_fn_name(funRef, funName))
+      c_name = c_char_p(global_fn_name(funRef))
       funNode = LibPar.mk_var(c_name, None)
     funArgs = list_to_ctypes_array(args,c_void_p)
     return LibPar.mk_app(funNode, funArgs, len(funArgs), None)
@@ -547,7 +549,7 @@ def fun_visit(func,new_f):
 
     #LOG(PrettyAST.printAst(node))
     #Med fix: right now, I assume there aren't any globals
-      #Fix: functionGlobals[func] = globalVars
+    #Fix: functionGlobals[func] = globalVars
     global_vars = []
     global_vars_array = list_to_ctypes_array(global_vars,c_char_p)
     var_list = list_to_ctypes_array(funInfo[0],c_char_p)
@@ -560,7 +562,6 @@ def fun_visit(func,new_f):
     fun_name = func.__module__ + "." + func.__name__
     c_str = c_char_p(fun_name)
     register = LibPar.register_untyped_function
-    #LibPar.print_ast_node(finalTree)
     funID = c_int(register(c_str,
                            global_vars_array,
                            len(global_vars),
@@ -683,3 +684,4 @@ def PAR(func):
     fun_visit(func, new_f)
   funID = VisitedFunctions[new_f]
   return new_f
+
