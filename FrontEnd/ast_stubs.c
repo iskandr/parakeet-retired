@@ -313,9 +313,7 @@ paranode mk_countloop(paranode count, paranode body,
 paranode mk_void(source_info_t *src_info) {
   CAMLparam0();
   CAMLlocal1(v);
-
   v = Val_int(Exp_Void);
-
   CAMLreturnT(paranode, mk_node(v, src_info));
 }
 

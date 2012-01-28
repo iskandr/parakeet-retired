@@ -272,13 +272,12 @@ and translate_exp env codegen node =
   | AST.Sym s -> value (Sym s)
   | AST.Void -> value Unit
   | AST.App (fn, args) ->
-      let fnEnv, fn' = translate_value env codegen fn in
-      let argEnv, args' = translate_args fnEnv codegen args in
-      let app' = mk_exp $ App(fn', args') in
-      argEnv, app'
+    let fnEnv, fn' = translate_value env codegen fn in
+    let argEnv, args' = translate_args fnEnv codegen args in
+    let app' = mk_exp $ App(fn', args') in
+    argEnv, app'
   (* TODO: lambda lift here *)
   | AST.Lam (vars, body) -> failwith "lambda lifting not implemented"
-
   | AST.Arr args ->
       let ssaEnv, ssaArgs = translate_args env codegen args in
       ssaEnv, mk_arr ssaArgs

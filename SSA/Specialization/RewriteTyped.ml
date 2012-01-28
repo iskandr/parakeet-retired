@@ -183,7 +183,6 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
 
   let rewrite_index src lhs args =
     let arrType = infer_value_node_type lhs in
-    (* TODO: fix *)
     let outTypes = [Type.AnyT] in
     let arrNode = {lhs with value_type = arrType} in
     let indexOp = Prim.ArrayOp Prim.Index in

@@ -10,7 +10,7 @@ let ignore x = ()
 
 let compose f g = fun x -> f (g x)
 
-let debug msg = 
+let debug msg =
   IFDEF DEBUG THEN Printf.printf "%s\n" msg; END;
   ()
 
@@ -26,7 +26,7 @@ let mk_gen () =
     fun () -> let x = !curr in (curr := x + 1; x)
 
 let all_pairs f xs ys =
-    let rec aux xs acc = match xs with 
+    let rec aux xs acc = match xs with
         | [] -> acc
         | x::xs' ->
             let acc' = (List.map (f x) ys)::acc in
