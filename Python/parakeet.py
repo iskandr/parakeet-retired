@@ -348,6 +348,24 @@ class ASTConverter():
       else:
         funArgs = self.build_arg_list(node.args, childContext)
         return self.build_call(funRef, funArgs)
+    elif nodeType == 'Subscript':
+      args = []
+      args.append(self.visit(node.value, contextSet))
+      slice_type = type(node.slice).__name__
+      if slice_type == "Index":
+        index_type = type(node.slice.value).__name__
+        if index_type == "Tuple":
+          for index_arg in node.slice.value.elts:
+            args.append(self.visit(index_arg, contextSet))
+        else:
+          args.append(self.visit(node.slice.value, contextSet))
+      else:
+        raise ParakeetUnsupported(
+            "slicing of type %s is not supported" % slice_type)
+      return self.build_parakeet_node(node, args)
+      #args[1]...[n+1] is what's inside the tuple, not the tuple itself
+      #[args[0], args[1],....,args[n+1]]
+      #Subscript(expr value, slice slice, expr_context ctx)
 
     parakeetNodeChildren = []
     for childName, childNode in ast.iter_fields(node):
