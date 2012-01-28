@@ -537,8 +537,8 @@ class ASTConverter():
       #BROKEN, ignores children of node.slice
       #args[1]...[n+1] is what's inside the tuple, not the tuple itself
       #[args[0], args[1],....,args[n+1]]
-      arrayArgs = list_to_ctypes_array([args[0],args[1]],c_void_p)
-      return LibPar.mk_app(operation,arrayArgs,2,None)
+      arrayArgs = list_to_ctypes_array(args,c_void_p)
+      return LibPar.mk_app(operation,arrayArgs,len(args),None)
     elif nodeType == 'Index':
       LOG("Index %s" % str(args))
       return args[0]
