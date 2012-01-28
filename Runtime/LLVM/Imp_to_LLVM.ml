@@ -182,12 +182,9 @@ let compile_math_op (t:Type.elt_t) op (vals:llvalue list) builder =
     let arg =
       if Type.elt_is_int t then
         Llvm.build_sitofp x float64_t "sqrtfparg" builder
-      else
-        let f = function Type.Float32T -> true | _ -> false in
-        if f t then
-          Llvm.build_fpext x float64_t "sqrtfparg" builder
-        else
-          x
+      else match t with
+      | Type.Float32T -> Llvm.build_fpext x float64_t "sqrtfparg" builder
+      | _ -> x
     in
     Llvm.build_call sqrt [|arg|] "sqrt" builder 
   | _ ->

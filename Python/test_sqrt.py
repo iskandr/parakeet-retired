@@ -9,7 +9,7 @@ def test_int():
   x = e(3)
   y = sqrt(3)
   print "Expected %f, got %f" % (y, x)
-  assert y = x
+  assert y == x
 
 def test_float():
   x = e(3.0)
