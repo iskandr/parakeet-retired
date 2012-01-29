@@ -338,7 +338,9 @@ and compile_stmt fnInfo currBB stmt = match stmt with
     dump_value rhs;
     dump_value instr;
     currBB
-  | _ -> assert false
+  | other ->
+    failwith $ Printf.sprintf "[Imp_to_LLVM] Unsupported statement %s"
+    (Imp.stmt_to_str other)
 
 let init_compiled_fn (fnInfo:fn_info) =
   (* since we have to pass output address as int64s, convert them all *)
