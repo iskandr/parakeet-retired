@@ -230,13 +230,9 @@ let compile_arr_idx (arr:Imp.value_node) (argVals:Llvm.llvalue list)
 	let idxInt = computeIdxAddr 0 intaddr argVals in
 	let eltType = ImpType_to_lltype.scalar_to_lltype imp_elt_t in
 	let eltPtrType = Llvm.pointer_type eltType in
-	let idxAddr =
-	  Llvm.build_inttoptr idxInt eltPtrType "idxAddr" fnInfo.builder
-	in
-	Llvm.build_load idxAddr "ret" fnInfo.builder
+	Llvm.build_inttoptr idxInt eltPtrType "idxAddr" fnInfo.builder
 
-
-let compile_range_idx (arr:Imp.value_node) (argVals:Llvm.llvalue list)
+let compile_range_load (arr:Imp.value_node) (argVals:Llvm.llvalue list)
                       (imp_elt_t:Type.elt_t ) (fnInfo:fn_info) =
 	let startIdx = Llvm.const_int LLVM_Types.int32_t 0 in
 	let arrVal = compile_val ~doLoad:false fnInfo arr in
@@ -274,9 +270,10 @@ let compile_exp fnInfo (impexp:Imp.exp_node) =
     let argVals = List.map (compile_val fnInfo) args in
     begin match arr.value_type with
       | ImpType.RangeT imp_elt_t ->
-        compile_range_idx arr argVals imp_elt_t fnInfo
+        compile_range_load arr argVals imp_elt_t fnInfo
       | ImpType.ArrayT (imp_elt_t, imp_int) ->
-        compile_arr_idx arr argVals imp_elt_t fnInfo
+        let idxAddr = compile_arr_idx arr argVals imp_elt_t fnInfo in
+        Llvm.build_load idxAddr "ret" fnInfo.builder
       end
 	| other ->
 	failwith $ Printf.sprintf "[Imp_to_LLVM] Not implemented %s\n"
@@ -338,6 +335,16 @@ and compile_stmt fnInfo currBB stmt = match stmt with
     dump_value rhs;
     dump_value instr;
     currBB
+  | Imp.SetIdx(arr, args, rhs) ->
+    let argVals = List.map (compile_val fnInfo) args in
+    let imp_elt_t = match arr.value_type with
+      | ImpType.ArrayT (imp_elt_t, _) -> imp_elt_t
+      | other -> failwith $ Printf.sprintf
+        "[Imp_to_LLVM] Unsuported set index for type %s" (ImpType.to_str other)
+    in
+    let idxAddr = compile_arr_idx arr argVals imp_elt_t fnInfo in
+    let rhs_val = compile_val fnInfo rhs in
+    Llvm.build_store rhs_val idxAddr "idxStore" fnInfo.builder
   | other ->
     failwith $ Printf.sprintf "[Imp_to_LLVM] Unsupported statement %s"
     (Imp.stmt_to_str other)
