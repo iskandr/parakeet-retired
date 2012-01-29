@@ -43,4 +43,3 @@ module MkIntrinsics(I : LLVM_INTRINSICS) = struct
   let cos64 =
     declare_function "llvm.cos.f64" (function_type float64_t [|float64_t|]) I.m
 end
-
