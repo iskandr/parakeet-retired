@@ -36,7 +36,8 @@ let (++) = PSet.union
 let (<+>) = combine_ast_info
 
 let rec get_assignment_name node = match node.data with
-  | Var name -> name
+  | Var name -> Some name
+  | Prim (Prim.ArrayOp Prim.Index) -> None
   | App (lhs, _ ) -> get_assignment_name lhs
   | _ -> failwith $ Printf.sprintf
       "Unexpected AST node on LHS of assignment: %s"
@@ -120,19 +121,27 @@ and analyze_node ~inFunction scopeInfo node = match node.data with
         let scopeInfo = analyze_node ~inFunction scopeInfo rhs in
         let scopeInfo = analyze_node ~inFunction scopeInfo lhs in
         node.ast_info <- lhs.ast_info <+> rhs.ast_info;
-        let name = get_assignment_name lhs in
-        begin if inFunction then
-            node.ast_info.defs_local <-  PSet.add name node.ast_info.defs_local
-        else
-            node.ast_info.defs_global <- PSet.add name node.ast_info.defs_global
-        end;
-        if PSet.mem name scopeInfo.locals then (
-        node.ast_info.writes_local <- PSet.add name node.ast_info.writes_local;
-        { scopeInfo with
-            volatile_local = PSet.add name scopeInfo.volatile_local
-        }
-        )
-      else { scopeInfo with locals = PSet.add name scopeInfo.locals }
+        begin match get_assignment_name lhs with
+          | Some name ->
+            if inFunction then (
+              let locals = PSet.add name node.ast_info.defs_local in
+              node.ast_info.defs_local <- locals
+            )
+            else (
+              let globals =  PSet.add name node.ast_info.defs_global in
+              node.ast_info.defs_global <- globals
+            );
+            if PSet.mem name scopeInfo.locals then (
+              node.ast_info.writes_local <-
+                PSet.add name node.ast_info.writes_local
+              ;
+              { scopeInfo with
+                  volatile_local = PSet.add name scopeInfo.volatile_local
+              }
+            )
+            else { scopeInfo with locals = PSet.add name scopeInfo.locals }
+          | None -> scopeInfo
+        end
     | Prim op ->
         if not $ is_pure_op op then node.ast_info.io <- true; scopeInfo
     | Sym _
@@ -160,10 +169,12 @@ let collect_defs ast =
       (* collect any weird assignments that somehow *)
       (* got onto the LHS *)
       let _, defs = aux defs lhs in
-      (* get the name of the variable on the lhs *)
-      let name = get_assignment_name lhs in
       let lastNode, defs = aux defs rhs in
-      lastNode, (name, lastNode)::defs
+      (* get the name of the variable on the lhs *)
+      (match get_assignment_name lhs with
+        | Some name -> lastNode, (name, lastNode)::defs
+        | None -> lastNode, defs
+       )
    | Block nodes -> fold_block ast defs nodes
    | _ -> ast, defs
   in snd (aux [] ast)

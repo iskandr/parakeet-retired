@@ -74,10 +74,12 @@ end
 
 open Env
 
+let rec flatten_indexing (astNode:AST.node) : AST.node list =
+  match astNode.data with
+  | AST.App({AST.data = AST.Prim (Prim.ArrayOp Prim.Index)}, [lhs;rhs]) ->
+    (flatten_indexing lhs) @ [rhs]
+  | _ -> [astNode]
 
-let translate_app ssaFn ssaArgs =
-  Printf.printf "!!!!%s\n!!!!\n" (SSA.value_node_to_str ssaFn);
-  mk_exp $ App(ssaFn, ssaArgs)
 
 (* value_id is an optional parameter, if it's provided then the generated
    statements must set retId to the last value
@@ -132,17 +134,7 @@ let rec translate_stmt
       codegen#emit [mk_stmt $ If(condVal,trueBlock,falseBlock, phiNodes)];
       add_list env mergeNames mergeIds
 
-  | AST.Assign({AST.data=AST.Var name}, rhs) ->
-      let id = ID.gen_named name in
-      let rhsEnv, rhsExp = translate_exp env codegen rhs in
-      (match value_id with
-        | Some valId ->
-          codegen#emit [
-            mk_set [id] rhsExp; mk_set [valId] $ mk_val_exp (Var id)
-          ]
-        | None ->  codegen#emit [mk_stmt $ Set([id], rhsExp)]
-      );
-      add rhsEnv name id
+  | AST.Assign(lhs, rhs) -> translate_assignment env codegen lhs rhs
 
   | AST.Block nodes  -> translate_block env codegen ?value_id nodes
   | AST.WhileLoop(cond,body) ->
@@ -211,6 +203,36 @@ let rec translate_stmt
         | None -> codegen#emit [mk_stmt $ Set([], exp)]
       );
       env'
+and translate_assignment env codegen ?value_id lhs rhs : Env.t =
+  match lhs.data with
+  | AST.Var name ->
+    let id = ID.gen_named name in
+    let rhsEnv, rhsExp = translate_exp env codegen rhs in
+    (match value_id with
+      | Some valId ->
+        codegen#emit [mk_set [id] rhsExp; mk_set [valId] $ mk_val_exp (Var id)]
+      | None ->  codegen#emit [mk_stmt $ Set([id], rhsExp)]
+    );
+    add rhsEnv name id
+  | AST.App({data=AST.Prim (Prim.ArrayOp Prim.Index)}, _) ->
+    assert (value_id = None);
+    let rhsEnv, rhs = translate_value env codegen rhs in
+    let lhsEnv, lhsList =
+      translate_values rhsEnv codegen (flatten_indexing lhs)
+    in
+    begin match lhsList with
+      | varNode::indices ->
+        codegen#emit [mk_setidx varNode indices rhs];
+        lhsEnv
+      | _ -> failwith $ Printf.sprintf
+        "[AST_to_SSA] Unexpected indexing arguments: %s"
+        (SSA.value_nodes_to_str lhsList)
+    end
+
+  | _ -> failwith $ Printf.sprintf "Unexpected LHS of assignment: %s"
+    (AST.to_str lhs)
+
+
 and translate_loop_body envBefore codegen body
       : phi_nodes * Env.t =
   (* FIX: use a better AST_Info without all this local/global junk *)
@@ -276,14 +298,14 @@ and translate_exp env codegen node =
   | AST.Sym s -> value (Sym s)
   | AST.Void -> value Unit
   | AST.App (fn, args) ->
-    let fnEnv, fn' = translate_value env codegen fn in
-    let argEnv, args' = translate_args fnEnv codegen args in
-    let app = translate_app fn' args' in
+    let fnEnv, ssaFn = translate_value env codegen fn in
+    let argEnv, ssaArgs = translate_values fnEnv codegen args in
+    let app =  mk_exp $ App(ssaFn, ssaArgs) in
     argEnv, app
   (* TODO: lambda lift here *)
   | AST.Lam (vars, body) -> failwith "lambda lifting not implemented"
   | AST.Arr args ->
-      let ssaEnv, ssaArgs = translate_args env codegen args in
+      let ssaEnv, ssaArgs = translate_values env codegen args in
       ssaEnv, mk_arr ssaArgs
   | AST.If _  -> failwith "unexpected If while converting to SSA"
   | AST.Assign _ -> failwith "unexpected Assign while converting to SSA"
@@ -308,11 +330,11 @@ and translate_value env codegen node =
     let env' = translate_stmt env codegen ~value_id:tempId node in
     env', mk_val $ Var tempId
 
-and translate_args env codegen = function
+and translate_values env codegen = function
   | [] ->  env (* same env *) , [] (* no values *)
   | arg::args ->
     let currEnv, v = translate_value env codegen arg in
-    let restEnv, vs = translate_args currEnv codegen args in
+    let restEnv, vs = translate_values currEnv codegen args in
     restEnv, v :: vs
 
 (* given the arg names and AST body of function, generate its SSA fundef *)

@@ -188,7 +188,11 @@ and stmt_node_to_str ?(space="") ?(tenv=ID.Map.empty) stmtNode =
   let str = match stmtNode.stmt with
   | Set (ids, rhs) ->
     sprintf "%s = %s " (typed_id_list_to_str tenv ids) (exp_to_str rhs)
-  | SetIdx _ -> "<set-idx>"
+  | SetIdx (lhs, indices, rhs) ->
+    sprintf "%s[%s] = %s"
+      (value_node_to_str lhs)
+      (value_nodes_to_str indices)
+      (value_node_to_str rhs)
   | If (cond,tBlock,fBlock, phiNodes) ->
       let space' =  "\t"^space in
       let tStr =

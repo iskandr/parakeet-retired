@@ -190,6 +190,11 @@ let mk_set ?src ids rhs =
     stmt_id = StmtId.gen()
   }
 
+let mk_setidx ?src lhs indices rhs =
+  { stmt = SSA.SetIdx(lhs, indices, rhs);
+    stmt_src = src;
+    stmt_id = StmtId.gen()
+  }
 
 (***
    helpers for phi-nodes
