@@ -1,3 +1,4 @@
+#!/usr/bin/python
 from parakeet import PAR
 from math import *
 

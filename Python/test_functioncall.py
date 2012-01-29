@@ -1,3 +1,4 @@
+#!/usr/bin/python
 from numpy import *  
 from parakeet import GPU
 #import test_indexing
