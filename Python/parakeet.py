@@ -366,6 +366,13 @@ class ASTConverter():
       #args[1]...[n+1] is what's inside the tuple, not the tuple itself
       #[args[0], args[1],....,args[n+1]]
       #Subscript(expr value, slice slice, expr_context ctx)
+    elif nodeType == 'Return':
+      val_node = node.value
+      #Note: May not work for null return
+      if type(val_node).__name__ == "Tuple":
+        pass #Do the special tuple stuff here
+      else:
+        return self.build_parakeet_node(self.visit(val_node))
 
     parakeetNodeChildren = []
     for childName, childNode in ast.iter_fields(node):
