@@ -372,7 +372,7 @@ class ASTConverter():
       if type(val_node).__name__ == "Tuple":
         pass #Do the special tuple stuff here
       else:
-        return self.build_parakeet_node(self.visit(val_node))
+        return self.build_parakeet_node(node,[self.visit(val_node,contextSet)])
 
     parakeetNodeChildren = []
     for childName, childNode in ast.iter_fields(node):
