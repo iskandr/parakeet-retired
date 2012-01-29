@@ -45,7 +45,10 @@ type fn_info = {
 }
 
 (* LLVM Intrinsics *)
-let sqrt =
+let sqrt32 =
+  declare_function "llvm.sqrt.f32"
+                   (function_type float32_t [|float32_t|]) global_module
+let sqrt64 =
   declare_function "llvm.sqrt.f64"
                    (function_type float64_t [|float64_t|]) global_module
 
@@ -180,15 +183,13 @@ let compile_math_op (t:Type.elt_t) op (vals:llvalue list) builder =
     if Type.elt_is_int t then Llvm.build_sdiv x y "sdivtmp" builder
     else Llvm.build_fdiv x y "fdivtmp" builder
   | Prim.Sqrt, [x] ->
-    Printf.printf "Type: %s\n%!" (Type.elt_to_str t);
-    let arg =
-      if Type.elt_is_int t then
-        Llvm.build_sitofp x float64_t "sqrtfparg" builder
-      else match t with
-      | Type.Float32T -> Llvm.build_fpext x float64_t "sqrtfparg" builder
-      | _ -> x
+    let f =
+      match t with
+      | Type.Float32T -> sqrt32
+      | Type.Float64T -> sqrt64
+      | _ -> failwith "Unexpected non-float argument to sqrt"
     in
-    Llvm.build_call sqrt [|arg|] "sqrt" builder
+    Llvm.build_call f [|x|] "sqrt" builder
   | _ ->
     failwith $ Printf.sprintf "Unsupported math op %s with %d args"
       (Prim.scalar_op_to_str op) (List.length vals)
