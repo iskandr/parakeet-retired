@@ -97,11 +97,13 @@ return_type_init(LibPar)
 #  Global variables
 ###############################################################################
 
-SafeFunctions = {np.all:ast_prim('allpairs'),
+SafeFunctions = {abs:ast_prim('abs'),
+                 np.all:ast_prim('allpairs'),
                  np.arange:ast_prim('range'),
 #                 np.argmin:ast_prim('argmin'),
-                 math.log:ast_prim('log'),
                  math.exp:ast_prim('exp'),
+                 math.log:ast_prim('log'),
+                 math.pow:ast_prim('pow'),
                  math.sqrt:ast_prim('sqrt'),
                  para_libs.map:ast_prim('map'),
                  para_libs.reduce:ast_prim('reduce')
@@ -122,8 +124,8 @@ BuiltinPrimitives = {'Add':ast_prim('+'),
                      'Not':ast_prim('not'),
                      'And':ast_prim('and'),
                      'Or':ast_prim('or'),
-                     'Uadd':'Not yet implemented',
-                     'Usub':ast_prim('neg'),
+                     'UAdd':'Not yet implemented',
+                     'USub':ast_prim('neg'),
                      'Eq':ast_prim('eq'),
                      'NotEq':ast_prim('neq'),
                      'Lt':ast_prim('<'),
@@ -554,9 +556,6 @@ class ASTConverter():
     elif nodeType == 'Subscript':
       LOG("app(%s, %s, %s)" % (type(node.slice).__name__, args[0], args[1]))
       operation = BuiltinPrimitives[type(node.slice).__name__]
-      #BROKEN, ignores children of node.slice
-      #args[1]...[n+1] is what's inside the tuple, not the tuple itself
-      #[args[0], args[1],....,args[n+1]]
       arrayArgs = list_to_ctypes_array(args,c_void_p)
       return LibPar.mk_app(operation,arrayArgs,len(args),None)
     elif nodeType == 'Index':
@@ -564,6 +563,7 @@ class ASTConverter():
       return args[0]
     elif nodeType == 'Attribute':
       LOG("Attribute %s " % str(args))
+      #NOTE: doesn't make ANY sense right now
       return args[1]
     elif nodeType == 'Return':
       LOG("Return %s" % str(args))

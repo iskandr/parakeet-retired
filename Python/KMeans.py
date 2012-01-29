@@ -3,11 +3,19 @@ from functools import *
 import para_libs
 from parakeet import PAR
 
+@PAR
+def argminHelper(currMin, currMinIndex, currIndex, currArrVal):
+  if currArrVal < currMin:
+    currMin = currArrVal
+    currMinIndex = currIndex
+  return currMin, currMinIndex, currIndex+1
+
+
 def sqr_dist(x,y):
     return para_libs.sum((x-y) * (x-y))
 
 def minidx(C,x):
-    return argmin(para_libs.map(sqr_dist,C,fixed=[x]))
+    return para_libs.argmin(para_libs.map(sqr_dist,C,fixed=[x]))
 
 def calc_centroid(X,a,i):
     return para_libs.mean(X[a == i], 0)

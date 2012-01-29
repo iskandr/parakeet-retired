@@ -1,4 +1,19 @@
 #-----Library functions
+def abs(x):
+  if x < 0:
+    x = -1*x
+  return x
+
+def argminHelper(currMin, currMinIndex, currIndex, currArrVal):
+  if currArrVal < currMin:
+    currMin = currArrVal
+    currMinIndex = currIndex
+  return currMin, currMinIndex, currIndex+1
+
+def argmin(x):
+  gib1,res,gib2 = reduce(argminHelper, x,default=[100000000000,-1,0])
+  return res
+
 def And(x,y):
   return x and y
 

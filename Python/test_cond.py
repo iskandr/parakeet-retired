@@ -20,6 +20,15 @@ def complex_if(x):
     a = 2
   return a
 
+@PAR
+def float_if(x):
+  a = 0.
+  if x == 2.5:
+    a = 2.5
+  else:
+    a = 1.5
+  return a
+
 def test_if():
   print "Testing If"
   sys.stdout.flush()
@@ -38,6 +47,15 @@ def test_complex_if():
   print "Expected 2, got", y_complex
   assert 2 == y_complex
 
+def test_float_if():
+  x_float = float_if(2.5)
+  print "Expected 2.5, got", x_float
+  assert 2.5 == x_float
+  y_float = float_if(2.)
+  print "Expected 1.5, got", y_float
+  assert 1.5 == y_float
+
 if __name__ == '__main__':
   test_if()
   test_complex_if()
+  test_float_if()

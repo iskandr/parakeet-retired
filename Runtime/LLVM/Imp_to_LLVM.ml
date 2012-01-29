@@ -139,6 +139,7 @@ let compile_cmp (t:Type.elt_t) op (vals:llvalue list) builder =
   let cmpFn : llvalue -> llvalue -> string -> llbuilder -> llvalue =
   match op with
     | Prim.Eq ->
+      Printf.sprintf "SEEING %s" (ImpType.to_str t);
       if Type.elt_is_int t then Llvm.build_icmp Llvm.Icmp.Eq
       else Llvm.build_fcmp Llvm.Fcmp.Oeq
     | Prim.Neq ->
@@ -185,6 +186,22 @@ let compile_math_op (t:Type.elt_t) op (vals:llvalue list) builder =
       | _ -> failwith "Unexpected non-float argument to sqrt"
     in
     Llvm.build_call f [|x|] "sqrt" builder
+  | Prim.Exp, [x] ->
+    let f =
+      match t with
+      | Type.Float32T -> LLVM_Intrinsics.exp32
+      | Type.Float64T -> LLVM_Intrinsics.exp64
+      | _ -> failwith "Unexpected non-float argument to exp"
+    in
+    Llvm.build_call f [|x|] "exp" builder
+  | Prim.Pow, [ x;y ] ->
+    let f =
+      match t with
+      | Type.Float32T -> LLVM_Intrinsics.pow32
+      | Type.Float64T -> LLVM_Intrinsics.pow64
+      | _ -> failwith "Unexpected non-float arguments to pow"
+    in
+    Llvm.build_call f [|x;y|] "pow" builder
   | _ ->
     failwith $ Printf.sprintf "Unsupported math op %s with %d args"
       (Prim.scalar_op_to_str op) (List.length vals)
