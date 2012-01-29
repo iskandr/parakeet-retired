@@ -26,6 +26,9 @@ let zero_i32 = Llvm.const_int LLVM_Types.int32_t 0
 let context = Llvm.global_context ()
 let global_module = Llvm.create_module context "parakeet_module"
 
+module LLVM_Intrinsics =
+  LLVM_Intrinsics.MkIntrinsics(struct let m = global_module end)
+
 type fn_info = {
   input_ids : ID.t list;
   local_ids : ID.t list;
@@ -43,14 +46,6 @@ type fn_info = {
   builder: Llvm.llbuilder;
   name : string;
 }
-
-(* LLVM Intrinsics *)
-let sqrt32 =
-  declare_function "llvm.sqrt.f32"
-                   (function_type float32_t [|float32_t|]) global_module
-let sqrt64 =
-  declare_function "llvm.sqrt.f64"
-                   (function_type float64_t [|float64_t|]) global_module
 
 let create_fn_info (fn : Imp.fn) =
   let inputImpTypes = Imp.input_types fn in
@@ -185,8 +180,8 @@ let compile_math_op (t:Type.elt_t) op (vals:llvalue list) builder =
   | Prim.Sqrt, [x] ->
     let f =
       match t with
-      | Type.Float32T -> sqrt32
-      | Type.Float64T -> sqrt64
+      | Type.Float32T -> LLVM_Intrinsics.sqrt32
+      | Type.Float64T -> LLVM_Intrinsics.sqrt64
       | _ -> failwith "Unexpected non-float argument to sqrt"
     in
     Llvm.build_call f [|x|] "sqrt" builder
