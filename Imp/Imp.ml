@@ -91,9 +91,7 @@ let empty_fn = {
   shapes=ID.Map.empty
 }
 
-let input_types fn = List.map (fun id -> ID.Map.find id fn.types) fn.input_ids
-let output_types fn = List.map (fun id -> ID.Map.find id fn.types) fn.output_ids
-let local_types fn = List.map (fun id -> ID.Map.find id fn.types) fn.local_ids
+
 
 let get_var_type (fn:fn) (id:ID.t) =
   match ID.Map.find_option id fn.types with
@@ -112,6 +110,13 @@ let get_var_shape (fn:fn) (id:ID.t) =
   | None -> failwith $ "[Imp->get_var_shape] Variable " ^ (ID.to_str id) ^
                        "doesn't exist"
   | Some symbolic_shape -> symbolic_shape
+
+let input_types fn = List.map (get_var_type fn) fn.input_ids
+let output_types fn = List.map (get_var_type fn) fn.output_ids
+let local_types fn = List.map (get_var_type fn) fn.local_ids
+
+let output_shapes fn  = List.map (get_var_shape fn) fn.output_ids
+let local_shapes fn = List.map (get_var_shape fn) fn.input_ids
 
 (* PRETTY PRINTING *)
 open Printf
@@ -164,27 +169,27 @@ and exp_to_str = function
 
 let rec stmt_to_str ?(spaces="") = function
   | If (cond, tBlock, fBlock) ->
-      let tStr =
-        if List.length tBlock > 1 then
-          Printf.sprintf " then {\n%s\n%s }\n%s"
-            (block_to_str ~spaces:(spaces ^ "  ") tBlock)
-            spaces
-            spaces
-        else Printf.sprintf " then { %s } " (block_to_str tBlock)
-      in
-      let fStr =
-        if List.length fBlock > 1 then
-          Printf.sprintf "\n%selse {\n%s\n%s }"
-            spaces
-            (block_to_str ~spaces:(spaces ^ "  ") fBlock)
-            spaces
-        else Printf.sprintf " else { %s }" (block_to_str fBlock)
-      in
-      sprintf "%s if (%s)%s%s "
-        spaces
-        (val_node_to_str cond)
-        tStr
-        fStr
+	  let tStr =
+	    if List.length tBlock > 1 then
+	      Printf.sprintf " then {\n%s\n%s }\n%s"
+	        (block_to_str ~spaces:(spaces ^ "  ") tBlock)
+	        spaces
+	        spaces
+	    else Printf.sprintf " then { %s } " (block_to_str tBlock)
+	  in
+	  let fStr =
+	    if List.length fBlock > 1 then
+	      Printf.sprintf "\n%selse {\n%s\n%s }"
+	        spaces
+	        (block_to_str ~spaces:(spaces ^ "  ") fBlock)
+	        spaces
+	    else Printf.sprintf " else { %s }" (block_to_str fBlock)
+	  in
+	  sprintf "%s if (%s)%s%s "
+	    spaces
+	    (val_node_to_str cond)
+	    tStr
+	    fStr
   | While (cond, body) ->
       let bodyStr =
         if body <> [] then "\n" ^ (block_to_str ~spaces:(spaces ^ "  ") body)
@@ -193,13 +198,12 @@ let rec stmt_to_str ?(spaces="") = function
       let condStr = (exp_node_to_str cond) in
       sprintf "%s while(%s) { %s }" spaces condStr bodyStr
   | Set (id, rhs) ->
-      sprintf "%s %s = %s" spaces (ID.to_str id) (exp_node_to_str rhs)
+    sprintf "%s %s = %s" spaces (ID.to_str id) (exp_node_to_str rhs)
   | SetIdx (lhs, indices, rhs) ->
-      sprintf "%s %s[%s] = %s"
-        spaces
-        (val_node_to_str lhs)
-        (val_node_list_to_str indices)
-        (val_node_to_str rhs)
+    let lhsStr = val_node_to_str lhs in
+    let idxStr = val_node_list_to_str indices in
+    let rhsStr = val_node_to_str rhs in
+	  sprintf "%s %s[%s] = %s" spaces lhsStr idxStr rhsStr
   | SyncThreads -> spaces ^ "syncthreads"
   | Comment s -> spaces ^ "// " ^ s
   (* used to plug one function into another, shouldn't exist in final code *)

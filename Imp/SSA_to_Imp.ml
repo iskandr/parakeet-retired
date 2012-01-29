@@ -116,7 +116,9 @@ let translate_exp (codegen:ImpCodegen.codegen) expNode : Imp.exp_node  =
     | SSA.Values _ -> failwith "multiple value expressions not supported"
     | SSA.PrimApp (Prim.ScalarOp op, args) ->
       let args' = translate_values codegen args in
-      let eltT = Type.elt_type (List.hd expNode.SSA.exp_types) in
+      (* for now assume that the type of the last argument is the appropriate*)
+      (* label for the scalar operator *)
+      let eltT = Type.elt_type (List.hd (List.rev expNode.SSA.exp_types)) in
       { exp = Op( eltT, op, args'); exp_type = ImpType.ScalarT eltT }
     | SSA.PrimApp (Prim.ArrayOp op, args) ->
       let impArgs = translate_values codegen args in

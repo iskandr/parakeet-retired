@@ -1,4 +1,4 @@
-open Base 
+open Base
 
 type 'a array_info = {
   data : 'a;
@@ -20,19 +20,19 @@ type 'a t =
 (* since array data is polymorphic it's by default printed as the *)
 (* totally uninformative string '<array>'. If you want something more*)
 (* specific than that, you'll have to supply your own array printing *)
-(* function. *) 
-let rec to_str ?(array_to_str=(fun _ -> "<array>")) = function 
+(* function. *)
+let rec to_str ?(array_to_str=(fun _ -> "<array>")) = function
   | Scalar n -> (ParNum.to_str n) ^   (Type.elt_to_short_str (ParNum.type_of n))
-  | Array array_info -> array_to_str array_info  
-  (*| Nested elts -> 
-    Printf.sprintf "[%s]" 
+  | Array array_info -> array_to_str array_info
+  (*| Nested elts ->
+    Printf.sprintf "[%s]"
         (String.concat ", " (List.map to_str (Array.to_list elts)))
-  *) 
-  | Explode (n, s) -> 
-        Printf.sprintf "explode(%s, %s)" (ParNum.to_str n) (Shape.to_str s)  
+  *)
+  | Explode (n, s) ->
+        Printf.sprintf "explode(%s, %s)" (ParNum.to_str n) (Shape.to_str s)
   | Rotate (a, dim, offset) ->
-        Printf.sprintf "rotate(%s, dim=%d, offset=%d)" 
-            (to_str ~array_to_str a) dim offset    
+        Printf.sprintf "rotate(%s, dim=%d, offset=%d)"
+            (to_str ~array_to_str a) dim offset
   | Shift (a, dim, offset, default) ->
         Printf.sprintf "rotate(%s, dim=%d, offset=%d, default=%s)"
             (to_str ~array_to_str a) dim offset (ParNum.to_str default)
@@ -43,13 +43,13 @@ let rec to_str ?(array_to_str=(fun _ -> "<array>")) = function
         Printf.sprintf "range(from=%d, to=%d, step=%d)" start stop step
 
 let list_to_str ?(array_to_str=(fun _ -> "<array>")) vals =
-  String.concat ", " (List.map (to_str ~array_to_str) vals) 
+  String.concat ", " (List.map (to_str ~array_to_str) vals)
 
-let rec map (f: 'a -> 'b) (x : 'a t) : 'b t = match x with 
+let rec map (f: 'a -> 'b) (x : 'a t) : 'b t = match x with
   | Array array_info -> Array {array_info with data = f array_info.data}
-  (*| Nested elts -> Nested (Array.map (map f) elts)*) 
+  (*| Nested elts -> Nested (Array.map (map f) elts)*)
   | Rotate (a, dim, offset) -> Rotate (map f a, dim, offset)
-  | Shift (a, dim, offset, default) -> Shift (map f a, dim, offset, default) 
+  | Shift (a, dim, offset, default) -> Shift (map f a, dim, offset, default)
   | Slice (a, dim, start, stop) -> Slice (map f a, dim, start, stop)
   | Scalar n -> Scalar n
   | Range (start, stop, step) -> Range (start, stop, step)
@@ -62,7 +62,7 @@ let rec type_of = function
   | Explode (n, s) -> Type.ArrayT (ParNum.type_of n, Shape.rank s)
   | Shift (x, _, _, _)
   | Slice (x, _, _, _)
-  | Rotate (x, _, _) -> type_of x  
+  | Rotate (x, _, _) -> type_of x
   | Range _ -> Type.ArrayT(Type.Int32T, 1)
 
 let rec shape_of _ = Shape.of_list []
@@ -103,6 +103,7 @@ let is_scalar x = Type.is_scalar (type_of x)
 
 let get_shape = function
   | Array {array_shape} -> array_shape
+  | Scalar _ -> Shape.scalar_shape
   | _ -> failwith "Cannot get shape of non-array"
 
 let get_strides = function

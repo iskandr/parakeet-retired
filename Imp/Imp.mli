@@ -85,6 +85,9 @@ val input_types : fn -> ImpType.t list
 val output_types : fn -> ImpType.t list
 val local_types : fn -> ImpType.t list
 
+val output_shapes : fn -> SymbolicShape.t list
+val local_shapes : fn -> SymbolicShape.t list
+
 val get_var_type : fn -> ID.t -> ImpType.t
 val get_var_storage : fn -> ID.t -> storage
 val get_var_shape : fn -> ID.t -> SymbolicShape.t

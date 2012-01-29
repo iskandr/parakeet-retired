@@ -24,27 +24,39 @@ let optimize_module llvmModule llvmFn : unit =
 
 let memspace_id = HostMemspace.id
 
-let alloc_output = function
-  | ImpType.ScalarT eltT -> Value.Scalar (ParNum.zero eltT)
-  | _ -> failwith "Can't yet preallocate arrays"
+let strides_from_shape shape =
+  let rank = Shape.rank shape in
+  let strides = Array.create rank 1 in
+  for i = rank - 2 downto 0 do
+    strides.(i) <- strides.(i+1) * (Shape.get shape (i+1))
+  done;
+  strides
 
-let allocate_output impT : GV.t =
-  let eltT = ImpType.elt_type impT in
-  let sz : int = Type.sizeof eltT in
-  let ptr : Int64.t = HostMemspace.malloc sz in
-  Printf.printf "  Allocated %d-byte output of type %s at addr %LX\n%!"
-    sz
-    (Type.elt_to_str eltT)
-    ptr;
-  HostMemspace.set_scalar ptr (ParNum.one eltT);
-  Printf.printf "  Stored 0 in memory location\n%!";
-  Printf.printf "  Dereferenced value: %s\n%!"
-    (ParNum.to_str (HostMemspace.deref_scalar ptr eltT));
-  GV.of_int64 LLVM_Types.int64_t ptr
 
-let allocate_outputs impTypes = List.map allocate_output impTypes
-
-let allocate_outputs impTypes = List.map allocate_output impTypes
+let allocate_output impT (shape:Shape.t) : GV.t =
+  match impT with
+    | ImpType.ScalarT eltT ->
+      GV.of_int64  LLVM_Types.int64_t (HostMemspace.malloc (Type.sizeof eltT))
+    | ImpType.ArrayT (eltT, rank) ->
+      let eltSize : int = Type.sizeof eltT in
+      let nelts = Shape.nelts shape in
+      let arrayVal = Value.Array {
+        Value.data = Mem.alloc HostMemspace.id (nelts * eltSize);
+        array_type = Type.ArrayT(eltT, rank);
+        elt_type = eltT;
+        array_shape = shape;
+        array_strides = strides_from_shape shape;
+      }
+      in
+      Value_to_GenericValue.to_llvm arrayVal
+    | other ->
+      failwith ("Can't create output array of type" ^ (ImpType.to_str other))
+let allocate_outputs impFn args =
+  let impTypes = Imp.output_types impFn in
+  let inputShapes : Shape.t list = List.map Value.get_shape args in
+  (* compute output shapes from input shapes *)
+  let outputShapes = ShapeEval.get_call_output_shapes impFn inputShapes in
+  List.map2 allocate_output impTypes outputShapes
 
 let free_scalar_output impT (gv:GV.t) : unit =
   if ImpType.is_scalar impT then HostMemspace.free (GV.as_int64 gv)
@@ -59,10 +71,10 @@ let call_imp_fn (impFn:Imp.fn) (args:Ptr.t Value.t list) : Ptr.t Value.t list =
   Llvm_analysis.assert_valid_function llvmFn;
   Printf.printf "Preallocating outputs...\n";
   let llvmInputs : GV.t list = List.map Value_to_GenericValue.to_llvm args in
-  let impOutputTypes = Imp.output_types impFn in
-  let llvmOutputs = allocate_outputs impOutputTypes in
+  let llvmOutputs = allocate_outputs impFn args in
   Printf.printf "[LLVM_Backend.call_imp_fn] Running function\n%!";
   let impInputTypes = Imp.input_types impFn in
+  let impOutputTypes = Imp.output_types impFn in
   Printf.printf "  -- input params: %s\n%!"
     (Value.list_to_str
       (List.map2 (GenericValue_to_Value.of_generic_value ~boxed_scalars:false)
