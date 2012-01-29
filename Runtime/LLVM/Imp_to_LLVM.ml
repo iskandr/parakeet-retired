@@ -344,7 +344,8 @@ and compile_stmt fnInfo currBB stmt = match stmt with
     in
     let idxAddr = compile_arr_idx arr argVals imp_elt_t fnInfo in
     let rhs_val = compile_val fnInfo rhs in
-    Llvm.build_store rhs_val idxAddr "idxStore" fnInfo.builder
+    Llvm.build_store rhs_val idxAddr fnInfo.builder;
+    currBB
   | other ->
     failwith $ Printf.sprintf "[Imp_to_LLVM] Unsupported statement %s"
     (Imp.stmt_to_str other)
