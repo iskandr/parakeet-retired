@@ -16,7 +16,12 @@ end
 module Rewrite_Rules (P: REWRITE_PARAMS) = struct
 
 
-  let get_type id = Hashtbl.find P.tenv id
+  let get_type id =
+    match Hashtbl.find_option P.tenv id with
+      | Some t -> t
+      | None -> failwith $ "No type for " ^ (ID.to_str id)
+
+
   let set_type id t = Hashtbl.replace P.tenv id t
   let fresh_id t =
     let id = ID.gen() in
@@ -24,12 +29,26 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
     id
 
   let is_closure id = Hashtbl.mem P.closure_env.CollectPartialApps.closures id
+
   let get_closure_val id =
-    Hashtbl.find P.closure_env.CollectPartialApps.closures id
-  let get_closure_args id =
-    Hashtbl.find P.closure_env.CollectPartialApps.closure_args id
+    match Hashtbl.find_option P.closure_env.CollectPartialApps.closures id with
+      | Some closureVal -> closureVal
+      | None ->
+        failwith $ Printf.sprintf "No closure value for %s" (ID.to_str id)
+
+    let get_closure_args id =
+      let closureArgsDict = P.closure_env.CollectPartialApps.closure_args in
+      match Hashtbl.find_option closureArgsDict id with
+      | Some args -> args
+      | None ->
+        failwith $ Printf.sprintf "No closure args for %s" (ID.to_str id)
+
   let get_closure_arity id =
-    Hashtbl.find P.closure_env.CollectPartialApps.closure_arity id
+    let closureArityDict = P.closure_env.CollectPartialApps.closure_arity in
+    match Hashtbl.find_option closureArityDict id with
+      | Some arity -> arity
+      | None ->
+        failwith $ Printf.sprintf "No closure arity for %s" (ID.to_str id)
 
   let infer_value_type = function
     | Var id -> if is_closure id then Type.BottomT else get_type id
@@ -269,23 +288,30 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
   let rec stmt stmtNode : stmt_node list =
     match stmtNode.stmt with
     | Set(ids, rhs) ->
-        let rhsTypes = List.map (Hashtbl.find P.tenv) ids in
-        let rhs' = rewrite_exp rhsTypes rhs in
-        let stmtNode' = {stmtNode with stmt = Set(ids, rhs')} in
-        collect_coercions stmtNode'
+      let rhsTypes = List.map (Hashtbl.find P.tenv) ids in
+      let rhs' = rewrite_exp rhsTypes rhs in
+      let stmtNode' = {stmtNode with stmt = Set(ids, rhs')} in
+      collect_coercions stmtNode'
 
-    | SetIdx (arrayId, indices, rhs) -> failwith "setidx not implemented"
+    | SetIdx (lhs, indices, rhs) ->
+      let array = annotate_value lhs in
+      let indices = List.map (coerce_value Type.int32) indices in
+      let rhsT = Type.peel ~num_axes:(List.length indices) array.value_type in
+      let rhs = coerce_value rhsT rhs in
+      let stmtNode' = { stmtNode with stmt = SetIdx(lhs, indices, rhs) } in
+      collect_coercions stmtNode'
+
 
     | If(cond, tBlock, fBlock, phiNodes) ->
-        let typedCond = annotate_value cond in
-        let boolCond = coerce_value Type.bool typedCond in
-        let tBlock' = transform_block tBlock in
-        let fBlock' = transform_block fBlock in
-        let phiNodes' = rewrite_phi_nodes phiNodes in
-        let stmtNode' =
-          {stmtNode with stmt = If(boolCond, tBlock', fBlock', phiNodes')}
-        in
-        collect_coercions stmtNode'
+      let typedCond = annotate_value cond in
+      let boolCond = coerce_value Type.bool typedCond in
+      let tBlock' = transform_block tBlock in
+      let fBlock' = transform_block fBlock in
+      let phiNodes' = rewrite_phi_nodes phiNodes in
+      let stmtNode' =
+        {stmtNode with stmt = If(boolCond, tBlock', fBlock', phiNodes')}
+      in
+      collect_coercions stmtNode'
 
     | WhileLoop(testBlock, testVal, body, header) ->
         let body' = transform_block body in
