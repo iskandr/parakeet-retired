@@ -3,7 +3,7 @@ from functools import *
 import para_libs
 from parakeet import PAR
 
-@PAR
+
 def argminHelper(currMin, currMinIndex, currIndex, currArrVal):
   if currArrVal < currMin:
     currMin = currArrVal
@@ -14,12 +14,14 @@ def argminHelper(currMin, currMinIndex, currIndex, currArrVal):
 def sqr_dist(x,y):
     return para_libs.sum((x-y) * (x-y))
 
+@PAR
 def minidx(C,x):
     return para_libs.argmin(para_libs.map(sqr_dist,C,fixed=[x]))
 
 def calc_centroid(X,a,i):
     return para_libs.mean(X[a == i], 0)
 
+#@PAR
 def kmeans(X,assign,k):
     C = para_libs.map(calc_centroid, arange(k), fixed=[X, assign])
     converged = False

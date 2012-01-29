@@ -76,6 +76,7 @@ def return_type_init(LibPar):
   LibPar.mk_double_paranode.restype = c_void_p
   LibPar.mk_bool.restype = c_void_p
   LibPar.mk_void.restype = c_void_p
+  LibPar.mk_return.restype = c_void_p
 
   #get global values for parakeet types
   LibPar.bool_t = c_int.in_dll(LibPar, "parakeet_bool_elt_t").value
@@ -280,9 +281,10 @@ class ASTConverter():
       raise ParakeetUnsupported("strings are not supported")
     elif nodeType == 'List' or nodeType == 'Tuple':
       if 'array' in contextSet:
+        #('lhs' in contextSet and nodeType == 'Tuple'):
         children = ast.iter_child_nodes(node)
-        array_elts = self.build_arg_list(children, contextSet)
-        return self.build_parakeet_array(array_elts)
+        elts = self.build_arg_list(children, contextSet)
+        return self.build_parakeet_array(elts)
       else:
         raise ParakeetUnsupported(
             "lists and tuples are not supported outside of numpy arrays")
@@ -369,12 +371,19 @@ class ASTConverter():
       #[args[0], args[1],....,args[n+1]]
       #Subscript(expr value, slice slice, expr_context ctx)
     elif nodeType == 'Return':
-      val_node = node.value
-      #Note: May not work for null return
-      if type(val_node).__name__ == "Tuple":
-        pass #Do the special tuple stuff here
+      #Might not be right for no return
+      if node.value is None:
+        return LibPar.mk_return(self.build_parakeet_array([]),0,None)
+      elif type(node.value).__name__ == "Tuple":
+        children = ast.iter_child_nodes(node.value)
+        elts = self.build_arg_list(children, contextSet)
+        ret_args = list_to_ctypes_array(elts, c_void_p)
+        return LibPar.mk_return(ret_args,len(elts),None)
       else:
-        return self.build_parakeet_node(node,[self.visit(val_node,contextSet)])
+        ret = self.visit(node.value, contextSet)
+        ret_args = list_to_ctypes_array([ret], c_void_p)
+        return LibPar.mk_return(ret_args,1,None)
+
 
     parakeetNodeChildren = []
     for childName, childNode in ast.iter_fields(node):
@@ -566,8 +575,15 @@ class ASTConverter():
       #NOTE: doesn't make ANY sense right now
       return args[1]
     elif nodeType == 'Return':
+      #NOTE: Deprecated
       LOG("Return %s" % str(args))
-      return args[0]
+      if type(node.value).__name__ == 'Tuple':
+        print "WHAT????"
+        return LibPar.mk_return(args[0][0],args[0][1],None)
+      else:
+        print "ARGS",args
+        print "INTO",self.build_parakeet_array([args[0]])
+        return LibPar.mk_return(self.build_parakeet_array([args[0]]),1,None)
     else:
       print "[Parakeet]", nodeType, "with args", str(args), "not handled"
       return None
@@ -584,7 +600,6 @@ def fun_visit(func,new_f):
     AST = ASTConverter(func.func_globals)
     AST.varList = funInfo[2]
     finalTree = AST.visit(node,set([]))
-
     #LOG(PrettyAST.printAst(node))
     #Med fix: right now, I assume there aren't any globals
     #Fix: functionGlobals[func] = globalVars
@@ -606,7 +621,6 @@ def fun_visit(func,new_f):
                            var_list,
                            len(funInfo[0]),
                            finalTree))
-
     LOG("Registered %s" % func.__name__)
     VisitedFunctions[func] = funID
     VisitedFunctions[new_f] = funID
@@ -708,6 +722,7 @@ def run_function(func, args):
   ret = LibPar.run_function(func, None, 0, inputs, numArgs)
   if (ret.return_code == 0):
     # TODO: again, we assume only one return val
+    print "RETLEN", len(ret.results)
     return parakeet_value_to_python(ret.results[0])
   else:
     raise Exception("run_function failed")
