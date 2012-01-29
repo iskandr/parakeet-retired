@@ -210,6 +210,15 @@ paranode mk_app(paranode fun, paranode *args, int num_args,
   CAMLreturnT(paranode, mk_node(app, src_info));
 }
 
+paranode mk_return(paranode* args, int num_args, source_info_t *src_info) { 
+  CAMLparam0();
+  CAMLlocal1(ret); 
+  ret = caml_alloc(1, Exp_Return);
+  Store_field(ret, 0, mk_val_list(args, num_args));
+  CAMLreturnT(paranode, mk_node(ret, src_info));
+}
+
+
 paranode mk_array(paranode *elts, int num_elts, source_info_t *src_info) {
   CAMLparam0();
   CAMLlocal1(arr);

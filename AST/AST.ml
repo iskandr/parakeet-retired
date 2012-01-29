@@ -73,6 +73,7 @@ type exp =
     | Block of node list
     | WhileLoop of node * node
     | CountLoop of node * node
+    | Return of node list
     | Void
 
 and node = {
@@ -112,7 +113,7 @@ let rec to_str ast = match ast.data with
     sprintf "while %s do %s" (to_str test)  (to_str body)
   | CountLoop (count, body) ->
     sprintf "repeat %s do %s" (to_str count) (to_str body)
-
+  | Return nodes -> sprintf "return %s" (args_to_str nodes)
 and args_to_str ?(delim="; ") args = String.concat delim (List.map to_str  args)
 
 let print_ast_node n =

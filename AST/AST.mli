@@ -39,6 +39,7 @@ type exp =
     | Block of node list
     | WhileLoop of node * node
     | CountLoop of node * node
+    | Return of node list
     | Void
 
 and node = {

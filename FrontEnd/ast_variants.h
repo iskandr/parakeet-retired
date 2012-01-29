@@ -26,7 +26,8 @@ enum ast_exp_data {
   Exp_Assign,
   Exp_Block,
   Exp_WhileLoop,
-  Exp_CountLoop
+  Exp_CountLoop, 
+  Exp_Return
 };
 
 #endif
