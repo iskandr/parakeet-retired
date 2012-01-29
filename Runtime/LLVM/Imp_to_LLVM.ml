@@ -139,7 +139,6 @@ let compile_cmp (t:Type.elt_t) op (vals:llvalue list) builder =
   let cmpFn : llvalue -> llvalue -> string -> llbuilder -> llvalue =
   match op with
     | Prim.Eq ->
-      Printf.sprintf "SEEING %s" (ImpType.to_str t);
       if Type.elt_is_int t then Llvm.build_icmp Llvm.Icmp.Eq
       else Llvm.build_fcmp Llvm.Fcmp.Oeq
     | Prim.Neq ->

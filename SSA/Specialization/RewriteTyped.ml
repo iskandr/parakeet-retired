@@ -227,11 +227,12 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
       else
         (* most scalar ops expect all their arguments to be of the same*)
         (* type, except for Select, whose first argument is always a bool *)
-        let sameTypeArgNodes : SSA.value_node list =
+        begin
           match op, argNodes, argTypes with
           | Prim.Select, boolArg::otherArgs, _::otherTypes ->
             let inT = Type.combine_type_list otherTypes in
-            boolArg :: (List.map (coerce_value inT) argNodes)
+            let args = boolArg :: (List.map (coerce_value inT) argNodes) in
+            SSA_Helpers.mk_primapp p [outT] args
           | _ ->
             (* if operation is a float, then make sure the inputs are*)
             (* at least float32 *)
@@ -241,10 +242,9 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
               else
                 Type.combine_type_list argTypes
             in
-            List.map (coerce_value inT) argNodes
-        in
-        SSA_Helpers.mk_primapp p [outT] sameTypeArgNodes
-
+            let args = List.map (coerce_value inT) argNodes in
+            SSA_Helpers.mk_primapp p [outT] args
+        end
     | Prim (Prim.ArrayOp op) -> rewrite_array_op src op argNodes argTypes
     | Prim (Prim.Adverb adverb) ->
       begin match argNodes, argTypes with
