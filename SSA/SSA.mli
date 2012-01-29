@@ -55,7 +55,7 @@ and exp_node = {
 (********** STATEMENTS **********)
 type stmt =
   | Set of ID.t list * exp_node
-  | SetIdx of ID.t * value_nodes * value_node
+  | SetIdx of value_node * value_nodes * value_node
   | If of value_node * block * block * phi_nodes
   (* testBlock, testVal, body, loop header  *)
   | WhileLoop of block * value_node * block * phi_nodes

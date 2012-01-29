@@ -52,7 +52,7 @@ type stmt =
   | If of value_node * block * block
   | While of exp_node * block (* test, body *)
   | Set of ID.t * exp_node
-  | SetIdx of ID.t * value_node list * exp_node
+  | SetIdx of value_node * value_node list * value_node
   | SyncThreads
   | Comment of string
   (* used to plug one function into another, shouldn't exist in final code *)
@@ -194,12 +194,12 @@ let rec stmt_to_str ?(spaces="") = function
       sprintf "%s while(%s) { %s }" spaces condStr bodyStr
   | Set (id, rhs) ->
       sprintf "%s %s = %s" spaces (ID.to_str id) (exp_node_to_str rhs)
-  | SetIdx (id, indices, rhs) ->
+  | SetIdx (lhs, indices, rhs) ->
       sprintf "%s %s[%s] = %s"
         spaces
-        (ID.to_str id)
+        (val_node_to_str lhs)
         (val_node_list_to_str indices)
-        (exp_node_to_str rhs)
+        (val_node_to_str rhs)
   | SyncThreads -> spaces ^ "syncthreads"
   | Comment s -> spaces ^ "// " ^ s
   (* used to plug one function into another, shouldn't exist in final code *)

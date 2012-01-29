@@ -35,9 +35,7 @@ let set v rhs = match v.value  with
 
 let set_val v rhs = set v (exp_of_val rhs)
 
-let rec setidx v indices rhs = match v.value with
-  | Var id -> SetIdx(id, indices, rhs)
-  | other -> assert false
+let rec setidx arr indices rhs = SetIdx(arr, indices, rhs)
 
 (* HELPER FUNCTIONS FOR IMP EXPRESSIONS *)
 let wrap_bool_val (v : value) : value_node = {value=v; value_type = ImpType.bool_t}

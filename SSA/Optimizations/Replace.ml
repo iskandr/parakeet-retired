@@ -56,10 +56,11 @@ module Replace_Rules(P: REPLACE_PARAMS) = struct
         (* will be different *)
         if ids != ids' then Update (mk_set ?src:stmtNode.stmt_src ids' rhs)
         else NoChange
-    | SetIdx (id, idxs, rhs) ->
+    | SetIdx ({value=SSA.Var id; value_type; value_src}, idxs, rhs) ->
         if ID.Map. mem id idMap then
           let id' = ID.Map.find id idMap in
-          Update (mk_stmt ?src:stmtNode.stmt_src (SetIdx(id', idxs, rhs)))
+          let lhs' = {value = SSA.Var id'; value_type; value_src} in
+          Update (mk_stmt ?src:stmtNode.stmt_src (SetIdx(lhs', idxs, rhs)))
         else NoChange
     | _ -> NoChange
 end

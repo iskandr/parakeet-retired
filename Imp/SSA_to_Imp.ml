@@ -106,7 +106,7 @@ let translate_array_literal
     let lhs = codegen#var lhsId in
     let impElts : Imp.value_node list = translate_values codegen elts in
     let assign_elt idx rhs =
-      ImpHelpers.setidx lhs [ImpHelpers.int idx] (ImpHelpers.exp_of_val rhs)
+      ImpHelpers.setidx lhs [ImpHelpers.int idx] rhs
     in
     List.mapi assign_elt impElts
 
@@ -162,6 +162,12 @@ and translate_stmt (codegen : ImpCodegen.codegen) stmtNode : Imp.stmt list  =
     | SSA.Set(ids, {SSA.exp = SSA.Values vs}) ->
       List.map2 (mk_set_val codegen) ids vs
 	  | SSA.Set _ -> failwith "multiple assignment not supported"
+    | SSA.SetIdx(lhs, indices, rhs) ->
+      let indices : Imp.value_node list = translate_values codegen indices in
+      let lhs : Imp.value_node = translate_value codegen lhs in
+      let rhs : Imp.value_node = translate_value codegen rhs in
+      [Imp.SetIdx(lhs, indices, rhs)]
+
     | SSA.If(cond, tBlock, fBlock, phiNodes) ->
 	    let cond' : Imp.value_node = translate_value codegen cond in
 	    let tBlock' : Imp.block = translate_block codegen tBlock in

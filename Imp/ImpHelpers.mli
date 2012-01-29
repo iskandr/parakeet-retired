@@ -10,7 +10,7 @@ val comment : string -> stmt
 
 val set : value_node -> exp_node -> stmt
 val set_val : value_node -> value_node -> stmt
-val setidx : value_node -> value_node list -> exp_node -> stmt
+val setidx : value_node -> value_node list -> value_node -> stmt
 
 (* HELPER FUNCTIONS FOR IMP EXPRESSIONS *)
 val wrap_bool_val : value -> value_node

@@ -74,6 +74,11 @@ end
 
 open Env
 
+
+let translate_app ssaFn ssaArgs =
+  Printf.printf "!!!!%s\n!!!!\n" (SSA.value_node_to_str ssaFn);
+  mk_exp $ App(ssaFn, ssaArgs)
+
 (* value_id is an optional parameter, if it's provided then the generated
    statements must set retId to the last value
 *)
@@ -96,7 +101,7 @@ let rec translate_stmt
          value along each branch and then set the return var to be the
          SSA merge of the two branch values
       *)
-      let phiNodes = (match value_id with
+      let phiNodes = match value_id with
       | Some valId ->
           let trueRetId = ID.gen () in
           let trueEnv : Env.t =
@@ -121,7 +126,6 @@ let rec translate_stmt
           let falseEnv = translate_stmt condEnv falseCodegen falseNode in
           let falseIds = List.map (lookup_id falseEnv) mergeNames in
           mk_phi_nodes mergeIds trueIds falseIds
-      )
       in
       let trueBlock = trueCodegen#finalize in
       let falseBlock = falseCodegen#finalize in
@@ -274,8 +278,8 @@ and translate_exp env codegen node =
   | AST.App (fn, args) ->
     let fnEnv, fn' = translate_value env codegen fn in
     let argEnv, args' = translate_args fnEnv codegen args in
-    let app' = mk_exp $ App(fn', args') in
-    argEnv, app'
+    let app = translate_app fn' args' in
+    argEnv, app
   (* TODO: lambda lift here *)
   | AST.Lam (vars, body) -> failwith "lambda lifting not implemented"
   | AST.Arr args ->

@@ -12,22 +12,22 @@ let check_value (errorLog:errors)(tenv:tenv) (defined : ID.Set.t) vNode : unit =
  let err msg = Queue.add (vNode.value_src, msg) errorLog in
   match vNode.value with
   | Var id ->
-      if not $ ID.Set.mem id defined then
-        err $ sprintf "attempting to use undefined variable %s" (ID.to_str id)
-      else if not $ ID.Map.mem id tenv then
-        err $ sprintf "type not found for %s" (ID.to_str id)
-      else
-        let t = ID.Map.find id tenv in (
-        if t <> vNode.value_type then
-          err $ sprintf
-            "type annotation %s for variable %s does not match its type %s"
-            (Type.to_str vNode.value_type)
-            (ID.to_str id)
-            (Type.to_str t)
-        )
+    if not $ ID.Set.mem id defined then
+      err $ sprintf "attempting to use undefined variable %s" (ID.to_str id)
+    else if not $ ID.Map.mem id tenv then
+      err $ sprintf "type not found for %s" (ID.to_str id)
+    else
+      let t = ID.Map.find id tenv in (
+      if t <> vNode.value_type then
+        err $ sprintf
+          "type annotation %s for variable %s does not match its type %s"
+          (Type.to_str vNode.value_type)
+          (ID.to_str id)
+          (Type.to_str t)
+      )
   | Num _ ->
-      if not $ Type.is_number vNode.value_type then
-        err "number annotated with non-numeric type"
+    if not $ Type.is_number vNode.value_type then
+      err "number annotated with non-numeric type"
   | Prim _
   | GlobalFn _ -> ()
       (*if not $ Type.is_function vNode.value_type then
@@ -73,7 +73,7 @@ let rec check_stmt
          )
       );
       ID.Set.add_list ids defined
-  | SetIdx (arrId, indices, rhs) ->
+  | SetIdx ({value=Var arrId}, indices, rhs) ->
       if not $ ID.Set.mem arrId defined then
         err $ sprintf
           "attempting to set array index on undefined variable %s"

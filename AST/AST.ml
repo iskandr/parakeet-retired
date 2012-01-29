@@ -66,7 +66,6 @@ type exp =
     | Num of ParNum.t
     | Str of string
     | Sym of string
-
     | App of node * node list
     | Arr of node list
     | If of node * node * node
@@ -100,20 +99,19 @@ let rec to_str ast = match ast.data with
   | Num n -> ParNum.to_str n
   | Str str -> "\"" ^ (String.escaped str)  ^ "\""
   | App (fn, args) ->
-        sprintf "%s(%s)" (to_str fn) (args_to_str ~delim:", " args)
+      sprintf "%s(%s)" (to_str fn) (args_to_str ~delim:", " args)
   | Arr elts ->   "[" ^ (args_to_str ~delim:", " elts) ^ "]"
   | Assign (lhs, rhs) -> (to_str lhs) ^ " := " ^ (to_str rhs)
   | Block nodes -> sprintf "{ %s }" (args_to_str nodes)
 
   | If(test, tNode, fNode) ->
-        sprintf "if %s then %s else %s"
-        (to_str test) (to_str tNode) (to_str fNode)
+    sprintf "if %s then %s else %s" (to_str test) (to_str tNode) (to_str fNode)
 
   | Void -> "void"
   | WhileLoop (test,body) ->
-      sprintf "while %s do %s" (to_str test)  (to_str body)
+    sprintf "while %s do %s" (to_str test)  (to_str body)
   | CountLoop (count, body) ->
-      sprintf "repeat %s do %s" (to_str count) (to_str body)
+    sprintf "repeat %s do %s" (to_str count) (to_str body)
 
 and args_to_str ?(delim="; ") args = String.concat delim (List.map to_str  args)
 

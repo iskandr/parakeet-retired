@@ -50,7 +50,7 @@ and stmt =
   | If of value_node * block * block
   | While of exp_node * block (* test, body *)
   | Set of ID.t * exp_node
-  | SetIdx of ID.t * value_node list * exp_node
+  | SetIdx of value_node * value_node list * value_node
   | SyncThreads
   | Comment of string
   (*

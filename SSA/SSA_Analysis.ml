@@ -132,7 +132,11 @@ module MkEvaluator(A : ANALYSIS) = struct
           let changed = headerChanged || condChanged || bodyChanged in
           if changed then Some bodyEnv else None
         )
-    | _ -> assert false
+    | SetIdx (lhs, indices, rhs) ->
+        ignore (A.value env lhs);
+        iter_values env indices;
+        ignore (A.value env rhs);
+        None
 
   and iter_exp_children env expNode = match expNode.exp with
       | App(x, xs) ->  ignore $ A.value env x; iter_values env xs
