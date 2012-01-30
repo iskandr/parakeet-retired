@@ -3,7 +3,7 @@ type elt_t = Type.elt_t
 type t =
   | ArrayT of elt_t * int
   | ScalarT of elt_t
-  | ExplodeT of elt_t
+  | ExplodeT of elt_t * int
   | RotateT of t
   | ShiftT of t
   | SliceT of t
@@ -14,11 +14,14 @@ let rec to_str = function
 	| ArrayT (elt_t, r) ->
       Printf.sprintf "array(%s, %d)" (Type.elt_to_str elt_t) r
 	| ShiftT t -> Printf.sprintf "shift(%s)" (to_str t)
+  | _ -> failwith "Not implemented"
+
+let type_list_to_str ts = String.concat ", " (List.map to_str ts)
 
 let rec elt_type = function
   | RangeT t
 	| ScalarT t
-  | ExplodeT t
+  | ExplodeT (t, _)
   | ArrayT (t, _) -> t
   | RotateT nested
   | SliceT nested
@@ -50,8 +53,10 @@ let is_array = function
 
 let rec rank = function
 	| ScalarT _ -> 0
+  | ExplodeT(_, r)
 	| ArrayT (_, r) -> r
 	| ShiftT x -> rank x
+  | _ -> failwith "Not implemented"
 
 let bool_t = ScalarT Type.BoolT
 let char_t = ScalarT Type.CharT
@@ -75,3 +80,12 @@ let rec type_of_value = function
   | Value.Scalar n -> ScalarT (ParNum.type_of n)
   | Value.Array a -> ArrayT (a.Value.elt_type, Shape.rank a.Value.array_shape)
   | Value.Shift (nested, _, _, _) -> ShiftT (type_of_value nested)
+
+let peel ?(num_axes=1) = function
+  | ArrayT (eltT, r) ->
+    let diff = r - num_axes in
+    if diff = 0 then ScalarT eltT
+    else if diff > 0 then ArrayT (eltT, diff)
+    else failwith "[ImpType.peel] Too many axes"
+  | ScalarT _ -> failwith "[ImpType.peel] Can't peel a scalar"
+  | _ -> failwith "Not implemented"

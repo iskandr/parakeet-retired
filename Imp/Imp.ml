@@ -118,6 +118,9 @@ let local_types fn = List.map (get_var_type fn) fn.local_ids
 let output_shapes fn  = List.map (get_var_shape fn) fn.output_ids
 let local_shapes fn = List.map (get_var_shape fn) fn.input_ids
 
+let value_type {value_type} = value_type
+let value_types valNodes = List.map value_type valNodes
+
 (* PRETTY PRINTING *)
 open Printf
 

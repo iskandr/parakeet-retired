@@ -74,6 +74,7 @@ class codegen  = object (self)
       block_shapes = shapes;
       block_storages = storages;
     }
+
 end
 
 class fn_codegen = object (self)

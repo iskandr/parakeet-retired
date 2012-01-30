@@ -95,6 +95,9 @@ val get_var_shape : fn -> ID.t -> SymbolicShape.t
 val cuda_info_to_str : cuda_info -> string
 val coord_to_str : coord -> string
 
+val value_type : value_node -> ImpType.t
+
+
 val val_to_str : value -> string
 val val_node_to_str : value_node -> string
 val val_node_list_to_str : value_node list -> string
