@@ -297,7 +297,9 @@ let rec compile_stmt_seq fnInfo currBB = function
     let newBB = compile_stmt fnInfo currBB head in
     compile_stmt_seq fnInfo newBB tail
 
-and compile_stmt fnInfo currBB stmt = match stmt with
+and compile_stmt fnInfo currBB stmt =
+  Gc.print_stat stdout;
+  match stmt with
   | Imp.If (cond, then_, else_) ->
     let llCond = compile_val fnInfo cond in
     let zero = Llvm.const_int (Llvm.type_of llCond) 0 in
@@ -344,8 +346,6 @@ and compile_stmt fnInfo currBB stmt = match stmt with
     in
     let instr = Llvm.build_store rhs variable fnInfo.builder in
     print_endline $ "generating store for " ^ (Imp.stmt_to_str stmt);
-    dump_value rhs;
-    dump_value instr;
     currBB
   | Imp.SetIdx(arr, args, rhs) ->
     let argVals = List.map (compile_val fnInfo) args in
@@ -413,5 +413,9 @@ let compile_fn (fn : Imp.fn) : Llvm.llvalue =
   let _ : Llvm.llbasicblock = compile_stmt_seq fnInfo initBasicBlock fn.body in
   (* we implement multiple return values by passing the output addresses as *)
   (* parameters so there's nothing left to return *)
+  Gc.print_stat stdout;
+  Gc.major();
+  Gc.print_stat stdout;
+  Printf.printf "%d\n%!";
   Llvm.build_ret_void fnInfo.builder;
   llvmFn

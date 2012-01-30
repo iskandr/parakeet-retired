@@ -90,6 +90,9 @@ let run_function untypedId ~globals ~args =
       FnManager.optimize_typed_functions ();
       FnManager.get_typed_function unoptimizedTyped.SSA.fn_id
   in
+  Gc.major();
+  Gc.print_stat stdout;
+  Printf.printf "%!";
   let resultVals =
     Interp.run typedFundef args
   in

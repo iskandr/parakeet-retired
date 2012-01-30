@@ -32,25 +32,25 @@ let strides_from_shape shape =
   done;
   strides
 
-
 let allocate_output impT (shape:Shape.t) : GV.t =
   match impT with
-    | ImpType.ScalarT eltT ->
-      GV.of_int64  LLVM_Types.int64_t (HostMemspace.malloc (Type.sizeof eltT))
-    | ImpType.ArrayT (eltT, rank) ->
-      let eltSize : int = Type.sizeof eltT in
-      let nelts = Shape.nelts shape in
-      let arrayVal = Value.Array {
-        Value.data = Mem.alloc HostMemspace.id (nelts * eltSize);
-        array_type = Type.ArrayT(eltT, rank);
-        elt_type = eltT;
-        array_shape = shape;
-        array_strides = strides_from_shape shape;
-      }
-      in
-      Value_to_GenericValue.to_llvm arrayVal
-    | other ->
-      failwith ("Can't create output array of type" ^ (ImpType.to_str other))
+  | ImpType.ScalarT eltT ->
+    GV.of_int64 LLVM_Types.int64_t (HostMemspace.malloc (Type.sizeof eltT))
+  | ImpType.ArrayT (eltT, rank) ->
+    let eltSize : int = Type.sizeof eltT in
+    let nelts = Shape.nelts shape in
+    let arrayVal = Value.Array {
+      Value.data = Mem.alloc HostMemspace.id (nelts * eltSize);
+      array_type = Type.ArrayT(eltT, rank);
+      elt_type = eltT;
+      array_shape = shape;
+      array_strides = strides_from_shape shape;
+    }
+    in
+    Value_to_GenericValue.to_llvm arrayVal
+  | other ->
+    failwith ("Can't create output array of type" ^ (ImpType.to_str other))
+
 let allocate_outputs impFn args =
   let impTypes = Imp.output_types impFn in
   let inputShapes : Shape.t list = List.map Value.get_shape args in
@@ -65,6 +65,7 @@ let free_scalar_outputs impTypes gvs = List.map2 free_scalar_output impTypes gvs
 
 let call_imp_fn (impFn:Imp.fn) (args:Ptr.t Value.t list) : Ptr.t Value.t list =
   let llvmFn : Llvm.llvalue = Imp_to_LLVM.compile_fn impFn in
+  let llvmFn = compile_fn impFn in
   optimize_module Imp_to_LLVM.global_module llvmFn;
   print_endline  "[LLVM_Backend.call_imp_fn] Generated LLVM function";
   Llvm.dump_value llvmFn;
@@ -82,7 +83,6 @@ let call_imp_fn (impFn:Imp.fn) (args:Ptr.t Value.t list) : Ptr.t Value.t list =
   let params : GV.t array = Array.of_list (llvmInputs @ llvmOutputs) in
   let _ = LLE.run_function llvmFn params execution_engine in
   Printf.printf " :: function completed\n%!";
-
   let outputs =
     List.map2 GenericValue_to_Value.of_generic_value llvmOutputs impOutputTypes
   in
