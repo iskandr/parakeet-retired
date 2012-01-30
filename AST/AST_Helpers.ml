@@ -41,10 +41,14 @@ let mk_var_node ?(info=mk_ast_info()) ?(src=SrcInfo.empty) name =
 let update_var_node ast name = { ast with data = Var name }
 
 (* Def *)
-let mk_assign_node ?(info=mk_ast_info()) ?(src=SrcInfo.empty) lhs rhs =
+let mk_assign_node
+      ?(info=mk_ast_info())
+      ?(src=SrcInfo.empty)
+      (lhs:AST.node list) rhs =
   mk_node ~info ~src (Assign (lhs,rhs))
 
-let update_assign_node ast lhs rhs = { ast with data = Assign(lhs, rhs) }
+let update_assign_node ast (lhs:AST.node list) rhs =
+  { ast with data = Assign(lhs, rhs) }
 
 (* Lam *)
 let mk_lam_node ?(info=mk_ast_info()) ?(src=SrcInfo.empty) args body =
@@ -111,8 +115,9 @@ let rec flatten_block ast = match ast.data with
     in
     let nodes' = List.fold_left f (List.map flatten_block nodes) [] in
     update_block_node ast nodes'
-  | Assign(lhs,rhs) ->
-    update_assign_node ast (flatten_block lhs) (flatten_block rhs)
+  | Assign(lhsList,rhs) ->
+    let lhsList' = List.map flatten_block lhsList in
+    update_assign_node ast (lhsList') (flatten_block rhs)
   | _ -> ast
 
 let rec is_void_recursive astNode = match astNode.data with

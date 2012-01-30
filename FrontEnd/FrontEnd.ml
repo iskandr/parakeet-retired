@@ -23,7 +23,7 @@ let register_untyped_function ~name ~globals ~args astNode =
   let _ = Analyze_AST.analyze_ast astNode in
   let ssaEnv = AST_to_SSA.Env.GlobalScope FnManager.get_untyped_id in
   let argNames = globals @ args in
-  let fn = AST_to_SSA.translate_fn ~tenv:ID.Map.empty ssaEnv argNames astNode in
+  let fn = AST_to_SSA.translate_fn ssaEnv argNames astNode in
   FnManager.add_untyped ~optimize:true name fn;
   fn.SSA.fn_id
 
@@ -46,9 +46,9 @@ let print_all_timers () =
   ;
   Pervasives.flush_all()
 
-type ret_val = Success of Ptr.t Value.t | Pass | Error of string
+type ret_val = Success of Ptr.t Value.t list | Pass | Error of string
 
-let run_function untypedId ~globals ~args =
+let run_function untypedId ~globals ~args : ret_val =
   Timing.clear Timing.runTemplate;
   Timing.clear Timing.typedOpt;
   Timing.clear Timing.ptxCompile;
@@ -90,16 +90,19 @@ let run_function untypedId ~globals ~args =
       FnManager.optimize_typed_functions ();
       FnManager.get_typed_function unoptimizedTyped.SSA.fn_id
   in
+<<<<<<< HEAD
   Gc.major();
   Gc.print_stat stdout;
   Printf.printf "%!";
   let resultVals =
     Interp.run typedFundef args
   in
+=======
+  let resultVals = Interp.run typedFundef args in
+>>>>>>> 4440b7a61f003bf999dbc116511d031d7a5f3db4
   print_all_timers();
   Timing.clear Timing.untypedOpt;
   Pervasives.flush_all ();
    (* assume only one result can be returns *)
-  let result = List.hd resultVals in
-  Success result
+  Success resultVals
 

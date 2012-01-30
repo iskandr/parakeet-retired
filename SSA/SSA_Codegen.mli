@@ -1,6 +1,6 @@
 open SSA
 
-class ssa_codegen : object
+class codegen : object
     val types : Type.t ID.Map.t ref
     val code : stmt_node DynArray.t
 
@@ -24,7 +24,7 @@ end
 
 val mk_codegen_fn
       : Type.t list ->  Type.t list ->
-        (ssa_codegen -> value_node list-> value_node list -> unit) -> fn
+        (codegen -> value_node list-> value_node list -> unit) -> fn
 
 
 

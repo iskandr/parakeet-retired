@@ -19,10 +19,9 @@ let prim_names =  Hashtbl.of_list [
     ">=", ScalarOp Gte;
 
     "sqrt", ScalarOp Sqrt;
-    "ln", ScalarOp Ln;
+    "log", ScalarOp Ln;
     "exp", ScalarOp Exp;
     "pow", ScalarOp Pow;
-    "log", ScalarOp Log;
 
     "not", ScalarOp Not;
     "neg", ScalarOp Neg;

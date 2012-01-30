@@ -17,6 +17,7 @@ type ast_info = {
 
     mutable nested_functions : bool;
     mutable is_function : bool;
+    mutable return_arity : int option;
 }
 
 let mk_ast_info () = {
@@ -29,7 +30,16 @@ let mk_ast_info () = {
     io = false;
     nested_functions = false;
     is_function = false;
+    return_arity = None;
 }
+
+let combine_return_arity r1 r2 =
+  match r1, r2 with
+    | None, None -> None
+    | Some x, None -> Some x
+    | None, Some y -> Some y
+    | Some x, Some y ->
+      if x = y then Some x else failwith "Return arity mismatch"
 
 let combine_ast_info info1 info2 = {
     defs_local = PSet.union info1.defs_local info2.defs_local;
@@ -43,7 +53,8 @@ let combine_ast_info info1 info2 = {
 
     io = info1.io || info2.io;
     nested_functions = info1.nested_functions || info2.nested_functions;
-    is_function = info1.is_function || info2.is_function
+    is_function = info1.is_function || info2.is_function;
+    return_arity = combine_return_arity info1.return_arity info2.return_arity;
 }
 
 let str_set_to_str set =
@@ -69,7 +80,7 @@ type exp =
     | App of node * node list
     | Arr of node list
     | If of node * node * node
-    | Assign of node * node
+    | Assign of node list * node
     | Block of node list
     | WhileLoop of node * node
     | CountLoop of node * node
@@ -102,7 +113,8 @@ let rec to_str ast = match ast.data with
   | App (fn, args) ->
       sprintf "%s(%s)" (to_str fn) (args_to_str ~delim:", " args)
   | Arr elts ->   "[" ^ (args_to_str ~delim:", " elts) ^ "]"
-  | Assign (lhs, rhs) -> (to_str lhs) ^ " := " ^ (to_str rhs)
+  | Assign (lhsList, rhs) ->
+    (args_to_str ~delim:", " lhsList) ^ " := " ^ (to_str rhs)
   | Block nodes -> sprintf "{ %s }" (args_to_str nodes)
 
   | If(test, tNode, fNode) ->
@@ -114,7 +126,8 @@ let rec to_str ast = match ast.data with
   | CountLoop (count, body) ->
     sprintf "repeat %s do %s" (to_str count) (to_str body)
   | Return nodes -> sprintf "return %s" (args_to_str nodes)
-and args_to_str ?(delim="; ") args = String.concat delim (List.map to_str  args)
+and args_to_str ?(delim="; ") (args:node list) =
+  String.concat delim (List.map to_str  args)
 
 let print_ast_node n =
   Printf.printf "[AST] %s\n%!" (to_str n)
