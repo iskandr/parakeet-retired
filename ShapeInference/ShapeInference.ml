@@ -57,20 +57,37 @@ module ShapeAnalysis (P: PARAMS) =  struct
 
     let infer_adverb
           (adverb:Prim.adverb)
-          (closure:SSA.closure)
+          (fnId:FnId.t)
+          (closureArgs:SymbolicShape.t list)
           (axes: int list)
-          (init:SSA.value_node list option)
-          (args:SSA.value_node list) =
-      assert false
+          (init:SymbolicShape.t list option)
+          (args:SymbolicShape.t list) =
+      match adverb with
+        | Prim.Map ->
+          assert (init = None);
+          let maxOuterShape, maxRank = SymbolicShape.argmax_rank args in
+          assert (maxRank >= List.length axes);
+          let eltShapes = SymbolicShape.peel_shape_list ~axes args in
+          (* shapes that go into the function on each iteration *)
+          let inputShapes = closureArgs @ eltShapes in
+          let callResultShapes = P.output_shapes fnId inputShapes in
+          let outerDims =
+            SymbolicShape.get_dims maxOuterShape axes
+          in
+          List.map (fun shape -> outerDims @ shape) callResultShapes
 
-    let exp env expNode helpers =
-      let get_shapes args = List.map (value env) args in
-      match expNode.exp with
-      | SSA.Call(fnId, args) -> P.output_shapes fnId (get_shapes args)
-      | SSA.PrimApp (Prim.ArrayOp Prim.Index, array::indices) ->
-        let arrayShape = value env array in
-        let nIndices = List.length indices in
-        let indexShapes = get_shapes indices in
+        | Prim.Reduce -> assert false
+        | _ ->
+          failwith $ Printf.sprintf
+            "[ShapeInference] Unsupported adverb %s"
+            (Prim.adverb_to_str adverb)
+
+    let infer_array_op
+          (op:Prim.array_op)
+          (args:SymbolicShape.t list) : SymbolicShape.t =
+      match op, args with
+      | Prim.Index, (arrayShape::indexShapes) ->
+        let nIndices = List.length indexShapes in
         if List.for_all SymbolicShape.is_scalar indexShapes then (
         (* for now assume slicing can only happen along the
            outermost dimensions and only by scalar indices
@@ -83,7 +100,7 @@ module ShapeAnalysis (P: PARAMS) =  struct
                 rank
                 nIndices
           ENDIF;
-          [List.drop nIndices arrayShape]
+          List.drop nIndices arrayShape
         )
         (* for now we're also allowing index vectors, though this really
            ought to become a map
@@ -92,33 +109,58 @@ module ShapeAnalysis (P: PARAMS) =  struct
           IFDEF DEBUG THEN
             if nIndices <> 1 then
               failwith
-              "[ShapeInference] Indexing by multiple arrays not supported"
+                "[ShapeInference] Indexing by multiple arrays not supported"
           ENDIF;
           let idxShape = List.hd indexShapes  in
-          [SymbolicShape.concat idxShape (SymbolicShape.peel arrayShape)]
+          SymbolicShape.concat idxShape (SymbolicShape.peel arrayShape)
         )
-      | SSA.PrimApp (Prim.ArrayOp Prim.Where, [array]) ->
-        (* an upper bound would be: [value env array], but
-           for now fail if we can't be exact
-         *)
-         let arrayShape = value env array in
-         let n = SymbolicShape.prod_of_dims arrayShape in
-         [[n]]
-      | SSA.PrimApp (Prim.ArrayOp Prim.DimSize, [_; _])
-      | SSA.PrimApp (Prim.ArrayOp Prim.Find, [_; _]) -> [SymbolicShape.scalar]
-      | SSA.PrimApp (Prim.ScalarOp _, args) when
-        List.for_all (fun arg -> Type.is_scalar arg.value_type) args ->
-          [SymbolicShape.scalar]
+      | Prim.Where, _ ->
+        let msg =
+          "Shape of 'where' operator cannot be statically determined"
+        in
+        raise (ShapeInferenceFailure msg)
+      | Prim.DimSize, [_; _]
+      | Prim.Find, [_; _] -> SymbolicShape.scalar
+      | _ ->
+        failwith "Unsupported array operator %s with args %s"
+
+    let infer_primapp
+          (op:Prim.prim)
+          (args : SymbolicShape.t list) : SymbolicShape.t list =
+      match op, args with
+      | Prim.ArrayOp arrayOp, _ -> [infer_array_op arrayOp args]
+      | Prim.ScalarOp _, args  when List.for_all SymbolicShape.is_scalar args ->
+        [SymbolicShape.scalar]
+      | _ ->
+        failwith $ Printf.sprintf
+        "[ShapeInference] Unsupported primitive %s with args %s"
+        (Prim.to_str op)
+        (SymbolicShape.shapes_to_str args)
+
+
+
+    let exp env expNode helpers =
+      let shapes_of_values valNodes = List.map (value env) valNodes in
+      match expNode.exp with
+      | SSA.Call(fnId, args) ->
+          P.output_shapes fnId (shapes_of_values args)
+      | SSA.PrimApp (op, args) ->
+        let argShapes = shapes_of_values args in
+        infer_primapp op argShapes
       | SSA.Arr elts ->
         let eltShapes = List.map (value env) elts in
         (* TODO: check that elt shapes actually match each other *)
         let n = List.length eltShapes in
         [SymbolicShape.Const n :: (List.hd eltShapes)]
       | SSA.Cast (t, v) ->  [value env v]
-      | SSA.Values vs -> List.map (value env) vs
+      | SSA.Values vs -> shapes_of_values vs
       | SSA.Adverb (adverb, closure, {axes; init; args}) ->
-        infer_adverb adverb closure axes init args
-      | other ->
+        let closureArgShapes = shapes_of_values closure.SSA.closure_args in
+        let argShapes = shapes_of_values args in
+        let initShapes = Option.map shapes_of_values init in
+        let fnId = closure.SSA.closure_fn in
+        infer_adverb adverb fnId closureArgShapes axes initShapes argShapes
+      | _ ->
           let expStr = SSA.exp_to_str expNode in
           failwith (Printf.sprintf "[shape_infer] not implemented: %s\n" expStr)
 
