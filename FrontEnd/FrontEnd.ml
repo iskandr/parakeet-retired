@@ -90,16 +90,7 @@ let run_function untypedId ~globals ~args : ret_val =
       FnManager.optimize_typed_functions ();
       FnManager.get_typed_function unoptimizedTyped.SSA.fn_id
   in
-<<<<<<< HEAD
-  Gc.major();
-  Gc.print_stat stdout;
-  Printf.printf "%!";
-  let resultVals =
-    Interp.run typedFundef args
-  in
-=======
   let resultVals = Interp.run typedFundef args in
->>>>>>> 4440b7a61f003bf999dbc116511d031d7a5f3db4
   print_all_timers();
   Timing.clear Timing.untypedOpt;
   Pervasives.flush_all ();
