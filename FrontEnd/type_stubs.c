@@ -79,16 +79,16 @@ void type_init() {
 
 /** Public interface **/
 array_type mk_array_type(elt_type elt_type, int rank) {
-  CAMLparam0();
+  CAMLparam1(elt_type);
   CAMLlocal1(arrT);
   arrT = caml_callback2(*type_callback_mk_array, elt_type, Val_int(rank));
   caml_register_global_root(&arrT);
-  caml_remove_global_root(&elt_type);
+  //  caml_remove_global_root(&elt_type);  // IS THIS the source of our myterious crash?
   CAMLreturn(arrT);
 }
 
 void free_type(array_type t) {
-  CAMLparam0();
+  CAMLparam1(t);
   caml_remove_global_root(&t);
   CAMLreturn0;
 }

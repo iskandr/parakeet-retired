@@ -45,7 +45,7 @@ void ast_init(void) {
 
 paranode mk_lam(char **args, int num_args, paranode body,
                 source_info_t *src_info) {
-  CAMLparam0();
+  CAMLparam1(body);
   CAMLlocal5(lam, ocaml_str, arg1, arg2, node);
   CAMLlocal1(val_body);
 
@@ -199,7 +199,7 @@ paranode mk_sym(char *sym, source_info_t *src_info) {
 
 paranode mk_app(paranode fun, paranode *args, int num_args,
                 source_info_t *src_info) {
-  CAMLparam0();
+  CAMLparam1(fun);
   CAMLlocal2(val_fun, app);
 
   app = caml_alloc(2, Exp_App);
@@ -230,7 +230,7 @@ paranode mk_array(paranode *elts, int num_elts, source_info_t *src_info) {
 
 paranode mk_if(paranode cond_node, paranode true_node, paranode false_node,
                source_info_t *src_info) {
-  CAMLparam0();
+  CAMLparam3(cond_node, true_node, false_node);
   CAMLlocal4(val_cond, val_true, val_false, if_node);
 
   val_cond  = get_value_and_remove_root(cond_node);
@@ -246,7 +246,7 @@ paranode mk_if(paranode cond_node, paranode true_node, paranode false_node,
 }
 
 paranode mk_assign(paranode* lhs, int num_ids, paranode rhs, source_info_t *src_info) {
-  CAMLparam0(); 
+  CAMLparam1(rhs); 
   CAMLlocal2(val_rhs, assignment);
 
   val_rhs = get_value_and_remove_root(rhs);
@@ -258,27 +258,6 @@ paranode mk_assign(paranode* lhs, int num_ids, paranode rhs, source_info_t *src_
   CAMLreturnT(paranode, mk_node(assignment, src_info));
 }
 
-/*
-paranode mk_setidx(char *arr_name, paranode* indices, int n_indices, paranode rhs)
-                   source_info_t *src_info) {
-  CAMLparam0();
-  CAMLlocal4(ocaml_arr_name, val_idxs, val_rhs, setidx);
-
-  val_idxs = get_value_and_remove_root(idxs);
-  val_rhs  = get_value_and_remove_root(rhs);
-
-  int len = strlen(arr_name);
-  ocaml_arr_name = caml_alloc_string(len);
-  memcpy(String_val(ocaml_arr_name), arr_name, len);
-
-  setidx = caml_alloc(1, Exp_SetIdx);
-  Store_field(setidx, 0, ocaml_arr_name);
-  Store_field(setidx, 1, val_idxs);
-  Store_field(setidx, 2, val_rhs);
-
-  CAMLreturnT(paranode, mk_node(setidx, src_info));
-}
-*/ 
 paranode mk_block(paranode *stmts, int num_stmts, source_info_t *src_info) {
   CAMLparam0();
   CAMLlocal1(block);
@@ -291,7 +270,7 @@ paranode mk_block(paranode *stmts, int num_stmts, source_info_t *src_info) {
 
 paranode mk_whileloop(paranode test, paranode body,
                       source_info_t *src_info) {
-  CAMLparam0();
+  CAMLparam2(test, body);
   CAMLlocal3(val_test, val_body, loop);
 
   val_test = get_value_and_remove_root(test);
@@ -306,7 +285,7 @@ paranode mk_whileloop(paranode test, paranode body,
 
 paranode mk_countloop(paranode count, paranode body,
                       source_info_t *src_info) {
-  CAMLparam0();
+  CAMLparam2(count, body);
   CAMLlocal3(val_count, val_body, loop);
 
   val_count = get_value_and_remove_root(count);
@@ -379,11 +358,11 @@ static CAMLprim value mk_src_info(source_info_t *src_info) {
 }
 
 static CAMLprim value get_value_and_remove_root(paranode p) {
-  CAMLparam0();
+  CAMLparam1(p);
   CAMLlocal1(val);
 
   val = (value)p;
-  caml_remove_global_root(&val);
+  caml_remove_generational_global_root(&val);
 
   CAMLreturn(val);
 }
@@ -420,22 +399,21 @@ static paranode mk_node(value exp, source_info_t *src_info) {
   // build the ast_info and src_info
   ocaml_src_info = mk_src_info(src_info);
 
-  ast_info       = caml_callback(*ocaml_mk_ast_info, Val_unit);
+  ast_info = caml_callback(*ocaml_mk_ast_info, Val_unit);
 
   // build the node
-  caml_register_global_root(&node);
   node = caml_alloc_tuple(3);
+  caml_register_generational_global_root(&node);
   Store_field(node, 0, exp);
   Store_field(node, 1, ocaml_src_info);
   Store_field(node, 2, ast_info);
 
-  paranode ret = (paranode)node;
-  CAMLreturnT(paranode, ret);
+  CAMLreturnT(paranode, (paranode)node);
 }
 
 paranode get_prim(char* prim_name) {
   CAMLparam0();
-  CAMLlocal1(ocaml_str);
+  CAMLlocal2(ocaml_str, prim);
 
   // copy over the string
   int len = strlen(prim_name);
@@ -443,7 +421,7 @@ paranode get_prim(char* prim_name) {
   memcpy(String_val(ocaml_str), prim_name, len);
 
   // build the var expression
-  paranode prim = caml_callback(*ocaml_get_prim, ocaml_str);
+  prim = caml_callback(*ocaml_get_prim, ocaml_str);
 
   // build the node and return
   CAMLreturnT(paranode, prim);

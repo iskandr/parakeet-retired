@@ -413,6 +413,8 @@ let init_compiled_fn (fnInfo:fn_info) =
   llvmFn
 
 let compile_fn (fn : Imp.fn) : Llvm.llvalue =
+  Gc.major();
+  Gc.print_stat Pervasives.stdout;
   let fnInfo = create_fn_info fn in
   let llvmFn : Llvm.llvalue = init_compiled_fn fnInfo in
   let initBasicBlock : Llvm.llbasicblock = Llvm.entry_block llvmFn in

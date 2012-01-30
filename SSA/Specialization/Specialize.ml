@@ -122,10 +122,13 @@ let rec specialize_fn fn signature =
      (is_scalar_block fn.body = ThreeValuedLogic.Yes)
   then scalarize_fn fn signature
   else
+  (* TODO: *)
+  (* Get rid of CollectPartialApps, change RewriteTyped to *)
+  (* raise an error if you don't supply enough args *)
   let fnIGNORED, closureEnv =
     CollectPartialApps.collect_partial_apps fn
   in
-  
+
   let outputArity : SSA.value -> int =
     output_arity closureEnv.CollectPartialApps.closures
   in

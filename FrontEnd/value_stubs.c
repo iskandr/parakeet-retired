@@ -111,7 +111,7 @@ host_val mk_bool(int b) {
   CAMLparam0();
   CAMLlocal1(num);
   num = caml_callback(*value_callback_of_bool, Val_int(b));
-  caml_register_global_root(&num);
+  caml_register_generational_global_root(&num);
   CAMLreturnT(host_val, num);
 }
 
@@ -120,7 +120,7 @@ host_val mk_char(char val) {
   CAMLparam0();
   CAMLlocal1(num);
   num = caml_callback(*value_callback_of_char, Val_int(val));
-  caml_register_global_root(&num);
+  caml_register_generational_global_root(&num);
   CAMLreturnT(host_val, num);
 }
 
@@ -128,7 +128,7 @@ host_val mk_int32(int32_t val) {
   CAMLparam0();
   CAMLlocal1(num);
   num = caml_callback(*value_callback_of_int32, caml_copy_int32(val));
-  caml_register_global_root(&num);
+  caml_register_generational_global_root(&num);
   CAMLreturnT(host_val, num);
 }
 
@@ -136,7 +136,7 @@ host_val mk_int64(int64_t val) {
   CAMLparam0();
   CAMLlocal1(num);
   num = caml_callback(*value_callback_of_int64, copy_int64(val));
-  caml_register_global_root(&num);
+  caml_register_generational_global_root(&num);
   CAMLreturnT(host_val, num);
 }
 
@@ -144,7 +144,7 @@ host_val mk_float32(float val) {
   CAMLparam0();
   CAMLlocal1(num);
   num = caml_callback(*value_callback_of_float32, copy_double(val));
-  caml_register_global_root(&num);
+  caml_register_generational_global_root(&num);
   CAMLreturnT(host_val, num);
 }
 
@@ -152,7 +152,7 @@ host_val mk_float64(double val) {
   CAMLparam0();
   CAMLlocal1(num);
   num = caml_callback(*value_callback_of_float64, copy_double(val));
-  caml_register_global_root(&num);
+  caml_register_generational_global_root(&num);
   CAMLreturnT(host_val, num);
 }
 
@@ -185,9 +185,9 @@ host_val mk_host_array(char *data, elt_type t, int *shape, int shape_len,
   mk_array_args[1] = (value)t;
   mk_array_args[2] = ocaml_shape;
   mk_array_args[3] = ocaml_strides;
-  caml_register_global_root(&ocaml_host_array);
   ocaml_host_array = caml_callbackN(*value_callback_mk_array, 4,
                                     mk_array_args);
+  caml_register_generational_global_root(&ocaml_host_array);
   CAMLreturnT(host_val, (host_val)ocaml_host_array);
 }
 
@@ -196,7 +196,7 @@ void free_host_val(host_val val) {
   CAMLlocal1(ocaml_host_val);
 
   ocaml_host_val = (value)val;
-  caml_remove_global_root(&ocaml_host_val);
+  caml_remove_generational_global_root(&ocaml_host_val);
 
   CAMLreturn0;
 }

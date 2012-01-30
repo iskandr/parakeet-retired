@@ -29,7 +29,7 @@ int fe_inited = 0;
 static CAMLprim value build_str_list(char **strs, int num_strs);
 static CAMLprim value build_host_val_list(host_val *vals, int num_vals);
 static int ocaml_list_length(value l);
-static CAMLprim value get_value_and_remove_root(host_val h);
+//static CAMLprim value get_value_and_remove_root(host_val h);
 
 /** Public interface **/
 
@@ -255,12 +255,3 @@ static int ocaml_list_length(value l) {
   return i;
 }
 
-static CAMLprim value get_value_and_remove_root(host_val h) {
-  CAMLparam0();
-  CAMLlocal1(val);
-
-  val = (value)h;
-  caml_remove_global_root(&val);
-
-  CAMLreturn(val);
-}

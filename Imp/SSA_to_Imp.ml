@@ -45,7 +45,7 @@ let rec build_loop_nests
           Imp.While (test , nested @ [update])
         ]
 
-let mk_simple_loop_descr
+let mk_simple_loop_descriptor
         (codegen:ImpCodegen.codegen)
         ?(down=false)
         ?(start=ImpHelpers.zero)
@@ -58,6 +58,21 @@ let mk_simple_loop_descr
     loop_incr = (if down then ImpHelpers.int (-1) else ImpHelpers.one);
     loop_incr_op = Prim.Add;
   }
+
+(* given a list of imp values, return the array of maximum rank *)
+let rec argmax_array_rank = function
+  | [] -> assert false
+  | [x] -> x
+  | x::xs ->
+    let restResult = argmax_array_rank xs in
+    if ImpType.rank x.value_type > ImpType.rank restResult.value_type then x
+    else restResult
+
+
+let axes_to_loop_descriptors (axes:int list) (arrays:Imp.value_node list) =
+  let biggestArray = argmax_array_rank arrays in
+  assert false
+
 
 let translate_value (codegen:ImpCodegen.codegen) valNode : Imp.value_node =
   match valNode.SSA.value with
@@ -89,6 +104,12 @@ let translate_array_op codegen (op:Prim.array_op) (args:Imp.value_node list) =
       Printf.sprintf
         "[SSA_to_Imp] Unsupported array op: %s"
         (Prim.array_op_to_str other)
+
+let translate_map codegen fnId (axes:int list) closureArgs args =
+  assert false
+
+let translate_reduce codegen fnId (axes:int list) closureArgs initArgs args =
+  assert false
 
 
 let translate_array_literal
@@ -134,6 +155,20 @@ let translate_exp (codegen:ImpCodegen.codegen) expNode : Imp.exp_node  =
       let impT = ImpType.ScalarT eltT in
       { exp = Imp.Cast(impT, translate_value codegen src); exp_type = impT }
     | SSA.Arr _ -> failwith "[SSA_to_Imp] Unexpected array expression"
+    | SSA.Adverb(adverb, closure, {SSA.init; args; axes}) ->
+      let impClosureArgs = translate_values codegen closure.SSA.closure_args in
+      let impInitArgs = Option.map (translate_values codegen) init in
+      let impArgs = translate_values codegen closure.SSA.closure_args in
+      let fnId = closure.SSA.closure_fn in
+      (match adverb with
+        | Prim.Map ->
+          translate_map codegen fnId axes impClosureArgs impArgs
+        | Prim.Reduce ->
+          translate_reduce codegen fnId axes impClosureArgs impInitArgs impArgs
+        | _ ->
+          failwith $ Printf.sprintf "[SSA_to_Imp] Unsupported adverb %s"
+            (Prim.adverb_to_str adverb)
+      )
     | _ -> failwith $ "[ssa->imp] unrecognized exp: " ^ (SSA.exp_to_str expNode)
 
 let mk_set_val codegen (id:ID.t) (v:SSA.value_node) =
