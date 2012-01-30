@@ -145,7 +145,14 @@ let closure_to_str cl =
       " @ " ^ (value_nodes_to_str cl.closure_args)
     else "")
 
-let adverb_args_to_str adverb_args = value_nodes_to_str adverb_args.args
+let adverb_args_to_str {init; axes; args} =
+  Printf.sprintf "%s, axes=%s, init=%s"
+    (value_nodes_to_str args)
+    (String.concat ", " (List.map string_of_int axes))
+    (match init with
+      | None -> "none"
+      | Some initvals -> (value_nodes_to_str initvals)
+    )
 
 let exp_to_str expNode =
   match expNode.exp with
@@ -166,8 +173,9 @@ let exp_to_str expNode =
         (value_nodes_to_str args)
   | Adverb(adverb, closure, adverb_args) ->
       sprintf
-        "%s(%s)"
+        "%s[%s](%s)"
         (Prim.adverb_to_str adverb)
+        (closure_to_str closure)
         (adverb_args_to_str adverb_args)
 
 

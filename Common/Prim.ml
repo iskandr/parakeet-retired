@@ -202,7 +202,7 @@ let array_op_to_str = function
   | Range -> "range"
 
 let adverb_to_str = function
-  | Map -> "each"
+  | Map -> "map"
   | Reduce -> "reduce"
   | Scan -> "scan"
   | AllPairs -> "allpairs"

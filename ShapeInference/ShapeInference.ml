@@ -55,6 +55,13 @@ module ShapeAnalysis (P: PARAMS) =  struct
       if leftShape <> rightShape then failwith "Shape error";
       phi_set env id leftShape
 
+    let infer_adverb
+          (adverb:Prim.adverb)
+          (closure:SSA.closure)
+          (axes: int list)
+          (init:SSA.value_node list option)
+          (args:SSA.value_node list) =
+      assert false
 
     let exp env expNode helpers =
       let get_shapes args = List.map (value env) args in
@@ -109,7 +116,8 @@ module ShapeAnalysis (P: PARAMS) =  struct
         [SymbolicShape.Const n :: (List.hd eltShapes)]
       | SSA.Cast (t, v) ->  [value env v]
       | SSA.Values vs -> List.map (value env) vs
-      | SSA.Adverb (adverb, closure, args) -> assert false
+      | SSA.Adverb (adverb, closure, {axes; init; args}) ->
+        infer_adverb adverb closure axes init args
       | other ->
           let expStr = SSA.exp_to_str expNode in
           failwith (Printf.sprintf "[shape_infer] not implemented: %s\n" expStr)
@@ -135,7 +143,8 @@ module ShapeAnalysis (P: PARAMS) =  struct
             List.fold_left2
               (fun env id shape -> ID.Map.add id shape env)
               env ids newShapes
-          in Some env'
+          in
+          Some env'
       | _ -> helpers.eval_stmt env stmtNode
 
 end
