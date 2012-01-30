@@ -32,8 +32,6 @@ let emptyScopeInfo = {
     locals = PSet.empty;
 }
 
-let (++) = PSet.union
-let (<+>) = combine_ast_info
 
 let rec get_assignment_name node = match node.data with
   | Var name -> Some name
@@ -47,7 +45,7 @@ let rec fold_block ~inFunction scopeInfo blockInfo = function
     | [] -> scopeInfo, blockInfo
 	| node::nodes ->
 		let scopeInfo' = analyze_node ~inFunction scopeInfo node in
-		let blockInfo' = node.ast_info <+> blockInfo in
+		let blockInfo' = combine_ast_info node.ast_info blockInfo in
 		fold_block ~inFunction scopeInfo' blockInfo' nodes
 
 and analyze_block ~inFunction scopeInfo nodes =
@@ -61,7 +59,7 @@ and analyze_node ~inFunction scopeInfo node = match node.data with
         if inFunction then node.ast_info.nested_functions <- true;
         let initScopeInfo = {emptyScopeInfo with locals = PSet.from_list ids} in
         let bodyScopeInfo = analyze_node initScopeInfo ~inFunction:true body in
-        node.ast_info <- node.ast_info <+> body.ast_info;
+        node.ast_info <- combine_ast_info node.ast_info body.ast_info;
         let bodyVolatile = bodyScopeInfo.volatile_global in
         { scopeInfo with
             volatile_global = PSet.union scopeInfo.volatile_global bodyVolatile
@@ -82,10 +80,10 @@ and analyze_node ~inFunction scopeInfo node = match node.data with
         let testInfo = analyze_node ~inFunction scopeInfo test in
         let tScopeInfo = analyze_node ~inFunction testInfo tNode in
         let fScopeInfo = analyze_node ~inFunction testInfo fNode in
-        let combinedAstInfo =
-            test.ast_info <+> tNode.ast_info <+> fNode.ast_info
-        in
-        node.ast_info <- combinedAstInfo;
+        node.ast_info <-
+          combine_ast_info test.ast_info
+            (combine_ast_info tNode.ast_info fNode.ast_info)
+        ;
         {
             volatile_local =
                 PSet.union tScopeInfo.volatile_local fScopeInfo.volatile_local;
@@ -100,7 +98,7 @@ and analyze_node ~inFunction scopeInfo node = match node.data with
             fold_block ~inFunction scopeInfo emptyArgsInfo (List.rev args)
         in
         let scopeInfo'' = analyze_node ~inFunction scopeInfo' fn in
-        node.ast_info <- fn.ast_info <+> argsInfo;
+        node.ast_info <- combine_ast_info fn.ast_info argsInfo;
         (*
           IMPORTANT!!!
           for now assume function calls don't produce functions
@@ -120,7 +118,7 @@ and analyze_node ~inFunction scopeInfo node = match node.data with
     | Assign (lhs, rhs) ->
         let scopeInfo = analyze_node ~inFunction scopeInfo rhs in
         let scopeInfo = analyze_node ~inFunction scopeInfo lhs in
-        node.ast_info <- lhs.ast_info <+> rhs.ast_info;
+        node.ast_info <- combine_ast_info lhs.ast_info rhs.ast_info;
         begin match get_assignment_name lhs with
           | Some name ->
             if inFunction then (
@@ -142,6 +140,14 @@ and analyze_node ~inFunction scopeInfo node = match node.data with
             else { scopeInfo with locals = PSet.add name scopeInfo.locals }
           | None -> scopeInfo
         end
+    | Return args ->
+      let scopeInfo, astInfo =  analyze_block ~inFunction scopeInfo args in
+      node.ast_info <- astInfo;
+      astInfo.return_arity <-
+        combine_return_arity astInfo.return_arity (Some (List.length args))
+      ;
+      scopeInfo
+
     | Prim op ->
         if not $ is_pure_op op then node.ast_info.io <- true; scopeInfo
     | Sym _
@@ -192,7 +198,8 @@ let transitive_closure infoMap =
         if PMap.mem var map then (
           (* only combine if the referenced variable is a function *)
           let varInfo = PMap.find var map  in
-          if varInfo.is_function then varInfo <+> acc else acc
+          if varInfo.is_function then combine_ast_info varInfo acc
+          else acc
         )
         else
         (* if the variable isn't recognized as a user-defined global,

@@ -2,7 +2,7 @@ open Base
 open SSA
 open SSA_Helpers
 
-class ssa_codegen =
+class codegen =
   object (self : 'a)
 
     val types = (ref ID.Map.empty :  Type.t ID.Map.t ref)
@@ -61,8 +61,8 @@ end
 let mk_codegen_fn
       (inputTypes : Type.t list)
       (outputTypes  : Type.t list)
-      (constr : ssa_codegen -> value_node list -> value_node list -> unit)  =
-  let codegen = new ssa_codegen in
+      (constr : codegen -> value_node list -> value_node list -> unit)  =
+  let codegen = new codegen in
   let inputIds = List.map codegen#fresh_var inputTypes in
   let outputIds = List.map codegen#fresh_var outputTypes in
   let inputVars =

@@ -17,9 +17,11 @@ type ast_info = {
 
     mutable nested_functions : bool;
     mutable is_function : bool;
+    mutable return_arity : int option;
 }
 
 val mk_ast_info : unit -> ast_info
+val combine_return_arity : int option -> int option -> int option
 val combine_ast_info : ast_info -> ast_info -> ast_info
 val str_set_to_str : string PSet.t -> string
 val info_to_str : ast_info -> string
