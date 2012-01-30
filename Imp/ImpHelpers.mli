@@ -152,16 +152,3 @@ val id_of_exp : exp_node -> ID.t
 
 val var : ty:ImpType.t -> ID.t -> value_node
 val var_exp : ty:ImpType.t -> ID.t -> exp_node
-
-(*
-val max_simplify : exp_node -> exp_node -> exp_node
-val mul_simplify : exp_node -> exp_node -> exp_node
-val add_simplify : exp_node -> exp_node -> exp_node
-
-val max_exp_node_list : exp_node list -> exp_node
-val prod_exp_node_list : exp_node list -> exp_node
-val sum_exp_node_list : exp_node list -> exp_node
-*)
-(*
-val highest_rank_exp :  exp_node array -> exp_node
-*)

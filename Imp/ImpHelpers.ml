@@ -11,21 +11,6 @@ let while_ cond code = While(cond, code)
 let comment str = Comment str
 
 
- (*
-let rec collect_rev_indices_from_node node = collect_rev_indices node.exp
-and collect_rev_indices = function
-  | Var id -> id, []
-  | Idx (lhs, idx) ->
-     let id, otherIndices = collect_rev_indices_from_node lhs in
-     id, idx :: otherIndices
-  | _ -> failwith "[set] Expected variable"
-
-let collect_indices exp =
-  let id, indices = collect_rev_indices exp in
-  id, List.rev indices
-
-let collect_indices_from_node node = collect_indices node.exp
-*)
 
 let exp_of_val (v : value_node) : exp_node = { exp_type = v.value_type; exp = Val v}
 
@@ -56,16 +41,6 @@ let wrap_int64_exp (e:exp) = { exp = e; exp_type = ImpType.int64_t }
 let wrap_float32_exp (e:exp) = { exp = e; exp_type = ImpType.float32_t}
 let wrap_float64_exp (e:exp) = { exp = e; exp_type = ImpType.float64_t }
 
-
-(*
-let typed_exp (t:ImpType.t)  (e : exp) : exp_node = {exp=e; exp_type=ImpType.ScalarT t}
-
-let bool_exp : exp->exp_node = typed_exp ImpType.bool_t
-let int16_exp : exp->exp_node = typed_exp ImpType.int16_t
-let int_exp : exp -> exp_node = typed_exp ImpType.int32_t
-let f32_exp : exp -> exp_node = typed_exp ImpType.float32_t
-let f64_exp : exp -> exp_node = typed_exp ImpType.float64_t
-*)
 (* CAST AN EXPRESSION TO A NEW TYPE
    (or leave it alone if it's already that type
 *)
@@ -265,24 +240,3 @@ let add_simplify (d1:value_node) (d2:value_node) =
   | Const (ParNum.Float64 x), (Const ParNum.Float64 y) ->
     exp_of_val {d1 with value = Const (ParNum.Float64 (x +. y)) }
   | _ -> add d1 d2
-(*
-let rec fold_val_node_list f (default : exp_node) = function
-  | [] -> default
-  | [v] -> exp_of_val v
-  | v::vs -> f v (fold_exp_node_list f default es)
-*)
-
-(*
-let max_exp_node_list es = fold_exp_node_list max_simplify neg_infinity es
-let sum_exp_node_list es = fold_exp_node_list add_simplify zero es
-let prod_exp_node_list es = fold_exp_node_list mul_simplify one es
-*)
-(*
-let highest_rank_exp ( exps : exp_node array ) : exp_node =
-  let maxExp = ref exps.(0) in
-  for i = 1 to Array.length exps - 1 do
-    if Type.is_structure_subtype !maxExp.exp_type exps.(i).exp_type then
-      maxExp := exps.(i)
-  done;
-  !maxExp
-*)
