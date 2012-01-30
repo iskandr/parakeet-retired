@@ -1,6 +1,7 @@
+#!/usr/bin/python
 from parakeet import PAR
 
-@PAR 
+@PAR
 def thrice(x):
   return x + x + x
 
@@ -9,7 +10,7 @@ def test_thrice():
   print "thrice(2) = ", x
   assert (x == 6)
 
-@PAR 
+@PAR
 def mult_three_args(x,y,z):
   return  x * y *z
 
@@ -18,27 +19,27 @@ def test_mult_three_args():
   print "mult_three_args(2,4,6) =", x
   assert (x == 48)
 
-@PAR 
+@PAR
 def add_all_args2(x,y):
   return x+y
 
 @PAR
-def add_all_args3(x,y,z): 
-  return x+y+z 
+def add_all_args3(x,y,z):
+  return x+y+z
 
 def test_add_all_args():
   x = add_all_args2(14,2)
   print "add_all_args2(14,2) =", x
   assert (x == 16)
   x = add_all_args3(1,2,4)
-  print "add_all_args3(1,2,4) = ", x 
+  print "add_all_args3(1,2,4) = ", x
   assert (x == 7)
 
-@PAR 
+@PAR
 def add2(x):
   return x + 2
 
-@PAR 
+@PAR
 def add2_float(x):
   return x + 2.0
 
@@ -50,12 +51,12 @@ def test_add_const():
   print "add2_float(1.0) =", x
   assert (x== 3.0)
 
- 
-@PAR 
-def double_add(x): 
+
+@PAR
+def double_add(x):
   return x + x
 
-@PAR 
+@PAR
 def double_mult(x):
   return 2 * x
 
