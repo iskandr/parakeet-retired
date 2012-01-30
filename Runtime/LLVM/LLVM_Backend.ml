@@ -65,7 +65,6 @@ let free_scalar_outputs impTypes gvs = List.map2 free_scalar_output impTypes gvs
 
 let call_imp_fn (impFn:Imp.fn) (args:Ptr.t Value.t list) : Ptr.t Value.t list =
   let llvmFn : Llvm.llvalue = Imp_to_LLVM.compile_fn impFn in
-  let llvmFn = compile_fn impFn in
   optimize_module Imp_to_LLVM.global_module llvmFn;
   print_endline  "[LLVM_Backend.call_imp_fn] Generated LLVM function";
   Llvm.dump_value llvmFn;

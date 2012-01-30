@@ -56,7 +56,6 @@ paranode mk_sym(char *sym, source_info_t *src_info);
 paranode mk_app(paranode fun, paranode *args, int num_args,
                 source_info_t *src_info);
 
-
 paranode mk_return(paranode* args, int num_args, source_info_t *src_info);
 
 paranode mk_array(paranode *elts, int num_stmts, source_info_t *src_info);
