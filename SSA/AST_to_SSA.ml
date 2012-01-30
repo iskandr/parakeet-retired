@@ -143,14 +143,23 @@ and exp_as_value env codegen prefix node : SSA.value_node =
 let rec exps_as_values env codegen prefix nodes : SSA.value_node list =
   List.map (exp_as_value env codegen prefix) nodes
 
-let translate_assignment env codegen lhs rhs : Env.t =
-  match lhs.data with
-  | AST.Var name ->
-    let id = ID.gen_named name in
+
+let rec collect_assignment_names = function
+  | [] -> []
+  | {data=AST.Var name}::rest -> name :: (collect_assignment_names rest)
+  | other::_ -> failwith $ "[AST_to_SSA] Unexpected LHS " ^ (AST.to_str other)
+
+
+let translate_assignment env codegen (lhs:AST.node list) rhs : Env.t =
+  match lhs with
+  (* if the first element of the lhs is a variable assume they all are *)
+  | {AST.data=AST.Var _}::_ ->
+    let names = collect_assignment_names lhs in
+    let ids = List.map ID.gen_named names in
     let rhsExp = translate_exp env codegen rhs in
-    codegen#emit [mk_stmt $ Set([id], rhsExp)];
-    Env.add env name id
-  | AST.App({data=AST.Prim (Prim.ArrayOp Prim.Index)}, _) ->
+    codegen#emit [mk_stmt $ Set(ids, rhsExp)];
+    Env.add_list env names ids
+  | [{AST.data=AST.App({data=AST.Prim (Prim.ArrayOp Prim.Index)}, _)} as lhs] ->
     let rhs = translate_value env codegen rhs in
     let allIndices : AST.node list  = flatten_indexing lhs in
     let lhsList = translate_values env codegen allIndices in
@@ -163,7 +172,7 @@ let translate_assignment env codegen lhs rhs : Env.t =
         (SSA.value_nodes_to_str lhsList)
     end
   | _ -> failwith $ Printf.sprintf "Unexpected LHS of assignment: %s"
-    (AST.to_str lhs)
+    (AST.args_to_str lhs)
 
 let rec translate_stmt
           (env:Env.t)
@@ -207,7 +216,7 @@ let rec translate_stmt
       codegen#emit [mk_stmt $ If(condVal,trueBlock,falseBlock, phiNodes)];
       Env.add_list env mergeNames mergeIds
 
-  | AST.Assign(lhs, rhs) -> translate_assignment env codegen lhs rhs
+  | AST.Assign(lhsList, rhs) -> translate_assignment env codegen lhsList rhs
 
   | AST.Block nodes  -> translate_block env codegen retIds nodes
   | AST.WhileLoop(cond,body) ->

@@ -77,6 +77,7 @@ def return_type_init(LibPar):
   LibPar.mk_bool.restype = c_void_p
   LibPar.mk_void.restype = c_void_p
   LibPar.mk_return.restype = c_void_p
+  LibPar.print_ast_node.restype = c_void_p 
 
   #get global values for parakeet types
   LibPar.bool_t = c_int.in_dll(LibPar, "parakeet_bool_elt_t").value
@@ -520,8 +521,18 @@ class ASTConverter():
     elif nodeType == 'Assign':
       print "Assign args", args
       LOG("assign(%s, %s)" % (args[0][0], args[1]))
-      #Only support assigning a value to 1 variable at a time now
-      return LibPar.mk_assign(args[0][0],args[1],0)
+      lhs_list = args[0]
+      print "LHS LIST"
+      LibPar.print_ast_node(lhs_list[0])
+      lhs_array_ptr = list_to_ctypes_array(lhs_list, c_void_p)
+      num_lhs_ids = len(lhs_list)
+      rhs = args[1]
+
+      print "RHS:"
+      LibPar.print_ast_node(rhs)
+      assign_ast_node = LibPar.mk_assign(lhs_array_ptr, num_lhs_ids, rhs, 0)
+      LibPar.print_ast_node(assign_ast_node)
+      return 
     #Mk a def where the target is the index node
     elif nodeType == 'BinOp':
       LOG("app(%s, [%s, %s])" % (type(node.op).__name__, args[0], args[2]))
@@ -578,7 +589,6 @@ class ASTConverter():
       #NOTE: Deprecated
       LOG("Return %s" % str(args))
       if type(node.value).__name__ == 'Tuple':
-        print "WHAT????"
         return LibPar.mk_return(args[0][0],args[0][1],None)
       else:
         print "ARGS",args
@@ -722,7 +732,7 @@ def run_function(func, args):
   ret = LibPar.run_function(func, None, 0, inputs, numArgs)
   if (ret.return_code == 0):
     # TODO: again, we assume only one return val
-    print "RETLEN", len(ret.results)
+    print "RETLEN", ret.results_len
     return parakeet_value_to_python(ret.results[0])
   else:
     raise Exception("run_function failed")

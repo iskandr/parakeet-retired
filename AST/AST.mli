@@ -37,7 +37,7 @@ type exp =
     | App of node * node list
     | Arr of node list
     | If of node * node * node
-    | Assign of node * node
+    | Assign of node list * node
     | Block of node list
     | WhileLoop of node * node
     | CountLoop of node * node

@@ -215,39 +215,43 @@ let rec infer_shape_env (fnTable:FnTable.t) (fundef : SSA.fn) =
       (FnId.to_str fnId);
   ENDIF;
   *)
-  try Hashtbl.find shapeEnvCache fnId
-  with _ ->
-    let module Params : PARAMS = struct
-      let output_shapes fnId argShapes =
-        let fundef = FnTable.find fnId fnTable in
-        infer_call_result_shapes fnTable fundef argShapes
-    end
-    in
-    let module ShapeEval = SSA_Analysis.MkEvaluator(ShapeAnalysis(Params)) in
-    let shapeEnv = ShapeEval.eval_fn fundef in
-    Hashtbl.add shapeEnvCache fnId shapeEnv;
-    shapeEnv
+  match Hashtbl.find_option shapeEnvCache fnId with
+    | Some shapeEnv -> shapeEnv
+    | None  ->
+      begin
+        let module Params : PARAMS = struct
+          let output_shapes fnId argShapes =
+            let fundef = FnTable.find fnId fnTable in
+            infer_call_result_shapes fnTable fundef argShapes
+        end
+        in
+        let module ShapeEval = SSA_Analysis.MkEvaluator(ShapeAnalysis(Params)) in
+        let shapeEnv = ShapeEval.eval_fn fundef in
+        Hashtbl.add shapeEnvCache fnId shapeEnv;
+        shapeEnv
+      end
 
 and infer_normalized_shape_env (fnTable : FnTable.t) (fundef : SSA.fn) =
   let fnId = fundef.SSA.fn_id in
-  try
-    Hashtbl.find normalizedShapeEnvCache fnId
-  with _ ->  begin
-    let rawShapeEnv = infer_shape_env fnTable fundef in
-    let inputIdSet = ID.Set.of_list fundef.SSA.input_ids in
-    let normalizer id shape normalizedEnv =
-      (* if already normalized, don't do it again *)
-      if ID.Map.mem id normalizedEnv then normalizedEnv
-      else
-        let shape', normalizedEnv' =
-          normalize_shape inputIdSet rawShapeEnv normalizedEnv shape
+  match Hashtbl.find_option normalizedShapeEnvCache fnId with
+    | Some normalizedEnv -> normalizedEnv
+    | None ->
+      begin
+        let rawShapeEnv = infer_shape_env fnTable fundef in
+        let inputIdSet = ID.Set.of_list fundef.SSA.input_ids in
+        let normalizer id shape normalizedEnv =
+          (* if already normalized, don't do it again *)
+          if ID.Map.mem id normalizedEnv then normalizedEnv
+          else
+            let shape', normalizedEnv' =
+              normalize_shape inputIdSet rawShapeEnv normalizedEnv shape
+            in
+            ID.Map.add id shape' normalizedEnv'
         in
-        ID.Map.add id shape' normalizedEnv'
-    in
-    let normalizedEnv = ID.Map.fold normalizer rawShapeEnv ID.Map.empty in
-    Hashtbl.add normalizedShapeEnvCache fnId normalizedEnv;
-    normalizedEnv
- end
+        let normalizedEnv = ID.Map.fold normalizer rawShapeEnv ID.Map.empty in
+        Hashtbl.add normalizedShapeEnvCache fnId normalizedEnv;
+        normalizedEnv
+      end
 
 and infer_normalized_output_shapes (fnTable : FnTable.t) (fundef : SSA.fn) =
   let fnId = fundef.SSA.fn_id in

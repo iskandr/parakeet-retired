@@ -245,15 +245,14 @@ paranode mk_if(paranode cond_node, paranode true_node, paranode false_node,
   CAMLreturnT(paranode, mk_node(if_node, src_info));
 }
 
-paranode mk_assign(paranode* ids, int num_ids, paranode rhs,
-                   source_info_t *src_info) {
+paranode mk_assign(paranode* lhs, int num_ids, paranode rhs, source_info_t *src_info) {
   CAMLparam0(); 
   CAMLlocal2(val_rhs, assignment);
 
   val_rhs = get_value_and_remove_root(rhs);
 
   assignment = caml_alloc(2, Exp_Assign);
-  Store_field(assignment, 0, mk_val_list(ids, num_ids));
+  Store_field(assignment, 0, mk_val_list(lhs, num_ids));
   Store_field(assignment, 1, val_rhs);
 
   CAMLreturnT(paranode, mk_node(assignment, src_info));

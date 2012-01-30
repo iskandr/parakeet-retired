@@ -80,7 +80,7 @@ type exp =
     | App of node * node list
     | Arr of node list
     | If of node * node * node
-    | Assign of node * node
+    | Assign of node list * node
     | Block of node list
     | WhileLoop of node * node
     | CountLoop of node * node
@@ -113,7 +113,8 @@ let rec to_str ast = match ast.data with
   | App (fn, args) ->
       sprintf "%s(%s)" (to_str fn) (args_to_str ~delim:", " args)
   | Arr elts ->   "[" ^ (args_to_str ~delim:", " elts) ^ "]"
-  | Assign (lhs, rhs) -> (to_str lhs) ^ " := " ^ (to_str rhs)
+  | Assign (lhsList, rhs) ->
+    (args_to_str ~delim:", " lhsList) ^ " := " ^ (to_str rhs)
   | Block nodes -> sprintf "{ %s }" (args_to_str nodes)
 
   | If(test, tNode, fNode) ->
@@ -125,7 +126,8 @@ let rec to_str ast = match ast.data with
   | CountLoop (count, body) ->
     sprintf "repeat %s do %s" (to_str count) (to_str body)
   | Return nodes -> sprintf "return %s" (args_to_str nodes)
-and args_to_str ?(delim="; ") args = String.concat delim (List.map to_str  args)
+and args_to_str ?(delim="; ") (args:node list) =
+  String.concat delim (List.map to_str  args)
 
 let print_ast_node n =
   Printf.printf "[AST] %s\n%!" (to_str n)
