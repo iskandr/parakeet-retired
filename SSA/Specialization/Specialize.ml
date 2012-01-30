@@ -122,10 +122,10 @@ let rec specialize_fn fn signature =
      (is_scalar_block fn.body = ThreeValuedLogic.Yes)
   then scalarize_fn fn signature
   else
-  let fn', closureEnv =
+  let fnIGNORED, closureEnv =
     CollectPartialApps.collect_partial_apps fn
   in
-
+  
   let outputArity : SSA.value -> int =
     output_arity closureEnv.CollectPartialApps.closures
   in
@@ -138,7 +138,7 @@ let rec specialize_fn fn signature =
       ~specializer:specialize_value
       ~output_arity:outputArity
       ~closureEnv
-      ~fn:fn'
+      ~fn:fn
       ~signature
   in
   let typedFn =
@@ -147,7 +147,7 @@ let rec specialize_fn fn signature =
       ~closureEnv
       ~specializer:specialize_value
       ~output_arity:outputArity
-      ~fn:fn'
+      ~fn:fn
   in
   typedFn
 

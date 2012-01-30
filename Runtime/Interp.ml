@@ -129,10 +129,12 @@ and eval_scalar_op (op : Prim.scalar_op) (args : value list) =
     (* use the generic math eval function                                      *)
     | op, _ -> Value.Scalar (MathEval.eval_pqnum_op op nums)
 
-let run fn (hostData: Ptr.t Value.t list) =
+let run fn (hostData: Ptr.t Value.t list) : Ptr.t Value.t list =
   Env.push_env (); (* do this since we're skipping eval_app *)
   let interp_inputs = List.map DataManager.from_memspace hostData in
   let outputVals = Scheduler.call fn interp_inputs in (*eval_app fn interp_inputs in*)
   let hostMemId = MemId.find_id "host" in
-  List.map (DataManager.to_memspace hostMemId) outputVals
+  let results = List.map (DataManager.to_memspace hostMemId) outputVals in
+  Env.pop_env();
+  results
 

@@ -5,7 +5,6 @@ type scalar_op =
   | SafeDiv
   | Div
   | Pow
-  | Log
   | Mod
   | Min
   | Max
@@ -35,7 +34,7 @@ type scalar_op =
   | Cosh
   | Tanh
   | Ln
-  | Lg2
+  | Log2
   | Log10
   | Select
       (* returns array where i'th element is from 2nd arg if
@@ -73,7 +72,6 @@ let is_binop = function
   | Div
   | SafeDiv
   | Pow
-  | Log
   | Mod
   | Min
   | Max
@@ -106,7 +104,7 @@ let is_unop = function
   | Cosh
   | Tanh
   | Ln
-  | Lg2
+  | Log2
   | Log10 -> true
   | _ -> false
 
@@ -117,12 +115,12 @@ let is_comparison = function
 
 (* unary operators which turn numeric types into floats *)
 let is_float_unop = function
-  | Sqrt | Lg2 | Ln | Log10 | Cos | Sin | Tan | Cosh | Sinh | Tanh
+  | Sqrt | Log2 | Ln | Log10 | Cos | Sin | Tan | Cosh | Sinh | Tanh
   | Reciprocal | Exp -> true
   | _ -> false
 
 let is_float_binop = function
-  | Div | Log -> true
+  | Div -> true
   | _ -> false
 
 let is_float_op op = (is_float_unop op) || (is_float_binop op)
@@ -163,7 +161,6 @@ let scalar_op_to_str = function
   | Min -> "min"
   | Max -> "max"
   | Pow -> "pow"
-  | Log -> "log"
   | Eq -> "="
   | Neq -> "<>"
   | Lt -> "<"
@@ -190,7 +187,7 @@ let scalar_op_to_str = function
   | Cosh -> "cosh"
   | Tanh -> "tanh"
   | Ln -> "log"
-  | Lg2 -> "lg2"
+  | Log2 -> "log2"
   | Log10 -> "log10"
   | Select -> "select"
 

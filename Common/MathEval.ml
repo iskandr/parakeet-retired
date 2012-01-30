@@ -28,7 +28,7 @@ let eval (m : 'a math_ops) (op:Prim.scalar_op) (args : 'a list) =
   | Prim.Sub, [x;y] -> m.sub x y  
   | Prim.SafeDiv, [x;y] ->  m.safe_div x y 
   | Prim.Mult, [x;y] -> m.mul x y  
-  | Prim.Log, [x]  -> m.log x
+  | Prim.Ln, [x]  -> m.log x
   | op, args -> failwith $ 
      Printf.sprintf "[MathEval] Operations %s not supported with arguments %s"
        (Prim.scalar_op_to_str op)

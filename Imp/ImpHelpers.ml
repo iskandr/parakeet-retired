@@ -219,8 +219,8 @@ let (||$) = or_
 let sqrt32 x = typed_op Prim.Sqrt ~t:Type.Float32T [x]
 let sqrt64 x = typed_op Prim.Sqrt ~t:Type.Float64T [x]
 
-let ln_32 x = typed_op Prim.Log ~t:Type.Float32T [x]
-let ln_64 x = typed_op Prim.Log ~t:Type.Float64T [x]
+let ln_32 x = typed_op Prim.Ln ~t:Type.Float32T [x]
+let ln_64 x = typed_op Prim.Ln ~t:Type.Float64T [x]
 
 let id_of_val valNode = match valNode.value with
   | Var id -> id

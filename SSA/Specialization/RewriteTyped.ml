@@ -24,7 +24,7 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
 
   let set_type id t = Hashtbl.replace P.tenv id t
   let fresh_id t =
-    let id = ID.gen() in
+    let id = ID.gen_named "temp" in
     set_type id t;
     id
 

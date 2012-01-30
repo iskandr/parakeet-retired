@@ -46,9 +46,9 @@ let print_all_timers () =
   ;
   Pervasives.flush_all()
 
-type ret_val = Success of Ptr.t Value.t | Pass | Error of string
+type ret_val = Success of Ptr.t Value.t list | Pass | Error of string
 
-let run_function untypedId ~globals ~args =
+let run_function untypedId ~globals ~args : ret_val =
   Timing.clear Timing.runTemplate;
   Timing.clear Timing.typedOpt;
   Timing.clear Timing.ptxCompile;
@@ -90,13 +90,10 @@ let run_function untypedId ~globals ~args =
       FnManager.optimize_typed_functions ();
       FnManager.get_typed_function unoptimizedTyped.SSA.fn_id
   in
-  let resultVals =
-    Interp.run typedFundef args
-  in
+  let resultVals = Interp.run typedFundef args in
   print_all_timers();
   Timing.clear Timing.untypedOpt;
   Pervasives.flush_all ();
    (* assume only one result can be returns *)
-  let result = List.hd resultVals in
-  Success result
+  Success resultVals
 

@@ -193,6 +193,13 @@ let compile_math_op (t:Type.elt_t) op (vals:llvalue list) builder =
       | _ -> failwith "Unexpected non-float argument to exp"
     in
     Llvm.build_call f [|x|] "exp" builder
+  | Prim.Ln, [x] -> 
+    let f = match t with 
+      | Type.Float32T -> LLVM_Intrinsics.log32 
+      | Type.Float64T -> LLVM_Intrinsics.log64
+      | _ -> failwith "Unexpected non-float argument to log"
+    in 
+    Llvm.build_call f [|x|] "log" builder
   | Prim.Pow, [ x;y ] ->
     let f =
       match t with
