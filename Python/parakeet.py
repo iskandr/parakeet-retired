@@ -522,17 +522,10 @@ class ASTConverter():
       print "Assign args", args
       LOG("assign(%s, %s)" % (args[0][0], args[1]))
       lhs_list = args[0]
-      print "LHS LIST"
-      LibPar.print_ast_node(lhs_list[0])
       lhs_array_ptr = list_to_ctypes_array(lhs_list, c_void_p)
       num_lhs_ids = len(lhs_list)
       rhs = args[1]
-
-      print "RHS:"
-      LibPar.print_ast_node(rhs)
-      assign_ast_node = LibPar.mk_assign(lhs_array_ptr, num_lhs_ids, rhs, 0)
-      LibPar.print_ast_node(assign_ast_node)
-      return 
+      return LibPar.mk_assign(lhs_array_ptr, num_lhs_ids, rhs, 0)
     #Mk a def where the target is the index node
     elif nodeType == 'BinOp':
       LOG("app(%s, [%s, %s])" % (type(node.op).__name__, args[0], args[2]))
