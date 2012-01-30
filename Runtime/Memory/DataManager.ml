@@ -1,4 +1,3 @@
-
 open Base
 
 type data_table = (DataId.t, Ptr.t) Hashtbl.t
@@ -44,4 +43,3 @@ let to_memspace memId v =
     | None -> failwith $ "Could not find data id: " ^ DataId.to_str dataId
   in
   Value.map lookup v
-

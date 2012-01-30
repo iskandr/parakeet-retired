@@ -8,7 +8,6 @@ open Value
 
 type value = DataId.t Value.t
 
-
 let eval_value (valNode : SSA.value_node) : value =
   match valNode.value with
   | Var id -> Env.lookup id
@@ -108,26 +107,26 @@ and eval_app fundef args =
   outputs
 
 and eval_scalar_op (op : Prim.scalar_op) (args : value list) =
-(* whether the scalar is a GpuVal, a HostVal or an interpreter scalar, put *)
-(* them all into hostvals*)
+  (* whether the scalar is a GpuVal, a HostVal or an interpreter scalar, put *)
+  (* them all into hostvals*)
 
-    let nums = List.map Value.to_num args in
-    match op, nums with
-    | Prim.Eq, [x; y] -> Value.of_bool (x = y)
-    | Prim.Neq, [x; y] -> Value.of_bool (x <> y)
-    | Prim.Lt, [x; y] ->
-        Value.of_bool (ParNum.to_float x <= ParNum.to_float y)
-    | Prim.Lte, [x; y] ->
-        Value.of_bool (ParNum.to_float x <= ParNum.to_float y)
-    | Prim.Gt, [x; y] ->
-        Value.of_bool (ParNum.to_float x > ParNum.to_float y)
-    | Prim.Gte, [x; y] ->
-        Value.of_bool (ParNum.to_float x >= ParNum.to_float y)
-    | Prim.Div, [x; y] ->
-        Value.of_float (ParNum.to_float x /. ParNum.to_float y)
-    (* other math operations should return the same type as their inputs, so   *)
-    (* use the generic math eval function                                      *)
-    | op, _ -> Value.Scalar (MathEval.eval_pqnum_op op nums)
+	let nums = List.map Value.to_num args in
+	match op, nums with
+	| Prim.Eq, [x; y] -> Value.of_bool (x = y)
+	| Prim.Neq, [x; y] -> Value.of_bool (x <> y)
+	| Prim.Lt, [x; y] ->
+	    Value.of_bool (ParNum.to_float x <= ParNum.to_float y)
+	| Prim.Lte, [x; y] ->
+	    Value.of_bool (ParNum.to_float x <= ParNum.to_float y)
+	| Prim.Gt, [x; y] ->
+	    Value.of_bool (ParNum.to_float x > ParNum.to_float y)
+	| Prim.Gte, [x; y] ->
+	    Value.of_bool (ParNum.to_float x >= ParNum.to_float y)
+	| Prim.Div, [x; y] ->
+	    Value.of_float (ParNum.to_float x /. ParNum.to_float y)
+	(* other math operations should return the same type as their inputs, so   *)
+	(* use the generic math eval function                                      *)
+	| op, _ -> Value.Scalar (MathEval.eval_pqnum_op op nums)
 
 let run fn (hostData: Ptr.t Value.t list) : Ptr.t Value.t list =
   Env.push_env (); (* do this since we're skipping eval_app *)
@@ -137,4 +136,3 @@ let run fn (hostData: Ptr.t Value.t list) : Ptr.t Value.t list =
   let results = List.map (DataManager.to_memspace hostMemId) outputVals in
   Env.pop_env();
   results
-

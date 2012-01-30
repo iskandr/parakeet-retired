@@ -68,9 +68,7 @@ let run_function untypedId ~globals ~args : ret_val =
   if nargs <> arity then
     failwith $
       Printf.sprintf
-        "[Parakeet] arity mismatch-- expected %d, got %d"
-        arity
-        nargs
+        "[Parakeet] arity mismatch-- expected %d, got %d" arity nargs
   else
   let signature = Signature.from_input_types argTypes in
   IFDEF DEBUG THEN
@@ -96,4 +94,3 @@ let run_function untypedId ~globals ~args : ret_val =
   Pervasives.flush_all ();
    (* assume only one result can be returns *)
   Success resultVals
-

@@ -193,12 +193,12 @@ let compile_math_op (t:Type.elt_t) op (vals:llvalue list) builder =
       | _ -> failwith "Unexpected non-float argument to exp"
     in
     Llvm.build_call f [|x|] "exp" builder
-  | Prim.Ln, [x] -> 
-    let f = match t with 
-      | Type.Float32T -> LLVM_Intrinsics.log32 
+  | Prim.Ln, [x] ->
+    let f = match t with
+      | Type.Float32T -> LLVM_Intrinsics.log32
       | Type.Float64T -> LLVM_Intrinsics.log64
       | _ -> failwith "Unexpected non-float argument to log"
-    in 
+    in
     Llvm.build_call f [|x|] "log" builder
   | Prim.Pow, [ x;y ] ->
     let f =
@@ -213,7 +213,7 @@ let compile_math_op (t:Type.elt_t) op (vals:llvalue list) builder =
       (Prim.scalar_op_to_str op) (List.length vals)
 
 let compile_arr_idx (arr:Imp.value_node) (argVals:Llvm.llvalue list)
-                    (imp_elt_t:Type.elt_t ) (fnInfo:fn_info) =
+                    (imp_elt_t:Type.elt_t) (fnInfo:fn_info) =
 	let strideIdx = Llvm.const_int LLVM_Types.int32_t 2 in
 	let arrVal = compile_val ~doLoad:false fnInfo arr in
 	let stridesPtr =
@@ -252,7 +252,7 @@ let compile_arr_idx (arr:Imp.value_node) (argVals:Llvm.llvalue list)
 	Llvm.build_inttoptr idxInt eltPtrType "idxAddr" fnInfo.builder
 
 let compile_range_load (arr:Imp.value_node) (argVals:Llvm.llvalue list)
-                      (imp_elt_t:Type.elt_t ) (fnInfo:fn_info) =
+                       (imp_elt_t:Type.elt_t) (fnInfo:fn_info) =
 	let startIdx = Llvm.const_int LLVM_Types.int32_t 0 in
 	let arrVal = compile_val ~doLoad:false fnInfo arr in
 	let startPtr =
@@ -305,7 +305,6 @@ let rec compile_stmt_seq fnInfo currBB = function
     compile_stmt_seq fnInfo newBB tail
 
 and compile_stmt fnInfo currBB stmt =
-  Gc.print_stat stdout;
   match stmt with
   | Imp.If (cond, then_, else_) ->
     let llCond = compile_val fnInfo cond in
@@ -420,9 +419,5 @@ let compile_fn (fn : Imp.fn) : Llvm.llvalue =
   let _ : Llvm.llbasicblock = compile_stmt_seq fnInfo initBasicBlock fn.body in
   (* we implement multiple return values by passing the output addresses as *)
   (* parameters so there's nothing left to return *)
-  Gc.print_stat stdout;
-  Gc.major();
-  Gc.print_stat stdout;
-  Printf.printf "%d\n%!";
   Llvm.build_ret_void fnInfo.builder;
   llvmFn
