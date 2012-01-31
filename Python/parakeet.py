@@ -403,10 +403,7 @@ class ASTConverter():
         num_args = 1
         LibPar.print_ast_node(elt)
       rhs_arg = self.visit(node.value, rightChildContext)
-      LibPar.print_ast_node(rhs_arg)
-      z = LibPar.mk_assign(lhs_args, num_args, rhs_arg, None)
-      LibPar.print_ast_node(z)
-      return z
+      return LibPar.mk_assign(lhs_args, num_args, rhs_arg, None)
 
 
     parakeetNodeChildren = []
