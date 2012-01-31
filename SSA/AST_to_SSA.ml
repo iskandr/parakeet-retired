@@ -321,7 +321,7 @@ and translate_block env codegen retIds = function
 
 
 (* given the arg names and AST body of function, generate its SSA fundef *)
-and translate_fn parentEnv (argNames:string list) (body:AST.node) : SSA.fn =
+and translate_fn ?name parentEnv argNames (body:AST.node) : SSA.fn =
   (* if no return statements in function, assume it returns nothing *)
   let returnArity = match body.ast_info.return_arity with
     | Some x -> x
@@ -337,5 +337,5 @@ and translate_fn parentEnv (argNames:string list) (body:AST.node) : SSA.fn =
   let _ = translate_stmt initEnv codegen retIds body in
   (* make an empty type env since this function hasn't been typed yet *)
   let body = codegen#finalize in
-  SSA_Helpers.mk_fn ?tenv:None ~body ~input_ids:argIds ~output_ids:retIds
+  SSA_Helpers.mk_fn ?name ?tenv:None ~body ~input_ids:argIds ~output_ids:retIds
 

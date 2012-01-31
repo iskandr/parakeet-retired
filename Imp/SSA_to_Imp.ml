@@ -55,7 +55,7 @@ let mk_simple_loop_descriptor
     loop_var = codegen#fresh_local int32_t;
     loop_start = start;
     loop_test_val = stop;
-    loop_test_cmp = (if down then Prim.Lt else Prim.Gt);
+    loop_test_cmp = (if down then Prim.Gt else Prim.Lt);
     loop_incr = (if down then ImpHelpers.int (-1) else ImpHelpers.one);
     loop_incr_op = Prim.Add;
   }

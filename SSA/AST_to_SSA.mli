@@ -50,4 +50,4 @@ val translate_loop_body :
 val translate_block :
       Env.t -> SSA_Codegen.codegen -> ID.t list -> AST.node list -> Env.t
 
-val translate_fn : Env.t -> string list -> AST.node -> SSA.fn
+val translate_fn : ?name:string -> Env.t -> string list -> AST.node -> SSA.fn

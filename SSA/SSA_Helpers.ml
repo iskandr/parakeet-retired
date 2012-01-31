@@ -16,12 +16,16 @@ let extract_nested_map_fn_id (fundef : fn) =
         }) ->  Some fnId
     | _ -> None
 
-let mk_fn  ?(tenv=ID.Map.empty) ~input_ids ~output_ids ~body =
+let mk_fn ?name ?(tenv=ID.Map.empty) ~input_ids ~output_ids ~body : SSA.fn =
   let inTypes =
     List.map (fun id -> ID.Map.find_default id tenv Type.BottomT) input_ids
   in
   let outTypes =
     List.map (fun id -> ID.Map.find_default id tenv Type.BottomT) output_ids
+  in
+  let fnId = match name with
+    | Some name -> FnId.gen_named name
+    | None -> FnId.gen()
   in
   {
     body = body;
@@ -30,7 +34,7 @@ let mk_fn  ?(tenv=ID.Map.empty) ~input_ids ~output_ids ~body =
     output_ids = output_ids;
     fn_input_types = inTypes;
     fn_output_types = outTypes;
-    fn_id = FnId.gen()
+    fn_id = fnId
   }
 
 

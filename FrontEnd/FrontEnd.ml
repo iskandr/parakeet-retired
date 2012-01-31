@@ -6,7 +6,10 @@ open SSA
 
 let init() =
   let gcParams = Gc.get() in
-  Gc.set { gcParams with Gc.minor_heap_size = 128000; space_overhead = 90 }
+  Gc.set { gcParams with
+    Gc.minor_heap_size = 32768;
+    space_overhead = 90;
+  }
   (*HardwareInfo.hw_init ();*)
   (*Cuda.init ()*)
 
@@ -23,7 +26,7 @@ let register_untyped_function ~name ~globals ~args astNode =
   let _ = Analyze_AST.analyze_ast astNode in
   let ssaEnv = AST_to_SSA.Env.GlobalScope FnManager.get_untyped_id in
   let argNames = globals @ args in
-  let fn = AST_to_SSA.translate_fn ssaEnv argNames astNode in
+  let fn = AST_to_SSA.translate_fn ~name ssaEnv argNames astNode in
   FnManager.add_untyped ~optimize:true name fn;
   fn.SSA.fn_id
 

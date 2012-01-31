@@ -17,7 +17,7 @@ let optimize_module llvmModule llvmFn : unit =
 
   (* Promote allocas to registers. *)
   Llvm_scalar_opts.add_memory_to_register_promotion the_fpm;
-  (*
+
   Llvm_scalar_opts.add_sccp the_fpm;
   Llvm_scalar_opts.add_aggressive_dce the_fpm;
   Llvm_scalar_opts.add_instruction_combination the_fpm;
@@ -28,7 +28,7 @@ let optimize_module llvmModule llvmFn : unit =
   Llvm_scalar_opts.add_memcpy_opt the_fpm;
   Llvm_scalar_opts.add_gvn the_fpm;
   Llvm_scalar_opts.add_correlated_value_propagation the_fpm;
-  *)
+
   let modified = PassManager.run_function llvmFn the_fpm in
   Printf.printf "Optimizer modified code: %b\n" modified;
   let _ : bool = PassManager.finalize the_fpm in

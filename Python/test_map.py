@@ -14,6 +14,7 @@ def test_simple_map():
   y = simple_map(x)
   for i in range(len(x)):
     print "Expected %d, got %d" % (x[i]*3, y[i])
+    assert (x[i] * 3) == y[i]  
 
 if __name__ == '__main__':
   test_simple_map()

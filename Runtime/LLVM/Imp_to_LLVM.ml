@@ -47,7 +47,6 @@ type fn_info = {
   builder: Llvm.llbuilder;
   name : string;
 
-  const_value_register_cache : (Imp.value * bool, Llvm.llvalue) Hashtbl.t;
   array_strides_ptr_cache : (Llvm.llvalue, Llvm.llvalue) Hashtbl.t;
   array_strides_field_cache : (Llvm.llvalue * int, Llvm.llvalue) Hashtbl.t;
   array_shape_ptr_cache : (Llvm.llvalue, Llvm.llvalue) Hashtbl.t;
@@ -79,7 +78,7 @@ let create_fn_info (fn : Imp.fn) =
     named_values = Hashtbl.create 13;
     builder = Llvm.builder context;
     name = FnId.to_str fn.Imp.id;
-    const_value_register_cache = Hashtbl.create 127;
+
     array_strides_ptr_cache = Hashtbl.create 127;
     array_strides_field_cache = Hashtbl.create 127;
     array_shape_ptr_cache = Hashtbl.create 127;
@@ -97,7 +96,7 @@ let compile_const (t:ImpType.t) (n:ParNum.t) =
   | ParNum.Int64 i64 -> const_of_int64 t' i64 true
   | ParNum.Float32 f -> const_float t' f
   | ParNum.Float64 f -> const_float t' f
-  | _ -> assert false
+  | _ -> failwith "Not a constant"
 
 
 let compile_cast (fnInfo:fn_info) original (srcT:ImpType.t) (destT:ImpType.t) =
@@ -247,6 +246,43 @@ let get_array_strides_field (fnInfo:fn_info) (array:llvalue) (idx:int) : llvalue
         strideVal
       )
 
+
+let get_array_shape_ptr (fnInfo:fn_info) (array:llvalue) : llvalue =
+  match Hashtbl.find_option fnInfo.array_shape_ptr_cache array with
+    | Some llvalue -> llvalue
+    | None ->
+      let shapeField = Llvm.const_int LLVM_Types.int32_t 1 in
+      let shapeFieldPtr =
+        Llvm.build_gep array
+          [|zero_i32;shapeField|] "shape_field" fnInfo.builder
+      in
+      let shape = Llvm.build_load shapeFieldPtr "shape" fnInfo.builder in
+      (
+        Hashtbl.add fnInfo.array_shape_ptr_cache array shape;
+        shape
+      )
+
+let get_array_shape_field (fnInfo:fn_info) (array:llvalue) (idx:int) : llvalue =
+  let key = array, idx in
+  match Hashtbl.find_option fnInfo.array_shape_field_cache key with
+    | Some llvalue -> llvalue
+    | None ->
+      let shape : llvalue  = get_array_shape_ptr fnInfo array in
+      let shapePtr : llvalue =
+        if idx <> 0 then (
+          let idxVal = Llvm.const_int LLVM_Types.int32_t idx in
+          Llvm.build_gep shape [|idxVal|] "stride_ptr" fnInfo.builder
+        )
+        else shape
+      in
+      let name = "dim" ^ (string_of_int idx) ^ "_" in
+      let dimVal = Llvm.build_load shapePtr name fnInfo.builder in
+      (
+        Hashtbl.add fnInfo.array_shape_field_cache key dimVal;
+        dimVal
+      )
+
+
 let get_array_data_ptr (fnInfo:fn_info) (array:llvalue) : llvalue =
   match Hashtbl.find_option fnInfo.array_data_ptr_cache array with
     | Some llvalue -> llvalue
@@ -324,12 +360,7 @@ let compile_range_load
 
 (* Change to function? *)
 let rec compile_value ?(do_load=true) fnInfo (impVal:Imp.value_node) =
-  let v = impVal.value in
-  let key = v, do_load in
-  if Hashtbl.mem fnInfo.const_value_register_cache key then
-    Hashtbl.find fnInfo.const_value_register_cache key
-  else
-  let llvmValue = match v with
+  match impVal.value with
   | Imp.Var id ->
       begin match Hashtbl.find_option fnInfo.named_values (ID.to_str id) with
         | None -> failwith "unknown variable name"
@@ -339,6 +370,21 @@ let rec compile_value ?(do_load=true) fnInfo (impVal:Imp.value_node) =
             build_load ptr tempName fnInfo.builder
           else ptr
       end
+  | Imp.DimSize (arr, idx) ->
+    Printf.printf
+      "arr: %s : %s\n%!"
+      (Imp.value_to_str arr.value)
+      (ImpType.to_str arr.value_type);
+    Printf.printf
+      "idx: %s : %s\n%!"
+      (Imp.value_to_str idx.value)
+      (ImpType.to_str idx.value_type);
+    let llvmArr = compile_value ~do_load:false fnInfo arr in
+    let llvmIdx = compile_value fnInfo idx in
+    let shape = get_array_shape_ptr fnInfo llvmArr in
+    let dimPtr = Llvm.build_gep shape [|llvmIdx|] "dim_ptr" fnInfo.builder in
+    Llvm.build_load dimPtr "dim" fnInfo.builder
+
   | Imp.Const const -> compile_const impVal.Imp.value_type const
   | Imp.Op (t, op, vals) ->
     let vals' =  List.map (compile_value fnInfo) vals in
@@ -363,13 +409,6 @@ let rec compile_value ?(do_load=true) fnInfo (impVal:Imp.value_node) =
 	  failwith $ Printf.sprintf
       "[Imp_to_LLVM] Not implemented %s\n"
 	    (Imp.value_node_to_str impVal)
-  in
-  (
-    if Imp.always_const impVal then
-      Hashtbl.add fnInfo.const_value_register_cache key llvmValue
-    ;
-    llvmValue
-  )
 
 and compile_values fnInfo = function
   | [] -> []
