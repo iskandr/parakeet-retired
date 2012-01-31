@@ -356,7 +356,7 @@ We perform staged synthesis of Imp kernels by parameterizing them with payload f
 
 We evaluated Parakeet on two benchmarks: Black-Scholes option pricing, and K-Means Clustering.  We compare Parakeet against both hand-tuned CPU and GPU implementations.  Due to space constraints, and since at the time of writing our CPU backend only supports single-threaded execution, we only present Parakeet results for its GPU backend.  For Black-Scholes, the CPU reference implementation is taken from the PARSEC \cite{Bien08} benchmark suite, and the GPU implementation is taken from the CUDA SDK \cite{NvidSD}.  For K-Means Clustering both the CPU and GPU benchmark versions come from the Rodinia benchmark suite~\cite{Che09}.
 
-We ran all of our benchmarks on a machine running 64-bit Linux with an Intel Core i7 3.2GHz 960 4-core CPU  and 16GB of RAM.  The GPU used in our system was an NVIDIA Tesla C1060. This card has 240 vector lanes with a clock speed of 1.296 GHz and 4GB of memory.
+We ran all of our benchmarks on a machine running 64-bit Linux with an Intel Core i7 3.2GHz 960 4-core CPU  and 16GB of RAM.  The GPU used in our system was an NVIDIA Tesla C1060 with 240 vector lanes, a clock speed of 1.296 GHz, and 4GB of memory.
 
 \subsection{Black-Scholes}
 \label{results-bs}
@@ -398,6 +398,8 @@ In Figure \ref{KMGPU}, we see a breakdown of the run times for CUDA and Parakeet
 
 \section{Conclusion and Related Work}
 \label{Conclusion}
+There have been several projects that use just-in-time compilation to accelerate Python programs.  The PyPy project is an alternative implementation of Python that includes a JIT compiler~\cite{Rigo06}.
+
 The use of graphics hardware for non-graphical computation has a  long history~\cite{Leng90}, though convenient frameworks for general purpose GPU programming have only recently emerged. The first prominent GPU backend for a general purpose language was ``Brook for GPUs'' \cite{Buck04}. The Brook language extended C with ``kernels'' and ``streams'', exposing a programming model similar to what is now found in CUDA and OpenCL.
 
 Microsoft's Accelerator~\cite{Tard06} was the first project to use high level (collection-oriented) language constructs as a basis for GPU execution. Accelerator is a declarative GPU language embedded in C\# which creates a directed acyclic graph of LINQ operations -- such as filtering, grouping, and joining -- and compiles them to (pre-CUDA) shader programs. Accelerator's programming model does not support function abstractions (only expression trees) and its only underlying parallelism construct is limited to the production of $\MAP$-like kernels.
