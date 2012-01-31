@@ -3,9 +3,37 @@
 
 \documentclass[10pt,twocolumn]{article}
 
-\usepackage{graphicx,listings,fixltx2e,lambda,array,times,fullpage,color}
-\definecolor{gray}{rgb}{0.9,0.9,0.9}
-\lstset{backgroundcolor=\color{gray}}
+\usepackage{graphicx,listings,fixltx2e,lambda,array,times,fullpage}
+\usepackage[usenames,dvipsnames]{xcolor}
+\usepackage{color}
+
+\definecolor{lightgray}{rgb}{0.92,0.92,0.92}
+
+\lstset{ 
+  language=Python,                % the language of the code
+  basicstyle=\footnotesize\ttfamily, % Standardschrift
+  numbers=left,                   % where to put the line-numbers
+  numberstyle=\footnotesize,          % the size of the fonts that are used for the line-numbers
+  stepnumber=1,                   % the step between two line-numbers. If it's 1, each line 
+                                  % will be numbered
+  numbersep=5pt,                  % how far the line-numbers are from the code
+  backgroundcolor=\color{white},      % choose the background color. You must add \usepackage{color}
+  showspaces=false,               % show spaces adding particular underscores
+  showstringspaces=false,         % underline spaces within strings
+  showtabs=false,                 % show tabs within strings adding particular underscores
+  frame=single,                   % adds a frame around the code
+  tabsize=2,                      % sets default tabsize to 2 spaces
+  captionpos=b,                   % sets the caption-position to bottom
+  breaklines=true,                % sets automatic line breaking
+  breakatwhitespace=false,        % sets if automatic breaks should only happen at whitespace
+  title=\lstname,                   % show the filename of files included with \lstinputlisting;
+                                  % also try caption instead of title
+  numberstyle=\tiny\color{gray},        % line number style
+  keywordstyle=\color{blue},          % keyword style
+  commentstyle=\color{dkgreen},       % comment style
+  backgroundcolor=\color{lightgray}
+}
+
 
 \begin{document}
 
@@ -19,20 +47,10 @@ Dennis Shasha \\
 \date{}
 
 % define some useful commands to use in language specification 
-\newcommand{\WITH}{\impfnt{with}}
-\newcommand{\VALUES}{\impfnt{values}}
 \newcommand{\MAP}{\impfnt{map}}
 \newcommand{\REDUCE}{\impfnt{reduce}}
-\newcommand{\ALLPAIRS}{\impfnt{allpairs}}
-\newcommand{\CAST}{\impfnt{cast}}
-\newcommand{\APPLY}{\impfnt{apply}}
-\newcommand{\INDEX}{\impfnt{index}}
 \newcommand{\SCAN}{\impfnt{scan}}
-\newcommand{\THREADIDX}{\impfnt{threadIdx}}
-\newcommand{\BLOCKIDX}{\impfnt{blockIdx}}
-\newcommand{\BLOCKDIM}{\impfnt{blockDim}}
-\newcommand{\GRIDDIM}{\impfnt{gridDim}}
-\newcommand{\VEC}{\impfnt{vec}}
+\newcommand{\ALLPAIRS}{\impfnt{allpairs}}
 \newcommand{\concat}{\ensuremath{+\!\!\!\!+\,}}
 
 \setlength\fboxsep{8pt}
@@ -75,12 +93,11 @@ Parakeet is not meant as a general-purpose accelerator for all Python programs. 
 %\item No I/O is allowed.
  \item For a given set of inputs to the function, Parkaeet must be able to infer a unique type for every variable in the function's body (i.e.~code such as that in Listing \ref{unique-types} is not allowed):
 \end{itemize}
-\begin{lstlisting}[numbers=none,label=unique-types,caption=Unique Types Example,language=Python,frame=single]
+
+\begin{lstlisting}[numbers=none,label=unique-types,caption=Type Inference Failure,language=Python,frame=single]
   def fun(x):
-    if x:
-      return 42
-    else:
-      return "sausage"
+    y = 42 if x else "sausage"
+    return y
 \end{lstlisting}
 
 While these constraints may at first seem highly restrictive, it is important to keep two things in mind.  First, they are only constraints on the functions that he or she explicitly marks for Parakeet acceleration.  Such functions can coexist in a module with code that doesn't satisfy these constraints, and that code will be executed as normal by the Python interpreter.  Second, these constraints still allow for idiomatic data-parallel programming using NumPy.  In practice, most code requires little or no modifications.
@@ -138,9 +155,7 @@ Some of these restrictions (such as recursion, use of compound data types) limit
 
 \subsection{Lambda Lifting and SSA Conversion}
 After a function call has been intercepted by the Parakeet runtime, Parakeet performs a syntax-directed translation from a language-specific abstract syntax tree (AST) into Parakeet's IL. Since type information is not yet available to specialize user functions, the functions must be translated into an untyped
-form (by setting all type assignments to $\bot$). The translation into Parakeet's IL maintains a closure environment and a name environment so that simultaneous lambda lifting and SSA conversion can be performed.
-
-Since we would like to interpret our intermediate language we use a gated SSA form based on the GSA sub-language of the Program Dependence Web \cite{Ott90}. Classical SSA cannot be directly executed since the $\phi$-nodes lack deterministic semantics. Gated SSA overcomes this limitation by using "gates" which not only merge data flow but also associate predicates with each data flow branch. Aside from simplifying certain optimizations, these gates also enable us to execute our code without converting out of SSA.  For the sake of clarity, we elide SSA gates from the specifications of our untyped and typed intermediate languages. 
+form. 
 
 Figure \ref{UntypedSSADist} shows the \texttt{dist} function after it has been translated to Untyped SSA.
 
@@ -179,33 +194,6 @@ In our distance example, untyped optimizations will both remove a redundant subt
 \subsection{Specialization}
 Specialization transform user programs from the untyped intermediate language into its typed variety. The purpose of this transformation is to eliminate polymorphism, to make manifest all implicit behavior (such as coercion and scalar promotion), and to assign simple unboxed types to all data used within a function body. Beyond the fact that the GPU requires its programs to be statically typed, these goals are also essential for the efficient execution of user code on the GPU. Thus, the specializer generates a different specialized version of a function for each distinct call string, with all of the function's variables receiving the appropriate types.
 
-\begin{figure}[h!]
-  \begin{tabular}{| m{0.01cm}m{1.3cm}m{0.1cm}m{0.2cm}p{5.0cm} |}
-  \hline
-    & & & &\\
-   \multicolumn{5}{|l|}{\textbf{Typed First-Order IL}}  \\[4pt]
-  & program & $p$ &  $\bnfdef$   &  $d_1 \cdots d_n $ \\[4pt]
-  & definition & $d$ & $\bnfdef$ & $f_i(x^m : \tau^m) \rightarrow (y^n : \tau^n) = \overline{s} $ \\[4pt]
-  & statement  & $s$ & $\bnfdef$ & $x^m : \tau^m = e $\\[2pt]
-  &            &     & $\sep$    & $\mathrm{if} ~v~ \mathrm{then} ~\overline{s}~ \mathrm{else} ~ \overline{s}$ \\[2pt]
-  &            &     & $\sep$    & $\mathrm{while} ~ \overline{s}, x_{cond} ~ \mathrm{do} ~ \overline{s} ~  $ \\[4pt]
-  & expression & $e$ & $\bnfdef$ & $\mathrm{values}(\overline{v})$ \\[2pt]
-  &            &     & $\sep$    & $\mathrm{cast} (v, \tau_{src}, \tau_{dest})$ \\[2pt]
-  &            &     & $\sep$    & $\mathrm{prim}_{\left\langle \oplus \right\rangle }(\overline{v})$ \\[2pt]
-  &            &     & $\sep$    & $\mathrm{call}_{\left\langle f  \right\rangle } (\overline{v})$ \\[2pt] 
-  
-  &            &     & $\sep$    & $\MAP _{\left\langle c \right\rangle}(\overline{v})$ \\[2pt]
-  &            &     & $\sep$    & $\REDUCE _{ \left\langle c_i, c_r \right\rangle } (\overline{v_i}, \overline{v})$ \\[2pt]
-  &            &     & $\sep$    & $\SCAN _{ \left\langle c_i, c_r, \right\rangle} (\overline{v_i}, \overline{v})$ \\[5pt]
-  & value      & $v$ & $\bnfdef$ & numeric constant \\[2pt]
-  &            &     & $\sep$    &  $x$  \quad \small{(data variable)} \\[2pt]
-  & closure    & $c$ & $\bnfdef$ & $f \times \overline{v}$ \\[4pt]
-  & type & $\tau$    & $\bnfdef$ & $bool \sep int \sep float \sep \mathbf{vec} \; \tau   $\\[5pt]
-  \hline
-  \end{tabular}\\[4pt]
-  \caption{Typed First-Order Language}
-  \label{TIL}
-\end{figure} 
 
 A specification of our intermediate language is shown in Figure \ref{TIL}. We take inspiration from \cite{Bol09} and allow functions to both accept and return multiple values. This feature simplifies the specification of certain optimizations and naturally models the simultaneous creation of multiple values on the GPU. By convention we will write $\overline{\tau_m}$ to denote a sequence of $m$ simple types, $\overline{v_n}$ for a sequence  of $n$ values, etc. A single element is equivalent to a sequence of length 1 and sequences may be concatenated via juxtaposition, such that $\tau, \overline{\tau_n} = \overline{\tau_{m+1}}$.
 
@@ -218,29 +206,10 @@ In order for higher-order functions to be translated into the Parakeet IL, it mu
 execution. This highlights an important point: since Parakeet augments (but does not replace) the interpreter of the source language, we are free to disallow problematic language constructs.
 
 
-
-To continue the example, if the \textit{dist} function is called with arguments of type $vec~ float$ the specializer will then generate the code shown in Figure \ref{SpecDist}.
-\begin{figure}[h!]
-\fbox{
-  \begin{tabular}{m{0.1cm} m{6.7cm}}
-    \multicolumn{2}{l}{dist $($ x $ : vec \; float $, y : $ vec \; float $) $
-\rightarrow  ($ z $ : float ) =$}  \\
-    & t$_1   = \MAP ( -_{\mathrm{float}}, \mathrm{x}, \mathrm{y})$   \\
-    & t$_2   = \MAP (*_{\mathrm{float}}, \mathrm{x}, \mathrm{y})$    \\
-    & t$_3 = \REDUCE (+_{\mathrm{float}}, 0, \mathrm{t}_2)$          \\
-    & z $  = \; \mathrm{sqrt}(\mathrm{t}_3)$                         \\
-  \end{tabular}
-}
-\caption{Distance Function After Specialization}
-\label{SpecDist}
-\end{figure}
-
-The actual intermediate language associates type annotations with every binding, which we elide here for clarity. Note that the polymorphism inherent in math operations between dynamically typed values has been removed through the use of statically typed math operators, and implicit \textbf{map}s on vectors (such as the subtraction between $x$ and $y$) have been expanded and made explicit.
-
 \subsection{Array Operator Fusion}
 In addition to standard compiler optimizations (such as constant folding, function inlining, and common sub-expression elimination), we employ fusion rules~\cite{Jones01} to combine array operators. Fusion enables us to minimize kernel launches, boost the computational density of generated kernels, and avoid the generation of unnecessary array temporaries.
 
-We present the fusion rules used by Parakeet in simplified form, such that array operators only consume and produce a single value. Our rewrite engine actually generalizes these rules to accept functions of arbitrary input and output arities.
+We present the fusion rules used by Parakeet in simplified form, such that array operators only consume and produce a single value. Our rewrite engine generalizes these rules to accept functions of arbitrary input and output arities.
 \\[5pt]
 \begin{tabular}{|m{0.001cm} m{0.05cm} p{6.75cm} p{0.05cm} |}
   \hline 
@@ -253,6 +222,7 @@ We present the fusion rules used by Parakeet in simplified form, such that array
   & & & \\
   \hline
 \end{tabular}\\[4pt]
+
 These transformations are safe if the following conditions hold:
 \begin{enumerate}
 \item All the functions involved are referentially transparent.
@@ -262,28 +232,10 @@ These transformations are safe if the following conditions hold:
 
 \item The outputs of the predecessor are used \textit{only} by the successor.
 \end{enumerate}
+
 The last two conditions restrict our optimizer from rewriting anything but linear chains of produced/consumed temporaries. A large body of previous work~\cite{Ald01} has demonstrated both the existence of richer fusion rules and cost-directed strategies for applying those rules in more general scenarios. Still, despite the simplicity of our approach, we have observed that many wasteful temporaries in idiomatic array code are removed by using only the above rules.
 
-In Figure \ref{DistFuse}, we see the resulting optimized and specialized \texttt{dist} function. The two \textbf{map}s have been fused into the \textbf{reduce} operator, with a new function $f_1$ generated to perform the computation of all three original higher-order operators.
 
-\begin{figure}[h!]
-
-\fbox{
-  \begin{tabular}{m{0.1cm} m{6.7cm} }
-    \multicolumn{2}{l}{$\mathrm{f}_1 ($ acc : $ float $,  x $ : float $, y : $ float $) $ \rightarrow  ($ z $ :  float ) =$} \\
-    & t$_1 = x - y $            \\
-    & t$_2  = t_1 * t_1 $       \\
-    & z $ = $ acc $+$ t$_2$     \\
-    &  \\ 
-  \multicolumn{2}{l}{$\mathrm{dist} ($~x $ : vec \; float $, y : $ vec \; float
-$) $ \rightarrow  ($ z $ : float ) =$} \\
-  & t$_3 = \REDUCE (\mathrm{f}_1, 0.0, \mathrm{x}, \mathrm{y})$   \\
-  & z $ = \mathrm{sqrt}(\mathrm{t}_3)$  \\
-  \end{tabular}
-}
-\caption{Distance Function After Fusion Optimization}
-\label{DistFuse}
-\end{figure}
 
 \section{The Parakeet Runtime}
 \label{runtime}

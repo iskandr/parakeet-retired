@@ -7,7 +7,7 @@ open SSA
 let init() =
   let gcParams = Gc.get() in
   Gc.set { gcParams with
-    Gc.minor_heap_size = 32768;
+    Gc.minor_heap_size = 10;
     space_overhead = 90;
   }
   (*HardwareInfo.hw_init ();*)
