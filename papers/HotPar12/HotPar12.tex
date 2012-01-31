@@ -66,15 +66,6 @@ The Parakeet library intercepts functions that have been marked with a decorator
 
 While Parakeet is a work in progress, our current results clearly demonstrate its promise.  In the near future, Parakeet's CPU support will be extended to make better use of modern multicore processors.  Our vision for Parakeet includes eventual support for splitting computations across CPUs and GPUs simultaneously -- keeping all processors in a system busy at once -- and on-the-fly tuning of resource usage.
 
-\begin{figure*}[t!bh]
-\begin{center}
-\leavevmode
-\includegraphics[scale=0.6, trim=0pt 310pt 140pt 80pt]{ParakeetNumPyOverview.pdf}
-\end{center}
-\caption{Parakeet Pipeline}
-\label{fig:overview}
-\end{figure*}
-
 \section{Overview}
 \label{overview}
 %Might be useful: 
@@ -126,8 +117,17 @@ If an array operator's computation is deemed a good candidate for native hardwar
 
 To execute the native code, Parakeet first copies any of its inputs that aren't already present in the memory of the target hardware to their necessary place.  Parakeet manually manages the memory of the system, for example treating the GPU's memory as a cache of data whose canonical values are the CPU's RAM. The program is then executed, with memory reclaimed via garbage collection.
 
-\section{Translation, Specialization, and Optimization}
-\label{Compilation}
+\begin{figure*}[t!bh]
+\begin{center}
+\leavevmode
+\includegraphics[scale=0.6, trim=0pt 310pt 140pt 80pt]{ParakeetNumPyOverview.pdf}
+\end{center}
+\caption{Parakeet Pipeline}
+\label{fig:overview}
+\end{figure*}
+
+\section{Parakeet Pipeline}
+\label{Pipeline}
 Now we turn to the problem of compiling an array language program into an efficient GPU program. At first glance, there seems to be a significant mismatch between the highly dynamic expressiveness of an array language like Q and the limitations imposed by GPU hardware discussed in Section \ref{GPULimitations}. Indeed, the Parakeet intermediate language must serve as a compromise between two competing tensions. In order to translate array programs into efficient GPU code it is necessary for the compiler to eliminate as much abstraction as possible. On the other hand, we must be careful not to make our program representation overly concrete with regard to evaluation order (which would eliminate opportunities for parallelism provided by the array operators). 
 
 In deference to the above-mentioned GPU hardware restrictions, any program which is compiled to run on the GPU cannot have any of the following:
