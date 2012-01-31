@@ -85,20 +85,6 @@ let compile_const (t:ImpType.t) (n:ParNum.t) =
   | ParNum.Float64 f -> const_float t' f
   | _ -> assert false
 
-let compile_val ?(doLoad=true) (fnInfo:fn_info) (impVal:Imp.value_node) :
-    Llvm.llvalue =
-  match impVal.value with
-  | Imp.Var id ->
-      let ptr = try Hashtbl.find fnInfo.named_values (ID.to_str id) with
-      | Not_found -> failwith "unknown variable name"
-      in
-      if doLoad then
-        let tempName = (ID.to_str id) ^ "_value" in
-        build_load ptr tempName fnInfo.builder
-      else
-        ptr
-  | Imp.Const const -> compile_const impVal.Imp.value_type const
-  | _ -> assert false
 
 let compile_cast (fnInfo:fn_info) original (srcT:ImpType.t) (destT:ImpType.t) =
   if srcT = destT then original
@@ -212,54 +198,62 @@ let compile_math_op (t:Type.elt_t) op (vals:llvalue list) builder =
     failwith $ Printf.sprintf "Unsupported math op %s with %d args"
       (Prim.scalar_op_to_str op) (List.length vals)
 
-let compile_arr_idx (arr:Imp.value_node) (argVals:Llvm.llvalue list)
-                    (imp_elt_t:Type.elt_t) (fnInfo:fn_info) =
+(* convert a list of indices into an address *)
+let rec compute_addr_helper
+          (builder:Llvm.llbuilder)
+          (strides:Llvm.llvalue)
+          (i:int)
+          (addr:Llvm.llvalue) = function
+  | currIdx :: otherIndices ->
+    let idxVal = Llvm.const_int LLVM_Types.int32_t i in
+    let stridePtr =
+      Llvm.build_gep strides [|idxVal|] "gep_strideidx" builder
+    in
+    let strideVal = Llvm.build_load stridePtr "stride" builder in
+    let offset = Llvm.build_mul strideVal currIdx "offset" builder in
+    let offset64 =
+      Llvm.build_sext offset LLVM_Types.int64_t "offset64" builder
+    in
+    let newAddr = Llvm.build_add addr offset64 "add_offset" builder in
+    compute_addr_helper builder strides (i+1) newAddr otherIndices
+  | [] -> addr
+
+let compile_arr_idx
+      (array:Llvm.llvalue)
+      (indices:Llvm.llvalue list)
+      (imp_elt_t:Type.elt_t)
+      (fnInfo:fn_info) =
 	let strideIdx = Llvm.const_int LLVM_Types.int32_t 2 in
-	let arrVal = compile_val ~doLoad:false fnInfo arr in
 	let stridesPtr =
-	  Llvm.build_gep arrVal [|zero_i32;strideIdx|] "gep_stride" fnInfo.builder
+	  Llvm.build_gep array [|zero_i32;strideIdx|] "gep_stride" fnInfo.builder
 	in
 	let strides = Llvm.build_load stridesPtr "strides" fnInfo.builder in
 	let dataIdx = Llvm.const_int LLVM_Types.int32_t 0 in
 	let dataPtr =
-	  Llvm.build_gep arrVal [|zero_i32;dataIdx|] "gep_data" fnInfo.builder
+	  Llvm.build_gep array [|zero_i32;dataIdx|] "gep_data" fnInfo.builder
 	in
 	let addr = Llvm.build_load dataPtr "data" fnInfo.builder in
 	let intaddr =
 	  Llvm.build_ptrtoint addr LLVM_Types.int64_t "intaddr" fnInfo.builder
 	in
-	let rec computeIdxAddr = (fun i curAddr args ->
-	  match args with
-	  | arg :: tail ->
-	    let idxVal = Llvm.const_int LLVM_Types.int32_t i in
-	    let stridePtr =
-	      Llvm.build_gep strides [|idxVal|] "gep_strideidx" fnInfo.builder
-	    in
-	    let strideVal = Llvm.build_load stridePtr "stride" fnInfo.builder in
-	    let offset = Llvm.build_mul strideVal arg "offset" fnInfo.builder in
-	    let offset64 =
-	      Llvm.build_sext offset LLVM_Types.int64_t "offset64" fnInfo.builder
-	    in
-	    let newAddr =
-	      Llvm.build_add curAddr offset64 "add_offset" fnInfo.builder
-	    in
-	    computeIdxAddr (i+1) newAddr tail
-	  | [] -> curAddr
-	) in
-	let idxInt = computeIdxAddr 0 intaddr argVals in
+	let idxInt =
+    compute_addr_helper fnInfo.builder strides 0 intaddr indices
+  in
 	let eltType = ImpType_to_lltype.scalar_to_lltype imp_elt_t in
 	let eltPtrType = Llvm.pointer_type eltType in
 	Llvm.build_inttoptr idxInt eltPtrType "idxAddr" fnInfo.builder
 
-let compile_range_load (arr:Imp.value_node) (argVals:Llvm.llvalue list)
-                       (imp_elt_t:Type.elt_t) (fnInfo:fn_info) =
+let compile_range_load
+      (array:Llvm.llvalue)
+      (indices:Llvm.llvalue list)
+      (imp_elt_t:Type.elt_t)
+      (fnInfo:fn_info) =
 	let startIdx = Llvm.const_int LLVM_Types.int32_t 0 in
-	let arrVal = compile_val ~doLoad:false fnInfo arr in
 	let startPtr =
-	  Llvm.build_gep arrVal [|zero_i32;startIdx|] "gep_start" fnInfo.builder
+	  Llvm.build_gep array [|zero_i32;startIdx|] "gep_start" fnInfo.builder
 	in
 	let start = Llvm.build_load startPtr "start" fnInfo.builder in
-	let idxInt = match argVals with
+	let idxInt = match indices with
 	  | [arg] ->
 	    Llvm.build_add start arg "rangeAdd" fnInfo.builder
 	  | _ -> failwith $ Printf.sprintf
@@ -273,30 +267,47 @@ let compile_range_load (arr:Imp.value_node) (argVals:Llvm.llvalue list)
 	Llvm.build_load idxAddr "ret" fnInfo.builder
 
 (* Change to function? *)
-let compile_exp fnInfo (impexp:Imp.exp_node) =
-  match impexp.exp with
-  | Imp.Val valNode -> compile_val fnInfo valNode
+let rec compile_value ?(do_load=true) fnInfo (impVal:Imp.value_node) =
+  match impVal.value with
+  | Imp.Var id ->
+      begin match Hashtbl.find_option fnInfo.named_values (ID.to_str id) with
+        | None -> failwith "unknown variable name"
+        | Some ptr ->
+          if do_load then
+            let tempName = (ID.to_str id) ^ "_value" in
+            build_load ptr tempName fnInfo.builder
+          else ptr
+      end
+  | Imp.Const const -> compile_const impVal.Imp.value_type const
   | Imp.Op (t, op, vals) ->
-    let vals' =  List.map (compile_val fnInfo) vals in
+    let vals' =  List.map (compile_value fnInfo) vals in
     if Prim.is_comparison op then
       compile_cmp t op vals' fnInfo.builder
     else
       compile_math_op t op vals' fnInfo.builder
   | Imp.Cast(t, v) ->
-    let original = compile_val fnInfo v in
+    let original = compile_value fnInfo v in
     compile_cast fnInfo original v.Imp.value_type t
-  | Imp.Idx(arr, args) ->
-    let argVals = List.map (compile_val fnInfo) args in
+  | Imp.Idx(arr, indices) ->
+    let llvmArray = compile_value ~do_load:false fnInfo arr in
+    let llvmIndices = List.map (compile_value fnInfo) indices in
     begin match arr.value_type with
       | ImpType.RangeT imp_elt_t ->
-        compile_range_load arr argVals imp_elt_t fnInfo
+        compile_range_load llvmArray llvmIndices imp_elt_t fnInfo
       | ImpType.ArrayT (imp_elt_t, imp_int) ->
-        let idxAddr = compile_arr_idx arr argVals imp_elt_t fnInfo in
+        let idxAddr = compile_arr_idx llvmArray llvmIndices imp_elt_t fnInfo in
         Llvm.build_load idxAddr "ret" fnInfo.builder
       end
-	| other ->
-	failwith $ Printf.sprintf "[Imp_to_LLVM] Not implemented %s\n"
-	  (Imp.exp_to_str other)
+	| _ ->
+	  failwith $ Printf.sprintf
+      "[Imp_to_LLVM] Not implemented %s\n"
+	    (Imp.value_node_to_str impVal)
+and compile_values fnInfo = function
+  | [] -> []
+  | vNode::vNodes ->
+    let llvmVal = compile_value fnInfo vNode in
+    llvmVal :: (compile_values fnInfo vNodes)
+
 
 let rec compile_stmt_seq fnInfo currBB = function
   | [] -> currBB
@@ -307,7 +318,7 @@ let rec compile_stmt_seq fnInfo currBB = function
 and compile_stmt fnInfo currBB stmt =
   match stmt with
   | Imp.If (cond, then_, else_) ->
-    let llCond = compile_val fnInfo cond in
+    let llCond = compile_value fnInfo cond in
     let zero = Llvm.const_int (Llvm.type_of llCond) 0 in
     let cond_val =
       Llvm.build_icmp Llvm.Icmp.Ne llCond zero "ifcond" fnInfo.builder
@@ -334,7 +345,7 @@ and compile_stmt fnInfo currBB stmt =
     let cond_bb = Llvm.append_block context "cond" the_function in
     let _ = Llvm.build_br cond_bb fnInfo.builder in
     Llvm.position_at_end cond_bb fnInfo.builder;
-    let llCond = compile_exp fnInfo cond in
+    let llCond = compile_value fnInfo cond in
     let zero = Llvm.const_int (Llvm.type_of llCond) 0 in
     let cond_val =
       Llvm.build_icmp Llvm.Icmp.Ne llCond zero "whilecond" fnInfo.builder
@@ -345,24 +356,26 @@ and compile_stmt fnInfo currBB stmt =
     let _ = Llvm.build_br cond_bb fnInfo.builder in
     Llvm.position_at_end after_bb fnInfo.builder;
     after_bb
-  | Imp.Set (id, exp) ->
-    let rhs = compile_exp fnInfo exp in
-    let variable = try Hashtbl.find fnInfo.named_values (ID.to_str id) with
-    | Not_found -> failwith  ("unknown variable name " ^ (ID.to_str id))
-    in
-    let instr = Llvm.build_store rhs variable fnInfo.builder in
-    print_endline $ "generating store for " ^ (Imp.stmt_to_str stmt);
-    currBB
-  | Imp.SetIdx(arr, args, rhs) ->
-    let argVals = List.map (compile_val fnInfo) args in
+  | Imp.Set (id, rhs) ->
+    let rhs : Llvm.llvalue = compile_value fnInfo rhs in
+    begin match Hashtbl.find_option fnInfo.named_values (ID.to_str id) with
+      | None -> failwith  ("unknown variable name " ^ (ID.to_str id))
+      | Some register ->
+        let instr = Llvm.build_store rhs register fnInfo.builder in
+        print_endline $ "generating store for " ^ (Imp.stmt_to_str stmt);
+        currBB
+    end
+  | Imp.SetIdx(arr, indices, rhs) ->
+    let arrayPtr : Llvm.llvalue = compile_value ~do_load:false fnInfo arr in
+    let indexRegisters : Llvm.llvalue list = compile_values fnInfo indices in
     let imp_elt_t = match arr.value_type with
       | ImpType.ArrayT (imp_elt_t, _) -> imp_elt_t
       | other -> failwith $ Printf.sprintf
         "[Imp_to_LLVM] Unsuported set index for type %s" (ImpType.to_str other)
     in
-    let idxAddr = compile_arr_idx arr argVals imp_elt_t fnInfo in
-    let rhs_val = compile_val fnInfo rhs in
-    Llvm.build_store rhs_val idxAddr fnInfo.builder;
+    let idxAddr = compile_arr_idx arrayPtr indexRegisters imp_elt_t fnInfo in
+    let rhsVal = compile_value fnInfo rhs in
+    Llvm.build_store rhsVal idxAddr fnInfo.builder;
     currBB
   | other ->
     failwith $ Printf.sprintf "[Imp_to_LLVM] Unsupported statement %s"

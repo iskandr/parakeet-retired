@@ -77,7 +77,7 @@ def return_type_init(LibPar):
   LibPar.mk_bool.restype = c_void_p
   LibPar.mk_void.restype = c_void_p
   LibPar.mk_return.restype = c_void_p
-  LibPar.print_ast_node.restype = c_void_p 
+  LibPar.print_ast_node.restype = c_void_p
 
   #get global values for parakeet types
   LibPar.bool_t = c_int.in_dll(LibPar, "parakeet_bool_elt_t").value
@@ -384,6 +384,26 @@ class ASTConverter():
         ret = self.visit(node.value, contextSet)
         ret_args = list_to_ctypes_array([ret], c_void_p)
         return LibPar.mk_return(ret_args,1,None)
+    elif nodeType == 'Assign':
+      leftChildContext = set(contextSet)
+      rightChildContext = set(contextSet)
+      leftChildContext.add('lhs')
+      rightChildContext.add('rhs')
+      if len(node.targets) != 1:
+        #This shouldn't happen
+        assert False
+      if type(node.targets[0]).__name__ == "Tuple":
+        children = ast.iter_child_nodes(node.targets[0])
+        elts = self.build_arg_list(children, leftChildContext)
+        lhs_args = list_to_ctypes_array(elts, c_void_p)
+        num_args = len(elts)
+      else:
+        elt = self.visit(node.targets[0], leftChildContext)
+        lhs_args = list_to_ctypes_array([elt], c_void_p)
+        num_args = 1
+        LibPar.print_ast_node(elt)
+      rhs_arg = self.visit(node.value, rightChildContext)
+      return LibPar.mk_assign(lhs_args, num_args, rhs_arg, None)
 
 
     parakeetNodeChildren = []
@@ -723,10 +743,14 @@ def run_function(func, args):
     inputs[i] = python_value_to_parakeet(args[i])
   # TODO: assume there are no globals now
   ret = LibPar.run_function(func, None, 0, inputs, numArgs)
+  print ret.return_code
   if (ret.return_code == 0):
     # TODO: again, we assume only one return val
     print "RETLEN", ret.results_len
-    return parakeet_value_to_python(ret.results[0])
+    if ret.results_len > 0:
+      return parakeet_value_to_python(ret.results[0])
+    else:
+      return 
   else:
     raise Exception("run_function failed")
   pass

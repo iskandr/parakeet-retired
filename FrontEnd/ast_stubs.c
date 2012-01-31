@@ -362,14 +362,11 @@ static CAMLprim value mk_src_info(source_info_t *src_info) {
   CAMLreturn(ocaml_src_info);
 }
 
-static CAMLprim value get_value_and_remove_root(paranode p) {
-  CAMLparam1(p);
-  CAMLlocal1(val);
-
-  val = (value)p;
-  caml_remove_generational_global_root(&val);
-
-  CAMLreturn(val);
+static CAMLprim value get_value_and_remove_root(paranode node) {
+  CAMLparam1(node);
+  value cast_node = (value) node; 
+  caml_remove_global_root(&cast_node);
+  CAMLreturn(cast_node);
 }
 
 static CAMLprim value mk_val_list(paranode *vals, int num_vals) {
@@ -408,7 +405,7 @@ static paranode mk_node(value exp, source_info_t *src_info) {
 
   // build the node
   node = caml_alloc_tuple(3);
-  caml_register_generational_global_root(&node);
+  caml_register_global_root(&node);
   Store_field(node, 0, exp);
   Store_field(node, 1, ocaml_src_info);
   Store_field(node, 2, ast_info);

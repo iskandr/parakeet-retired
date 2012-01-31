@@ -46,7 +46,10 @@ let print_all_timers () =
   ;
   Pervasives.flush_all()
 
-type ret_val = Success of Ptr.t Value.t list | Pass | Error of string
+type ret_val =
+  | Success of Ptr.t Value.t list
+  | Error of string
+  | Pass
 
 let run_function untypedId ~globals ~args : ret_val =
   Timing.clear Timing.runTemplate;

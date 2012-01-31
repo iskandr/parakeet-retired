@@ -17,7 +17,6 @@ class codegen : object
     ?shape:SymbolicShape.t -> ImpType.t -> value_node
 
   method var : ID.t -> value_node
-  method var_exp : ID.t -> exp_node
   method cast : value_node -> ImpType.t -> value_node * (stmt list)
   method info : block_info
 end
