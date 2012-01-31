@@ -3,7 +3,7 @@
  *
  *  Functions for front ends to create Parakeet ASTs.
  *
- * (c) Eric Hielscher and Alex Rubinsteyn, 2009-2011.
+ * (c) Eric Hielscher and Alex Rubinsteyn, 2009-2012.
  */
 
 #include <caml/alloc.h>
@@ -38,9 +38,9 @@ void ast_init(void) {
 
   ast_inited = 1;
 
-  ocaml_mk_ast_info = caml_named_value("mk_ast_info");
+  ocaml_mk_ast_info    = caml_named_value("mk_ast_info");
   ocaml_print_ast_node = caml_named_value("print_ast_node"); 
-  ocaml_get_prim = caml_named_value("get_prim");
+  ocaml_get_prim       = caml_named_value("get_prim");
 }
 
 paranode mk_lam(char **args, int num_args, paranode body,
@@ -119,15 +119,11 @@ paranode mk_impure_op(impure_op_t op, source_info_t *src_info) {
   return mk_prim(Prim_ImpureOp, op, src_info);
 }
 
-paranode mk_q_op(q_op_t op, source_info_t *src_info) {
-  return mk_prim(Prim_Q_Op, op, src_info);
-}
-
 paranode mk_bool_paranode(int b, source_info_t *src_info) {
    CAMLparam0();
    CAMLlocal1(val);
 
-   val = caml_alloc(1, PQNUM_BOOL);
+   val = caml_alloc(1, PARNUM_BOOL);
    Store_field(val, 0, Val_int(b));
    CAMLreturnT(paranode, mk_num(val, src_info));
 }
@@ -136,7 +132,7 @@ paranode mk_int32_paranode(int32_t i, source_info_t *src_info) {
   CAMLparam0();
   CAMLlocal1(val);
 
-  val = caml_alloc(1, PQNUM_INT32);
+  val = caml_alloc(1, PARNUM_INT32);
   Store_field(val, 0, caml_copy_int32(i));
   CAMLreturnT(paranode, mk_num(val, src_info));
 }
@@ -145,7 +141,7 @@ paranode mk_int64_paranode(int64_t l, source_info_t *src_info) {
   CAMLparam0();
   CAMLlocal1(val);
 
-  val = caml_alloc(1, PQNUM_INT64);
+  val = caml_alloc(1, PARNUM_INT64);
   Store_field(val, 0, caml_copy_int64(l));
 
   CAMLreturnT(paranode, mk_num(val, src_info));
@@ -155,7 +151,7 @@ paranode mk_float_paranode(float f, source_info_t *src_info) {
   CAMLparam0();
   CAMLlocal1(val);
 
-  val = caml_alloc(1, PQNUM_FLOAT32);
+  val = caml_alloc(1, PARNUM_FLOAT32);
   Store_field(val, 0, caml_copy_double((double)f));
   CAMLreturnT(paranode, mk_num(val, src_info));
 }
@@ -164,7 +160,7 @@ paranode mk_double_paranode(double d, source_info_t *src_info) {
   CAMLparam0();
   CAMLlocal1(val);
 
-  val = caml_alloc(1, PQNUM_FLOAT64);
+  val = caml_alloc(1, PARNUM_FLOAT64);
   Store_field(val, 0, caml_copy_double(d));
   CAMLreturnT(paranode, mk_num(val, src_info));
 }
@@ -183,20 +179,6 @@ paranode mk_str(char *str, source_info_t *src_info) {
   CAMLreturnT(paranode, mk_node(exp_str, src_info));
 }
 
-paranode mk_sym(char *sym, source_info_t *src_info) {
-  CAMLparam0();
-  CAMLlocal2(ocaml_sym, exp_sym);
-
-  int len = strlen(sym);
-  ocaml_sym = caml_alloc_string(len);
-  memcpy(String_val(ocaml_sym), sym, len);
-
-  exp_sym = caml_alloc(1, Exp_Sym);
-  Store_field(exp_sym, 0, ocaml_sym);
-
-  CAMLreturnT(paranode, mk_node(exp_sym, src_info));
-}
-
 paranode mk_app(paranode fun, paranode *args, int num_args,
                 source_info_t *src_info) {
   CAMLparam1(fun);
@@ -212,12 +194,12 @@ paranode mk_app(paranode fun, paranode *args, int num_args,
 
 paranode mk_return(paranode* args, int num_args, source_info_t *src_info) { 
   CAMLparam0();
-  CAMLlocal1(ret); 
+  CAMLlocal1(ret);
+
   ret = caml_alloc(1, Exp_Return);
   Store_field(ret, 0, mk_val_list(args, num_args));
   CAMLreturnT(paranode, mk_node(ret, src_info));
 }
-
 
 paranode mk_array(paranode *elts, int num_elts, source_info_t *src_info) {
   CAMLparam0();
@@ -303,6 +285,29 @@ paranode mk_void(source_info_t *src_info) {
   CAMLlocal1(v);
   v = Val_int(Exp_Void);
   CAMLreturnT(paranode, mk_node(v, src_info));
+}
+
+paranode get_prim(char* prim_name) {
+  CAMLparam0();
+  CAMLlocal2(ocaml_str, prim);
+
+  // copy over the string
+  int len = strlen(prim_name);
+  ocaml_str = caml_alloc_string(len);
+  memcpy(String_val(ocaml_str), prim_name, len);
+
+  // build the var expression
+  prim = caml_callback(*ocaml_get_prim, ocaml_str);
+  caml_register_generational_global_root(&prim);
+
+  // build the node and return
+  CAMLreturnT(paranode, prim);
+}
+
+void print_ast_node(paranode n) { 
+  CAMLparam1(n); 
+  caml_callback(*ocaml_print_ast_node, n);
+  CAMLreturn0; 
 }
 
 /** Private functions **/
@@ -409,26 +414,4 @@ static paranode mk_node(value exp, source_info_t *src_info) {
   Store_field(node, 2, ast_info);
 
   CAMLreturnT(paranode, (paranode)node);
-}
-
-paranode get_prim(char* prim_name) {
-  CAMLparam0();
-  CAMLlocal2(ocaml_str, prim);
-
-  // copy over the string
-  int len = strlen(prim_name);
-  ocaml_str = caml_alloc_string(len);
-  memcpy(String_val(ocaml_str), prim_name, len);
-
-  // build the var expression
-  prim = caml_callback(*ocaml_get_prim, ocaml_str);
-
-  // build the node and return
-  CAMLreturnT(paranode, prim);
-}
-
-void print_ast_node(paranode n) { 
-  CAMLparam1(n); 
-  caml_callback(*ocaml_print_ast_node, n);
-  CAMLreturn0; 
 }

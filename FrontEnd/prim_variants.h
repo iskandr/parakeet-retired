@@ -81,20 +81,11 @@ typedef enum impure_op {
   Impure_Op_Print
 } impure_op_t;
 
-typedef enum q_op {
-  Q_Op_Q_WriteOrLoadText = 0,
-  Q_Op_Q_WriteOrLoadBinary,
-  Q_Op_Q_Question,
-  Q_Op_Q_Dollar
-} q_op_t;
-
 typedef enum prim {
   Prim_ScalarOp = 0,
   Prim_ArrayOp,
   Prim_Adverb,
-  Prim_ImpureOp,
-  Prim_Q_Op
+  Prim_ImpureOp
 } prim_t;
 
 #endif
-

@@ -8,7 +8,6 @@ open SSA_Helpers
 
 (* environment mapping strings to SSA IDs or global function IDs *)
 module Env = struct
-
   (* Assume all functions have been moved to global scope via lambda lifting.
      For now don't support data at global scope.
      Also, the global scope is described by an abstract function
@@ -96,7 +95,6 @@ let rec translate_exp
   | AST.Prim p -> value (Prim p)
   | AST.Num n -> value (Num n)
   | AST.Str s -> value (Str s)
-  | AST.Sym s -> value (Sym s)
   | AST.Void -> value Unit
   | AST.App (fn, args) ->
     let ssaFn : SSA.value_node = translate_value env codegen fn in
@@ -124,7 +122,6 @@ and translate_value env codegen node : SSA.value_node =
   | AST.Prim p -> mk_val (Prim p)
   | AST.Num n -> mk_val (Num n)
   | AST.Str s -> mk_val (Str s)
-  | AST.Sym s -> mk_val (Sym s)
   (* anything not an immediate value must be evaluated in its own statement
      and then named
   *)
@@ -313,12 +310,10 @@ and translate_loop_body envBefore codegen retIds  body : phi_nodes * Env.t =
 
 and translate_block env codegen retIds = function
   | [] -> env
-  | [lastNode] -> translate_stmt env codegen retIds  lastNode
+  | [lastNode] -> translate_stmt env codegen retIds lastNode
   | node::nodes ->
-      let nodeEnv = translate_stmt env codegen retIds node in
-      translate_block nodeEnv codegen retIds nodes
-
-
+    let nodeEnv = translate_stmt env codegen retIds node in
+    translate_block nodeEnv codegen retIds nodes
 
 (* given the arg names and AST body of function, generate its SSA fundef *)
 and translate_fn parentEnv (argNames:string list) (body:AST.node) : SSA.fn =
@@ -338,4 +333,3 @@ and translate_fn parentEnv (argNames:string list) (body:AST.node) : SSA.fn =
   (* make an empty type env since this function hasn't been typed yet *)
   let body = codegen#finalize in
   SSA_Helpers.mk_fn ?tenv:None ~body ~input_ids:argIds ~output_ids:retIds
-

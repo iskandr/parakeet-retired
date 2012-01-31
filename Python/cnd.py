@@ -15,14 +15,14 @@ def CND(X):
   a3 = 1.781477937
   a4 = -1.821255978
   a5 = 1.330274429
-  L = para_libs.abs(X)
+  #L = para_libs.abs(X)
+  L = 2.0
   K = 1.0 / (1.0 + 0.2316419 * L)
-  w = K
   #w = 1.0 - 1.0/math.sqrt(2*3.141592653589793)*math.exp(-1*L*L/2.) * (a1*K +
   #    a2*K*K + a3*math.pow(K,3) + a4*math.pow(K,4) + a5*math.pow(K,5))
   #if X<0:
-  #    w = 1.0-w
-  return w
+  #  w = 1.0-w
+  return K
 
 def cpuCND(X):
   a1 = 0.31938153

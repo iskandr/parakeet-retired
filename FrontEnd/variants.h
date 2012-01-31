@@ -48,16 +48,16 @@ typedef enum dyn_type_with_data {
   FnT
 } dyn_type_with_data_t;
 
-enum pqnum_tag {
-  PQNUM_BOOL = 0,
-  PQNUM_CHAR,
-  PQNUM_INT16,
-  PQNUM_INT32,
-  PQNUM_INT64,
-  PQNUM_FLOAT32,
-  PQNUM_FLOAT64,
-  PQNUM_INF,
-  PQNUM_NEGINF
+enum parnum_tag {
+  PARNUM_BOOL = 0,
+  PARNUM_CHAR,
+  PARNUM_INT16,
+  PARNUM_INT32,
+  PARNUM_INT64,
+  PARNUM_FLOAT32,
+  PARNUM_FLOAT64,
+  PARNUM_INF,
+  PARNUM_NEGINF
 };
 
 enum host_val_tag {
@@ -86,14 +86,14 @@ enum gpu_array_layout {
     GpuArray_VEC_T
 };
 
-enum pqnum_gpu_arg_tag {
-  PQNUM_GPU_SCALAR_ARG = 0,
-  PQNUM_GPU_ARRAY_ARG
+enum parnum_gpu_arg_tag {
+  PARNUM_GPU_SCALAR_ARG = 0,
+  PARNUM_GPU_ARRAY_ARG
 };
 
-enum pqnum_gpu_array_arg_layout {
-  PQNUM_GPU_ARRAY_ARG_PTR = 0,
-  PQNUM_GPU_ARRAY_ARG_NBYTES
+enum parnum_gpu_array_arg_layout {
+  PARNUM_GPU_ARRAY_ARG_PTR = 0,
+  PARNUM_GPU_ARRAY_ARG_NBYTES
 };
 
 #endif

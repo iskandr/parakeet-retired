@@ -4,7 +4,7 @@
  *  Enumerations that represent the numerical values of the OCaml Variant types
  *  we use in the C interface for the AST.ml types.
  *
- * (c) Eric Hielscher and Alex Rubinsteyn, 2009-2011.
+ * (c) Eric Hielscher and Alex Rubinsteyn, 2009-2012.
  */
 
 #ifndef AST_VARIANTS_H_
@@ -19,7 +19,6 @@ enum ast_exp_data {
   Exp_Prim,
   Exp_Num,
   Exp_Str,
-  Exp_Sym,
   Exp_App,
   Exp_Arr,
   Exp_If,
@@ -31,4 +30,3 @@ enum ast_exp_data {
 };
 
 #endif
-
