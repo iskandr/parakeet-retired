@@ -192,64 +192,38 @@ host_val mk_host_array(char *data, elt_type t, int *shape, int shape_len,
 }
 
 void free_host_val(host_val val) {
-  CAMLparam0();
-  CAMLlocal1(ocaml_host_val);
-
-  ocaml_host_val = (value)val;
-  caml_remove_generational_global_root(&ocaml_host_val);
-
+  CAMLparam1(val);
+  value cast_val = (value) val; 
+  caml_remove_generational_global_root(&cast_val);
   CAMLreturn0;
 }
 /** Scalar Accessors **/
 
 int get_bool(host_val val) {
-  CAMLparam0();
+  CAMLparam1(val);
   CAMLreturnT(int, Int_val(caml_callback(*value_callback_to_bool, val)));
 }
 
-/*
- * TODO: Still don't know exactly what to do about chars.
-char get_char(host_val val);
-  CAMLparam0();
-  CAMLlocal1(ocaml_host_val);
-
-  ocaml_host_val = (value)val;
-
-  CAMLreturnT();
-}
-*/
-
 int32_t get_int32(host_val val) {
-  CAMLparam0();
+  CAMLparam1(val);
   CAMLreturnT(int32_t, Int32_val(caml_callback(*value_callback_to_int32, val)));
 }
 
-int64_t  get_int64(host_val val) {
-  CAMLparam0();
+int64_t get_int64(host_val val) {
+  CAMLparam1(val);
   CAMLreturnT(int64_t, Int64_val(caml_callback(*value_callback_to_int64, val)));
 }
 
-/*
- * TODO: Why don't we support this yet?
-float get_float32(host_val val) {
-  CAMLparam0();
-  CAMLlocal1(ocaml_host_val);
-
-  ocaml_host_val = (value)val;
-
-  CAMLreturnT(float, (float)Double_val(Field(Field(ocaml_host_val, 0), 0)));
-}
-*/
 
 double get_float64(host_val val) {
-  CAMLparam0();
+  CAMLparam1(val);
   CAMLreturnT(double,
               Double_val(caml_callback(*value_callback_to_float64, val)));
 }
 
 /** Non-Scalar Accessors **/
 void* get_array_data(host_val array) {
-  CAMLparam0();
+  CAMLparam1(array);
   CAMLlocal1(ocaml_data);
   
   ocaml_data = Field(caml_callback(*value_callback_extract, array), 0);
