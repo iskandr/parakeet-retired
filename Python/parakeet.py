@@ -77,7 +77,7 @@ def return_type_init(LibPar):
   LibPar.mk_bool.restype = c_void_p
   LibPar.mk_void.restype = c_void_p
   LibPar.mk_return.restype = c_void_p
-  LibPar.print_ast_node.restype = c_void_p 
+  LibPar.print_ast_node.restype = c_void_p
 
   #get global values for parakeet types
   LibPar.bool_t = c_int.in_dll(LibPar, "parakeet_bool_elt_t").value
@@ -384,6 +384,29 @@ class ASTConverter():
         ret = self.visit(node.value, contextSet)
         ret_args = list_to_ctypes_array([ret], c_void_p)
         return LibPar.mk_return(ret_args,1,None)
+    elif nodeType == 'Assign':
+      leftChildContext = set(contextSet)
+      rightChildContext = set(contextSet)
+      leftChildContext.add('lhs')
+      rightChildContext.add('rhs')
+      if len(node.targets) != 1:
+        #This shouldn't happen
+        assert False
+      if type(node.targets[0]).__name__ == "Tuple":
+        children = ast.iter_child_nodes(node.targets[0])
+        elts = self.build_arg_list(children, leftChildContext)
+        lhs_args = list_to_ctypes_array(elts, c_void_p)
+        num_args = len(elts)
+      else:
+        elt = self.visit(node.targets[0], leftChildContext)
+        lhs_args = list_to_ctypes_array([elt], c_void_p)
+        num_args = 1
+        LibPar.print_ast_node(elt)
+      rhs_arg = self.visit(node.value, rightChildContext)
+      LibPar.print_ast_node(rhs_arg)
+      z = LibPar.mk_assign(lhs_args, num_args, rhs_arg, None)
+      LibPar.print_ast_node(z)
+      return z
 
 
     parakeetNodeChildren = []
