@@ -5,21 +5,30 @@ open Printf
 
 let rec replace_value (env:Imp.value_node ID.Map.t) (valNode:Imp.value_node) =
   let value' = match valNode.value with
-  | Var id when ID.Map.mem id env ->
-    let replaceNode = ID.Map.find id env in
-    assert (replaceNode.value_type = valNode.value_type);
-    replaceNode.value
+  | Var id ->
+    if ID.Map.mem id env then
+      let replaceNode = ID.Map.find id env in
+      assert (replaceNode.value_type = valNode.value_type);
+      replaceNode.value
+    else Var id
   | Idx (arr, indices) ->
-    Idx (replace_value env arr, replace_values env indices)
+    let arr = replace_value env arr in
+    let indices = replace_values env indices in
+    begin match arr with
+      | {value=Var id} when ID.Map.mem id env ->
+        (match ID.Map.find id env with
+          | {value=Var id'} -> Var id'
+          | {value=Idx(arr', indices')} -> Idx(arr', indices' @ indices)
+          | _ -> failwith "Unexpected new LHS replacement"
+        )
+      | {value} -> value
+    end
   | Op (op, argT, vs) -> Op (op, argT, replace_values env vs)
   | Select (t, x, y, z) ->
     Select(t, replace_value env x, replace_value env y, replace_value env z)
   | Cast (t1, v) -> Cast (t1, replace_value env v)
   | DimSize (n, e) -> DimSize (n, replace_value env e)
-  | _ ->
-    failwith $ Printf.sprintf
-      "Unsupport value: %s"
-      (Imp.value_node_to_str valNode)
+  | other -> other
   in {valNode with value = value'}
 
 and replace_values
@@ -41,6 +50,7 @@ let rec replace_stmt (env:Imp.value_node ID.Map.t) = function
     begin match ID.Map.find_option id env with
       | None -> Set(id, rhs)
       | Some {value=Imp.Var id} -> Set(id, rhs)
+      | Some {value=Imp.Idx(array, indices)} -> SetIdx(array, indices, rhs)
       | Some other -> failwith $ Printf.sprintf
         "Unexpected lhs replacement %s -> %s"
         (ID.to_str id)
@@ -53,6 +63,8 @@ let rec replace_stmt (env:Imp.value_node ID.Map.t) = function
       | None -> SetIdx(lhs, indices, rhs)
       | Some ({value=Var id} as newLhs) ->
         SetIdx(newLhs, indices, rhs)
+      | Some {value=Idx(lhs', indices')} ->
+        SetIdx(lhs', indices' @ indices, rhs)
     end
   | other  ->
     failwith $ Printf.sprintf
@@ -63,23 +75,4 @@ and replace_block (env:Imp.value_node ID.Map.t) = function
   | stmt::rest ->
     let stmt = replace_stmt env stmt in
     stmt :: (replace_block env rest)
-(*
-let fresh_fn fn =
-  let inputIds' = ID.map_fresh fn.input_ids in
-  let outputIds' = ID.map_fresh fn.output_ids in
-  let localIds' = ID.map_fresh fn.local_ids in
-  let oldIds = fn.input_ids @ fn.local_ids @ fn.output_ids in
-  let newIds = inputIds' @ localIds' @ outputIds' in
-  let idEnv = ID.Map.extend idEnv oldIds newIds in
-  let body' = apply_id_map_to_stmts idEnv fn.body in
-  let apply_env oldId = ID.Map.find oldId idEnv in
-  { input_ids = inputIds';
-    output_ids = outputIds';
-    local_ids = localIds';
-    body = body';
-    types = ID.Map.map apply_env fn.types;
-    shapes = ID.Map.map apply_env fn.shapes;
-    storage = ID.Map.map apply_env fn.storage;
-  }
 
-*)

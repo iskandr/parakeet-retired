@@ -349,8 +349,20 @@ and translate_map
       List.map (fun arg -> ImpHelpers.idx arg indices) args
     in
     let nestedArgs : Imp.value_node list = closureArgs @ nestedArrayArgs in
-    let body = [] in
-    initBlock @ build_loop_nests codegen loopDescriptors body
+    let mk_output id =
+      let shape = ID.Map.find id impFn.shapes in
+      let storage = ID.Map.find id impFn.storage in
+      let ty = ID.Map.find id impFn.types in
+      codegen#fresh_local ~storage ~shape ty
+    in
+    let nestedOutputs : Imp.value_node list =
+      List.map mk_output impFn.output_ids
+    in
+    let replaceIds = impFn.input_ids @ impFn.output_ids in
+    let replaceValues = nestedArgs @ nestedOutputs in
+    let replaceEnv = ID.Map.of_lists replaceIds replaceValues in
+    let fnBody = ImpReplace.replace_block replaceEnv impFn.body in
+    initBlock @ build_loop_nests codegen loopDescriptors fnBody
   end
 
 and translate_reduce
