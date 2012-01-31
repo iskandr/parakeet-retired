@@ -22,6 +22,7 @@ let array_field_to_idx = function
   | FrozenIdx -> 2
 
 let zero_i32 = Llvm.const_int LLVM_Types.int32_t 0
+let zero_i64 = Llvm.const_int LLVM_Types.int64_t 0
 
 let context = Llvm.global_context ()
 let global_module = Llvm.create_module context "parakeet_module"
@@ -45,6 +46,13 @@ type fn_info = {
   named_values : (string, Llvm.llvalue) Hashtbl.t;
   builder: Llvm.llbuilder;
   name : string;
+
+  const_value_register_cache : (Imp.value * bool, Llvm.llvalue) Hashtbl.t;
+  array_strides_ptr_cache : (Llvm.llvalue, Llvm.llvalue) Hashtbl.t;
+  array_strides_field_cache : (Llvm.llvalue * int, Llvm.llvalue) Hashtbl.t;
+  array_shape_ptr_cache : (Llvm.llvalue, Llvm.llvalue) Hashtbl.t;
+  array_shape_field_cache : (Llvm.llvalue * int, Llvm.llvalue) Hashtbl.t;
+  array_data_ptr_cache : (Llvm.llvalue, Llvm.llvalue) Hashtbl.t;
 }
 
 let create_fn_info (fn : Imp.fn) =
@@ -71,6 +79,12 @@ let create_fn_info (fn : Imp.fn) =
     named_values = Hashtbl.create 13;
     builder = Llvm.builder context;
     name = FnId.to_str fn.Imp.id;
+    const_value_register_cache = Hashtbl.create 127;
+    array_strides_ptr_cache = Hashtbl.create 127;
+    array_strides_field_cache = Hashtbl.create 127;
+    array_shape_ptr_cache = Hashtbl.create 127;
+    array_shape_field_cache = Hashtbl.create 127;
+    array_data_ptr_cache = Hashtbl.create 127;
   }
 
 let compile_const (t:ImpType.t) (n:ParNum.t) =
@@ -198,50 +212,90 @@ let compile_math_op (t:Type.elt_t) op (vals:llvalue list) builder =
     failwith $ Printf.sprintf "Unsupported math op %s with %d args"
       (Prim.scalar_op_to_str op) (List.length vals)
 
-(* convert a list of indices into an address *)
+let get_array_strides_ptr (fnInfo:fn_info) (array:llvalue) : llvalue =
+  match Hashtbl.find_option fnInfo.array_strides_ptr_cache array with
+    | Some llvalue -> llvalue
+    | None ->
+      let stridesField = Llvm.const_int LLVM_Types.int32_t 2 in
+      let stridesFieldPtr =
+        Llvm.build_gep array
+          [|zero_i32;stridesField|] "stride_field" fnInfo.builder
+      in
+      let strides = Llvm.build_load stridesFieldPtr "strides" fnInfo.builder in
+      (
+        Hashtbl.add fnInfo.array_strides_ptr_cache array strides;
+        strides
+      )
+
+let get_array_strides_field (fnInfo:fn_info) (array:llvalue) (idx:int) : llvalue =
+  let key = array, idx in
+  match Hashtbl.find_option fnInfo.array_strides_field_cache key with
+    | Some llvalue -> llvalue
+    | None ->
+      let strides : llvalue  = get_array_strides_ptr fnInfo array in
+      let stridePtr =
+        if idx <> 0 then (
+          let idxVal = Llvm.const_int LLVM_Types.int32_t idx in
+          Llvm.build_gep strides [|idxVal|] "stride_ptr" fnInfo.builder
+        )
+        else strides
+      in
+      let name = "stride" ^ (string_of_int idx) ^ "_" in
+      let strideVal = Llvm.build_load stridePtr name fnInfo.builder in
+      (
+        Hashtbl.add fnInfo.array_strides_field_cache key strideVal;
+        strideVal
+      )
+
+let get_array_data_ptr (fnInfo:fn_info) (array:llvalue) : llvalue =
+  match Hashtbl.find_option fnInfo.array_data_ptr_cache array with
+    | Some llvalue -> llvalue
+    | None ->
+      let dataFieldPtr =
+        Llvm.build_gep array [|zero_i32; zero_i32|] "data_field" fnInfo.builder
+      in
+      let addr = Llvm.build_load dataFieldPtr "data_addr" fnInfo.builder in
+      (
+        Hashtbl.add fnInfo.array_data_ptr_cache array addr;
+        addr
+      )
+
+
+(* convert a list of indices into an address offset *)
 let rec compute_addr_helper
-          (builder:Llvm.llbuilder)
-          (strides:Llvm.llvalue)
+          (fnInfo:fn_info)
+          (array:Llvm.llvalue)
           (i:int)
-          (addr:Llvm.llvalue) = function
+          (offset:Llvm.llvalue) = function
   | currIdx :: otherIndices ->
-    let idxVal = Llvm.const_int LLVM_Types.int32_t i in
-    let stridePtr =
-      Llvm.build_gep strides [|idxVal|] "gep_strideidx" builder
+    if Llvm.is_null currIdx then
+      compute_addr_helper fnInfo array (i+1) offset otherIndices
+    else
+    let strideVal : llvalue = get_array_strides_field fnInfo array i in
+    let currOffset = Llvm.build_mul strideVal currIdx "offset_term" fnInfo.builder in
+    let newOffset =
+      if Llvm.is_null offset then currOffset
+      else Llvm.build_add offset currOffset "offset" fnInfo.builder
     in
-    let strideVal = Llvm.build_load stridePtr "stride" builder in
-    let offset = Llvm.build_mul strideVal currIdx "offset" builder in
-    let offset64 =
-      Llvm.build_sext offset LLVM_Types.int64_t "offset64" builder
-    in
-    let newAddr = Llvm.build_add addr offset64 "add_offset" builder in
-    compute_addr_helper builder strides (i+1) newAddr otherIndices
-  | [] -> addr
+    compute_addr_helper fnInfo array (i+1) newOffset otherIndices
+  | [] -> offset
 
 let compile_arr_idx
       (array:Llvm.llvalue)
       (indices:Llvm.llvalue list)
       (imp_elt_t:Type.elt_t)
       (fnInfo:fn_info) =
-	let strideIdx = Llvm.const_int LLVM_Types.int32_t 2 in
-	let stridesPtr =
-	  Llvm.build_gep array [|zero_i32;strideIdx|] "gep_stride" fnInfo.builder
-	in
-	let strides = Llvm.build_load stridesPtr "strides" fnInfo.builder in
-	let dataIdx = Llvm.const_int LLVM_Types.int32_t 0 in
-	let dataPtr =
-	  Llvm.build_gep array [|zero_i32;dataIdx|] "gep_data" fnInfo.builder
-	in
-	let addr = Llvm.build_load dataPtr "data" fnInfo.builder in
-	let intaddr =
-	  Llvm.build_ptrtoint addr LLVM_Types.int64_t "intaddr" fnInfo.builder
-	in
-	let idxInt =
-    compute_addr_helper fnInfo.builder strides 0 intaddr indices
+  let builder = fnInfo.builder in
+  let dataPtr = get_array_data_ptr fnInfo array in
+	let offset = compute_addr_helper fnInfo array 0 zero_i32 indices in
+  let offset64 =
+    Llvm.build_zext_or_bitcast offset LLVM_Types.int64_t "offsetCast" builder
   in
-	let eltType = ImpType_to_lltype.scalar_to_lltype imp_elt_t in
-	let eltPtrType = Llvm.pointer_type eltType in
-	Llvm.build_inttoptr idxInt eltPtrType "idxAddr" fnInfo.builder
+  let dataPtr64 =
+    Llvm.build_ptrtoint dataPtr LLVM_Types.int64_t "basePtrInt" builder
+  in
+  let newAddr64 = Llvm.build_add dataPtr64 offset64 "idxAddrInt" builder in
+  Llvm.build_inttoptr newAddr64 (Llvm.type_of dataPtr) "idxAddr" builder
 
 let compile_range_load
       (array:Llvm.llvalue)
@@ -266,9 +320,16 @@ let compile_range_load
 	in
 	Llvm.build_load idxAddr "ret" fnInfo.builder
 
+
+
 (* Change to function? *)
 let rec compile_value ?(do_load=true) fnInfo (impVal:Imp.value_node) =
-  match impVal.value with
+  let v = impVal.value in
+  let key = v, do_load in
+  if Hashtbl.mem fnInfo.const_value_register_cache key then
+    Hashtbl.find fnInfo.const_value_register_cache key
+  else
+  let llvmValue = match v with
   | Imp.Var id ->
       begin match Hashtbl.find_option fnInfo.named_values (ID.to_str id) with
         | None -> failwith "unknown variable name"
@@ -302,6 +363,14 @@ let rec compile_value ?(do_load=true) fnInfo (impVal:Imp.value_node) =
 	  failwith $ Printf.sprintf
       "[Imp_to_LLVM] Not implemented %s\n"
 	    (Imp.value_node_to_str impVal)
+  in
+  (
+    if Imp.always_const impVal then
+      Hashtbl.add fnInfo.const_value_register_cache key llvmValue
+    ;
+    llvmValue
+  )
+
 and compile_values fnInfo = function
   | [] -> []
   | vNode::vNodes ->

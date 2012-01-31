@@ -16,12 +16,13 @@ def test_idx():
 
 @PAR
 def array_literal():
-  return np.array([33, 27])
+  return np.array([53,2,-302, 1])
 
 def test_array_literal():
   a = array_literal()
-  expected = np.array([33, 27])
-  print "Expected [33, 27], got: ", a
+  print a, a.shape, a.strides
+  expected = np.array([53,2,-302,1])
+  print "Expected ", expected, " got: ", a
   assert np.all(a == expected)
   
 if __name__ == '__main__':
