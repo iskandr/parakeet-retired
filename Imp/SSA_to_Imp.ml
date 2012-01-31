@@ -30,19 +30,19 @@ let rec build_loop_nests
         let nested = build_loop_nests codegen ds body in
         let testEltT = ImpType.elt_type d.loop_var.value_type in
         let test = {
-          exp = Imp.Op(testEltT, d.loop_test_cmp,
+          value = Imp.Op(testEltT, d.loop_test_cmp,
                        [d.loop_var; d.loop_test_val]);
-          exp_type = ImpType.bool_t
+          value_type = ImpType.bool_t
         }
         in
         let next = {
-           exp = Imp.Op(testEltT, d.loop_incr_op, [d.loop_var; d.loop_incr]);
-           exp_type = d.loop_var.value_type;
+           value = Imp.Op(testEltT, d.loop_incr_op, [d.loop_var; d.loop_incr]);
+           value_type = d.loop_var.value_type;
         }
         in
         let update = set d.loop_var next in
         [
-          set_val d.loop_var d.loop_start;
+          set d.loop_var d.loop_start;
           Imp.While (test , nested @ [update])
         ]
 
@@ -87,7 +87,9 @@ let translate_array_op codegen (op:Prim.array_op) (args:Imp.value_node list) =
             nIndices
       ENDIF;
       let resultT =  ImpType.elt_type arrayT in
-      { exp = Imp.Idx(array, indices); exp_type = ImpType.ScalarT resultT }
+      { value = Imp.Idx(array, indices);
+        value_type = ImpType.ScalarT resultT
+      }
     | other, _ -> failwith $
       Printf.sprintf
         "[SSA_to_Imp] Unsupported array op: %s"
@@ -131,7 +133,7 @@ let rec size_of_axes
   match axes with
   | [] -> [], []
   | axis::rest ->
-    let size : Imp.exp_node = ImpHelpers.dim array (ImpHelpers.int axis) in
+    let size : Imp.value_node = ImpHelpers.dim array (ImpHelpers.int axis) in
     let temp = codegen#fresh_local ImpType.int32_t in
     let stmtNode = ImpHelpers.set temp size in
     let restBlock, restVals = size_of_axes codegen array rest in
@@ -152,16 +154,15 @@ let rec axes_to_loop_descriptors
 
 let mk_set_val codegen (id:ID.t) (v:SSA.value_node) =
   let impVar = codegen#var id in
-  let impVal = translate_value codegen v in
-  set impVar (ImpHelpers.exp_of_val impVal)
+  set impVar $ translate_value codegen v
 
 let translate_true_phi_node codegen phiNode =
   let rhs = translate_value codegen phiNode.SSA.phi_left in
-  Imp.Set(phiNode.SSA.phi_id, ImpHelpers.exp_of_val rhs)
+  Imp.Set(phiNode.SSA.phi_id, rhs)
 
 let translate_false_phi_node codegen phiNode =
   let rhs = translate_value codegen phiNode.SSA.phi_right in
-  Imp.Set(phiNode.SSA.phi_id, ImpHelpers.exp_of_val rhs)
+  Imp.Set(phiNode.SSA.phi_id, rhs)
 
 
 let rec translate_fn  (ssaFn:SSA.fn) (impInputTypes:ImpType.t list) : Imp.fn =
@@ -224,9 +225,9 @@ and translate_stmt (codegen : ImpCodegen.codegen) stmtNode : Imp.stmt list  =
       axes
 	(* all assignments other than those with an array literal RHS *)
 	| SSA.Set([id], rhs) ->
-    let impExp : Imp.exp_node = translate_exp codegen rhs in
+    let impRhs : Imp.value_node = translate_exp codegen rhs in
     let impVar : Imp.value_node = codegen#var id in
-    [set impVar impExp]
+    [set impVar impRhs]
 
 
 	| SSA.Set(ids, {SSA.exp = SSA.Values vs}) ->
@@ -255,15 +256,15 @@ and translate_stmt (codegen : ImpCodegen.codegen) stmtNode : Imp.stmt list  =
 	  let body : Imp.block = translate_block codegen body in
 	  let finals = List.map (translate_false_phi_node codegen) phiNodes in
 	  let fullBody = body @ finals @ condBlock in
-	  inits @ condBlock @ [Imp.While(ImpHelpers.exp_of_val condVal, fullBody)]
+	  inits @ condBlock @ [Imp.While(condVal, fullBody)]
  | _ ->
    failwith $ Printf.sprintf
      "[Imp_to_SSA] Not yet implemented: %s"
      (SSA.stmt_node_to_str stmtNode)
 
-and translate_exp (codegen:ImpCodegen.codegen) expNode : Imp.exp_node  =
+and translate_exp (codegen:ImpCodegen.codegen) expNode : Imp.value_node  =
   match expNode.SSA.exp with
-	| SSA.Values [v] -> ImpHelpers.exp_of_val (translate_value codegen v)
+	| SSA.Values [v] -> translate_value codegen v
 	| SSA.Values _ -> failwith "multiple value expressions not supported"
 	| SSA.PrimApp (Prim.ScalarOp op, args) ->
 	  let args' = translate_values codegen args in
@@ -275,7 +276,10 @@ and translate_exp (codegen:ImpCodegen.codegen) expNode : Imp.exp_node  =
 	      let retT = Type.elt_type (List.hd expNode.SSA.exp_types) in
 	      retT, retT
 	  in
-	  { exp = Op( opType, op, args'); exp_type = ImpType.ScalarT returnType }
+	  {
+      value = Op( opType, op, args');
+      value_type = ImpType.ScalarT returnType
+    }
 	| SSA.PrimApp (Prim.ArrayOp op, args) ->
 	  let impArgs = translate_values codegen args in
 	  translate_array_op codegen op impArgs
@@ -283,7 +287,10 @@ and translate_exp (codegen:ImpCodegen.codegen) expNode : Imp.exp_node  =
 	  (* cast only operates on scalar types! *)
 	  let eltT = Type.elt_type t in
 	  let impT = ImpType.ScalarT eltT in
-	  { exp = Imp.Cast(impT, translate_value codegen src); exp_type = impT }
+	  {
+      value = Imp.Cast(impT, translate_value codegen src);
+      value_type = impT
+    }
 	| SSA.Arr _ -> failwith "[SSA_to_Imp] Unexpected array expression"
 	| _ -> failwith $ "[ssa->imp] unrecognized exp: " ^ (SSA.exp_to_str expNode)
 
@@ -299,8 +306,8 @@ and translate_adverb
       (axes:int list) : Imp.stmt list =
   assert (init = None);
   Printf.printf "Closure args: %s, array args: %s\n%!"
-    (Imp.val_node_list_to_str closureArgs)
-    (Imp.val_node_list_to_str args)
+    (Imp.value_nodes_to_str closureArgs)
+    (Imp.value_nodes_to_str args)
   ;
   let closureArgTypes = List.map Imp.value_type closureArgs in
   let argTypes = List.map Imp.value_type args in
@@ -338,11 +345,10 @@ and translate_map
       axes_to_loop_descriptors codegen bigArray axes
     in
     let indices = List.map (fun {loop_var} -> loop_var) loopDescriptors in
-    let nestedArrayArgs : Imp.exp_node list =
+    let nestedArrayArgs : Imp.value_node list =
       List.map (fun arg -> ImpHelpers.idx arg indices) args
     in
-    let closureArgExpNodes = List.map ImpHelpers.exp_of_val closureArgs in
-    let nestedArgs : Imp.exp_node list = closureArgExpNodes @ nestedArrayArgs in
+    let nestedArgs : Imp.value_node list = closureArgs @ nestedArrayArgs in
     let body = [] in
     initBlock @ build_loop_nests codegen loopDescriptors body
   end

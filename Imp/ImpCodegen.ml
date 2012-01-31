@@ -57,9 +57,6 @@ class codegen  = object (self)
     let ty = ID.Map.find id types in
     { value = Imp.Var id; value_type = ty }
 
-  method var_exp (id:ID.t) : exp_node =
-    let valNode = self#var id in
-    { exp = Imp.Val valNode; exp_type = valNode.value_type }
 
   method cast (v:value_node) (ty:ImpType.t) : value_node * stmt list =
     if v.value_type = ty then v, []

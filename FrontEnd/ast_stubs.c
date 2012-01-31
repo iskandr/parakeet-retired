@@ -357,14 +357,11 @@ static CAMLprim value mk_src_info(source_info_t *src_info) {
   CAMLreturn(ocaml_src_info);
 }
 
-static CAMLprim value get_value_and_remove_root(paranode p) {
-  CAMLparam1(p);
-  CAMLlocal1(val);
-
-  val = (value)p;
-  caml_remove_global_root(&val);
-
-  CAMLreturn(val);
+static CAMLprim value get_value_and_remove_root(paranode node) {
+  CAMLparam1(node);
+  value cast_node = (value) node; 
+  caml_remove_global_root(&cast_node);
+  CAMLreturn(cast_node);
 }
 
 static CAMLprim value mk_val_list(paranode *vals, int num_vals) {
