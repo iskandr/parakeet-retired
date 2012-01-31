@@ -21,7 +21,7 @@ def minidx(C,x):
 def calc_centroid(X,a,i):
     return para_libs.mean(X[a == i], 0)
 
-#@PAR
+
 def kmeans(X,assign,k):
     C = para_libs.map(calc_centroid, arange(k), fixed=[X, assign])
     converged = False

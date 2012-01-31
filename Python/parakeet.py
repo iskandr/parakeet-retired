@@ -723,10 +723,14 @@ def run_function(func, args):
     inputs[i] = python_value_to_parakeet(args[i])
   # TODO: assume there are no globals now
   ret = LibPar.run_function(func, None, 0, inputs, numArgs)
+  print ret.return_code
   if (ret.return_code == 0):
     # TODO: again, we assume only one return val
     print "RETLEN", ret.results_len
-    return parakeet_value_to_python(ret.results[0])
+    if ret.results_len > 0:
+      return parakeet_value_to_python(ret.results[0])
+    else:
+      return 
   else:
     raise Exception("run_function failed")
   pass

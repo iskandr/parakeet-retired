@@ -5,6 +5,7 @@ open Imp
 open ImpCodegen
 open ImpHelpers
 open ImpType
+open ImpReplace
 
 (* are these necessary? or should we just register each SSA variable with its *)
 (* existing name as an imp variable and then implicitly keep this information *)

@@ -8,8 +8,7 @@ val register_untyped_functions :
 
 type ret_val =
   | Success of Ptr.t Value.t list (*  program succeeded, here are the results *)
-  | Pass (* I don't want to run this function *)
   | Error of string (* I tried to run this function but failed *)
-
+  | Pass (* I don't want to run this function *)
 val run_function :
     FnId.t -> globals:Ptr.t Value.t list -> args:Ptr.t Value.t list -> ret_val

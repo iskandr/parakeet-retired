@@ -8,9 +8,9 @@ def e(x):
 
 def test_math():
   x = e(3)
-  y = sqrt(log(x))
+  y = sqrt(log(3))
   print "Expected %f, got %f" % (y, x)
-  assert y == x
+  assert abs(y - x) < 0.00001
 
 if __name__ == '__main__':
   test_math()

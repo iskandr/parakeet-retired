@@ -2,45 +2,66 @@ open Base
 open Imp
 open Printf
 
-let apply_id_map_to_val idMap valNode = match valNode.value with
-  | Var id -> if ID.Map.mem id idMap then Var (ID.Map.find id idMap) else Var id
-  | other -> other
 
-(* FIND/REPLACE identifiers in Imp expression *)
-let rec apply_id_map_to_exp idMap expNode =
-  let aux_val : Imp.value_node -> Imp.value_node = apply_id_map_to_val idMap in
+
+let replace_value (env:Imp.value_node ID.Map.t) (valNode:Imp.value_node) =
+  match valNode.value with
+  | Var id when ID.Map.mem id env ->
+    let replaceNode = ID.Map.find id env in
+    assert (replaceNode.value_type = valNode.value_type);
+    replaceNode
+  | _ -> valNode
+
+let replace_values (env:Imp.value_node ID.Map.t) valNodes =
+  List.map (replace_value env) valNodes
+
+let rec replace_exp (env:Imp.value_node ID.Map.t) (expNode:Imp.exp_node) =
   let exp' = match expNode.exp with
-  | Val v ->  aux_val v
-  | Idx (v1, v2) -> Idx (aux_val e1, aux_val v2)
-  | Op (op, argT, vs) -> Op (op, argT, List.map aux_val vs)
-  | Select (t, v1, v2, v3) -> Select(t, aux_val v1, aux_val v2, aux_val v3)
-  | Cast (t1, v) -> Cast (t1, aux_val v)
-  | DimSize (n, e) -> DimSize (n, aux_val v)
+  | Val v ->  Val (replace_value env v)
+  | Idx (arr, indices) ->
+    Idx (replace_value env arr, replace_values env indices)
+  | Op (op, argT, vs) -> Op (op, argT, replace_values env vs)
+  | Select (t, x, y, z) ->
+    Select(t, replace_value env x, replace_value env y, replace_value env z)
+  | Cast (t1, v) -> Cast (t1, replace_value env v)
+  | DimSize (n, e) -> DimSize (n, replace_value env e)
   | other -> other
   in {expNode with exp = exp'}
 
 (* FIND/REPLACE identifiers in Imp statement *)
-let rec apply_id_map_to_stmt idMap stmt =
-  let aux_stmt = apply_id_map_to_stmt idMap in
-  let aux_exp = apply_id_map_to_exp idMap in
-  let aux_val = apply_id_map_to_val idMap in
-  match stmt with
-  | If (cond,tBlock,fBlock) ->
-      If(aux_val cond, List.map aux_stmt tBlock, List.map aux_stmt fBlock)
-  | While (cond,body) -> While(aux_exp cond, List.map aux_stmt body)
+let rec replace_stmt (env:Imp.value_node ID.Map.t) = function
+  | If (cond, tBlock, fBlock) ->
+    let tBlock : Imp.stmt list = replace_block env tBlock in
+    let fBlock : Imp.stmt list  = replace_block env fBlock in
+    let cond : Imp.value_node = replace_value env cond in
+    If(cond, tBlock, fBlock)
+  | While (cond, body) ->
+    While(replace_exp env cond, replace_block env body)
   | Set (id, rhs) ->
-       let rhs' = aux_exp rhs in
-       if ID.Map.mem id idMap then  Set(ID.Map.find id idMap, rhs')
-       else Set(id, rhs')
-  | SetIdx (id, indices,rhs) ->
-       let rhs' =  aux_exp rhs in
-       let indices' = List.map  aux_val indices in
-        if ID.Map.mem id idMap then  SetIdx (ID.Map.find id idMap, indices', rhs')
-        else SetIdx(id, indices', rhs')
+    let rhs = replace_exp env rhs in
+    begin match ID.Map.find_option id env with
+      | None -> Set(id, rhs)
+      | Some {value=Imp.Var id} -> Set(id, rhs)
+      | Some other -> failwith $ Printf.sprintf
+        "Unexpected lhs replacement %s -> %s"
+        (ID.to_str id)
+        (Imp.val_node_to_str other)
+    end
+  | SetIdx ({value=Var id} as lhs, indices,rhs) ->
+    let rhs = replace_value env rhs in
+    let indices = replace_values env indices in
+    begin match ID.Map.find_option id env with
+      | None -> SetIdx(lhs, indices, rhs)
+      | Some ({value=Var id} as newLhs) ->
+        SetIdx(newLhs, indices, rhs)
+    end
   | other -> other
-and apply_id_map_to_stmts idMap stmts =
-  List.map (apply_id_map_to_stmt idMap) stmts
-
+and replace_block (env:Imp.value_node ID.Map.t) = function
+  | [] -> []
+  | stmt::rest ->
+    let stmt = replace_stmt env stmt in
+    stmt :: (replace_block env rest)
+(*
 let fresh_fn fn =
   let inputIds' = ID.map_fresh fn.input_ids in
   let outputIds' = ID.map_fresh fn.output_ids in
@@ -59,3 +80,4 @@ let fresh_fn fn =
     storage = ID.Map.map apply_env fn.storage;
   }
 
+*)

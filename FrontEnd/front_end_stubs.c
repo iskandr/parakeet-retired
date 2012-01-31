@@ -79,22 +79,30 @@ return_val_t run_function(int id, host_val *globals, int num_globals,
 
   ocaml_cur = Field(ocaml_rslt, 0);
   return_val_t ret;
-  ret.results_len = ocaml_list_length(ocaml_cur);
-  ret.results = (ret_t*)malloc(sizeof(ret_t) * ret.results_len);
+  
 
-  int i, j;
-  for (i = 0; i < ret.results_len; ++i) {
-    host_val v = (host_val)Field(ocaml_cur, 0);
-    ocaml_cur = Field(ocaml_cur, 1);
-    array_type t = value_type_of(v);
-
-    if (Is_long(ocaml_rslt)) {
-      // In this case, we know that the return code must have been Pass,
-      // since the other two return codes have data.
-      ret.return_code = RET_PASS;
-      ret.results_len = 0;
-    } else if (Tag_val(ocaml_rslt) == RET_SUCCESS) {
-      ret.return_code = RET_SUCCESS;
+  if (Is_long(ocaml_rslt)) {
+    printf("Pass!\n");
+    // In this case, we know that the return code must have been Pass,
+    // since the other two return codes have data.
+    ret.return_code = RET_PASS;
+    ret.results_len = 0;
+  } else if (Tag_val(ocaml_rslt) == RET_FAIL) {
+    printf("Fail!\n"); 
+    ret.return_code = RET_FAIL;
+    ret.results_len = caml_string_length(Field(ocaml_rslt, 0));
+    ret.error_msg = malloc(ret.results_len);
+    strcpy(ret.error_msg, String_val(Field(ocaml_rslt, 0)));
+  } else if (Tag_val(ocaml_rslt) == RET_SUCCESS) {
+    ret.return_code = RET_SUCCESS;
+    ret.results_len = ocaml_list_length(ocaml_cur);
+    ret.results = (ret_t*)malloc(sizeof(ret_t) * ret.results_len);
+    printf("Success!\n");   
+    int i, j;
+    for (i = 0; i < ret.results_len; ++i) {
+      host_val v = (host_val)Field(ocaml_cur, 0);
+      ocaml_cur = Field(ocaml_cur, 1);
+      array_type t = value_type_of(v);
 
       // returning a scalar
       if (value_is_scalar(v)) {
@@ -151,16 +159,8 @@ return_val_t run_function(int id, host_val *globals, int num_globals,
               Int_val(Field(ocaml_strides, j));
         }
       }
-    } else if (Tag_val(ocaml_rslt) == RET_FAIL) {
-      ret.return_code = RET_FAIL;
-      ret.results_len = caml_string_length(Field(ocaml_rslt, 0));
-      ret.error_msg = malloc(ret.results_len);
-      strcpy(ret.error_msg, String_val(Field(ocaml_rslt, 0)));
-    } else {
-      caml_failwith("Unknown return code from run_function. Aborting.");
     }
   }
-
   CAMLreturnT(return_val_t, ret);
 }
 

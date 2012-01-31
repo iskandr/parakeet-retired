@@ -44,7 +44,7 @@ module ImpTypeAnalysis(P:IMP_TYPE_PARAMS) = struct
         failwith $ "ID not found: " ^ ID.to_str id
       else
         ID.Map.find id tenv
-    | Num n ->  ImpType.ScalarT (ParNum.type_of n)
+    (*| Num n ->  ImpType.ScalarT (ParNum.type_of n)*)
     | other ->
       failwith $ "[ImpInferTypes] invalid value: " ^ (SSA.value_to_str other)
 
