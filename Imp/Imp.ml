@@ -147,10 +147,10 @@ let rec value_to_str = function
         (ImpType.to_str  v.value_type)
         (ImpType.to_str tNew)
         (value_node_to_str v)
-  | DimSize (k, e) ->
+  | DimSize (arr, idx) ->
       sprintf "dimsize(%s, %s)"
-        (value_node_to_str e)
-        (value_node_to_str k)
+        (value_node_to_str arr)
+        (value_node_to_str idx)
 and value_node_to_str {value} = value_to_str value
 and value_nodes_to_str vNodes =
   String.concat ", " (List.map value_node_to_str vNodes)

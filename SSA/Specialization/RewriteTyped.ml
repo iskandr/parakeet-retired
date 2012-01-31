@@ -336,7 +336,8 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
   and transform_fn f =
     let body = transform_block f.body in
     let tenv = Hashtbl.fold ID.Map.add P.tenv ID.Map.empty in
-    mk_fn ~tenv ~input_ids:f.input_ids ~output_ids:f.output_ids ~body
+    let name = FnId.get_original_prefix f.fn_id in
+    mk_fn ~name ~tenv ~input_ids:f.input_ids ~output_ids:f.output_ids ~body
 end
 
 let rewrite_typed ~tenv ~closureEnv ~specializer ~output_arity ~fn =

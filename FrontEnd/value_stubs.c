@@ -158,7 +158,7 @@ host_val mk_float64(double val) {
 
 host_val mk_host_array(char *data, elt_type t, int *shape, int shape_len,
                        int *strides, int strides_len, int num_bytes) {
-  CAMLparam0();
+  CAMLparam1(t);
   CAMLlocal4(ocaml_host_array, ocaml_host_ptr, ocaml_shape, ocaml_strides);
   CAMLlocalN(mk_array_args, 4);
 

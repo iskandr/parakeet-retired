@@ -116,7 +116,7 @@ let idx arr indices =
   let eltT = ImpType.elt_type arrT in
   { value = Idx(arr, indices); value_type = ImpType.ScalarT eltT }
 
-let dim (arr:value_node) (idx:value_node) = wrap_int32 $ (DimSize(idx, arr))
+let dim (arr:value_node) (idx:value_node) = wrap_int32 $ (DimSize( arr, idx))
 
 let len x = dim (int 0) x
 

@@ -17,6 +17,18 @@ let optimize_module llvmModule llvmFn : unit =
 
   (* Promote allocas to registers. *)
   Llvm_scalar_opts.add_memory_to_register_promotion the_fpm;
+
+  Llvm_scalar_opts.add_sccp the_fpm;
+  Llvm_scalar_opts.add_aggressive_dce the_fpm;
+  Llvm_scalar_opts.add_instruction_combination the_fpm;
+  Llvm_scalar_opts.add_cfg_simplification the_fpm;
+  Llvm_scalar_opts.add_type_based_alias_analysis;
+  Llvm_scalar_opts.add_ind_var_simplification the_fpm;
+  Llvm_scalar_opts.add_dead_store_elimination the_fpm;
+  Llvm_scalar_opts.add_memcpy_opt the_fpm;
+  Llvm_scalar_opts.add_gvn the_fpm;
+  Llvm_scalar_opts.add_correlated_value_propagation the_fpm;
+
   let modified = PassManager.run_function llvmFn the_fpm in
   Printf.printf "Optimizer modified code: %b\n" modified;
   let _ : bool = PassManager.finalize the_fpm in
@@ -24,9 +36,9 @@ let optimize_module llvmModule llvmFn : unit =
 
 let memspace_id = HostMemspace.id
 
-let strides_from_shape shape =
+let strides_from_shape shape eltSize =
   let rank = Shape.rank shape in
-  let strides = Array.create rank 1 in
+  let strides = Array.create rank eltSize in
   for i = rank - 2 downto 0 do
     strides.(i) <- strides.(i+1) * (Shape.get shape (i+1))
   done;
@@ -44,7 +56,7 @@ let allocate_output impT (shape:Shape.t) : GV.t =
       array_type = Type.ArrayT(eltT, rank);
       elt_type = eltT;
       array_shape = shape;
-      array_strides = strides_from_shape shape;
+      array_strides = strides_from_shape shape (Type.sizeof eltT);
     }
     in
     Value_to_GenericValue.to_llvm arrayVal

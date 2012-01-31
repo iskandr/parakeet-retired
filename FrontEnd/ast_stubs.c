@@ -215,13 +215,15 @@ paranode mk_if(paranode cond_node, paranode true_node, paranode false_node,
   CAMLparam3(cond_node, true_node, false_node);
   CAMLlocal4(val_cond, val_true, val_false, if_node);
 
-  val_cond  = get_value_and_remove_root(cond_node);
-  val_true  = get_value_and_remove_root(true_node);
-  val_false = get_value_and_remove_root(false_node);
-
   if_node = caml_alloc(3, Exp_If);
+
+  val_cond  = get_value_and_remove_root(cond_node);
   Store_field(if_node, 0, val_cond);
+
+  val_true  = get_value_and_remove_root(true_node);
   Store_field(if_node, 1, val_true);
+
+  val_false = get_value_and_remove_root(false_node);
   Store_field(if_node, 2, val_false);
 
   CAMLreturnT(paranode, mk_node(if_node, src_info));

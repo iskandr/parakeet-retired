@@ -80,6 +80,7 @@ let mk_codegen_fn
   (* allow user provided function to populate the codegen body *)
   let _ = constr codegen inputVars outputVars in
   mk_fn
+    ?name:None
     ~body:codegen#finalize
     ~tenv:codegen#get_type_env
     ~input_ids:inputIds
@@ -151,7 +152,12 @@ let fn
   let body = Block.of_list $ bodyConstructor inputVars outputVars localVars in
   let inputList = Array.to_list inputs in
   let outputList = Array.to_list outputs in
-  mk_fn ~tenv:ID.Map.empty ~input_ids:inputList ~output_ids:outputList ~body
+  mk_fn
+    ?name:None
+    ~tenv:ID.Map.empty
+    ~input_ids:inputList
+    ~output_ids:outputList
+    ~body
 
 (* special case for creating function with 1 input, 1 output *)
 let fn1 constructor =

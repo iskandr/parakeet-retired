@@ -5,7 +5,6 @@
 
 \usepackage{graphicx,listings,fixltx2e,lambda,array,times,fullpage}
 
-
 \begin{document}
 
 \title{Parakeet: A Just-In-Time Parallel Accelerator for Python}
@@ -13,7 +12,7 @@
 Alex Rubinsteyn \ \ \ \ Eric Hielscher \ \ \ \ Nathaniel Weinman \ \ \ \
 Dennis Shasha \\
 {\it Computer Science Department, New York University, New York, NY, 10003} \\
-\small{\tt \{alexr,hielscher,shasha\} @ cs.nyu.edu}
+\small{\tt \{alexr,hielscher,nsw233,shasha\} @ cs.nyu.edu}
 }
 \date{}
 
@@ -47,55 +46,77 @@ Dennis Shasha \\
 % 4. speedups for gpus
 % 5. vapor about how to unify
 
-High level productivity languages such as Python or Matlab enable the use of computational resources by non-expert programmers.  However, these languages sacrifice program speed for ease of use, with this trade-off even more stark for modern parallel processors such as multicore CPUs and manycore GPUs.
+High level productivity languages such as Python or Matlab enable the use of computational resources by non-expert programmers.  However, these languages sacrifice program speed for ease of use, with this trade-off especially stark for modern parallel processors such as multicore CPUs and manycore GPUs.
 
-In this paper, we discuss Parakeet, a library which provides a JIT parallel accelerator for Python.  Parakeet bridges the gap between the usability of Python and the speed of code written in efficiency languages such as C++ or CUDA.  Parakeet accelerates data-parallel sections of Python that use the standard NumPy scientific computing library, without requiring any syntactic changes other than a function decorator.  Parakeet automatically JIT compiles efficient versions of Python functions and manages their execution on GPUs and multicore CPUs.  We assess Parakeet on a pair of benchmark programs and exhibit significant speedups.  We use these current results as a basis for discussing our plans to augment the Parakeet feature set.
+In this paper, we discuss Parakeet, a library which provides a just-in-time (JIT) parallel accelerator for Python.  Parakeet bridges the gap between the usability of Python and the speed of code written in efficiency languages such as C++ or CUDA.  Parakeet accelerates data-parallel sections of Python that use the standard NumPy scientific computing library.  Parakeet automatically JIT compiles efficient versions of Python functions and manages their execution on both GPUs and multicore CPUs.  We assess Parakeet on a pair of benchmark programs and exhibit significant speedups.  We use these current results as a basis for discussing our plans to augment the Parakeet feature set.
 \end{abstract}
 
 \section{Introduction}
 \label{Intro}
 
 % What is the problem we're trying to solve?  Who should care about this paper?
-Computational resources are indispensable tools to professionals in a wide range of fields, from the natural sciences to the financial industry.  Often, users in these fields either (1) aren't expert programmers; or (2) don't have time to spend on writing and tuning their software for performance.  Thus, these users typically prefer to use productivity languages such as Python or Matlab as opposed to efficiency languages such as C++.  Productivity languages enable non-expert programmers by trading off program speed for ease of use \cite{Pre03}.
+Computational resources are indispensable tools to professionals in a wide range of fields, from the natural sciences to the financial industry.  Often, users in these fields either (1) aren't expert programmers; or (2) don't have time to spend on writing and tuning their software for performance.  Thus, these users typically prefer to use productivity languages such as Python or Matlab as opposed to efficiency languages such as C++.  Productivity languages facilitate non-expert programmers by trading off program speed for ease of use \cite{Pre03}.
 
-A common problem, however, is that this tradeoff is often very stark -- code written in Python or Matlab~\cite{Moler80} often has much worse performance than code written in C++ (CITE).  In addition, this problem is getting worse, as modern processors (both multicore CPUs as well as manycore GPUs) are all parallel, and current implementations of productivity languages are poorly suited for parallelism.  Thus a common workflow involves rapid prototyping of algorithms in a productivity language, and then porting the performance-critical sections to an efficiency language to achieve tolerable performance.  This second step can be time-consuming, error-prone, and diverts energy from the real focus of these users' work.
+A common problem, however, is that this tradeoff is often very stark -- code written in Python or Matlab~\cite{Moler80} often has much worse performance than code written in C++.  In addition, this problem is getting worse, as modern processors (both multicore CPUs as well as manycore GPUs) are all parallel, and current implementations of productivity languages are poorly suited for parallelism.  Thus a common workflow involves rapid prototyping of algorithms in a productivity language, followed by porting the performance-critical sections to an efficiency language so as to achieve tolerable performance.  This second step can be time-consuming, error-prone, and diverts energy from the real focus of these users' work.
 
 % Heart of Parakeet - an interpreter for our high level IL w/ array ops
-In this paper, we present Parakeet, a library that provides a JIT parallel accelerator for the commonly-used NumPy extensions for scientific computing~\cite{Oliphant07}. Parakeet accelerates performance-critical sections of Python programs to be competitive with efficiency language code, obviating the need for the above-mentioned ``prototype, port'' cycle.
+In this paper, we present Parakeet, a library that provides a JIT parallel accelerator for the commonly-used NumPy extensions for scientific computing~\cite{Oliphant07}. Parakeet accelerates performance-critical sections of numerical Python programs to be competitive with efficiency language code, obviating the need for the above-mentioned ``prototype, port'' cycle.
 
 The Parakeet library intercepts functions that have been marked with a decorator, and uses the data-parallel array operations over NumPy arrays as sources of parallelism. These functions are just-in-time compiled to either x86 machine code using LLVM~\cite{Latt02}, or GPU programs that can be executed on NVIDIA GPUs via the CUDA framework~\cite{NvidCU}. These native versions of the functions are then automatically executed on the appropriate hardware. Parakeet allows complete interoperability with all of the standard Python tools and libraries.
 
 While Parakeet is a work in progress, our current results clearly demonstrate its promise.  In the near future, Parakeet's CPU support will be extended to make better use of modern multicore processors.  Our vision for Parakeet includes eventual support for splitting computations across CPUs and GPUs simultaneously -- keeping all processors in a system busy at once -- and on-the-fly tuning of resource usage.
-
-% Again, the following is the old Intro.  My new version follows
-%The ubiquity and performance potential of modern GPUs has led to much interest in enabling their use for the execution of general-purpose programs. Unfortunately, the two widely used GPGPU frameworks -- OpenCL \cite{Muns10} and NVIDIA's CUDA \cite{NvidCU} -- require the programmer to have extensive knowledge of low level architectural details in order to fully harness this performance potential. Hence, many recent projects attempt to lower the barrier of entry to programming GPUs by allowing the use of high level languages~\cite{Cata11,Chaf11,Chak11,Main10,Sven08,Tard06}.
-
-% Enable programmers to write GPGPU programs in productivity language
-%GPUs are able to achieve impressive performance because they have been highly specialized for data parallel workloads.  Array languages are thus well suited for high level GPU programming due to their idiomatic preference for data parallel array operations instead of explicit loops (``collection-oriented''~\cite{Sip91} programming). We observe that many of the above projects are structured around the use of data parallel array operators such as map and reduce.
-
-% Bullet-point, drive-home contributions
-The main contributions of this paper are the following:
-
-\begin{itemize}
-\item Your mom
-\item Her mom
-\item Their mom's mom
-\end{itemize}
 
 \begin{figure*}[t!bh]
 \begin{center}
 \leavevmode
 \includegraphics[scale=0.6, trim=0pt 310pt 140pt 80pt]{ParakeetNumPyOverview.pdf}
 \end{center}
-\caption{Overview of Parakeet}
+\caption{Parakeet Pipeline}
 \label{fig:overview}
 \end{figure*}
+
 \section{Overview}
 \label{overview}
-
 %Might be useful: 
 % array operations encode rich information about their access patterns that we can exploit to translate them into efficient parallel programs \cite{Ju94}.
-The program execution pipeline for NumPy code by Parakeet (Figure \ref{fig:overview}) begins in the standard Python interpreter. At program start time, a subset of the program's functions (annotated manually by the programmer with a function decorator) are registered with Parakeet as potentially accelerable. The body of a registered function is then translated into an untyped intermediate representation using the Parakeet front end interface and the Python's introspection facilities.
+Parakeet is an accelerator library for numerical Python programs written using the NumPy numerical computing library~\cite{Oliphant07}.  Parakeet accelerates entire functions at a time by just-in-time compiling native versions of the functions for execution on both GPUs and multicore CPUs.
+
+Parakeet is not meant as a general-purpose accelerator for all Python programs.  Rather, it is designed to benefit numerically intensive algorithms (such as those used in machine learning, financial computing, scientific simulation, etc.).  In particular, the sections of code that Parakeet accelerates must obey the following constraints:
+
+\begin{itemize}
+ \item Only use scalar values or NumPy arrays.  No dictionaries, sets, or user-defined objects are allowed.
+ \item Can't reassign any global variables (though other accesses are allowed).
+%\item No I/O is allowed.
+ \item For a given set of inputs to the function, Parkaeet must be able to infer a unique type for every variable in the function's body (i.e.~code such as that in Listing \ref{unique-types} is not allowed):
+\end{itemize}
+\begin{lstlisting}[numbers=none,label=unique-types,caption=Unique Types Example,language=Python,frame=single]
+  def fun(x):
+    if x:
+      return 42
+    else:
+      return "sausage"
+\end{lstlisting}
+
+While these constraints may at first seem highly restrictive, it is important to keep two things in mind.  First, they are only constraints on the functions that he or she explicitly marks for Parakeet acceleration.  Such functions can coexist in a module with code that doesn't satisfy these constraints, and that code will be executed as normal by the Python interpreter.  Second, these constraints still allow for idiomatic data-parallel programming using NumPy.  In practice, most code requires little or no modifications.
+
+\subsection{Code Example}
+Let's make things more concrete with a code example.  Figure \ref{MinIdx} shows two functions that form part of the K-Means clustering benchmark we use to evaluate Parakeet in Section \ref{Evaluation}.  The \texttt{minidx} function takes two inputs: a matrix \texttt{C} of vectors, and another vector \texttt{x}.  It computes the index of the vector in \texttt{C} whose distance from \texttt{x} is the smallest.
+
+The program execution pipeline for NumPy code by Parakeet (shown in Figure \ref{fig:overview}) begins in the standard Python interpreter. At program start time, a subset of the program's functions (annotated manually by the programmer with a function decorator) are registered with Parakeet as potentially accelerable. The body of a registered function is then translated into an untyped intermediate representation using the Parakeet front end interface and the Python's introspection facilities.
+
+\begin{figure}[h!]
+\begin{lstlisting}[numbers=none,language=Python,frame=single]
+def sqr_dist(x,y):
+  return sum((x-y) * (x-y))
+
+@PAR
+def minidx(C,x):
+  sqr_dists = map(sqr_dist,C,fixed=[x])
+  return argmin(sqr_dists)
+\end{lstlisting}
+\caption{Minimum Distance Example}
+\label{MinIdx}
+\end{figure}
 
 When a call is made to a function which has been registered with Parakeet, the untyped function is specialized by propagating type information from the arguments to all values in the body.  Type specialization translates the function into a typed intermediate language. Further standard optimizations are performed at this stage, the most impactful of which is \emph{array operator fusion}, wherein array operations are combined according to rewriting rules. This fusion step can be extremely beneficial to the final program's performance, especially when executed on the GPU, as it can drastically increase computational density and eliminate many wasteful array temporaries.
 
@@ -104,31 +125,6 @@ Execution of the optimized typed IL is initiated by Parakeet's interpreter, whic
 If an array operator's computation is deemed a good candidate for native hardware execution, Parakeet flattens all nested array computations within that operator into sequential loops.  This payload is then inlined into a program skeleton that implements that operator.  For example, in the case of a \textbf{map} operation, Parakeet provides skeletal algorithms that implement the pattern of applying the same function to each element of an array on the CPU as well as on the GPU.  The flattened payload function argument is inlined into this skeleton, and a complete program is synthesized and JIT compiled.
 
 To execute the native code, Parakeet first copies any of its inputs that aren't already present in the memory of the target hardware to their necessary place.  Parakeet manually manages the memory of the system, for example treating the GPU's memory as a cache of data whose canonical values are the CPU's RAM. The program is then executed, with memory reclaimed via garbage collection.
-
-\section{GPU Hardware}
-To set the stage and motivate the design choices of Parakeet, we discuss here some important features of modern GPU hardware.  A GPU consists of an array of tens of multiprocessors, which contain various resources such as local memories and instruction issue units shared among simple cores. Since the issue units are shared, threads running on a single multiprocessor execute instructions in lockstep -- hence the execution model's name: Single Instruction Multiple Thread (SIMT).  A typical programming pattern is to write short programs which are executed in parallel by thousands of lightweight threads running on these hundreds of simple cores, each operating on different subsets of input data. When all these cores are well utilized, a graphics card may attain a peak throughput of many hundreds of GFLOP/s -- an order of magnitude more than typical high end CPUs.
-
-SIMT differs from the more common Single Instruction Multiple Data (SIMD) model in that branching instructions are allowed whose branch conditions aren't uniformly met among threads within a single multiprocessor, allowing co-located threads to execute divergent code paths.  This improves the ease of programming a GPU, but divergent branching incurs a very expensive performance penalty as each thread effectively execute no-ops along the irrelevant code paths.  This illustrates a common point in GPGPU programming: the hardware allows for somewhat expressive programming styles, but failure to match what the hardware actually does well results in very inefficient execution.
-
-Graphics cards have high peak memory bandwidth -- well over 100GB/sec is common.  However, in order to achieve this high bandwidth (which is essential to achieving peak performance), nearby threads must access memory in particular, regular patterns.  Random memory access can be over an order of magnitude slower than linear stride access.  To alleviate some of this performance bottleneck, the GPU also provides several other memory spaces with varying performance characteristics and preferred access patterns.  These memory spaces include some read-only cached space (called \emph{texture} and \emph{constant} memory) and some programmer-managed multiprocessor-local fast memory called \emph{shared memory}.  Efficient manual use of these memory spaces can be cumbersome, but is also essential to good performance for most workloads.
-
-%\subsection{Limitations Imposed by GPUs}
-%\label{GPULimitations}
-%GPUs are able to achieve their specialized high performance because they have been optimized for data parallel workloads. Data parallelism is widely found in typical graphics applications that perform simple operations on large amounts of pixel or triangle data, and so is a natural choice for execution on graphics accelerators.  However, architectural optimization for data parallelism carries with it various restrictions on the types of code and programming models that naturally fit the GPU architecture:
-
-%\begin{itemize}
-%\item \textbf{Flat, unboxed data representation}. GPU hardware is optimized to utilize memory in highly structured access patterns (so-called ``coalescing''). The use of boxed or indirectly accessed data leads to unstructured memory accesses and results in severe performance degradation.
-
-%\item \textbf{No polymorphism}. GPUs generally share instruction dispatch units among many concurrently executing threads. When a group of threads ``diverge'', meaning that they take different branches through a program, their execution must be serialized. Thus it is important to eliminate as many sources of runtime uncertainty as possible. In particular, type-tag dispatch commonly used to implement polymorphic operations would incur unacceptable costs if translated naively to the GPU.
-
-%\item \textbf {No function pointers}. Most GPUs (excluding the recently released NVIDIA Fermi architecture) do not support the use of indirect jumps or function pointers. In fact, a common implementation strategy for GPU function calls is extensive inlining. Even in the case where function pointers are theoretically supported, they require every possible function to be transferred to the GPU and incur overhead due to potentially unpredictable branching.
-
-%\item \textbf{No global communication}. Synchronization in a GPU computation is limited to local neighborhoods of threads. Various schemes have been devised for achieving global synchronization between all executing threads~\cite{feng10}, but these schemes are all either slow or unsafe. This implies that the use of shared mutable state is a large hindrance to effective utilization of GPU resources.
-
-%\item \textbf{All data must be preallocated}. The current generation of GPUs lack any mechanism for dynamically allocating memory. Any heap space required by a GPU computation (for output or temporary values) must be allocated beforehand.
-%\end{itemize}
-
-%With these constraints in mind, we turn to efficient high level abstractions chosen to fit them.
 
 \section{Translation, Specialization, and Optimization}
 \label{Compilation}
@@ -144,16 +140,6 @@ In deference to the above-mentioned GPU hardware restrictions, any program which
 \end{itemize}
 
 Some of these restrictions (such as recursion, use of compound data types) limit the set of programs which can be executed by Parakeets. Certain types of polymorphism and some uses of higher order functions, however, can be effectively eliminated by program transformations. We enumerate some of these transformations (such as lambda lifting and specialization) which help bridge the abstraction gap between an expressive dynamically typed language and the GPU hardware. We also demonstrate several optimizations which, while beneficial in any compiler, are particularly important when targeting a graphics processor. Seemingly small residual inefficiencies in our intermediate form can later manifest themselves as the creation of large arrays, needless memory transfers, or wasteful GPU computations.
-
-To help elucidate the different program transformations performed by Parakeet, we will show the effect of each stage on a distance function defined in Q, shown in Figure \ref{QDist}.
-
-\begin{figure}[h!]
-    \begin{lstlisting}[numbers=none]
-    dist: {[x;y] sqrt sum (x-y) * (x-y)}
-    \end{lstlisting}
-    \caption{Distance Function in Q}
-    \label{QDist}
-\end{figure}
 
 \subsection{Lambda Lifting and SSA Conversion}
 After a function call has been intercepted by the Parakeet runtime, Parakeet performs a syntax-directed translation from a language-specific abstract syntax tree (AST) into Parakeet's IL. Since type information is not yet available to specialize user functions, the functions must be translated into an untyped

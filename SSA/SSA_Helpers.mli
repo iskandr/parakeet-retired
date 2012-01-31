@@ -4,6 +4,7 @@ open SSA
 val extract_nested_map_fn_id : fn -> FnId.t option
 
 val mk_fn :
+      ?name:string ->
       ?tenv:tenv -> input_ids:ID.t list -> output_ids:ID.t list ->
         body:block -> fn
 (***

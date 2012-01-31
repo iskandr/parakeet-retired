@@ -55,7 +55,7 @@ let mk_simple_loop_descriptor
     loop_var = codegen#fresh_local int32_t;
     loop_start = start;
     loop_test_val = stop;
-    loop_test_cmp = (if down then Prim.Lt else Prim.Gt);
+    loop_test_cmp = (if down then Prim.Gt else Prim.Lt);
     loop_incr = (if down then ImpHelpers.int (-1) else ImpHelpers.one);
     loop_incr_op = Prim.Add;
   }
@@ -355,6 +355,7 @@ and translate_map
       let ty = ID.Map.find id impFn.types in
       codegen#fresh_local ~storage ~shape ty
     in
+    (* TODO: Change nestedOutputs to assign into a precreated array *)
     let nestedOutputs : Imp.value_node list =
       List.map mk_output impFn.output_ids
     in
@@ -362,7 +363,9 @@ and translate_map
     let replaceValues = nestedArgs @ nestedOutputs in
     let replaceEnv = ID.Map.of_lists replaceIds replaceValues in
     let fnBody = ImpReplace.replace_block replaceEnv impFn.body in
-    initBlock @ build_loop_nests codegen loopDescriptors fnBody
+    let loops = build_loop_nests codegen loopDescriptors fnBody in
+
+    initBlock @ loops
   end
 
 and translate_reduce
