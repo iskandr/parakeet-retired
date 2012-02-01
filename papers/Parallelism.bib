@@ -11,6 +11,7 @@ Conferences/Workshops/Journals:
                    Programming Languages and Operating Systems"}
 @STRING{DAMP    = "Workshop on Declarative Aspects of Multicore Programming"}
 @STRING{Haskell = "Haskell Workshop"}
+@STRING{HOTPAR  = "USENIX Conference on Hot Topics in Parallelism"}
 @STRING{IFL     = "Implementation and Application of Functional Languages"}
 @STRING{ISCA    = "International Symposium on Computer Architecture"}
 @STRING{OOPSLA  = "ACM SIGPLAN conference on Object-Oriented Programming,
@@ -36,6 +37,9 @@ Haskell
 @STRING{Haskell04 = "Proceedings of the 2004 " # Haskell}
 @STRING{Haskell09 = "Proceedings of the 2009 " # Haskell}
 @STRING{Haskell10 = "Proceedings of the 2010 " # Haskell}
+
+HotPar
+@STRING{HOTPAR11 = "Proceedings of the 3rd " # HOTPAR}
 
 IFL
 @STRING{IFL08 = IFL # ", 20th International Symposium, IFL 2008"}
@@ -351,24 +355,41 @@ CCCC
   Address     = {Amsterdam, The Netherlands},
 }
 
-@Article{Cytr91,
- Author    = {Cytron, Ron and Ferrante, Jeanne and Rosen, Barry K. and
-              Wegman, Mark N. and Zadeck, F. Kenneth},
- Title     = {Efficiently computing static single assignment form and the
-              control dependence graph},
- Journal   = {ACM Trans. Program. Lang. Syst.},
- Volume    = {13},
- Issue     = {4},
- Month     = {October},
- Year      = {1991},
- Issn      = {0164-0925},
- Pages     = {451--490},
- Numpages  = {40},
- Url       = {http://doi.acm.org/10.1145/115372.115320},
- Doi       = {http://doi.acm.org/10.1145/115372.115320},
- Acmid     = {115320},
- Publisher = {ACM},
- Address   = {New York, NY, USA},
+@INPROCEEDINGS{Cook11,
+  Author    = {Cook, H. and Gonina, E. and Kamil, S. and Friedland, G. and
+               Patterson, D. and Fox, A.},
+  Title     = {{CUDA}-level performance with {P}ython-level productivity for
+               Gaussian mixture model applications},
+  Booktitle = HOTPAR11,
+  Series    = {HotPar'11},
+  Year      = {2011},
+  Location  = {Berkeley, CA},
+  Pages     = {7--7},
+  Numpages  = {1},
+  Url       = {http://dl.acm.org/citation.cfm?id=2001252.2001259},
+  Acmid     = {2001259},
+  Publisher = {USENIX Association},
+  Address   = {Berkeley, CA, USA},
+}
+
+@ARTICLE{Cytr91,
+  Author    = {Cytron, Ron and Ferrante, Jeanne and Rosen, Barry K. and
+               Wegman, Mark N. and Zadeck, F. Kenneth},
+  Title     = {Efficiently computing static single assignment form and the
+               control dependence graph},
+  Journal   = {ACM Trans. Program. Lang. Syst.},
+  Volume    = {13},
+  Issue     = {4},
+  Month     = {October},
+  Year      = {1991},
+  Issn      = {0164-0925},
+  Pages     = {451--490},
+  Numpages  = {40},
+  Url       = {http://doi.acm.org/10.1145/115372.115320},
+  Doi       = {http://doi.acm.org/10.1145/115372.115320},
+  Acmid     = {115320},
+  Publisher = {ACM},
+  Address   = {New York, NY, USA},
 } 
 
 DDDD
