@@ -69,18 +69,16 @@ In this paper, we discuss Parakeet, a library which provides a just-in-time (JIT
 
 \section{Introduction}
 \label{Intro}
+Computers are indispensable tools to professionals in a wide range of fields, from the natural sciences to the financial industry.  Often, users in these fields either (1) aren't expert programmers; or (2) don't have time to spend on writing and tuning their software for performance.  Thus, these users typically prefer to use productivity languages such as Python or Matlab as opposed to efficiency languages such as C++.  Productivity languages facilitate non-expert programmers by trading off program speed for ease of use \cite{Pre03}.
 
-% What is the problem we're trying to solve?  Who should care about this paper?
-Computational resources are indispensable tools to professionals in a wide range of fields, from the natural sciences to the financial industry.  Often, users in these fields either (1) aren't expert programmers; or (2) don't have time to spend on writing and tuning their software for performance.  Thus, these users typically prefer to use productivity languages such as Python or Matlab as opposed to efficiency languages such as C++.  Productivity languages facilitate non-expert programmers by trading off program speed for ease of use \cite{Pre03}.
-
-A common problem, however, is that this tradeoff is often very stark -- code written in Python or Matlab~\cite{Moler80} often has much worse performance than code written in C++.  In addition, this problem is getting worse, as modern processors (both multicore CPUs as well as manycore GPUs) are all parallel, and current implementations of productivity languages are poorly suited for parallelism.  Thus a common workflow involves rapid prototyping of algorithms in a productivity language, followed by porting the performance-critical sections to an efficiency language so as to achieve tolerable performance.  This second step can be time-consuming, error-prone, and diverts energy from the real focus of these users' work.
+A common problem, however, is that the performance tradeoff is often very stark -- code written in Python or Matlab~\cite{Moler80} often has much worse performance than code written in C++ or Fortran.  This problem is getting worse, as modern processors (both multicore CPUs as well as manycore GPUs) are all parallel, and current implementations of productivity languages are poorly suited for parallelism.  Thus a common workflow involves rapid prototyping of algorithms in a productivity language, followed by porting the performance-critical sections to an efficiency language so as to achieve tolerable performance.  This second step can be time-consuming, error-prone, and diverts energy from the real focus of these users' work.
 
 % Heart of Parakeet - an interpreter for our high level IL w/ array ops
-In this paper, we present Parakeet, a library that provides a JIT parallel accelerator for the commonly-used NumPy extensions for scientific computing~\cite{Oliphant07}. Parakeet accelerates performance-critical sections of numerical Python programs to be competitive with efficiency language code, obviating the need for the above-mentioned ``prototype, port'' cycle.
+In this paper, we present Parakeet, a library that provides a JIT parallel accelerator for NumPy, the commonly-used scientific computing library for Python~\cite{Oliphant07}. Parakeet accelerates performance-critical sections of numerical Python programs to be competitive with efficiency language code, obviating the need for the above-mentioned ``prototype, port'' cycle.
 
-The Parakeet library intercepts functions that have been marked with a decorator, and uses the data-parallel array operations over NumPy arrays as sources of parallelism. These functions are just-in-time compiled to either x86 machine code using LLVM~\cite{Latt02}, or GPU programs that can be executed on NVIDIA GPUs via the CUDA framework~\cite{NvidCU}. These native versions of the functions are then automatically executed on the appropriate hardware. Parakeet allows complete interoperability with all of the standard Python tools and libraries.
+The Parakeet library intercepts functions that have been marked with a decorator, and uses high-level operations on NumPy arrays (e.g.~mapping a function over the array's elements) as sources of parallelism. These functions are just-in-time compiled to either x86 machine code using LLVM~\cite{Latt02}, or GPU programs that can be executed on NVIDIA GPUs via the CUDA framework~\cite{NvidCU}. These native versions of the functions are then automatically executed on the appropriate hardware. Parakeet allows complete interoperability with all of the standard Python tools and libraries.
 
-While Parakeet is a work in progress, our current results clearly demonstrate its promise.  In the near future, Parakeet's CPU support will be extended to make better use of modern multicore processors.  Our vision for Parakeet includes eventual support for splitting computations across CPUs and GPUs simultaneously -- keeping all processors in a system busy at once -- and on-the-fly tuning of resource usage.
+Parakeet currently supports JIT compilation to parallel GPU programs and single-threaded CPU programs.  While Parakeet is a work in progress, our current results clearly demonstrate its promise.  In the near future, Parakeet's CPU support will be extended to make better use of modern multicore processors.  This includes adding support for splitting computations across CPUs and GPUs simultaneously -- keeping all processors in a system busy at once -- and on-the-fly tuning of resource usage.
 
 \section{Overview}
 \label{overview}
@@ -91,25 +89,53 @@ Parakeet is an accelerator library for numerical Python algorithms written using
   def entropy(p):
     return -numpy.sum(p * numpy.log2(p))
 \end{lstlisting}
-If the decorator \lstinline{@PAR} were removed, then \lstinline{entropy} will run as ordinary Python code. Since NumPy's operators are statically compiled they can't know if their results will be immediately consumed and thus \lstinline{log2} and element-wise multiplication must allocate intermediate arrays to store their results. By contrast, Parakeet specializes the function\lstinline{entropy} for each distinct input type, optimizes the body into a singled fused reduction and finally executes it as parallel native code.
+If the decorator \lstinline{@PAR} were removed, then \lstinline{entropy} will run as ordinary Python code. Since NumPy's \lstinline{log2} and array multiplication operators are statically compiled they will allocate array result even if it will be immediately consumed. By contrast, Parakeet specializes the function \lstinline{entropy} for any distinct input type, optimizes the body into a singled fused reduction (avoiding unnecessary allocation) and finally executes it as parallel native code.
 
 
-%Might be useful: 
-% array operations encode rich information about their access patterns that we can exploit to translate them into efficient parallel programs \cite{Ju94}.
+%We have implemented two backends for Parakeet: a manycore GPU backend on top of CUDA and a less mature multicore backend using LLVM. Both of these backends rely on the presence of 
+%data parallel 
 
 
-Parakeet is not meant as a general-purpose accelerator for all Python programs.  Rather, it is designed to benefit numerically intensive algorithms (such as those used in machine learning, financial computing, scientific simulation, etc.).  In particular, the sections of code that Parakeet accelerates must obey the following constraints:
+Parakeet is not meant as a general-purpose accelerator for all Python programs.  Rather, it is designed to execute array-oriented numerical algorithms such as those found in machine learning, financial computing, and scientific simulation. In particular, the sections of code that Parakeet accelerates must obey the following constraints:
 
 \begin{itemize}
- \item Only use scalar values or NumPy arrays.  No dictionaries, sets, or user-defined objects are allowed.
- \item Can't reassign any global variables (though other accesses are allowed).
-%\item No I/O is allowed.
- \item For a given set of inputs to the function, Parkaeet must be able to infer a unique type for every value in the function's body. For example, expressions such as 
- \lstinline{42 if x else "sausage"} would force Parakeet to abandon type specialization. 
+ \item Due to the difficulty of implementing efficient non-uniform data structures on the GPU, we require all values within Parakeet to be either scalars or NumPy arrays. No dictionaries, sets, or user-defined objects are allowed. 
+ \item To compile Python into native code we must assign types to each expression in a function. We are still able to implement some of Python's polymorphism by specializing different typed versions of a function for each distinct set of argument types. However, expressions whose types depend on dynamic values (such as \lstinline{43 if bool_val else "sausage"}) are disallowed.
+ \item Only functions which don't modify global state or perform I/O can be executed in parallel. Local mutabable variables are however always allowed. 
 \end{itemize}
 
+These restrictions would be onerous if applied to an entire program, but it's important to remember that Parakeet only sees the computational core of an algorithm. All other code is executed as usual by the Python interpreter. Furthermore, the style of programming required for Parakeet matches closely to the idiomatic conventions of array programming. In practice, if an algorithm makes heavy use of NumPy operators for its computations then it will run under Parakeet with only minor modifications. 
 
-While these constraints may at first seem highly restrictive, it is important to keep two things in mind.  First, they are only constraints on the functions that he or she explicitly marks for Parakeet acceleration.  Such functions can coexist in a module with code that doesn't satisfy these constraints, and that code will be executed as normal by the Python interpreter.  Second, these constraints still allow for idiomatic data-parallel programming using NumPy.  In practice, most code requires little or no modifications.
+Though Parakeet supports the use of loops, it does not attempt to in any way parallelize them. Parallelism is instead achieved by relaxing the iteration order of the following higher-order array operators. 
+
+\begin{itemize}
+\item $\MAP(\textit{f}, \; \textit{X}_1,  ... ,  \textit{X}_n, \; \textit{fixed}\textrm{=[]}, \; \textit{axis}\textrm{=None})$ \\
+      Apply the function \textit{f} to each element of the array arguments. By default, \textit{f} is passed each scalar element of the array arguments. The axis keyword
+      can be used to specify a different iteration pattern (such as applying \textit{f} to all columns). 
+      The \textit{fixed} keyword is a list of values which precede the array elements as arguments to \textit{f} (simulating partial function application). 
+       
+\item $\ALLPAIRS(\textit{f}, \; \textit{X}_1,  \; \textit{X}_2, \; \textit{fixed}\textrm{=[]}, \; \textit{axis}\textrm{=} 0)$ 
+\item $\REDUCE(\textit{f}, \; \textit{X}_1,  ... ,  \textit{X}_n, \; \textit{fixed}\textrm{=[]}, \; \textit{axis}\textrm{=None}, \; \textit{init}\textrm{=None})$
+\item $\SCAN(\textit{f}, \; \textit{X}_1,  ... ,  \textit{X}_n, \; \textit{fixed}\textrm{=[]}, \; \textit{axis}\textrm{=None}, \; \textit{init}\textrm{=None})$
+\end{itemize}
+
+If the axis argument is omitted then the function is applied to every scalar element of the arrays. 
+Examples: 
+map(sqrt, array([1,4,9]))  \# evaluates to array([1,2,3])
+map(sum, array([[1,2,3],[4,5,6]), axis=1) \# evaluates to array([5, 7, 9])
+allpairs(lambda x,y: sqrt((x-y)*(x-y)), X, Y) \# distance between all pairs of rows
+reduce(np.add, array([1,2,3])) \# evalutes to 6 
+
+scan(np.add, array([1,2,3])) \# evaluates to array([1,3,6])
+
+
+
+These "data parallel" operators par basic units of parallelism in Parakeet are the following data parallel operators. 
+Array operations encode rich information about their access patterns that we can exploit to translate them into efficient parallel programs \cite{Ju94}
+
+%Might be useful: 
+% .
+
 
 \subsection{Code Example}
 Let's make things more concrete with a code example.  Figure \ref{MinIdx} shows two functions that form part of the K-Means clustering benchmark we use to evaluate Parakeet in Section \ref{Evaluation}.  The \texttt{minidx} function takes two inputs: a matrix \texttt{C} of vectors, and another vector \texttt{x}.  It computes the index of the vector in \texttt{C} whose distance from \texttt{x} is the smallest.
@@ -150,84 +176,36 @@ To execute the native code, Parakeet first copies any of its inputs that aren't 
 \section{Parakeet Pipeline}
 \label{Pipeline}
 Now we turn to the problem of compiling an array language program into an efficient GPU program. At first glance, there seems to be a significant mismatch between the highly dynamic expressiveness of an array language like Q and the limitations imposed by GPU hardware discussed in Section \ref{GPULimitations}. Indeed, the Parakeet intermediate language must serve as a compromise between two competing tensions. In order to translate array programs into efficient GPU code it is necessary for the compiler to eliminate as much abstraction as possible. On the other hand, we must be careful not to make our program representation overly concrete with regard to evaluation order (which would eliminate opportunities for parallelism provided by the array operators). 
+\textit{In deference to the above-mentioned GPU hardware restrictions, any program which is compiled to run on the GPU cannot have any of the following:}
 
-In deference to the above-mentioned GPU hardware restrictions, any program which is compiled to run on the GPU cannot have any of the following:
-
-\begin{itemize}
-\item Polymorphism (over types, array ranks, etc..) 
-\item Recursion
-\item User-specified higher-order functions
-\item Compound data types other than arrays
-\end{itemize}
-
-Some of these restrictions (such as recursion, use of compound data types) limit the set of programs which can be executed by Parakeets. Certain types of polymorphism and some uses of higher order functions, however, can be effectively eliminated by program transformations. We enumerate some of these transformations (such as lambda lifting and specialization) which help bridge the abstraction gap between an expressive dynamically typed language and the GPU hardware. We also demonstrate several optimizations which, while beneficial in any compiler, are particularly important when targeting a graphics processor. Seemingly small residual inefficiencies in our intermediate form can later manifest themselves as the creation of large arrays, needless memory transfers, or wasteful GPU computations.
 
 \subsection{Lambda Lifting and SSA Conversion}
 After a function call has been intercepted by the Parakeet runtime, Parakeet performs a syntax-directed translation from a language-specific abstract syntax tree (AST) into Parakeet's IL. Since type information is not yet available to specialize user functions, the functions must be translated into an untyped
 form. 
 
-Figure \ref{UntypedSSADist} shows the \texttt{dist} function after it has been translated to Untyped SSA.
-
-\begin{figure}[h!]
-\fbox{
-\begin{tabular}{ m{0.1cm} m{6.7cm} }
-  \multicolumn{2}{l}{dist $($ x, y $) \rightarrow  ($ z $) =$} \\
-  & t$_1 = \mathrm{x} - \mathrm{y} $        \\
-  & t$_2 = \mathrm{x} - \mathrm{y} $        \\
-  & t$_3  = \mathrm{t}_1 * \mathrm{t}_2 $   \\
-  & t$_4  = $sum$(\mathrm{t}_2) $           \\
-  & z $  = \; \mathrm{sqrt}(\mathrm{t}_4)$   \\
-\end{tabular}
-}
-\caption{Untyped Distance Function in SSA form}
-\label{UntypedSSADist}
-\end{figure}
-
 \subsection{Untyped Optimizations}
 Parakeet performs optimizations both before and after type specialization. We subject the untyped representation to inlining, common subexpression elimination and simplification (which consists of simultaneous constant propagation and dead code elimination). This step occurs once for each function, upon its first interception by Parakeet. It is preferable to eliminate as much code as possible at this early stage since an untyped function body serves as a template for a potentially large number of future specializations. The only optimizations we do not perform on the untyped representation are array fusion rewrites, since these rely on type annotations to ensure correctness.
-
-In our distance example, untyped optimizations will both remove a redundant subtraction and inline the definition of the $sum$ function, which expands to a $\REDUCE$ of addition.
-\begin{figure}[h!]
-\fbox{
-\begin{tabular}{ m{0.1cm} m{6.7cm} }
-  \multicolumn{2}{l}{dist $($ x, y $) \rightarrow  ($ z $) =$} \\
-  & t$_1 = \mathrm{x} - \mathrm{y} $        \\
-  & t$_2  = \mathrm{t}_1 * \mathrm{t}_1 $   \\
-  & t$_3  = \REDUCE(+, 0, \mathrm{t}_2) $    \\
-  & z $  = \; \mathrm{sqrt}(\mathrm{t}_3)$   \\
-\end{tabular}
-}
-\caption{Distance Function after untyped optimizations}
-\end{figure}
 
 \subsection{Specialization}
 Specialization transform user programs from the untyped intermediate language into its typed variety. The purpose of this transformation is to eliminate polymorphism, to make manifest all implicit behavior (such as coercion and scalar promotion), and to assign simple unboxed types to all data used within a function body. Beyond the fact that the GPU requires its programs to be statically typed, these goals are also essential for the efficient execution of user code on the GPU. Thus, the specializer generates a different specialized version of a function for each distinct call string, with all of the function's variables receiving the appropriate types.
 
+We take inspiration from \cite{Bol09} and allow functions to both accept and return multiple values. This feature simplifies the specification of certain optimizations and naturally models the simultaneous creation of multiple values on the GPU. 
 
-A specification of our intermediate language is shown in Figure \ref{TIL}. We take inspiration from \cite{Bol09} and allow functions to both accept and return multiple values. This feature simplifies the specification of certain optimizations and naturally models the simultaneous creation of multiple values on the GPU. By convention we will write $\overline{\tau_m}$ to denote a sequence of $m$ simple types, $\overline{v_n}$ for a sequence  of $n$ values, etc. A single element is equivalent to a sequence of length 1 and sequences may be concatenated via juxtaposition, such that $\tau, \overline{\tau_n} = \overline{\tau_{m+1}}$.
-
-The array operators $\MAP$, $\REDUCE$, and $\SCAN$ form a carefully confined higher-order subset of our otherwise first-order language and thus we elevate them to primitive syntax. These operators are important since they are the only constructs in our language that we attempt to parallelize automatically through GPU code synthesis. This isn't to say these are the only constructs executed in parallel on the GPU. The simple (first-order) array operators such as \textbf{sort} can be executed in parallel on the GPU as well via a fixed parallel standard library. 
-
-
-It is important to note that uncertainty with regard to function values has been made completely explicit in this intermediate language. Every higher-order operator carries known labels for its function arguments. Any uncertainty in the original source must be directly encoded as an enumeration over a finite set of possible function calls. Function labels are associated with a set of closure argument values, which are necessary in order to support partial function application. This representation of function values resembles defunctionalization combined with specialization of \textit{apply} functions \cite{Tolmach98}. 
-
-In order for higher-order functions to be translated into the Parakeet IL, it must be possible to specialize away all higher-order arguments. There are situations where exhaustive specialization is not possible (e.g. combinator libraries); in these cases, we revert to the source language's interpreter for
-execution. This highlights an important point: since Parakeet augments (but does not replace) the interpreter of the source language, we are free to disallow problematic language constructs.
-
+\textit{This representation of function values resembles defunctionalization combined with specialization of \textit{apply} functions \cite{Tolmach98}. }
 
 \subsection{Array Operator Fusion}
 In addition to standard compiler optimizations (such as constant folding, function inlining, and common sub-expression elimination), we employ fusion rules~\cite{Jones01} to combine array operators. Fusion enables us to minimize kernel launches, boost the computational density of generated kernels, and avoid the generation of unnecessary array temporaries.
 
 We present the fusion rules used by Parakeet in simplified form, such that array operators only consume and produce a single value. Our rewrite engine generalizes these rules to accept functions of arbitrary input and output arities.
 \\[5pt]
-\begin{tabular}{|m{0.001cm} m{0.05cm} p{6.75cm} p{0.05cm} |}
+\begin{tabular}{|m{0.001cm} m{0.05cm} p{6.5cm} p{0.05cm} |}
   \hline 
   & &  & \\
   & \multicolumn{2}{l}{\large{Map Fusion} }  &  \\[2.5pt]
   & & $\MAP(g, \MAP(f, x)) \leadsto \MAP(g \circ f, x)$ & \\
   & & & \\
   & \multicolumn{2}{l}{\large{Reduce-Map Fusion} }  & \\[2.5pt]
-  & & $\REDUCE(g_r, g_{i}, \MAP(f, x)) \leadsto \REDUCE(g_r \circ f, g_{i} \circ f, x)$ & \\
+  & & $\REDUCE(g, \MAP(f, x)) \leadsto \REDUCE(g \circ f, x)$ & \\
   & & & \\
   \hline
 \end{tabular}\\[4pt]
@@ -287,9 +265,6 @@ Tracking and collection of unused memory is achieved by counting array reference
 
 Parakeet is able to leverage dynamic information in various ways to optimize both the implementation and the execution of the GPU programs it executes.  One important such optimization is automated data layout.  On GPUs, poor memory access patterns can result in orders of magnitude lower performance.  In particular, neighboring threads in an executing GPU kernel should access adjacent memory words in order to get maximum performance.  Use of column major data layouts as a performance optimization is well known in the CPU high performance computing world.  Parakeet's data layout is row major by default.  However, when a \textbf{map} computation is performed over a two-dimensional structure, a row major layout would result in the worst possible memory access pattern for the GPU kernel as its threads would concurrently access memory at some large stride.  Thus in this case, Parakeet specializes the function in question to create a transposed column-major version of the data input.  This column-major version is strictly an intermediate within the Parakeet runtime.  We have found this optimization to be extremely beneficial to performance, and it contributes immensely to the good performance Parakeet delivers on the K-Means clustering benchmark discussed in Section \ref{results-k-means}.
 
-\subsection{First Order Array Operators}
-In addition to implementation skeletons for higher order array operators, we provide a library of precompiled parallel implementations of first-order array operators. Since these operators don't require synthesis with embedded payload functions, they don't need to be dynamically generated. For some operations (such as \textbf{sort}) we use the Thrust library \cite{Hobe10}, while providing our own hand-tuned implementations of others (such as \textbf{where}).
-
 \section{GPU Back End}
 Several systems similar to Parakeet \cite{Cata11,Chaf11} generate GPU programs by emitting CUDA code which is then compiled by NVIDIA's CUDA nvcc toolchain. Parakeet on the other hand, targets PTX, which is NVIDIA's GPU pseudoassembly language. Parakeet's PTX code is dynamically compiled by the NVIDIA graphics driver before being executed.  Parakeet caches compiled binaries so that when a particular array operator is run multiple times on the GPU with similar arguments it needn't incur the code generation and JIT compilation costs more than once.
 
@@ -299,25 +274,16 @@ We prefer compiling PTX instead of CUDA since this enables us to generate binari
 \label{Imp}
 As mentioned above, we implement the higher-order array operators as skeletons of code with splice points where their payload functions get inlined.  Rather than implement these skeletons directly in CUDA or PTX, Parakeet utilizes an embedded DSL called Imp, which operates at a semantic level similar to CUDA. Imp is intentionally a very simple language, since its purpose is to facilitate quick compilation from the typed IL to PTX. 
 
-Imp differs from CUDA in the following important respects:
+Space requirements of a function call (all outputs and local arrays it must allocate) can be determined as a function of input sizes. This is necessary as GPU computations have access only to memory which is allocated before their launch and cannot ``dynamically'' allocate more memory.
 
-\begin{enumerate}
-\item  Arrays are not associated with a particular GPU memory space (global, texture, constant, etc..), allowing us to compile variants of an Imp kernel where inputs reside in different memory spaces.
-
-\item Space requirements of a function call (all outputs and local arrays it must allocate) can be determined as a function of input sizes. This is necessary as GPU computations have access only to memory which is allocated before their launch and cannot ``dynamically'' allocate more memory.
-
-\item Local temporaries can be arrays in addition to scalars. This generalizes CUDA's use of ``local'' memory for spilled scalar variables.
-\end{enumerate}
 Imp kernels are ``shapely'' by construction, meaning they specify their memory requirements as deterministic functions of input size. This obviates the need for ad-hoc allocation logic (the bulk of most CUDA host code in practice) or for auxiliary size inference on higher level code. If a function can be translated to Imp then we can always determine its memory requirements.
-
-We perform staged synthesis of Imp kernels by parameterizing them with payload functions. An Imp kernel can be seen as a ``skeleton'' \cite{Cole04} for a particular implementation strategy of some array operator.  
 
 \section{Evaluation}
 \label{Evaluation}
 
 We evaluated Parakeet on two benchmarks: Black-Scholes option pricing, and K-Means Clustering.  We compare Parakeet against both hand-tuned CPU and GPU implementations.  Due to space constraints, and since at the time of writing our CPU backend only supports single-threaded execution, we only present Parakeet results for its GPU backend.  For Black-Scholes, the CPU reference implementation is taken from the PARSEC \cite{Bien08} benchmark suite, and the GPU implementation is taken from the CUDA SDK \cite{NvidSD}.  For K-Means Clustering both the CPU and GPU benchmark versions come from the Rodinia benchmark suite~\cite{Che09}.
 
-We ran all of our benchmarks on a machine running 64-bit Linux with an Intel Core i7 3.2GHz 960 4-core CPU  and 16GB of RAM.  The GPU used in our system was an NVIDIA Tesla C1060. This card has 240 vector lanes with a clock speed of 1.296 GHz and 4GB of memory.
+We ran all of our benchmarks on a machine running 64-bit Linux with an Intel Core i7 3.2GHz 960 4-core CPU  and 16GB of RAM.  The GPU used in our system was an NVIDIA Tesla C1060 with 240 vector lanes, a clock speed of 1.296 GHz, and 4GB of memory.
 
 \subsection{Black-Scholes}
 \label{results-bs}
@@ -345,7 +311,7 @@ We also tested Parakeet on K-Means clustering, a commonly used unsupervised lear
 
 In Figure \ref{KMCPU3}, we see the total run times of K-Means for the CPU and GPU versions with K = 3 clusters and 30 features on varying numbers of data points.  Here, the distinction between the GPU and the CPU is far less stark.  In fact, for up to 64K data points the 8-thread CPU version outperforms the GPU.  Further, we see that on all but the smallest input size, Parakeet actually performs better than both the CPU and GPU versions.
 
-The reason Parakeet is able to perform so well with respect to the CUDA version is due to the difference in how the two versions execute the code that computes the new average centroid for the new clusters in each iteration.  The CUDA version brings the GPU-computed assignment vectors back to the CPU in order to perform this reduction, as it involves many unaligned memory accesses and so has the potential to perform poorly on the GPU.  Parakeet executes code to perform this function on the GPU instead, prefering to avoid the data transfer penalty.  For such a small number of clusters, the Parakeet method ends up performing far better.  However, for larger numbers of clusters (roughly 30 and above), the fixed overhead of launching an individual kernel to average each cluster's points overwhelms the performance advantage the GPU gives and Parakeet ends up performing worse.  While we don't take advantage of it yet, this illustrates the potential for using dynamic information to get the best of both worlds.  In the future, in the case of a small number of clusters, Parakeet could execute the averaging code on the GPU, while for larger numbers, it could use a CPU implementation.
+The reason Parakeet is able to perform so well with respect to the CUDA version is due to the difference in how the two versions execute the code that computes the new average centroid for the new clusters in each iteration.  The CUDA version brings the GPU-computed assignment vectors back to the CPU in order to perform this reduction, as it involves many unaligned memory accesses and so has the potential to perform poorly on the GPU.  Parakeet executes code to perform this function on the GPU instead, prefering to avoid the data transfer penalty.  For such a small number of clusters, the Parakeet method ends up performing far better.  However, for larger numbers of clusters (roughly 30 and above), the fixed overhead of launching an individual kernel to average each cluster's points overwhelms the performance advantage the GPU gives and Parakeet ends up performing worse than the CUDA version.  While we don't take advantage of it yet, this illustrates the potential for using dynamic information to get the best of both worlds.  In the future, in the case of a small number of clusters, Parakeet could execute the averaging code on the GPU, while for larger numbers, it could use a CPU implementation.
 
 \begin{figure}
 \includegraphics[scale=0.4]{KMGPU.pdf}
@@ -357,29 +323,22 @@ The PTX compilation time is rather significant for this benchmark -- ranging fro
 
 In Figure \ref{KMGPU}, we see a breakdown of the run times for CUDA and Parakeet.  Both Parakeet and the CUDA version use the CPU to perform a significant amount of the computation.  The CUDA version uses the CPU to compute the averages of the new clusters in each iteration, while Parakeet spends a lot of time in its interpreter launching many GPU kernels and performing garbage collection of GPU memory.  In addition, we break down the runtime by reported Parakeet's overhead separately.  This overhead includes initialization costs related to registering functions with the Parakeet runtime; time spent in the Parakeet IL interpreter; and the cost of running the JIT compiler on the generated code.  As can be seen, this overhead is small compared with the overall runtime of the benchmark.
 
-\section{Conclusion and Related Work}
+\section{Related Work}
+\label{RelatedWork}
+There have been several projects that use just-in-time compilation to accelerate Python programs on CPUs, but to our knowledge none have generated parallel code.  The PyPy project is an alternative implementation of Python that includes a JIT compiler and boasts an average 5.3X speedup across 20 benchmarks~\cite{Rigo06}. Psyco was a previous Python JIT compiler that boasted decent speedups~\cite{Rigo04}.
+
+The use of graphics hardware for non-graphical computation has a long history~\cite{Leng90}, though convenient frameworks for general purpose GPU programming have only recently emerged. The Brook language extended C with ``kernels'' and ``streams'', exposing a programming model similar to what is now found in CUDA and OpenCL~\cite{Buck04}.  Microsoft's Accelerator~\cite{Tard06} was the first project to use high level (collection-oriented) language constructs as a basis for GPU execution. Accelerator's programming model does not support function abstractions (only expression trees) and its only underlying parallelism construct is limited to the production of $\MAP$-like kernels.
+
+Nikola~\cite{Main10} and Accelerate~\cite{Chak11} are two first-order array-oriented languages embedded within Haskell. Nikola provides a convenient syntax for expressing single-kernel computations, but requires the programmer to manually coordinate computations which require multiple kernel launches and its loop-based parallelization scheme seems ill-fitted to complex array operations.  Unlike Nikola, Accelerate does allow the expression of computations which span multiple kernel launches. Accelerate also has a much richer set of array operators (including the higher-order trio $\MAP$, $\REDUCE$, $\SCAN$). Accelerate, however, does not seem to support closures or the nesting of array operators.
+
+Copperhead parallelizes a statically typed purely functional array subset of Python through the dynamic compilation/execution of CUDA kernels~\cite{Cata11}. Copperhead supports nested array computations, and has a notion of scheduling computation on both GPU and CPU backends (although only a GPU backend has been implemented). In addition to sequentializing nested array operators within CUDA kernels (as done in Parakeet), Copperhead can also share the work of a nested computation between all the threads in CUDA block. Copperhead does not utilize any dynamic information (such as size) when making these scheduling decisions and thus must rely on user annotations. Copperhead's compiler generates kernels through parameterization of operator-specific C++ template classes. By using C++ as their backend target, Copperhead has been able to easily integrate the Thrust ~\cite{Hobe10} GPGPU library and to offload the bulk of their code optimizations onto a C++ compiler.  However, this results in Copperhead's compile times being the longest of any project mentioned here (orders of magnitude longer than the compiler overhead of Parakeet).
+
+\section{Conclusion}
 \label{Conclusion}
-The use of graphics hardware for non-graphical computation has a  long history~\cite{Leng90}, though convenient frameworks for general purpose GPU programming have only recently emerged. The first prominent GPU backend for a general purpose language was ``Brook for GPUs'' \cite{Buck04}. The Brook language extended C with ``kernels'' and ``streams'', exposing a programming model similar to what is now found in CUDA and OpenCL.
+Parakeet allows the programmer to write Python code using a widely-used numerical computing library while achieving good performance on modern parallel hardware. Parakeet automatically synthesizes and executes efficient native binaries from Python code. Parakeet is a usable system in which complex programs can be written and executed efficiently.  On two benchmark programs, Parakeet delivers performance very competitive with even hand-tuned GPU implementations.  Parakeet code can coexist with standard Python code, allowing full interoperability with all of Python's tools and libraries.
 
-Microsoft's Accelerator~\cite{Tard06} was the first project to use high level (collection-oriented) language constructs as a basis for GPU execution. Accelerator is a declarative GPU language embedded in C\# which creates a directed acyclic graph of LINQ operations -- such as filtering, grouping, and joining -- and compiles them to (pre-CUDA) shader programs. Accelerator's programming model does not support function abstractions (only expression trees) and its only underlying parallelism construct is limited to the production of $\MAP$-like kernels.
+In the near future, we plan to add support for the generation of multithreaded CPU programs to our CPU backend.  In addition, we plan to increase efficiency by iteratively tuning components of hierarchical algorithms, splitting computation simultaneously across all processors in a system, and doing more to overlap computation with data transfers.
 
-Three more recent projects all translate domain specific embedded array languages to CUDA backends:
-\begin{itemize}
-\item \textbf{Nikola}~\cite{Main10} is a first-order array-oriented language embedded within Haskell. Nikola provides a convenient syntax for expressing single-kernel computations, but requires the programmer to manually coordinate computations which require multiple kernel launches. Nikola also does not support partially applied functions and its parallelization scheme, which first serializes array operators into loops and then parallelizes loop iterations, seems ill-suited for complex array operations.
-
-\item \textbf{Accelerate}~\cite{Chak11} is also an embedded array language within Haskell. Unlike Nikola, Accelerate does allow the expression of computations which span multiple kernel launches. Accelerate also has a much richer set of array operators (including the higher-order trio $\MAP$, $\REDUCE$, $\SCAN$). Accelerate, however, does not seem to support closures or the nesting of array operators. Accelerate's backend is similar to ours in that they use a simple interpreter whose job is to initiate skeleton-based kernel compilation, transfer data to and from the GPU, and to perform simple CPU-side computations.
-
-\item \textbf{Copperhead}~\cite{Cata11} parallelizes a statically typed purely functional array subset of Python through the dynamic compilation/execution of CUDA kernels. Copperhead supports nested array computations, and even has a sophisticated notion of where these computations can be scheduled. In addition
-to sequentializing nested array operators within CUDA kernels (as done in Parakeet), Copperhead can also share the work of a nested computation between all the threads in CUDA block. Unfortunately, Copperhead does not utilize any dynamic information (such as size) when making these scheduling decisions and
-thus must rely on user annotations. Copperhead's compiler generates kernels through parameterization of operator-specific C++ template classes. By using C++ as their backend target, Copperhead has been able to easily integrate the Thrust ~\cite{Hobe10} GPGPU library and to offload the bulk of their code optimizations onto a C++ compiler. Runtime generation of templated C++ can, however, be a double-edged sword. Copperhead experiences the longest compile times of any project mentioned here (orders of magnitude longer than the compiler overhead of Parakeet).
-\end{itemize}
-Unlike the three approaches mentioned above, Parakeet does not require its source language to be purely functional nor statically typed. Being able to program in a dynamically typed language seems particularly important for array computations, since static type systems are generally unable to support the syntactic conveniences which make array programming appealing in the first place.
-
-Parakeet allows the programmer to write in a high level sequential array language while taking advantage of the acceleration potential of using GPUs as coprocessors. Parakeet automatically synthesizes and executes very efficient GPU programs from the high level code while transparently moving data back and forth to the GPU's memory and performing GPU memory garbage collection. Parakeet includes a series of optimizations to generate more efficient GPU programs, including array operator fusion, data transposition, and the use of texture memory on the GPU.  Parakeet is a usable system in which complex programs can be written and executed efficiently.  On two benchmark programs, Parakeet delivers performance very competitive with even hand-tuned GPU implementations without impacting the interactivity of the source language interpreter environment.
-
-In future work, we hope to support both more front ends and more back ends.  At the moment, we are nearing completion of a front end for Python's NumPy, and we plan to build a front end for Matlab as well.  Further, we envision building a back end for multicore CPUs, likely targeting LLVM~\cite{Latt02}, which will allow us to simultaneously take advantage of the particular strengths of both types of processors.
-
-In addition, we plan to increase efficiency by iteratively tuning components of hierarchical algorithms, splitting data inputs to take advantage of more of the texturing hardware, and doing more to overlap computation with data transfers.
 
 {\small
 \bibliographystyle{acm}
