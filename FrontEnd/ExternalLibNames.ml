@@ -2,7 +2,7 @@
 open Base
 open Prim
 
-let prim_names =  Hashtbl.of_list [
+let prim_names = Hashtbl.of_list [
     "+", ScalarOp Add;
     "-", ScalarOp Sub;
     "/", ScalarOp Div;
