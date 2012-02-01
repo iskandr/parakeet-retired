@@ -100,6 +100,7 @@ Parakeet is not meant as a general-purpose accelerator for all Python programs. 
 
 These restrictions would be onerous if applied to an entire program, but it's important to remember that Parakeet only sees the computational core of an algorithm. All other code is executed as usual by the Python interpreter. Furthermore, the style of programming required for Parakeet closely matches the idiomatic conventions of array programming. In practice, if an algorithm makes heavy use of NumPy operators for its computations then it will run under Parakeet with only minor modifications. 
 
+
 Though Parakeet supports the use of loops, it does not attempt to parallelize them in any way. Parallelism is instead achieved by relaxing the iteration order of the following higher-order array operators:
 
 \begin{itemize}
@@ -120,10 +121,10 @@ Though Parakeet supports the use of loops, it does not attempt to parallelize th
 For each occurrence of a data parallel operator in a user's program Parakeet may choose, based on heuristics discussed later, to synthesize parallel code which performs the same computation. It is not always necessary, however, to explicitly use one of these operators in order to achieve parallelization. 
 Parakeet implements NumPy's array broadcasting semantics by implicitly inserting calls to $\MAP$ into a user's code. Furthermore, Parakeet reimplements a subset of the NumPy library functions (\lstinline{sum}, \lstinline{argmax}, etc...) in order to expose opportunities for parallelism.
 
-\subsection{Code Example}
-Let's make things more concrete with a code example.  Figure \ref{MinIdx} shows two functions that form part of the K-Means clustering benchmark we use to evaluate Parakeet in Section \ref{Evaluation}.  The \texttt{minidx} function takes two inputs: a matrix \texttt{C} of vectors, and another vector \texttt{x}.  It computes the index of the vector in \texttt{C} whose distance from \texttt{x} is the smallest.
 
-The program execution pipeline for NumPy code by Parakeet (shown in Figure \ref{fig:overview}) begins in the standard Python interpreter. At program start time, a subset of the program's functions (annotated manually by the programmer with a function decorator) are registered with Parakeet as potentially accelerable. The body of a registered function is then translated into an untyped intermediate representation using the Parakeet front end interface and the Python's introspection facilities.
+
+\section{Parakeet Runtime and Internals}
+To convey a more concrete understanding of how Parakeet works internally we utilize two example functions taken from our K-Means clustering benchmark. The function \lstinline{minidx} takes as input a matrix \lstinline{C} and a vector \lstinline{x} and then computes the index of the row in \lstinline{C} whose distance from \lstinline{x} is smallest.
 
 \begin{lstlisting}[language=Python,frame=single, label=MinIdx]
 def sqr_dist(x,y):
@@ -135,8 +136,9 @@ def minidx(C,x):
   return argmin(sqr_dists)
 \end{lstlisting}
 
-
-When a call is made to a function which has been registered with Parakeet, the untyped function is specialized by propagating type information from the arguments to all values in the body.  Type specialization translates the function into a typed intermediate language. Further standard optimizations are performed at this stage, the most impactful of which is \emph{array operator fusion}, wherein array operations are combined according to rewriting rules. 
+When the Python interpreter starts running it calls the decorator \lstinline{PAR} with \lstinline{minidx} as its argument. Parakeet's front-end 
+translates the syntax tree of \lstinline{minidx} into Parakeet's untyped internal language representation, which is then converted to Static Single Assignment form. 
+Later, when \lstinline{minidx} is later called from within Python, Parakeet intercepts its arguments and uses their types to specialize  the untyped function is specialized by propagating type information from the arguments to all values in the body.  Type specialization translates the function into a typed intermediate language. Further standard optimizations are performed at this stage, the most impactful of which is \emph{array operator fusion}, wherein array operations are combined according to rewriting rules. 
 
 Execution of the optimized typed IL is initiated by Parakeet's interpreter, which is then responsible for deciding which operations to JIT compile to native code for the CPU or GPU. When the interpreter encounters an array operator it employs a simple cost-based heuristic (which considers nested array operators, data sizes, and memory transfer costs) to decide where to execute it 
 
