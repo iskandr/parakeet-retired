@@ -137,8 +137,27 @@ def minidx(C,x):
 \end{lstlisting}
 
 When the Python interpreter starts running it calls the decorator \lstinline{PAR} with \lstinline{minidx} as its argument. Parakeet's front-end 
-translates the syntax tree of \lstinline{minidx} into Parakeet's untyped internal language representation, which is then converted to Static Single Assignment form. 
-Later, when \lstinline{minidx} is later called from within Python, Parakeet intercepts its arguments and uses their types to specialize  the untyped function is specialized by propagating type information from the arguments to all values in the body.  Type specialization translates the function into a typed intermediate language. Further standard optimizations are performed at this stage, the most impactful of which is \emph{array operator fusion}, wherein array operations are combined according to rewriting rules. 
+translates the syntax tree of \lstinline{minidx} into Parakeet's untyped internal language representation, which is then converted to Static Single Assignment form \cite{Cytr91}. 
+
+
+\subsection{Type Specialization}
+Whenever \lstinline{minidx} is called from within Python, Parakeet intercepts its arguments and uses their types to synthesize a typed version of the function's body. For example, if the types of the arguments were \lstinline{array2(float), array1(float)} then a specialized version of \lstinline{minidx} would be synthesized just for those types. Furthermore, the specialization process would recursively trigger the specialization of \lstinline{sqr_dist} for argument types \lstinline{array1(float), array1(float)}. 
+
+In Parakeet's typed representation, every function must have unambiguous input and output types. To eliminate polymorphism Parakeets inserts casts and $\MAP$ operators where necessary. When \lstinline{sqr_dist} is specialization for vector arguments, its math operators are rewritten into one-dimensional $\MAP$s of those same operators. 
+
+The actual process of type specialization is implemented by interleaving an abstract interpreter which propagates input types to infer local types and a rewrite engine which inserts coercions where necessary. 
+
+
+Parakeet performs optimizations both before and after type specialization. We subject the untyped representation to inlining, common subexpression elimination, constant propagation and dead code elimination. This step occurs once for each function, upon its first interception by Parakeet. It is preferable to eliminate as much code as possible at this early stage since an untyped function body serves as a template for a potentially large number of future specializations. The only optimizations we do not perform on the untyped representation are array fusion rewrites, since these rely on type annotations to ensure correctness.
+
+Specialization transform user programs from the untyped intermediate language into its typed variety. The purpose of this transformation is to eliminate polymorphism, to make manifest all implicit behavior (such as coercion and scalar promotion), and to assign simple unboxed types to all data used within a function body. 
+
+\subsection{Optimization}
+In addition to standard compiler optimizations (such as constant folding, function inlining, and common sub-expression elimination), we employ fusion rules~\cite{Jones01} to combine array operators. Fusion enables us to minimize kernel launches, boost the computational density of generated kernels, and avoid the generation of unnecessary array temporaries.
+
+Further standard optimizations are performed at this stage, the most impactful of which is \emph{array operator fusion}, wherein array operations are combined according to rewriting rules. 
+
+\subsection{Execution}
 
 Execution of the optimized typed IL is initiated by Parakeet's interpreter, which is then responsible for deciding which operations to JIT compile to native code for the CPU or GPU. When the interpreter encounters an array operator it employs a simple cost-based heuristic (which considers nested array operators, data sizes, and memory transfer costs) to decide where to execute it 
 
@@ -154,12 +173,6 @@ To execute the native code, Parakeet first copies any of its inputs that aren't 
 \caption{Parakeet Pipeline}
 \label{fig:overview}
 \end{figure*}
-
-Parakeet performs optimizations both before and after type specialization. We subject the untyped representation to inlining, common subexpression elimination, constant propagation and dead code elimination. This step occurs once for each function, upon its first interception by Parakeet. It is preferable to eliminate as much code as possible at this early stage since an untyped function body serves as a template for a potentially large number of future specializations. The only optimizations we do not perform on the untyped representation are array fusion rewrites, since these rely on type annotations to ensure correctness.
-
-Specialization transform user programs from the untyped intermediate language into its typed variety. The purpose of this transformation is to eliminate polymorphism, to make manifest all implicit behavior (such as coercion and scalar promotion), and to assign simple unboxed types to all data used within a function body. 
-
-In addition to standard compiler optimizations (such as constant folding, function inlining, and common sub-expression elimination), we employ fusion rules~\cite{Jones01} to combine array operators. Fusion enables us to minimize kernel launches, boost the computational density of generated kernels, and avoid the generation of unnecessary array temporaries.
 
 \section{The Parakeet Runtime}
 \label{runtime}
