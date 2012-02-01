@@ -89,19 +89,14 @@ Parakeet is an accelerator library for numerical Python algorithms written using
   def entropy(p):
     return -numpy.sum(p * numpy.log2(p))
 \end{lstlisting}
-If the decorator \lstinline{@PAR} were removed, then \lstinline{entropy} will run as ordinary Python code. Since NumPy's \lstinline{log2} and array multiplication operators are statically compiled they will allocate array result even if it will be immediately consumed. By contrast, Parakeet specializes the function \lstinline{entropy} for any distinct input type, optimizes the body into a singled fused reduction (avoiding unnecessary allocation) and finally executes it as parallel native code.
-
-
-%We have implemented two backends for Parakeet: a manycore GPU backend on top of CUDA and a less mature multicore backend using LLVM. Both of these backends rely on the presence of 
-%data parallel 
-
+If the decorator \lstinline{@PAR} were removed, then \lstinline{entropy} would run as ordinary Python code. Since NumPy's \lstinline{log2} and array multiplication operators are statically compiled they always allocate result arrays (even when they are immediately consumed). In contrast, Parakeet specializes the function \lstinline{entropy} for any distinct input type, optimizes the body into a singled fused reduction (avoiding unnecessary allocation) and executes it as parallel native code.
 
 Parakeet is not meant as a general-purpose accelerator for all Python programs.  Rather, it is designed to execute array-oriented numerical algorithms such as those found in machine learning, financial computing, and scientific simulation. In particular, the sections of code that Parakeet accelerates must obey the following constraints:
 
 \begin{itemize}
  \item Due to the difficulty of implementing efficient non-uniform data structures on the GPU, we require all values within Parakeet to be either scalars or NumPy arrays. No dictionaries, sets, or user-defined objects are allowed. 
- \item To compile Python into native code we must assign types to each expression in a function. We are still able to implement some of Python's polymorphism by specializing different typed versions of a function for each distinct set of argument types. However, expressions whose types depend on dynamic values (such as \lstinline{43 if bool_val else "sausage"}) are disallowed.
- \item Only functions which don't modify global state or perform I/O can be executed in parallel. Local mutabable variables are however always allowed. 
+ \item To compile Python into native code we must assign types to each expression. We are still able to retain some of Python's polymorphism by specializing different typed versions of a function for each distinct set of argument types. However, expressions whose types depend on dynamic values (such as \lstinline{43 if bool_val else "sausage"}) are disallowed.
+ \item Only functions which don't modify global state or perform I/O can be executed in parallel. Local mutabable variables are  always allowed. 
 \end{itemize}
 
 These restrictions would be onerous if applied to an entire program, but it's important to remember that Parakeet only sees the computational core of an algorithm. All other code is executed as usual by the Python interpreter. Furthermore, the style of programming required for Parakeet matches closely to the idiomatic conventions of array programming. In practice, if an algorithm makes heavy use of NumPy operators for its computations then it will run under Parakeet with only minor modifications. 
@@ -110,31 +105,23 @@ Though Parakeet supports the use of loops, it does not attempt to in any way par
 
 \begin{itemize}
 \item $\MAP(\textit{f}, \; \textit{X}_1,  ... ,  \textit{X}_n, \; \textit{fixed}\textrm{=[]}, \; \textit{axis}\textrm{=None})$ \\
-      Apply the function \textit{f} to each element of the array arguments. By default, \textit{f} is passed each scalar element of the array arguments. The axis keyword
-      can be used to specify a different iteration pattern (such as applying \textit{f} to all columns). 
-      The \textit{fixed} keyword is a list of values which precede the array elements as arguments to \textit{f} (simulating partial function application). 
+  Apply the function \textit{f} to each element of the array arguments. By default, \textit{f} is passed each scalar element of the array arguments. \\
+  The \textit{axis} keyword can be used to specify a different iteration pattern (such as applying \textit{f} to all columns). 
+  The \textit{fixed} keyword is a list of values which precede the array elements as arguments to \textit{f} (simulating partial function application). 
        
-\item $\ALLPAIRS(\textit{f}, \; \textit{X}_1,  \; \textit{X}_2, \; \textit{fixed}\textrm{=[]}, \; \textit{axis}\textrm{=} 0)$ 
-\item $\REDUCE(\textit{f}, \; \textit{X}_1,  ... ,  \textit{X}_n, \; \textit{fixed}\textrm{=[]}, \; \textit{axis}\textrm{=None}, \; \textit{init}\textrm{=None})$
-\item $\SCAN(\textit{f}, \; \textit{X}_1,  ... ,  \textit{X}_n, \; \textit{fixed}\textrm{=[]}, \; \textit{axis}\textrm{=None}, \; \textit{init}\textrm{=None})$
+\item $\ALLPAIRS(\textit{f}, \; \textit{X}_1,  \; \textit{X}_2, \; \textit{fixed}\textrm{=[]}, \; \textit{axis}\textrm{=} 0)$ \\
+  Apply the function \textit{f} to each pair of elements from the arrays \textit{X}$_1$ and \textit{X}$_2$.   
+\item $\REDUCE(\textit{f}, \; \textit{X}_1,  ... ,  \textit{X}_n, \; \textit{fixed}\textrm{=[]}, \; \textit{axis}\textrm{=None}, \; \textit{init}\textrm{=None})$ \\
+  Combine all the elements of the array arguments using the $n+1$-ary commutative operator $f$. Examples of reductions are the NumPy functions \lstinline{sum} and \lstinline{product}. 
+\item $\SCAN(\textit{f}, \; \textit{X}_1,  ... ,  \textit{X}_n, \; \textit{fixed}\textrm{=[]}, \; \textit{axis}\textrm{=None}, \;  \textit{init}\textrm{=None})$ \\
+  Combine all the elements of the array arguments and return an array containing all cumulative intermediate values of the combination. 
+  Examples of scans are the NumPy functions \lstinline{cumsum} and \lstinline{cumprod}. 
 \end{itemize}
-
-If the axis argument is omitted then the function is applied to every scalar element of the arrays. 
-Examples: 
-map(sqrt, array([1,4,9]))  \# evaluates to array([1,2,3])
-map(sum, array([[1,2,3],[4,5,6]), axis=1) \# evaluates to array([5, 7, 9])
-allpairs(lambda x,y: sqrt((x-y)*(x-y)), X, Y) \# distance between all pairs of rows
-reduce(np.add, array([1,2,3])) \# evalutes to 6 
-
-scan(np.add, array([1,2,3])) \# evaluates to array([1,3,6])
-
 
 
 These "data parallel" operators par basic units of parallelism in Parakeet are the following data parallel operators. 
 Array operations encode rich information about their access patterns that we can exploit to translate them into efficient parallel programs \cite{Ju94}
 
-%Might be useful: 
-% .
 
 
 \subsection{Code Example}
@@ -196,34 +183,6 @@ We take inspiration from \cite{Bol09} and allow functions to both accept and ret
 \subsection{Array Operator Fusion}
 In addition to standard compiler optimizations (such as constant folding, function inlining, and common sub-expression elimination), we employ fusion rules~\cite{Jones01} to combine array operators. Fusion enables us to minimize kernel launches, boost the computational density of generated kernels, and avoid the generation of unnecessary array temporaries.
 
-We present the fusion rules used by Parakeet in simplified form, such that array operators only consume and produce a single value. Our rewrite engine generalizes these rules to accept functions of arbitrary input and output arities.
-\\[5pt]
-\begin{tabular}{|m{0.001cm} m{0.05cm} p{6.5cm} p{0.05cm} |}
-  \hline 
-  & &  & \\
-  & \multicolumn{2}{l}{\large{Map Fusion} }  &  \\[2.5pt]
-  & & $\MAP(g, \MAP(f, x)) \leadsto \MAP(g \circ f, x)$ & \\
-  & & & \\
-  & \multicolumn{2}{l}{\large{Reduce-Map Fusion} }  & \\[2.5pt]
-  & & $\REDUCE(g, \MAP(f, x)) \leadsto \REDUCE(g \circ f, x)$ & \\
-  & & & \\
-  \hline
-\end{tabular}\\[4pt]
-
-These transformations are safe if the following conditions hold:
-\begin{enumerate}
-\item All the functions involved are referentially transparent.
-
-\item Every output of the predecessor function ($f$) is used by the successor
-($g$).
-
-\item The outputs of the predecessor are used \textit{only} by the successor.
-\end{enumerate}
-
-The last two conditions restrict our optimizer from rewriting anything but linear chains of produced/consumed temporaries. A large body of previous work~\cite{Ald01} has demonstrated both the existence of richer fusion rules and cost-directed strategies for applying those rules in more general scenarios. Still, despite the simplicity of our approach, we have observed that many wasteful temporaries in idiomatic array code are removed by using only the above rules.
-
-
-
 \section{The Parakeet Runtime}
 \label{runtime}
 
@@ -256,14 +215,8 @@ Accurate prediction of array shapes is necessary both for the allocation of inte
 
 \subsection{Data Movement and Garbage Collection} 
 Arrays are moved to the GPU whenever they are used as the argument to some GPU computation. The specific GPU memory space into which an array is loaded depends on both the other data already on the GPU and the individual characteristics of the computation in which that array is being used.
-Unlike some systems similar to Parakeet \cite{Chaf11}, we do not by default preallocate the entirety of the GPU's memory.  Rather, Parakeet has a runtime flag that can enable such preallocation for better performance in dedicated compute server environments.  This is because we expect a typical use case to be in a desktop environment, where the GPU serves a double function of graphics processing and array operator acceleration and we don't want steal all of the GPU's resources.
+Unlike some systems similar to Parakeet \cite{Chaf11}, we do not by default preallocate the entirety of the GPU's memory. 
 
-Tracking and collection of unused memory is achieved by counting array references. Parakeet does not immediately free an array whose reference count drops to zero but rather maintains a cache of free data blocks which can be cheaply reused. Such caching of free pointers can be advantageous when a computation repeatedly allocate arrays of the same size. 
-
-\subsection{Data Layout}
-\label{datalayout}
-
-Parakeet is able to leverage dynamic information in various ways to optimize both the implementation and the execution of the GPU programs it executes.  One important such optimization is automated data layout.  On GPUs, poor memory access patterns can result in orders of magnitude lower performance.  In particular, neighboring threads in an executing GPU kernel should access adjacent memory words in order to get maximum performance.  Use of column major data layouts as a performance optimization is well known in the CPU high performance computing world.  Parakeet's data layout is row major by default.  However, when a \textbf{map} computation is performed over a two-dimensional structure, a row major layout would result in the worst possible memory access pattern for the GPU kernel as its threads would concurrently access memory at some large stride.  Thus in this case, Parakeet specializes the function in question to create a transposed column-major version of the data input.  This column-major version is strictly an intermediate within the Parakeet runtime.  We have found this optimization to be extremely beneficial to performance, and it contributes immensely to the good performance Parakeet delivers on the K-Means clustering benchmark discussed in Section \ref{results-k-means}.
 
 \section{GPU Back End}
 Several systems similar to Parakeet \cite{Cata11,Chaf11} generate GPU programs by emitting CUDA code which is then compiled by NVIDIA's CUDA nvcc toolchain. Parakeet on the other hand, targets PTX, which is NVIDIA's GPU pseudoassembly language. Parakeet's PTX code is dynamically compiled by the NVIDIA graphics driver before being executed.  Parakeet caches compiled binaries so that when a particular array operator is run multiple times on the GPU with similar arguments it needn't incur the code generation and JIT compilation costs more than once.
