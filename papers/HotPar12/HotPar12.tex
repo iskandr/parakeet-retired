@@ -117,15 +117,15 @@ Though Parakeet supports the use of loops, it does not attempt to parallelize th
   Examples of scans are the NumPy functions \lstinline{cumsum} and \lstinline{cumprod}. 
 \end{itemize}
 
-These "data parallel" operators form the basic units of parallelism in Parakeet. Array operations encode rich information about their access patterns that we can exploit to translate them into efficient parallel programs~\cite{Ju94}.
+For each occurrence of a data parallel operator in a user's program Parakeet may choose, based on heuristics discussed later, to synthesize parallel code which performs the same computation. It is not always necessary, however, to explicitly use one of these operators in order to achieve parallelization. 
+Parakeet implements NumPy's array broadcasting semantics by implicitly inserting calls to $\MAP$ into a user's code. Furthermore, Parakeet reimplements a subset of the NumPy library functions (\lstinline{sum}, \lstinline{argmax}, etc...) in order to expose opportunities for parallelism.
 
 \subsection{Code Example}
 Let's make things more concrete with a code example.  Figure \ref{MinIdx} shows two functions that form part of the K-Means clustering benchmark we use to evaluate Parakeet in Section \ref{Evaluation}.  The \texttt{minidx} function takes two inputs: a matrix \texttt{C} of vectors, and another vector \texttt{x}.  It computes the index of the vector in \texttt{C} whose distance from \texttt{x} is the smallest.
 
 The program execution pipeline for NumPy code by Parakeet (shown in Figure \ref{fig:overview}) begins in the standard Python interpreter. At program start time, a subset of the program's functions (annotated manually by the programmer with a function decorator) are registered with Parakeet as potentially accelerable. The body of a registered function is then translated into an untyped intermediate representation using the Parakeet front end interface and the Python's introspection facilities.
 
-\begin{figure}[h!]
-\begin{lstlisting}[language=Python,frame=single]
+\begin{lstlisting}[language=Python,frame=single, label=MinIdx]
 def sqr_dist(x,y):
   return sum((x-y) * (x-y))
 
@@ -134,13 +134,11 @@ def minidx(C,x):
   sqr_dists = map(sqr_dist,C,fixed=[x])
   return argmin(sqr_dists)
 \end{lstlisting}
-\caption{Minimum Distance Example}
-\label{MinIdx}
-\end{figure}
 
-When a call is made to a function which has been registered with Parakeet, the untyped function is specialized by propagating type information from the arguments to all values in the body.  Type specialization translates the function into a typed intermediate language. Further standard optimizations are performed at this stage, the most impactful of which is \emph{array operator fusion}, wherein array operations are combined according to rewriting rules. This fusion step can be extremely beneficial to the final program's performance, especially when executed on the GPU, as it can drastically increase computational density and eliminate many wasteful array temporaries.
 
-Execution of the optimized typed IL is initiated by Parakeet's interpreter, which is then responsible for deciding which operations to JIT compile to native code for the CPU or GPU. When the interpreter encounters an array operator it employs a simple cost-based heuristic (which considers nested array operators, data sizes, and memory transfer costs) to decide where to execute it (for more details see Section \ref{costmodel}). Parakeet's interpreter invests great effort into analyzing both the program and information about the data to make dynamic execution decisions. The cost of these analyses are mitigated by the tremendous computational density of the intermediate language's array operators.
+When a call is made to a function which has been registered with Parakeet, the untyped function is specialized by propagating type information from the arguments to all values in the body.  Type specialization translates the function into a typed intermediate language. Further standard optimizations are performed at this stage, the most impactful of which is \emph{array operator fusion}, wherein array operations are combined according to rewriting rules. 
+
+Execution of the optimized typed IL is initiated by Parakeet's interpreter, which is then responsible for deciding which operations to JIT compile to native code for the CPU or GPU. When the interpreter encounters an array operator it employs a simple cost-based heuristic (which considers nested array operators, data sizes, and memory transfer costs) to decide where to execute it 
 
 If an array operator's computation is deemed a good candidate for native hardware execution, Parakeet flattens all nested array computations within that operator into sequential loops.  This payload is then inlined into a program skeleton that implements that operator.  For example, in the case of a \textbf{map} operation, Parakeet provides skeletal algorithms that implement the pattern of applying the same function to each element of an array on the CPU as well as on the GPU.  The flattened payload function argument is inlined into this skeleton, and a complete program is synthesized and JIT compiled.
 
@@ -155,27 +153,10 @@ To execute the native code, Parakeet first copies any of its inputs that aren't 
 \label{fig:overview}
 \end{figure*}
 
-\section{Parakeet Pipeline}
-\label{Pipeline}
-Now we turn to the problem of compiling an array language program into an efficient GPU program. At first glance, there seems to be a significant mismatch between the highly dynamic expressiveness of an array language like Q and the limitations imposed by GPU hardware discussed in Section \ref{GPULimitations}. Indeed, the Parakeet intermediate language must serve as a compromise between two competing tensions. In order to translate array programs into efficient GPU code it is necessary for the compiler to eliminate as much abstraction as possible. On the other hand, we must be careful not to make our program representation overly concrete with regard to evaluation order (which would eliminate opportunities for parallelism provided by the array operators). 
-\textit{In deference to the above-mentioned GPU hardware restrictions, any program which is compiled to run on the GPU cannot have any of the following:}
+Parakeet performs optimizations both before and after type specialization. We subject the untyped representation to inlining, common subexpression elimination, constant propagation and dead code elimination. This step occurs once for each function, upon its first interception by Parakeet. It is preferable to eliminate as much code as possible at this early stage since an untyped function body serves as a template for a potentially large number of future specializations. The only optimizations we do not perform on the untyped representation are array fusion rewrites, since these rely on type annotations to ensure correctness.
 
+Specialization transform user programs from the untyped intermediate language into its typed variety. The purpose of this transformation is to eliminate polymorphism, to make manifest all implicit behavior (such as coercion and scalar promotion), and to assign simple unboxed types to all data used within a function body. 
 
-\subsection{Lambda Lifting and SSA Conversion}
-After a function call has been intercepted by the Parakeet runtime, Parakeet performs a syntax-directed translation from a language-specific abstract syntax tree (AST) into Parakeet's IL. Since type information is not yet available to specialize user functions, the functions must be translated into an untyped
-form. 
-
-\subsection{Untyped Optimizations}
-Parakeet performs optimizations both before and after type specialization. We subject the untyped representation to inlining, common subexpression elimination and simplification (which consists of simultaneous constant propagation and dead code elimination). This step occurs once for each function, upon its first interception by Parakeet. It is preferable to eliminate as much code as possible at this early stage since an untyped function body serves as a template for a potentially large number of future specializations. The only optimizations we do not perform on the untyped representation are array fusion rewrites, since these rely on type annotations to ensure correctness.
-
-\subsection{Specialization}
-Specialization transform user programs from the untyped intermediate language into its typed variety. The purpose of this transformation is to eliminate polymorphism, to make manifest all implicit behavior (such as coercion and scalar promotion), and to assign simple unboxed types to all data used within a function body. Beyond the fact that the GPU requires its programs to be statically typed, these goals are also essential for the efficient execution of user code on the GPU. Thus, the specializer generates a different specialized version of a function for each distinct call string, with all of the function's variables receiving the appropriate types.
-
-We take inspiration from \cite{Bol09} and allow functions to both accept and return multiple values. This feature simplifies the specification of certain optimizations and naturally models the simultaneous creation of multiple values on the GPU. 
-
-\textit{This representation of function values resembles defunctionalization combined with specialization of \textit{apply} functions \cite{Tolmach98}. }
-
-\subsection{Array Operator Fusion}
 In addition to standard compiler optimizations (such as constant folding, function inlining, and common sub-expression elimination), we employ fusion rules~\cite{Jones01} to combine array operators. Fusion enables us to minimize kernel launches, boost the computational density of generated kernels, and avoid the generation of unnecessary array temporaries.
 
 \section{The Parakeet Runtime}
@@ -189,12 +170,11 @@ Once a function has been type specialized and fully optimized, it is handed off 
 \item when should data be moved onto or off the GPU
 \end{enumerate} 
 
-\subsection{Cost Model}
-\label{costmodel}
+Accurate prediction of array shapes is necessary both for the allocation of intermediate values on the GPU as well as for the above cost model determining placement of computations. We employ a simple abstract interpreter which propagates shape information through a function using the obvious shape semantics for each operator. For example, a $\REDUCE$ operation collapses the outermost dimension of its argument whereas a $\MAP$ preserves a shape's outermost dimension.
 
-When the Parakeet interpreter encounters an array operator, it uses a simple cost model to decide what is the best place to execute the operator.  The cost model employs a recursive function that estimates the relative cost of executing that operator on the CPU versus the GPU.  This function is not meant to measure the precise expected run time of the operator; rather, the goal is to make the correct decision when the use of one or the other processor should result in much higher performance.  We use the clock frequency of each processor to roughly estimate the cost of a single operation.  For each array operator, we multiply the estimated cost of a single execution of the operator's function argument by some fixed function of the input size.  For a \textbf{map} operation, for example, we multiply the estimated cost of performing the sequentialized version of the mapped function by the number of input elements. In addition, we estimated the time needed to transfer data to and from the GPU as a function of data size and add this cost to the total if the data is not already present in the respective processor's memory.
+When the Parakeet interpreter encounters an array operator, it uses a simple cost model to decide what is the best place to execute the operator.  For a $\MAP$ operation, for example, we multiply the estimated cost of performing the sequentialized version of the mapped function by the number of input elements. In addition, we estimated the time needed to transfer data to and from the GPU as a function of data size and add this cost to the total if the data is not already present in the respective processor's memory.
 
-In the case of nested array operators -- e.g.~a \textbf{map} whose payload function is itself a \textbf{reduce} the interpreter needs to choose which operator, if any, will form the parallelization point for a GPU kernel while sequentializing all nested operators within that kernel.  The possible choices include:
+In the case of nested array operators -- e.g.~a $\MAP$ whose payload function is itself a $\REDUCE$ the interpreter needs to choose which operator, if any, will form the parallelization point for a GPU kernel while sequentializing all nested operators within that kernel.  The possible choices include:
 
 \begin{enumerate}
 \item Running the \textbf{map} as a GPU kernel, with an embedded sequential \texttt{for} loop that implements the \textbf{reduce}.
@@ -202,29 +182,13 @@ In the case of nested array operators -- e.g.~a \textbf{map} whose payload funct
 \item Running everything in the Parakeet interpreter as two nested \texttt{for} loops.
 \end{enumerate}
 
-In cases (1) and (3), the operator is executed entirely on a single processor.  In case (2), however, the \textbf{map} runs as a loop on the CPU, generating each element of the resulting vector with a separate GPU program invocation.  In this case, the interpreter creates an interpreter array object on the CPU whose elements are references to the values generated on the GPU.  The final linear CPU array is only constructed lazily as needed or when the GPU garbage collector needs the space.  At that point, a linear CPU array is allocated and filled in with the computed values.  This is precisely what happens in our implementation of K-Means clustering discussed in Section \ref{results-k-means}.
-
-\subsection{Shape Inference}
-\label{shapeinference}
-Accurate prediction of array shapes is necessary both for the allocation of intermediate values on the GPU as well as for the above cost model determining placement of computations. We employ a simple abstract interpreter which propagates shape information through a function using the obvious shape semantics for each operator. For example, a $\REDUCE$ operation collapses the outermost dimension of its argument whereas a $\MAP$ preserves a shape's outermost dimension.
-
-\subsection{Data Movement and Garbage Collection} 
-Arrays are moved to the GPU whenever they are used as the argument to some GPU computation. The specific GPU memory space into which an array is loaded depends on both the other data already on the GPU and the individual characteristics of the computation in which that array is being used.
-Unlike some systems similar to Parakeet \cite{Chaf11}, we do not by default preallocate the entirety of the GPU's memory. 
 
 
 \section{GPU Back End}
-Several systems similar to Parakeet \cite{Cata11,Chaf11} generate GPU programs by emitting CUDA code which is then compiled by NVIDIA's CUDA nvcc toolchain. Parakeet on the other hand, targets PTX, which is NVIDIA's GPU pseudoassembly language. Parakeet's PTX code is dynamically compiled by the NVIDIA graphics driver before being executed.  Parakeet caches compiled binaries so that when a particular array operator is run multiple times on the GPU with similar arguments it needn't incur the code generation and JIT compilation costs more than once.
+Several systems similar to Parakeet \cite{Cata11,Chaf11} generate GPU programs by emitting CUDA code which is then compiled by NVIDIA's CUDA nvcc toolchain. Parakeet on the other hand, targets PTX, which is NVIDIA's GPU pseudoassembly language. Parakeet's PTX code is dynamically compiled by the NVIDIA graphics driver before being executed.  We prefer compiling PTX instead of CUDA since the compile times are dramatically shorter. 
 
-We prefer compiling PTX instead of CUDA since this enables us to generate binaries more quickly, achieving a fully dynamic compiler without any noticeable stalls. The NVIDIA CUDA compiler is a wrapper around the GCC C++ compiler, and CUDA supports all of C++ in the host code and a large subset (including C++ templates) in the GPU code.  Thus, the compile times for even simple kernels can be on the order of 5--10 seconds.  There are, of course, advantages to using the NVIDIA compiler. The main ones are that we would be able to take advantage of all of the NVIDIA and GCC compiler optimizations and that it would simplify our implementation effort.  
-
-\subsection{Imp}
-\label{Imp}
-As mentioned above, we implement the higher-order array operators as skeletons of code with splice points where their payload functions get inlined.  Rather than implement these skeletons directly in CUDA or PTX, Parakeet utilizes an embedded DSL called Imp, which operates at a semantic level similar to CUDA. Imp is intentionally a very simple language, since its purpose is to facilitate quick compilation from the typed IL to PTX. 
-
-Space requirements of a function call (all outputs and local arrays it must allocate) can be determined as a function of input sizes. This is necessary as GPU computations have access only to memory which is allocated before their launch and cannot ``dynamically'' allocate more memory.
-
-Imp kernels are ``shapely'' by construction, meaning they specify their memory requirements as deterministic functions of input size. This obviates the need for ad-hoc allocation logic (the bulk of most CUDA host code in practice) or for auxiliary size inference on higher level code. If a function can be translated to Imp then we can always determine its memory requirements.
+Arrays are moved to the GPU whenever they are used as the argument to some GPU computation. The specific GPU memory space into which an array is loaded depends on both the other data already on the GPU and the individual characteristics of the computation in which that array is being used.
+Unlike some systems similar to Parakeet \cite{Chaf11}, we do not by default preallocate the entirety of the GPU's memory. 
 
 \section{Evaluation}
 \label{Evaluation}
