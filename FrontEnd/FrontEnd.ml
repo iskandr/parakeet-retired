@@ -18,7 +18,7 @@ let _ = init ()
 
 let register_untyped_function ~name ~globals ~args astNode =
   IFDEF DEBUG THEN
-    Printf.printf "[register_untyped] Received untyped AST: %s (%s)\n %s\n%!"
+    Printf.printf "[FrontEnd.register_untyped] Received untyped AST: %s (%s)\n %s\n%!"
       name
       (String.concat ", " args)
       (AST.to_str astNode)
@@ -55,6 +55,9 @@ type ret_val =
   | Pass
 
 let run_function untypedId ~globals ~args : ret_val =
+  IFDEF DEBUG THEN 
+    printf "[FrontEnd.run_function] Running %s\n%!" (FnId.to_str untypedId);
+  ENDIF;
   Timing.clear Timing.runTemplate;
   Timing.clear Timing.typedOpt;
   Timing.clear Timing.ptxCompile;
@@ -66,7 +69,7 @@ let run_function untypedId ~globals ~args : ret_val =
   let argTypes = List.map Value.type_of args in
   let untypedFn = FnManager.get_untyped_function untypedId in
   IFDEF DEBUG THEN
-     printf "[run_function] untyped function body: %s\n"
+     printf "[FrontEnd.run_function] untyped function body: %s\n"
       (SSA.fn_to_str untypedFn);
   ENDIF;
   let nargs = List.length args in
@@ -79,7 +82,7 @@ let run_function untypedId ~globals ~args : ret_val =
   let signature = Signature.from_input_types argTypes in
   IFDEF DEBUG THEN
     printf
-      "[run_function] calling specializer for argument types: %s\n"
+      "[FrontEnd.run_function] calling specializer for argument types: %s\n"
       (Type.type_list_to_str argTypes);
   ENDIF;
   let fnVal = SSA.GlobalFn untypedId in

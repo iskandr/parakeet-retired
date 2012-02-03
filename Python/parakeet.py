@@ -57,7 +57,6 @@ def return_type_init(LibPar):
   LibPar.mk_int32_paranode.restype = c_void_p
   LibPar.mk_int64_paranode.restype = c_void_p
   LibPar.mk_var.restype = c_void_p
-  LibPar.mk_scalar_op.restype = c_void_p
   LibPar.mk_app.restype = c_void_p
   LibPar.mk_lam.restype = c_void_p
   LibPar.mk_block.restype = c_void_p

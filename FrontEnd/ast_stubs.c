@@ -15,7 +15,6 @@
 
 #include "ast_stubs.h"
 #include "ast_variants.h"
-#include "prim_variants.h"
 #include "variants.h"
 
 /** Private members **/
@@ -26,7 +25,6 @@ value *ocaml_print_ast_node = NULL;
 static int ast_inited = 0;
 static CAMLprim value mk_src_info(source_info_t *src_info);
 static paranode mk_node(value exp, source_info_t *src_info);
-static paranode mk_prim(prim_t prim_op, int op, source_info_t *src_info);
 static paranode mk_num(value num, source_info_t *src_info);
 static CAMLprim value get_value_and_remove_root(paranode p);
 static CAMLprim value mk_val_list(paranode *vals, int num_vals);
@@ -101,22 +99,6 @@ paranode mk_var(char *str, source_info_t *src_info) {
 
   // build the node and return
   CAMLreturnT(paranode, mk_node(var, src_info));
-}
-
-paranode mk_scalar_op(scalar_op_t op, source_info_t *src_info) {
-  return mk_prim(Prim_ScalarOp, op, src_info);
-}
-
-paranode mk_array_op(array_op_t op, source_info_t *src_info) {
-  return mk_prim(Prim_ArrayOp, op, src_info);
-}
-
-paranode mk_adverb(adverb_t op, source_info_t *src_info) {
-  return mk_prim(Prim_Adverb, op, src_info);
-}
-
-paranode mk_impure_op(impure_op_t op, source_info_t *src_info) {
-  return mk_prim(Prim_ImpureOp, op, src_info);
 }
 
 paranode mk_bool_paranode(int b, source_info_t *src_info) {
@@ -314,17 +296,6 @@ void print_ast_node(paranode n) {
 
 /** Private functions **/
 
-static paranode mk_prim(prim_t prim_op, int op, source_info_t *src_info) {
-  CAMLparam0();
-  CAMLlocal2(prim_op_val, prim_val);
-
-  prim_val = caml_alloc(1, Exp_Prim);
-  prim_op_val = caml_alloc(1, prim_op);
-  Store_field(prim_op_val, 0, Val_int(op));
-  Store_field(prim_val, 0, prim_op_val);
-
-  CAMLreturnT(paranode, mk_node(prim_val, src_info));
-}
 
 static paranode mk_num(value val, source_info_t *src_info) {
   CAMLparam1(val);

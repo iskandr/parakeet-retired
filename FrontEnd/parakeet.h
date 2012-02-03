@@ -11,7 +11,6 @@
 
 #include "ast_stubs.h"
 #include "front_end_stubs.h"
-#include "prim_variants.h"
 #include "type_stubs.h"
 #include "value_stubs.h"
 

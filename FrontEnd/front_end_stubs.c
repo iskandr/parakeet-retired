@@ -217,20 +217,20 @@ static CAMLprim value build_str_list(char **strs, int num_strs) {
 
 static CAMLprim value build_host_val_list(host_val *vals, int num_vals) {
   CAMLparam0();
-  CAMLlocal3(ocaml_val, val1, val2);
+  CAMLlocal3(elt, val1, val2);
 
   int i;
 
   if (num_vals > 0) {
     val1 = caml_alloc_tuple(2);
-    ocaml_val = (value)vals[num_vals - 1];
-    Store_field(val1, 0, ocaml_val);
+    elt = (value)vals[num_vals - 1];
+    Store_field(val1, 0, elt);
     Store_field(val1, 1, Val_int(0));
 
     for (i = num_vals - 2; i >= 0; --i) {
       val2 = caml_alloc_tuple(2);
-      ocaml_val = (value)vals[i];
-      Store_field(val2, 0, ocaml_val);
+      elt = (value)vals[i];
+      Store_field(val2, 0, elt);
       Store_field(val2, 1, val1);
       val1 = val2;
     }
@@ -252,6 +252,6 @@ static int ocaml_list_length(value l) {
     i++;
   }
   
-  return i;
+  CAMLreturnT(int, i);
 }
 

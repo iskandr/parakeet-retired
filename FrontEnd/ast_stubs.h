@@ -12,7 +12,6 @@
 #include <caml/mlvalues.h>
 #include <stdint.h>
 
-#include "prim_variants.h"
 
 /**
  * We'll eventually want to include source info alongside the tree nodes so as
@@ -35,11 +34,6 @@ paranode mk_lam(char **args, int num_args, paranode body,
                 source_info_t *src_info);
   
 paranode mk_var(char *str, source_info_t *src_info);
-
-paranode mk_scalar_op(scalar_op_t op, source_info_t *src_info);
-paranode mk_array_op(array_op_t op, source_info_t *src_info);
-paranode mk_adverb(adverb_t op, source_info_t *src_info);
-paranode mk_impure_op(impure_op_t op, source_info_t *src_info);
 
 paranode mk_bool_paranode(int, source_info_t*);
 paranode mk_int32_paranode(int32_t i, source_info_t *src_info);
