@@ -54,19 +54,19 @@ paranode mk_lam(char **args, int num_args, paranode body,
   // Build the args list
   if (num_args > 0) {
     // Create the tail of the list
-    arg1 = caml_alloc_tuple(2);
     len  = strlen(args[num_args - 1]);
     ocaml_str = caml_alloc_string(len);
     memcpy(String_val(ocaml_str), args[num_args - 1], len);
+    arg1 = caml_alloc_tuple(2);
     Store_field(arg1, 0, ocaml_str);
     Store_field(arg1, 1, Val_int(0));
 
     // Extract each arg and add it to the OCaml list
     for (i = num_args - 2; i >= 0; --i) {
-      arg2 = caml_alloc_tuple(2);
       len = strlen(args[i]);
       ocaml_str = caml_alloc_string(len);
       memcpy(String_val(ocaml_str), args[i], len);
+      arg2 = caml_alloc_tuple(2);
       Store_field(arg2, 0, ocaml_str);
       Store_field(arg2, 1, arg1);
       arg1 = arg2;
@@ -166,8 +166,8 @@ paranode mk_app(paranode fun, paranode *args, int num_args,
   CAMLparam1(fun);
   CAMLlocal2(val_fun, app);
 
-  app = caml_alloc(2, Exp_App);
   val_fun = get_value_and_remove_root(fun);
+  app = caml_alloc(2, Exp_App);
   Store_field(app, 0, val_fun);
   Store_field(app, 1, mk_val_list(args, num_args));
 
@@ -185,10 +185,10 @@ paranode mk_return(paranode* args, int num_args, source_info_t *src_info) {
 
 paranode mk_array(paranode *elts, int num_elts, source_info_t *src_info) {
   CAMLparam0();
-  CAMLlocal1(arr);
-
+  CAMLlocal2(arr, elt_list);
+  elt_list = mk_val_list(elts, num_elts); 
   arr = caml_alloc(1, Exp_Arr);
-  Store_field(arr, 0, mk_val_list(elts, num_elts));
+  Store_field(arr, 0, elt_list);
   CAMLreturnT(paranode, mk_node(arr, src_info));
 }
 
@@ -213,12 +213,13 @@ paranode mk_if(paranode cond_node, paranode true_node, paranode false_node,
 
 paranode mk_assign(paranode* lhs, int num_ids, paranode rhs, source_info_t *src_info) {
   CAMLparam1(rhs); 
-  CAMLlocal2(val_rhs, assignment);
-
+  CAMLlocal3(id_list, val_rhs, assignment);
+  
+  id_list = mk_val_list(lhs, num_ids); 
   val_rhs = get_value_and_remove_root(rhs);
 
   assignment = caml_alloc(2, Exp_Assign);
-  Store_field(assignment, 0, mk_val_list(lhs, num_ids));
+  Store_field(assignment, 0, id_list);
   Store_field(assignment, 1, val_rhs);
 
   CAMLreturnT(paranode, mk_node(assignment, src_info));
@@ -226,10 +227,10 @@ paranode mk_assign(paranode* lhs, int num_ids, paranode rhs, source_info_t *src_
 
 paranode mk_block(paranode *stmts, int num_stmts, source_info_t *src_info) {
   CAMLparam0();
-  CAMLlocal1(block);
-
+  CAMLlocal2(block, stmt_list);
+  stmt_list = mk_val_list(stmts, num_stmts); 
   block = caml_alloc(1, Exp_Block);
-  Store_field(block, 0, mk_val_list(stmts, num_stmts));
+  Store_field(block, 0, stmt_list);
 
   CAMLreturnT(paranode, mk_node(block, src_info));
 }
@@ -311,7 +312,6 @@ static CAMLprim value mk_src_info(source_info_t *src_info) {
   CAMLparam0();
   CAMLlocal3(ocaml_src_info, file, some_none);
 
-  ocaml_src_info = caml_alloc_tuple(3);
   if (src_info) {
     if (src_info->filename) {
       int len = strlen(src_info->filename);
@@ -323,10 +323,12 @@ static CAMLprim value mk_src_info(source_info_t *src_info) {
       some_none = Val_int(0);
     }
 
+    ocaml_src_info = caml_alloc_tuple(3);
     Store_field(ocaml_src_info, 0, some_none);
     Store_field(ocaml_src_info, 1, Val_int(src_info->line));
     Store_field(ocaml_src_info, 2, Val_int(src_info->col));
   } else {
+    ocaml_src_info = caml_alloc_tuple(3);
     Store_field(ocaml_src_info, 0, Val_int(0));
     Store_field(ocaml_src_info, 1, Val_int(0));
     Store_field(ocaml_src_info, 2, Val_int(0));

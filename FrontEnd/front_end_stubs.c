@@ -196,14 +196,14 @@ static CAMLprim value build_str_list(char **strs, int num_strs) {
 
   int i;
   if (num_strs > 0) {
-    cons1 = caml_alloc_tuple(2);
     ocaml_str = caml_copy_string(strs[num_strs - 1]);
+    cons1 = caml_alloc_tuple(2);
     Store_field(cons1, 0, ocaml_str);
     Store_field(cons1, 1, Val_int(0));
 
     for (i = num_strs - 2; i >= 0; --i) {
-      cons2 = caml_alloc_tuple(2);
       ocaml_str = caml_copy_string(strs[i]);
+      cons2 = caml_alloc_tuple(2);
       Store_field(cons2, 0, ocaml_str);
       Store_field(cons2, 1, cons1);
       cons1 = cons2;
@@ -222,14 +222,14 @@ static CAMLprim value build_host_val_list(host_val *vals, int num_vals) {
   int i;
 
   if (num_vals > 0) {
-    val1 = caml_alloc_tuple(2);
     elt = (value)vals[num_vals - 1];
+    val1 = caml_alloc_tuple(2);
     Store_field(val1, 0, elt);
     Store_field(val1, 1, Val_int(0));
 
     for (i = num_vals - 2; i >= 0; --i) {
-      val2 = caml_alloc_tuple(2);
       elt = (value)vals[i];
+      val2 = caml_alloc_tuple(2);
       Store_field(val2, 0, elt);
       Store_field(val2, 1, val1);
       val1 = val2;

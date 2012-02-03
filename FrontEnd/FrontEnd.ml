@@ -59,17 +59,24 @@ let run_function untypedId ~globals ~args : ret_val =
     printf "[FrontEnd.run_function] Running %s\n%!" (FnId.to_str untypedId);
   ENDIF;
   Timing.clear Timing.runTemplate;
+  printf "A\n%!";
   Timing.clear Timing.typedOpt;
+  printf "B\n%!";
   Timing.clear Timing.ptxCompile;
   Timing.clear Timing.gpuTransfer;
   Timing.clear Timing.gpuExec;
   Timing.clear Timing.gpuMalloc;
   Timing.start Timing.runTemplate;
+  printf "C\n%!"; 
   let args = globals @ args in
+  printf "D\n%!"; 
   let argTypes = List.map Value.type_of args in
+  printf "E\n%!"; 
   let untypedFn = FnManager.get_untyped_function untypedId in
+  printf "F\n%!"; 
+  
   IFDEF DEBUG THEN
-     printf "[FrontEnd.run_function] untyped function body: %s\n"
+     printf "[FrontEnd.run_function] untyped function body: %s\n%!"
       (SSA.fn_to_str untypedFn);
   ENDIF;
   let nargs = List.length args in
