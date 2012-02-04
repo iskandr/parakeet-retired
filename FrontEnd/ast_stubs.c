@@ -164,22 +164,22 @@ paranode mk_str(char *str, source_info_t *src_info) {
 paranode mk_app(paranode fun, paranode *args, int num_args,
                 source_info_t *src_info) {
   CAMLparam1(fun);
-  CAMLlocal2(val_fun, app);
-
+  CAMLlocal3(val_fun, app, val_args);
+  val_args = mk_val_list(args, num_args); 
   val_fun = get_value_and_remove_root(fun);
   app = caml_alloc(2, Exp_App);
   Store_field(app, 0, val_fun);
-  Store_field(app, 1, mk_val_list(args, num_args));
+  Store_field(app, 1, val_args);
 
   CAMLreturnT(paranode, mk_node(app, src_info));
 }
 
 paranode mk_return(paranode* args, int num_args, source_info_t *src_info) { 
   CAMLparam0();
-  CAMLlocal1(ret);
-
+  CAMLlocal2(ret, ret_args);
+  ret_args = mk_val_list(args, num_args)
   ret = caml_alloc(1, Exp_Return);
-  Store_field(ret, 0, mk_val_list(args, num_args));
+  Store_field(ret, 0, ret_args);
   CAMLreturnT(paranode, mk_node(ret, src_info));
 }
 
@@ -311,7 +311,7 @@ static paranode mk_num(value val, source_info_t *src_info) {
 static CAMLprim value mk_src_info(source_info_t *src_info) {
   CAMLparam0();
   CAMLlocal3(ocaml_src_info, file, some_none);
-
+  
   if (src_info) {
     if (src_info->filename) {
       int len = strlen(src_info->filename);

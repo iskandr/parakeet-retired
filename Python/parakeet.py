@@ -377,7 +377,7 @@ class ASTConverter():
     elif nodeType == 'Return':
       #Might not be right for no return
       if node.value is None:
-        return LibPar.mk_return(self.build_parakeet_array([]),0,None)
+        return LibPar.mk_return(None, 0,None)
       elif type(node.value).__name__ == "Tuple":
         children = ast.iter_child_nodes(node.value)
         elts = self.build_arg_list(children, contextSet)
@@ -601,15 +601,6 @@ class ASTConverter():
       LOG("Attribute %s " % str(args))
       #NOTE: doesn't make ANY sense right now
       return args[1]
-    elif nodeType == 'Return':
-      #NOTE: Deprecated
-      LOG("Return %s" % str(args))
-      if type(node.value).__name__ == 'Tuple':
-        return LibPar.mk_return(args[0][0],args[0][1],None)
-      else:
-        print "ARGS",args
-        print "INTO",self.build_parakeet_array([args[0]])
-        return LibPar.mk_return(self.build_parakeet_array([args[0]]),1,None)
     else:
       print "[Parakeet]", nodeType, "with args", str(args), "not handled"
       return None
