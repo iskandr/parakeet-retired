@@ -177,7 +177,7 @@ paranode mk_app(paranode fun, paranode *args, int num_args,
 paranode mk_return(paranode* args, int num_args, source_info_t *src_info) { 
   CAMLparam0();
   CAMLlocal2(ret, ret_args);
-  ret_args = mk_val_list(args, num_args)
+  ret_args = mk_val_list(args, num_args);
   ret = caml_alloc(1, Exp_Return);
   Store_field(ret, 0, ret_args);
   CAMLreturnT(paranode, mk_node(ret, src_info));

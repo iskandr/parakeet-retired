@@ -38,7 +38,12 @@ let create () =
 let state = create() 
 
 let add_untyped ?(optimize=true) name fn = 
-  let id = fn.SSA.fn_id in 
+  Printf.printf "[add_untyped]\n%!"; 
+  let id = fn.SSA.fn_id in
+  Gc.compact(); 
+  Printf.printf "[add_untyped] name: %s\n%!" name; 
+  Gc.compact(); 
+  Printf.printf "[add_untyped] fn: %s\n%!" (SSA.fn_to_str fn); 
   Hashtbl.add state.name_to_untyped_id name id; 
   Hashtbl.add state.untyped_id_to_name id name;
   FnTable.add ~opt_queue:optimize fn state.untyped_functions
