@@ -231,7 +231,6 @@ paranode mk_block(paranode *stmts, int num_stmts, source_info_t *src_info) {
   stmt_list = mk_val_list(stmts, num_stmts); 
   block = caml_alloc(1, Exp_Block);
   Store_field(block, 0, stmt_list);
-
   CAMLreturnT(paranode, mk_node(block, src_info));
 }
 

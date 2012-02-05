@@ -5,24 +5,19 @@ import sys
 
 
 @PAR 
+def always_crash():
+  assert 1 == 2
+
+@PAR 
 def const2():
   return 2 
 
-@PAR
-def const3():
-  return 3
-
 @PAR 
-def const4(): 
-  return 4
-
-@PAR 
-def const5(): 
-  return 5
+def always_crash2():
+  assert 1 == 2
 
 def test_const2():
-  for i in xrange(100): 
-    assert 2 == const2()
+  assert 2 == const2()
 
 if __name__ == '__main__':
   print "Running tests"
