@@ -348,7 +348,7 @@ static CAMLprim value get_value_and_remove_root(paranode node) {
   paranode_t* p = (paranode_t*)node;
   val = p->v;
   caml_remove_global_root(&(p->v));
-  free(p);
+  //free(p);
   CAMLreturn(val);
 }
 
