@@ -33,5 +33,9 @@ def BlackSholes(CallPutFlag,S,X,T,r,v):
     return X*math.exp(-r*T)*CND(-d2)-S*CND(-d1)
 
 for i in range(13):
-  print CND(1)# = 0.72574693543
+  x = CND(i)
+  y = CND.call_original(i)
+  same = abs(x-y) < 0.00001
+  print "%f = %f: %s" % (x,y,same)
+  assert same
 

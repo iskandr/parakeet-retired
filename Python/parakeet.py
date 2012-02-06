@@ -625,38 +625,42 @@ class ASTConverter():
 #  Running function
 ###############################################################################
 
-def fun_visit(func,new_f):
-  funInfo = function_info(func)
-  if funInfo:
-    print "I'M PARSING",funInfo[1]
-    node = ast.parse(funInfo[1])
-    AST = ASTConverter(func.func_globals)
-    AST.varList = funInfo[2]
+def register_function(f):
+  info = function_info(f)
+  if info is None: 
+    raise RuntimerError("[Parakeet] Couldn't get info for function %s" % f)
+  else:
+    print "[parse_function] Parsing", info[1]
+    node = ast.parse(info[1])
+    AST = ASTConverter(f.func_globals)
+    AST.varList = info[2]
     finalTree = AST.visit(node,set([]))
-    #LOG(PrettyAST.printAst(node))
     #Med fix: right now, I assume there aren't any globals
-    #Fix: functionGlobals[func] = globalVars
     global_vars = []
+    n_globals = len(global_vars)
     global_vars_array = list_to_ctypes_array(global_vars,c_char_p)
-    var_list = list_to_ctypes_array(funInfo[0],c_char_p)
-    for key in AST.seen_functions:
-      if not (VisitedFunctions.has_key(key)):
+
+    arg_list = info[0]
+    arg_array = list_to_ctypes_array(arg_list, c_char_p)
+    n_args = len(arg_list)
+
+    # register every function that was seen but not registered
+    for other_fn in AST.seen_functions:
+      if not VisitedFunctions.has_key(other_fn):
         #Possible fix:and not function_names?
-        LOG("Visiting %s" % key.__name__)
-        fun_visit(key,key)
-        LOG("Visited %s" % key.__name__)
-    fun_name = func.__module__ + "." + func.__name__
+        LOG("[register_function] Visiting %s" % other_fn.__name__)
+        register_function(other_fn)
+        LOG("[register_function] Visited %s" % other_fn.__name__)
+
+    fun_name = f.__module__ + "." + f.__name__
     c_str = c_char_p(fun_name)
     register = LibPar.register_untyped_function
-    funID = c_int(register(c_str,
-                           global_vars_array,
-                           len(global_vars),
-                           var_list,
-                           len(funInfo[0]),
-                           finalTree))
-    LOG("Registered %s" % func.__name__)
-    VisitedFunctions[func] = funID
-    VisitedFunctions[new_f] = funID
+    fun_id = c_int( 
+      LibPar.register_untyped_function(
+        c_str, global_vars_array, n_globals, arg_array, n_args, finalTree))
+
+    LOG("Registered %s" % f.__name__)
+    VisitedFunctions[f] = fun_id
 
 # given a numpy array or a scalar, construct the equivalent parakeet value
 def python_value_to_parakeet(arg):
@@ -765,13 +769,24 @@ def run_function(func, args):
     raise Exception("run_function failed")
   pass
 
+class WrappedFunction:
+  def __init__(self, old_function): 
+    self.old_function = old_function 
+    # pretend we are the same function 
+    self.__name__ = old_function.__name__
+    self.__module__ = old_function.__module__
+    fun_id = register_function(old_function)
+    VisitedFunctions[self] = fun_id
+    self.parakeet_untyped_id = fun_id  
+  
+  def __call__(self, *args, **kwds):
+    # todo: implement keyword arguments in parakeet
+    assert len(kwds) == 0
+    return run_function(self.parakeet_untyped_id, args)  
+
+  def call_original(self, *args, **kwds):
+    return self.old_function(*args, **kwds)
+
 def PAR(func):
-  def new_f(*args, **kwds):
-    return run_function(funID, args)
-  new_f.__name__ = func.__name__
-  new_f.__module__ = func.__module__
-  if not (VisitedFunctions.has_key(new_f)):
-    fun_visit(func, new_f)
-  funID = VisitedFunctions[new_f]
-  return new_f
+  return WrappedFunction(func)
 
