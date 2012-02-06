@@ -3,20 +3,20 @@ open Base
 open Prim
 
 let prim_names = Hashtbl.of_list [
-    "+", ScalarOp Add;
-    "-", ScalarOp Sub;
-    "/", ScalarOp Div;
-    "*", ScalarOp Mult;
+    "add", ScalarOp Add;
+    "sub", ScalarOp Sub;
+    "div", ScalarOp Div;
+    "mult", ScalarOp Mult;
     "mod", ScalarOp Mod;
     "max", ScalarOp Max;
     "min", ScalarOp Min;
 
     "eq", ScalarOp Eq;
     "neq", ScalarOp Neq;
-    "<", ScalarOp Lt;
-    "<=", ScalarOp Lte;
-    ">", ScalarOp Gt;
-    ">=", ScalarOp Gte;
+    "lt", ScalarOp Lt;
+    "lte", ScalarOp Lte;
+    "gt", ScalarOp Gt;
+    "gte", ScalarOp Gte;
 
     "sqrt", ScalarOp Sqrt;
     "log", ScalarOp Ln;

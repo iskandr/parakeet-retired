@@ -99,49 +99,48 @@ return_type_init(LibPar)
 ###############################################################################
 
 SafeFunctions = {
-  np.add:ast_prim('+'),
-  abs:ast_prim('abs'),
-  np.all:ast_prim('allpairs'),
-  np.arange:ast_prim('range'),
-# np.argmin:ast_prim('argmin'),
-  math.exp:ast_prim('exp'),
-  math.log:ast_prim('log'),
-  math.pow:ast_prim('pow'),
-  math.sqrt:ast_prim('sqrt'),
-  para_libs.map:ast_prim('map'),
-  para_libs.reduce:ast_prim('reduce')
+  np.add:'add',
+  abs: 'abs',
+  np.arange: 'range',
+  math.exp:'exp', 
+  math.log:'log', 
+  math.pow:'pow', 
+  math.sqrt:'sqrt', 
+  para_libs.map:'map', 
+  para_libs.reduce:'reduce',
 }
+
 BuiltinPrimitives = {
-  'Add':ast_prim('+'),
-  'Sub':ast_prim('-'),
-  'Mult':ast_prim('*'),
-  'Div':ast_prim('/'),
-  'Mod':ast_prim('mod'),
-  'Pow':ast_prim('exp'),
-  'LShift':'Not yet implemented',
-  'RShift':'Not yet implemented',
-  'BitOr':'Not yet implemented',
-  'BitXor':'Not yet implemented',
-  'BitAnd':'Not yet implemented',
-  'FloorDiv':'Not yet implemented',
-  'Invert':'Not yet implemented (bit-wise inverse)',
-  'Not':ast_prim('not'),
-  'And':ast_prim('and'),
-  'Or':ast_prim('or'),
-  'UAdd':'Not yet implemented',
-  'USub':ast_prim('neg'),
-  'Eq':ast_prim('eq'),
-  'NotEq':ast_prim('neq'),
-  'Lt':ast_prim('<'),
-  'LtE':ast_prim('<='),
-  'Gt':ast_prim('>'),
-  'GtE':ast_prim('>='),
-  'Is':'Not yet implemented',
-  'IsNot':'Not yet implemented',
-  'In':'Not yet implemented',
-  'NotIn':'Not yet implemented',
-  'Index':ast_prim('index'),
-  'Slice':ast_prim('slice')
+  'Add':'add', 
+  'Sub':'sub', 
+  'Mult':'mult', 
+  'Div':'div', 
+  'Mod':'mod', 
+  'Pow':None, 
+  'LShift':None, 
+  'RShift':None, 
+  'BitOr':None, 
+  'BitXor':None,
+  'BitAnd':None,
+  'FloorDiv':None,
+  'Invert':None, 
+  'Not':None, 
+  'And':'and', 
+  'Or':'or', 
+  'UAdd':None,
+  'USub':'neg', 
+  'Eq':'eq',
+  'NotEq':'neq',
+  'Lt':'lt',
+  'LtE':'lte', 
+  'Gt':'gt',
+  'GtE': 'gte',
+  'Is': None, 
+  'IsNot': None, 
+  'In': None, 
+  'NotIn': None, 
+  'Index': 'index', 
+  'Slice': 'slice', 
 }
 #Keeps track of the user-made functions that have been made and the built-ins
 VisitedFunctions = SafeFunctions.copy()
@@ -263,6 +262,118 @@ def global_fn_name(fn, default_name="<unknown_function>"):
   else:
     return fn.__module__ + "." + default_name
 
+def build_parakeet_array(elts):
+  c_array = list_to_ctypes_array(elts, c_void_p)
+  return LibPar.mk_array(c_array, len(elts), None)
+
+def build_parakeet_block(stmts):
+  c_array = list_to_ctypes_array(stmts, c_void_p)
+  return LibPar.mk_block(c_array, len(stmts), None)
+
+def build_call(python_fn, args):
+  if python_fn in SafeFunctions:
+    parakeet_prim_name = SafeFunctions[python_fn]
+    parakeet_fn = ast_prim(parakeet_prim_name)
+    if parakeet_prim_name is None: 
+      raise RuntimeError("[Parakeet] Support for %s not implemented" % python_fn)
+  else:
+    c_name = c_char_p(global_fn_name(python_fn))
+    parakeet_fn = LibPar.mk_var(c_name, None)
+  parakeet_args = list_to_ctypes_array(args,c_void_p)
+  n = len(parakeet_args)
+  return LibPar.mk_app(parakeet_fn, parakeet_args, n, None)
+
+def build_prim_call(python_op_name, *args):
+  LOG("build_prim_call(%s, %s)" % (python_op_name, args))
+  parakeet_args = list_to_ctypes_array(args,c_void_p)
+  parakeet_op_name = BuiltinPrimitives[python_op_name]
+  if parakeet_op_name is None: 
+    raise RuntimeError('Prim not implemented: %s' % python_op_name)
+  else: 
+    prim = ast_prim(parakeet_op_name) 
+  return LibPar.mk_app(prim, parakeet_args, len(parakeet_args), None)
+
+def name_of_ast_node(op): 
+  return op.__class__.__name__ 
+
+def build_var(name): 
+  #Special case for booleans
+  if name == 'True':
+    return LibPar.mk_bool_paranode(1, None)
+  elif name == 'False':
+    return LibPar.mk_bool_paranode(0, None)
+  else:
+    return LibPar.mk_var(c_char_p(name), None)
+
+def build_num(str_num):
+  """
+  Given the string form of a number, build a syntax node for an int or float
+  """
+  num = eval(str_num)
+  LOG("%s(%s)" %(type(num), num))
+  if type(num) == int:
+    return LibPar.mk_int32_paranode(num,None)
+  elif type(num) == float:
+    return LibPar.mk_float_paranode(c_float(num),None)
+  else:
+    assert False
+
+def build_parakeet_node(node, args):
+  """Build simple case syntax nodes which don't involve function arguments""" 
+  #args is the children nodes in the correct type (i.e. node or literal)
+  node_type = name_of_ast_node(node)
+  # either variable name or bool literal
+  print "build_parakeet_node", node, args
+  if node_type == 'Name':
+    return build_var(args[0])
+
+  elif node_type == 'Assign':
+    print "Assign args", args
+    LOG("assign(%s, %s)" % (args[0][0], args[1]))
+    lhs_list = args[0]
+    lhs_array_ptr = list_to_ctypes_array(lhs_list, c_void_p)
+    num_lhs_ids = len(lhs_list)
+    rhs = args[1]
+    return LibPar.mk_assign(lhs_array_ptr, num_lhs_ids, rhs, 0)
+    #Mk a def where the target is the index node
+  elif node_type == 'BinOp':
+    return build_prim_call(name_of_ast_node(node.op), args[0], args[2])
+  elif node_type == 'UnaryOp':
+    return build_prim_call(name_of_ast_node(node.op), args[1])
+  elif node_type == 'Compare':
+    #Not sure when there are multiple ops or multiple comparators?
+    return build_prim_call(name_of_ast_node(node.ops[0]), args[0], args[2][0])
+  elif node_type == 'Subscript':
+    return build_prim_call(name_of_ast_node(node.slice), args[0], args[1])
+  elif node_type == 'Index':
+    LOG("Index %s" % str(args))
+    assert False
+    #return args[0]
+  elif node_type == 'Num':
+    return build_num(args[0])
+  elif node_type == 'Call':
+    raise RuntimeError ('[Parakeet] Unexpected Call node')
+  elif node_type == 'Module':
+    LOG("block(%s)" % str(args))
+    return build_parakeet_block(args[0])
+  elif node_type == 'If':
+    LOG("if(%s, %s, %s)" % (args[0], args[1], args[2]))
+    thenBlock = build_parakeet_block(args[1])
+    elseBlock = build_parakeet_block(args[2])
+    return LibPar.mk_if(args[0], thenBlock, elseBlock, None)
+  elif node_type == 'While':
+    LOG("while(%s, %s)" % (args[0], args[1]))
+    block = build_parakeet_block(args[1])
+    return LibPar.mk_whileloop(args[0],block,None)
+  elif node_type == 'Attribute':
+    LOG("Attribute %s " % str(args))
+    #NOTE: doesn't make ANY sense right now
+    #return args[1]
+    assert False
+  else:
+    print "[Parakeet]", node_type, "with args", str(args), "not handled"
+    return None
+
 
 ###############################################################################
 #  Converter
@@ -289,7 +400,7 @@ class ASTConverter():
         #('lhs' in contextSet and nodeType == 'Tuple'):
         children = ast.iter_child_nodes(node)
         elts = self.build_arg_list(children, contextSet)
-        return self.build_parakeet_array(elts)
+        return build_parakeet_array(elts)
       else:
         raise ParakeetUnsupported(
             "lists and tuples are not supported outside of numpy arrays")
@@ -304,7 +415,7 @@ class ASTConverter():
       elif funRef == para_libs.map:
         fun_arg = self.build_arg_list([node.args[0]], childContext)
         arr_args = self.build_arg_list(node.args[1:], childContext)
-        kw_args = {'fixed': self.build_parakeet_array([]),
+        kw_args = {'fixed': build_parakeet_array([]),
                    'axis': LibPar.mk_void(None)
                   }
         childContext.add('rhs')
@@ -319,18 +430,18 @@ class ASTConverter():
             kw_args[kw] = self.build_parakeet_array(val_args)
           else:
             val = self.visit(kw_arg.value, childContext)
-            kw_args[kw] = self.build_parakeet_array([val])
+            kw_args[kw] = build_parakeet_array([val])
         args = fun_arg
-        para_arr_args = self.build_parakeet_array(arr_args)
+        para_arr_args = build_parakeet_array(arr_args)
         args.append(para_arr_args)
         args.append(kw_args['fixed'])
         args.append(kw_args['axis'])
-        return self.build_call(funRef, args)
+        return build_call(funRef, args)
       elif funRef == para_libs.reduce:
         fun_arg = self.build_arg_list([node.args[0]], childContext)
         arr_args = self.build_arg_list(node.args[1:], childContext)
         print arr_args
-        kw_args = {'fixed': self.build_parakeet_array([]),
+        kw_args = {'fixed': build_parakeet_array([]),
                    'axis': LibPar.mk_void(None),
                    'default':LibPar.mk_void(None)
                   }
@@ -343,20 +454,20 @@ class ASTConverter():
             val_args = []
             for v_arg in val.elts:
               val_args.append(self.visit(v_arg, childContext))
-            kw_args[kw] = self.build_parakeet_array(val_args)
+            kw_args[kw] = build_parakeet_array(val_args)
           else:
             val = self.visit(kw_arg.value, childContext)
-            kw_args[kw] = self.build_parakeet_array([val])
+            kw_args[kw] = build_parakeet_array([val])
         args = fun_arg
-        para_arr_args = self.build_parakeet_array(arr_args)
+        para_arr_args = build_parakeet_array(arr_args)
         args.append(para_arr_args)
         args.append(kw_args['fixed'])
         args.append(kw_args['axis'])
         args.append(kw_args['default'])
-        return self.build_call(funRef, args)
+        return build_call(funRef, args)
       else:
         funArgs = self.build_arg_list(node.args, childContext)
-        return self.build_call(funRef, funArgs)
+        return build_call(funRef, funArgs)
     elif nodeType == 'Subscript':
       args = []
       args.append(self.visit(node.value, contextSet))
@@ -371,7 +482,7 @@ class ASTConverter():
       else:
         raise ParakeetUnsupported(
             "slicing of type %s is not supported" % slice_type)
-      return self.build_parakeet_node(node, args)
+      return build_parakeet_node(node, args)
       #args[1]...[n+1] is what's inside the tuple, not the tuple itself
       #[args[0], args[1],....,args[n+1]]
       #Subscript(expr value, slice slice, expr_context ctx)
@@ -452,7 +563,7 @@ class ASTConverter():
         # assume last arg to build_parakeet_node for literals is a string
         parakeetNodeChildren.append(str(childNode))
 
-    return self.build_parakeet_node(node, parakeetNodeChildren)
+    return build_parakeet_node(node, parakeetNodeChildren)
 
   def build_arg_list(self, python_nodes,  contextSet):
     results = []
@@ -468,14 +579,6 @@ class ASTConverter():
         if result is not None:
           results.append(result)
     return results
-
-  def build_parakeet_array(self, elts):
-    c_array = list_to_ctypes_array(elts, c_void_p)
-    return LibPar.mk_array(c_array, len(elts), None)
-
-  def build_parakeet_block(self, stmts):
-    c_array = list_to_ctypes_array(stmts, c_void_p)
-    return LibPar.mk_block(c_array, len(stmts), None)
 
   def register_if_function(self, node):
     try:
@@ -515,96 +618,8 @@ class ASTConverter():
     self.seen_functions.add(funRef)
     return funRef
 
-  def build_call(self, funRef, args):
-    if funRef in SafeFunctions:
-      funNode = SafeFunctions[funRef]
-    else:
-      c_name = c_char_p(global_fn_name(funRef))
-      funNode = LibPar.mk_var(c_name, None)
-    funArgs = list_to_ctypes_array(args,c_void_p)
-    return LibPar.mk_app(funNode, funArgs, len(funArgs), None)
 
   # everything except arrays
-  def build_parakeet_node(self,node,args):
-    #args is the children nodes in the correct type (i.e. node or literal)
-    nodeType = type(node).__name__
-    # either variable name or bool literal
-    print "build_parakeet_node", node, args
-    if nodeType == 'Name':
-      #Special case for booleans
-      if args[0] == 'True':
-        LOG("bool(True)")
-        return LibPar.mk_bool_paranode(1,None)
-      elif args[0] == 'False':
-        LOG("bool(False)")
-        return LibPar.mk_bool_paranode(0,None)
-      #Normal case
-      else:
-        LOG("var(%s)" % args[0])
-        return LibPar.mk_var(c_char_p(args[0]),None)
-    elif nodeType == 'Assign':
-      print "Assign args", args
-      LOG("assign(%s, %s)" % (args[0][0], args[1]))
-      lhs_list = args[0]
-      lhs_array_ptr = list_to_ctypes_array(lhs_list, c_void_p)
-      num_lhs_ids = len(lhs_list)
-      rhs = args[1]
-      return LibPar.mk_assign(lhs_array_ptr, num_lhs_ids, rhs, 0)
-    #Mk a def where the target is the index node
-    elif nodeType == 'BinOp':
-      LOG("app(%s, [%s, %s])" % (type(node.op).__name__, args[0], args[2]))
-      binArgs = list_to_ctypes_array([args[0],args[2]],c_void_p)
-      operation = BuiltinPrimitives[type(node.op).__name__]
-      return LibPar.mk_app(operation,binArgs,2,None)
-    elif nodeType == 'UnaryOp':
-      LOG("app(%s, [%s])" % (type(node.op).__name__, args[1]))
-      unaryArg = list_to_ctypes_array([args[1]],c_void_p)
-      operation = BuiltinPrimitives[type(node.op).__name__]
-      return LibPar.mk_app(operation,unaryArg,1,None)
-    elif nodeType == 'Compare':
-      #Not sure when there are multiple ops or multiple comparators?
-      LOG("app(%s, [%s, %s])" % \
-          (type(node.ops[0]).__name__, args[0], args[2][0]))
-      compArgs = list_to_ctypes_array([args[0],args[2][0]],c_void_p)
-      operation = BuiltinPrimitives[type(node.ops[0]).__name__]
-      return LibPar.mk_app(operation,compArgs,2,None)
-    elif nodeType == 'Num':
-      num = eval(args[0])
-      LOG("%s(%s)" %(type(num), num))
-      if type(num) == int:
-        return LibPar.mk_int32_paranode(num,None)
-      elif type(num) == float:
-        return LibPar.mk_float_paranode(c_float(num),None)
-    elif nodeType == 'Call':
-      raise RuntimeError ('[Parakeet] Unexpected Call node')
-
-    elif nodeType == 'Module':
-      LOG("block(%s)" % str(args))
-      return self.build_parakeet_block(args[0])
-    elif nodeType == 'If':
-      LOG("if(%s, %s, %s)" % (args[0], args[1], args[2]))
-      thenBlock = self.build_parakeet_block(args[1])
-      elseBlock = self.build_parakeet_block(args[2])
-      return LibPar.mk_if(args[0], thenBlock, elseBlock, None)
-    elif nodeType == 'While':
-      LOG("while(%s, %s)" % (args[0], args[1]))
-      block = self.build_parakeet_block(args[1])
-      return LibPar.mk_whileloop(args[0],block,None)
-    elif nodeType == 'Subscript':
-      LOG("app(%s, %s, %s)" % (type(node.slice).__name__, args[0], args[1]))
-      operation = BuiltinPrimitives[type(node.slice).__name__]
-      arrayArgs = list_to_ctypes_array(args,c_void_p)
-      return LibPar.mk_app(operation,arrayArgs,len(args),None)
-    elif nodeType == 'Index':
-      LOG("Index %s" % str(args))
-      return args[0]
-    elif nodeType == 'Attribute':
-      LOG("Attribute %s " % str(args))
-      #NOTE: doesn't make ANY sense right now
-      return args[1]
-    else:
-      print "[Parakeet]", nodeType, "with args", str(args), "not handled"
-      return None
 
 ###############################################################################
 #  Running function
