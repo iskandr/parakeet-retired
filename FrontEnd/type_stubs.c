@@ -1,14 +1,21 @@
+/*
+ *  type_stubs.c
+ *
+ *  Stubs for interacting with Parakeet's type system.
+ *
+ * (c) Eric Hielscher and Alex Rubinsteyn, 2009-2012.
+ */
+#include <assert.h>
 #include <caml/alloc.h>
 #include <caml/bigarray.h>
 #include <caml/callback.h>
 #include <caml/memory.h>
 #include <caml/mlvalues.h>
-#include <stdio.h> 
-#include <assert.h>
 
 #include "type_stubs.h"
 
 // PRIVATE
+static value get_array_value(array_type t);
 
 static int type_inited = 0;
 
@@ -25,22 +32,22 @@ static value *type_callback_is_float32 = NULL;
 static value *type_callback_is_float64 = NULL;
 
 // PUBLIC
-array_type parakeet_bool_t;
+scalar_type parakeet_bool_t;
 elt_type parakeet_bool_elt_t;
 
-array_type parakeet_char_t;
+scalar_type parakeet_char_t;
 elt_type parakeet_char_elt_t;
 
-array_type parakeet_int32_t;
+scalar_type parakeet_int32_t;
 elt_type parakeet_int32_elt_t;
 
-array_type parakeet_int64_t;
+scalar_type parakeet_int64_t;
 elt_type parakeet_int64_elt_t;
 
-array_type parakeet_float32_t;
+scalar_type parakeet_float32_t;
 elt_type parakeet_float32_elt_t;
 
-array_type parakeet_float64_t;
+scalar_type parakeet_float64_t;
 elt_type parakeet_float64_elt_t;
 
 void type_init() {
@@ -78,64 +85,82 @@ void type_init() {
 }
 
 /** Public interface **/
+array_type build_array_root(value v) {
+  CAMLparam1(v);
+  array_type_t* p = (array_type_t*)malloc(sizeof(array_type_t));
+  caml_register_global_root(&p->v);
+  p->v = v;
+  CAMLreturnT(array_type, p);
+}
+
 array_type mk_array_type(elt_type elt_type, int rank) {
   CAMLparam1(elt_type);
-  CAMLlocal1(arrT);
-  arrT = caml_callback2(*type_callback_mk_array, elt_type, Val_int(rank));
-  caml_register_global_root(&arrT);
-  //  caml_remove_global_root(&elt_type);  // IS THIS the source of our myterious crash?
-  CAMLreturn(arrT);
+  CAMLlocal1(t);
+  t = caml_callback2(*type_callback_mk_array, elt_type, Val_int(rank));
+  CAMLreturnT(array_type, build_array_root(t));
 }
 
 void free_type(array_type t) {
-  CAMLparam1(t);
-  caml_remove_global_root(&t);
+  CAMLparam0();
+  array_type_t* p = (array_type_t*)t;
+  caml_remove_global_root(&p->v);
+  free(p);
   CAMLreturn0;
 }
 
 int get_type_rank(array_type t) {
-  CAMLparam1(t);
-  CAMLreturnT(int, Int_val(caml_callback(*type_callback_rank, t)));
+  CAMLparam0();
+  CAMLreturnT(int,
+              Int_val(caml_callback(*type_callback_rank, get_array_value(t))));
 }
 
-elt_type get_element_type(array_type t) {
+elt_type get_array_element_type(array_type t) {
+  CAMLparam0();
+  CAMLreturnT(elt_type,
+              caml_callback(*type_callback_elt_type, get_array_value(t)));
+}
+
+elt_type get_scalar_element_type(scalar_type t) {
   CAMLparam1(t);
   CAMLreturnT(elt_type, caml_callback(*type_callback_elt_type, t));
 }
 
-int type_is_scalar(array_type t) {
-  CAMLparam1(t);
-  CAMLreturnT(int, Bool_val(caml_callback(*type_callback_is_scalar, t)));
-}
-
-int type_is_bool(array_type t) {
-  CAMLparam1(t);
+int type_is_bool(scalar_type t) {
+  CAMLparam0();
   assert(type_callback_is_bool); 
   assert(type_inited); 
   CAMLreturnT(int, Bool_val(caml_callback(*type_callback_is_bool, t)));
 }
 
-int type_is_char(array_type t) {
-  CAMLparam1(t);
+int type_is_char(scalar_type t) {
+  CAMLparam0();
   CAMLreturnT(int, Bool_val(caml_callback(*type_callback_is_char, t)));
 }
 
-int type_is_int32(array_type t) {
-  CAMLparam1(t);
+int type_is_int32(scalar_type t) {
+  CAMLparam0();
   CAMLreturnT(int, Bool_val(caml_callback(*type_callback_is_int32, t)));
 }
 
-int type_is_int64(array_type t) {
-  CAMLparam1(t);
+int type_is_int64(scalar_type t) {
+  CAMLparam0();
   CAMLreturnT(int, Bool_val(caml_callback(*type_callback_is_int64, t)));
 }
 
-int type_is_float32(array_type t) {
-  CAMLparam1(t);
+int type_is_float32(scalar_type t) {
+  CAMLparam0();
   CAMLreturnT(int, Bool_val(caml_callback(*type_callback_is_float32, t)));
 }
 
-int type_is_float64(array_type t) {
-  CAMLparam1(t);
+int type_is_float64(scalar_type t) {
+  CAMLparam0();
   CAMLreturnT(int, Bool_val(caml_callback(*type_callback_is_float64, t)));
+}
+
+/** Private functions **/
+static value get_array_value(array_type t) {
+  CAMLparam0();
+  CAMLlocal1(v);
+  v = ((array_type_t*)t)->v;
+  CAMLreturn(v);
 }
