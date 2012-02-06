@@ -12,6 +12,12 @@
 #include <caml/mlvalues.h>
 #include <stdint.h>
 
+typedef struct {
+  value v;
+} paranode_t;
+
+/** The main data type of the Parakeet C interface. **/
+typedef paranode_t* paranode;
 
 /**
  * We'll eventually want to include source info alongside the tree nodes so as
@@ -23,8 +29,6 @@ typedef struct source_info {
   int   line;
   int   col;
 } source_info_t;
-
-typedef value paranode;
 
 /** Initialization function - call before using any creation functions **/
 void ast_init(void);
@@ -51,7 +55,6 @@ paranode mk_return(paranode* args, int num_args, source_info_t *src_info);
 
 paranode mk_array(paranode *elts, int num_stmts, source_info_t *src_info);
 
-
 paranode mk_if(paranode cond_node, paranode true_node, paranode false_node,
                source_info_t *src_info);
 
@@ -60,11 +63,9 @@ paranode mk_assign(paranode* ids, int num_ids, paranode rhs,
 
 paranode mk_block(paranode *stmts, int num_stmts, source_info_t *src_info);
 
-paranode mk_whileloop(paranode test, paranode body,
-                      source_info_t *src_info);
+paranode mk_whileloop(paranode test, paranode body, source_info_t *src_info);
 
-paranode mk_countloop(paranode count, paranode body,
-                      source_info_t *src_info);
+paranode mk_countloop(paranode count, paranode body, source_info_t *src_info);
 
 paranode mk_void(source_info_t *src_info);
 

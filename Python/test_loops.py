@@ -1,3 +1,4 @@
+#!/usr/bin/python
 import sys
 from parakeet import PAR 
 
@@ -12,7 +13,6 @@ def test_count_x():
   x = count_x(5)
   print "Expected 5, got", x
   assert 5 == x
-
 
 @PAR
 def sum_to_x(x):
@@ -30,7 +30,6 @@ def test_sum_to_x():
   x = sum_to_x(5)
   print "Expected 15, got", x
   assert 15 == x
-
 
 if __name__ == '__main__':
   test_count_x()

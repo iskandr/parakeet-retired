@@ -186,6 +186,7 @@ def list_to_ctypes_array(inputList, t):
   l = listStructure()
   for i in range(numElements):
     l[i] = inputList[i]
+  print "[list_to_ctypes_array]", l
   return l
 
 def read_file(fileName):
@@ -388,6 +389,7 @@ class ASTConverter():
         ret_args = list_to_ctypes_array([ret], c_void_p)
         return LibPar.mk_return(ret_args,1,None)
     elif nodeType == 'Assign':
+      print "In assign"
       leftChildContext = set(contextSet)
       rightChildContext = set(contextSet)
       leftChildContext.add('lhs')
@@ -406,8 +408,8 @@ class ASTConverter():
         num_args = 1
         LibPar.print_ast_node(elt)
       rhs_arg = self.visit(node.value, rightChildContext)
+      print "before mk_assign"
       return LibPar.mk_assign(lhs_args, num_args, rhs_arg, None)
-
 
     parakeetNodeChildren = []
     for childName, childNode in ast.iter_fields(node):
@@ -466,7 +468,6 @@ class ASTConverter():
         if result is not None:
           results.append(result)
     return results
-
 
   def build_parakeet_array(self, elts):
     c_array = list_to_ctypes_array(elts, c_void_p)
