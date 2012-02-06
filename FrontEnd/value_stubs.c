@@ -5,8 +5,7 @@
  *
  * (c) Eric Hielscher and Alex Rubinsteyn, 2011.
  */
-#include <assert.h> 
-
+#include <assert.h>
 #include <caml/alloc.h>
 #include <caml/bigarray.h>
 #include <caml/callback.h>
@@ -14,6 +13,7 @@
 #include <caml/mlvalues.h>
 #include <stdio.h>
 
+#include "type_stubs.h"
 #include "value_stubs.h"
 
 /** Private members **/
@@ -86,7 +86,14 @@ int value_is_scalar(host_val v) {
   CAMLreturnT(int, Int_val(caml_callback(*value_callback_is_scalar, v)));
 }
 
-array_type value_type_of(host_val v) {
+array_type array_type_of(host_val v) {
+  CAMLparam1(v);
+  CAMLlocal1(t);
+  t = caml_callback(*value_callback_type_of, v);
+  CAMLreturnT(array_type, build_array_root(t));
+}
+
+value value_type_of(host_val v) {
   CAMLparam1(v);
   assert(value_callback_type_of != NULL); 
   CAMLreturn(caml_callback(*value_callback_type_of, v));
@@ -101,7 +108,6 @@ value value_get_strides(host_val v) {
   CAMLparam1(v);
   CAMLreturn(caml_callback(*value_callback_get_strides, v));
 }
-
 
 /* 
   Construct Values

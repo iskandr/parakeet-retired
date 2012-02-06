@@ -736,7 +736,7 @@ def parakeet_value_to_python(val):
     strides = []
     for s in cstrides:
       strides.append(s)
-    par_elt_type = LibPar.get_element_type(val.data.array.ret_type)
+    par_elt_type = LibPar.get_array_element_type(val.data.array.ret_type)
     cEltType = ParakeetTypeToCtype[par_elt_type]
     arrayType = cEltType * nelts
     resultArray = arrayType.from_address(val.data.array.data)
@@ -759,7 +759,8 @@ def run_function(func, args):
   ret = LibPar.run_function(func, None, 0, inputs, numArgs)
   print ret.return_code
   if (ret.return_code == 0):
-    # TODO: again, we assume only one return val
+    # TODO: We assume only one return val.  This _is_ supported in the
+    #       C code, however.
     print "RETLEN", ret.results_len
     if ret.results_len > 0:
       return parakeet_value_to_python(ret.results[0])

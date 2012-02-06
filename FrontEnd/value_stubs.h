@@ -33,7 +33,8 @@ int64_t  get_int64(host_val val);
 double   get_float64(host_val val);
 
 int value_is_scalar(host_val val);
-array_type value_type_of(host_val v);
+array_type array_type_of(host_val v);
+value value_type_of(host_val v);
 value value_get_shape(host_val v); 
 value value_get_strides(host_val v); 
 
@@ -46,9 +47,9 @@ host_val mk_host_array(char *data, elt_type t,
                        int *strides, int strides_len,
                        int num_bytes);
 
+void* get_array_data(host_val array);
+
 /** IMPORTANT: Must call to free on OCaml host_vals created **/
 void free_host_val(host_val val);
-
-
 
 #endif

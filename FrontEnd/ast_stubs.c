@@ -170,7 +170,7 @@ paranode mk_app(paranode fun, paranode *args, int num_args,
                 source_info_t *src_info) {
   CAMLparam0();
   CAMLlocal3(val_fun, app, val_args);
-  val_args = mk_val_list(args, num_args); 
+  val_args = mk_val_list(args, num_args);
   val_fun = get_value_and_remove_root(fun);
   app = caml_alloc(2, Exp_App);
   Store_field(app, 0, val_fun);
@@ -234,7 +234,7 @@ paranode mk_assign(paranode* lhs, int num_ids, paranode rhs,
 paranode mk_block(paranode *stmts, int num_stmts, source_info_t *src_info) {
   CAMLparam0();
   CAMLlocal2(block, stmt_list);
-  stmt_list = mk_val_list(stmts, num_stmts); 
+  stmt_list = mk_val_list(stmts, num_stmts);
   block = caml_alloc(1, Exp_Block);
   Store_field(block, 0, stmt_list);
   CAMLreturnT(paranode, mk_node(block, src_info));
@@ -295,8 +295,6 @@ void print_ast_node(paranode n) {
   CAMLparam0();
   CAMLlocal1(v);
   v = ((paranode_t*)n)->v;
-  printf("in print_ast: %p\n", (paranode_t*)n);
-  printf("n->v: %p\n", ((paranode_t*)n)->v);
   caml_callback(*ocaml_print_ast_node, v);
   CAMLreturn0;
 }
@@ -348,7 +346,7 @@ static CAMLprim value get_value_and_remove_root(paranode node) {
   paranode_t* p = (paranode_t*)node;
   val = p->v;
   caml_remove_global_root(&(p->v));
-  //free(p);
+  //TODO: when to free(p)?  I think it should still be here.
   CAMLreturn(val);
 }
 
@@ -373,7 +371,7 @@ static CAMLprim value mk_val_list(paranode *vals, int num_vals) {
   } else {
     val1 = Val_int(0);
   }
-  
+
   CAMLreturn(val1);
 }
 
@@ -382,8 +380,6 @@ static paranode mk_root(value v) {
   paranode_t* p = (paranode_t*)malloc(sizeof(paranode_t));
   caml_register_global_root(&(p->v));
   p->v = v;
-  printf("in mk_root: %p\n", p);
-  fflush(stdout);
   CAMLreturnT(paranode, p);
 }
 
@@ -404,4 +400,3 @@ static paranode mk_node(value exp, source_info_t *src_info) {
 
   CAMLreturnT(paranode, mk_root(node));
 }
-

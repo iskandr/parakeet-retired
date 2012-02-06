@@ -4,7 +4,7 @@
  *  Front end functions for registering and running functions with the Parakeet
  *  runtime.
  *
- * (c) Eric Hielscher and Alex Rubinsteyn, 2009-2011.
+ * (c) Eric Hielscher and Alex Rubinsteyn, 2009-2012.
  */
 
 #include <caml/alloc.h>
@@ -29,7 +29,6 @@ int fe_inited = 0;
 static CAMLprim value build_str_list(char **strs, int num_strs);
 static CAMLprim value build_host_val_list(host_val *vals, int num_vals);
 static int ocaml_list_length(value l);
-//static CAMLprim value get_value_and_remove_root(host_val h);
 
 /** Public interface **/
 
@@ -45,7 +44,7 @@ void front_end_init(void) {
 
 int register_untyped_function(char *name, char **globals, int num_globals,
                               char **args, int num_args, paranode ast) {
-  CAMLparam1(ast);
+  CAMLparam0();
   CAMLlocal5(val_name, val_globals, val_args, val_ast, fn_id);
  
   val_name = caml_copy_string(name);
@@ -68,7 +67,7 @@ return_val_t run_function(int id, host_val *globals, int num_globals,
                           host_val *args, int num_args) {
   CAMLparam0();
   CAMLlocal5(ocaml_rslt, ocaml_id, ocaml_globals, ocaml_args, ocaml_ret_type);
-  CAMLlocal4(ocaml_shape, ocaml_strides, ocaml_data, ocaml_cur);
+  CAMLlocal5(ocaml_shape, ocaml_strides, ocaml_data, ocaml_cur, ocaml_type);
 
   ocaml_id      = Val_int(id);
   ocaml_globals = build_host_val_list(globals, num_globals);
@@ -79,16 +78,13 @@ return_val_t run_function(int id, host_val *globals, int num_globals,
 
   ocaml_cur = Field(ocaml_rslt, 0);
   return_val_t ret;
-  
 
   if (Is_long(ocaml_rslt)) {
-    printf("Pass!\n");
     // In this case, we know that the return code must have been Pass,
     // since the other two return codes have data.
     ret.return_code = RET_PASS;
     ret.results_len = 0;
   } else if (Tag_val(ocaml_rslt) == RET_FAIL) {
-    printf("Fail!\n"); 
     ret.return_code = RET_FAIL;
     ret.results_len = caml_string_length(Field(ocaml_rslt, 0));
     ret.error_msg = malloc(ret.results_len);
@@ -97,17 +93,17 @@ return_val_t run_function(int id, host_val *globals, int num_globals,
     ret.return_code = RET_SUCCESS;
     ret.results_len = ocaml_list_length(ocaml_cur);
     ret.results = (ret_t*)malloc(sizeof(ret_t) * ret.results_len);
-    printf("Success!\n");   
     int i, j;
     for (i = 0; i < ret.results_len; ++i) {
       host_val v = (host_val)Field(ocaml_cur, 0);
       ocaml_cur = Field(ocaml_cur, 1);
-      array_type t = value_type_of(v);
 
       // returning a scalar
       if (value_is_scalar(v)) {
         ret.results[i].is_scalar = 1;
-        ret.results[i].data.scalar.ret_type = get_element_type(t);
+        ocaml_type = (scalar_type)value_type_of(v);
+        ret.results[i].data.scalar.ret_type =
+            get_scalar_element_type(ocaml_type);
 
         // WARNING:
         // Tiny Memory Leak Ahead
@@ -115,15 +111,15 @@ return_val_t run_function(int id, host_val *globals, int num_globals,
         // When scalar data is returned to the host language
         // on the heap, it should be manually deleted by the
         // host frontend
-        if (type_is_bool(t)) {
+        if (type_is_bool(ocaml_type)) {
           ret.results[i].data.scalar.ret_scalar_value.boolean = get_bool(v);
-        } else if (type_is_int32(t)) {
+        } else if (type_is_int32(ocaml_type)) {
           ret.results[i].data.scalar.ret_scalar_value.int32 = get_int32(v);
-        } else if (type_is_int64(t)) {
+        } else if (type_is_int64(ocaml_type)) {
           ret.results[i].data.scalar.ret_scalar_value.int64 = get_int64(v);
-        } else if (type_is_float32(t)) { 
+        } else if (type_is_float32(ocaml_type)) { 
           ret.results[i].data.scalar.ret_scalar_value.float32 = get_float64(v);
-        } else if (type_is_float64(t)) {
+        } else if (type_is_float64(ocaml_type)) {
           ret.results[i].data.scalar.ret_scalar_value.float64 = get_float64(v);
         } else {
           caml_failwith("Unable to return scalar of this type\n");
@@ -131,7 +127,7 @@ return_val_t run_function(int id, host_val *globals, int num_globals,
       } else {
         // Pass the type
         ret.results[i].is_scalar = 0;
-        ret.results[i].data.array.ret_type = t;
+        ret.results[i].data.array.ret_type = array_type_of(v);
 
         // Pass the data
         ret.results[i].data.array.data = get_array_data(v);
@@ -174,6 +170,7 @@ void free_return_val(return_val_t ret_val) {
   if (ret_val.results) {
     for (i = 0; i < ret_val.results_len; ++i) {
       if (!ret_val.results[i].is_scalar) {
+        free_type(ret_val.results[i].data.array.ret_type);
         free(ret_val.results[i].data.array.data);
         free(ret_val.results[i].data.array.shape);
         free(ret_val.results[i].data.array.strides);
@@ -254,4 +251,3 @@ static int ocaml_list_length(value l) {
   
   CAMLreturnT(int, i);
 }
-

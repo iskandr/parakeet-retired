@@ -95,7 +95,6 @@ let elt_to_short_str = function
   | Float32T -> "f"
   | Float64T -> ""
 
-
 let to_str = function
   | BottomT -> "bottom"
   | AnyT -> "any"

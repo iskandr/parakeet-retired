@@ -16,7 +16,6 @@ typedef struct {
   value v;
 } paranode_t;
 
-/** The main data type of the Parakeet C interface. **/
 typedef paranode_t* paranode;
 
 /**
