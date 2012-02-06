@@ -57,7 +57,7 @@ int register_untyped_function(char *name, char **globals, int num_globals,
   func_args[0] = val_name;
   func_args[1] = val_globals;
   func_args[2] = val_args;
-  func_args[3] = (value)ast;
+  func_args[3] = ast->v;
 
   fn_id = caml_callbackN(*ocaml_register_untyped_function, 4, func_args);
 
