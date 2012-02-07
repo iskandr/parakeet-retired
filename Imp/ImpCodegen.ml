@@ -109,7 +109,7 @@ class fn_codegen = object (self)
     self#declare_output id ~shape t;
     ImpHelpers.var t id
 
-  method finalize_fn stmts =
+  method finalize_fn ?name stmts =
     let blockInfo = self#info in
     let nonlocals = input_ids @ output_ids in
     (*
@@ -125,8 +125,12 @@ class fn_codegen = object (self)
     let localIds =
       List.filter (fun id -> not $ List.mem id nonlocals)  blockInfo.block_ids
     in
+    let id = match name with
+      | Some name -> FnId.gen_named name
+      | None -> FnId.gen()
+    in
     {
-      id = FnId.gen();
+      id = id;
       input_ids = input_ids;
       output_ids = output_ids;
       local_ids =  localIds;

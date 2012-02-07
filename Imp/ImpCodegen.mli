@@ -27,5 +27,5 @@ class fn_codegen : object
   method fresh_input : ImpType.t -> value_node
   method declare_output : ID.t -> ?shape:SymbolicShape.t -> ImpType.t -> unit
   method fresh_output : ?shape:SymbolicShape.t -> ImpType.t -> value_node
-  method finalize_fn : Imp.block ->  fn
+  method finalize_fn : ?name:string -> Imp.block ->  fn
 end

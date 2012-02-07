@@ -206,7 +206,10 @@ let rec translate_fn  (ssaFn:SSA.fn) (impInputTypes:ImpType.t list) : Imp.fn =
       let body =
         translate_block (codegen :> ImpCodegen.codegen) ssaFn.SSA.body
       in
-      let impFn = codegen#finalize_fn body in
+      let ssa_name = FnId.to_str ssaFn.SSA.fn_id in
+      let arg_strings = ImpType.type_list_to_str impInputTypes in
+      let name = ssa_name ^ "[" ^ arg_strings ^ "]" in
+      let impFn = codegen#finalize_fn ~name body in
       Hashtbl.add cache signature impFn;
       Printf.printf
         "[SSA_to_Imp] Created Imp function: %s\n%!"
