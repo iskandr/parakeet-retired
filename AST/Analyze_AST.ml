@@ -60,11 +60,9 @@ and analyze_block ~inFunction scopeInfo nodes =
   let emptyBlockInfo = mk_ast_info () in
   fold_block ~inFunction scopeInfo emptyBlockInfo nodes
 
-and analyze_node ~inFunction scopeInfo node = 
-  Printf.printf "[Analyze_AST.analyze_node]\n%!"; 
+and analyze_node ~inFunction scopeInfo node =
   match node.data with
   | Lam (ids, body) ->
-    Printf.printf "[Analyze_AST] Start Lam\n%!"; 
     node.ast_info.is_function <- true;
     node.ast_info.defs_local <- PSet.from_list ids;
     if inFunction then node.ast_info.nested_functions <- true;
@@ -149,7 +147,6 @@ and analyze_node ~inFunction scopeInfo node =
         List.fold_left add_to_locals scopeInfo names
     end
   | Return args ->
-    Printf.printf "[Analyze_AST] Start Return\n%!"; 
     let scopeInfo, astInfo =  analyze_block ~inFunction scopeInfo args in
     node.ast_info <- astInfo;
     astInfo.return_arity <-

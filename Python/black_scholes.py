@@ -32,10 +32,14 @@ def BlackSholes(CallPutFlag,S,X,T,r,v):
   else:
     return X*math.exp(-r*T)*CND(-d2)-S*CND(-d1)
 
-for i in range(13):
-  x = CND(i)
-  y = CND.call_original(i)
-  same = abs(x-y) < 0.00001
-  print "%f = %f: %s" % (x,y,same)
-  assert same
+def test_cnd(): 
+  for i in range(13):
+    x = CND(i)
+    y = CND.call_original(i)
+    same = abs(x-y) < 0.00001
+    print "%f = %f: %s" % (x,y,same)
+    assert same
+
+if __name__ == '__main__':
+  test_cnd()
 

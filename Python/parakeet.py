@@ -178,29 +178,29 @@ ParakeetTypeToCtype = {
 #  Helper functions
 ###############################################################################
 #Builds a ctypes list of the type out of the input_list
-def list_to_ctypes_array(inputList, t):
-  print "[list_to_ctypes_array]", inputList
-  numElements = len(inputList)
-  listStructure = t * numElements # Description of a ctypes array
-  l = listStructure()
-  for i in range(numElements):
-    l[i] = inputList[i]
-  print "[list_to_ctypes_array]", l
-  return l
+def list_to_ctypes_array(input_list, t):
+  print "[list_to_ctypes_array] input:", input_list
+  n = len(input_list)
+  ARRAY_TYPE = t * n # Description of a ctypes array
+  arr = ARRAY_TYPE()
+  for i in range(n):
+    arr[i] = input_list[i]
+  print "[list_to_ctypes_array] output:", arr
+  return arr
 
-def read_file(fileName):
+def read_file(file_name):
   try:
-    f = open(fileName,'r')
-    outString = f.readlines()
+    f = open(file_name,'r')
+    out_string = f.readlines()
     f.close()
   except IOError:
-    print "Error opening %s" % fileName
+    print "Error opening %s" % file_name
     return ''
-  return outString
+  return out_string
 
-def function_info(functionObj):
+def function_info(function_obj):
   try:
-    codeInfo = functionObj.__code__
+    codeInfo = function_obj.__code__
   except:
     return ''
   args = codeInfo.co_varnames[:codeInfo.co_argcount]
@@ -379,15 +379,14 @@ def build_parakeet_node(node, args):
 #  Converter
 ###############################################################################
 class ASTConverter():
-  def __init__(self,funcGlobals):
-    #Should really be a set?
-    self.seen_functions = set([]) #curr_function
-    self.varList = []
-    self.functionGlobalVariables = funcGlobals
+  def __init__(self, global_vars, arg_names):
+    self.seen_functions = set([]) 
+    self.arg_names = arg_names
+    self.global_variables = global_vars
 
   # currContext is a set of strings telling us which nodes are parents
   # of the current one in the syntax tree
-  def visit(self, node, contextSet):
+  def visit(self, node, contextSet=set([])):
     nodeType = type(node).__name__
     if nodeType == 'Print':
       raise ParakeetUnsupported("printing is not allowed")
@@ -485,7 +484,7 @@ class ASTConverter():
       return build_parakeet_node(node, args)
       #args[1]...[n+1] is what's inside the tuple, not the tuple itself
       #[args[0], args[1],....,args[n+1]]
-      #Subscript(expr value, slice slice, expr_context ctx)
+
     elif nodeType == 'Return':
       #Might not be right for no return
       if node.value is None:
@@ -556,7 +555,7 @@ class ASTConverter():
         #  Literal
         #######################################################################
         if 'lhs' in contextSet:
-          if not str(childNode) in self.varList:
+          if not str(childNode) in self.arg_names:
             if nodeType == 'Name':
               raise ParakeetUnsupported(str(childNode) +
                                         " is a global variable")
@@ -590,8 +589,8 @@ class ASTConverter():
     name = type(node).__name__
     if name == 'Name':
       funName = node.id
-      if funName in self.functionGlobalVariables:
-        funRef = self.functionGlobalVariables[funName]
+      if funName in self.global_variables:
+        funRef = self.global_variables[funName]
       elif funName in __builtins__:
         funRef = __builtins__[funName]
       else:
@@ -607,7 +606,7 @@ class ASTConverter():
         moduleList = [nextNode.attr] + moduleList
         nextNode = nextNode.value
 
-      currModule = self.functionGlobalVariables[nextNode.id]
+      currModule = self.global_variables[nextNode.id]
 
       for m in moduleList:
         currModule = currModule.__dict__[m]
@@ -631,14 +630,15 @@ def register_function(f):
     raise RuntimerError("[Parakeet] Couldn't get info for function %s" % f)
   else:
     print "[parse_function] Parsing", info[1]
-    node = ast.parse(info[1])
-    AST = ASTConverter(f.func_globals)
-    AST.varList = info[2]
-    finalTree = AST.visit(node,set([]))
+    arg_names = info[2]
+    body_source = info[1]
+    body_ast = ast.parse(body_source)
+    AST = ASTConverter(f.func_globals, arg_names)
+    parakeet_syntax = AST.visit(body_ast)
     #Med fix: right now, I assume there aren't any globals
     global_vars = []
     n_globals = len(global_vars)
-    global_vars_array = list_to_ctypes_array(global_vars,c_char_p)
+    globals_array = list_to_ctypes_array(global_vars,c_char_p)
 
     arg_list = info[0]
     arg_array = list_to_ctypes_array(arg_list, c_char_p)
@@ -654,13 +654,13 @@ def register_function(f):
 
     fun_name = f.__module__ + "." + f.__name__
     c_str = c_char_p(fun_name)
-    register = LibPar.register_untyped_function
     fun_id = c_int( 
       LibPar.register_untyped_function(
-        c_str, global_vars_array, n_globals, arg_array, n_args, finalTree))
+        c_str, globals_array, n_globals, arg_array, n_args, parakeet_syntax))
 
-    LOG("Registered %s" % f.__name__)
+    LOG("Registered %s as %s" % (f.__name__, fun_id))
     VisitedFunctions[f] = fun_id
+    return fun_id 
 
 # given a numpy array or a scalar, construct the equivalent parakeet value
 def python_value_to_parakeet(arg):
@@ -706,69 +706,42 @@ def array_from_memory(pointer, shape, dtype):
 
 def parakeet_value_to_python(val):
   if val.is_scalar:
-    cEltType = ParakeetTypeToCtype[val.data.scalar.ret_type]
+    c_type = ParakeetTypeToCtype[val.data.scalar.ret_type]
     result = 0
-    if cEltType == c_bool:
+    if c_type == c_bool:
       result = val.data.scalar.ret_scalar_value.boolean
-    elif cEltType == c_int:
+    elif c_type == c_int:
       result = val.data.scalar.ret_scalar_value.int32
-    elif cEltType == c_int64:
+    elif c_type == c_int64:
       result = val.data.scalar.ret_scalar_value.int64
-    elif cEltType == c_float:
+    elif c_type == c_float:
       result = val.data.scalar.ret_scalar_value.float32
-    elif cEltType == c_double:
+    elif c_type == c_double:
       result = val.data.scalar.ret_scalar_value.float64
     else:
-      raise Exception ("Return type not supported by Parakeet: " +
-                       str(cEltType))
+      raise RuntimeError("Return type not supported by Parakeet: " % str(c_type))
     return result
-  else:
-    nelts = 1
+  else:    
     rank = val.data.array.shape_len
-    shape_type = c_int * rank
-    cshape = shape_type.from_address(val.data.array.shape)
-    shape = []
-    for s in cshape:
-      shape.append(s)
-      nelts *= s
-    strides_type = c_int * val.data.array.strides_len
-    cstrides = strides_type.from_address(val.data.array.strides)
-    strides = []
-    for s in cstrides:
-      strides.append(s)
-    par_elt_type = LibPar.get_array_element_type(val.data.array.ret_type)
-    cEltType = ParakeetTypeToCtype[par_elt_type]
-    arrayType = cEltType * nelts
-    resultArray = arrayType.from_address(val.data.array.data)
-    npResult = np.ctypeslib.as_array(resultArray)
-    npResult.shape = shape
-    npResult.strides = strides
-    return npResult
 
-def run_function(func, args):
-  sys.stdout.flush()
-  numArgs = len(args)
-  inputArr = []
-  INPUTLIST = c_void_p*numArgs
-  EMPTYLIST = c_int * 0
-  ONELIST = c_int * 1
-  inputs = INPUTLIST()
-  for i in range(numArgs):
-    inputs[i] = python_value_to_parakeet(args[i])
-  # TODO: assume there are no globals now
-  ret = LibPar.run_function(func, None, 0, inputs, numArgs)
-  print ret.return_code
-  if (ret.return_code == 0):
-    # TODO: We assume only one return val.  This _is_ supported in the
-    #       C code, however.
-    print "RETLEN", ret.results_len
-    if ret.results_len > 0:
-      return parakeet_value_to_python(ret.results[0])
-    else:
-      return 
-  else:
-    raise Exception("run_function failed")
-  pass
+    SHAPE_TYPE = c_int * rank
+    c_shape = SHAPE_TYPE.from_address(val.data.array.shape)
+    shape = list(c_shape)
+
+    STRIDES_TYPE = c_int * val.data.array.strides_len
+    c_strides = STRIDES_TYPE.from_address(val.data.array.strides)
+    strides = list(c_strides)
+
+    parakeet_elt_type = LibPar.get_array_element_type(val.data.array.ret_type)
+    c_elt_type = ParakeetTypeToCtype[parakeet_elt_type]
+    nelts = reduce(lambda x,y: x * y, shape)
+    ARRAY_TYPE = c_elt_type * nelts
+    result_array = ARRAY_TYPE.from_address(val.data.array.data)
+
+    np_result = np.ctypeslib.as_array(result_array)
+    np_result.shape = shape
+    np_result.strides = strides
+    return np_result
 
 class WrappedFunction:
   def __init__(self, old_function): 
@@ -777,13 +750,29 @@ class WrappedFunction:
     self.__name__ = old_function.__name__
     self.__module__ = old_function.__module__
     fun_id = register_function(old_function)
+    assert fun_id is not None
     VisitedFunctions[self] = fun_id
-    self.parakeet_untyped_id = fun_id  
+    self.parakeet_untyped_id = fun_id
   
   def __call__(self, *args, **kwds):
     # todo: implement keyword arguments in parakeet
     assert len(kwds) == 0
-    return run_function(self.parakeet_untyped_id, args)  
+    sys.stdout.flush()
+    n_args = len(args)
+    INPUT_ARRAY_TYPE = c_void_p * n_args
+    inputs = INPUT_ARRAY_TYPE()
+    for i in range(n_args):
+      inputs[i] = python_value_to_parakeet(args[i])
+    # TODO: assume there are no globals now
+    ret = LibPar.run_function(self.parakeet_untyped_id, None, 0, inputs, n_args)
+    if ret.return_code != 0:
+      raise RuntimeError("[Parakeet] Execution failed")
+    else:
+      print "Got %d results", ret.results_len
+      if ret.results_len > 0:
+        return parakeet_value_to_python(ret.results[0])
+      else:
+        return 
 
   def call_original(self, *args, **kwds):
     return self.old_function(*args, **kwds)

@@ -7,7 +7,7 @@ open SSA
 let init() =
   let gcParams = Gc.get() in
   Gc.set { gcParams with
-    Gc.minor_heap_size = 10;
+    Gc.minor_heap_size = 10000;
     space_overhead = 90;
   }
   (*HardwareInfo.hw_init ();*)
@@ -18,21 +18,21 @@ let _ = init ()
 
 let register_untyped_function ~name ~globals ~args astNode =
   IFDEF DEBUG THEN
-    Printf.printf "[FrontEnd.register_untyped] Received untyped AST: %s (%s)\n %s\n%!"
+    Printf.printf "[FrontEnd] Received untyped AST: %s (%s)\n %s\n%!"
       name
       (String.concat ", " args)
       (AST.to_str astNode)
   ENDIF;
-  Gc.compact(); 
-  Printf.printf "About to analyze AST...\n%!"; 
   let _ = Analyze_AST.analyze_ast astNode in
   let ssaEnv = AST_to_SSA.Env.GlobalScope FnManager.get_untyped_id in
   let argNames = globals @ args in
   let fn = AST_to_SSA.translate_fn ~name ssaEnv argNames astNode in
-  Printf.printf "[FrontEnd.register_untyped] Converted to SSA: %s\n%!" (SSA.fn_to_str fn); 
   FnManager.add_untyped ~optimize:true name fn;
-  Printf.printf "About to exit register_untyped_function...\n%!"; 
-  Gc.compact(); 
+  Printf.printf "Registered %s as %s (id = %d)\n%!"
+    name
+    (FnId.to_str fn.SSA.fn_id)
+    fn.SSA.fn_id
+  ;
   fn.SSA.fn_id
 
 let rec register_untyped_functions = function
@@ -60,29 +60,25 @@ type ret_val =
   | Pass
 
 let run_function untypedId ~globals ~args : ret_val =
-  IFDEF DEBUG THEN 
-    printf "[FrontEnd.run_function] Running %s\n%!" (FnId.to_str untypedId);
+  IFDEF DEBUG THEN
+    printf "[FrontEnd.run_function] Running %s (id=%d)\n%!"
+      (FnId.to_str untypedId)
+      untypedId
+    ;
   ENDIF;
   Timing.clear Timing.runTemplate;
-  printf "A\n%!";
-  Gc.compact(); 
   Timing.clear Timing.typedOpt;
-  printf "B\n%!";
   Timing.clear Timing.ptxCompile;
   Timing.clear Timing.gpuTransfer;
   Timing.clear Timing.gpuExec;
   Timing.clear Timing.gpuMalloc;
   Timing.start Timing.runTemplate;
-  printf "C\n%!"; 
   let args = globals @ args in
-  printf "D\n%!"; 
   let argTypes = List.map Value.type_of args in
-  printf "E\n%!"; 
   let untypedFn = FnManager.get_untyped_function untypedId in
-  printf "F\n%!"; 
   IFDEF DEBUG THEN
      printf "[FrontEnd.run_function] untyped function body: %s\n%!"
-      (SSA.fn_to_str untypedFn); 
+      (SSA.fn_to_str untypedFn);
   ENDIF;
   let nargs = List.length args in
   let arity = List.length untypedFn.input_ids in

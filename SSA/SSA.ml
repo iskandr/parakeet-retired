@@ -191,19 +191,11 @@ let phi_nodes_to_str ?(space="") phiNodes =
   String.concat "\n" (List.map (phi_node_to_str ~space) phiNodes)
 
 let rec block_to_str ?(space="") ?(tenv=ID.Map.empty) block =
-  Printf.printf "[SSA.block_to_str] block length: %d\n%!" (Block.length block); 
+  Printf.printf "[SSA.block_to_str] block length: %d\n%!" (Block.length block);
   Block.to_str (stmt_node_to_str ~space ~tenv) block
 and stmt_node_to_str ?(space="") ?(tenv=ID.Map.empty) stmtNode =
   let str = match stmtNode.stmt with
   | Set (ids, rhs) ->
-    Gc.compact(); 
-    Printf.printf "[SSA.stmt_node_to_str] set ids = rhs\n%!";
-    Gc.compact();  
-    Printf.printf "# ids = %d\n%!" (List.length ids); 
-    Gc.compact(); 
-    Printf.printf "rhs = %s\n%!" (exp_to_str rhs); 
-    Gc.compact(); 
-    Printf.printf "ids = %s\n%!" (typed_id_list_to_str tenv ids); 
     sprintf "%s = %s " (typed_id_list_to_str tenv ids) (exp_to_str rhs)
   | SetIdx (lhs, indices, rhs) ->
     sprintf "%s[%s] = %s"
@@ -258,21 +250,11 @@ and stmt_node_to_str ?(space="") ?(tenv=ID.Map.empty) stmtNode =
   in space ^ str
 
 let fn_to_str (fundef:fn) =
-  Gc.compact(); 
-  Printf.printf "name!\n%!"; 
-  let name = FnId.to_str fundef.fn_id in 
-  Gc.compact(); 
-  Printf.printf "inputs!\n%!"; 
+  let name = FnId.to_str fundef.fn_id in
   let inputs = typed_id_list_to_str fundef.tenv fundef.input_ids in
-  Gc.compact(); 
-  Printf.printf "outputs!\n%!"; 
-  let outputs = typed_id_list_to_str fundef.tenv fundef.output_ids in 
-  Gc.compact(); 
-  Printf.printf "body!\n%!"; 
-  let body = block_to_str ~space:"\t" ~tenv:fundef.tenv fundef.body in 
-  Gc.compact();
-  Printf.printf "Compacted!\n%!";  
-  sprintf "%s (%s)=>(%s) { \n %s \n }" name inputs outputs body 
+  let outputs = typed_id_list_to_str fundef.tenv fundef.output_ids in
+  let body = block_to_str ~space:"\t" ~tenv:fundef.tenv fundef.body in
+  sprintf "%s (%s)=>(%s) { \n %s \n }" name inputs outputs body
 
 
 

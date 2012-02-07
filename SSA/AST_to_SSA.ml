@@ -322,9 +322,7 @@ and translate_fn ?name parentEnv argNames (body:AST.node) : SSA.fn =
     | Some x -> x
     | None -> 0
   in
-  Printf.printf "[AST_to_SSA] Return arity: %d\n%!" returnArity; 
   let retIds = ID.gen_named_list "ret" returnArity in
-  Gc.compact(); 
   let argIds = List.map ID.gen_named argNames in
   (* map string names to their SSA identifiers --
      assume globalMap contains only functions
