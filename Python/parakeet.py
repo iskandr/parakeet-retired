@@ -73,7 +73,6 @@ def return_type_init(LibPar):
   LibPar.get_prim.restype = c_void_p
   LibPar.mk_float_paranode.restype = c_void_p
   LibPar.mk_double_paranode.restype = c_void_p
-  LibPar.mk_bool.restype = c_void_p
   LibPar.mk_void.restype = c_void_p
   LibPar.mk_return.restype = c_void_p
   LibPar.print_ast_node.restype = c_void_p
@@ -617,9 +616,6 @@ class ASTConverter():
     self.seen_functions.add(funRef)
     return funRef
 
-
-  # everything except arrays
-
 ###############################################################################
 #  Running function
 ###############################################################################
@@ -680,10 +676,6 @@ def python_value_to_parakeet(arg):
     ctype = NumpyTypeToCtype[npType]
     parakeetType = NumpyTypeToParakeetType[npType]
     dataPtr = arg.ctypes.data_as(POINTER(ctype))
-    # TODO: This probably doesn't work for more than 2D - need recursion
-    # TODO: mk_vec no longer exists
-    #for z in range(len(arg.shape)):
-    #  parakeetType = c_void_p(LibPar.mk_vec(parakeetType))
     parakeetVal = LibPar.mk_host_array(dataPtr, parakeetType, inputShape, rank,
                                        inputStrides, rank, arg.nbytes)
     return c_void_p(parakeetVal)
@@ -694,6 +686,8 @@ def python_value_to_parakeet(arg):
       return LibPar.mk_float64(c_double(arg))
     elif type(arg) == np.float32:
       return LibPar.mk_float32(c_float(arg))
+    elif type(arg) == bool:
+      return LibPar.mk_bool(c_bool(arg))
   else:
     raise Exception ("Input not supported by Parakeet: " + str(arg))
 
@@ -719,7 +713,8 @@ def parakeet_value_to_python(val):
     elif c_type == c_double:
       result = val.data.scalar.ret_scalar_value.float64
     else:
-      raise RuntimeError("Return type not supported by Parakeet: " % str(c_type))
+      raise RuntimeError("Return type not supported by Parakeet: " %
+                         str(c_type))
     return result
   else:    
     rank = val.data.array.shape_len
@@ -779,4 +774,3 @@ class WrappedFunction:
 
 def PAR(func):
   return WrappedFunction(func)
-

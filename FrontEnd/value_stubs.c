@@ -95,6 +95,8 @@ array_type array_type_of(host_val v) {
 
 value value_type_of(host_val v) {
   CAMLparam1(v);
+  printf("Inside value_type_of\n");
+  fflush(stdout);
   assert(value_callback_type_of != NULL); 
   CAMLreturn(caml_callback(*value_callback_type_of, v));
 }
