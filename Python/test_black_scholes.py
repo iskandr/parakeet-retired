@@ -18,15 +18,6 @@ def CND(x):
     w = 1.0-w
   return w
 
-@PAR
-def BlackScholes(CallFlag,S,X,T,r,v):
-  d1 = (math.log(S/X)+(r+v*v/2.)*T)/(v*math.sqrt(T))
-  d2 = d1-v*math.sqrt(T)
-  if CallFlag:
-    return S*CND(d1)-X*math.exp(-r*T)*CND(d2)
-  else:
-    return X*math.exp(-r*T)*CND(-d2)-S*CND(-d1)
-
 def test_cnd(): 
   print "RUNNING CND"
   for i in range(3):
@@ -37,14 +28,36 @@ def test_cnd():
     print "[test_cnd] %f == %f: %s (diff = %f)" % (x,y,same, diff)
     assert same
 
-def test_black_scholes(): 
-  x = BlackScholes(True, 2, 2, 2, 2, 2)
-  y = BlackScholes.call_original(True, 2, 2, 2, 2, 2)
+@PAR
+def scalar_black_scholes(CallFlag,S,X,T,r,v):
+  d1 = (math.log(S/X)+(r+v*v/2.)*T)/(v*math.sqrt(T))
+  d2 = d1-v*math.sqrt(T)
+  if CallFlag:
+    return S*CND(d1)-X*math.exp(-r*T)*CND(d2)
+  else:
+    return X*math.exp(-r*T)*CND(-d2)-S*CND(-d1)
+
+def test_scalar_black_scholes(): 
+  x = scalar_black_scholes(True, 2.0, 2.0, 2.0, 2.0, 2.0)
+  y = scalar_black_scholes.call_original(True, 2.0, 2.0, 2.0, 2.0, 2.0)
   diff = x - y 
   same = abs(diff) < 0.00001 
   print "[test_cnd] %f == %f: %s (diff = %f)" % (x, y, same, diff)
   assert same 
- 
+
+@PAR
+def black_scholes(CallFlags, S, X, T, r, v):
+  return para_libs.map(scalar_black_scholes, CallFlags, S, X, T, r, v)
+
+def test_black_scholes():
+  CallFlags = np.array([True, False, True, False])
+  A = np.array([2.0, 1.0, 2.0, 1.0])
+  x = black_scholes(CallFlags, A, A, A, A, A)
+  y = black_scholes.call_original(CallFlags, A, A, A, A, A)
+  all_same = np.all(np.abs(x -  y) < 0.00001)
+  assert all_same  
+
 if __name__ == '__main__':
   test_cnd()
+  test_scalar_black_scholes()
   test_black_scholes()
