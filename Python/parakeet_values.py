@@ -52,8 +52,8 @@ def python_value_to_parakeet(arg):
       # TODO: wouldn't strides be enough to handle this?
       arg = np.transpose(arg).copy()
     npType = arg.dtype.type
-    if ((npType not in NumpyTypeToCtype) or
-        (npType not in NumpyTypeToParakeetType)):
+    if ((npType not in numpy_to_c_types) or
+        (npType not in numpy_to_parakeet_types)):
       raise Exception("Numpy element type unsupported: " + str(npType))
     ctype = numpy_to_c_types[npType]
     parakeetType = numpy_to_parakeet_types[npType]

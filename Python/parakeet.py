@@ -1,7 +1,5 @@
-from ctypes import *
 
-import functools as ft
-import numpy as np
+from ctypes import c_void_p
 
 from parakeet_ast import register_function, VisitedFunctions
 from parakeet_common import LibPar, LOG
@@ -22,7 +20,6 @@ class WrappedFunction:
   def __call__(self, *args, **kwds):
     # todo: implement keyword arguments in parakeet
     assert len(kwds) == 0
-    sys.stdout.flush()
     n_args = len(args)
     INPUT_ARRAY_TYPE = c_void_p * n_args
     inputs = INPUT_ARRAY_TYPE()
