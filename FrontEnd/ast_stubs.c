@@ -95,8 +95,6 @@ paranode mk_var(char *str, source_info_t *src_info) {
   int len = strlen(str);
   ocaml_str = caml_alloc_string(len);
   memcpy(String_val(ocaml_str), str, len);
-  printf("in mk_var\n");
-  fflush(stdout);
 
   // build the var expression
   var = caml_alloc(1, Exp_Var);

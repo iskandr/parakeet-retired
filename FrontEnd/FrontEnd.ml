@@ -92,9 +92,17 @@ let run_function untypedId ~globals ~args : ret_val =
       FnManager.optimize_typed_functions ();
       FnManager.get_typed_function unoptimizedTyped.SSA.fn_id
   in
-  let resultVals = Interp.run typedFundef args in
+
+  let result =
+    try Success (Interp.run typedFundef args) with
+      | exn ->
+        begin
+          let str = Printexc.to_string exn in
+          Printf.printf "%s\n%!" str;
+          Printexc.print_backtrace Pervasives.stdout;
+          Error str
+        end
+  in
   print_all_timers();
   Timing.clear Timing.untypedOpt;
-  Pervasives.flush_all ();
-   (* assume only one result can be returns *)
-  Success resultVals
+  result

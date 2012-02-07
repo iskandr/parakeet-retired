@@ -61,7 +61,6 @@ and analyze_block ~inFunction scopeInfo nodes =
   fold_block ~inFunction scopeInfo emptyBlockInfo nodes
 
 and analyze_node ~inFunction scopeInfo node =
-  Printf.printf "[analyze_ast] %s\n%!" (AST.to_str node);
   match node.data with
   | Lam (ids, body) ->
     node.ast_info.is_function <- true;
