@@ -1,4 +1,5 @@
 #!/usr/bin/python
+import numpy as np 
 import math
 from parakeet import PAR
 import para_libs
@@ -60,4 +61,4 @@ def test_black_scholes():
 if __name__ == '__main__':
   test_cnd()
   test_scalar_black_scholes()
-  #test_black_scholes()
+  test_black_scholes()
