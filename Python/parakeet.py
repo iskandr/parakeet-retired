@@ -765,7 +765,7 @@ class WrappedFunction:
     if ret.return_code != 0:
       raise RuntimeError("[Parakeet] Execution failed")
     else:
-      print "Got %d results", ret.results_len
+      print "Got %d results" % ret.results_len
       if ret.results_len > 0:
         return parakeet_value_to_python(ret.results[0])
       else:

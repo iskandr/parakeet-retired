@@ -28,11 +28,14 @@ let register_untyped_function ~name ~globals ~args astNode =
   let argNames = globals @ args in
   let fn = AST_to_SSA.translate_fn ~name ssaEnv argNames astNode in
   FnManager.add_untyped ~optimize:true name fn;
-  Printf.printf "Registered %s as %s (id = %d)\n%!"
-    name
-    (FnId.to_str fn.SSA.fn_id)
-    fn.SSA.fn_id
-  ;
+  IFDEF DEBUG THEN
+    Printf.printf "Registered %s as %s (id = %d)\n Body: %s\n%!"
+      name
+      (FnId.to_str fn.SSA.fn_id)
+      fn.SSA.fn_id
+      (SSA.fn_to_str fn)
+    ;
+  ENDIF;
   fn.SSA.fn_id
 
 let rec register_untyped_functions = function
@@ -43,15 +46,7 @@ let rec register_untyped_functions = function
 
 let print_all_timers () =
   Timing.print_timers();
-  let gpuTimes =
-    Timing.get_total Timing.gpuTransfer +.
-    Timing.get_total Timing.gpuExec +.
-    Timing.get_total Timing.ptxCompile +.
-    Timing.get_total Timing.gpuMalloc
-  in
-  Printf.printf "Compiler overhead: %f\n"
-    (Timing.get_total Timing.runTemplate -. gpuTimes)
-  ;
+  Printf.printf "Compiler overhead: %f\n" (Timing.get_total Timing.runTemplate);
   Pervasives.flush_all()
 
 type ret_val =
@@ -68,18 +63,10 @@ let run_function untypedId ~globals ~args : ret_val =
   ENDIF;
   Timing.clear Timing.runTemplate;
   Timing.clear Timing.typedOpt;
-  Timing.clear Timing.ptxCompile;
-  Timing.clear Timing.gpuTransfer;
-  Timing.clear Timing.gpuExec;
-  Timing.clear Timing.gpuMalloc;
   Timing.start Timing.runTemplate;
   let args = globals @ args in
   let argTypes = List.map Value.type_of args in
   let untypedFn = FnManager.get_untyped_function untypedId in
-  IFDEF DEBUG THEN
-     printf "[FrontEnd.run_function] untyped function body: %s\n%!"
-      (SSA.fn_to_str untypedFn);
-  ENDIF;
   let nargs = List.length args in
   let arity = List.length untypedFn.input_ids in
   if nargs <> arity then

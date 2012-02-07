@@ -176,6 +176,14 @@ let compile_math_op (t:Type.elt_t) op (vals:llvalue list) builder =
 	| Prim.Div, [ x; y ] ->
     if Type.elt_is_int t then Llvm.build_sdiv x y "sdivtmp" builder
     else Llvm.build_fdiv x y "fdivtmp" builder
+  | Prim.Neg, [x] ->
+    let llvm_type = ImpType_to_lltype.scalar_to_lltype t in
+    if Type.elt_is_int t then
+      let zero = Llvm.const_int llvm_type 0 in
+      Llvm.build_sub zero x "negtmp" builder
+    else
+      let zero = Llvm.const_float llvm_type (-0.0) in
+      Llvm.build_fsub zero x "negtmp" builder
   | Prim.Sqrt, [x] ->
     let f =
       match t with
