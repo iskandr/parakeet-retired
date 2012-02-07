@@ -191,7 +191,6 @@ let phi_nodes_to_str ?(space="") phiNodes =
   String.concat "\n" (List.map (phi_node_to_str ~space) phiNodes)
 
 let rec block_to_str ?(space="") ?(tenv=ID.Map.empty) block =
-  Printf.printf "[SSA.block_to_str] block length: %d\n%!" (Block.length block);
   Block.to_str (stmt_node_to_str ~space ~tenv) block
 and stmt_node_to_str ?(space="") ?(tenv=ID.Map.empty) stmtNode =
   let str = match stmtNode.stmt with

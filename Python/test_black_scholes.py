@@ -1,8 +1,7 @@
 #!/usr/bin/python
 import numpy as np 
 import math
-from parakeet import PAR
-import para_libs
+from parakeet import PAR 
 
 @PAR
 def CND(x):
@@ -48,7 +47,7 @@ def test_scalar_black_scholes():
 
 @PAR
 def black_scholes(CallFlags, S, X, T, r, v):
-  return para_libs.map(scalar_black_scholes, CallFlags, S, X, T, r, v)
+  return parakeet.map(scalar_black_scholes, CallFlags, S, X, T, r, v)
 
 def test_black_scholes():
   CallFlags = np.array([True, False, True, False])

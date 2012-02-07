@@ -1,9 +1,12 @@
 from ctypes import *
 import os, sys 
+
 verbose = True
 debug = False
 def LOG(msg):
-  if verbose: print "[Parakeet]", msg
+  if verbose: 
+    print "[Parakeet]", msg
+    sys.stdout.flush()
 
 
 ###############################################################################

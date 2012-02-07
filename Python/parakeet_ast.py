@@ -398,7 +398,7 @@ class ASTConverter():
         elt = self.visit(node.targets[0], leftChildContext)
         lhs_args = list_to_ctypes_array([elt], c_void_p)
         num_args = 1
-        LibPar.print_ast_node(elt)
+        #LibPar.print_ast_node(elt)
       rhs_arg = self.visit(node.value, rightChildContext)
       print "before mk_assign"
       return LibPar.mk_assign(lhs_args, num_args, rhs_arg, None)
@@ -505,6 +505,7 @@ class ASTConverter():
 
 def register_function(f):
   info = function_info(f)
+  LOG("[Parakeet] Registering %s : %s" % (f, info))
   if info is None: 
     raise RuntimerError("[Parakeet] Couldn't get info for function %s" % f)
   else:
