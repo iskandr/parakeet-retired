@@ -96,14 +96,10 @@ let mk_primapp ?src prim ~output_types args =
 
 let mk_arr ?src ?types elts =
   let argTypes = map_default_types types elts in
-  IFDEF DEBUG THEN
-     assert (List.length argTypes > 0);
-     assert (List.for_all ((=) (List.hd argTypes)) (List.tl argTypes));
-  ENDIF;
   let resultT = match argTypes with
-    | [] -> failwith "Can't create empty array"
-    | (Type.ScalarT elt_t)::_ -> Type.ArrayT(elt_t, 1)
+    | [] -> Type.BottomT
     | Type.BottomT::_ -> Type.BottomT
+    | (Type.ScalarT elt_t)::_ -> Type.ArrayT(elt_t, 1)
     | others -> failwith $ Printf.sprintf
         "Invalid array element types: %s"
         (Type.type_list_to_str others)

@@ -60,4 +60,4 @@ def test_black_scholes():
 if __name__ == '__main__':
   test_cnd()
   test_scalar_black_scholes()
-  test_black_scholes()
+  #test_black_scholes()
