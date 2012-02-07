@@ -20,7 +20,7 @@ def CND(x):
 
 def test_cnd(): 
   print "RUNNING CND"
-  for i in range(3):
+  for i in range(10):
     x = CND(i)
     y = CND.call_original(i)
     diff= x-y
@@ -59,5 +59,5 @@ def test_black_scholes():
 
 if __name__ == '__main__':
   test_cnd()
-  test_scalar_black_scholes()
+  #test_scalar_black_scholes()
   #test_black_scholes()

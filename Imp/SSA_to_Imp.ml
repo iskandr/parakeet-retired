@@ -7,6 +7,10 @@ open ImpHelpers
 open ImpType
 open ImpReplace
 
+(* cache translation for each distinct set of arg types to a function *)
+type signature = FnId.t * ImpType.t list
+let cache : (signature, Imp.fn) Hashtbl.t = Hashtbl.create 127
+
 (* are these necessary? or should we just register each SSA variable with its *)
 (* existing name as an imp variable and then implicitly keep this information *)
 (* on the codegen object? *)
@@ -165,32 +169,51 @@ let translate_false_phi_node codegen phiNode =
   Imp.Set(phiNode.SSA.phi_id, rhs)
 
 
+let declare_var ssaFn shapeEnv (codegen:ImpCodegen.fn_codegen) (id, impType)  =
+  if List.mem id ssaFn.SSA.input_ids then
+    codegen#declare_input id impType
+  else (
+  (* inputs all have the trivial shape
+     SHAPE(x) = [dim(x,0), dim(x,1), etc...]
+     but outputs and locals actually have non-trivial
+     shapes which need to be declared
+  *)
+    let symShape = ID.Map.find id shapeEnv in
+    if List.mem id ssaFn.SSA.output_ids then
+      codegen#declare_output id ~shape:symShape impType
+    else
+      codegen#declare id ~shape:symShape impType
+  )
+
+
 let rec translate_fn  (ssaFn:SSA.fn) (impInputTypes:ImpType.t list) : Imp.fn =
-  let codegen = new ImpCodegen.fn_codegen in
-  let impTyEnv = InferImpTypes.infer ssaFn impInputTypes in
-  let shapeEnv : SymbolicShape.env  =
-    ShapeInference.infer_normalized_shape_env
-        (FnManager.get_typed_function_table ()) ssaFn
-  in
-  let declare_var (id, impType) : unit =
-    if List.mem id ssaFn.SSA.input_ids then
-      codegen#declare_input id impType
-    else (
-      (* inputs all have the trivial shape
-          SHAPE(x) = [dim(x,0), dim(x,1), etc...]
-         but outputs and locals actually have non-trivial
-         shapes which need to be declared
-      *)
-      let symShape = ID.Map.find id shapeEnv in
-      if List.mem id ssaFn.SSA.output_ids then
-        codegen#declare_output id ~shape:symShape impType
-      else
-        codegen#declare id ~shape:symShape impType
-    )
-  in
-  List.iter declare_var (ID.Map.to_list impTyEnv);
-  let body = translate_block (codegen :> ImpCodegen.codegen) ssaFn.SSA.body in
-  codegen#finalize_fn body
+  let signature = ssaFn.SSA.fn_id, impInputTypes in
+  match Hashtbl.find_option cache signature with
+    | Some impFn ->
+      Printf.printf
+        "[SSA_to_Imp] Got cached Imp function for %s\n%!"
+        (FnId.to_str ssaFn.SSA.fn_id)
+        ;
+        impFn
+    | None ->
+      let codegen = new ImpCodegen.fn_codegen in
+      let impTyEnv = InferImpTypes.infer ssaFn impInputTypes in
+      let shapeEnv : SymbolicShape.env  =
+        ShapeInference.infer_normalized_shape_env
+          (FnManager.get_typed_function_table ()) ssaFn
+      in
+      List.iter (declare_var ssaFn shapeEnv codegen) (ID.Map.to_list impTyEnv);
+      let body =
+        translate_block (codegen :> ImpCodegen.codegen) ssaFn.SSA.body
+      in
+      let impFn = codegen#finalize_fn body in
+      Hashtbl.add cache signature impFn;
+      Printf.printf
+        "[SSA_to_Imp] Created Imp function: %s\n%!"
+        (Imp.fn_to_str impFn)
+      ;
+      impFn
+
 and translate_block (codegen : ImpCodegen.codegen) block : Imp.stmt list =
   Block.fold_forward
     (fun acc stmt -> acc @ (translate_stmt codegen stmt))
