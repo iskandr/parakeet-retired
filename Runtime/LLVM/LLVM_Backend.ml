@@ -1,3 +1,4 @@
+open Base
 open Imp
 open ImpHelpers
 open Imp_to_LLVM
@@ -22,7 +23,7 @@ let optimize_module llvmModule llvmFn : unit =
   Llvm_scalar_opts.add_aggressive_dce the_fpm;
   Llvm_scalar_opts.add_instruction_combination the_fpm;
   Llvm_scalar_opts.add_cfg_simplification the_fpm;
-  Llvm_scalar_opts.add_type_based_alias_analysis;
+  Llvm_scalar_opts.add_type_based_alias_analysis the_fpm;
   Llvm_scalar_opts.add_ind_var_simplification the_fpm;
   Llvm_scalar_opts.add_dead_store_elimination the_fpm;
   Llvm_scalar_opts.add_memcpy_opt the_fpm;
@@ -73,14 +74,39 @@ let allocate_outputs impFn args =
 let free_scalar_output impT (gv:GV.t) : unit =
   if ImpType.is_scalar impT then HostMemspace.free (GV.as_int64 gv)
 
-let free_scalar_outputs impTypes gvs = List.map2 free_scalar_output impTypes gvs
+let free_scalar_outputs impTypes gvs =
+  List.iter2 free_scalar_output impTypes gvs
+
+
+module CompiledFunctionCache = struct
+  let cache : (FnId.t, Llvm.llvalue) Hashtbl.t = Hashtbl.create 127
+  let compile impFn =
+    let fnId = impFn.Imp.id in
+      match Hashtbl.find_option cache fnId with
+      | Some llvmFn ->
+        begin
+          Printf.printf
+            "[LLVM_Backend] Got cached code for %s\n%!"
+            (FnId.to_str fnId)
+          ;
+          llvmFn
+        end
+      | None ->
+        begin
+          let llvmFn : Llvm.llvalue = Imp_to_LLVM.compile_fn impFn in
+          optimize_module Imp_to_LLVM.global_module llvmFn;
+          print_endline  "[LLVM_Backend.call_imp_fn] Generated LLVM function";
+          Llvm.dump_value llvmFn;
+          Llvm_analysis.assert_valid_function llvmFn;
+          Hashtbl.add cache fnId llvmFn;
+          llvmFn
+        end
+end
+
+
 
 let call_imp_fn (impFn:Imp.fn) (args:Ptr.t Value.t list) : Ptr.t Value.t list =
-  let llvmFn : Llvm.llvalue = Imp_to_LLVM.compile_fn impFn in
-  optimize_module Imp_to_LLVM.global_module llvmFn;
-  print_endline  "[LLVM_Backend.call_imp_fn] Generated LLVM function";
-  Llvm.dump_value llvmFn;
-  Llvm_analysis.assert_valid_function llvmFn;
+  let llvmFn = CompiledFunctionCache.compile impFn in
   Printf.printf "Preallocating outputs...\n";
   let llvmInputs : GV.t list = List.map Value_to_GenericValue.to_llvm args in
   let llvmOutputs = allocate_outputs impFn args in
@@ -99,15 +125,15 @@ let call_imp_fn (impFn:Imp.fn) (args:Ptr.t Value.t list) : Ptr.t Value.t list =
   in
   Printf.printf " :: deallocating output cells\n%!";
   free_scalar_outputs impOutputTypes llvmOutputs;
-  Printf.printf "[LLVM_Backend.call_imp_fn] Got function results: %s\n%!"
-                (Value.list_to_str outputs);
+  Printf.printf
+    "[LLVM_Backend.call_imp_fn] Got function results: %s\n%!"
+    (Value.list_to_str outputs)
+  ;
   outputs
 
 let call (fn:SSA.fn) args =
   let inputTypes = List.map ImpType.type_of_value args in
   let impFn : Imp.fn = SSA_to_Imp.translate_fn fn inputTypes in
-  Printf.printf "\n[LLVM_Backend.call] Created Imp function: %s\n%!"
-                (Imp.fn_to_str impFn);
   call_imp_fn impFn args
 
 let map ~axes ~fn ~fixed args =

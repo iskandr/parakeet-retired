@@ -470,7 +470,6 @@ and compile_stmt fnInfo currBB stmt =
       | None -> failwith  ("unknown variable name " ^ (ID.to_str id))
       | Some register ->
         let instr = Llvm.build_store rhs register fnInfo.builder in
-        print_endline $ "generating store for " ^ (Imp.stmt_to_str stmt);
         currBB
     end
   | Imp.SetIdx(arr, indices, rhs) ->
