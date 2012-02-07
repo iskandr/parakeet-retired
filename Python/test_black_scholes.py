@@ -45,7 +45,7 @@ def test_scalar_black_scholes():
   print "[test_cnd] %f == %f: %s (diff = %f)" % (x, y, same, diff)
   assert same 
 
-@PAR
+#@PAR
 def black_scholes(CallFlags, S, X, T, r, v):
   return para_libs.map(scalar_black_scholes, CallFlags, S, X, T, r, v)
 
@@ -58,6 +58,6 @@ def test_black_scholes():
   assert all_same  
 
 if __name__ == '__main__':
-  test_cnd()
+  #test_cnd()
   test_scalar_black_scholes()
   #test_black_scholes()
