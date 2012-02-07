@@ -11,8 +11,9 @@ def count_x(x):
 
 def test_count_x(): 
   x = count_x(5)
-  print "Expected 5, got", x
-  assert 5 == x
+  y = count_x.call_original(5)
+  print "Got %d, expected %d" % (x, y)
+  assert y == x
 
 @PAR
 def sum_to_x(x):
@@ -28,9 +29,11 @@ def test_sum_to_x():
   print "Expected 0, got", y
   assert 0 == y
   x = sum_to_x(5)
-  print "Expected 15, got", x
+  y = sum_to_x.call_original(5)
+  print "Expected %d, got %d" % (y, x)
   assert 15 == x
 
 if __name__ == '__main__':
   test_count_x()
   test_sum_to_x()
+

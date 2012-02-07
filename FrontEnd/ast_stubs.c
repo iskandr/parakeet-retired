@@ -247,7 +247,7 @@ paranode mk_whileloop(paranode test, paranode body, source_info_t *src_info) {
   val_test = get_value_and_remove_root(test);
   val_body = get_value_and_remove_root(body);
 
-  loop = caml_alloc(1, Exp_WhileLoop);
+  loop = caml_alloc(2, Exp_WhileLoop);
   Store_field(loop, 0, val_test);
   Store_field(loop, 1, val_body);
 
@@ -261,7 +261,7 @@ paranode mk_countloop(paranode count, paranode body, source_info_t *src_info) {
   val_count = get_value_and_remove_root(count);
   val_body  = get_value_and_remove_root(body);
 
-  loop = caml_alloc(1, Exp_CountLoop);
+  loop = caml_alloc(2, Exp_CountLoop);
   Store_field(loop, 0, val_count);
   Store_field(loop, 1, val_body);
 
@@ -347,7 +347,6 @@ static CAMLprim value get_value_and_remove_root(paranode node) {
   val = p->v;
   caml_remove_global_root(&(p->v));
   //TODO: when to free(p)?  I think it should still be here.
-  free(p); 
   CAMLreturn(val);
 }
 

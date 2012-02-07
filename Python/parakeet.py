@@ -688,6 +688,8 @@ def python_value_to_parakeet(arg):
       return LibPar.mk_float32(c_float(arg))
     elif type(arg) == bool:
       return LibPar.mk_bool(c_bool(arg))
+    else:
+      raise Exception ("Unknown type: " + str(type(arg)))
   else:
     raise Exception ("Input not supported by Parakeet: " + str(arg))
 
