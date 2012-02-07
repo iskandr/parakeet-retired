@@ -3,7 +3,6 @@ import ast, math, os, sys
 import functools as ft
 import numpy as np
 import para_libs
-import PrettyAST
 
 ###############################################################################
 #  Initializations
