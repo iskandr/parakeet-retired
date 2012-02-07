@@ -347,6 +347,7 @@ static CAMLprim value get_value_and_remove_root(paranode node) {
   val = p->v;
   caml_remove_global_root(&(p->v));
   //TODO: when to free(p)?  I think it should still be here.
+  free(p); 
   CAMLreturn(val);
 }
 
