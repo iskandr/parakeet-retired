@@ -99,7 +99,7 @@ let to_str = function
   | BottomT -> "bottom"
   | AnyT -> "any"
   | ScalarT t -> (elt_to_str t)
-  | ArrayT (eltT, d) -> (string_of_int d) ^ "D array of " ^ (elt_to_str eltT)
+  | ArrayT (eltT, d) -> Printf.sprintf "array%d<%s>" d (elt_to_str eltT)
 
 let type_list_to_str ts = String.concat ", " (List.map to_str ts)
 let type_array_to_str ts = type_list_to_str (Array.to_list ts)

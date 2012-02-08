@@ -13,11 +13,14 @@ module type TYPE_ANALYSIS_PARAMS = sig
   val signature : Signature.t
 end
 
+
+exception TypeError of string * (SrcInfo.t option)
+
 let get_type_or_bottom tenv id = Hashtbl.find_default tenv id Type.BottomT
-let get_type tenv id = match Hashtbl.find_option tenv id with 
+let get_type tenv id = match Hashtbl.find_option tenv id with
   | Some t -> t
   | None -> failwith $ Printf.sprintf "Couldn't find type for variable %s"
-      (ID.to_str id) 
+      (ID.to_str id)
 let add_type tenv id t = Hashtbl.add tenv id t; tenv
 
 (* TODO: make this complete for all SSA statements *)
@@ -80,7 +83,7 @@ module MkAnalysis (P : TYPE_ANALYSIS_PARAMS) = struct
   let infer_value_type tenv = function
     | Var id -> get_type tenv id
     | Num n -> Type.ScalarT (ParNum.type_of n)
-    | _ -> Type.AnyT 
+    | _ -> Type.AnyT
 
   let value tenv vNode = infer_value_type tenv vNode.value
 
@@ -147,31 +150,42 @@ module MkAnalysis (P : TYPE_ANALYSIS_PARAMS) = struct
 
     | other, _, _ -> failwith (Prim.adverb_to_str other ^ " not impl")
 
-  let exp tenv expNode helpers = 
+  let exp tenv expNode helpers =
     match expNode.exp with
     | App({value=SSA.Prim (Prim.Adverb arrayOp)}, args) ->
         infer_higher_order tenv arrayOp args (helpers.eval_values tenv args)
     | App(lhs, args) ->
         let lhsT = value tenv lhs in
         let argTypes = helpers.eval_values tenv args in
-        Printf.printf "[exp] Node: %s Types:%s\n" 
+        Printf.printf "[exp] Node: %s Types:%s\n"
           (SSA.exp_to_str expNode)
-          (Type.type_list_to_str argTypes); 
+          (Type.type_list_to_str argTypes);
         if Type.is_array lhsT
         then [TypeInfer.infer_simple_array_op Prim.Index (lhsT::argTypes)]
         else infer_app tenv lhs.value argTypes
     | Arr elts ->
         let commonT = Type.combine_type_list (helpers.eval_values tenv elts) in
-        assert (Type.is_scalar commonT);
-        [Type.increase_rank 1 commonT]
+        if Type.is_scalar commonT then [Type.increase_rank 1 commonT]
+        else if commonT = Type.AnyT then
+          let errMsg = "Couldn't find unifying type for elements of array" in
+          raise  (TypeError (errMsg, expNode.exp_src))
+        else
+          let errMsg =
+            Printf.sprintf
+              "Expected array elements to be scalars, got type '%s'"
+              (Type.to_str commonT)
+          in
+          raise (TypeError(errMsg, expNode.exp_src))
+
+
 
     | Values vs -> helpers.eval_values tenv vs
     | _ -> failwith $ Printf.sprintf
             "Type analysis not implemented for expression: %s"
             (SSA.exp_to_str expNode)
 
-  let stmt tenv stmtNode helpers = 
-    Printf.printf "\n[stmt] %s\n%!" (SSA.stmt_node_to_str stmtNode); 
+  let stmt tenv stmtNode helpers =
+    Printf.printf "\n[stmt] %s\n%!" (SSA.stmt_node_to_str stmtNode);
     match stmtNode.stmt with
     | Set(ids, rhs) ->
       let types : Type.t list = exp tenv rhs helpers in

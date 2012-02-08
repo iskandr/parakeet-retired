@@ -77,6 +77,7 @@ let rec flatten_indexing (astNode:AST.node) : AST.node list =
     (flatten_indexing lhs) @ [rhs]
   | _ -> [astNode]
 
+
 let rec translate_exp
           (env:Env.t)
           (codegen:SSA_Codegen.codegen)
@@ -96,14 +97,7 @@ let rec translate_exp
   | AST.Num n -> value (Num n)
   | AST.Str s -> value (Str s)
   | AST.Void -> value Unit
-  | AST.App (fn, args) ->
-    let ssaFn : SSA.value_node = translate_value env codegen fn in
-    let ssaArgs : SSA.value_node list = translate_values env codegen args in
-    {
-      exp= App(ssaFn, ssaArgs);
-      exp_src=Some node.src;
-      exp_types=[Type.BottomT]
-    }
+  | AST.App (fn, args) -> translate_app env codegen fn args node.src
   (* TODO: lambda lift here *)
   | AST.Lam (vars, body) -> failwith "lambda lifting not implemented"
   | AST.Arr args ->
@@ -128,6 +122,23 @@ and translate_value env codegen node : SSA.value_node =
   | _ -> exp_as_value env codegen "temp" node
 and translate_values env codegen nodes =
   List.map (translate_value env codegen) nodes
+and translate_app env codegen fn args src = match fn.data with
+  | AST.Prim (Prim.Adverb Prim.Map) ->
+    begin match args with
+      | fnArg::{data=AST.Arr arrayArgs}::{data=AST.Arr fixedArgs}::axes ->
+        failwith "Map, oh map, why are you elusive"
+      | _ -> failwith "Unexpected arguments to MAP"
+    end
+  | AST.Prim (Prim.Adverb adverb) ->
+    failwith ("Adverb not yet supported" ^ (Prim.adverb_to_str adverb))
+  | _ ->
+    let ssaFn : SSA.value_node = translate_value env codegen fn in
+    let ssaArgs : SSA.value_node list = translate_values env codegen args in
+    {
+      exp= App(ssaFn, ssaArgs);
+      exp_src=Some src;
+      exp_types=[Type.BottomT]
+    }
 (* recursively flatten subexpressions and return last expression *)
 (* as a value *)
 and exp_as_value env codegen prefix node : SSA.value_node =
@@ -196,7 +207,8 @@ let rec translate_stmt
       let tNames : string PSet.t =  AST.defs trueNode in
       let fNames : string PSet.t = AST.defs falseNode in
       let mergeNames = PSet.to_list $ PSet.union tNames fNames in
-      let mergeIds = ID.gen_fresh_list (List.length mergeNames) in
+      (* for now always include retIds in case we have to return *)
+      let mergeIds = retIds @ ID.gen_fresh_list (List.length mergeNames) in
       let trueCodegen = new SSA_Codegen.codegen in
       let falseCodegen = new SSA_Codegen.codegen in
       (* if we need to return a particular value, we track the returned

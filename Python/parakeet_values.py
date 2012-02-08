@@ -11,7 +11,7 @@ numpy_to_c_types = {
   np.int64: c_int64,
   np.float32: c_float,
   np.float64: c_double,
-  np.bool: c_bool,
+  np.bool_: c_bool,
 }
 
 numpy_to_parakeet_types = {
@@ -19,7 +19,7 @@ numpy_to_parakeet_types = {
   np.int64: LibPar.int64_t,
   np.float32: LibPar.float32_t,
   np.float64: LibPar.float64_t,
-  np.bool: LibPar.bool_t
+  np.bool_: LibPar.bool_t
 }
 
 parakeet_to_c_types = {

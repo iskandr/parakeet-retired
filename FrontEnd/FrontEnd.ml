@@ -54,6 +54,18 @@ type ret_val =
   | Error of string
   | Pass
 
+let get_specialized_function untypedId signature =
+  let fnVal = SSA.GlobalFn untypedId in
+  match FnManager.maybe_get_specialization fnVal signature with
+  | Some typedId ->
+    FnManager.get_typed_function typedId
+  | None ->
+    FnManager.optimize_untyped_functions ();
+    let unoptimizedTyped = Specialize.specialize_fn_id untypedId signature in
+    (* now optimize the typed fundef and any typed functions it depends on *)
+    FnManager.optimize_typed_functions ();
+    FnManager.get_typed_function unoptimizedTyped.SSA.fn_id
+
 let run_function untypedId ~globals ~args : ret_val =
   IFDEF DEBUG THEN
     printf "[FrontEnd.run_function] Running %s (id=%d)\n%!"
@@ -80,29 +92,23 @@ let run_function untypedId ~globals ~args : ret_val =
       "[FrontEnd.run_function] calling specializer for argument types: %s\n"
       (Type.type_list_to_str argTypes);
   ENDIF;
-  let fnVal = SSA.GlobalFn untypedId in
-  let typedFundef =
-    match FnManager.maybe_get_specialization fnVal signature with
-    | Some typedId -> FnManager.get_typed_function typedId
-    | None ->
-      FnManager.optimize_untyped_functions ();
-      let unoptimizedTyped = Specialize.specialize_fn_id untypedId signature
-      in
-      (* now optimize the typed fundef and any typed functions it depends on *)
-      FnManager.optimize_typed_functions ();
-      FnManager.get_typed_function unoptimizedTyped.SSA.fn_id
-  in
+
 
   let result =
-    try Success (Interp.run typedFundef args) with
-      | exn ->
-        begin
-          let str = Printexc.to_string exn in
-          Printf.printf "%s\n%!" str;
-          Printexc.print_backtrace Pervasives.stdout;
-          Error str
-        end
+    try
+      let typedFundef = get_specialized_function untypedId signature in
+      Success (Interp.run typedFundef args)
+    with exn ->
+      begin
+        let errorMsg = Printexc.to_string exn in
+        Printf.printf "\nParakeet execution failed with the following error:\n";
+        Printf.printf "- %s\n\n" errorMsg;
+        Printf.printf "OCaml Backtrace:\n";
+        Printexc.print_backtrace Pervasives.stdout;
+        Printf.printf "\n%!";
+        Error errorMsg
+      end
   in
-  print_all_timers();
+  (*print_all_timers();*)
   Timing.clear Timing.untypedOpt;
   result
