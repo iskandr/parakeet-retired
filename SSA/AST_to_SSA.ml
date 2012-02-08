@@ -77,6 +77,23 @@ let rec flatten_indexing (astNode:AST.node) : AST.node list =
     (flatten_indexing lhs) @ [rhs]
   | _ -> [astNode]
 
+let get_function_id node =
+  match node.data with
+    | AST.Var fnName ->
+      if FnManager.have_untyped_function fnName then
+        FnManager.get_untyped_id fnName
+      else
+        failwith ("Couldn't find untyped function: " ^ fnName)
+    | _ -> failwith ("Expected function name, got: " ^ (AST.to_str node))
+
+let get_const_int {data} = match data with
+  | AST.Num n -> ParNum.to_int n
+  | _ -> failwith "Expected constant integer"
+
+let translate_axes {data} = match data with
+  | AST.Void -> []
+  | AST.Arr axes -> List.map get_const_int axes
+  | _ -> failwith "Expected either void or list of axes"
 
 let rec translate_exp
           (env:Env.t)
@@ -122,12 +139,33 @@ and translate_value env codegen node : SSA.value_node =
   | _ -> exp_as_value env codegen "temp" node
 and translate_values env codegen nodes =
   List.map (translate_value env codegen) nodes
+
 and translate_app env codegen fn args src = match fn.data with
   | AST.Prim (Prim.Adverb Prim.Map) ->
     begin match args with
-      | fnArg::{data=AST.Arr arrayArgs}::{data=AST.Arr fixedArgs}::axes ->
-        failwith "Map, oh map, why are you elusive"
-      | _ -> failwith "Unexpected arguments to MAP"
+      | fn::{data=AST.Arr arrayArgs}::{data=AST.Arr fixedArgs}::[axes] ->
+        let fnId = get_function_id fn in
+        let ssaFn = FnManager.get_untyped_function fnId in
+        let adverbArgs = {
+          SSA.init = None;
+          axes = translate_axes axes;
+          args = translate_values env codegen arrayArgs;
+        }
+        in
+        let closure = {
+          SSA.closure_fn = fnId;
+          closure_args = translate_values env codegen fixedArgs;
+          closure_arg_types = List.map (fun _ -> Type.BottomT) fixedArgs;
+          closure_input_types = ssaFn.SSA.fn_input_types;
+          closure_output_types = ssaFn.SSA.fn_output_types;
+        }
+        in
+        {
+          SSA.exp = SSA.Adverb(Prim.Map, closure, adverbArgs);
+          exp_src = Some src;
+          exp_types = List.map (fun _ -> Type.BottomT) ssaFn.SSA.fn_output_types
+        }
+      | _ -> failwith "Unexpected function arguments to MAP"
     end
   | AST.Prim (Prim.Adverb adverb) ->
     failwith ("Adverb not yet supported" ^ (Prim.adverb_to_str adverb))
