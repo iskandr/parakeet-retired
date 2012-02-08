@@ -31,14 +31,9 @@ parakeet_to_c_types = {
   LibPar.char_t: c_char
 }
 
-#Builds a ctypes list of the type out of the input_list
-
-
 ###############################################################################
 #   Value conversion between parakeet and python
 ###############################################################################
-
-
 
 # given a numpy array or a scalar, construct the equivalent parakeet value
 def python_value_to_parakeet(arg):

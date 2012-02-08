@@ -8,7 +8,6 @@ def LOG(msg):
     print "[Parakeet]", msg
     sys.stdout.flush()
 
-
 ###############################################################################
 #  Return value structures in C API
 ###############################################################################
@@ -46,7 +45,6 @@ class return_val_t(Structure):
               ("results_len", c_int),
               ("error_msg", c_char_p),
               ("results", POINTER(_ret_t))]
-
 
 ###############################################################################
 #  Load the C library into a global named LibPar 
@@ -102,3 +100,4 @@ def list_to_ctypes_array(input_list, t):
     arr[i] = input_list[i]
   print "[list_to_ctypes_array] output:", arr
   return arr
+

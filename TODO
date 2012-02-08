@@ -1,0 +1,8 @@
+For Open Source Release:
+  - Remove all NVIDIA Makefile code.  Need to write our own.
+  - In general, fix the build so that it's sane to expect someone to be able
+    to download, compile, and install Parakeet.
+  - Clean up the Python front end stuff more.
+  - Automate the unit testing.
+  - Fix all the copyright headers and decide on an open source license (GPL2?).
+
