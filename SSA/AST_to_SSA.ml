@@ -86,14 +86,6 @@ let get_function_id node =
         failwith ("Couldn't find untyped function: " ^ fnName)
     | _ -> failwith ("Expected function name, got: " ^ (AST.to_str node))
 
-let get_const_int {data} = match data with
-  | AST.Num n -> ParNum.to_int n
-  | _ -> failwith "Expected constant integer"
-
-let translate_axes {data} = match data with
-  | AST.Void -> []
-  | AST.Arr axes -> List.map get_const_int axes
-  | _ -> failwith "Expected either void or list of axes"
 
 let rec translate_exp
           (env:Env.t)
@@ -139,7 +131,9 @@ and translate_value env codegen node : SSA.value_node =
   | _ -> exp_as_value env codegen "temp" node
 and translate_values env codegen nodes =
   List.map (translate_value env codegen) nodes
-
+and translate_axes env codegen {data} = match data with
+  | AST.Arr axes -> Some (translate_values env codegen axes)
+  | _ -> None
 and translate_app env codegen fn args src = match fn.data with
   | AST.Prim (Prim.Adverb Prim.Map) ->
     begin match args with
@@ -148,7 +142,7 @@ and translate_app env codegen fn args src = match fn.data with
         let ssaFn = FnManager.get_untyped_function fnId in
         let adverbArgs = {
           SSA.init = None;
-          axes = translate_axes axes;
+          axes = translate_axes env codegen axes;
           args = translate_values env codegen arrayArgs;
         }
         in

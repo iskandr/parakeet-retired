@@ -82,12 +82,19 @@ and eval_exp (expNode : SSA.exp_node) : value list =
       let fn = FnManager.get_typed_function fnId in
       let fixed = List.map eval_value closureArgs in
       let arrays = List.map eval_value args in
+      let axes : int list = match axes with
+        | None -> failwith "[Interp] Expected axes!"
+        | Some axes ->
+          let vals = List.map eval_value axes in
+          List.map Value.to_int vals
+      in
       let results = match op with
         | Prim.Map ->  Scheduler.map ~axes fn ~fixed arrays
         | Prim.AllPairs ->
           assert (List.length arrays = 2);
           let x = List.nth arrays 0 in
           let y = List.nth arrays 1 in
+
           Scheduler.all_pairs ~axes fn ~fixed x y
         | _ -> failwith "Adverb not implemented"
       in

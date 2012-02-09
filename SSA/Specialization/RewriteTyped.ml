@@ -132,7 +132,7 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
           Signature.from_types (accTypes @ eltTypes) accTypes
         in
         let reduceClosure = mk_typed_closure fnVal reduceSignature in
-        mk_reduce ?src ~axes:[0] reduceClosure initArgs args
+        mk_reduce ?src ?axes:None reduceClosure initArgs args
       | Prim.AllPairs ->
         (*let eltTypes = List.map Type.peel_vec argTypes in
         let eltSignature = Signature.from_input_types eltTypes in
