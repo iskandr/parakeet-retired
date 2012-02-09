@@ -11,46 +11,49 @@ DEBUG =
 OCAMLCFLAGS = -ccopt -fPIC
 LIB_INCLUDES = -I /usr/local/lib/ocaml -I /usr/local/lib/ocaml/extlib \
                -I /usr/local/lib/ocaml/site-lib/extlib \
-	       -I /usr/lib/ocaml -I /usr/lib/ocaml/extlib \
+               -I /usr/lib/ocaml -I /usr/lib/ocaml/extlib \
                -I /usr/lib/ocaml/site-lib/extlib
 PARAKEET_INCLUDES = -I $(BUILDPATH) \
-	-I $(BUILDPATH)/Imp \
-	-I $(BUILDPATH)/ShapeInference \
+	-I $(BUILDPATH)/AST   \
 	-I $(BUILDPATH)/Base \
 	-I $(BUILDPATH)/Common \
-	-I $(BUILDPATH)/AST   \
-	-I $(BUILDPATH)/SSA \
-	-I $(BUILDPATH)/SSA/Optimizations \
- 	-I $(BUILDPATH)/SSA/Analyses \
-	-I $(BUILDPATH)/SSA/Specialization \
+	-I $(BUILDPATH)/FrontEnd \
+	-I $(BUILDPATH)/Imp \
 	-I $(BUILDPATH)/Runtime \
 	-I $(BUILDPATH)/Runtime/Cuda \
 	-I $(BUILDPATH)/Runtime/LLVM \
 	-I $(BUILDPATH)/Runtime/Memory \
-	-I $(BUILDPATH)/FrontEnd
-  
+	-I $(BUILDPATH)/ShapeInference \
+	-I $(BUILDPATH)/SSA \
+	-I $(BUILDPATH)/SSA/Optimizations \
+ 	-I $(BUILDPATH)/SSA/Analyses \
+	-I $(BUILDPATH)/SSA/Specialization
+ 
 OCAMLINCLUDES := $(LIB_INCLUDES) $(PARAKEET_INCLUDES)
 
 COMMON = `ls $(PARAKEET_PATH)/Common/*.o`
 FRONTEND = `ls $(PARAKEET_PATH)/FrontEnd/*.o`
+LLVMRUNTIME = `ls $(PARAKEET_PATH)/Runtime/LLVM/*.o`
 OBJS =
 COBJS = -ccopt -L/usr/lib/nvidia-current \
-  $(PARAKEET_PATH)/cuda/parakeet_cuda.a $(COMMON) $(FRONTEND) \
+  $(PARAKEET_PATH)/cuda/parakeet_cuda.a $(COMMON) $(FRONTEND) $(LLVMRUNTIME) \
 	-ccopt -lcuda \
-        -ccopt -L/usr/local/cuda/lib \
-        -ccopt -L/usr/local/cuda/lib64 \
-        -ccopt -lcudart
-
+	-ccopt -L/usr/local/cuda/lib \
+	-ccopt -L/usr/local/cuda/lib64 \
+	-ccopt -lcudart \
+	-ccopt -L/usr/local/lib \
+	-ccopt -ldl -ccopt -lm -ccopt -lpthread -ccopt -lLLVMCore -ccopt -lLLVMSupport
+	
 OCAML_LIB_OBJECTS := bigarray.$(OBJ_ARCHIVE_SUFFIX) \
-  unix.$(OBJ_ARCHIVE_SUFFIX) \
-  str.$(OBJ_ARCHIVE_SUFFIX) \
   extLib.$(OBJ_ARCHIVE_SUFFIX) \
+  str.$(OBJ_ARCHIVE_SUFFIX) \
+  unix.$(OBJ_ARCHIVE_SUFFIX) \
   xml-light.$(OBJ_ARCHIVE_SUFFIX) \
   llvm.$(OBJ_ARCHIVE_SUFFIX) \
-  llvm_executionengine.$(OBJ_ARCHIVE_SUFFIX) \
-  llvm_target.$(OBJ_ARCHIVE_SUFFIX) \
-  llvm_scalar_opts.$(OBJ_ARCHIVE_SUFFIX) \
-  llvm_analysis.$(OBJ_ARCHIVE_SUFFIX) 
+	llvm_analysis.$(OBJ_ARCHIVE_SUFFIX) \
+	llvm_executionengine.$(OBJ_ARCHIVE_SUFFIX) \
+	llvm_scalar_opts.$(OBJ_ARCHIVE_SUFFIX) \
+	llvm_target.$(OBJ_ARCHIVE_SUFFIX)
 
 $(shell ocamlopt unix.cmxa ../FrontEnd/depsort.ml -o ../FrontEnd/depsort)
 #$(echo Determining OCaml module dependencies)

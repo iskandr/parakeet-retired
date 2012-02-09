@@ -43,10 +43,10 @@ typedef enum {
   WQ_ERROR,
 } wq_ret_t;
 
-cpu_work_queue_t* create_work_queue(int num_workers, execution_function_t ef);
-wq_ret_t destroy_work_queue(cpu_work_queue_t* work_queue);
+cpu_work_queue_t *create_work_queue(int num_workers, execution_function_t ef);
+wq_ret_t destroy_work_queue(cpu_work_queue_t *work_queue);
 
-wq_ret_t do_work(cpu_work_queue_t* work_queue,
-                 work_item_t* work_items, int num_items);
+wq_ret_t do_work(cpu_work_queue_t *work_queue,
+                 work_item_t *work_items, int num_items);
 
 #endif

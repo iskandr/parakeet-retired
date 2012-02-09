@@ -1,6 +1,6 @@
 #!/usr/bin/python
 
-import optparse, glob, os, shutil, subprocess, sys
+import glob, optparse, os, shutil, subprocess, sys
 
 parser = optparse.OptionParser(description='Parakeet Build System')
 
@@ -67,6 +67,11 @@ if opts['clean']:
   os.chdir("../Python")
   print
   print "Cleaning Python directory"
+  print
+  subprocess.call(make_command + ["clean"])
+  os.chdir("../Runtime/LLVM")
+  print
+  print "Cleaning LLVM Runtime directory"
   print
   subprocess.call(make_command + ["clean"])
   os.chdir("..")
@@ -137,7 +142,6 @@ os.chdir("install")
 subprocess.call(["make", "clean"])
 os.chdir("..")
 
-
 # Build Common
 os.chdir("Common")
 if subprocess.call(make_command):
@@ -165,6 +169,14 @@ if subprocess.call(make_command):
   sys.exit(1)
 os.chdir("..")
 
+# Build LLVM Runtime
+print "\n\n ****** Building LLVM Runtime ******"
+os.chdir("Runtime/LLVM")
+if subprocess.call(["make"]):
+  print "LLVM Runtime build failed"
+  sys.exit(1)
+os.chdir("../..")
+
 # Build installation
 print "\n\n ****** Probing machine for hardware ******"
 os.chdir("install")
@@ -178,16 +190,15 @@ shutil.move("parakeetconf.xml", opts['install_dir'])
 os.chdir("..")
 
 # Build Python Front End
-if opts['python']:
-  os.chdir("Python")
-  print "Building Python Front End"
-  if subprocess.call(make_command):
-    print "Python Front End build failed"
-    sys.exit(1)
-  for f in glob.glob("*.o"):
-    shutil.move(f, "../_build")
-  shutil.move("libparakeetpy.so", opts['install_dir'])
-  os.chdir("..")
+os.chdir("Python")
+print "Building Python Front End"
+if subprocess.call(make_command):
+  print "Python Front End build failed"
+  sys.exit(1)
+for f in glob.glob("*.o"):
+  shutil.move(f, "../_build")
+shutil.move("libparakeetpy.so", opts['install_dir'])
+os.chdir("..")
 
 if opts['tests']:
   print "Building tests"
@@ -198,6 +209,4 @@ if opts['tests']:
   if subprocess.call('./tests.native'):
     print "Tests failed"
     sys.exit(1)
-
-  
   

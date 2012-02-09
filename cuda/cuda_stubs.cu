@@ -1,7 +1,7 @@
 /*
- * Parallel Q Library
+ * Parakeet
  *
- * (c) 2009 Eric Hielscher, Alex Rubinsteyn
+ * (c) 2009-2012 Eric Hielscher, Alex Rubinsteyn
  *
  * OCaml interface for native CUDA functions
  */
@@ -12,14 +12,13 @@
 
 extern "C" {
 
-#include "caml/alloc.h"
-#include "caml/bigarray.h"
-#include "caml/callback.h"
-#include "caml/custom.h"
-#include "caml/fail.h"
-#include "caml/memory.h"
-#include "caml/mlvalues.h"
-
+#include <caml/alloc.h>
+#include <caml/bigarray.h>
+#include <caml/callback.h>
+#include <caml/custom.h>
+#include <caml/fail.h>
+#include <caml/memory.h>
+#include <caml/mlvalues.h>
 
 /* unit -> unit */
 CAMLprim
