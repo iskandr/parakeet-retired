@@ -2,18 +2,18 @@
 open Base
 open SSA
 open SSA_Helpers
+open SSA_AdverbHelpers
 open SSA_Transform
 open Printf
 open Type
 
 module type REWRITE_PARAMS = sig
-  val output_arity : value -> int
   val specializer : value -> Signature.t -> fn
-  val closure_env : CollectPartialApps.closure_env
   val tenv : (ID.t, Type.t) Hashtbl.t
 end
 
 module Rewrite_Rules (P: REWRITE_PARAMS) = struct
+
 
 
   let get_type id =
@@ -28,30 +28,8 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
     set_type id t;
     id
 
-  let is_closure id = Hashtbl.mem P.closure_env.CollectPartialApps.closures id
-
-  let get_closure_val id =
-    match Hashtbl.find_option P.closure_env.CollectPartialApps.closures id with
-      | Some closureVal -> closureVal
-      | None ->
-        failwith $ Printf.sprintf "No closure value for %s" (ID.to_str id)
-
-    let get_closure_args id =
-      let closureArgsDict = P.closure_env.CollectPartialApps.closure_args in
-      match Hashtbl.find_option closureArgsDict id with
-      | Some args -> args
-      | None ->
-        failwith $ Printf.sprintf "No closure args for %s" (ID.to_str id)
-
-  let get_closure_arity id =
-    let closureArityDict = P.closure_env.CollectPartialApps.closure_arity in
-    match Hashtbl.find_option closureArityDict id with
-      | Some arity -> arity
-      | None ->
-        failwith $ Printf.sprintf "No closure arity for %s" (ID.to_str id)
-
   let infer_value_type = function
-    | Var id -> if is_closure id then Type.BottomT else get_type id
+    | Var id -> get_type id
     | Num n -> Type.ScalarT (ParNum.type_of n)
     | other -> Type.BottomT
 
@@ -66,25 +44,12 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
 
   let mk_typed_closure fnVal signature =
     match fnVal with
-    | Var id ->
-      let closureArgs = get_closure_args id in
-      let closureArgTypes = List.map infer_value_node_type closureArgs in
-      let signature' =
-        Signature.prepend_input_types closureArgTypes signature
-      in
-      let fnVal' = get_closure_val id in
-      let fundef = P.specializer fnVal' signature' in
-      {
-        closure_fn = fundef.fn_id;
-        closure_args = closureArgs;
-        closure_arg_types = closureArgTypes;
-        closure_input_types =
-          keep_tail closureArgTypes fundef.fn_input_types;
-        closure_output_types = fundef.fn_output_types;
-      }
     | GlobalFn _
     | Prim _ -> mk_closure (P.specializer fnVal signature) []
-    | _ -> assert false
+    | _ ->
+      failwith $ Printf.sprintf
+        "[RewriteTyped] Expected function, got variable %s "
+        (SSA.value_to_str fnVal)
 
   let annotate_value valNode =
     let t = infer_value_node_type valNode in
@@ -157,7 +122,7 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
         in
         mk_map closure argNodes
       | Prim.Reduce ->
-        let arity = P.output_arity fnVal in
+        let arity = FnManager.output_arity_of_value fnVal in
         let initArgs, args = List.split_nth arity argNodes in
         let initTypes, argTypes = List.split_nth arity argTypes in
         let eltTypes = List.map Type.peel argTypes in
@@ -207,15 +172,6 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
     let indexOp = Prim.ArrayOp Prim.Index in
     mk_primapp ?src indexOp  ~output_types:outTypes (arrNode::args)
 
-  let rewrite_call src varId args argTypes =
-    let fnVal = get_closure_val varId in
-    let closureArgs = get_closure_args varId in
-    let closureArgTypes = List.map infer_value_node_type closureArgs in
-    let types = closureArgTypes @ argTypes in
-    let typedFn = P.specializer fnVal (Signature.from_input_types types) in
-    mk_call ?src typedFn.fn_id typedFn.fn_output_types (closureArgs @ args)
-
-
   let rewrite_app src fn argNodes : exp_node =
     let argTypes = List.map (fun v -> v.value_type) argNodes in
     let fnVal = fn.value in
@@ -255,9 +211,7 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
     | GlobalFn _ ->
       let typed = P.specializer fnVal (Signature.from_input_types argTypes) in
       mk_call ?src typed.fn_id typed.fn_output_types argNodes
-    | Var id ->
-      if is_closure id then rewrite_call src id  argNodes argTypes
-      else rewrite_index src fn argNodes
+    | Var id -> rewrite_index src fn argNodes
     | _ -> failwith $
              Printf.sprintf "[RewriteTyped] Unexpected function: %s"
               (SSA.value_node_to_str fn)
@@ -340,12 +294,11 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
     mk_fn ~name ~tenv ~input_ids:f.input_ids ~output_ids:f.output_ids ~body
 end
 
-let rewrite_typed ~tenv ~closureEnv ~specializer ~output_arity ~fn =
+let rewrite_typed ~tenv ~specializer ~fn =
   let module Params = struct
     let tenv = tenv
-    let closure_env = closureEnv
     let specializer = specializer
-    let output_arity = output_arity
+
   end
   in
   let module Transform = Rewrite_Rules(Params) in

@@ -163,3 +163,19 @@ let have_untyped_function name =
 
 let get_untyped_arity fnId =
   List.length (get_untyped_function fnId).input_ids
+
+let output_arity_of_typed_fn fnId =
+  List.length ((get_typed_function fnId).fn_output_types)
+
+let output_arity_of_untyped_fn fnId =
+  List.length ((get_untyped_function fnId).fn_output_types)
+
+let output_arity_of_value = function
+  | GlobalFn fnId ->
+    if is_untyped_function fnId then output_arity_of_untyped_fn fnId
+    else output_arity_of_typed_fn fnId
+  | Prim p -> 1
+  | other ->
+      failwith $ Printf.sprintf
+        "Can't get output arity of %s"
+        (SSA.value_to_str other)

@@ -10,9 +10,9 @@ let int_array_of_addr addr len =
   done;
   res
 
-let generic_value_to_parnum (g_val:GenericValue.t) (impt:Type.elt_t) : ParNum.t
+let generic_value_to_parnum (g_val:GenericValue.t) (eltT:Type.elt_t) : ParNum.t
   =
-  match impt with
+  match eltT with
   | Type.BoolT -> Bool (GenericValue.as_int g_val <> 0)
   | Type.CharT -> Char (Char.chr (GenericValue.as_int g_val))
   | Type.Int16T -> Int16 (GenericValue.as_int g_val)

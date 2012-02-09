@@ -6,15 +6,7 @@ open SSA
 (* if a function contains nothing but a map, extracted the nested
    function being mapped
 *)
-let extract_nested_map_fn_id (fundef : fn) =
-  if Block.length fundef.body <> 1 then None
-  else match (Block.idx fundef.body 0).stmt with
-    | Set(_,{exp=App(map, {value=GlobalFn fnId}::_)})
-      when map.value = Prim (Prim.Adverb Prim.Map) -> Some fnId
-    | Set(_, {
-        exp=Adverb(Prim.Map, {closure_fn=fnId}, _)
-        }) ->  Some fnId
-    | _ -> None
+
 
 let mk_fn ?name ?(tenv=ID.Map.empty) ~input_ids ~output_ids ~body : SSA.fn =
   let inTypes =
@@ -139,41 +131,14 @@ let mk_call ?src fnId outTypes args  =
   { exp = Call(fnId, args); exp_types = outTypes; exp_src=src}
 
 
-let mk_adverb ?src adverb closure ?(axes=[0]) ?init args outputTypes =
-  let adverb_args =
-  {
-    axes = axes;
-    init = init;
-    args = args;
-  }
-  in
-  {
-    exp = Adverb(adverb, closure, adverb_args);
-    exp_types = outputTypes;
-    exp_src = src
-  }
 
-let mk_map ?src closure ?(axes=[0]) args =
-  let n_axes = List.length axes in
-  let outputTypes =
-    List.map (Type.increase_rank n_axes) closure.closure_output_types
-  in
-  mk_adverb ?src Prim.Map closure ~axes  args outputTypes
-
-let mk_reduce ?src closure ?(axes=[0]) initArgs args =
-  let out_types = closure.closure_output_types in
-  mk_adverb ?src Prim.Reduce closure ~axes ~init:initArgs args out_types
-
-let mk_scan ?src closure ?(axes=[0]) initArgs args =
-  let out_types = closure.closure_output_types in
-  mk_adverb ?src Prim.Scan closure ~axes ~init:initArgs args out_types
 
 let mk_closure fundef args = {
   closure_fn = fundef.fn_id;
   closure_args = args;
   closure_arg_types = List.map (fun v -> v.value_type) args;
-  closure_input_types = List.drop (List.length args) fundef.fn_input_types;
-  closure_output_types = fundef.fn_output_types;
+  (*closure_input_types = List.drop (List.length args) fundef.fn_input_types;
+  closure_output_types = fundef.fn_output_types;*)
 }
 
 
