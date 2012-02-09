@@ -540,4 +540,5 @@ def register_function(f):
 
     LOG("Registered %s as %s" % (f.__name__, fun_id))
     VisitedFunctions[f] = fun_id
-    return fun_id 
+    return fun_id
+

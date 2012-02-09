@@ -1,4 +1,3 @@
-
 from ctypes import c_void_p
 
 from parakeet_ast import register_function, VisitedFunctions
@@ -42,4 +41,5 @@ class WrappedFunction:
 def PAR(func):
   return WrappedFunction(func)
 
-from parakeet_lib import * 
+from parakeet_lib import *
+
