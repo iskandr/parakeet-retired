@@ -1,6 +1,10 @@
 qcode/.*
 */*.o
 */*.cu_o
+*/*/*.o
+*.pyc
+*/*.pyc
+*/*/*.pyc
 .project
 .settings
 */*.a
@@ -17,4 +21,7 @@ papers/PLDI11/PLDI11.pdf
 papers/ICFP11/ICFP11.pdf
 *.blg
 *.backup
+*.bbl
+*/*.bbl
+*/*/*.bbl
 .paths

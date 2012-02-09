@@ -5,4 +5,7 @@ For Open Source Release:
   - Clean up the Python front end stuff more.
   - Automate the unit testing.
   - Fix all the copyright headers and decide on an open source license (GPL2?).
+  - Add functions and @atexit.register calls to the Python frontend to clean up
+    all the state we create (in OCaml, LLVM, CUDA, and C) when the parakeet
+    library is unloaded.
 

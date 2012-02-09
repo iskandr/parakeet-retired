@@ -3,12 +3,16 @@ open Imp
 open ImpHelpers
 open Imp_to_LLVM
 open Llvm
+open LLVM_CPU_Work_Queue
 
 module LLE = Llvm_executionengine.ExecutionEngine
 module GV = Llvm_executionengine.GenericValue
 
 let _ = Llvm_executionengine.initialize_native_target()
 let execution_engine = LLE.create Imp_to_LLVM.global_module
+
+(* TODO: For now, hard code the number of threads *)
+let work_queue = create_work_queue 1
 
 let optimize_module llvmModule llvmFn : unit =
   let the_fpm = PassManager.create_function llvmModule in
@@ -77,7 +81,6 @@ let free_scalar_output impT (gv:GV.t) : unit =
 let free_scalar_outputs impTypes gvs =
   List.iter2 free_scalar_output impTypes gvs
 
-
 module CompiledFunctionCache = struct
   let cache : (FnId.t, Llvm.llvalue) Hashtbl.t = Hashtbl.create 127
   let compile impFn =
@@ -102,8 +105,6 @@ module CompiledFunctionCache = struct
           llvmFn
         end
 end
-
-
 
 let call_imp_fn (impFn:Imp.fn) (args:Ptr.t Value.t list) : Ptr.t Value.t list =
   let llvmFn = CompiledFunctionCache.compile impFn in

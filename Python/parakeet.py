@@ -42,4 +42,3 @@ def PAR(func):
   return WrappedFunction(func)
 
 from parakeet_lib import *
-

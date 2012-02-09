@@ -1,9 +1,8 @@
 #!/usr/bin/python
 
-import optparse, glob, os, shutil, subprocess, sys
+import glob, optparse, os, shutil, subprocess, sys
 
 parser = optparse.OptionParser(description='Parakeet Build System')
-parser.add_option('-q', action='store_true', help='Build Q front end')
 
 parser.add_option('-p', '--python', action='store_true', default=True,
                     help='Build Python front end')
@@ -70,9 +69,9 @@ if opts['clean']:
   print "Cleaning Python directory"
   print
   subprocess.call(make_command + ["clean"])
-  os.chdir("../Q")
+  os.chdir("../Runtime/LLVM")
   print
-  print "Cleaning Q directory"
+  print "Cleaning LLVM Runtime directory"
   print
   subprocess.call(make_command + ["clean"])
   os.chdir("..")
@@ -144,12 +143,6 @@ os.chdir("install")
 subprocess.call(["make", "clean"])
 os.chdir("..")
 
-# Clean Q directory
-if opts['q']:
-  os.chdir("Q")
-  subprocess.call(["make", "clean"])
-  os.chdir("..")
-
 # Build Common
 os.chdir("Common")
 if subprocess.call(make_command):
@@ -176,6 +169,14 @@ if subprocess.call(make_command):
   sys.exit(1)
 os.chdir("..")
 
+# Build LLVM Runtime
+print "\n\n ****** Building LLVM Runtime ******"
+os.chdir("Runtime/LLVM")
+if subprocess.call(["make"]):
+  print "LLVM Runtime build failed"
+  sys.exit(1)
+os.chdir("../..")
+
 # Build installation
 print "\n\n ****** Probing machine for hardware ******"
 os.chdir("install")
@@ -188,35 +189,16 @@ if subprocess.call(["./machine_probe"]):
 shutil.move("parakeetconf.xml", opts['install_dir'])
 os.chdir("..")
 
-# Build Q Front End
-if opts['q']:
-  print "Building Q Preprocessor and Q Callbacks"
-  if subprocess.call(build_command +
-                     ["QCallbacks." + obj_suffix, "preprocess.native",
-                      "-no-hygiene"]):
-    print "Q Preprocessor build failed"
-    exit(1)
-  os.chdir("Q")
-  print "Building Q Front End"
-  if subprocess.call(make_command):
-    print "Q Front End build failed"
-    sys.exit(1)
-  for f in glob.glob("*.o"):
-    shutil.move(f, "../_build")
-  shutil.move("libparakeetq.so", opts['install_dir'])
-  os.chdir("..")
-
 # Build Python Front End
-if opts['python']:
-  os.chdir("Python")
-  print "Building Python Front End"
-  if subprocess.call(make_command):
-    print "Python Front End build failed"
-    sys.exit(1)
-  for f in glob.glob("*.o"):
-    shutil.move(f, "../_build")
-  shutil.move("libparakeetpy.so", opts['install_dir'])
-  os.chdir("..")
+os.chdir("Python")
+print "Building Python Front End"
+if subprocess.call(make_command):
+  print "Python Front End build failed"
+  sys.exit(1)
+for f in glob.glob("*.o"):
+  shutil.move(f, "../_build")
+shutil.move("libparakeetpy.so", opts['install_dir'])
+os.chdir("..")
 
 if opts['tests']:
   print "Building tests"
@@ -227,6 +209,4 @@ if opts['tests']:
   if subprocess.call('./tests.native'):
     print "Tests failed"
     sys.exit(1)
-
-  
   

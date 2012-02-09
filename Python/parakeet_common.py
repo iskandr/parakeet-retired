@@ -1,5 +1,5 @@
 from ctypes import *
-import os, sys 
+import atexit, os, sys 
 
 verbose = True
 debug = False
@@ -88,7 +88,6 @@ def init_parakeet_lib():
   return LibPar
 
 #Load libraries, basic initialization
-
 LibPar = init_parakeet_lib()
 
 def list_to_ctypes_array(input_list, t):
@@ -100,4 +99,3 @@ def list_to_ctypes_array(input_list, t):
     arr[i] = input_list[i]
   print "[list_to_ctypes_array] output:", arr
   return arr
-
