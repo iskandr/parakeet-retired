@@ -42,6 +42,12 @@ val mk_int32  : ?src:SrcInfo.t -> int -> value_node
 
 val mk_float32 : ?src:SrcInfo.t -> float -> value_node
 val mk_float64 : ?src:SrcInfo.t -> float -> value_node
+
+val is_const : value_node -> bool
+val is_const_int : value_node -> bool
+val get_const : value_node -> ParNum.t
+val get_const_int : value_node -> int
+
 (***
     helpers for expressions
  ***)

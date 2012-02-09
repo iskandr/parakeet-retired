@@ -11,6 +11,7 @@ open SymbolicShape
 *)
 
 exception ShapeInferenceFailure of string
+
 type env = SymbolicShape.t ID.Map.t
 module type PARAMS = sig
   val output_shapes : FnId.t -> SymbolicShape.t list -> SymbolicShape.t list
@@ -59,13 +60,22 @@ module ShapeAnalysis (P: PARAMS) =  struct
           (adverb:Prim.adverb)
           (fnId:FnId.t)
           (closureArgs:SymbolicShape.t list)
-          (axes: int list)
+          (axes: SSA.value_nodes option)
           (init:SymbolicShape.t list option)
           (args:SymbolicShape.t list) =
+      let maxOuterShape, maxRank = SymbolicShape.argmax_rank args in
+      let axes : int list = match axes with
+        | None -> List.til maxRank
+        | Some ssa_axes ->
+          if List.for_all SSA_Helpers.is_const_int ssa_axes then
+            List.map SSA_Helpers.get_const_int ssa_axes
+          else
+            raise (ShapeInferenceFailure "All adverb axes must be constants")
+      in
       match adverb with
         | Prim.Map ->
           assert (init = None);
-          let maxOuterShape, maxRank = SymbolicShape.argmax_rank args in
+
           assert (maxRank >= List.length axes);
           let eltShapes = SymbolicShape.peel_shape_list ~axes args in
           (* shapes that go into the function on each iteration *)

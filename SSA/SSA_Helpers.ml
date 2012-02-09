@@ -71,6 +71,25 @@ let mk_float32 ?src f = mk_num ?src ~ty:Type.float32 (ParNum.Float32 f)
 
 let mk_float64 ?src f = mk_num ?src ~ty:Type.float64 (ParNum.Float64 f)
 
+let is_const {value} =
+  match value with
+  | Num _ -> true
+  | _ -> false
+
+let is_const_int {value} =
+  match value with
+    | Num n -> ParNum.is_int n
+    | _ -> false
+
+let get_const {value} = match value with
+  | Num n -> n
+  | other ->
+    failwith $ Printf.sprintf "Expected constant, got %s" (value_to_str other)
+
+let get_const_int valNode =
+  let n = get_const valNode in
+  ParNum.to_int n
+
 (***
     helpers for expressions
  ***)

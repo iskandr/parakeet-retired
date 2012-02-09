@@ -163,13 +163,15 @@ module Mk(R: SIMPLE_TRANSFORM_RULES) = struct
       let args' = transform_values blockState cxt args in
       if changed() then {expNode with exp=PrimApp(prim,args')}
       else expNode
+
     | Adverb(op, closure, adverb_args) ->
       let closureArgs' = transform_values blockState cxt closure.closure_args in
       let args' = transform_values blockState cxt adverb_args.args in
+      let axes' = transform_optional_values blockState cxt adverb_args.axes in
       let init' = transform_optional_values blockState cxt adverb_args.init in
       if changed() then
         let closure' = { closure with closure_args = closureArgs' } in
-        let adverb_args' = { adverb_args with args = args'; init = init' } in
+        let adverb_args' = { args = args'; init = init'; axes=axes' } in
         { expNode with exp = Adverb(op, closure', adverb_args') }
       else expNode
       in

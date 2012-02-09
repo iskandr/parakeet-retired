@@ -145,11 +145,12 @@ module MkEvaluator(A : ANALYSIS) = struct
       | PrimApp(_,xs)
       | Values xs
       | Arr xs -> iter_values env xs
-      | Adverb (_, {closure_args}, {args; init}) ->
+      | Adverb (_, {closure_args}, {args; init; axes}) ->
         begin
           iter_values env closure_args;
           iter_values env args;
-          match init with Some inits -> iter_values env inits | None -> ()
+          match init with Some inits -> iter_values env inits | None -> ();
+          match axes with Some axes -> iter_values env axes | None -> ()
 
         end
 

@@ -23,13 +23,10 @@ type closure = {
   closure_fn: FnId.t;
   closure_args: value_node list;
   closure_arg_types: Type.t list;
-  (*closure_input_types:Type.t list;
-  closure_output_types: Type.t list
-  *)
 }
 
 type adverb_args = {
-  axes : int list;
+  axes : value_nodes option;
   init : value_nodes option;
   args : value_nodes
 }
@@ -149,10 +146,13 @@ let closure_to_str cl =
 let adverb_args_to_str {init; axes; args} =
   Printf.sprintf "%s, axes=%s, init=%s"
     (value_nodes_to_str args)
-    (String.concat ", " (List.map string_of_int axes))
+    (match axes with
+      | None -> "none"
+      | Some axes -> value_nodes_to_str axes
+    )
     (match init with
       | None -> "none"
-      | Some initvals -> (value_nodes_to_str initvals)
+      | Some initvals -> value_nodes_to_str initvals
     )
 
 let exp_to_str expNode =

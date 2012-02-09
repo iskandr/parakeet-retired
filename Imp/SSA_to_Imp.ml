@@ -231,24 +231,20 @@ and translate_stmt (codegen : ImpCodegen.codegen) stmtNode : Imp.stmt list  =
 	  translate_array_literal codegen id elts
   (* adverbs get special treatment since they might return multiple values *)
   | SSA.Set(ids, {SSA.exp = SSA.Adverb(adverb, closure, adverbArgs)})->
-    let impClosureArgs =
-      translate_values codegen closure.SSA.closure_args
+    let constAxes : int list = match adverbArgs.SSA.axes with
+      | Some axes ->
+        if List.for_all SSA_Helpers.is_const_int axes then
+          List.map SSA_Helpers.get_const_int axes
+        else
+          failwith "[SSA->Imp] Can only translate constant adverb axes to Imp"
+      | None -> failwith "[SSA->Imp] Found axes=None on adverb"
     in
-    let impInitArgs =
-      Option.map (translate_values codegen) adverbArgs.SSA.init
-    in
-    let impArgs = translate_values codegen adverbArgs.SSA.args in
-    let ssaFn =  FnManager.get_typed_function closure.SSA.closure_fn in
-    let axes = adverbArgs.SSA.axes in
-    translate_adverb
-      codegen
-      ids
-      adverb
-      ssaFn
-      impClosureArgs
-      impInitArgs
-      impArgs
-      axes
+    translate_adverb codegen ids adverb
+      ~ssa_fn:(FnManager.get_typed_function closure.SSA.closure_fn)
+      ~closure_args:(translate_values codegen closure.SSA.closure_args)
+      ~init:(Option.map (translate_values codegen) adverbArgs.SSA.init)
+      ~args:(translate_values codegen adverbArgs.SSA.args)
+      ~axes:constAxes
 	(* all assignments other than those with an array literal RHS *)
 	| SSA.Set([id], rhs) ->
     let impRhs : Imp.value_node = translate_exp codegen rhs in
@@ -320,36 +316,32 @@ and translate_exp (codegen:ImpCodegen.codegen) expNode : Imp.value_node  =
 	| SSA.Arr _ -> failwith "[SSA_to_Imp] Unexpected array expression"
 	| _ -> failwith $ "[ssa->imp] unrecognized exp: " ^ (SSA.exp_to_str expNode)
 
-and translate_adverb
-      codegen
-      (lhsIds:ID.t list)
-      (adverb:Prim.adverb)
-      (ssaFn:SSA.fn)
-
-      (closureArgs:Imp.value_node list)
-      (init:Imp.value_node list option)
-      (args:Imp.value_node list)
-      (axes:int list) : Imp.stmt list =
+and translate_adverb codegen (lhsIds:ID.t list) (adverb:Prim.adverb)
+      ~(ssa_fn:SSA.fn)
+      ~(closure_args:Imp.value_node list)
+      ~(init:Imp.value_node list option)
+      ~(args:Imp.value_node list)
+      ~(axes:int list) : Imp.stmt list =
   assert (init = None);
   Printf.printf "Closure args: %s, array args: %s\n%!"
-    (Imp.value_nodes_to_str closureArgs)
+    (Imp.value_nodes_to_str closure_args)
     (Imp.value_nodes_to_str args)
   ;
-  let closureArgTypes = List.map Imp.value_type closureArgs in
+  let closureArgTypes = List.map Imp.value_type closure_args in
   let argTypes = List.map Imp.value_type args in
   let num_axes = List.length axes in
   let peeledArgTypes = List.map (ImpType.peel ~num_axes) argTypes in
   let fnInputTypes = closureArgTypes @ peeledArgTypes in
   Printf.printf "Fn input types: %s, given inputs: %s\n%!"
-    (Type.type_list_to_str ssaFn.SSA.fn_input_types)
+    (Type.type_list_to_str ssa_fn.SSA.fn_input_types)
     (ImpType.type_list_to_str fnInputTypes)
   ;
-  let nestedFn : Imp.fn = translate_fn ssaFn fnInputTypes in
+  let nestedFn : Imp.fn = translate_fn ssa_fn fnInputTypes in
   match adverb with
   | Prim.Map ->
-    translate_map codegen lhsIds nestedFn closureArgs args axes
+    translate_map codegen lhsIds nestedFn closure_args args axes
   | Prim.Reduce ->
-    translate_reduce codegen lhsIds nestedFn closureArgs init args axes
+    translate_reduce codegen lhsIds nestedFn closure_args init args axes
    | _ ->
     failwith $ Printf.sprintf
       "[SSA_to_Imp] Unsupported adverb %s"
