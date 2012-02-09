@@ -181,9 +181,9 @@ CAMLprim value ocaml_cuda_launch_ptx (
   for (i = 0; i < num_args; ++i) {
     ocaml_gpu_arg = Field(ocaml_args, i);
 
-    if (Tag_val(ocaml_gpu_arg) == PQNUM_GPU_ARRAY_ARG) {
+    if (Tag_val(ocaml_gpu_arg) == PARNUM_GPU_ARRAY_ARG) {
       // Pull out the pointer and pass it up
-      ptr_arg = (void*)Int64_val(Field(ocaml_gpu_arg, PQNUM_GPU_ARRAY_ARG_PTR));
+      ptr_arg = (void*)Int64_val(Field(ocaml_gpu_arg, PARNUM_GPU_ARRAY_ARG_PTR));
       ALIGN_UP(offset, sizeof(void*));
       result = cuParamSetv(cuFunc, offset, &ptr_arg, sizeof(void*));
       if (result != 0) {
@@ -198,7 +198,7 @@ CAMLprim value ocaml_cuda_launch_ptx (
   */
       offset += sizeof(void*);
 
-    } else if (Tag_val(ocaml_gpu_arg) == PQNUM_GPU_SCALAR_ARG) {
+    } else if (Tag_val(ocaml_gpu_arg) == PARNUM_GPU_SCALAR_ARG) {
       ocaml_gpu_val = Field(ocaml_gpu_arg, 0);
       int pqnum_tag = Tag_val(ocaml_gpu_val);
       /* locals used to pull out number values */
@@ -208,26 +208,26 @@ CAMLprim value ocaml_cuda_launch_ptx (
       double d;
       switch (pqnum_tag) {
 
-      case PQNUM_INT32:
+      case PARNUM_INT32:
         int32_val = Int32_val(Field(ocaml_gpu_val, 0));
         ptr_arg = (void*) &int32_val;
         arg_size = sizeof(int32_t);
         break;
 
-      case PQNUM_INT64:
+      case PARNUM_INT64:
         int64_val = Int64_val(Field(ocaml_gpu_val, 0));
         ptr_arg = (void*) &int64_val;
         arg_size = sizeof(int64_t);
         break;
 
-      case PQNUM_FLOAT32:
+      case PARNUM_FLOAT32:
         /* get the bits of a float32 */
         f = (float)Double_val(Field(ocaml_gpu_val, 0));
         ptr_arg = (void*) &f;
         arg_size = sizeof(float);
         break;
 
-      case PQNUM_FLOAT64:
+      case PARNUM_FLOAT64:
         /* get the bits of a float64 */
         d = Double_val(Field(ocaml_gpu_val, 0));
         ptr_arg = (void*) &d;

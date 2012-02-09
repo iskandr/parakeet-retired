@@ -3,7 +3,6 @@
 import optparse, glob, os, shutil, subprocess, sys
 
 parser = optparse.OptionParser(description='Parakeet Build System')
-parser.add_option('-q', action='store_true', help='Build Q front end')
 
 parser.add_option('-p', '--python', action='store_true', default=True,
                     help='Build Python front end')
@@ -70,17 +69,11 @@ if opts['clean']:
   print "Cleaning Python directory"
   print
   subprocess.call(make_command + ["clean"])
-  os.chdir("../Q")
-  print
-  print "Cleaning Q directory"
-  print
-  subprocess.call(make_command + ["clean"])
   os.chdir("..")
   print
   print "Removing build directory"
   print
   shutil.rmtree("_build", ignore_errors=True)
-  os.remove("preprocess.native")
   for f in glob.glob("*~"):
     os.remove(f)
   print
@@ -144,11 +137,6 @@ os.chdir("install")
 subprocess.call(["make", "clean"])
 os.chdir("..")
 
-# Clean Q directory
-if opts['q']:
-  os.chdir("Q")
-  subprocess.call(["make", "clean"])
-  os.chdir("..")
 
 # Build Common
 os.chdir("Common")
@@ -158,6 +146,7 @@ if subprocess.call(make_command):
 os.chdir("..")
 
 # Build CUDA stubs 
+#print "\n\n (Cuda stubs deactivated)" 
 print "\n\n ******** Building Cuda Modules ********* "
 os.chdir("cuda")
 if subprocess.call(["make"]):
@@ -187,24 +176,6 @@ if subprocess.call(["./machine_probe"]):
   sys.exit(1)
 shutil.move("parakeetconf.xml", opts['install_dir'])
 os.chdir("..")
-
-# Build Q Front End
-if opts['q']:
-  print "Building Q Preprocessor and Q Callbacks"
-  if subprocess.call(build_command +
-                     ["QCallbacks." + obj_suffix, "preprocess.native",
-                      "-no-hygiene"]):
-    print "Q Preprocessor build failed"
-    exit(1)
-  os.chdir("Q")
-  print "Building Q Front End"
-  if subprocess.call(make_command):
-    print "Q Front End build failed"
-    sys.exit(1)
-  for f in glob.glob("*.o"):
-    shutil.move(f, "../_build")
-  shutil.move("libparakeetq.so", opts['install_dir'])
-  os.chdir("..")
 
 # Build Python Front End
 if opts['python']:
