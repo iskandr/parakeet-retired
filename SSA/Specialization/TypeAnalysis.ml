@@ -6,9 +6,6 @@ open SSA_Helpers
 open SSA_Analysis
 
 module type TYPE_ANALYSIS_PARAMS = sig
-  val closure_val : ID.t -> value
-  val closure_args : ID.t -> value_node list
-  val output_arity : value -> int
   val infer_output_types : value -> Signature.t -> Type.t list
   val signature : Signature.t
 end
@@ -64,12 +61,15 @@ module MkAnalysis (P : TYPE_ANALYSIS_PARAMS) = struct
       let outputTypes = ref (Signature.output_types P.signature) in
       IFDEF DEBUG THEN
         if List.length !outputIds <> List.length !outputTypes then
-          failwith  $ Printf.sprintf
-            "[TypeAnalysis]
-                mismatching number of output IDs (%s) and types (%s) in %s"
-            (String.concat ", " (List.map ID.to_str !outputIds))
-            (Type.type_list_to_str !outputTypes)
-            (FnId.to_str fundef.fn_id)
+          let msg =
+            Printf.sprintf
+              "mismatching number of output IDs (%s) and types (%s) in %s"
+              (String.concat ", " (List.map ID.to_str !outputIds))
+              (Type.type_list_to_str !outputTypes)
+              (FnId.to_str fundef.fn_id)
+          in
+          raise (TypeError (msg, None))
+          ;
     ENDIF;
 
       while !outputIds <> [] && !outputTypes <> [] do
@@ -101,12 +101,6 @@ module MkAnalysis (P : TYPE_ANALYSIS_PARAMS) = struct
     phi_set tenv id (Type.common_type tLeft tRight)
 
   let rec infer_app tenv fnVal (argTypes:Type.t list) = match fnVal with
-    | Var id ->
-      (* if the identifier would evaluate to a function value...*)
-      let fnVal' = P.closure_val id in
-      let closureArgNodes = P.closure_args id in
-      let closureArgTypes = List.map (value tenv) closureArgNodes in
-      infer_app tenv fnVal' (closureArgTypes @ argTypes)
     | Prim (Prim.ArrayOp arrayOp) ->
       [TypeInfer.infer_simple_array_op arrayOp argTypes]
     | Prim (Prim.ScalarOp scalarOp) ->
@@ -134,7 +128,7 @@ module MkAnalysis (P : TYPE_ANALYSIS_PARAMS) = struct
         Type.increase_ranks 1 eltResultTypes
 
     | Prim.Reduce, {value=fnVal}::_, _::argTypes ->
-        let arity = P.output_arity fnVal in
+        let arity = FnManager.output_arity_of_value fnVal in
         let initTypes, vecTypes = List.split_nth arity argTypes in
         let eltTypes = List.map Type.peel vecTypes in
         let accTypes = infer_app tenv fnVal (initTypes @ eltTypes) in
@@ -215,17 +209,10 @@ end
 
 let type_analysis
       ~(specializer:SSA.value-> Signature.t -> SSA.fn)
-      ~(output_arity: SSA.value -> int)
-      ~(closureEnv:CollectPartialApps.closure_env)
       ~(fn:SSA.fn)
       ~(signature:Signature.t) =
   Printf.printf "Specializing %s with signature %s\n" (SSA.fn_to_str fn) (Signature.to_str signature);
   let module Params : TYPE_ANALYSIS_PARAMS = struct
-    let closure_val =
-      (fun id -> Hashtbl.find closureEnv.CollectPartialApps.closures id)
-    let closure_args =
-      (fun id -> Hashtbl.find closureEnv.CollectPartialApps.closure_args id)
-    let output_arity = output_arity
     let infer_output_types =
       (fun fnVal fnSig -> (specializer fnVal fnSig).fn_output_types)
     let signature = signature

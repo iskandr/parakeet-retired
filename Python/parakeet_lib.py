@@ -153,7 +153,6 @@ def reduce(function, *args, **kwargs):
       prev_res = [prev_res]
   return ans
 
-
 def addMultipleRet(x,bo,st,y):
   return y+x, True, "Fish"
 

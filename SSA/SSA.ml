@@ -23,8 +23,9 @@ type closure = {
   closure_fn: FnId.t;
   closure_args: value_node list;
   closure_arg_types: Type.t list;
-  closure_input_types:Type.t list;
+  (*closure_input_types:Type.t list;
   closure_output_types: Type.t list
+  *)
 }
 
 type adverb_args = {

@@ -79,7 +79,6 @@ if opts['clean']:
   print "Removing build directory"
   print
   shutil.rmtree("_build", ignore_errors=True)
-  os.remove("preprocess.native")
   for f in glob.glob("*~"):
     os.remove(f)
   print
@@ -151,6 +150,7 @@ if subprocess.call(make_command):
 os.chdir("..")
 
 # Build CUDA stubs 
+#print "\n\n (Cuda stubs deactivated)" 
 print "\n\n ******** Building Cuda Modules ********* "
 os.chdir("cuda")
 if subprocess.call(["make"]):

@@ -91,7 +91,6 @@ let rec to_llvm = function
       HostMemspace.set_int32 ptr 1 (Int32.of_int stop);
       HostMemspace.set_int32 ptr 2 (Int32.of_int step);
       int64 ptr
-  | _ -> assert false
 
 (* acts like to_llvm but maps scalars to their addresses *)
 let to_llvm_pointer = function
@@ -114,8 +113,10 @@ let rec delete_llvm_ptr ptr = function
   | ImpType.ShiftT _
   | ImpType.SliceT _ ->
     let data = HostMemspace.get_int64 ptr 0 in
-    delete_llvm_ptr data;
-    HostMemspace.free ptr
+    (*delete_llvm_ptr data*)
+    HostMemspace.free ptr;
+    failwith "Don't know how to clean up slice memory"
+
   | ImpType.RangeT _ -> HostMemspace.free ptr
 
 (* Note: this doesn't delete the data, only the gv struct *)

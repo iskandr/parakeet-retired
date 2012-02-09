@@ -3,6 +3,7 @@
 open Base
 open SSA
 open SSA_Helpers
+open SSA_AdverbHelpers
 open SSA_Codegen
 open Type
 open Printf
@@ -86,24 +87,7 @@ and is_scalar_block block =
     ThreeValuedLogic.Maybe
     block
 
-let rec output_arity closures = function
-  | Var id ->
-      if Hashtbl.mem closures id then
-        let fnVal = Hashtbl.find closures id in
-        output_arity closures fnVal
-      else
-        failwith $ Printf.sprintf
-          "[Specialize] Couldn't find %s in closures hashtbl"
-          (FnId.to_str id)
-  | GlobalFn fnId ->
-      let fn =
-        if FnManager.is_untyped_function fnId
-        then FnManager.get_untyped_function fnId
-        else FnManager.get_typed_function fnId
-      in
-      List.length fn.fn_output_types
-  | Prim p -> 1
-  | _ -> assert false
+
 
 
 let rec specialize_fn fn signature =
@@ -122,35 +106,15 @@ let rec specialize_fn fn signature =
      (is_scalar_block fn.body = ThreeValuedLogic.Yes)
   then scalarize_fn fn signature
   else
-  (* TODO: *)
-  (* Get rid of CollectPartialApps, change RewriteTyped to *)
-  (* raise an error if you don't supply enough args *)
-  let fnIGNORED, closureEnv =
-    CollectPartialApps.collect_partial_apps fn
-  in
-
-  let outputArity : SSA.value -> int =
-    output_arity closureEnv.CollectPartialApps.closures
-  in
   (* to avoid having to make TypeAnalysis and Specialize recursive
        modules I've untied the recursion by making specialize_value
        a parameter of TypeAnalysis.
    *)
   let tenv =
-    TypeAnalysis.type_analysis
-      ~specializer:specialize_value
-      ~output_arity:outputArity
-      ~closureEnv
-      ~fn:fn
-      ~signature
+    TypeAnalysis.type_analysis ~specializer:specialize_value ~fn ~signature
   in
   let typedFn =
-    RewriteTyped.rewrite_typed
-      ~tenv
-      ~closureEnv
-      ~specializer:specialize_value
-      ~output_arity:outputArity
-      ~fn:fn
+    RewriteTyped.rewrite_typed ~tenv ~specializer:specialize_value ~fn:fn
   in
   typedFn
 

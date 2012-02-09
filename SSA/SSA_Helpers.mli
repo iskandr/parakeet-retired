@@ -1,7 +1,5 @@
 open SSA
 
-(* TODO: get rid of this nonsense *)
-val extract_nested_map_fn_id : fn -> FnId.t option
 
 val mk_fn :
       ?name:string ->
@@ -72,17 +70,6 @@ val mk_call :
       ?src:SrcInfo.t -> FnId.t -> Type.t list  -> value_node list ->
          exp_node
 
-
-val mk_map :
-   ?src:SrcInfo.t -> closure -> ?axes:int list -> value_node list -> exp_node
-
-val mk_reduce :
-    ?src:SrcInfo.t -> closure -> ?axes:int list ->
-        value_node list -> value_node list -> exp_node
-
-val mk_scan :
-   ?src:SrcInfo.t -> closure -> ?axes:int list ->
-        value_node list -> value_node list -> exp_node
 
 
 val mk_closure : fn -> value_node list -> closure
