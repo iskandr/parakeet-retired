@@ -367,7 +367,21 @@ and translate_map
       List.map (fun arg -> ImpHelpers.idx arg indices) args
     in
     let nestedArgs : Imp.value_node list = closureArgs @ nestedArrayArgs in
-    let mk_output id =
+    (* TODO: *)
+    (*   Currently assuming that axes are in order starting from zero *)
+    let rec check_ordered_list ?(prev=(-1)) = function
+      | [] -> failwith "[translate_map] Can't handle empty axis list"
+      | [x] -> x = (prev + 1)
+      | x::xs -> (x = prev + 1) && (check_ordered_list ~prev:x xs)
+    in
+    check_ordered_list axes;
+    let lhsValues = List.map codegen#var lhsIds in
+    let nestedOutputs =
+      List.map
+        (fun arrayOutput -> ImpHelpers.idx arrayOutput indices)
+        lhsValues
+    in
+    (*let mk_output id =
       let shape = ID.Map.find id impFn.shapes in
       let storage = ID.Map.find id impFn.storage in
       let ty = ID.Map.find id impFn.types in
@@ -377,6 +391,7 @@ and translate_map
     let nestedOutputs : Imp.value_node list =
       List.map mk_output impFn.output_ids
     in
+    *)
     let replaceIds = impFn.input_ids @ impFn.output_ids in
     let replaceValues = nestedArgs @ nestedOutputs in
     let replaceEnv = ID.Map.of_lists replaceIds replaceValues in
