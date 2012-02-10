@@ -107,7 +107,7 @@ def parakeet_value_to_python(val):
     strides = list(c_strides)
 
     parakeet_elt_type = LibPar.get_array_element_type(val.data.array.ret_type)
-    c_elt_type = ParakeetTypeToCtype[parakeet_elt_type]
+    c_elt_type = parakeet_to_c_types[parakeet_elt_type]
     nelts = reduce(lambda x,y: x * y, shape)
     ARRAY_TYPE = c_elt_type * nelts
     result_array = ARRAY_TYPE.from_address(val.data.array.data)

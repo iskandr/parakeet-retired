@@ -12,6 +12,8 @@ def test_simple_map():
   sys.stdout.flush()
   x = array([1,2,3,4])
   y = simple_map(x)
+  print simple_map.call_original(x)
+  print y
   for i in range(len(x)):
     print "Expected %d, got %d" % (x[i]*3, y[i])
     assert (x[i] * 3) == y[i]  
