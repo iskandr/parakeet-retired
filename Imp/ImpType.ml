@@ -12,7 +12,7 @@ type t =
 let rec to_str = function
 	| ScalarT elt_t -> Type.elt_to_str elt_t
 	| ArrayT (elt_t, r) ->
-      Printf.sprintf "array(%s, %d)" (Type.elt_to_str elt_t) r
+      Printf.sprintf "array%d<%s>" r (Type.elt_to_str elt_t)
 	| ShiftT t -> Printf.sprintf "shift(%s)" (to_str t)
   | _ -> failwith "Not implemented"
 

@@ -17,8 +17,8 @@ let mk_untyped_prim_fn prim arity : SSA.fn =
   if Hashtbl.mem untypedPrimFnCache key  then
     Hashtbl.find untypedPrimFnCache key
   else
-  let inputs = ID.gen_fresh_list arity in
-  let output = ID.gen() in
+  let inputs = ID.gen_named_list "input" arity in
+  let output = ID.gen_named "output" in
   let bottoms = List.map (fun _ -> Type.BottomT) inputs in
   let inputVars = List.map (fun id -> mk_var id) inputs in
   let rhs = mk_app (mk_val (Prim prim)) inputVars in

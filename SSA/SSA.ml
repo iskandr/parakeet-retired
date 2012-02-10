@@ -254,7 +254,7 @@ let fn_to_str (fundef:fn) =
   let inputs = typed_id_list_to_str fundef.tenv fundef.input_ids in
   let outputs = typed_id_list_to_str fundef.tenv fundef.output_ids in
   let body = block_to_str ~space:"\t" ~tenv:fundef.tenv fundef.body in
-  sprintf "%s (%s)=>(%s) { \n %s \n }" name inputs outputs body
+  sprintf "%s (%s)=>(%s) { %s \n }" name inputs outputs body
 
 
 

@@ -38,9 +38,14 @@ module Make(A : sig val prefix : string end)  = struct
   let next_suffixes : (string, int) Hashtbl.t = Hashtbl.create 127
 
   let try_next_suffix (prefix:string) : string =
-    let i = Hashtbl.find_default next_suffixes prefix 0 in
-    Hashtbl.replace next_suffixes prefix (i+1);
-    prefix ^ (string_of_int i)
+    match Hashtbl.find_option next_suffixes prefix with
+      | Some i ->
+        Hashtbl.replace next_suffixes prefix (i+1);
+        prefix ^ (string_of_int i)
+      | None ->
+        Hashtbl.add next_suffixes prefix 2;
+        prefix
+
 
   let max_id = ref 0
   let next_id () =
@@ -66,6 +71,8 @@ module Make(A : sig val prefix : string end)  = struct
       let rest =  gen_named_list prefix (count - 1) in
       curr :: rest
 
+  let gen_named_array (prefix:string) (count:int) : t array =
+    Array.of_list (gen_named_list prefix count)
 
   let gen () = gen_named A.prefix
 

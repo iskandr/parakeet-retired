@@ -143,11 +143,11 @@ let fn
       (nOutputs : int)
       (nLocals : int)
       (bodyConstructor : vars -> vars -> vars -> stmt_node list) =
-  let inputs = ID.gen_fresh_array nInputs in
+  let inputs = ID.gen_named_array "input" nInputs in
   let inputVars = Array.map mk_var inputs in
-  let outputs = ID.gen_fresh_array nOutputs in
+  let outputs = ID.gen_named_array "output" nOutputs in
   let outputVars = Array.map mk_var outputs in
-  let locals = ID.gen_fresh_array nLocals in
+  let locals = ID.gen_named_array "temp" nLocals in
   let localVars = Array.map mk_var locals in
   let body = Block.of_list $ bodyConstructor inputVars outputVars localVars in
   let inputList = Array.to_list inputs in

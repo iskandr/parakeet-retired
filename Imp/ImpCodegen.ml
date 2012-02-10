@@ -40,13 +40,19 @@ class codegen  = object (self)
     shapes <- ID.Map.add id shape shapes;
     storages <- ID.Map.add id storage storages
 
-  method fresh_local_id ?storage ?shape(ty:ImpType.t) : ID.t =
-    let id = ID.gen() in
+  method fresh_local_id ?name ?storage ?shape(ty:ImpType.t) : ID.t =
+    let id = match name with
+      | None -> ID.gen()
+      | Some name -> ID.gen_named name
+    in
     self#declare id ?storage ?shape ty;
     id
 
-  method fresh_local ?storage ?shape (ty:ImpType.t) : value_node =
-    let id = ID.gen() in
+  method fresh_local ?name ?storage ?shape (ty:ImpType.t) : value_node =
+    let id = match name with
+      | None -> ID.gen()
+      | Some name -> ID.gen_named name
+    in
     self#declare id ?storage ?shape ty;
     ImpHelpers.var ty id
 
@@ -61,7 +67,8 @@ class codegen  = object (self)
   method cast (v:value_node) (ty:ImpType.t) : value_node * stmt list =
     if v.value_type = ty then v, []
     else
-      let temp : Imp.value_node = self#fresh_local ty in
+      let name = "%cast_" ^ (ImpType.to_str ty) in
+      let temp : Imp.value_node = self#fresh_local ~name ty in
       temp, [ImpHelpers.set temp (ImpHelpers.cast ty v)]
 
   method info : block_info =
@@ -93,7 +100,7 @@ class fn_codegen = object (self)
     self#declare id ~storage ~shape t
 
   method fresh_input (t:ImpType.t) : value_node =
-    let id = ID.gen() in
+    let id = ID.gen_named "input" in
     self#declare_input id t;
     ImpHelpers.var t id
 
@@ -105,23 +112,13 @@ class fn_codegen = object (self)
     self#declare id ~storage ~shape t
 
   method fresh_output ?(shape=SymbolicShape.scalar) (t:ImpType.t) : value_node =
-    let id = ID.gen() in
+    let id = ID.gen_named "output" in
     self#declare_output id ~shape t;
     ImpHelpers.var t id
 
   method finalize_fn ?name stmts =
     let blockInfo = self#info in
     let nonlocals = input_ids @ output_ids in
-    (*
-    let nonlocalTypes = input_types @ output_types in
-    let typeEnv =
-      ID.Map.extend blockInfo.block_types nonlocals nonlocalTypes
-    in
-    let nonlocalShapes = input_shapes @ output_shapes in
-    let shapeEnv =
-      ID.Map.extend blockInfo.block_shapes nonlocals nonlocalShapes
-    in
-    *)
     let localIds =
       List.filter (fun id -> not $ List.mem id nonlocals)  blockInfo.block_ids
     in
@@ -135,8 +132,8 @@ class fn_codegen = object (self)
       output_ids = output_ids;
       local_ids =  localIds;
       storage = blockInfo.block_storages;
-      types = blockInfo.block_types; (*typeEnv;*)
-      shapes = blockInfo.block_shapes; (*shapeEnv;*)
+      types = blockInfo.block_types;
+      shapes = blockInfo.block_shapes;
       body = stmts;
     }
 end

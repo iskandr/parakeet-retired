@@ -211,7 +211,7 @@ let fn_to_str fn =
   in
   let inputs = List.map id_to_str fn.input_ids  in
   let outputs = List.map id_to_str  fn.output_ids in
-  let decl_str id =  "local " ^ (id_to_str id) in
+  let decl_str id =  " local " ^ (id_to_str id) in
   let localDeclStr =
     String.concat "\n" (List.map decl_str fn.local_ids)
   in

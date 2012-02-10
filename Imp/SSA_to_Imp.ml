@@ -56,7 +56,7 @@ let mk_simple_loop_descriptor
         ?(start=ImpHelpers.zero)
         (stop:Imp.value_node) =
   {
-    loop_var = codegen#fresh_local int32_t;
+    loop_var = codegen#fresh_local ~name:"loop_idx" int32_t;
     loop_start = start;
     loop_test_val = stop;
     loop_test_cmp = (if down then Prim.Gt else Prim.Lt);
@@ -138,7 +138,7 @@ let rec size_of_axes
   | [] -> [], []
   | axis::rest ->
     let size : Imp.value_node = ImpHelpers.dim array (ImpHelpers.int axis) in
-    let temp = codegen#fresh_local ImpType.int32_t in
+    let temp = codegen#fresh_local ~name:"size" ImpType.int32_t in
     let stmtNode = ImpHelpers.set temp size in
     let restBlock, restVals = size_of_axes codegen array rest in
     stmtNode :: restBlock, temp :: restVals
@@ -371,7 +371,7 @@ and translate_map
       let shape = ID.Map.find id impFn.shapes in
       let storage = ID.Map.find id impFn.storage in
       let ty = ID.Map.find id impFn.types in
-      codegen#fresh_local ~storage ~shape ty
+      codegen#fresh_local ~name:"map_output" ~storage ~shape ty
     in
     (* TODO: Change nestedOutputs to assign into a precreated array *)
     let nestedOutputs : Imp.value_node list =

@@ -11,9 +11,9 @@ type block_info = {
 class codegen : object
   method declare : ID.t -> ?storage:Imp.storage ->
     ?shape:SymbolicShape.t -> ImpType.t -> unit
-  method fresh_local_id : ?storage:Imp.storage ->
+  method fresh_local_id : ?name:string -> ?storage:Imp.storage ->
     ?shape:SymbolicShape.t -> ImpType.t -> ID.t
-  method fresh_local : ?storage:Imp.storage ->
+  method fresh_local : ?name:string -> ?storage:Imp.storage ->
     ?shape:SymbolicShape.t -> ImpType.t -> value_node
 
   method var : ID.t -> value_node

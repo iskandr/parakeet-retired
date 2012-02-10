@@ -150,8 +150,6 @@ and translate_app env codegen fn args src = match fn.data with
           SSA.closure_fn = fnId;
           closure_args = translate_values env codegen fixedArgs;
           closure_arg_types = List.map (fun _ -> Type.BottomT) fixedArgs;
-          (*closure_input_types = ssaFn.SSA.fn_input_types;
-          closure_output_types = ssaFn.SSA.fn_output_types;*)
         }
         in
         {

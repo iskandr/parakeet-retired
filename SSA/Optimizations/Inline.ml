@@ -1,100 +1,99 @@
 (* pp: -parser o pa_macro.cmo *)
 
 open Base
-open Type 
-open SSA 
-open SSA_Helpers 
-open SSA_Transform 
+open Type
+open SSA
+open SSA_Helpers
+open SSA_Transform
 
-let do_inline fn argVals = 
-  let idSet : ID.t MutableSet.t = FindBindingSet.fn_bindings fn in 
-  let replaceMap = 
-    MutableSet.fold 
-      (fun id accMap -> ID.Map.add id (ID.gen()) accMap)
-      idSet 
-      ID.Map.empty
-  in   
-  let freshFn, _ = Replace.replace_fn replaceMap fn in
-  let rhs = mk_exp ~types:freshFn.fn_input_types (Values argVals) in  
-  let argAssignments = mk_set freshFn.input_ids rhs  in
-  let outputIds = freshFn.output_ids in 
-  let outputTypes = freshFn.fn_output_types in 
-  let outputValNodes = 
-    List.map2 (fun id t -> mk_var ~ty:t id) outputIds outputTypes    
-  in 
-  let outputExp = 
-    mk_exp ~types:freshFn.fn_output_types (Values outputValNodes) 
+let do_inline fn argVals =
+  let idSet : ID.t MutableSet.t = FindBindingSet.fn_bindings fn in
+  let helper id accMap =
+    let prefix : string = ID.get_original_prefix id in
+    ID.Map.add id (ID.gen_named prefix) accMap
   in
-  (* list of new ids and their types-- ignore types missing from tenv *) 
+  let replaceMap = MutableSet.fold helper idSet ID.Map.empty in
+  let freshFn, _ = Replace.replace_fn replaceMap fn in
+  let rhs = mk_exp ~types:freshFn.fn_input_types (Values argVals) in
+  let argAssignments = mk_set freshFn.input_ids rhs  in
+  let outputIds = freshFn.output_ids in
+  let outputTypes = freshFn.fn_output_types in
+  let outputValNodes =
+    List.map2 (fun id t -> mk_var ~ty:t id) outputIds outputTypes
+  in
+  let outputExp =
+    mk_exp ~types:freshFn.fn_output_types (Values outputValNodes)
+  in
+  (* list of new ids and their types-- ignore types missing from tenv *)
   let typesList : (ID.t * Type.t) list =
-    MutableSet.fold  
+    MutableSet.fold
       (fun oldId accList ->
           if ID.Map.mem oldId fn.tenv then
-            let newId = ID.Map.find oldId replaceMap in 
+            let newId = ID.Map.find oldId replaceMap in
             (newId, ID.Map.find oldId fn.tenv)::accList
           else accList
       )
       idSet
-      [] 
-  in 
-  let body' = Block.append (Block.singleton argAssignments) freshFn.body in  
-  body', outputExp, typesList 
-  
-module type INLINE_PARAMS = sig 
-  val lookup : FnId.t -> SSA.fn option 
-end 
+      []
+  in
+  let body' = Block.append (Block.singleton argAssignments) freshFn.body in
+  body', outputExp, typesList
+
+module type INLINE_PARAMS = sig
+  val lookup : FnId.t -> SSA.fn option
+end
 
 module Inline_Rules (P:INLINE_PARAMS) = struct
-  include P 
-   
+  include P
+
   type context = (Type.t ID.Map.t) ref
-  let init fn = ref fn.tenv   
-  let finalize _ _ = NoChange 
-  let dir = Forward 
-  
-  let rec add_types_list envRef = function 
+  let init fn = ref fn.tenv
+  let finalize _ _ = NoChange
+  let dir = Forward
+
+  let rec add_types_list envRef = function
     | [] -> envRef
-    | (id,t)::rest -> 
-        envRef := ID.Map.add id t !envRef;  
-        add_types_list envRef rest 
-        
-         
-  let stmt envRef stmtNode = NoChange     
-  
-  let exp envRef expNode = match expNode.exp with 
+    | (id,t)::rest ->
+        envRef := ID.Map.add id t !envRef;
+        add_types_list envRef rest
+
+
+  let stmt envRef stmtNode = NoChange
+
+  let exp envRef expNode = match expNode.exp with
     | Call (fnId, args)
-    | App ({value=GlobalFn fnId}, args) -> 
-      (match P.lookup fnId with 
-        | None -> NoChange  
-        | Some fn -> 
+    | App ({value=GlobalFn fnId}, args) ->
+      (match P.lookup fnId with
+        | None -> NoChange
+        | Some fn ->
           (* make sure arity lines up *)
           if List.length fn.input_ids <> List.length args then NoChange
-          else 
+          else
           let inlineBlock, outputExp, typesList = do_inline fn args in
           let _ = add_types_list envRef typesList in
-          IFDEF DEBUG THEN 
+          IFDEF DEBUG THEN
             assert (outputExp.exp_types = expNode.exp_types);
-          ENDIF;  
+          ENDIF;
           let expNode' = {outputExp with exp_src=expNode.exp_src } in
-          IFDEF DEBUG THEN 
+          IFDEF DEBUG THEN
             Printf.printf "Inline updated exp: %s => %s \n"
               (SSA.exp_to_str expNode)
               (SSA.exp_to_str expNode');
-          ENDIF;  
+          ENDIF;
           UpdateWithBlock(expNode', inlineBlock)
        )
-    | _ -> NoChange 
-  
-  let phi env phiNode = NoChange 
-  let value env valNode = NoChange       
-end 
+    | _ -> NoChange
+
+  let phi env phiNode = NoChange
+  let value env valNode = NoChange
+end
 
 
 let run_fn_inliner (functions : FnTable.t) fn =
-  let module Params = 
+  let module Params =
     struct let lookup id  = FnTable.find_option id functions end
-  in  
+  in
   let module Inliner = SSA_Transform.Mk(Inline_Rules(Params)) in
-  let fn', changed = Inliner.transform_fn fn in 
+  let fn', changed = Inliner.transform_fn fn in
   let tenv' = !(Inliner.get_context ()) in
-  {fn' with tenv = tenv' }, changed    
+  {fn' with tenv = tenv' }, changed
