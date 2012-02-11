@@ -246,3 +246,6 @@ let is_empty_stmt stmtNode =
     | Set ([], {exp=Values[]})->true
     | _ -> false
 
+let rec types_of_value_nodes = function
+  | [] -> []
+  | vNode::rest -> vNode.value_type :: (types_of_value_nodes rest)

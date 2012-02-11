@@ -114,40 +114,102 @@ module MkAnalysis (P : TYPE_ANALYSIS_PARAMS) = struct
             "Inference for function application where fn = %s not implemented"
             (SSA.value_to_str fnVal)
 
+  let infer_map
+        tenv
+        ~(untyped_fn_id:FnId.t)
+        ~(closure_arg_types:Type.t list)
+        ~(array_arg_types:Type.t list)
+        ~(n_axes:int) =
+    assert false
 
-  let infer_higher_order tenv arrayOp args argTypes =
-    match arrayOp, args, argTypes with
-    (* TODO: DEAL WITH AXIS ARGUMENTS! *)
-    | Prim.Map, {value=fnVal}::_, _::dataTypes ->
-        if List.for_all Type.is_scalar dataTypes then
-          failwith "expected at least one argument to map to be a vector"
-        ;
-        (* we're assuming Map works only along the outermost axis of an array *)
-        let eltTypes = List.map Type.peel dataTypes in
-        let eltResultTypes = infer_app tenv fnVal eltTypes in
-        Type.increase_ranks 1 eltResultTypes
+  let infer_adverb
+       tenv
+        ~(adverb:Prim.adverb)
+        ~(fn_val:SSA.value)
+        ?(closure_arg_types=[])
+        ?init
+        ?axes
+        ~(array_arg_types:Type.t list) =
+    if List.for_all Type.is_scalar array_arg_types then
+      raise (
+        TypeError("Adverbs must have at least one non-scalar argument", None))
+    ;
+    let maxPossibleAxes =
+      SSA_AdverbHelpers.max_num_axes_from_array_types array_arg_types
+    in
+    let numAxes = match axes with
+      | None -> maxPossibleAxes
+      | Some axes ->
+        let n = List.length axes in
+        if n <= maxPossibleAxes then n
+        else
+        let msg =
+          Printf.sprintf
+            "Can't have %d axes for adverb %s, max allowed = %d"
+            n
+            (Prim.adverb_to_str adverb)
+            maxPossibleAxes
+        in
+        raise (TypeError(msg, None))
+    in
 
-    | Prim.Reduce, {value=fnVal}::_, _::argTypes ->
-        let arity = FnManager.output_arity_of_value fnVal in
-        let initTypes, vecTypes = List.split_nth arity argTypes in
-        let eltTypes = List.map Type.peel vecTypes in
-        let accTypes = infer_app tenv fnVal (initTypes @ eltTypes) in
-        let accTypes' = infer_app tenv fnVal (accTypes @ eltTypes) in
-        if accTypes <> accTypes' then
-          failwith "unable to infer accumulator type"
-        ;
-        accTypes
-    | Prim.AllPairs, {value=fnVal}::_, _::argTypes ->
+    match adverb with
+    | Prim.Map ->
+      if init <> None then
+        raise (TypeError("Map can't have initial values", None))
+      ;
+      let eltTypes = List.map (Type.peel ~num_axes:numAxes) array_arg_types in
+      let eltResultTypes = infer_app tenv fn_val eltTypes in
+      Type.increase_ranks numAxes eltResultTypes
+(*
+    | Prim.Reduce ->
+      let eltTypes = List.map (Type.peel ~num_axes:numAxes) vecTypes in
+      let accTypes = infer_app tenv fnVal (initTypes @ eltTypes) in
+      let accTypes' = infer_app tenv fnVal (accTypes @ eltTypes) in
+      if accTypes <> accTypes' then
+        failwith "unable to infer accumulator type"
+      ;
+      accTypes
+    | Prim.AllPairs ->
         let eltTypes = List.map Type.peel argTypes in
         let outTypes = infer_app tenv fnVal  eltTypes in
         Type.increase_ranks 2 outTypes
-
-    | other, _, _ -> failwith (Prim.adverb_to_str other ^ " not impl")
+*)
+    | other -> failwith (Prim.adverb_to_str other ^ " not impl")
 
   let exp tenv expNode helpers =
+    let src = expNode.exp_src in
     match expNode.exp with
-    | App({value=SSA.Prim (Prim.Adverb arrayOp)}, args) ->
-        infer_higher_order tenv arrayOp args (helpers.eval_values tenv args)
+    | App({value=SSA.Prim (Prim.Adverb adverb)}, args) ->
+      let argTypes = helpers.eval_values tenv args in
+      let fn, args = match args with
+        | fn::rest -> fn, rest
+        | _ -> raise (TypeError("too few arguments for adverb", src))
+      in
+      begin match adverb with
+        | Prim.Map
+        | Prim.AllPairs ->
+          infer_adverb
+            tenv
+            ~adverb
+            ~fn_val:fn.value
+            ?closure_arg_types:None
+            ?init:None
+            ?axes:None
+            ~array_arg_types:argTypes
+        | Prim.Reduce
+        | Prim.Scan -> assert false
+      end
+    | SSA.Adverb(adverb, {closure_fn; closure_arg_types}, {axes;init;args}) ->
+      let argTypes = SSA_Helpers.types_of_value_nodes args in
+      infer_adverb
+        tenv
+        ~adverb
+        ~fn_val:(GlobalFn closure_fn)
+        ~closure_arg_types
+        ?init:None
+        ?axes:None
+        ~array_arg_types:argTypes
     | App(lhs, args) ->
         let lhsT = value tenv lhs in
         let argTypes = helpers.eval_values tenv args in

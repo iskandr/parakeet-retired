@@ -96,3 +96,5 @@ val mk_phi_nodes_from_values
       : value_node list -> value_node list -> value_node list -> phi_nodes
 
 val collect_phi_values :bool -> phi_nodes -> ID.t list * value_node list
+
+val types_of_value_nodes : value_node list -> Type.t list

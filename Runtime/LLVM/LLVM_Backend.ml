@@ -34,8 +34,15 @@ let optimize_module llvmModule llvmFn : unit =
   Llvm_scalar_opts.add_gvn the_fpm;
   Llvm_scalar_opts.add_correlated_value_propagation the_fpm;
 
-  let modified = PassManager.run_function llvmFn the_fpm in
-  Printf.printf "Optimizer modified code: %b\n" modified;
+  Llvm_scalar_opts.add_licm the_fpm;
+  Llvm_scalar_opts.add_loop_unswitch the_fpm;
+  Llvm_scalar_opts.add_loop_unroll the_fpm;
+  Llvm_scalar_opts.add_loop_unroll the_fpm;
+  Llvm_scalar_opts.add_loop_rotation the_fpm;
+  Llvm_scalar_opts.add_loop_idiom the_fpm;
+  Llvm_scalar_opts.add_type_based_alias_analysis the_fpm;
+  Llvm_scalar_opts.add_basic_alias_analysis the_fpm;
+  let _ : bool = PassManager.run_function llvmFn the_fpm in
   let _ : bool = PassManager.finalize the_fpm in
   PassManager.dispose the_fpm
 
@@ -97,8 +104,10 @@ module CompiledFunctionCache = struct
       | None ->
         begin
           let llvmFn : Llvm.llvalue = Imp_to_LLVM.compile_fn impFn in
-          optimize_module Imp_to_LLVM.global_module llvmFn;
           print_endline  "[LLVM_Backend.call_imp_fn] Generated LLVM function";
+          Llvm.dump_value llvmFn;
+          optimize_module Imp_to_LLVM.global_module llvmFn;
+          print_endline  "[LLVM_Backend.call_imp_fn] After optimization";
           Llvm.dump_value llvmFn;
           Llvm_analysis.assert_valid_function llvmFn;
           Hashtbl.add cache fnId llvmFn;

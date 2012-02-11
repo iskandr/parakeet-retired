@@ -35,15 +35,18 @@ let infer_adverb_axes_from_rank ?axes rank =
     | None ->
       List.map SSA_Helpers.mk_int32 (List.til rank)
 
+(* given a list of input array types, infer the largest number *)
+(* of axes feasible to map over them *)
+let max_num_axes_from_array_types argTypes : int =
+  List.min (List.map Type.rank argTypes)
+
 let infer_adverb_axes_from_args ?axes (otherArgs:value_nodes) =
   match axes with
     | Some axes -> axes
     | None ->
-      let ranks =
-        List.map (fun vnode -> Type.rank vnode.value_type) otherArgs
-      in
-      let minRank = List.min ranks in
-      List.map SSA_Helpers.mk_int32 (List.til minRank)
+      let argTypes = List.map (fun vNode -> vNode.value_type) otherArgs in
+      let numAxes = max_num_axes_from_array_types argTypes in
+      List.map SSA_Helpers.mk_int32 (List.til numAxes)
 
 let mk_map ?src closure ?axes (args:value_nodes) =
   (* if axes not specified, then infer them *)

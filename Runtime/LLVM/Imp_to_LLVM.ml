@@ -234,7 +234,7 @@ let get_array_strides_ptr (fnInfo:fn_info) (array:llvalue) : llvalue =
         strides
       )
 
-let get_array_strides_field (fnInfo:fn_info) (array:llvalue) (idx:int) : llvalue =
+let get_array_strides_field (fnInfo:fn_info) (array:llvalue) (idx:int) =
   let key = array, idx in
   match Hashtbl.find_option fnInfo.array_strides_field_cache key with
     | Some llvalue -> llvalue
@@ -270,7 +270,7 @@ let get_array_shape_ptr (fnInfo:fn_info) (array:llvalue) : llvalue =
         shape
       )
 
-let get_array_shape_field (fnInfo:fn_info) (array:llvalue) (idx:int) : llvalue =
+let get_array_shape_field (fnInfo:fn_info) (array:llvalue) (idx:int) =
   let key = array, idx in
   match Hashtbl.find_option fnInfo.array_shape_field_cache key with
     | Some llvalue -> llvalue
@@ -378,15 +378,8 @@ let rec compile_value ?(do_load=true) fnInfo (impVal:Imp.value_node) =
             build_load ptr tempName fnInfo.builder
           else ptr
       end
+
   | Imp.DimSize (arr, idx) ->
-    Printf.printf
-      "arr: %s : %s\n%!"
-      (Imp.value_to_str arr.value)
-      (ImpType.to_str arr.value_type);
-    Printf.printf
-      "idx: %s : %s\n%!"
-      (Imp.value_to_str idx.value)
-      (ImpType.to_str idx.value_type);
     let llvmArr = compile_value ~do_load:false fnInfo arr in
     let llvmIdx = compile_value fnInfo idx in
     let shape = get_array_shape_ptr fnInfo llvmArr in
