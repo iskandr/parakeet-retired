@@ -130,6 +130,12 @@ module MkAnalysis (P : TYPE_ANALYSIS_PARAMS) = struct
         ?init
         ?axes
         ~(array_arg_types:Type.t list) =
+    Printf.printf
+      "[TypeAnalysis] inferring adverb %s over fn %s with args %s\n"
+      (Prim.adverb_to_str adverb)
+      (SSA.value_to_str fn_val)
+      (Type.type_list_to_str array_arg_types)
+    ;
     if List.for_all Type.is_scalar array_arg_types then
       raise (
         TypeError("Adverbs must have at least one non-scalar argument", None))
@@ -201,7 +207,7 @@ module MkAnalysis (P : TYPE_ANALYSIS_PARAMS) = struct
         | Prim.Scan -> assert false
       end
     | SSA.Adverb(adverb, {closure_fn; closure_arg_types}, {axes;init;args}) ->
-      let argTypes = SSA_Helpers.types_of_value_nodes args in
+      let argTypes = helpers.eval_values tenv args in
       infer_adverb
         tenv
         ~adverb

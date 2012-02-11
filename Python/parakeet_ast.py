@@ -164,7 +164,7 @@ def build_call(python_fn, args):
     parakeet_fn = LibPar.mk_var(c_name, None)
   parakeet_args = list_to_ctypes_array(args,c_void_p)
   n = len(parakeet_args)
-  LOG("Call(%s,%s,%s)" % parakeet_fn, parakeet_args, n)
+  LOG("Call(%s,%s,%s)" % (parakeet_fn, parakeet_args, n))
   return LibPar.mk_app(parakeet_fn, parakeet_args, n, None)
 
 def build_prim_call(python_op_name, *args):
