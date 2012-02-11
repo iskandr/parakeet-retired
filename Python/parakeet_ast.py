@@ -12,48 +12,49 @@ SafeFunctions = {
   np.add:'add',
   abs: 'abs',
   np.arange: 'range',
-  math.exp:'exp', 
-  math.log:'log', 
-  math.pow:'pow', 
-  math.sqrt:'sqrt', 
-  parakeet_lib.map:'map', 
+  math.exp:'exp',
+  math.log:'log',
+  math.pow:'pow',
+  math.sqrt:'sqrt',
+  parakeet_lib.map:'map',
   parakeet_lib.reduce:'reduce',
 }
 
 BuiltinPrimitives = {
-  'Add':'add', 
-  'Sub':'sub', 
-  'Mult':'mult', 
-  'Div':'div', 
-  'Mod':'mod', 
-  'Pow':'pow', 
-  'LShift':None, 
-  'RShift':None, 
-  'BitOr':None, 
+  'Add':'add',
+  'Sub':'sub',
+  'Mult':'mult',
+  'Div':'div',
+  'Mod':'mod',
+  'Pow':'pow',
+  'LShift':None,
+  'RShift':None,
+  'BitOr':None,
   'BitXor':None,
   'BitAnd':None,
   'FloorDiv':None,
-  'Invert':None, 
-  'Not':'not', 
-  'And':'and', 
-  'Or':'or', 
+  'Invert':None,
+  'Not':'not',
+  'And':'and',
+  'Or':'or',
   'UAdd':None,
-  'USub':'neg', 
+  'USub':'neg',
   'Eq':'eq',
   'NotEq':'neq',
   'Lt':'lt',
-  'LtE':'lte', 
+  'LtE':'lte',
   'Gt':'gt',
   'GtE': 'gte',
-  'Is': None, 
-  'IsNot': None, 
-  'In': None, 
-  'NotIn': None, 
-  'Index': 'index', 
-  'Slice': 'slice', 
+  'Is': None,
+  'IsNot': None,
+  'In': None,
+  'NotIn': None,
+  'Index': 'index',
+  'Slice': 'slice',
 }
 #Keeps track of the user-made functions that have been made and the built-ins
 VisitedFunctions = SafeFunctions.copy()
+VisitedFunctions[np.array] = ''
 
 #global variables referenced by each function, for when they are called
 #not used yet
@@ -156,29 +157,30 @@ def build_call(python_fn, args):
   if python_fn in SafeFunctions:
     parakeet_prim_name = SafeFunctions[python_fn]
     parakeet_fn = ast_prim(parakeet_prim_name)
-    if parakeet_prim_name is None: 
+    if parakeet_prim_name is None:
       raise RuntimeError("[Parakeet] Support for %s not implemented" % python_fn)
   else:
     c_name = c_char_p(global_fn_name(python_fn))
     parakeet_fn = LibPar.mk_var(c_name, None)
   parakeet_args = list_to_ctypes_array(args,c_void_p)
   n = len(parakeet_args)
+  LOG("Call(%s,%s,%s)" % parakeet_fn, parakeet_args, n)
   return LibPar.mk_app(parakeet_fn, parakeet_args, n, None)
 
 def build_prim_call(python_op_name, *args):
   LOG("build_prim_call(%s, %s)" % (python_op_name, args))
   parakeet_args = list_to_ctypes_array(args,c_void_p)
   parakeet_op_name = BuiltinPrimitives[python_op_name]
-  if parakeet_op_name is None: 
+  if parakeet_op_name is None:
     raise RuntimeError('Prim not implemented: %s' % python_op_name)
-  else: 
-    prim = ast_prim(parakeet_op_name) 
+  else:
+    prim = ast_prim(parakeet_op_name)
   return LibPar.mk_app(prim, parakeet_args, len(parakeet_args), None)
 
-def name_of_ast_node(op): 
-  return op.__class__.__name__ 
+def name_of_ast_node(op):
+  return op.__class__.__name__
 
-def build_var(name): 
+def build_var(name):
   #Special case for booleans
   if name == 'True':
     return LibPar.mk_bool_paranode(1, None)
@@ -200,24 +202,14 @@ def build_num(str_num):
   else:
     assert False
 
-def build_parakeet_node(node, args):
-  """Build simple case syntax nodes which don't involve function arguments""" 
+def build_simple_parakeet_node(node, args):
+  """Build simple case syntax nodes which don't involve function arguments"""
   #args is the children nodes in the correct type (i.e. node or literal)
   node_type = name_of_ast_node(node)
   # either variable name or bool literal
-  print "build_parakeet_node", node, args
+  print "build_simple_parakeet_node", node, args
   if node_type == 'Name':
     return build_var(args[0])
-
-  elif node_type == 'Assign':
-    print "Assign args", args
-    LOG("assign(%s, %s)" % (args[0][0], args[1]))
-    lhs_list = args[0]
-    lhs_array_ptr = list_to_ctypes_array(lhs_list, c_void_p)
-    num_lhs_ids = len(lhs_list)
-    rhs = args[1]
-    return LibPar.mk_assign(lhs_array_ptr, num_lhs_ids, rhs, 0)
-    #Mk a def where the target is the index node
   elif node_type == 'BinOp':
     return build_prim_call(name_of_ast_node(node.op), args[0], args[2])
   elif node_type == 'UnaryOp':
@@ -233,8 +225,6 @@ def build_parakeet_node(node, args):
     #return args[0]
   elif node_type == 'Num':
     return build_num(args[0])
-  elif node_type == 'Call':
-    raise RuntimeError ('[Parakeet] Unexpected Call node')
   elif node_type == 'Module':
     LOG("block(%s)" % str(args))
     return build_parakeet_block(args[0])
@@ -262,7 +252,7 @@ def build_parakeet_node(node, args):
 ###############################################################################
 class ASTConverter():
   def __init__(self, global_vars, arg_names):
-    self.seen_functions = set([]) 
+    self.seen_functions = set([])
     self.arg_names = arg_names
     self.global_variables = global_vars
 
@@ -285,124 +275,8 @@ class ASTConverter():
       else:
         raise ParakeetUnsupported(
             "lists and tuples are not supported outside of numpy arrays")
-    elif nodeType == 'Call':
-      funRef = self.get_function_ref(node.func)
-      childContext = set(contextSet)
-      if funRef == np.array:
-        childContext.add('array')
-        assert len(node.args) == 1
-        return self.visit(node.args[0], childContext)
-
-      elif funRef == parakeet_lib.map:
-        fun_arg = self.build_arg_list([node.args[0]], childContext)
-        arr_args = self.build_arg_list(node.args[1:], childContext)
-        kw_args = {'fixed': build_parakeet_array([]),
-                   'axis': LibPar.mk_void(None)
-                  }
-        childContext.add('rhs')
-        childContext.add('array')
-        for kw_arg in node.keywords:
-          kw = kw_arg.arg
-          val = kw_arg.value
-          if type(val).__name__ == 'List':
-            val_args = []
-            for v_arg in val.elts:
-              val_args.append(self.visit(v_arg, childContext))
-            kw_args[kw] = self.build_parakeet_array(val_args)
-          else:
-            val = self.visit(kw_arg.value, childContext)
-            kw_args[kw] = build_parakeet_array([val])
-        args = fun_arg
-        para_arr_args = build_parakeet_array(arr_args)
-        args.append(para_arr_args)
-        args.append(kw_args['fixed'])
-        args.append(kw_args['axis'])
-        return build_call(funRef, args)
-      elif funRef == parakeet_lib.reduce:
-        fun_arg = self.build_arg_list([node.args[0]], childContext)
-        arr_args = self.build_arg_list(node.args[1:], childContext)
-        print arr_args
-        kw_args = {'fixed': build_parakeet_array([]),
-                   'axis': LibPar.mk_void(None),
-                   'default':LibPar.mk_void(None)
-                  }
-        childContext.add('rhs')
-        childContext.add('array')
-        for kw_arg in node.keywords:
-          kw = kw_arg.arg
-          val = kw_arg.value
-          if type(val).__name__ == 'List':
-            val_args = []
-            for v_arg in val.elts:
-              val_args.append(self.visit(v_arg, childContext))
-            kw_args[kw] = build_parakeet_array(val_args)
-          else:
-            val = self.visit(kw_arg.value, childContext)
-            kw_args[kw] = build_parakeet_array([val])
-        args = fun_arg
-        para_arr_args = build_parakeet_array(arr_args)
-        args.append(para_arr_args)
-        args.append(kw_args['fixed'])
-        args.append(kw_args['axis'])
-        args.append(kw_args['default'])
-        return build_call(funRef, args)
-      else:
-        funArgs = self.build_arg_list(node.args, childContext)
-        return build_call(funRef, funArgs)
-    elif nodeType == 'Subscript':
-      args = []
-      args.append(self.visit(node.value, contextSet))
-      slice_type = type(node.slice).__name__
-      if slice_type == "Index":
-        index_type = type(node.slice.value).__name__
-        if index_type == "Tuple":
-          for index_arg in node.slice.value.elts:
-            args.append(self.visit(index_arg, contextSet))
-        else:
-          args.append(self.visit(node.slice.value, contextSet))
-      else:
-        raise ParakeetUnsupported(
-            "slicing of type %s is not supported" % slice_type)
-      return build_parakeet_node(node, args)
-      #args[1]...[n+1] is what's inside the tuple, not the tuple itself
-      #[args[0], args[1],....,args[n+1]]
-
-    elif nodeType == 'Return':
-      #Might not be right for no return
-      if node.value is None:
-        return LibPar.mk_return(None, 0,None)
-      elif type(node.value).__name__ == "Tuple":
-        children = ast.iter_child_nodes(node.value)
-        elts = self.build_arg_list(children, contextSet)
-        ret_args = list_to_ctypes_array(elts, c_void_p)
-        return LibPar.mk_return(ret_args,len(elts),None)
-      else:
-        ret = self.visit(node.value, contextSet)
-        ret_args = list_to_ctypes_array([ret], c_void_p)
-        return LibPar.mk_return(ret_args,1,None)
-    elif nodeType == 'Assign':
-      print "In assign"
-      leftChildContext = set(contextSet)
-      rightChildContext = set(contextSet)
-      leftChildContext.add('lhs')
-      rightChildContext.add('rhs')
-      if len(node.targets) != 1:
-        #This shouldn't happen
-        assert False
-      if type(node.targets[0]).__name__ == "Tuple":
-        children = ast.iter_child_nodes(node.targets[0])
-        elts = self.build_arg_list(children, leftChildContext)
-        lhs_args = list_to_ctypes_array(elts, c_void_p)
-        num_args = len(elts)
-      else:
-        elt = self.visit(node.targets[0], leftChildContext)
-        lhs_args = list_to_ctypes_array([elt], c_void_p)
-        num_args = 1
-        #LibPar.print_ast_node(elt)
-      rhs_arg = self.visit(node.value, rightChildContext)
-      print "before mk_assign"
-      return LibPar.mk_assign(lhs_args, num_args, rhs_arg, None)
-
+    elif nodeType in ['Call', 'Subscript', 'Return', 'Assign']:
+      return self.build_complex_parakeet_node(node,contextSet)
     parakeetNodeChildren = []
     for childName, childNode in ast.iter_fields(node):
       #######################################################################
@@ -410,7 +284,7 @@ class ASTConverter():
       #######################################################################
       if isinstance(childNode, ast.AST):
         # Don't need to visit the function node since
-        # it will be handled directly by 'build_parakeet_node'
+        # it will be handled directly by 'build_simple_parakeet_node'
         if nodeType == 'Call' and childName == 'func': continue
         childContext = set(contextSet)
         # if you're a single child whose parent's nodeType is assign
@@ -441,10 +315,10 @@ class ASTConverter():
             if nodeType == 'Name':
               raise ParakeetUnsupported(str(childNode) +
                                         " is a global variable")
-        # assume last arg to build_parakeet_node for literals is a string
+        # assume last arg to build_simple_parakeet_node for literals is a string
         parakeetNodeChildren.append(str(childNode))
 
-    return build_parakeet_node(node, parakeetNodeChildren)
+    return build_simple_parakeet_node(node, parakeetNodeChildren)
 
   def build_arg_list(self, python_nodes,  contextSet):
     results = []
@@ -499,6 +373,109 @@ class ASTConverter():
     self.seen_functions.add(funRef)
     return funRef
 
+  def build_complex_parakeet_node(self,node,contextSet):
+    nodeType = type(node).__name__
+    if nodeType == 'Call':
+      funRef = self.get_function_ref(node.func)
+      childContext = set(contextSet)
+      if funRef == np.array:
+        childContext.add('array')
+        assert len(node.args) == 1
+        return self.visit(node.args[0], childContext)
+      elif funRef == parakeet_lib.map or funRef == parakeet_lib.reduce:
+        fun_arg = self.build_arg_list([node.args[0]], childContext)
+        arr_args = self.build_arg_list(node.args[1:], childContext)
+        kw_args = {'fixed': build_parakeet_array([]),
+                   'axis': LibPar.mk_void(None)
+                  }
+        if funRef == parakeet_lib.reduce:
+          kw_args['default'] = LibPar.mk_void(None)
+        childContext.add('rhs')
+        childContext.add('array')
+        for kw_arg in node.keywords:
+          kw = kw_arg.arg
+          val = kw_arg.value
+          if type(val).__name__ == 'List':
+            val_args = []
+            for v_arg in val.elts:
+              val_args.append(self.visit(v_arg, childContext))
+            kw_args[kw] = self.build_parakeet_array(val_args)
+          else:
+            val = self.visit(kw_arg.value, childContext)
+            kw_args[kw] = build_parakeet_array([val])
+        args = fun_arg
+        para_arr_args = build_parakeet_array(arr_args)
+        args.append(para_arr_args)
+        args.append(kw_args['fixed'])
+        args.append(kw_args['axis'])
+        if funRef == parakeet_lib.reduce:
+          args.append(kw_args['default'])
+        return build_call(funRef, args)
+      else:
+        funArgs = self.build_arg_list(node.args, childContext)
+        return build_call(funRef, funArgs)
+    elif nodeType == 'Subscript':
+      args = []
+      args.append(self.visit(node.value, contextSet))
+      slice_type = type(node.slice).__name__
+      if slice_type == "Index":
+        index_type = type(node.slice.value).__name__
+        if index_type == "Tuple":
+          for index_arg in node.slice.value.elts:
+            args.append(self.visit(index_arg, contextSet))
+        else:
+          args.append(self.visit(node.slice.value, contextSet))
+      else:
+        raise ParakeetUnsupported(
+            "slicing of type %s is not supported" % slice_type)
+      return build_simple_parakeet_node(node, args)
+      #args[1]...[n+1] is what's inside the tuple, not the tuple itself
+      #[args[0], args[1],....,args[n+1]]
+
+    elif nodeType == 'Return':
+      #Might not be right for no return
+      if node.value is None:
+        LOG("return()")
+        return LibPar.mk_return(None, 0,None)
+      elif type(node.value).__name__ == "Tuple":
+        children = ast.iter_child_nodes(node.value)
+        elts = self.build_arg_list(children, contextSet)
+        ret_args = list_to_ctypes_array(elts, c_void_p)
+        LOG("return(%s,%s)" % (ret_args,len(elts)))
+        return LibPar.mk_return(ret_args,len(elts),None)
+      else:
+        ret = self.visit(node.value, contextSet)
+        ret_args = list_to_ctypes_array([ret], c_void_p)
+        LOG("return(%s,%s)" % (ret_args,1))
+        return LibPar.mk_return(ret_args,1,None)
+    elif nodeType == 'Assign':
+      print "In assign"
+      leftChildContext = set(contextSet)
+      rightChildContext = set(contextSet)
+      leftChildContext.add('lhs')
+      rightChildContext.add('rhs')
+      if len(node.targets) != 1:
+        #This shouldn't happen
+        assert False
+      if type(node.targets[0]).__name__ == "Tuple":
+        children = ast.iter_child_nodes(node.targets[0])
+        elts = self.build_arg_list(children, leftChildContext)
+        lhs_args = list_to_ctypes_array(elts, c_void_p)
+        num_args = len(elts)
+      else:
+        elt = self.visit(node.targets[0], leftChildContext)
+        lhs_args = list_to_ctypes_array([elt], c_void_p)
+        num_args = 1
+        #LibPar.print_ast_node(elt)
+      rhs_arg = self.visit(node.value, rightChildContext)
+      print "before mk_assign"
+      LOG("assign(%s,%s,%s)" % (lhs_args, num_args, rhs_arg))
+      return LibPar.mk_assign(lhs_args, num_args, rhs_arg, None)
+    else:
+      raise RuntimerError("[Parakeet] %s not supported in build_complex_" +
+                          "parakeet_node" % nodeType)
+
+
 ###############################################################################
 #  Function Registration
 ###############################################################################
@@ -506,7 +483,7 @@ class ASTConverter():
 def register_function(f):
   info = function_info(f)
   LOG("[Parakeet] Registering %s : %s" % (f, info))
-  if info is None: 
+  if info is None:
     raise RuntimerError("[Parakeet] Couldn't get info for function %s" % f)
   else:
     print "[parse_function] Parsing", info[1]
@@ -534,7 +511,7 @@ def register_function(f):
 
     fun_name = f.__module__ + "." + f.__name__
     c_str = c_char_p(fun_name)
-    fun_id = c_int( 
+    fun_id = c_int(
       LibPar.register_untyped_function(
         c_str, globals_array, n_globals, arg_array, n_args, parakeet_syntax))
 
