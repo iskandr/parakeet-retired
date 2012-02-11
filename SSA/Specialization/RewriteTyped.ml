@@ -113,9 +113,15 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
 
   let coerce_values t vs = List.map (coerce_value t) vs
 
-  let rewrite_adverb src adverb fnVal ?arg_types ?init ?axes argNodes  =
+  let rewrite_adverb src adverb fnVal
+        ?(closure_args=[])
+        ?arg_types
+        ?init
+        ?axes
+        argNodes  =
     assert (init=None);
     assert (axes=None);
+    assert (closure_args=[]);
     let argTypes = match arg_types with
       | None -> SSA_Helpers.types_of_value_nodes argNodes
       | Some types -> types
