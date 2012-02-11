@@ -113,7 +113,13 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
 
   let coerce_values t vs = List.map (coerce_value t) vs
 
-  let rewrite_adverb src adverb fnVal argNodes argTypes =
+  let rewrite_adverb src adverb fnVal ?arg_types ?init ?axes argNodes  =
+    assert (init=None);
+    assert (axes=None);
+    let argTypes = match arg_types with
+      | None -> SSA_Helpers.types_of_value_nodes argNodes
+      | Some types -> types
+    in
     match adverb with
       | Prim.Map ->
         let eltTypes = List.map Type.peel argTypes in
@@ -179,7 +185,7 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
     | Prim ((Prim.ScalarOp op) as p) ->
       let outT = TypeInfer.infer_scalar_op op argTypes in
       if Type.is_array outT then
-        rewrite_adverb src Prim.Map fnVal argNodes argTypes
+        rewrite_adverb src Prim.Map fnVal ~arg_types:argTypes argNodes
       else
         (* most scalar ops expect all their arguments to be of the same*)
         (* type, except for Select, whose first argument is always a bool *)
@@ -205,7 +211,7 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
     | Prim (Prim.Adverb adverb) ->
       begin match argNodes, argTypes with
         | fn::args, _::argTypes ->
-          rewrite_adverb src adverb fn.value args argTypes
+          rewrite_adverb src adverb fn.value ~arg_types:argTypes args
         | _ -> assert false
       end
     | GlobalFn _ ->
@@ -219,13 +225,16 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
   let rewrite_exp types expNode =
     match expNode.exp, types with
       | Arr elts, [Type.ArrayT(eltT, _)] ->
-          let elts' = coerce_values (Type.ScalarT eltT) elts in
-          {expNode with exp = Arr elts'; exp_types = types}
+        let elts' = coerce_values (Type.ScalarT eltT) elts in
+        {expNode with exp = Arr elts'; exp_types = types}
       | Values vs, _ ->
-          let vs' = List.map2 coerce_value types vs in
-          {expNode with exp = Values vs'; exp_types = types }
+        let vs' = List.map2 coerce_value types vs in
+        {expNode with exp = Values vs'; exp_types = types }
       | App (fn, args), _ ->
-          rewrite_app expNode.exp_src fn (annotate_values args)
+        rewrite_app expNode.exp_src fn (annotate_values args)
+      | Adverb (adverb, {closure_fn; closure_args}, {init; axes; args}), _ ->
+        let args' = annotate_values args in
+        rewrite_adverb expNode.exp_src adverb (GlobalFn closure_fn) args'
       | _ -> failwith $
                Printf.sprintf
                  "[RewriteTyped] Type specialization for %s not implemented"

@@ -104,10 +104,8 @@ module CompiledFunctionCache = struct
       | None ->
         begin
           let llvmFn : Llvm.llvalue = Imp_to_LLVM.compile_fn impFn in
-          print_endline  "[LLVM_Backend.call_imp_fn] Generated LLVM function";
-          Llvm.dump_value llvmFn;
           optimize_module Imp_to_LLVM.global_module llvmFn;
-          print_endline  "[LLVM_Backend.call_imp_fn] After optimization";
+          print_endline  "[LLVM_Backend.call_imp_fn] Generated LLVM function";
           Llvm.dump_value llvmFn;
           Llvm_analysis.assert_valid_function llvmFn;
           Hashtbl.add cache fnId llvmFn;
