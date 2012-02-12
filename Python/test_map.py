@@ -16,7 +16,6 @@ def test_implicit_map():
   print "Python = %s, Parakeet = %s" % (y_original, y)
   assert np.all(y_original == y)
 
-
 @PAR
 def custom_map_add(x):
   return parakeet.map(parakeet.add, x, x)
@@ -28,7 +27,6 @@ def test_custom_map_add():
   y_original = custom_map_add.call_original(x)
   print "Python = %s, Parakeet = %s" % (y_original, y)
   assert np.all(y_original == y)
-
 
 if __name__ == '__main__':
   test_implicit_map()
