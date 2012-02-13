@@ -39,5 +39,5 @@ def test_map_add_2d():
 if __name__ == '__main__':
   test_implicit_map()
   test_map_add_1d()
-  #test_map_add_2d()
+  test_map_add_2d()
 

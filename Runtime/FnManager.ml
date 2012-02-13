@@ -123,15 +123,14 @@ let add_specialization
     in
     let errorLog = TypeCheck.check_fn typedFn in
     if not $ Queue.is_empty errorLog then (
-      print_string "\n --- ";
       Printf.printf
-        "Errors in specialization of %s for signature \"%s\"\n"
+        "\n --- Errors in specialization of %s for signature \"%s\"\n"
         untypedValStr
         (Signature.to_str signature)
       ;
       Printf.printf "%s\n" (SSA.fn_to_str typedFn);
       TypeCheck.print_all_errors errorLog;
-      exit 1
+      failwith "Specialized function malformed"
     )
     else
       Printf.printf "\nSpecialized %s for signature \"%s\": \n %s \n"

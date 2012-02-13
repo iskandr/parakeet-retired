@@ -55,13 +55,22 @@ let mk_typed_scalar_prim (op : Prim.scalar_op) ?optOutType argTypes =
     let outputVar = List.hd outputs in
     codegen#emit [[outputVar] := primAppNode]
 
-let mk_typed_map_fn ?src nestedfn inputTypes =
-  let nestedOutputTypes = nestedfn.SSA.fn_output_types in
-  let outTypes = Type.increase_ranks 1  nestedOutputTypes in
+let mk_typed_map_fn ?src (nestedfn:SSA.fn) ~(num_axes:int) inputTypes =
+  IFDEF DEBUG THEN
+    Printf.printf
+      "[Specialize.mk_typed_map] nested_fn=%s, num_axes=%d, input_types=%s\n"
+      (FnId.to_str nestedfn.fn_id)
+      num_axes
+      (Type.type_list_to_str inputTypes)
+    ;
+  ENDIF;
+  let outTypes = Type.increase_ranks num_axes nestedfn.SSA.fn_output_types in
   let closure = mk_closure nestedfn [] in
+  (* no need to specify the implict 0..numAxes list of axes since *)
+  (* mk_map will automatically create that list when an ?axes argument *)
+  (* isn't given *)
   SSA_Codegen.mk_codegen_fn inputTypes outTypes $ fun codegen inputs outputs ->
-    codegen#emit [outputs := (mk_map ?src closure inputs )]
-
+    codegen#emit [outputs := (SSA_AdverbHelpers.mk_map ?src closure inputs)]
 
 (* 1) some statements (ie, those involving array ops)
       make a function definitely not a scalar-only function.
@@ -91,6 +100,12 @@ and is_scalar_block block =
 
 
 let rec specialize_fn fn signature =
+  IFDEF DEBUG THEN
+    Printf.printf
+      "[Specialize.specialize_fn] %s :: %s\n"
+      (FnId.to_str fn.fn_id)
+      (Signature.to_str signature)
+  ENDIF;
   (* first check to see whether we're mapping a function of scalar operators*)
   (* over vector data. if so, rather than creating a large number of Map nodes *)
   (* and then merging them we directly create a single Map. *)
@@ -119,8 +134,18 @@ let rec specialize_fn fn signature =
   typedFn
 
 and scalarize_fn untyped vecSig =
+  IFDEF DEBUG THEN
+    Printf.printf "[Specialize.scalarize_fn] %s :: %s\n"
+      (FnId.to_str untyped.fn_id)
+      (Signature.to_str vecSig);
+  ENDIF;
   let inTypes = Signature.input_types vecSig in
-  let scalarSig = Signature.from_input_types (List.map Type.peel inTypes) in
+  let numAxes = SSA_AdverbHelpers.max_num_axes_from_array_types inTypes in
+  let scalarTypes = List.map (Type.peel ~num_axes:numAxes) inTypes in
+  IFDEF DEBUG THEN
+    assert (List.for_all Type.is_scalar scalarTypes);
+  ENDIF;
+  let scalarSig = Signature.from_input_types scalarTypes in
   let scalarFn = specialize_value (SSA.GlobalFn untyped.fn_id) scalarSig in
   let scalarOutputTypes = scalarFn.fn_output_types in
   let outTypes = List.map (Type.increase_rank 1) scalarOutputTypes in
@@ -132,9 +157,9 @@ and scalarize_fn untyped vecSig =
     ]
   )
 
-and specialize_value  fnVal signature =
+and specialize_value fnVal signature =
   IFDEF DEBUG THEN
-    Printf.printf "Specialize_Value %s :: %s\n%!"
+    Printf.printf "[Specialize.specialize_value] %s :: %s\n%!"
       (SSA.value_to_str fnVal)
       (Signature.to_str signature)
     ;
@@ -157,15 +182,25 @@ and specialize_value  fnVal signature =
             if List.for_all Type.is_scalar inputTypes then
              mk_typed_scalar_prim op ?optOutType inputTypes
           else
-            let nestedInputTypes = List.map Type.peel inputTypes in
+            (* if we're adding two arrays, then turn it into a map over both *)
+            (* axes, but if we're adding an array to a vector we can only map*)
+            (* over one axis *)
+            let maxRank =
+              SSA_AdverbHelpers.max_num_axes_from_array_types inputTypes
+            in
+            let nestedInputTypes =
+              List.map (Type.peel ~num_axes:maxRank) inputTypes
+            in
             let nestedSig =
               match optOutType with
                 | None -> Signature.from_input_types nestedInputTypes
                 | Some outT ->
-                  Signature.from_types nestedInputTypes [Type.peel outT]
+                  Signature.from_types
+                    nestedInputTypes
+                    [Type.peel ~num_axes:maxRank outT]
             in
             let nestedFn = specialize_value fnVal nestedSig in
-            mk_typed_map_fn nestedFn inputTypes
+            mk_typed_map_fn nestedFn ~num_axes:maxRank inputTypes
           in
           FnManager.add_specialization ~optimize:false fnVal signature typed;
           typed
@@ -181,8 +216,4 @@ and specialize_value  fnVal signature =
       | _ -> assert false
     )
 
-and specialize_fn_id fnId signature =
-  IFDEF DEBUG THEN
-    Printf.printf "Specialize_Function_Id...\n%!";
-  ENDIF;
-  specialize_value (GlobalFn fnId) signature
+let specialize_fn_id fnId signature = specialize_value (GlobalFn fnId) signature

@@ -100,7 +100,13 @@ module MkAnalysis (P : TYPE_ANALYSIS_PARAMS) = struct
   let phi_merge tenv id tLeft tRight =
     phi_set tenv id (Type.common_type tLeft tRight)
 
-  let rec infer_app tenv fnVal (argTypes:Type.t list) = match fnVal with
+  let rec infer_app tenv fnVal (argTypes:Type.t list) =
+    IFDEF DEBUG THEN
+      Printf.printf "[TypeAnalysis.infer_app] %s(%s)\n"
+        (SSA.value_to_str fnVal)
+        (Type.type_list_to_str argTypes)
+    ENDIF;
+    match fnVal with
     | Prim (Prim.ArrayOp arrayOp) ->
       [TypeInfer.infer_simple_array_op arrayOp argTypes]
     | Prim (Prim.ScalarOp scalarOp) ->
@@ -158,7 +164,6 @@ module MkAnalysis (P : TYPE_ANALYSIS_PARAMS) = struct
         in
         raise (TypeError(msg, None))
     in
-
     match adverb with
     | Prim.Map ->
       if init <> None then
@@ -177,7 +182,7 @@ module MkAnalysis (P : TYPE_ANALYSIS_PARAMS) = struct
       ;
       accTypes
     | Prim.AllPairs ->
-        let eltTypes = List.map Type.peel argTypes in
+        let eltTypes = List.map (Type.peel ~num_axes:numAxes) argTypes in
         let outTypes = infer_app tenv fnVal  eltTypes in
         Type.increase_ranks 2 outTypes
 *)
