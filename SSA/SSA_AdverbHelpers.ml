@@ -40,6 +40,13 @@ let infer_adverb_axes_from_rank ?axes rank =
 let max_num_axes_from_array_types argTypes : int =
   List.min (List.map Type.rank argTypes)
 
+let infer_adverb_axes_from_types ?axes (types:Type.t list) =
+  match axes with
+  | Some axes -> axes
+  | None ->
+    let numAxes = max_num_axes_from_array_types types in
+    List.map SSA_Helpers.mk_int32 (List.til numAxes)
+
 let infer_adverb_axes_from_args ?axes (otherArgs:value_nodes) =
   match axes with
     | Some axes -> axes

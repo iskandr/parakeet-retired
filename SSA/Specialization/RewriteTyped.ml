@@ -119,6 +119,14 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
         ?init
         ?axes
         argNodes  =
+    IFDEF DEBUG THEN
+      Printf.printf
+        "[RewriteTyped.rewrite_adverb] %s(fn=%s, args=[%s])\n"
+        (Prim.adverb_to_str adverb)
+        (SSA.value_to_str fnVal)
+        (SSA.value_nodes_to_str argNodes)
+      ;
+    ENDIF;
     assert (init=None);
     assert (axes=None);
     assert (closure_args=[]);
@@ -126,9 +134,11 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
       | None -> SSA_Helpers.types_of_value_nodes argNodes
       | Some types -> types
     in
+    let axes = SSA_AdverbHelpers.infer_adverb_axes_from_types ?axes argTypes in
+    let numAxes = List.length axes in
     match adverb with
       | Prim.Map ->
-        let eltTypes = List.map Type.peel argTypes in
+        let eltTypes = List.map (Type.peel ~num_axes:numAxes) argTypes in
         let closure =
           mk_typed_closure fnVal (Signature.from_input_types eltTypes)
         in
@@ -185,6 +195,12 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
     mk_primapp ?src indexOp  ~output_types:outTypes (arrNode::args)
 
   let rewrite_app src fn argNodes : exp_node =
+    IFDEF DEBUG THEN
+      Printf.printf "[RewriteTyped.rewrite_app] %s(%s)\n"
+        (SSA.value_node_to_str fn)
+        (SSA.value_nodes_to_str argNodes)
+      ;
+    ENDIF;
     let argTypes = List.map (fun v -> v.value_type) argNodes in
     let fnVal = fn.value in
     match fnVal with
