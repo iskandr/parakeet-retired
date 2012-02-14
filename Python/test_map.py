@@ -37,6 +37,17 @@ def test_map_add_2d():
   print "Python = %s, Parakeet = %s" % (y_original, y)
   assert np.all(y_original == y)
 
+@PAR
+def map_mult(x,y):
+  return parakeet.map(parakeet.mult, x, y)
+
+def test_map():
+  x = np.array([10, 0, 10, 20])
+  z = map_mult(x, fixed=[3])
+  z_original = map_mult.call_original(x,y)
+  print "Python %s, Parakeet %s" % (y_original, y)
+  assert np.all(y_original == y) 
+
 
 if __name__ == '__main__':
   test_implicit_map()
