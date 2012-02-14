@@ -3,15 +3,19 @@ open Imp
 open ImpHelpers
 open Imp_to_LLVM
 open Llvm
-open LLVM_CPU_Work_Queue
 open Value
 
-module LLE = Llvm_executionengine.ExecutionEngine
 module GV = Llvm_executionengine.GenericValue
+module LLE = Llvm_executionengine.ExecutionEngine
 
 let _ = Llvm_executionengine.initialize_native_target()
 let execution_engine = LLE.create Imp_to_LLVM.global_module
 
+(** Multithreaded CPU Work Queue **)
+external create_work_queue : int -> Int64.t = "ocaml_create_work_queue"
+external destroy_work_queue : Int64.t -> unit = "ocaml_destroy_work_queue"
+external do_work : Int64.t -> LLE.t -> llvalue -> GV.t list list -> unit =
+    "ocaml_do_work"
 (* TODO: For now, hard code the number of threads *)
 let work_queue = create_work_queue 8
 
