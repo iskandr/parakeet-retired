@@ -115,6 +115,7 @@ let rec specialize_fn fn signature =
   let inTypes = Signature.input_types signature in
   let ranks = List.map Type.rank inTypes in
   let maxRank = List.fold_left max 0 ranks in
+
   if not (Signature.has_output_types signature) &&
      maxRank > 0 &&
      List.for_all (fun r -> r = 0 || r = maxRank) ranks &&
@@ -143,7 +144,16 @@ and scalarize_fn untyped vecSig =
   let numAxes = SSA_AdverbHelpers.max_num_axes_from_array_types inTypes in
   let scalarTypes = List.map (Type.peel ~num_axes:numAxes) inTypes in
   IFDEF DEBUG THEN
-    assert (List.for_all Type.is_scalar scalarTypes);
+    Printf.printf
+      "[Specialize.scalar_fn] num_axes = %d, scalar_types = %s\n"
+      numAxes
+      (Type.type_list_to_str scalarTypes)
+  ENDIF;
+  IFDEF DEBUG THEN
+    if not (List.for_all Type.is_scalar scalarTypes) then
+      failwith $ Printf.sprintf
+        "Expected all inputs to be scalars, got %s"
+        (Type.type_list_to_str scalarTypes)
   ENDIF;
   let scalarSig = Signature.from_input_types scalarTypes in
   let scalarFn = specialize_value (SSA.GlobalFn untyped.fn_id) scalarSig in

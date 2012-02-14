@@ -52,6 +52,10 @@ BuiltinPrimitives = {
   'Index': 'index',
   'Slice': 'slice',
 }
+
+adverbs = [parakeet_lib.map, parakeet_lib.reduce, parakeet_lib.allpairs, parakeet_lib.scan]
+
+
 #Keeps track of the user-made functions that have been made and the built-ins
 VisitedFunctions = SafeFunctions.copy()
 VisitedFunctions[np.array] = ''
@@ -372,7 +376,7 @@ class ASTConverter():
       raise RuntimeError("[Parakeet] Call.func shouldn't be", name)
     self.seen_functions.add(funRef)
     return funRef
-
+  
   def build_complex_parakeet_node(self,node,contextSet):
     nodeType = type(node).__name__
     if nodeType == 'Call':
@@ -382,7 +386,7 @@ class ASTConverter():
         childContext.add('array')
         assert len(node.args) == 1
         return self.visit(node.args[0], childContext)
-      elif funRef == parakeet_lib.map or funRef == parakeet_lib.reduce:
+      elif funRef in adverbs:
         fun_arg = self.build_arg_list([node.args[0]], childContext)
         arr_args = self.build_arg_list(node.args[1:], childContext)
         kw_args = {'fixed': build_parakeet_array([]),
@@ -399,7 +403,7 @@ class ASTConverter():
             val_args = []
             for v_arg in val.elts:
               val_args.append(self.visit(v_arg, childContext))
-            kw_args[kw] = self.build_parakeet_array(val_args)
+            kw_args[kw] = build_parakeet_array(val_args)
           else:
             val = self.visit(kw_arg.value, childContext)
             kw_args[kw] = build_parakeet_array([val])

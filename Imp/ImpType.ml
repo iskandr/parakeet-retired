@@ -87,5 +87,5 @@ let peel ?(num_axes=1) = function
     if diff = 0 then ScalarT eltT
     else if diff > 0 then ArrayT (eltT, diff)
     else failwith "[ImpType.peel] Too many axes"
-  | ScalarT _ -> failwith "[ImpType.peel] Can't peel a scalar"
+  | ScalarT eltT -> ScalarT eltT
   | _ -> failwith "Not implemented"

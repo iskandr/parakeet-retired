@@ -23,12 +23,18 @@ def all(x):
 def add(x,y):
   return x+y
 
+def mult(x,y):
+  return x*y 
+
 def sum(x, axis=None):
   return reduce(add, x, axis=axis, default=0)
 
 def mean(x, axis=None):
   total = sum(x, axis=axis)
   return total*1. / len(x)
+
+def dot(x,y):
+  return sum(x*y)
 
 #-----Map/Reduce/Scan
 
@@ -152,6 +158,12 @@ def reduce(function, *args, **kwargs):
       ans = np.array(prev_res)
       prev_res = [prev_res]
   return ans
+
+def allpairs(f, x, y, fixed=None, axes=None):
+  assert False
+
+def scan(f, *args, **kwargs):
+  assert False
 
 def addMultipleRet(x,bo,st,y):
   return y+x, True, "Fish"
