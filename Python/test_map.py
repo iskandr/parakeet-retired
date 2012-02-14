@@ -4,7 +4,7 @@ import parakeet
 from parakeet import PAR
 import sys
 
-#@PAR 
+@PAR 
 def implicit_map(x):
   return x * 3
 
@@ -16,13 +16,13 @@ def test_implicit_map():
   print "Python = %s, Parakeet = %s" % (y_original, y)
   assert np.all(y_original == y)
 
-#@PAR
+@PAR
 def map_add(x):
   return parakeet.map(parakeet.add, x, x)
 
 def test_map_add_1d():
   print "Testing user-defined map of add operator over 1D data" 
-  x = np.array([-10, 0, 10, 20])
+  x = np.random.randint(100, size=2000)
   y = map_add(x)
   y_original = map_add.call_original(x)
   print "Python = %s, Parakeet = %s" % (y_original, y)
@@ -30,7 +30,7 @@ def test_map_add_1d():
 
 def test_map_add_2d():
   print "Testing user-defined map of add operator over 2D data"
-  x = np.array([[1,2,3],[4,5,6]])
+  x = np.random.randint(100, size=(1000, 100))
   y = map_add(x)
   y_original = map_add.call_original(x)
   print "Python = %s, Parakeet = %s" % (y_original, y)
@@ -47,7 +47,7 @@ def test_mult():
   print "Python %s, Parakeet %s" % (y_original, y)
   assert np.all(y_original == y) 
 
-@PAR 
+#@PAR 
 def map_mult_rows(mat, row):
   return parakeet.map(parakeet.mult, mat, row, axis=[0])
 
@@ -60,9 +60,9 @@ def test_mult_rows():
   assert np.all(z == z_o)
 
 if __name__ == '__main__':
-  #test_implicit_map()
-  #test_map_add_1d()
-  #test_map_add_2d()
+  test_implicit_map()
+  test_map_add_1d()
+  test_map_add_2d()
   #test_mult()
-  test_mult_rows()
+  #test_mult_rows()
 
