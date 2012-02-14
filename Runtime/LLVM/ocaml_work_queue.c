@@ -15,6 +15,7 @@
 #include <caml/mlvalues.h>
 #include <llvm-c/Core.h>
 #include <llvm-c/ExecutionEngine.h>
+#include <stdio.h>
 
 #include "llvm_multithreading.h"
 
@@ -28,9 +29,6 @@ void execute_work_item(work_item_t *work_item) {
                                                work_item->binary,
                                                work_item->num_args,
                                                work_item->args);
-
-  // For now, don't return anything.
-  //return Result;
 }
 
 value ocaml_create_work_queue(value num_threads) {
@@ -61,12 +59,13 @@ value ocaml_destroy_work_queue(value ocaml_work_queue) {
   CAMLreturn(Val_unit);
 }
 
-value ocaml_do_work(cpu_work_queue_t *work_queue,
+value ocaml_do_work(value ocaml_work_queue,
                     LLVMExecutionEngineRef ee,
                     LLVMValueRef binary,
                     value ocaml_work_item_list) {
-  CAMLparam1(ocaml_work_item_list);
+  CAMLparam2(ocaml_work_queue, ocaml_work_item_list);
   CAMLlocal3(ocaml_cur_work_item, ocaml_arg_list, ocaml_cur_arg);
+  cpu_work_queue_t *work_queue = Int64_val(ocaml_work_queue);
 
   // Convert the OCaml work_list into the C work_list.
   int len = ocaml_list_length(ocaml_work_item_list);
@@ -83,7 +82,7 @@ value ocaml_do_work(cpu_work_queue_t *work_queue,
         malloc(work_list[i].num_args * sizeof(LLVMGenericValueRef));
     ocaml_cur_arg = ocaml_arg_list;
     for (j = 0; j < work_list[i].num_args; ++j) {
-      work_list[i].args[i] =
+      work_list[i].args[j] =
           *(LLVMGenericValueRef*)(Data_custom_val(Field(ocaml_cur_arg, 0)));
       ocaml_cur_arg = Field(ocaml_cur_arg, 1);
     }
@@ -103,7 +102,7 @@ static int ocaml_list_length(value ocaml_list) {
   int i = 0;
   cur = ocaml_list;
   while (cur != Val_int(0)) {
-    cur = Field(ocaml_list, 1);
+    cur = Field(cur, 1);
     ++i;
   }
   CAMLreturnT(int, i);

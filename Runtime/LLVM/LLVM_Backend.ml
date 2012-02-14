@@ -4,6 +4,7 @@ open ImpHelpers
 open Imp_to_LLVM
 open Llvm
 open LLVM_CPU_Work_Queue
+open Value
 
 module LLE = Llvm_executionengine.ExecutionEngine
 module GV = Llvm_executionengine.GenericValue
@@ -12,7 +13,7 @@ let _ = Llvm_executionengine.initialize_native_target()
 let execution_engine = LLE.create Imp_to_LLVM.global_module
 
 (* TODO: For now, hard code the number of threads *)
-let work_queue = create_work_queue 1
+let work_queue = create_work_queue 8
 
 let optimize_module llvmModule llvmFn : unit =
   let the_fpm = PassManager.create_function llvmModule in
@@ -56,22 +57,22 @@ let strides_from_shape shape eltSize =
   done;
   strides
 
-let allocate_output impT (shape:Shape.t) : GV.t =
+let allocate_output impT (shape:Shape.t) : Ptr.t Value.t =
   match impT with
+  (*
   | ImpType.ScalarT eltT ->
     GV.of_int64 LLVM_Types.int64_t (HostMemspace.malloc (Type.sizeof eltT))
+  *)
   | ImpType.ArrayT (eltT, rank) ->
     let eltSize : int = Type.sizeof eltT in
     let nelts = Shape.nelts shape in
-    let arrayVal = Value.Array {
-      Value.data = Mem.alloc HostMemspace.id (nelts * eltSize);
+    Array {
+      data = Mem.alloc HostMemspace.id (nelts * eltSize);
       array_type = Type.ArrayT(eltT, rank);
       elt_type = eltT;
       array_shape = shape;
       array_strides = strides_from_shape shape (Type.sizeof eltT);
     }
-    in
-    Value_to_GenericValue.to_llvm arrayVal
   | other ->
     failwith ("Can't create output array of type" ^ (ImpType.to_str other))
 
@@ -88,36 +89,83 @@ let free_scalar_output impT (gv:GV.t) : unit =
 let free_scalar_outputs impTypes gvs =
   List.iter2 free_scalar_output impTypes gvs
 
+let split_argument num_items arg =
+	match arg with
+	| Scalar n ->
+	  List.fill (Value_to_GenericValue.to_llvm (Scalar n)) (List.til num_items)
+	| Array {data; array_type; elt_type; array_shape; array_strides} ->
+	  (* TODO: for now, only support splitting rank 1 arrays. *)
+	  assert (Shape.rank array_shape == 1);
+	  let make_item
+        {data; array_type; elt_type; array_shape; array_strides}
+        els
+        offset =
+      let newshape = Shape.of_list [els] in
+	    let newaddr = Ptr.get_slice data ((Type.sizeof elt_type) * offset) in
+	    Value_to_GenericValue.to_llvm
+	        (Array {data=newaddr; array_type; elt_type;
+	                array_shape=newshape; array_strides})
+	  in
+    (* TODO: does a 0-length slice work? *)
+    let len = Shape.get array_shape 0 in
+    let els_per_item = safe_div len num_items in
+    let last_num = len - (els_per_item * (num_items - 1)) in
+    let nums_els = (List.fill els_per_item (List.til (num_items - 1))) @
+                   [last_num] in
+    let mul x y = x * y in
+	  let os = List.map (mul els_per_item) (List.til num_items) in
+	  List.map2
+	      (make_item {data; array_type; elt_type; array_shape; array_strides})
+        nums_els
+	      os
+	| _ -> failwith "Unsupported argument type for splitting."
+
+(* TODO: 1. We can easily share the LLVM descriptors amongst the chunks.
+            To make things easier to get running, I'll split the Values rather
+            that the LLVM GVs, and thus duplicate these structs.
+*)
+let build_work_items args num_items =
+  let list_of_split = List.map (split_argument num_items) args in
+  let get_i i l = List.nth l i in
+  let strip_is i l = [List.map (get_i i) l] in
+  let rec flip_l cur i stop l =
+    if i == stop then cur
+    else let next = cur @ (strip_is i l) in
+    flip_l next (i+1) stop l
+  in
+  let first = strip_is 0 list_of_split in
+  flip_l first 1 (List.length (List.nth list_of_split 0)) list_of_split
+
 module CompiledFunctionCache = struct
   let cache : (FnId.t, Llvm.llvalue) Hashtbl.t = Hashtbl.create 127
   let compile impFn =
     let fnId = impFn.Imp.id in
-      match Hashtbl.find_option cache fnId with
-      | Some llvmFn ->
-        begin
-          Printf.printf
-            "[LLVM_Backend] Got cached code for %s\n%!"
-            (FnId.to_str fnId)
-          ;
-          llvmFn
-        end
-      | None ->
-        begin
-          let llvmFn : Llvm.llvalue = Imp_to_LLVM.compile_fn impFn in
-          optimize_module Imp_to_LLVM.global_module llvmFn;
-          print_endline  "[LLVM_Backend.call_imp_fn] Generated LLVM function";
-          Llvm.dump_value llvmFn;
-          Llvm_analysis.assert_valid_function llvmFn;
-          Hashtbl.add cache fnId llvmFn;
-          llvmFn
-        end
+    match Hashtbl.find_option cache fnId with
+    | Some llvmFn ->
+      begin
+        Printf.printf
+          "[LLVM_Backend] Got cached code for %s\n%!"
+          (FnId.to_str fnId)
+        ;
+        llvmFn
+      end
+    | None ->
+      begin
+        let llvmFn : Llvm.llvalue = Imp_to_LLVM.compile_fn impFn in
+        optimize_module Imp_to_LLVM.global_module llvmFn;
+        print_endline  "[LLVM_Backend.call_imp_fn] Generated LLVM function";
+        Llvm.dump_value llvmFn;
+        Llvm_analysis.assert_valid_function llvmFn;
+        Hashtbl.add cache fnId llvmFn;
+        llvmFn
+      end
 end
 
 let call_imp_fn (impFn:Imp.fn) (args:Ptr.t Value.t list) : Ptr.t Value.t list =
   let llvmFn = CompiledFunctionCache.compile impFn in
-  Printf.printf "Preallocating outputs...\n";
   let llvmInputs : GV.t list = List.map Value_to_GenericValue.to_llvm args in
-  let llvmOutputs = allocate_outputs impFn args in
+  let impOutputs = allocate_outputs impFn args in
+  let llvmOutputs = List.map Value_to_GenericValue.to_llvm impOutputs in
   Printf.printf "[LLVM_Backend.call_imp_fn] Running function\n%!";
   let impInputTypes = Imp.input_types impFn in
   let impOutputTypes = Imp.output_types impFn in
@@ -131,7 +179,6 @@ let call_imp_fn (impFn:Imp.fn) (args:Ptr.t Value.t list) : Ptr.t Value.t list =
   let outputs =
     List.map2 GenericValue_to_Value.of_generic_value llvmOutputs impOutputTypes
   in
-  Printf.printf " :: deallocating output cells\n%!";
   free_scalar_outputs impOutputTypes llvmOutputs;
   Printf.printf
     "[LLVM_Backend.call_imp_fn] Got function results: %s\n%!"
@@ -145,19 +192,17 @@ let call (fn:SSA.fn) args =
   call_imp_fn impFn args
 
 let map ~axes ~fn ~fixed args =
-  (*let fn : SSA.fn  = {
-    SSA.fn_input_types = [];
-    fn_output_types = [];
-    body = Block.empty;
-    tenv = ID.Map.empty;
-    fn_id = FnId.of_int 0;
-  } *)
-
-  (*let fn = SSA_to_Imp.translate fn in*)
-  (*let outType = ImpType.ArrayT (Type.Float64T, 100) in
-  let gv = call fn args in
-  let value = GenericValue_to_Value.of_generic_value gv outType in
-  *)assert false
+  let inputTypes = List.map ImpType.type_of_value args in
+  let impFn : Imp.fn = SSA_to_Imp.translate_fn fn inputTypes in
+  let llvmFn = CompiledFunctionCache.compile impFn in
+  let outputs = allocate_outputs impFn args in
+  let work_items = build_work_items (args @ outputs) 8 in
+  do_work work_queue execution_engine llvmFn work_items;
+  Printf.printf
+    "[LLVM_Backend.call_imp_fn] Got function results: %s\n%!"
+    (Value.list_to_str outputs)
+  ;
+  outputs
 
 let reduce ~axes ~fn ~fixed ?init args = assert false
 

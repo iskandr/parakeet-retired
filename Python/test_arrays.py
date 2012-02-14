@@ -13,7 +13,6 @@ def test_idx():
     print "Expected X[%d] == %d, got %d" % (i, i+1,output)
     assert output == X[i]
 
-
 @PAR
 def array_literal():
   return np.array([53,2,-302, 1])
@@ -28,3 +27,4 @@ def test_array_literal():
 if __name__ == '__main__':
   test_idx()
   test_array_literal()
+

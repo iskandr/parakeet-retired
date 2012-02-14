@@ -15,15 +15,12 @@ include ExtList.List
     | _::rest -> x::(fill x rest)
     | [] -> []
 
-
   (* returns a list of numbers from 0 to upper_bound - 1 *)
   let rec range lowerBound upperBound =
     if lowerBound > upperBound then []
-    else lowerBound :: range (lowerBound +1) upperBound
+    else lowerBound :: range (lowerBound + 1) upperBound
 
   let til upperBound = range 0 (upperBound - 1)
-
-
 
   let rev_iter f lst = iter f (rev lst)
 
@@ -44,7 +41,6 @@ include ExtList.List
       let xs, ys, zs = split3 rest in
       x::xs, y::ys, z::zs
 
-
   let rec iter3 f xs ys zs =
     match xs, ys, zs with
       | [], [], [] -> ()
@@ -53,14 +49,12 @@ include ExtList.List
         iter3 f xs ys zs
       | _ -> failwith "iter3 - mismatched list lengths"
 
-
   let rec map3 f xs ys zs =
     match xs,ys,zs with
       | [], [], [] -> []
       | x::xs', y::ys', z::zs' ->
         (f x y z)::(map3 f xs' ys' zs')
       | _ -> failwith "map3 - mismatched list lengths"
-
 
   let rec map f = function
     | [] -> []
@@ -79,7 +73,6 @@ include ExtList.List
   let max = function
     | head::tail -> fold_left max head tail
     | [] -> failwith "Can't find max of empty list"
-
 
   let sum xs = fold_left (+) 0 xs
   let prod xs = fold_left ( * ) 1 xs
@@ -107,3 +100,4 @@ include ExtList.List
   let rec shorter_than xs n = match xs with
     | [] -> n > 0
     | _::xs' -> if n > 0 then (shorter_than xs' (n-1)) else false
+

@@ -15,7 +15,7 @@ type 'a t =
   | Rotate of 'a t * int * int              (* array, dim, offset *)
   | Shift of 'a t * int * int * ParNum.t    (* array, dim, offset, default *)
   | Slice of 'a t * int * int * int         (* array, dim, start, end *)
-  | Range of int * int * int                (* start, stop; step *)
+  | Range of int * int * int                (* start, stop, step *)
 
 (* since array data is polymorphic it's by default printed as the *)
 (* totally uninformative string '<array>'. If you want something more*)
@@ -124,3 +124,4 @@ let rec collect_list = function
 	| x::xs ->
 			let rest = collect_list xs in
 			(match extract x with None -> rest | Some d -> d :: rest)
+

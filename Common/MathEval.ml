@@ -15,7 +15,6 @@ type 'a math_ops = {
   sub : 'a -> 'a -> 'a; 
 } 
 
-
 (* eval uniform math operators, where all args are the same type, 
    which is the same as the return type. This excludes predicates like
    less-than, etc... 
@@ -33,8 +32,6 @@ let eval (m : 'a math_ops) (op:Prim.scalar_op) (args : 'a list) =
      Printf.sprintf "[MathEval] Operations %s not supported with arguments %s"
        (Prim.scalar_op_to_str op)
        (String.concat ", " (List.map m.to_str args)) 
-  
-
 
 let int_ops : int math_ops = {  
   safe_div = safe_div; 

@@ -93,7 +93,6 @@ let run_function untypedId ~globals ~args : ret_val =
       (Type.type_list_to_str argTypes);
   ENDIF;
 
-
   let result =
     try
       let typedFundef = get_specialized_function untypedId signature in
