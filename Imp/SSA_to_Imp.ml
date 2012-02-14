@@ -356,50 +356,33 @@ and translate_map
       (axes:int list) : Imp.stmt list  =
   let num_axes : int = List.length axes in
   let bigArray : Imp.value_node = argmax_array_rank args in
-  if num_axes <> (ImpType.rank bigArray.Imp.value_type) then
-    failwith "Slicing adverbs not yet implemented"
-  else begin
-    let initBlock, loopDescriptors =
-      axes_to_loop_descriptors codegen bigArray axes
-    in
-    let indices = List.map (fun {loop_var} -> loop_var) loopDescriptors in
-    let nestedArrayArgs : Imp.value_node list =
-      List.map (fun arg -> ImpHelpers.idx arg indices) args
-    in
-    let nestedArgs : Imp.value_node list = closureArgs @ nestedArrayArgs in
-    (* TODO: *)
-    (*   Currently assuming that axes are in order starting from zero *)
-    let rec check_ordered_list ?(prev=(-1)) = function
-      | [] -> failwith "[translate_map] Can't handle empty axis list"
-      | [x] -> x = (prev + 1)
-      | x::xs -> (x = prev + 1) && (check_ordered_list ~prev:x xs)
-    in
-    check_ordered_list axes;
-    let lhsValues = List.map codegen#var lhsIds in
-    let nestedOutputs =
-      List.map
-        (fun arrayOutput -> ImpHelpers.idx arrayOutput indices)
-        lhsValues
-    in
-    (*let mk_output id =
-      let shape = ID.Map.find id impFn.shapes in
-      let storage = ID.Map.find id impFn.storage in
-      let ty = ID.Map.find id impFn.types in
-      codegen#fresh_local ~name:"map_output" ~storage ~shape ty
-    in
-    (* TODO: Change nestedOutputs to assign into a precreated array *)
-    let nestedOutputs : Imp.value_node list =
-      List.map mk_output impFn.output_ids
-    in
-    *)
-    let replaceIds = impFn.input_ids @ impFn.output_ids in
-    let replaceValues = nestedArgs @ nestedOutputs in
-    let replaceEnv = ID.Map.of_lists replaceIds replaceValues in
-    let fnBody = ImpReplace.replace_block replaceEnv impFn.body in
-    let loops = build_loop_nests codegen loopDescriptors fnBody in
+  let initBlock, loopDescriptors =
+    axes_to_loop_descriptors codegen bigArray axes
+  in
+  let indices = List.map (fun {loop_var} -> loop_var) loopDescriptors in
+  let nestedArrayArgs : Imp.value_node list =
+    List.map (fun arg -> ImpHelpers.idx arg indices) args
+  in
+  let nestedArgs : Imp.value_node list = closureArgs @ nestedArrayArgs in
+  (* TODO: *)
+  (*   Currently assuming that axes are in order starting from zero *)
+  let rec check_ordered_list ?(prev=(-1)) = function
+    | [] -> failwith "[translate_map] Can't handle empty axis list"
+    | [x] -> x = (prev + 1)
+    | x::xs -> (x = prev + 1) && (check_ordered_list ~prev:x xs)
+  in
+  check_ordered_list axes;
+  let lhsValues = List.map codegen#var lhsIds in
+  let nestedOutputs =
+    List.map (fun arrayOutput -> ImpHelpers.idx arrayOutput indices) lhsValues
+  in
+  let replaceIds = impFn.input_ids @ impFn.output_ids in
+  let replaceValues = nestedArgs @ nestedOutputs in
+  let replaceEnv = ID.Map.of_lists replaceIds replaceValues in
+  let fnBody = ImpReplace.replace_block replaceEnv impFn.body in
+  let loops = build_loop_nests codegen loopDescriptors fnBody in
+  initBlock @ loops
 
-    initBlock @ loops
-  end
 
 and translate_reduce
       (codegen:ImpCodegen.codegen)
