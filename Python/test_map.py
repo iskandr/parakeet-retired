@@ -16,7 +16,6 @@ def test_implicit_map():
   print "Python = %s, Parakeet = %s" % (y_original, y)
   assert np.all(y_original == y)
 
-
 #@PAR
 def map_add(x):
   return parakeet.map(parakeet.add, x, x)
@@ -60,12 +59,10 @@ def test_mult_rows():
   print "Python %s\nParakeet: %s" % (z_o, z)
   assert np.all(z == z_o)
 
-  
-
-
 if __name__ == '__main__':
   #test_implicit_map()
   #test_map_add_1d()
   #test_map_add_2d()
   #test_mult()
   test_mult_rows()
+

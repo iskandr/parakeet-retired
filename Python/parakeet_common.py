@@ -99,3 +99,4 @@ def list_to_ctypes_array(input_list, t):
     arr[i] = input_list[i]
   print "[list_to_ctypes_array] output:", arr
   return arr
+

@@ -27,12 +27,12 @@ typedef enum {
 
 typedef struct {
   pthread_t            *workers;
+  pthread_mutex_t      *worker_mutexes;
   pthread_cond_t       *work_available;
   int                   num_workers;
   pthread_barrier_t     barrier;
-  pthread_cond_t        msg_received;
-  pthread_cond_t        work_finished;
   pthread_mutex_t       mutex;
+  pthread_cond_t        queue_signal;
   wq_status_t           status;
   work_item_t          *work_items;
   execution_function_t  execution_function;

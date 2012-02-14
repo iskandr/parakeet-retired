@@ -25,12 +25,13 @@ let map ?(axes=[0]) (fn:SSA.fn) ~(fixed:values) (args:values) =
   List.map DataManager.from_memspace results
 
 let reduce ?(axes=[0]) (fn:SSA.fn) ~(fixed:values) ?init (args:values)
-    = assert false
+  = assert false
 
-let scan ?(axes=[0]) (fn:SSA.fn)  ~(fixed:values) ?init (args:values)
-    = assert false
+let scan ?(axes=[0]) (fn:SSA.fn) ~(fixed:values) ?init (args:values)
+  = assert false
 
 let all_pairs ?(axes=[0]) (fn:SSA.fn) ~(fixed:values) (x:value) (y:value)
-    = assert false
+  = assert false
 
 let array_op (op : Prim.array_op) (args : value list) = assert false
+

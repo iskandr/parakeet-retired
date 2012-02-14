@@ -26,8 +26,8 @@ void execute_work(work_item_t *work_item) {
   }
 }
 
-int test_work() {
-  cpu_work_queue_t *work_queue = create_work_queue(8, &execute_work);
+int test_work(int nws) {
+  cpu_work_queue_t *work_queue = create_work_queue(nws, &execute_work);
 
   int input[16];
   int output[16];
@@ -38,17 +38,18 @@ int test_work() {
     output[i] = 0;
   }
 
-  work_item_t *work_items = (work_item_t*)malloc(8*sizeof(work_item_t));
+  work_item_t *work_items = (work_item_t*)malloc(nws*sizeof(work_item_t));
 
-  for (i = 0; i < 8; ++i) {
+  int pw = 16 / nws;
+  for (i = 0; i < nws; ++i) {
     work_items[i].args =
-        (LLVMGenericValueRef*)malloc(2*sizeof(LLVMGenericValueRef));
-    work_items[i].args[0] = (LLVMGenericValueRef)(input + 2*i);
-    work_items[i].args[1] = (LLVMGenericValueRef)(output + 2*i);
-    work_items[i].num_args = 2;
+        (LLVMGenericValueRef*)malloc(pw*sizeof(LLVMGenericValueRef));
+    work_items[i].args[0] = (LLVMGenericValueRef)(input + pw*i);
+    work_items[i].args[1] = (LLVMGenericValueRef)(output + pw*i);
+    work_items[i].num_args = pw;
   }
 
-  do_work(work_queue, work_items, 8);
+  do_work(work_queue, work_items, nws);
 
   int success = 1;
   for (i = 0; i < 16; ++i) {
@@ -60,7 +61,7 @@ int test_work() {
 }
 
 int main(int argc, char **argv) {
-  if (test_work()) {
+  if (test_work(1)) {
     printf("Queue test successful!\n");
   } else {
     printf("Queue test failed!\n");
