@@ -110,11 +110,21 @@ let select cond t f =
 
 let idx arr indices =
   let arrT = arr.value_type in
-  assert (ImpType.is_array arrT);
-  let numIndices = List.length indices in
-  assert (numIndices = ImpType.rank arrT);
-  let eltT = ImpType.elt_type arrT in
-  { value = Idx(arr, indices); value_type = ImpType.ScalarT eltT }
+  (* for convenience, treat indexing into scalars as the identity operation *)
+  if ImpType.is_scalar arrT then arr
+  else begin
+    assert (ImpType.is_array arrT);
+    let numIndices = List.length indices in
+    let rank = ImpType.rank arrT in
+    if numIndices <> rank then
+      failwith $ Printf.sprintf
+        "[ImpHelpers] Expected %d indices, got %d"
+        rank
+        numIndices
+    ;
+    let eltT = ImpType.elt_type arrT in
+    { value = Idx(arr, indices); value_type = ImpType.ScalarT eltT }
+  end
 
 let dim (arr:value_node) (idx:value_node) = wrap_int32 $ (DimSize( arr, idx))
 

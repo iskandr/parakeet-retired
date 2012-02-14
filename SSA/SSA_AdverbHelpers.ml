@@ -32,13 +32,19 @@ let closure_output_types closure =
 let infer_adverb_axes_from_rank ?axes rank =
   match axes with
     | Some axes -> axes
-    | None ->
-      List.map SSA_Helpers.mk_int32 (List.til rank)
+    | None -> List.map SSA_Helpers.mk_int32 (List.til rank)
 
 (* given a list of input array types, infer the largest number *)
-(* of axes feasible to map over them *)
-let max_num_axes_from_array_types argTypes : int =
-  List.min (List.map Type.rank argTypes)
+(* of axes feasible to map over them-- min of all ranks except 0 *)
+let rec max_num_axes_from_array_types = function
+  | [] -> 0
+  | [t] -> Type.rank t
+  | t::ts ->
+    begin match Type.rank t, max_num_axes_from_array_types ts with
+      | 0, y -> y
+      | x, 0 -> x
+      | x, y -> min x y
+    end
 
 let infer_adverb_axes_from_types ?axes (types:Type.t list) =
   match axes with
