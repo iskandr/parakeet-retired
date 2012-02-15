@@ -5,10 +5,24 @@ open Imp
 open MathEval
 open SymbolicShape
 
-let rec eval_dim_as_int (shapeEnv:Shape.t ID.Map.t) = function
+let rec eval_dim_as_int (shapeEnv:Shape.t ID.Map.t) (dim:SymbolicShape.dim) =
+  match dim with
   | Const i -> i
   | Dim (id, idx) ->
-      if ID.Map.mem id shapeEnv then Shape.get (ID.Map.find id shapeEnv) idx
+      if ID.Map.mem id shapeEnv then
+        begin
+          let shape = ID.Map.find id shapeEnv in
+          IFDEF DEBUG THEN
+            let rank = Shape.rank shape  in
+            if rank <= idx then
+              failwith $ Printf.sprintf
+                "[ShapeEval] Can't evaluate %s since %s's rank is only %d"
+                (SymbolicShape.dim_to_str dim)
+                (ID.to_str id)
+                rank
+          ENDIF;
+          Shape.get shape idx
+        end
       else
         failwith $ Printf.sprintf
           "[ShapeEval] shape not found for %s" (ID.to_str id)
@@ -37,8 +51,9 @@ let rec eval_dim_as_float shapeEnv = function
       in fn (eval_dim_as_float shapeEnv x) (eval_dim_as_float shapeEnv y)
 
 
-let eval_shape (shapeEnv: Shape.t ID.Map.t) (symShape : SymbolicShape.t) : Shape.t =
-  Shape.of_list (List.map (eval_dim_as_int shapeEnv) symShape)
+let eval_shape (shapeEnv: Shape.t ID.Map.t) (symShape : SymbolicShape.t) =
+  let dims = List.map (eval_dim_as_int shapeEnv) symShape in
+  Shape.of_list dims
 
 let eval_imp_shape_env (fn:Imp.fn) (inputShapes : Shape.t list) =
   (* shapes of all inputs *)
@@ -81,6 +96,15 @@ let eval_ssa_shape_env
 
 
 let get_call_output_shapes fn (inputs : Shape.t list) =
+  IFDEF DEBUG THEN
+    let nShapes = List.length inputs in
+    let nFormals = List.length fn.input_ids in
+    if nShapes <> nFormals then failwith $ Printf.sprintf
+      "[ShapeEval] Wrong number of args given, expected %d, got %d"
+      nFormals
+      nShapes
+    ;
+  ENDIF;
   let shapeEnv = ID.Map.extend ID.Map.empty fn.input_ids inputs in
   let outputSymShapes : SymbolicShape.t list  =
     List.map (fun id -> ID.Map.find id fn.shapes) fn.output_ids

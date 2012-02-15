@@ -26,6 +26,7 @@ val list_to_str : ?array_to_str:('a array_info -> string) -> 'a t list -> string
 
 val type_of : 'a t -> Type.t
 val shape_of : 'a t -> Shape.t
+val get_underlying_array : 'a t -> 'a array_info
 
 val to_num : 'a t -> ParNum.t
 val to_bool : 'a t -> bool

@@ -37,6 +37,7 @@ let optimize_module llvmModule llvmFn : unit =
   Llvm_scalar_opts.add_instruction_combination the_fpm;
   Llvm_scalar_opts.add_cfg_simplification the_fpm;
   (*
+  Llvm_scalar_opts.add_basic_alias_analysis the_fpm;
   Llvm_scalar_opts.add_type_based_alias_analysis the_fpm;
   Llvm_scalar_opts.add_ind_var_simplification the_fpm;
   Llvm_scalar_opts.add_dead_store_elimination the_fpm;
@@ -50,7 +51,6 @@ let optimize_module llvmModule llvmFn : unit =
   Llvm_scalar_opts.add_loop_unroll the_fpm;
   Llvm_scalar_opts.add_loop_rotation the_fpm;
   Llvm_scalar_opts.add_loop_idiom the_fpm;
-  Llvm_scalar_opts.add_basic_alias_analysis the_fpm;
   *)
   ignore (PassManager.run_function llvmFn the_fpm);
   ignore (PassManager.finalize the_fpm);
@@ -108,8 +108,6 @@ let allocate_output_generic_values impFn inputShapes : GV.t list =
   (* compute output shapes from input shapes *)
   let outputShapes = ShapeEval.get_call_output_shapes impFn inputShapes in
   List.map2 allocate_output_gv (Imp.output_types impFn) outputShapes
-
-
 
 let free_scalar_output impT (gv:GV.t) : unit =
   if ImpType.is_scalar impT then HostMemspace.free (GV.as_int64 gv)
@@ -227,7 +225,6 @@ let call (fn:SSA.fn) args =
   call_imp_fn impFn args
 
 let map ~axes ~fn ~fixed args =
-
   let mapFn = SSA_AdverbHelpers.mk_map_fn
     ?src:None
     ~nested_fn:fn

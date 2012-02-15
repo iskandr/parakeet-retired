@@ -40,7 +40,6 @@ and value_node = {
   value_type : ImpType.t;
 }
 
-
 type stmt =
   | If of value_node * block * block
   | While of value_node * block (* test, body *)
@@ -79,8 +78,6 @@ let empty_fn = {
   types = ID.Map.empty;
   shapes=ID.Map.empty
 }
-
-
 
 let get_var_type (fn:fn) (id:ID.t) =
   match ID.Map.find_option id fn.types with
