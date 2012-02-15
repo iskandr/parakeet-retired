@@ -198,7 +198,6 @@ let call (fn:SSA.fn) args =
 let map ~axes ~fn ~fixed args =
   let inputTypes = List.map ImpType.type_of_value args in
   let impFn : Imp.fn =
-    SSA_to_Imp.
     SSA_to_Imp.translate_fn fn inputTypes in
   let llvmFn = CompiledFunctionCache.compile impFn in
   let outputs = allocate_outputs impFn args in

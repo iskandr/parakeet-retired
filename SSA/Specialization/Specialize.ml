@@ -55,22 +55,7 @@ let mk_typed_scalar_prim (op : Prim.scalar_op) ?optOutType argTypes =
     let outputVar = List.hd outputs in
     codegen#emit [[outputVar] := primAppNode]
 
-let mk_typed_map_fn ?src (nestedfn:SSA.fn) ~(num_axes:int) inputTypes =
-  IFDEF DEBUG THEN
-    Printf.printf
-      "[Specialize.mk_typed_map] nested_fn=%s, num_axes=%d, input_types=%s\n"
-      (FnId.to_str nestedfn.fn_id)
-      num_axes
-      (Type.type_list_to_str inputTypes)
-    ;
-  ENDIF;
-  let outTypes = Type.increase_ranks num_axes nestedfn.SSA.fn_output_types in
-  let closure = mk_closure nestedfn [] in
-  (* no need to specify the implict 0..numAxes list of axes since *)
-  (* mk_map will automatically create that list when an ?axes argument *)
-  (* isn't given *)
-  SSA_Codegen.mk_codegen_fn inputTypes outTypes $ fun codegen inputs outputs ->
-    codegen#emit [outputs := (SSA_AdverbHelpers.mk_map ?src closure inputs)]
+
 
 (* 1) some statements (ie, those involving array ops)
       make a function definitely not a scalar-only function.

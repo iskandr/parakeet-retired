@@ -139,36 +139,52 @@ type vars = value_node array
 (* helper function for creating functions *)
 
 let fn
-      (nInputs : int)
-      (nOutputs : int)
-      (nLocals : int)
+      ?name
+      ~(inputs_types : Type.t list)
+      ~(output_types : Type.t list)
+      ?(local_types = [])
       (bodyConstructor : vars -> vars -> vars -> stmt_node list) =
-  let inputs = ID.gen_named_array "input" nInputs in
-  let inputVars = Array.map mk_var inputs in
-  let outputs = ID.gen_named_array "output" nOutputs in
-  let outputVars = Array.map mk_var outputs in
-  let locals = ID.gen_named_array "temp" nLocals in
-  let localVars = Array.map mk_var locals in
-  let body = Block.of_list $ bodyConstructor inputVars outputVars localVars in
-  let inputList = Array.to_list inputs in
-  let outputList = Array.to_list outputs in
+
+
+
+  (* inputs *)
+  let nInputs = List.length input_types in
+  let inputIds = ID.gen_named_list "input" nInputs in
+  let inputs = List.map (fun t id -> mk_var ~ty:t id) input_types inputIds in
+  (* outputs *)
+  let nOutputs = List.length output_types in
+  let outputIds = ID.gen_named_list "output" nOutputs in
+  let outputs = List.map (fun t id -> mk_var ~ty:t id) output_types outputIds in
+  (* locals *)
+  let nLocals = List.length local_types in
+  let localIds = ID.gen_named_list "temp" nLocals in
+  let locals = List.map (fun t id -> mk_var ~ty:t id) local_types localIds in
+  let body =
+    Block.of_list $ bodyConstructor
+      (Array.of_list inputs)
+      (Array.of_list outputs)
+      (Array.of_list locals)
+  in
+  let tenv =
+    ID.Map.of_lists
+      (inputIds @ outputIds @ localIds)
+      (input_types @ output_types @ local_types)
+  in
   mk_fn
-    ?name:None
-    ~tenv:ID.Map.empty
-    ~input_ids:inputList
-    ~output_ids:outputList
+    ?name
+    ~tenv
+    ~input_ids:inputIds
+    ~output_ids:outputIds
     ~body
 
 (* special case for creating function with 1 input, 1 output *)
-let fn1 constructor =
-  let constructorWrapper =
-    fun inputs outputs _ -> constructor inputs.(0) outputs.(0)
-  in
-  fn 1 1 0 constructorWrapper
+let untyped_fn1 constructor =
+  let wrapper inputs outputs _ = constructor inputs.(0) outputs.(0) in
+  fn ~input_types[Type.BottomT] ~output_types:[Type.BottomT] wrapper
 
 (* 2 inputs, 1 output, 0 locals *)
 let fn2 constructor =
-  let constructorWrapper =
-    fun inputs outputs _ -> constructor inputs.(0) inputs.(1) outputs.(0)
+  let wrapper inputs outputs _ =
+    constructor inputs.(0) inputs.(1) outputs.(0)
   in
-  fn 2 1 0 constructorWrapper
+  fn ~input_types:[Type.BottomT] ~output_types:[Type.BottomT] wrapper
