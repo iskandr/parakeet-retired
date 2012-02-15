@@ -4,8 +4,8 @@ open Base
 open Imp
 open ImpCodegen
 open ImpHelpers
-open ImpType
 open ImpReplace
+open ImpType
 
 (* cache translation for each distinct set of arg types to a function *)
 type signature = FnId.t * ImpType.t list
@@ -64,8 +64,6 @@ let mk_simple_loop_descriptor
     loop_incr_op = Prim.Add;
   }
 
-
-
 let translate_value (codegen:ImpCodegen.codegen) valNode : Imp.value_node =
   match valNode.SSA.value with
   | SSA.Var id -> codegen#var id
@@ -107,7 +105,6 @@ let rec argmax_array_rank = function
     let restResult = argmax_array_rank xs in
     if ImpType.rank x.value_type > ImpType.rank restResult.value_type then x
     else restResult
-
 
 let translate_array_literal
       (codegen:ImpCodegen.codegen)
@@ -154,8 +151,6 @@ let rec axes_to_loop_descriptors
     (mk_simple_loop_descriptor codegen) sizes in
   stmts, loopDescriptors
 
-
-
 let mk_set_val codegen (id:ID.t) (v:SSA.value_node) =
   let impVar = codegen#var id in
   set impVar $ translate_value codegen v
@@ -167,7 +162,6 @@ let translate_true_phi_node codegen phiNode =
 let translate_false_phi_node codegen phiNode =
   let rhs = translate_value codegen phiNode.SSA.phi_right in
   Imp.Set(phiNode.SSA.phi_id, rhs)
-
 
 let declare_var ssaFn shapeEnv (codegen:ImpCodegen.fn_codegen) (id, impType)  =
   if List.mem id ssaFn.SSA.input_ids then
@@ -184,7 +178,6 @@ let declare_var ssaFn shapeEnv (codegen:ImpCodegen.fn_codegen) (id, impType)  =
     else
       codegen#declare id ~shape:symShape impType
   )
-
 
 let rec translate_fn  (ssaFn:SSA.fn) (impInputTypes:ImpType.t list) : Imp.fn =
   let signature = ssaFn.SSA.fn_id, impInputTypes in
@@ -250,7 +243,6 @@ and translate_stmt (codegen : ImpCodegen.codegen) stmtNode : Imp.stmt list  =
     let impRhs : Imp.value_node = translate_exp codegen rhs in
     let impVar : Imp.value_node = codegen#var id in
     [set impVar impRhs]
-
 
 	| SSA.Set(ids, {SSA.exp = SSA.Values vs}) ->
 	  List.map2 (mk_set_val codegen) ids vs
@@ -383,7 +375,6 @@ and translate_map
   let loops = build_loop_nests codegen loopDescriptors fnBody in
   initBlock @ loops
 
-
 and translate_reduce
       (codegen:ImpCodegen.codegen)
       (lhsIds:ID.t list)
@@ -393,4 +384,3 @@ and translate_reduce
       (args:Imp.value_node list)
       (axes:int list)  =
   assert false
-

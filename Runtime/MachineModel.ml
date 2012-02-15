@@ -33,7 +33,7 @@ type t = {
 
 let build_machine_model =
   let homedir = Sys.getenv "HOME" in
-  let conffile = String.concat "/" [homedir; ".parakeet/parakeetconf.xml"] in
+  let conffile = homedir ^ "/.parakeet/parakeetconf.xml" in
   let x = Xml.parse_file conffile in
   (*Printf.printf "%s\n\n" (Xml.to_string_fmt x);
   *)x

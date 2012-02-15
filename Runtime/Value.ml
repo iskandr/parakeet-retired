@@ -22,7 +22,7 @@ type 'a t =
 (* specific than that, you'll have to supply your own array printing *)
 (* function. *)
 let rec to_str ?(array_to_str=(fun _ -> "<array>")) = function
-  | Scalar n -> (ParNum.to_str n) ^   (Type.elt_to_short_str (ParNum.type_of n))
+  | Scalar n -> (ParNum.to_str n) ^ (Type.elt_to_short_str (ParNum.type_of n))
   | Array array_info -> array_to_str array_info
   (*| Nested elts ->
     Printf.sprintf "[%s]"
@@ -64,6 +64,15 @@ let rec type_of = function
   | Slice (x, _, _, _)
   | Rotate (x, _, _) -> type_of x
   | Range _ -> Type.ArrayT(Type.Int32T, 1)
+
+let rec get_underlying_array = function
+  | Array a -> a
+  | Scalar n -> failwith "Unable to get underlying array for scalar."
+  | Explode (n, s) -> failwith "Don't know how to handle explodes yet."
+  | Shift (a, _, _, _)
+  | Slice (a, _, _, _)
+  | Rotate (a, _, _) -> get_underlying_array a
+  | Range _ -> failwith "Don't know how to handle ranges yet."
 
 let rec shape_of _ = Shape.of_list []
 
@@ -124,4 +133,3 @@ let rec collect_list = function
 	| x::xs ->
 			let rest = collect_list xs in
 			(match extract x with None -> rest | Some d -> d :: rest)
-

@@ -100,8 +100,6 @@ let allocate_output_generic_values impFn args : GV.t list =
   let outputShapes = ShapeEval.get_call_output_shapes impFn inputShapes in
   List.map2 allocate_output_gv (Imp.output_types impFn) outputShapes
 
-
-
 let free_scalar_output impT (gv:GV.t) : unit =
   if ImpType.is_scalar impT then HostMemspace.free (GV.as_int64 gv)
 
@@ -214,7 +212,7 @@ let map ~axes ~fn ~fixed args =
   let impFn : Imp.fn =
     SSA_to_Imp.translate_fn fn inputTypes in
   let llvmFn = CompiledFunctionCache.compile impFn in
-  let outputs : Ptr.t Value.t list  = allocate_output_arrays impFn args in
+  let outputs : Ptr.t Value.t list = allocate_output_arrays impFn args in
   let work_items = build_work_items (args @ outputs) 8 in
   do_work work_queue execution_engine llvmFn work_items;
   Printf.printf

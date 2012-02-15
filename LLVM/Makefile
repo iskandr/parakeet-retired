@@ -12,3 +12,4 @@ llvmcpubackend:
 
 tests: llvmcpubackend
 	gcc -o cpu_work_queue_test $(FLAGS) cpu_work_queue_test.c cpu_work_queue.o
+	gcc -o array_splitting $(FLAGS) array_splitting.c cpu_work_queue.o

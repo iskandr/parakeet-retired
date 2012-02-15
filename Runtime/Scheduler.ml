@@ -14,9 +14,9 @@ let machine_model = MachineModel.build_machine_model
 
 let value_to_host v = DataManager.to_memspace HostMemspace.id v
 
-let call (fn : SSA.fn) (args:values) = 
-  let results = LLVM_Backend.call fn (List.map value_to_host args) in 
-  List.map DataManager.from_memspace results 
+let call (fn : SSA.fn) (args:values) =
+  let results = LLVM_Backend.call fn (List.map value_to_host args) in
+  List.map DataManager.from_memspace results
 
 let map ?(axes=[0]) (fn:SSA.fn) ~(fixed:values) (args:values) =
   let fixed' = List.map value_to_host fixed in
@@ -34,4 +34,3 @@ let all_pairs ?(axes=[0]) (fn:SSA.fn) ~(fixed:values) (x:value) (y:value)
   = assert false
 
 let array_op (op : Prim.array_op) (args : value list) = assert false
-

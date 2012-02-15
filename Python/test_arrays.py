@@ -25,6 +25,6 @@ def test_array_literal():
   assert np.all(a == expected)
 
 if __name__ == '__main__':
-  test_idx()
+  #test_idx()
   test_array_literal()
 
