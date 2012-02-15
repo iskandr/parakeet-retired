@@ -15,6 +15,11 @@ let machine_model = MachineModel.build_machine_model
 let value_to_host v = DataManager.to_memspace HostMemspace.id v
 
 let call (fn : SSA.fn) (args:values) =
+  IFDEF DEBUG THEN
+    Printf.printf "[Scheduler] Calling %s with args %s\n"
+      (FnId.to_str fn.SSA.fn_id)
+      (String.concat ", " (List.map Value.to_str args));
+  ENDIF;
   let results = LLVM_Backend.call fn (List.map value_to_host args) in
   List.map DataManager.from_memspace results
 

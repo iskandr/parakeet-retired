@@ -1,3 +1,5 @@
+(* pp: -parser o pa_macro.cmo *)
+
 open Base
 open Imp
 open ImpHelpers
@@ -50,8 +52,8 @@ let optimize_module llvmModule llvmFn : unit =
   Llvm_scalar_opts.add_loop_idiom the_fpm;
   Llvm_scalar_opts.add_basic_alias_analysis the_fpm;
   *)
-  let _ : bool = PassManager.run_function llvmFn the_fpm in
-  let _ : bool = PassManager.finalize the_fpm in
+  ignore (PassManager.run_function llvmFn the_fpm);
+  ignore (PassManager.finalize the_fpm);
   PassManager.dispose the_fpm
 
 let memspace_id = HostMemspace.id
@@ -79,8 +81,7 @@ let allocate_array eltT shape : Ptr.t Value.t =
 (* given a function and a list of its arguments, *)
 (* allocate space for the outputs and return them as Parakeet Values. *)
 (* NOTE: This is only valid for arrays, scalars will crash *)
-let allocate_output_arrays impFn args : Ptr.t Value.t list =
-  let inputShapes : Shape.t list = List.map Value.get_shape args in
+let allocate_output_arrays impFn inputShapes : Ptr.t Value.t list =
   (* compute output shapes from input shapes *)
   let outputShapes = ShapeEval.get_call_output_shapes impFn inputShapes in
   let outTypes = Imp.output_types impFn in
@@ -97,8 +98,13 @@ let allocate_output_gv impT (shape:Shape.t) : GV.t  =
 
 (* given a function and a list of its arguments, *)
 (* allocate space for the outputs and return them as LLVM's GenericValues  *)
-let allocate_output_generic_values impFn args : GV.t list =
-  let inputShapes : Shape.t list = List.map Value.get_shape args in
+let allocate_output_generic_values impFn inputShapes : GV.t list =
+  IFDEF DEBUG THEN
+    Printf.printf
+      "[LLVM_Backend] Inferring output shapes of %s with inputs %s\n"
+      (FnId.to_str impFn.Imp.id)
+      (String.concat ", " (List.map Shape.to_str inputShapes));
+  ENDIF;
   (* compute output shapes from input shapes *)
   let outputShapes = ShapeEval.get_call_output_shapes impFn inputShapes in
   List.map2 allocate_output_gv (Imp.output_types impFn) outputShapes
@@ -184,9 +190,17 @@ module CompiledFunctionCache = struct
 end
 
 let call_imp_fn (impFn:Imp.fn) (args:Ptr.t Value.t list) : Ptr.t Value.t list =
+  IFDEF DEBUG THEN
+    Printf.printf "[LLVM_Backend.call_imp_fn] Calling %s with inputs %s\n"
+      (FnId.to_str impFn.Imp.id)
+      (String.concat ", " (List.map Value.to_str args));
+  ENDIF;
   let llvmFn = CompiledFunctionCache.compile impFn in
   let llvmInputs : GV.t list = List.map Value_to_GenericValue.to_llvm args in
-  let llvmOutputs : GV.t list = allocate_output_generic_values impFn args in
+  let argShapes = List.map Value.shape_of args in
+  let llvmOutputs : GV.t list =
+    allocate_output_generic_values impFn argShapes
+  in
   Printf.printf "[LLVM_Backend.call_imp_fn] Running function\n%!";
   let impInputTypes = Imp.input_types impFn in
   let impOutputTypes = Imp.output_types impFn in
@@ -213,11 +227,21 @@ let call (fn:SSA.fn) args =
   call_imp_fn impFn args
 
 let map ~axes ~fn ~fixed args =
-  let inputTypes = List.map ImpType.type_of_value args in
-  let impFn : Imp.fn =
-    SSA_to_Imp.translate_fn fn inputTypes in
+
+  let mapFn = SSA_AdverbHelpers.mk_map_fn
+    ?src:None
+    ~nested_fn:fn
+    ~axes:(List.map SSA_Helpers.int32 axes)
+    ~fixed_types:(List.map Value.type_of fixed)
+    ~array_types:(List.map Value.type_of args)
+  in
+  let impTypes = List.map ImpType.type_of_value (fixed @ args) in
+  let impFn : Imp.fn = SSA_to_Imp.translate_fn mapFn impTypes in
   let llvmFn = CompiledFunctionCache.compile impFn in
-  let outputs : Ptr.t Value.t list  = allocate_output_arrays impFn args in
+  let inputShapes : Shape.t list = List.map Value.get_shape (fixed @ args) in
+  let outputs : Ptr.t Value.t list  =
+    allocate_output_arrays impFn inputShapes
+  in
   let work_items = build_work_items (args @ outputs) 8 in
   do_work work_queue execution_engine llvmFn work_items;
   Printf.printf
