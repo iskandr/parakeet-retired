@@ -69,7 +69,7 @@ if opts['clean']:
   print "Cleaning Python directory"
   print
   subprocess.call(make_command + ["clean"])
-  os.chdir("../Runtime/LLVM")
+  os.chdir("../LLVM")
   print
   print "Cleaning LLVM Runtime directory"
   print
@@ -171,11 +171,11 @@ os.chdir("..")
 
 # Build LLVM Runtime
 print "\n\n ****** Building LLVM Runtime ******"
-os.chdir("Runtime/LLVM")
+os.chdir("LLVM")
 if subprocess.call(["make"]):
   print "LLVM Runtime build failed"
   sys.exit(1)
-os.chdir("../..")
+os.chdir("..")
 
 # Build installation
 print "\n\n ****** Probing machine for hardware ******"

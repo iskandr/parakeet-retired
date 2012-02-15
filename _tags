@@ -1,22 +1,21 @@
 <**/*.native> or <**/*.ml> or <**/*.mli> or <**/*.cmx> : use_unix, use_str, use_bigarray, pkg_extlib
-"Common" : include
-"Base" : include
 "AST" : include
-"Dump" : include
-"Ptx": include
-"Tests" : include
+"Base" : include
+"Common" : include
+"FrontEnd" : include
+"GPU" : include
+"GPU/Ptx": include
+"Imp" : include
+"Imp/KernelTemplates" : include
+"LLVM" : include
+"Runtime" : include
+"Runtime/Memory" : include
+"Runtime/ShapeInference" : include
+"Runtime/CostModel" : include
+"Specialization" : include
 "SSA" : include
 "SSA/Analyses" : include
 "SSA/Optimizations" : include
-"SSA/Specialization" : include
-"ShapeInference" : include
-"CostModel" : include
-"Runtime" : include
-"Runtime/Memory" : include
-"Runtime/Cuda" : include
-"Runtime/LLVM" : include
-"Imp" : include
-"Imp/KernelTemplates" : include
-"FrontEnd" : include
 "stubs" : include
+"Tests" : include
 "/usr/local/lib/ocaml" : include

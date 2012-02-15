@@ -18,25 +18,26 @@ PARAKEET_INCLUDES = -I $(BUILDPATH) \
 	-I $(BUILDPATH)/Base \
 	-I $(BUILDPATH)/Common \
 	-I $(BUILDPATH)/FrontEnd \
+	-I $(BUILDPATH)/GPU \
 	-I $(BUILDPATH)/Imp \
+	-I $(BUILDPATH)/LLVM \
 	-I $(BUILDPATH)/Runtime \
-	-I $(BUILDPATH)/Runtime/Cuda \
-	-I $(BUILDPATH)/Runtime/LLVM \
+	-I $(BUILDPATH)/Runtime/CostModel \
 	-I $(BUILDPATH)/Runtime/Memory \
-	-I $(BUILDPATH)/ShapeInference \
+	-I $(BUILDPATH)/Runtime/ShapeInference \
 	-I $(BUILDPATH)/SSA \
 	-I $(BUILDPATH)/SSA/Optimizations \
  	-I $(BUILDPATH)/SSA/Analyses \
-	-I $(BUILDPATH)/SSA/Specialization
+	-I $(BUILDPATH)/Specialization
  
 OCAMLINCLUDES := $(LIB_INCLUDES) $(PARAKEET_INCLUDES)
 
 COMMON = `ls $(PARAKEET_PATH)/Common/*.o`
 FRONTEND = `ls $(PARAKEET_PATH)/FrontEnd/*.o`
-LLVMRUNTIME = `ls $(PARAKEET_PATH)/Runtime/LLVM/*.o`
+LLVMRUNTIME = `ls $(PARAKEET_PATH)/LLVM/*.o`
 OBJS =
 COBJS = -ccopt -L/usr/lib/nvidia-current \
-  $(PARAKEET_PATH)/cuda/parakeet_cuda.a $(COMMON) $(FRONTEND) $(LLVMRUNTIME) \
+  $(PARAKEET_PATH)/GPU/stubs/parakeet_cuda.a $(COMMON) $(FRONTEND) $(LLVMRUNTIME) \
 	-ccopt -lcuda \
 	-ccopt -L/usr/local/cuda/lib \
 	-ccopt -L/usr/local/cuda/lib64 \
