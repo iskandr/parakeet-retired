@@ -80,7 +80,16 @@ let rec get_underlying_array = function
   | Rotate (a, _, _) -> get_underlying_array a
   | Range _ -> failwith "Don't know how to handle ranges yet."
 
-let rec shape_of _ = Shape.of_list []
+let rec shape_of =  function
+  | Array {array_shape} -> array_shape
+  | Scalar _ -> Shape.scalar_shape
+  | _ -> failwith "[Value.shape_of] Not yet implemented"
+
+let get_shape = shape_of
+let get_strides = function
+  | Array {array_strides} -> array_strides
+  | _ -> failwith "Cannot get strides of non-array"
+
 
 let to_num = function
   | Scalar n -> n
@@ -116,14 +125,7 @@ let mk_array (data:'a) (elt_t:Type.elt_t) (shape:Shape.t) (strides:int array) =
 
 let is_scalar x = Type.is_scalar (type_of x)
 
-let get_shape = function
-  | Array {array_shape} -> array_shape
-  | Scalar _ -> Shape.scalar_shape
-  | _ -> failwith "Cannot get shape of non-array"
 
-let get_strides = function
-  | Array {array_strides} -> array_strides
-  | _ -> failwith "Cannot get strides of non-array"
 
 let rec extract = function
 	| Rotate (x, _, _)

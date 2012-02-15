@@ -26,6 +26,9 @@ val list_to_str : ?array_to_str:('a array_info -> string) -> 'a t list -> string
 
 val type_of : 'a t -> Type.t
 val shape_of : 'a t -> Shape.t
+
+val get_shape : 'a t -> Shape.t
+val get_strides : 'a t -> int array
 val get_underlying_array : 'a t -> 'a array_info
 
 val to_num : 'a t -> ParNum.t
@@ -49,8 +52,6 @@ val mk_array : 'a -> Type.elt_t -> Shape.t -> int array -> 'a t
 
 val is_scalar : 'a t -> bool
 
-val get_shape : 'a t -> Shape.t
-val get_strides : 'a t -> int array
 
 val extract : 'a t -> 'a option
 val collect_list : 'a t list -> 'a list

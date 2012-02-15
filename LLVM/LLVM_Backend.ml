@@ -101,7 +101,7 @@ let allocate_output_gv impT (shape:Shape.t) : GV.t  =
 let allocate_output_generic_values impFn inputShapes : GV.t list =
   IFDEF DEBUG THEN
     Printf.printf
-      "[LLVM_Backend] Inferring output shapes of %s with inputs %s\n"
+      "[LLVM_Backend] Inferring output shapes of %s with input shapes [%s]\n"
       (FnId.to_str impFn.Imp.id)
       (String.concat ", " (List.map Shape.to_str inputShapes));
   ENDIF;
