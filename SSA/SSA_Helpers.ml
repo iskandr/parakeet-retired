@@ -39,37 +39,36 @@ let get_id valNode = match valNode.value with
 
 
 
-(***
-    helpers for values
- ***)
+(***********************************************************************)
+(*                          Value Helpers                              *)
+(***********************************************************************)
 
 
-let mk_val ?src ?(ty=Type.BottomT) (v:value) : value_node =
+let wrap_value ?src ?(ty=Type.BottomT) (v:value) : value_node =
   { value = v; value_src = src; value_type = ty }
 
-let mk_var ?src ?(ty=Type.BottomT) (id:ID.t) : value_node =
+let var ?src ?(ty=Type.BottomT) (id:ID.t) : value_node =
   { value = Var id; value_src = src; value_type = ty }
 
-let mk_op ?src ?ty op = mk_val ?src ?ty (Prim op)
+let op ?src ?ty op = val ?src ?ty (Prim op)
 
-let mk_globalfn ?src ?(ty=Type.BottomT) (id:FnId.t) : value_node=
+let globalfn ?src ?(ty=Type.BottomT) (id:FnId.t) : value_node=
   { value = GlobalFn id; value_src = src; value_type = ty }
 
-let mk_num ?src ?ty n =
+let num ?src ?ty n =
   let ty = match ty with
     | None -> Type.ScalarT (ParNum.type_of n)
     | Some t -> t
   in
-  mk_val ?src ~ty (Num n)
+  val ?src ~ty (Num n)
 
-let mk_bool ?src b = mk_num ?src ~ty:Type.bool (ParNum.Bool b)
+let _bool ?src b = num ?src ~ty:Type.bool (ParNum.Bool b)
 
-let mk_int32 ?src i =
-  mk_num ?src ~ty:Type.int32 (ParNum.coerce_int i Type.Int32T)
+let int32 ?src i = num ?src ~ty:Type.int32 (ParNum.coerce_int i Type.Int32T)
 
-let mk_float32 ?src f = mk_num ?src ~ty:Type.float32 (ParNum.Float32 f)
+let float32 ?src f = num ?src ~ty:Type.float32 (ParNum.Float32 f)
 
-let mk_float64 ?src f = mk_num ?src ~ty:Type.float64 (ParNum.Float64 f)
+let float64 ?src f = num ?src ~ty:Type.float64 (ParNum.Float64 f)
 
 let is_const {value} =
   match value with
@@ -90,22 +89,22 @@ let get_const_int valNode =
   let n = get_const valNode in
   ParNum.to_int n
 
-(***
-    helpers for expressions
- ***)
+(****************************************************************************)
+(*                         Expression Helpers                               *)
+(****************************************************************************)
 
 let map_default_types optTypes values =
   match optTypes with
     | None -> List.map (fun vNode -> vNode.value_type) values
     | Some ts -> ts
 
-let mk_app ?src fn args =
+let app ?src fn args =
   { exp=App(fn,args); exp_src = src; exp_types = [Type.BottomT] }
 
-let mk_primapp ?src prim ~output_types args =
+let primapp ?src prim ~output_types args =
   { exp = PrimApp (prim, args); exp_src = src; exp_types = output_types}
 
-let mk_arr ?src ?types elts =
+let arr ?src ?types elts =
   let argTypes = map_default_types types elts in
   let resultT = match argTypes with
     | [] -> Type.BottomT
@@ -117,25 +116,25 @@ let mk_arr ?src ?types elts =
   in
   { exp=Arr elts; exp_src=src; exp_types = [resultT] }
 
-let mk_val_exp ?src ?ty (v: value) =
+let val_exp ?src ?ty (v: value) =
   let ty' = match ty with
     | None -> Type.BottomT
     | Some ty -> ty
   in
-  { exp=Values [mk_val ?src v]; exp_src=src; exp_types = [ty'] }
+  { exp=Values [val ?src v]; exp_src=src; exp_types = [ty'] }
 
-let mk_vals_exp ?src ?types ( vs : value list) =
+let vals_exp ?src ?types ( vs : value list) =
   let valNodes = match types with
-    | Some types -> List.map2 (fun v ty -> mk_val ?src ~ty v) vs types
-    | None -> List.map (mk_val ?src) vs
+    | Some types -> List.map2 (fun v ty -> val ?src ~ty v) vs types
+    | None -> List.map (val ?src) vs
   in
   let types' = map_default_types types valNodes in
   { exp = Values valNodes; exp_src = src; exp_types=types' }
 
-let mk_cast ?src t v =
+let cast ?src t v =
   { exp = Cast(t, v); exp_types = [t]; exp_src = src }
 
-let mk_exp ?src ?types exp =
+let exp ?src ?types exp =
   (* WARNING--- function calls may need more than 1 return type, in which
      case the default [BottomT] is wrong
   *)
@@ -146,13 +145,13 @@ let mk_exp ?src ?types exp =
   in
   { exp= exp; exp_types = types'; exp_src = src}
 
-let mk_call ?src fnId outTypes args  =
+let call ?src fnId outTypes args  =
   { exp = Call(fnId, args); exp_types = outTypes; exp_src=src}
 
 
 
 
-let mk_closure fundef args = {
+let closure fundef args = {
   closure_fn = fundef.fn_id;
   closure_args = args;
   closure_arg_types = List.map (fun v -> v.value_type) args;
@@ -161,32 +160,83 @@ let mk_closure fundef args = {
 }
 
 
-(***
-     helpers for statements
- ***)
+(**********************************************************************)
+(*           DSL for more compactly building small SSA functions      *)
+(**********************************************************************)
 
-let mk_stmt ?src ?(id=StmtId.gen()) stmt =
+let (:=) xs y = set (List.map get_id xs) y
+let (@@) fn args = app fn args
+let scalar_op op = op (Prim.ScalarOp op)
+let array_op op = op (Prim.ArrayOp op)
+let impure_op op = op (Prim.ImpureOp op)
+
+let print = impure_op Prim.Print
+
+let plus = scalar_op Prim.Add
+let minus = scalar_op Prim.Sub
+let mul = scalar_op Prim.Mult
+let div = scalar_op Prim.Div
+
+let lt = scalar_op Prim.Lt
+let lte = scalar_op Prim.Lte
+let eq = scalar_op Prim.Eq
+
+let zero = num (ParNum.Int32 0l)
+let one = num (ParNum.Int32 1l)
+let neg_one = num (ParNum.Int32 (-1l))
+let trueVal = num (ParNum.Bool true)
+let falseVal = num (ParNum.Bool false)
+
+let inf = num (ParNum.Inf Type.Float32T)
+let neginf = num (ParNum.NegInf Type.Float32T)
+
+let select = op (Prim.ScalarOp Prim.Select)
+
+let reduce = op  (Prim.Adverb Prim.Reduce)
+let map = op (Prim.Adverb Prim.Map)
+let allPairs = op (Prim.Adverb Prim.AllPairs)
+
+(*let where = op (Prim.ArrayOp Prim.Where)*)
+let index = op (Prim.ArrayOp Prim.Index)
+(*let til = op (Prim.ArrayOp Prim.Til)*)
+let find = op (Prim.ArrayOp Prim.Find)
+let dimsize = op (Prim.ArrayOp Prim.DimSize)
+
+
+let value x = exp $ Values [x]
+let values xs = exp $ Values xs
+
+let len x = dimsize @@ [x; zero]
+let incr (x:ID.t) (y:value_node) = set [x] (plus @@ [y;one])
+let set_int (x:ID.t) (y:Int32.t) =
+  set [x] (vals_exp [Num (ParNum.Int32 y)])
+
+
+(****************************************************************)
+(*                Statement Helpers                             *)
+(****************************************************************)
+
+let stmt ?src ?(id=StmtId.gen()) stmt =
   { stmt = stmt; stmt_src = src; stmt_id = id }
 
-let mk_set ?src ids rhs =
+let set ?src ids rhs =
   { stmt = Set(ids, rhs);
     stmt_src = src;
     stmt_id = StmtId.gen()
   }
 
-let mk_setidx ?src lhs indices rhs =
+let setidx ?src lhs indices rhs =
   { stmt = SSA.SetIdx(lhs, indices, rhs);
     stmt_src = src;
     stmt_id = StmtId.gen()
   }
 
-(***
-   helpers for phi-nodes
+(****************************************************************)
+(*                 Phi-Node Helpers                             *)
+(****************************************************************)
 
- ***)
 
-
-let mk_phi ?src ?ty id left right =
+let phi ?src ?ty id left right =
   {
     phi_id = id;
     phi_left = left;
@@ -195,7 +245,7 @@ let mk_phi ?src ?ty id left right =
     phi_src = src;
   }
 
-let empty_phi = mk_phi ID.undefined (mk_var ID.undefined) (mk_var ID.undefined)
+let empty_phi = phi ID.undefined (var ID.undefined) (var ID.undefined)
 let is_empty_phi phiNode = match phiNode.phi_left, phiNode.phi_right with
   | {value=Var idLeft}, {value=Var idRight} ->
       idLeft == ID.undefined && idRight == ID.undefined &&
@@ -204,17 +254,17 @@ let is_empty_phi phiNode = match phiNode.phi_left, phiNode.phi_right with
 
 
 (* make a block of phi nodes merging IDs from the three lists given *)
-let rec mk_phi_nodes outIds leftIds rightIds =
+let rec phi_nodes outIds leftIds rightIds =
   match (outIds, leftIds, rightIds) with
     | [], _, _ | _,[],_ | _,_,[] -> []
     | x::xs, y::ys, z::zs ->
-      (mk_phi x (mk_var y) (mk_var z)) :: (mk_phi_nodes xs ys zs)
+      (phi x (var y) (var z)) :: (phi_nodes xs ys zs)
 
-let rec mk_phi_nodes_from_values outVals leftVals rightVals =
+let rec phi_nodes_from_values outVals leftVals rightVals =
   match (outVals, leftVals, rightVals) with
     | [], _, _ | _, [], _ | _, _, [] -> []
     | x::xs, y::ys, z::zs ->
-      (mk_phi (get_id x) y z) :: (mk_phi_nodes_from_values xs ys zs)
+      (phi (get_id x) y z) :: (phi_nodes_from_values xs ys zs)
 
 (* assume a block contains only phi, collect the IDs and
    either the left or right values
@@ -239,7 +289,7 @@ let get_fn_id valNode = match valNode.value with
 
 
 let get_fn_ids valNodes = List.map get_fn_id valNodes
-let empty_stmt = mk_set [] (mk_vals_exp [])
+let empty_stmt = set [] (vals_exp [])
 
 let is_empty_stmt stmtNode =
   match stmtNode.stmt with
@@ -249,3 +299,58 @@ let is_empty_stmt stmtNode =
 let rec types_of_value_nodes = function
   | [] -> []
   | vNode::rest -> vNode.value_type :: (types_of_value_nodes rest)
+
+
+
+let fn_builder
+      ?name
+      ~(inputs_types : Type.t list)
+      ~(output_types : Type.t list)
+      ?(local_types = [])
+      (bodyConstructor : vars -> vars -> vars -> stmt_node list) =
+
+  (* inputs *)
+  let nInputs = List.length input_types in
+  let inputIds = ID.gen_named_list "input" nInputs in
+  let inputs = List.map (fun t id -> var ~ty:t id) input_types inputIds in
+  (* outputs *)
+  let nOutputs = List.length output_types in
+  let outputIds = ID.gen_named_list "output" nOutputs in
+  let outputs = List.map (fun t id -> var ~ty:t id) output_types outputIds in
+  (* locals *)
+  let nLocals = List.length local_types in
+  let localIds = ID.gen_named_list "temp" nLocals in
+  let locals = List.map (fun t id -> var ~ty:t id) local_types localIds in
+  let body =
+    Block.of_list $ bodyConstructor
+      (Array.of_list inputs)
+      (Array.of_list outputs)
+      (Array.of_list locals)
+  in
+  let tenv =
+    ID.Map.of_lists
+      (inputIds @ outputIds @ localIds)
+      (input_types @ output_types @ local_types)
+  in
+  SSA_Helpers.fn
+    ?name
+    ~tenv
+    ~input_ids:inputIds
+    ~output_ids:outputIds
+    ~body
+
+(* special case for creating function with 1 input, 1 output *)
+let untyped_fn1_builder constructor =
+  let wrapper = function
+    | [input], [output], [] -> constructor input output
+    | _ -> assert false
+  in
+  fn ~input_types[Type.BottomT] ~output_types:[Type.BottomT] wrapper
+
+(* 2 inputs, 1 output, 0 locals *)
+let untyped_fn2_builder constructor =
+  let wrapper = function
+    | [x;y], [z], [] -> constructor x y z
+    | _ -> assert false
+  in
+  fn ~input_types:[Type.BottomT] ~output_types:[Type.BottomT] wrapper

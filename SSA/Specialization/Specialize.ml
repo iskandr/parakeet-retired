@@ -47,10 +47,7 @@ let mk_typed_scalar_prim (op : Prim.scalar_op) ?optOutType argTypes =
     done
     ;
     let primAppNode =
-      mk_primapp
-        (Prim.ScalarOp op)
-        [outType]
-        (Array.to_list args)
+      mk_primapp (Prim.ScalarOp op) [outType] (Array.to_list args)
     in
     let outputVar = List.hd outputs in
     codegen#emit [[outputVar] := primAppNode]

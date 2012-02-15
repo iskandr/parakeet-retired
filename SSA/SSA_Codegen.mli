@@ -1,3 +1,7 @@
+(* The codegen object helps keep track of information about an SSA function*)
+(* function and its variables as we are in the process of constructing it. *)
+(* Should be used only from the AST_to_SSA module *)
+
 open SSA
 
 class codegen : object
@@ -28,55 +32,4 @@ val mk_codegen_fn
 
 
 
-val (:=) : value_node list -> exp_node -> stmt_node
-val (@@) : value_node -> value_node list -> exp_node
-val scalar_op : Prim.scalar_op -> value_node
-val array_op : Prim.array_op -> value_node
-val impure_op : Prim.impure_op -> value_node
 
-val print : value_node
-
-val inf : value_node
-val neginf : value_node
-
-val plus : value_node
-val minus : value_node
-val mul : value_node
-val div : value_node
-
-val lt : value_node
-val lte : value_node
-val eq : value_node
-
-val one : value_node
-val neg_one : value_node
-val zero : value_node
-
-val reduce : value_node
-val map : value_node
-val allPairs : value_node
-
-(*val where : value_node*)
-val index : value_node
-(*val til : value_node*)
-val find : value_node
-val dimsize : value_node
-val select : value_node
-
-
-
-
-val len : value_node -> exp_node
-val value : value_node -> exp_node
-val values : value_node list -> exp_node
-
-val incr : ID.t -> value_node -> stmt_node
-val set_int : ID.t -> Int32.t -> stmt_node
-
-type vars = value_node array
-val fn :
-  ?name:string -> input_types:Type.t list -> output_types:Type.t list ->
-    ?local_types:Type.t list -> (vars -> vars -> vars -> stmt_node list) -> fn
-
-val fn1 : (value_node -> value_node -> stmt_node list) -> fn
-val fn2 : (value_node -> value_node -> value_node -> stmt_node list) -> fn

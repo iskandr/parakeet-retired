@@ -33,7 +33,7 @@ let closure_output_types closure =
 let infer_adverb_axes_from_rank ?axes rank =
   match axes with
     | Some axes -> axes
-    | None -> List.map SSA_Helpers.mk_int32 (List.til rank)
+    | None -> List.map SSA_Helpers.int32 (List.til rank)
 
 (* given a list of input array types, infer the largest number *)
 (* of axes feasible to map over them-- min of all ranks except 0 *)
@@ -52,7 +52,7 @@ let infer_adverb_axes_from_types ?axes (types:Type.t list) =
   | Some axes -> axes
   | None ->
     let numAxes = max_num_axes_from_array_types types in
-    List.map SSA_Helpers.mk_int32 (List.til numAxes)
+    List.map SSA_Helpers.int32 (List.til numAxes)
 
 let infer_adverb_axes_from_args ?axes (otherArgs:value_nodes) =
   match axes with
@@ -60,7 +60,7 @@ let infer_adverb_axes_from_args ?axes (otherArgs:value_nodes) =
     | None ->
       let argTypes = List.map (fun vNode -> vNode.value_type) otherArgs in
       let numAxes = max_num_axes_from_array_types argTypes in
-      List.map SSA_Helpers.mk_int32 (List.til numAxes)
+      List.map SSA_Helpers.int32 (List.til numAxes)
 
 let mk_map ?src closure ?axes (args:value_nodes) =
   (* if axes not specified, then infer them *)
@@ -88,7 +88,8 @@ let mk_map_fn
       ?(const_axes : int list option)
       ?(axes : SSA.value_nodes option)
       ?(fixed_types=[])
-      ~(array_types: Type.t list) =
+      ~(array_types: Type.t list)
+      ~(output_types : Type.t list) =
   let axes : SSA.value_nodes = match const_axes with
     | Some ints ->
       if (axes <> None) then
@@ -106,23 +107,15 @@ let mk_map_fn
       (Type.type_list_to_str input_types)
     ;
   ENDIF;
-  let numAxes = List.length axes in
-  let numFixed = List.length fixed_types in
-  let numArrays = List.length array_types in
-  let outTypes = Type.increase_ranks numAxes nestedfn.SSA.fn_output_types in
-
-  (*type fn = {
-  body: block;
-  tenv : tenv;
-  input_ids:ID.t list;
-  output_ids: ID.t list;
-  fn_input_types : Type.t list;
-  fn_output_types : Type.t list;
-  fn_id : FnId.t;
-}*)
-  let closure = mk_closure nestedfn [] in
-  (* no need to specify the implict 0..numAxes list of axes since *)
-  (* mk_map will automatically create that list when an ?axes argument *)
-  (* isn't given *)
-  SSA_Codegen.mk_codegen_fn inputTypes outTypes $ fun codegen inputs outputs ->
-    codegen#emit [outputs := (SSA_AdverbHelpers.mk_map ?src closure inputs)]
+  let constructor = function
+    | inputs, outputs, [] ->
+      let fixed, arrays = List.split_nth (List.length fixed_types) inputs in
+      let closure = SSA_Helpers.mk_closure ssa_fn fixed in
+      [outputs :=  mk_map ?src closure ~axes arrays]
+    | _ -> assert false
+  in
+  SSA_Helpers.fn_builder
+    ~name:"map_wrapper"
+    ~input_types:(fixed_types @ array_types)
+    ~output_types:(Type.increase_ranks numAxes nested_fn.SSA.fn_output_types)
+    constructor
