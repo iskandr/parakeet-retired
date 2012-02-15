@@ -54,12 +54,12 @@ make_command = [
 ] 
   
 if opts['clean']:
-  os.chdir("cuda")
+  os.chdir("GPU/stubs")
   print
   print "Cleaning Cuda directory"
   print
   subprocess.call(make_command + ["clean"])
-  os.chdir("../FrontEnd")
+  os.chdir("../../FrontEnd")
   print
   print "Cleaning FrontEnd directory"
   print
@@ -94,7 +94,7 @@ build_command = ["ocamlbuild",
                  "-cflags",
                  "-I,/usr/local/lib/ocaml",
                  "-lflags",
-                 "-ccopt," + parakeet_path + "/cuda/parakeet_cuda.a," +\
+                 "-ccopt," + parakeet_path + "GPU/stubs/parakeet_cuda.a," +\
                  "-ccopt,-L/usr/local/cuda/lib," +\
                  "-ccopt,-L/usr/local/cuda/lib64," +\
                  "-ccopt,-L/usr/lib/nvidia-current," +\
@@ -152,11 +152,11 @@ os.chdir("..")
 # Build CUDA stubs 
 #print "\n\n (Cuda stubs deactivated)" 
 print "\n\n ******** Building Cuda Modules ********* "
-os.chdir("cuda")
+os.chdir("GPU/stubs")
 if subprocess.call(["make"]):
   print "Cuda build failed"
   sys.exit(1)
-os.chdir("..")
+os.chdir("../..")
 
 # Build FrontEnd
 print "\n\n ****** Building Parakeet Front End Interface ******"
