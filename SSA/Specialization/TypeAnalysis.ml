@@ -2,7 +2,6 @@
 open Printf
 open Base
 open SSA
-open SSA_Helpers
 open SSA_Analysis
 
 module type TYPE_ANALYSIS_PARAMS = sig

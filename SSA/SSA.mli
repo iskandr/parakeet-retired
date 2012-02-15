@@ -5,7 +5,7 @@ type value =
   | Str of string
   | Sym of string
   | Unit
-  | Prim of Prim.prim
+  | Prim of Prim.t
   | GlobalFn of FnId.t
 
 and value_node = {
@@ -39,7 +39,7 @@ type exp =
   (* nodes below are only used after type specialization *)
   | Cast of Type.t * value_node
   | Call of FnId.t * value_nodes
-  | PrimApp of Prim.prim * value_nodes
+  | PrimApp of Prim.t * value_nodes
   | Adverb of Prim.adverb * closure * adverb_args
 
 and exp_node = {

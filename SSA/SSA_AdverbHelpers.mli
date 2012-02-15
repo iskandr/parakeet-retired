@@ -20,3 +20,10 @@ val mk_scan :
    ?src:SrcInfo.t -> closure -> ?axes:value_nodes ->
     value_nodes -> value_nodes -> exp_node
 
+val mk_map_fn :
+      ?src:SrcInfo.t ->
+      nested_fn:SSA.fn ->
+      ?axes : SSA.value_nodes ->
+      ?fixed_types:Type.t list ->
+      array_types: Type.t list ->
+      SSA.fn

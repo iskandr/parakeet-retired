@@ -50,7 +50,7 @@ let wrap_value ?src ?(ty=Type.BottomT) (v:value) : value_node =
 let var ?src ?(ty=Type.BottomT) (id:ID.t) : value_node =
   { value = Var id; value_src = src; value_type = ty }
 
-let op ?src ?ty op = val ?src ?ty (Prim op)
+let op ?src ?ty op = wrap_value ?src ?ty (Prim op)
 
 let globalfn ?src ?(ty=Type.BottomT) (id:FnId.t) : value_node=
   { value = GlobalFn id; value_src = src; value_type = ty }
@@ -60,9 +60,9 @@ let num ?src ?ty n =
     | None -> Type.ScalarT (ParNum.type_of n)
     | Some t -> t
   in
-  val ?src ~ty (Num n)
+  wrap_value ?src ~ty (Num n)
 
-let _bool ?src b = num ?src ~ty:Type.bool (ParNum.Bool b)
+let bool ?src b = num ?src ~ty:Type.bool (ParNum.Bool b)
 
 let int32 ?src i = num ?src ~ty:Type.int32 (ParNum.coerce_int i Type.Int32T)
 
@@ -121,12 +121,12 @@ let val_exp ?src ?ty (v: value) =
     | None -> Type.BottomT
     | Some ty -> ty
   in
-  { exp=Values [val ?src v]; exp_src=src; exp_types = [ty'] }
+  { exp=Values [wrap_value ?src v]; exp_src=src; exp_types = [ty'] }
 
 let vals_exp ?src ?types ( vs : value list) =
   let valNodes = match types with
-    | Some types -> List.map2 (fun v ty -> val ?src ~ty v) vs types
-    | None -> List.map (val ?src) vs
+    | Some types -> List.map2 (fun v ty -> wrap_value ?src ~ty v) vs types
+    | None -> List.map (wrap_value ?src) vs
   in
   let types' = map_default_types types valNodes in
   { exp = Values valNodes; exp_src = src; exp_types=types' }
@@ -155,20 +155,39 @@ let closure fundef args = {
   closure_fn = fundef.fn_id;
   closure_args = args;
   closure_arg_types = List.map (fun v -> v.value_type) args;
-  (*closure_input_types = List.drop (List.length args) fundef.fn_input_types;
-  closure_output_types = fundef.fn_output_types;*)
+
 }
+
+
+(****************************************************************)
+(*                Statement Helpers                             *)
+(****************************************************************)
+
+let stmt ?src ?(id=StmtId.gen()) stmt =
+  { stmt = stmt; stmt_src = src; stmt_id = id }
+
+let set ?src ids rhs =
+  { stmt = Set(ids, rhs);
+    stmt_src = src;
+    stmt_id = StmtId.gen()
+  }
+
+let setidx ?src lhs indices rhs =
+  { stmt = SSA.SetIdx(lhs, indices, rhs);
+    stmt_src = src;
+    stmt_id = StmtId.gen()
+  }
 
 
 (**********************************************************************)
 (*           DSL for more compactly building small SSA functions      *)
 (**********************************************************************)
 
-let (:=) xs y = set (List.map get_id xs) y
+let (<--) xs y = set (List.map get_id xs) y
 let (@@) fn args = app fn args
-let scalar_op op = op (Prim.ScalarOp op)
-let array_op op = op (Prim.ArrayOp op)
-let impure_op op = op (Prim.ImpureOp op)
+let scalar_op (x : Prim.scalar_op)  = op (Prim.ScalarOp x)
+let array_op (x : Prim.array_op) = op (Prim.ArrayOp x)
+let impure_op (x : Prim.impure_op)  = op (Prim.ImpureOp x)
 
 let print = impure_op Prim.Print
 
@@ -211,25 +230,6 @@ let incr (x:ID.t) (y:value_node) = set [x] (plus @@ [y;one])
 let set_int (x:ID.t) (y:Int32.t) =
   set [x] (vals_exp [Num (ParNum.Int32 y)])
 
-
-(****************************************************************)
-(*                Statement Helpers                             *)
-(****************************************************************)
-
-let stmt ?src ?(id=StmtId.gen()) stmt =
-  { stmt = stmt; stmt_src = src; stmt_id = id }
-
-let set ?src ids rhs =
-  { stmt = Set(ids, rhs);
-    stmt_src = src;
-    stmt_id = StmtId.gen()
-  }
-
-let setidx ?src lhs indices rhs =
-  { stmt = SSA.SetIdx(lhs, indices, rhs);
-    stmt_src = src;
-    stmt_id = StmtId.gen()
-  }
 
 (****************************************************************)
 (*                 Phi-Node Helpers                             *)
@@ -304,53 +304,45 @@ let rec types_of_value_nodes = function
 
 let fn_builder
       ?name
-      ~(inputs_types : Type.t list)
+      ~(input_types : Type.t list)
       ~(output_types : Type.t list)
       ?(local_types = [])
-      (bodyConstructor : vars -> vars -> vars -> stmt_node list) =
+      (construct : value_nodes * value_nodes * value_nodes -> stmt_node list) =
 
   (* inputs *)
   let nInputs = List.length input_types in
   let inputIds = ID.gen_named_list "input" nInputs in
-  let inputs = List.map (fun t id -> var ~ty:t id) input_types inputIds in
+  let inputs = List.map2 (fun t id -> var ~ty:t id) input_types inputIds in
   (* outputs *)
   let nOutputs = List.length output_types in
   let outputIds = ID.gen_named_list "output" nOutputs in
-  let outputs = List.map (fun t id -> var ~ty:t id) output_types outputIds in
+  let outputs = List.map2 (fun t id -> var ~ty:t id) output_types outputIds in
   (* locals *)
   let nLocals = List.length local_types in
   let localIds = ID.gen_named_list "temp" nLocals in
-  let locals = List.map (fun t id -> var ~ty:t id) local_types localIds in
-  let body =
-    Block.of_list $ bodyConstructor
-      (Array.of_list inputs)
-      (Array.of_list outputs)
-      (Array.of_list locals)
-  in
+  let locals = List.map2 (fun t id -> var ~ty:t id) local_types localIds in
+  let body = Block.of_list (construct (inputs, outputs, locals)) in
   let tenv =
     ID.Map.of_lists
       (inputIds @ outputIds @ localIds)
       (input_types @ output_types @ local_types)
   in
-  SSA_Helpers.fn
-    ?name
-    ~tenv
-    ~input_ids:inputIds
-    ~output_ids:outputIds
-    ~body
+  mk_fn ?name ~tenv ~input_ids:inputIds ~output_ids:outputIds ~body
 
 (* special case for creating function with 1 input, 1 output *)
 let untyped_fn1_builder constructor =
-  let wrapper = function
-    | [input], [output], [] -> constructor input output
-    | _ -> assert false
-  in
-  fn ~input_types[Type.BottomT] ~output_types:[Type.BottomT] wrapper
+  fn_builder
+    ?name:None
+    ~input_types:[Type.BottomT]
+    ~output_types:[Type.BottomT]
+    ~local_types:[]
+    (function [x], [y], [] -> constructor x y | _ -> assert false)
 
 (* 2 inputs, 1 output, 0 locals *)
 let untyped_fn2_builder constructor =
-  let wrapper = function
-    | [x;y], [z], [] -> constructor x y z
-    | _ -> assert false
-  in
-  fn ~input_types:[Type.BottomT] ~output_types:[Type.BottomT] wrapper
+  fn_builder
+    ?name:None
+    ~input_types:[Type.BottomT]
+    ~output_types:[Type.BottomT]
+    ~local_types:[]
+    (function [x;y], [z], [] -> constructor x y z | _ -> assert false)

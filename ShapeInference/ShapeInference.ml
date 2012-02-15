@@ -135,7 +135,7 @@ module ShapeAnalysis (P: PARAMS) =  struct
         failwith "Unsupported array operator %s with args %s"
 
     let infer_primapp
-          (op:Prim.prim)
+          (op:Prim.t)
           (args : SymbolicShape.t list) : SymbolicShape.t list =
       match op, args with
       | Prim.ArrayOp arrayOp, _ -> [infer_array_op arrayOp args]

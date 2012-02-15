@@ -1,7 +1,6 @@
 (* pp: -parser o pa_macro.cmo *)
 open Base
 open SSA
-open SSA_Helpers
 open SSA_AdverbHelpers
 open SSA_Transform
 open Printf
@@ -45,7 +44,7 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
   let mk_typed_closure fnVal signature =
     match fnVal with
     | GlobalFn _
-    | Prim _ -> mk_closure (P.specializer fnVal signature) []
+    | Prim _ -> SSA_Helpers.closure (P.specializer fnVal signature) []
     | _ ->
       failwith $ Printf.sprintf
         "[RewriteTyped] Expected function, got variable %s "
@@ -66,7 +65,7 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
     else match valNode.value with
       | Num n ->
         let n' = ParNum.coerce n (Type.elt_type t) in
-        mk_num ?src:valNode.value_src ~ty:t n'
+        SSA_Helpers.num ?src:valNode.value_src ~ty:t n'
       | Var id ->
         let t' = get_type id in
         if t = t' then {valNode with value_type = t }
@@ -105,10 +104,10 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
         let t' = get_type id in
         if t = t' then {valNode with value_type = t }
         else
-        let coerceExp = mk_cast t valNode in
+        let coerceExp = SSA_Helpers.cast t valNode in
         let id' =  fresh_id t in
-        add_coercion (mk_set [id'] coerceExp);
-        mk_var ~ty:t id'
+        add_coercion (SSA_Helpers.set [id'] coerceExp);
+        SSA_Helpers.var ~ty:t id'
     | _ -> rewrite_value t valNode
 
   let coerce_values t vs = List.map (coerce_value t) vs
@@ -142,7 +141,7 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
         let closure =
           mk_typed_closure fnVal (Signature.from_input_types eltTypes)
         in
-        mk_map closure argNodes
+        SSA_AdverbHelpers.mk_map closure argNodes
       | Prim.Reduce ->
         let arity = FnManager.output_arity_of_value fnVal in
         let initArgs, args = List.split_nth arity argNodes in
@@ -154,7 +153,7 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
           Signature.from_types (accTypes @ eltTypes) accTypes
         in
         let reduceClosure = mk_typed_closure fnVal reduceSignature in
-        mk_reduce ?src ?axes:None reduceClosure initArgs args
+        SSA_AdverbHelpers.mk_reduce ?src ?axes:None reduceClosure initArgs args
       | Prim.AllPairs ->
         (*let eltTypes = List.map Type.peel_vec argTypes in
         let eltSignature = Signature.from_input_types eltTypes in
@@ -177,22 +176,24 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
         let whereT = Type.ArrayT(Type.Int32T, 1) in
         let whereId = fresh_id whereT in
         let whereOp =  Prim.ArrayOp Prim.Where in
-        let whereExp = mk_primapp ?src whereOp ~output_types:[whereT] [index] in
-        add_coercion (mk_set ?src [whereId] whereExp);
-        let args' = array :: [mk_var ?src ~ty:whereT whereId] in
+        let whereExp =
+          SSA_Helpers.primapp ?src whereOp ~output_types:[whereT] [index]
+        in
+        add_coercion (SSA_Helpers.set ?src [whereId] whereExp);
+        let args' = array :: [SSA_Helpers.var ?src ~ty:whereT whereId] in
         let resultType = Type.ArrayT (Type.elt_type arrayType, 1) in
         let indexOp = Prim.ArrayOp Prim.Index in
-        mk_primapp ?src indexOp ~output_types:[resultType] args'
+        SSA_Helpers.primapp ?src indexOp ~output_types:[resultType] args'
     | _ ->
         let outT = TypeInfer.infer_simple_array_op op types in
-        mk_primapp ?src (Prim.ArrayOp op) ~output_types:[outT] args
+        SSA_Helpers.primapp ?src (Prim.ArrayOp op) ~output_types:[outT] args
 
   let rewrite_index src lhs args =
     let arrType = infer_value_node_type lhs in
     let outTypes = [Type.AnyT] in
     let arrNode = {lhs with value_type = arrType} in
     let indexOp = Prim.ArrayOp Prim.Index in
-    mk_primapp ?src indexOp  ~output_types:outTypes (arrNode::args)
+    SSA_Helpers.primapp ?src indexOp  ~output_types:outTypes (arrNode::args)
 
   let rewrite_app src fn argNodes : exp_node =
     IFDEF DEBUG THEN
@@ -216,7 +217,7 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
           | Prim.Select, boolArg::otherArgs, _::otherTypes ->
             let inT = Type.combine_type_list otherTypes in
             let args = boolArg :: (List.map (coerce_value inT) argNodes) in
-            SSA_Helpers.mk_primapp p [outT] args
+            SSA_Helpers.primapp p [outT] args
           | _ ->
             (* if operation is a float, then make sure the inputs are*)
             (* at least float32 *)
@@ -227,7 +228,7 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
                 Type.combine_type_list argTypes
             in
             let args = List.map (coerce_value inT) argNodes in
-            SSA_Helpers.mk_primapp p [outT] args
+            SSA_Helpers.primapp p [outT] args
         end
     | Prim (Prim.ArrayOp op) -> rewrite_array_op src op argNodes argTypes
     | Prim (Prim.Adverb adverb) ->
@@ -238,7 +239,7 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
       end
     | GlobalFn _ ->
       let typed = P.specializer fnVal (Signature.from_input_types argTypes) in
-      mk_call ?src typed.fn_id typed.fn_output_types argNodes
+      SSA_Helpers.call ?src typed.fn_id typed.fn_output_types argNodes
     | Var id -> rewrite_index src fn argNodes
     | _ -> failwith $
              Printf.sprintf "[RewriteTyped] Unexpected function: %s"
@@ -320,9 +321,12 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
 
   and transform_fn f =
     let body = transform_block f.body in
-    let tenv = Hashtbl.fold ID.Map.add P.tenv ID.Map.empty in
-    let name = FnId.get_original_prefix f.fn_id in
-    mk_fn ~name ~tenv ~input_ids:f.input_ids ~output_ids:f.output_ids ~body
+    SSA_Helpers.mk_fn
+      ~name:(FnId.get_original_prefix f.fn_id)
+      ~tenv:(Hashtbl.fold ID.Map.add P.tenv ID.Map.empty)
+      ~input_ids:f.input_ids
+      ~output_ids:f.output_ids
+      ~body
 end
 
 let rewrite_typed ~tenv ~specializer ~fn =

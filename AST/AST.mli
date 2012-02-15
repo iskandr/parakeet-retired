@@ -29,7 +29,7 @@ val info_to_str : ast_info -> string
 type exp =
 	| Lam of (string list) * node
 	| Var of string
-	| Prim of prim
+	| Prim of Prim.t
 	| Num of ParNum.t
 	| Str of string
 	| App of node * node list

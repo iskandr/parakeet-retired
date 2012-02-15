@@ -15,8 +15,8 @@ val mk_app_node : ?info:ast_info -> ?src:SrcInfo.t -> node -> node list -> node
 
 val update_app_node : node -> node -> node list -> node
 
-val mk_prim_node : ?info:ast_info -> ?src:SrcInfo.t -> Prim.prim -> node
-val update_prim_node : node -> Prim.prim -> node
+val mk_prim_node : ?info:ast_info -> ?src:SrcInfo.t -> Prim.t -> node
+val update_prim_node : node -> Prim.t -> node
 
 val mk_var_node : ?info:ast_info -> ?src:SrcInfo.t -> string -> node
 val update_var_node : node -> string -> node

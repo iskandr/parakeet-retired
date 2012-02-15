@@ -9,7 +9,7 @@ open Type
 open Printf
 
 (* make a fresh function definition whose body is only an untyped prim *)
-let untypedPrimFnCache : (Prim.prim * int, SSA.fn) Hashtbl.t =
+let untypedPrimFnCache : (Prim.t * int, SSA.fn) Hashtbl.t =
   Hashtbl.create 127
 
 let mk_untyped_prim_fn prim arity : SSA.fn =
@@ -20,10 +20,10 @@ let mk_untyped_prim_fn prim arity : SSA.fn =
   let inputs = ID.gen_named_list "input" arity in
   let output = ID.gen_named "output" in
   let bottoms = List.map (fun _ -> Type.BottomT) inputs in
-  let inputVars = List.map (fun id -> mk_var id) inputs in
-  let rhs = mk_app (mk_val (Prim prim)) inputVars in
-  let body = Block.singleton (mk_set [output] rhs) in
-  let fn = mk_fn inputs [output] body in
+  let inputVars = List.map SSA_Helpers.var inputs in
+  let rhs = SSA_Helpers.app (SSA_Helpers.wrap_value (Prim prim)) inputVars in
+  let body = Block.singleton (SSA_Helpers.set [output] rhs) in
+  let fn = SSA_Helpers.mk_fn inputs [output] body in
   (Hashtbl.add untypedPrimFnCache key fn; fn)
 
 let mk_typed_scalar_prim (op : Prim.scalar_op) ?optOutType argTypes =
@@ -41,16 +41,16 @@ let mk_typed_scalar_prim (op : Prim.scalar_op) ?optOutType argTypes =
       let reqT = reqTyArr.(i) in
       if inTyArr.(i) <> reqT then begin
         let id = codegen#fresh_var reqT in
-        codegen#emit [mk_set [id]  (mk_cast reqT args.(i))];
+        codegen#emit [SSA_Helpers.set [id]  (SSA_Helpers.cast reqT args.(i))];
         args.(i) <- codegen#id_value_node id
       end
     done
     ;
     let primAppNode =
-      mk_primapp (Prim.ScalarOp op) [outType] (Array.to_list args)
+      SSA_Helpers.primapp (Prim.ScalarOp op) [outType] (Array.to_list args)
     in
     let outputVar = List.hd outputs in
-    codegen#emit [[outputVar] := primAppNode]
+    codegen#emit [[outputVar] <-- primAppNode]
 
 
 
@@ -141,11 +141,11 @@ and scalarize_fn untyped vecSig =
   let scalarFn = specialize_value (SSA.GlobalFn untyped.fn_id) scalarSig in
   let scalarOutputTypes = scalarFn.fn_output_types in
   let outTypes = List.map (Type.increase_rank 1) scalarOutputTypes in
-  let scalarClosure = mk_closure scalarFn [] in
+  let scalarClosure = SSA_Helpers.closure scalarFn [] in
   SSA_Codegen.mk_codegen_fn inTypes outTypes (fun codegen inputs outputs ->
     let outIds = List.map SSA_Helpers.get_id outputs in
     codegen#emit [
-      mk_set outIds (mk_map scalarClosure inputs)
+      SSA_Helpers.set outIds (mk_map scalarClosure inputs)
     ]
   )
 
@@ -171,28 +171,32 @@ and specialize_value fnVal signature =
             Option.map List.hd (Signature.output_types_option signature)
           in
           let typed =
-            if List.for_all Type.is_scalar inputTypes then
-             mk_typed_scalar_prim op ?optOutType inputTypes
-          else
+            if List.for_all Type.is_scalar inputTypes
+            then mk_typed_scalar_prim op ?optOutType inputTypes
+            else
             (* if we're adding two arrays, then turn it into a map over both *)
             (* axes, but if we're adding an array to a vector we can only map*)
             (* over one axis *)
-            let maxRank =
-              SSA_AdverbHelpers.max_num_axes_from_array_types inputTypes
-            in
-            let nestedInputTypes =
-              List.map (Type.peel ~num_axes:maxRank) inputTypes
-            in
-            let nestedSig =
-              match optOutType with
-                | None -> Signature.from_input_types nestedInputTypes
+              let maxRank =
+                SSA_AdverbHelpers.max_num_axes_from_array_types inputTypes
+              in
+              let nestedInputTypes =
+                List.map (Type.peel ~num_axes:maxRank) inputTypes
+              in
+              let nestedSig = match optOutType with
+                | None ->
+                  Signature.from_input_types nestedInputTypes
                 | Some outT ->
-                  Signature.from_types
-                    nestedInputTypes
-                    [Type.peel ~num_axes:maxRank outT]
-            in
-            let nestedFn = specialize_value fnVal nestedSig in
-            mk_typed_map_fn nestedFn ~num_axes:maxRank inputTypes
+                  let nestedOutTypes = [Type.peel ~num_axes:maxRank outT] in
+                  Signature.from_types nestedInputTypes nestedOutTypes
+              in
+              let nestedFn = specialize_value fnVal nestedSig in
+              SSA_AdverbHelpers.mk_map_fn
+                ?src:None
+                ~nested_fn:nestedFn
+                ~axes:(SSA_AdverbHelpers.infer_adverb_axes_from_rank maxRank)
+                ~fixed_types:[]
+                ~array_types:inputTypes
           in
           FnManager.add_specialization ~optimize:false fnVal signature typed;
           typed

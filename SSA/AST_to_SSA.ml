@@ -95,7 +95,7 @@ let rec translate_exp
   (* simple values generate no statements and don't modify the env *)
   let value v =
     {
-      exp = Values [mk_val v];
+      exp = Values [SSA_Helpers.wrap_value v];
       exp_src=Some node.src;
       exp_types=[Type.BottomT]
     }
@@ -111,7 +111,7 @@ let rec translate_exp
   | AST.Lam (vars, body) -> failwith "lambda lifting not implemented"
   | AST.Arr args ->
       let ssaArgs = translate_values env codegen args in
-      mk_arr ssaArgs
+      SSA_Helpers.arr ssaArgs
   | AST.If _  -> failwith "unexpected If while converting to SSA"
   | AST.Assign _ -> failwith "unexpected Assign while converting to SSA"
   | AST.Block _  -> failwith "unexpected Block while converting to SSA"
@@ -121,10 +121,10 @@ let rec translate_exp
 and translate_value env codegen node : SSA.value_node =
   (* simple values generate no statements and don't modify the environment *)
   match node.AST.data with
-  | AST.Var name -> mk_val (Env.lookup env name)
-  | AST.Prim p -> mk_val (Prim p)
-  | AST.Num n -> mk_val (Num n)
-  | AST.Str s -> mk_val (Str s)
+  | AST.Var name -> SSA_Helpers.wrap_value (Env.lookup env name)
+  | AST.Prim p -> SSA_Helpers.wrap_value (Prim p)
+  | AST.Num n -> SSA_Helpers.wrap_value (Num n)
+  | AST.Str s -> SSA_Helpers.wrap_value (Str s)
   (* anything not an immediate value must be evaluated in its own statement
      and then named
   *)
@@ -174,8 +174,8 @@ and translate_app env codegen fn args src = match fn.data with
 and exp_as_value env codegen prefix node : SSA.value_node =
   let id = ID.gen_named prefix in
   let expNode = translate_exp env codegen node in
-  codegen#emit [SSA_Helpers.mk_set [id] expNode];
-  SSA_Helpers.mk_var id
+  codegen#emit [SSA_Helpers.set [id] expNode];
+  SSA_Helpers.var id
 
 
 let rec exps_as_values env codegen prefix nodes : SSA.value_node list =
@@ -195,7 +195,7 @@ let translate_assignment env codegen (lhs:AST.node list) rhs : Env.t =
     let names = collect_assignment_names lhs in
     let ids = List.map ID.gen_named names in
     let rhsExp = translate_exp env codegen rhs in
-    codegen#emit [mk_stmt $ Set(ids, rhsExp)];
+    codegen#emit [SSA_Helpers.stmt $ Set(ids, rhsExp)];
     Env.add_list env names ids
   | [{AST.data=AST.App({data=AST.Prim (Prim.ArrayOp Prim.Index)}, _)} as lhs] ->
     let rhs = translate_value env codegen rhs in
@@ -203,7 +203,7 @@ let translate_assignment env codegen (lhs:AST.node list) rhs : Env.t =
     let lhsList = translate_values env codegen allIndices in
     begin match lhsList with
       | varNode::indices ->
-        codegen#emit [mk_setidx varNode indices rhs];
+        codegen#emit [SSA_Helpers.setidx varNode indices rhs];
         env
       | _ -> failwith $ Printf.sprintf
         "[AST_to_SSA] Unexpected indexing arguments: %s"
@@ -217,7 +217,7 @@ let rec translate_stmt
           (codegen:SSA_Codegen.codegen)
           (retIds : ID.t list)
           (node : AST.node) : Env.t =
-  let mk_stmt s = mk_stmt ~src:node.AST.src s in
+  let mk_stmt s = SSA_Helpers.stmt ~src:node.AST.src s in
   match node.AST.data with
   | AST.Return nodes ->
       if List.length nodes <> List.length retIds then
@@ -227,9 +227,9 @@ let rec translate_stmt
           (List.length retIds)
       else
       let rhs : SSA.exp_node =
-        SSA_Helpers.mk_exp (SSA.Values (translate_values env codegen nodes))
+        SSA_Helpers.exp (SSA.Values (translate_values env codegen nodes))
       in
-      codegen#emit [SSA_Helpers.mk_set retIds rhs];
+      codegen#emit [SSA_Helpers.set retIds rhs];
       env
 
   | AST.If(cond, trueNode, falseNode) ->
@@ -249,7 +249,7 @@ let rec translate_stmt
       let trueIds = List.map (Env.lookup_id trueEnv) mergeNames in
       let falseEnv = translate_stmt env falseCodegen retIds falseNode in
       let falseIds = List.map (Env.lookup_id falseEnv) mergeNames in
-      let phiNodes = mk_phi_nodes mergeIds trueIds falseIds in
+      let phiNodes = SSA_Helpers.phi_nodes mergeIds trueIds falseIds in
       let trueBlock = trueCodegen#finalize in
       let falseBlock = falseCodegen#finalize in
       codegen#emit [mk_stmt $ If(condVal,trueBlock,falseBlock, phiNodes)];
@@ -285,29 +285,29 @@ let rec translate_stmt
            - update counter value
       *)
       let initCounterId = ID.gen_named "init_counter" in
-      let initCounterVar = mk_var initCounterId in
+      let initCounterVar = SSA_Helpers.var initCounterId in
       let startCounterId = ID.gen_named "start_counter" in
-      let startCounterVar = mk_var startCounterId in
+      let startCounterVar = SSA_Helpers.var startCounterId in
       let endCounterId = ID.gen_named "end_counter" in
-      let endCounterVar = mk_var endCounterId in
+      let endCounterVar = SSA_Helpers.var endCounterId in
       (* initialize loop counter to 1 *)
-      codegen#emit [SSA_Codegen.set_int initCounterId 0l];
+      codegen#emit [SSA_Helpers.set_int initCounterId 0l];
       let condId = ID.gen_named "cond" in
       let condBlock =
         Block.singleton $
-          mk_set [condId]
-            (mk_app SSA_Codegen.lt [startCounterVar; upperVal])
+          SSA_Helpers.set [condId]
+            (SSA_Helpers.app SSA_Helpers.lt [startCounterVar; upperVal])
       in
       let bodyCodegen = new SSA_Codegen.codegen in
       (* update the body codegen and generate a loop gate *)
       let header, exitEnv = translate_loop_body env bodyCodegen retIds body  in
       (* incremenet counter and add SSA gate for counter to loopGate *)
-      bodyCodegen#emit [SSA_Codegen.incr endCounterId startCounterVar];
+      bodyCodegen#emit [SSA_Helpers.incr endCounterId startCounterVar];
 
       let header' =
-        (mk_phi startCounterId initCounterVar endCounterVar) :: header
+        (SSA_Helpers.phi startCounterId initCounterVar endCounterVar) :: header
       in
-      let condVal = mk_var condId in
+      let condVal = SSA_Helpers.var condId in
       let ssaBody = bodyCodegen#finalize in
       codegen#emit [mk_stmt $ WhileLoop(condBlock, condVal,  ssaBody, header')];
       exitEnv
@@ -342,9 +342,10 @@ and translate_loop_body envBefore codegen retIds  body : phi_nodes * Env.t =
   let envEnd : Env.t = translate_stmt envOverlap codegen retIds body in
   let mk_header_phi name =
     let prevId = Env.lookup_id envBefore name in
-    let loopStartId = Env.lookup_id envOverlap name in
+    let startId = Env.lookup_id envOverlap name in
     let loopEndId = Env.lookup_id envEnd name in
-    mk_phi loopStartId (mk_var prevId) (mk_var loopEndId)
+    SSA_Helpers.phi startId (SSA_Helpers.var prevId) (SSA_Helpers.var loopEndId)
+
   in
   let needsPhi = List.filter (Env.mem envBefore) overlapList in
   let loopHeader = List.map mk_header_phi needsPhi in

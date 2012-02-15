@@ -85,35 +85,27 @@ let mk_scan ?src closure ?axes init args =
 let mk_map_fn
       ?(src:SrcInfo.t option)
       ~(nested_fn:SSA.fn)
-      ?(const_axes : int list option)
       ?(axes : SSA.value_nodes option)
       ?(fixed_types=[])
-      ~(array_types: Type.t list)
-      ~(output_types : Type.t list) =
-  let axes : SSA.value_nodes = match const_axes with
-    | Some ints ->
-      if (axes <> None) then
-        failwith "[mk_map_fn] Can't use both ~axes and ~const_axes"
-      ;
-      List.map SSA_Helpers.mk_int32 ints
-    | None -> infer_adverb_axes_from_types ?axes array_types
-  in
+      ~(array_types: Type.t list) =
+  let axes = infer_adverb_axes_from_types ?axes array_types in
   IFDEF DEBUG THEN
     Printf.printf
       "mk_map_fn] nested=%s, axes=%s, fixed=[%s], inputs=[%s]\n"
       (FnId.to_str nested_fn.fn_id)
       (SSA.value_nodes_to_str axes)
       (Type.type_list_to_str fixed_types)
-      (Type.type_list_to_str input_types)
+      (Type.type_list_to_str array_types)
     ;
   ENDIF;
   let constructor = function
     | inputs, outputs, [] ->
       let fixed, arrays = List.split_nth (List.length fixed_types) inputs in
-      let closure = SSA_Helpers.mk_closure ssa_fn fixed in
-      [outputs :=  mk_map ?src closure ~axes arrays]
+      let closure = SSA_Helpers.closure nested_fn fixed in
+      [outputs <--  mk_map ?src closure ~axes arrays]
     | _ -> assert false
   in
+  let numAxes = List.length axes in
   SSA_Helpers.fn_builder
     ~name:"map_wrapper"
     ~input_types:(fixed_types @ array_types)

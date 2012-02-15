@@ -1,6 +1,5 @@
 open Base
 open SSA
-open SSA_Helpers
 
 class codegen =
   object (self : 'a)
@@ -35,7 +34,7 @@ class codegen =
           }
           in
           let freshId = self#fresh_var to_type in
-          let stmtNode = mk_set [freshId] castNode in
+          let stmtNode = SSA_Helpers.set [freshId] castNode in
           DynArray.add code stmtNode;
           {value = Var freshId; value_type = to_type; value_src = None }
        )
@@ -79,7 +78,7 @@ let mk_codegen_fn
   in
   (* allow user provided function to populate the codegen body *)
   let _ = constr codegen inputVars outputVars in
-  mk_fn
+  SSA_Helpers.mk_fn
     ?name:None
     ~body:codegen#finalize
     ~tenv:codegen#get_type_env

@@ -1,7 +1,5 @@
-val mk_untyped_prim_fn : Prim.prim -> int -> SSA.fn
+val mk_untyped_prim_fn : Prim.t -> int -> SSA.fn
 
-val mk_typed_map_fn :
-  ?src:SrcInfo.t -> SSA.fn -> num_axes:int -> Type.t list -> SSA.fn
 
 val mk_typed_scalar_prim :
   Prim.scalar_op -> ?optOutType:Type.t -> Type.t list ->  SSA.fn

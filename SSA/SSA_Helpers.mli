@@ -31,7 +31,7 @@ val get_fn_ids : value_node list -> FnId.t list
 val wrap_value : ?src:SrcInfo.t -> ?ty:Type.t -> value -> value_node
 
 val var : ?src:SrcInfo.t -> ?ty:Type.t -> ID.t -> value_node
-val op :  ?src:SrcInfo.t -> ?ty:Type.t -> Prim.prim -> value_node
+val op :  ?src:SrcInfo.t -> ?ty:Type.t -> Prim.t -> value_node
 
 val globalfn : ?src:SrcInfo.t -> ?ty:Type.t -> FnId.t -> value_node
 
@@ -58,7 +58,7 @@ val map_default_types :
 val app : ?src:SrcInfo.t -> value_node -> value_node list -> exp_node
 
 val primapp :
-     ?src:SrcInfo.t -> Prim.prim -> output_types:Type.t list ->
+     ?src:SrcInfo.t -> Prim.t -> output_types:Type.t list ->
        value_node list -> exp_node
 
 val arr :
@@ -79,7 +79,7 @@ val call :
 val closure : fn -> value_node list -> closure
 
 
-val (:=) : value_node list -> exp_node -> stmt_node
+val (<--) : value_node list -> exp_node -> stmt_node
 val (@@) : value_node -> value_node list -> exp_node
 val scalar_op : Prim.scalar_op -> value_node
 val array_op : Prim.array_op -> value_node

@@ -59,7 +59,7 @@ type adverb =
 
 type impure_op = ResetTimer | GetTimer | Print
 
-type prim =
+type t =
   | ScalarOp of scalar_op
   | ArrayOp of array_op
   | Adverb of adverb
@@ -125,7 +125,11 @@ let is_float_binop = function
 
 let is_float_op op = (is_float_unop op) || (is_float_binop op)
 
-module PrimOrd = struct type t = prim let compare = compare end
+module PrimOrd = struct
+  type prim = t
+  type t = prim
+  let compare = compare
+end
 module PrimSet = Set.Make(PrimOrd)
 module PrimMap = Map.Make(PrimOrd)
 
