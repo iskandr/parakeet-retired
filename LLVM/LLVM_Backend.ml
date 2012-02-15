@@ -78,7 +78,7 @@ let allocate_output impT (shape:Shape.t) : Ptr.t Value.t =
       array_strides = strides_from_shape shape (Type.sizeof eltT);
     }
   | other ->
-    failwith ("Can't create output array of type" ^ (ImpType.to_str other))
+    failwith ("Can't create output array of type " ^ (ImpType.to_str other))
 
 let allocate_outputs impFn args =
   let impTypes = Imp.output_types impFn in
