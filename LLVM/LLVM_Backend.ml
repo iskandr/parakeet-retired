@@ -61,31 +61,46 @@ let strides_from_shape shape eltSize =
   done;
   strides
 
-let allocate_output impT (shape:Shape.t) : Ptr.t Value.t =
-  match impT with
-  (*
-  | ImpType.ScalarT eltT ->
-    GV.of_int64 LLVM_Types.int64_t (HostMemspace.malloc (Type.sizeof eltT))
-  *)
-  | ImpType.ArrayT (eltT, rank) ->
-    let eltSize : int = Type.sizeof eltT in
-    let nelts = Shape.nelts shape in
-    Array {
-      data = Mem.alloc HostMemspace.id (nelts * eltSize);
-      array_type = Type.ArrayT(eltT, rank);
-      elt_type = eltT;
-      array_shape = shape;
-      array_strides = strides_from_shape shape (Type.sizeof eltT);
-    }
-  | other ->
-    failwith ("Can't create output array of type " ^ (ImpType.to_str other))
+let allocate_array eltT shape : Ptr.t Value.t =
+  let eltSize : int = Type.sizeof eltT in
+  let nelts = Shape.nelts shape in
+  let rank = Shape.rank shape in
+  Array {
+    data = Mem.alloc HostMemspace.id (nelts * eltSize);
+    array_type = Type.ArrayT(eltT, rank);
+    elt_type = eltT;
+    array_shape = shape;
+    array_strides = strides_from_shape shape (Type.sizeof eltT);
+  }
 
-let allocate_outputs impFn args =
-  let impTypes = Imp.output_types impFn in
+(* given a function and a list of its arguments, *)
+(* allocate space for the outputs and return them as Parakeet Values. *)
+(* NOTE: This is only valid for arrays, scalars will crash *)
+let allocate_output_arrays impFn args : Ptr.t Value.t list =
   let inputShapes : Shape.t list = List.map Value.get_shape args in
   (* compute output shapes from input shapes *)
   let outputShapes = ShapeEval.get_call_output_shapes impFn inputShapes in
-  List.map2 allocate_output impTypes outputShapes
+  let outTypes = Imp.output_types impFn in
+  assert (List.for_all ImpType.is_array outTypes);
+  let eltTypes = List.map ImpType.elt_type outTypes in
+  List.map2 allocate_array eltTypes outputShapes
+
+let allocate_output_gv impT (shape:Shape.t) : GV.t  =
+  match impT with
+  | ImpType.ScalarT eltT ->
+    GV.of_int64 LLVM_Types.int64_t (HostMemspace.malloc (Type.sizeof eltT))
+  | ImpType.ArrayT (eltT, _) ->
+    Value_to_GenericValue.to_llvm (allocate_array eltT shape)
+
+(* given a function and a list of its arguments, *)
+(* allocate space for the outputs and return them as LLVM's GenericValues  *)
+let allocate_output_generic_values impFn args : GV.t list =
+  let inputShapes : Shape.t list = List.map Value.get_shape args in
+  (* compute output shapes from input shapes *)
+  let outputShapes = ShapeEval.get_call_output_shapes impFn inputShapes in
+  List.map2 allocate_output_gv (Imp.output_types impFn) outputShapes
+
+
 
 let free_scalar_output impT (gv:GV.t) : unit =
   if ImpType.is_scalar impT then HostMemspace.free (GV.as_int64 gv)
@@ -168,8 +183,7 @@ end
 let call_imp_fn (impFn:Imp.fn) (args:Ptr.t Value.t list) : Ptr.t Value.t list =
   let llvmFn = CompiledFunctionCache.compile impFn in
   let llvmInputs : GV.t list = List.map Value_to_GenericValue.to_llvm args in
-  let impOutputs = allocate_outputs impFn args in
-  let llvmOutputs = List.map Value_to_GenericValue.to_llvm impOutputs in
+  let llvmOutputs : GV.t list = allocate_output_generic_values impFn args in
   Printf.printf "[LLVM_Backend.call_imp_fn] Running function\n%!";
   let impInputTypes = Imp.input_types impFn in
   let impOutputTypes = Imp.output_types impFn in
@@ -200,7 +214,7 @@ let map ~axes ~fn ~fixed args =
   let impFn : Imp.fn =
     SSA_to_Imp.translate_fn fn inputTypes in
   let llvmFn = CompiledFunctionCache.compile impFn in
-  let outputs = allocate_outputs impFn args in
+  let outputs : Ptr.t Value.t list  = allocate_output_arrays impFn args in
   let work_items = build_work_items (args @ outputs) 8 in
   do_work work_queue execution_engine llvmFn work_items;
   Printf.printf
@@ -213,6 +227,6 @@ let reduce ~axes ~fn ~fixed ?init args = assert false
 
 let scan ~axes ~fn ~fixed ?init args = assert false
 
-let all_pairs ~axes ~fn ~fixed x y = assert false
+let allpairs ~axes ~fn ~fixed x y = assert false
 
 let array_op p args = assert false
