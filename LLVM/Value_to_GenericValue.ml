@@ -76,6 +76,33 @@ let rec to_llvm = function
 	    | Float64T -> HostMemspace.set_float64 ptr 2 (ParNum.to_float default)
 	    | _ -> failwith "Unsupported array element type for LLVM conversion");
 	  int64 ptr
+  | Value.FixDim (v, dim, idx) ->
+    (* TODO: This is wasteful.  It's unnecessary to actually malloc new *)
+    (*       shapes and strides.  Should clean up later. *)
+    let ptr = HostMemspace.malloc (8 + 8 + 8) in
+    let a = to_llvm v in
+    let a_ll_ptr = GenericValue.as_int64 a in
+    let a_ll_data = HostMemspace.get_int64 a_ll_ptr 0 in
+    let array_t = get_underlying_array v in
+    let el_t = array_t.elt_type in
+    let el_size = sizeof el_t in
+    let ashape = (Shape.to_array array_t.array_shape) in
+    let astrides = array_t.array_strides in
+    let dim_stride = astrides.(dim) in
+    let addr = Int64.add a_ll_ptr (Int64.of_int (el_size * dim_stride)) in
+    let new_rank = Array.length ashape - 1 in
+    let new_shape = Array.make new_rank 0 in
+    Array.blit ashape 0 new_shape 0 (dim - 1);
+    Array.blit ashape dim new_shape (dim - 1) (new_rank - dim);
+    let new_strides = Array.make new_rank 0 in
+    Array.blit astrides 0 new_strides 0 (dim - 1);
+    Array.blit astrides dim new_strides (dim - 1) (new_rank - dim);
+    let ll_shape = Array.to_c_int_array new_shape in
+    let ll_strides = Array.to_c_int_array new_strides in
+    HostMemspace.set_int64 ptr 0 addr;
+    HostMemspace.set_int64 ptr 1 ll_shape;
+    HostMemspace.set_int64 ptr 2 ll_strides;
+    int64 ptr
   | Value.Slice (v, dim, start, stop) ->
 	  (* TODO: This is wasteful.  It's unnecessary to actually malloc new *)
     (*       shapes.  Should clean up later. *)
