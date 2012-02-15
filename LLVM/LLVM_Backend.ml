@@ -9,7 +9,9 @@ module GV = Llvm_executionengine.GenericValue
 module LLE = Llvm_executionengine.ExecutionEngine
 
 let _ = Llvm_executionengine.initialize_native_target()
-let execution_engine = LLE.create Imp_to_LLVM.global_module
+
+(* set opt-level to 3 *)
+let execution_engine = LLE.create_jit Imp_to_LLVM.global_module 3
 
 (** Multithreaded CPU Work Queue **)
 external create_work_queue : int -> Int64.t = "ocaml_create_work_queue"
@@ -32,6 +34,7 @@ let optimize_module llvmModule llvmFn : unit =
   Llvm_scalar_opts.add_aggressive_dce the_fpm;
   Llvm_scalar_opts.add_instruction_combination the_fpm;
   Llvm_scalar_opts.add_cfg_simplification the_fpm;
+  (*
   Llvm_scalar_opts.add_type_based_alias_analysis the_fpm;
   Llvm_scalar_opts.add_ind_var_simplification the_fpm;
   Llvm_scalar_opts.add_dead_store_elimination the_fpm;
@@ -45,8 +48,8 @@ let optimize_module llvmModule llvmFn : unit =
   Llvm_scalar_opts.add_loop_unroll the_fpm;
   Llvm_scalar_opts.add_loop_rotation the_fpm;
   Llvm_scalar_opts.add_loop_idiom the_fpm;
-  Llvm_scalar_opts.add_type_based_alias_analysis the_fpm;
   Llvm_scalar_opts.add_basic_alias_analysis the_fpm;
+  *)
   let _ : bool = PassManager.run_function llvmFn the_fpm in
   let _ : bool = PassManager.finalize the_fpm in
   PassManager.dispose the_fpm

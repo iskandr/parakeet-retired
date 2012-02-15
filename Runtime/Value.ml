@@ -14,6 +14,7 @@ type 'a t =
   | Explode of ParNum.t * Shape.t           (* scalar, shape *)
   | Rotate of 'a t * int * int              (* array, dim, offset *)
   | Shift of 'a t * int * int * ParNum.t    (* array, dim, offset, default *)
+  | FixDim of 'a t * int * int              (* array, dim, idx *)
   | Slice of 'a t * int * int * int         (* array, dim, start, end *)
   | Range of int * int * int                (* start, stop, step *)
 
@@ -24,23 +25,22 @@ type 'a t =
 let rec to_str ?(array_to_str=(fun _ -> "<array>")) = function
   | Scalar n -> (ParNum.to_str n) ^   (Type.elt_to_short_str (ParNum.type_of n))
   | Array array_info -> array_to_str array_info
-  (*| Nested elts ->
-    Printf.sprintf "[%s]"
-        (String.concat ", " (List.map to_str (Array.to_list elts)))
-  *)
   | Explode (n, s) ->
-        Printf.sprintf "explode(%s, %s)" (ParNum.to_str n) (Shape.to_str s)
+    Printf.sprintf "explode(%s, %s)" (ParNum.to_str n) (Shape.to_str s)
   | Rotate (a, dim, offset) ->
-        Printf.sprintf "rotate(%s, dim=%d, offset=%d)"
-            (to_str ~array_to_str a) dim offset
+    Printf.sprintf "rotate(%s, dim=%d, offset=%d)"
+      (to_str ~array_to_str a) dim offset
   | Shift (a, dim, offset, default) ->
-        Printf.sprintf "rotate(%s, dim=%d, offset=%d, default=%s)"
-            (to_str ~array_to_str a) dim offset (ParNum.to_str default)
+    Printf.sprintf "rotate(%s, dim=%d, offset=%d, default=%s)"
+      (to_str ~array_to_str a) dim offset (ParNum.to_str default)
+  | FixDim(a, dim, idx) ->
+    Printf.sprintf "fixdim(%s, dim=%d, idx=%d)"
+      (to_str ~array_to_str a)  dim idx
   | Slice (a, dim, start, stop) ->
-        Printf.sprintf "slice(%s, dim=%d, start=%d, stop=%d)"
-            (to_str ~array_to_str a)  dim start stop
+    Printf.sprintf "slice(%s, dim=%d, start=%d, stop=%d)"
+      (to_str ~array_to_str a)  dim start stop
   | Range (start, stop, step) ->
-        Printf.sprintf "range(from=%d, to=%d, step=%d)" start stop step
+    Printf.sprintf "range(from=%d, to=%d, step=%d)" start stop step
 
 let list_to_str ?(array_to_str=(fun _ -> "<array>")) vals =
   String.concat ", " (List.map (to_str ~array_to_str) vals)
@@ -50,6 +50,7 @@ let rec map (f: 'a -> 'b) (x : 'a t) : 'b t = match x with
   (*| Nested elts -> Nested (Array.map (map f) elts)*)
   | Rotate (a, dim, offset) -> Rotate (map f a, dim, offset)
   | Shift (a, dim, offset, default) -> Shift (map f a, dim, offset, default)
+  | FixDim (a, dim, idx) -> FixDim (map f a, dim,  idx)
   | Slice (a, dim, start, stop) -> Slice (map f a, dim, start, stop)
   | Scalar n -> Scalar n
   | Range (start, stop, step) -> Range (start, stop, step)
@@ -60,6 +61,11 @@ let rec type_of = function
   (*| Nested _ -> failwith "nested arrays not supported"*)
   | Scalar n -> Type.ScalarT (ParNum.type_of n)
   | Explode (n, s) -> Type.ArrayT (ParNum.type_of n, Shape.rank s)
+  | FixDim(x, _, _) ->
+    let nestedT = type_of x in
+    let rank = Type.rank nestedT in
+    let eltT = Type.elt_type nestedT in
+    Type.ArrayT (eltT, rank)
   | Shift (x, _, _, _)
   | Slice (x, _, _, _)
   | Rotate (x, _, _) -> type_of x
@@ -113,6 +119,7 @@ let get_strides = function
 let rec extract = function
 	| Rotate (x, _, _)
 	| Shift (x, _, _, _)
+  | FixDim (x, _ , _)
   | Slice (x, _, _, _) -> extract x
   | Array {data} -> Some data
 	| Scalar _
