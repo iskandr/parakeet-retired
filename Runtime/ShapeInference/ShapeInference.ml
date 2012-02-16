@@ -269,13 +269,6 @@ let normalizedShapeEnvCache : (FnId.t, SymbolicShape.env) Hashtbl.t =
 
 let rec infer_shape_env (fnTable:FnTable.t) (fundef : SSA.fn) =
   let fnId = fundef.SSA.fn_id in
-  (*
-  IFDEF DEBUG THEN
-    Printf.printf
-      "[ShapeInference::infer_shape_env] Looking up shape env for %s\n"
-      (FnId.to_str fnId);
-  ENDIF;
-  *)
   match Hashtbl.find_option shapeEnvCache fnId with
     | Some shapeEnv -> shapeEnv
     | None  ->
@@ -347,4 +340,11 @@ and infer_call_result_shapes fnTable fundef argShapes =
   in
   resultShapes
 
+
+let typed_fn_is_shapely fn =
+  let fnTable = FnManager.get_typed_function_table () in
+  try
+    let _ = infer_shape_env fnTable fn in true
+  with
+    | ShapeInferenceFailure _ -> false
 
