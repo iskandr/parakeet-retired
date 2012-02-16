@@ -126,9 +126,8 @@ let rec to_llvm = function
     let addr = Int64.add a_ll_ptr (Int64.of_int (el_size * dim_stride)) in
     let slice_shape = Array.append (Array.make 0 0) (Shape.to_array ashape) in
     Array.set slice_shape dim (stop - start);
-    let ll_shape = Array.to_c_int_array slice_shape in
 	  HostMemspace.set_int64 ptr 0 addr;
-	  HostMemspace.set_int64 ptr 1 ll_shape;
+	  HostMemspace.set_int64 ptr 1 (Array.to_c_int_array slice_shape);
 	  HostMemspace.set_int64 ptr 2 a_ll_strides;
 	  int64 ptr
   | Value.Range (start, stop, step) ->
