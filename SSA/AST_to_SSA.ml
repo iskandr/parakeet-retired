@@ -87,6 +87,8 @@ let get_function_id node =
     | _ -> failwith ("Expected function name, got: " ^ (AST.to_str node))
 
 
+
+
 let rec translate_exp
           (env:Env.t)
           (codegen:SSA_Codegen.codegen)
@@ -134,8 +136,9 @@ and translate_values env codegen nodes =
 and translate_axes env codegen {data} = match data with
   | AST.Arr axes -> Some (translate_values env codegen axes)
   | _ -> None
-and translate_app env codegen fn args src = match fn.data with
-  | AST.Prim (Prim.Adverb Prim.Map) ->
+and translate_adverb env codegen adverb args src =
+  match adverb with
+  | Prim.Map ->
     begin match args with
       | fn::{data=AST.Arr arrayArgs}::{data=AST.Arr fixedArgs}::[axes] ->
         let fnId = get_function_id fn in
@@ -157,10 +160,14 @@ and translate_app env codegen fn args src = match fn.data with
           exp_src = Some src;
           exp_types = List.map (fun _ -> Type.BottomT) ssaFn.SSA.fn_output_types
         }
-      | _ -> failwith "Unexpected function arguments to MAP"
+      | _ -> failwith "Unexpected function arguments to Map"
     end
+  | _ ->
+    failwith ("Adverb not yet supported " ^ (Prim.adverb_to_str adverb))
+
+and translate_app env codegen fn args src = match fn.data with
   | AST.Prim (Prim.Adverb adverb) ->
-    failwith ("Adverb not yet supported" ^ (Prim.adverb_to_str adverb))
+    translate_adverb env codegen adverb args src
   | _ ->
     let ssaFn : SSA.value_node = translate_value env codegen fn in
     let ssaArgs : SSA.value_node list = translate_values env codegen args in

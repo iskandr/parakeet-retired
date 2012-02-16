@@ -39,6 +39,8 @@ module rec Scheduler : SCHEDULER = struct
       block_has_adverb tBlock || block_has_adverb fBlock
     | SSA.WhileLoop (condBlock, _, body, _) ->
       block_has_adverb condBlock || block_has_adverb body
+    | _ -> false
+
 
   let call (fn : SSA.fn) (args:values) =
     let hasAdverb = block_has_adverb fn.SSA.body in
