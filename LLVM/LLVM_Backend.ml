@@ -169,19 +169,23 @@ module CompiledFunctionCache = struct
     match Hashtbl.find_option cache fnId with
     | Some llvmFn ->
       begin
-        Printf.printf
-          "[LLVM_Backend] Got cached code for %s\n%!"
-          (FnId.to_str fnId)
-        ;
+        IFDEF DEBUG THEN
+          Printf.printf
+            "[LLVM_Backend] Got cached code for %s\n%!"
+            (FnId.to_str fnId)
+          ;
+        ENDIF;
         llvmFn
       end
     | None ->
       begin
         let llvmFn : Llvm.llvalue = Imp_to_LLVM.compile_fn impFn in
         optimize_module Imp_to_LLVM.global_module llvmFn;
-        print_endline  "[LLVM_Backend.call_imp_fn] Generated LLVM function";
-        Llvm.dump_value llvmFn;
-        Llvm_analysis.assert_valid_function llvmFn;
+        IFDEF DEBG THEN
+          print_endline  "[LLVM_Backend.call_imp_fn] Generated LLVM function";
+          Llvm.dump_value llvmFn;
+          Llvm_analysis.assert_valid_function llvmFn;
+        ENDIF;
         Hashtbl.add cache fnId llvmFn;
         llvmFn
       end
@@ -199,24 +203,33 @@ let call_imp_fn (impFn:Imp.fn) (args:Ptr.t Value.t list) : Ptr.t Value.t list =
   let llvmOutputs : GV.t list =
     allocate_output_generic_values impFn argShapes
   in
-  Printf.printf "[LLVM_Backend.call_imp_fn] Running function\n%!";
+  IFDEF DEBUG THEN
+    Printf.printf "[LLVM_Backend.call_imp_fn] Running function\n%!";
+  ENDIF;
   let impInputTypes = Imp.input_types impFn in
   let impOutputTypes = Imp.output_types impFn in
-  Printf.printf "  -- input params: %s\n%!"
-    (Value.list_to_str
-      (List.map2 (GenericValue_to_Value.of_generic_value ~boxed_scalars:false)
-                  llvmInputs impInputTypes));
+  IFDEF DEBUG THEN
+    let convert_gv =
+      GenericValue_to_Value.of_generic_value ~boxed_scalars:false
+    in
+    let vals = List.map2 convert_gv  llvmInputs impInputTypes in
+    Printf.printf "  -- input params: %s\n%!" (Value.list_to_str vals);
+  ENDIF;
   let params : GV.t array = Array.of_list (llvmInputs @ llvmOutputs) in
   let _ = LLE.run_function llvmFn params execution_engine in
-  Printf.printf " :: function completed\n%!";
+  IFDEF DEBUG THEN
+    Printf.printf " :: function completed\n%!";
+  ENDIF;
   let outputs =
     List.map2 GenericValue_to_Value.of_generic_value llvmOutputs impOutputTypes
   in
   free_scalar_outputs impOutputTypes llvmOutputs;
-  Printf.printf
-    "[LLVM_Backend.call_imp_fn] Got function results: %s\n%!"
-    (Value.list_to_str outputs)
-  ;
+  IFDEF DEBUG THEN
+    Printf.printf
+      "[LLVM_Backend.call_imp_fn] Got function results: %s\n%!"
+      (Value.list_to_str outputs)
+    ;
+  ENDIF;
   outputs
 
 let call (fn:SSA.fn) args =
@@ -241,10 +254,12 @@ let map ~axes ~fn ~fixed args =
   in
   let work_items = build_work_items (args @ outputs) 8 in
   do_work work_queue execution_engine llvmFn work_items;
-  Printf.printf
-    "[LLVM_Backend.call_imp_fn] Got function results: %s\n%!"
-    (Value.list_to_str outputs)
-  ;
+  IFDEF DEBUG THEN
+    Printf.printf
+      "[LLVM_Backend.call_imp_fn] Got function results: %s\n%!"
+      (Value.list_to_str outputs)
+    ;
+  ENDIF;
   outputs
 
 let reduce ~axes ~fn ~fixed ?init args = assert false

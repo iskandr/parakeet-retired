@@ -8,7 +8,7 @@ let init() =
   let gcParams = Gc.get() in
   Gc.set { gcParams with
     Gc.minor_heap_size = 10000;
-    space_overhead = 90;
+    space_overhead = 85;
   }
   (*HardwareInfo.hw_init ();*)
   (*Cuda.init ()*)
@@ -73,41 +73,46 @@ let run_function untypedId ~globals ~args : ret_val =
       untypedId
     ;
   ENDIF;
-  Timing.clear Timing.runTemplate;
+  (*Timing.clear Timing.runTemplate;
   Timing.clear Timing.typedOpt;
-  Timing.start Timing.runTemplate;
+  Timing.start Timing.runTemplate;*)
   let args = globals @ args in
   let argTypes = List.map Value.type_of args in
   let untypedFn = FnManager.get_untyped_function untypedId in
   let nargs = List.length args in
   let arity = List.length untypedFn.input_ids in
   if nargs <> arity then
-    failwith $
+    let errorMsg =
       Printf.sprintf
-        "[Parakeet] arity mismatch-- expected %d, got %d" arity nargs
-  else
-  let signature = Signature.from_input_types argTypes in
-  IFDEF DEBUG THEN
-    printf
-      "[FrontEnd.run_function] calling specializer for argument types: %s\n"
-      (Type.type_list_to_str argTypes);
-  ENDIF;
-
-  let result =
-    try
-      let typedFundef = get_specialized_function untypedId signature in
-      Success (Interp.run typedFundef args)
-    with exn ->
-      begin
+        "[Parakeet] arity mismatch-- expected %d, got %d"
+        arity
+        nargs
+    in
+    Error errorMsg
+  else begin
+    let signature = Signature.from_input_types argTypes in
+    IFDEF DEBUG THEN
+      printf
+        "[FrontEnd.run_function] calling specializer for argument types: %s\n"
+        (Type.type_list_to_str argTypes);
+    ENDIF;
+    let result =
+      try
+        let typedFundef = get_specialized_function untypedId signature in
+        let outputs = Runtime.call typedFundef args in
+        Success outputs
+      with exn ->
+      (
         let errorMsg = Printexc.to_string exn in
-        Printf.printf "\nParakeet execution failed with the following error:\n";
+        Printf.printf "\nParakeet failed with the following error:\n";
         Printf.printf "- %s\n\n" errorMsg;
         Printf.printf "OCaml Backtrace:\n";
         Printexc.print_backtrace Pervasives.stdout;
         Printf.printf "\n%!";
         Error errorMsg
-      end
-  in
-  (*print_all_timers();*)
-  Timing.clear Timing.untypedOpt;
-  result
+      )
+    in
+    (*print_all_timers();
+    Timing.clear Timing.untypedOpt;*)
+    result
+  end

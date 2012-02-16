@@ -183,11 +183,13 @@ let rec translate_fn  (ssaFn:SSA.fn) (impInputTypes:ImpType.t list) : Imp.fn =
   let signature = ssaFn.SSA.fn_id, impInputTypes in
   match Hashtbl.find_option cache signature with
     | Some impFn ->
-      Printf.printf
-        "[SSA_to_Imp] Got cached Imp function for %s\n%!"
-        (FnId.to_str ssaFn.SSA.fn_id)
-        ;
-        impFn
+      IFDEF DEBUG THEN
+        Printf.printf
+          "[SSA_to_Imp] Got cached Imp function for %s\n%!"
+          (FnId.to_str ssaFn.SSA.fn_id)
+          ;
+      ENDIF;
+      impFn
     | None ->
       let codegen = new ImpCodegen.fn_codegen in
       let impTyEnv = InferImpTypes.infer ssaFn impInputTypes in
@@ -204,10 +206,12 @@ let rec translate_fn  (ssaFn:SSA.fn) (impInputTypes:ImpType.t list) : Imp.fn =
       let name = ssa_name ^ "[" ^ arg_strings ^ "]" in
       let impFn = codegen#finalize_fn ~name body in
       Hashtbl.add cache signature impFn;
-      Printf.printf
-        "[SSA_to_Imp] Created Imp function: %s\n%!"
-        (Imp.fn_to_str impFn)
-      ;
+      IFDEF DEBUG THEN
+        Printf.printf
+          "[SSA_to_Imp] Created Imp function: %s\n%!"
+          (Imp.fn_to_str impFn)
+        ;
+      ENDIF;
       impFn
 
 and translate_block (codegen : ImpCodegen.codegen) block : Imp.stmt list =
@@ -315,19 +319,23 @@ and translate_adverb codegen (lhsIds:ID.t list) (adverb:Prim.adverb)
       ~(args:Imp.value_node list)
       ~(axes:int list) : Imp.stmt list =
   assert (init = None);
-  Printf.printf "Closure args: %s, array args: %s\n%!"
-    (Imp.value_nodes_to_str closure_args)
-    (Imp.value_nodes_to_str args)
-  ;
+  IFDEF DEBUG THEN
+    Printf.printf "Closure args: %s, array args: %s\n%!"
+      (Imp.value_nodes_to_str closure_args)
+      (Imp.value_nodes_to_str args)
+    ;
+  ENDIF;
   let closureArgTypes = List.map Imp.value_type closure_args in
   let argTypes = List.map Imp.value_type args in
   let num_axes = List.length axes in
   let peeledArgTypes = List.map (ImpType.peel ~num_axes) argTypes in
   let fnInputTypes = closureArgTypes @ peeledArgTypes in
-  Printf.printf "Fn input types: %s, given inputs: %s\n%!"
-    (Type.type_list_to_str ssa_fn.SSA.fn_input_types)
-    (ImpType.type_list_to_str fnInputTypes)
-  ;
+  IFDEF DEBUG THEN
+    Printf.printf "Fn input types: %s, given inputs: %s\n%!"
+      (Type.type_list_to_str ssa_fn.SSA.fn_input_types)
+      (ImpType.type_list_to_str fnInputTypes)
+    ;
+  ENDIF;
   let nestedFn : Imp.fn = translate_fn ssa_fn fnInputTypes in
   match adverb with
   | Prim.Map ->
