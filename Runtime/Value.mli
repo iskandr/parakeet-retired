@@ -52,6 +52,5 @@ val mk_array : 'a -> Type.elt_t -> Shape.t -> int array -> 'a t
 
 val is_scalar : 'a t -> bool
 
-
 val extract : 'a t -> 'a option
 val collect_list : 'a t list -> 'a list
