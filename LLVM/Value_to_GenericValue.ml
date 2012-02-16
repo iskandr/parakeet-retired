@@ -1,3 +1,5 @@
+(* pp: -parser o pa_macro.cmo *)
+
 open Base
 open Llvm_executionengine
 open ParNum
@@ -118,13 +120,11 @@ let rec to_llvm = function
     let a_ll_data = HostMemspace.get_int64 a_ll_ptr 0 in
     let a_ll_strides = HostMemspace.get_int64 a_ll_ptr 2 in
     let array_t = get_underlying_array v in
-    let el_t = array_t.elt_type in
-    let el_size = sizeof el_t in
     let ashape = array_t.array_shape in
     let astrides = array_t.array_strides in
     let dim_stride = astrides.(dim) in
-    let addr = Int64.add a_ll_ptr (Int64.of_int (el_size * dim_stride)) in
-    let slice_shape = Array.append (Array.make 0 0) (Shape.to_array ashape) in
+    let addr = Int64.add a_ll_data (Int64.of_int (start * dim_stride)) in
+    let slice_shape = Array.copy (Shape.to_array ashape) in
     Array.set slice_shape dim (stop - start);
 	  HostMemspace.set_int64 ptr 0 addr;
 	  HostMemspace.set_int64 ptr 1 (Array.to_c_int_array slice_shape);
