@@ -289,6 +289,14 @@ paranode get_prim(char* prim_name) {
   CAMLreturnT(paranode, mk_root(prim));
 }
 
+source_info_t *mk_source_info_struct(char *filename, int line, int col) {
+  source_info_t *source_info = (source_info_t*)malloc(sizeof(source_info_t));
+  source_info->filename = filename;
+  source_info->line = line;
+  source_info->col = col;
+  return source_info;
+}
+
 void print_ast_node(paranode n) { 
   CAMLparam0();
   CAMLlocal1(v);
@@ -335,6 +343,7 @@ static CAMLprim value mk_src_info(source_info_t *src_info) {
     Store_field(ocaml_src_info, 2, Val_int(0));
   }
 
+  free(src_info);
   CAMLreturn(ocaml_src_info);
 }
 

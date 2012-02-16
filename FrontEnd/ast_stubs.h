@@ -70,6 +70,8 @@ paranode mk_void(source_info_t *src_info);
 
 paranode get_prim(char* prim_name);
 
-void print_ast_node(paranode n); 
+source_info_t *mk_source_info_struct(char *filename, int line, int col);
+
+void print_ast_node(paranode n);
 
 #endif
