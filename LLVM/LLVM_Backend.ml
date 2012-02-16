@@ -124,16 +124,22 @@ let split_argument axes num_items arg =
     (* TODO: for now, we just split the longest axis. Come up with something *)
     (*       good later. *)
     (* TODO: does a 0-length slice work? *)
-    let gt x y = if x > y then x else y in
-    let longest_axis = Array.fold_left gt (-1) (Shape.to_array array_shape) in
-    let len = Shape.get array_shape longest_axis in
-    let els_per_item = safe_div len num_items in
+    let longest_axis = ref 0 in
+    let len = ref 0 in
+    Array.iteri (fun idx dim ->
+      if dim > !len then (
+        longest_axis := idx;
+        len := dim
+      ))
+      (Shape.to_array array_shape)
+    ;
+    let els_per_item = safe_div !len num_items in
     let mul x y = x * y in
     let starts = List.map (mul els_per_item) (List.til num_items) in
     let stops =
-      (List.map (mul els_per_item) (List.range 1 (num_items - 1))) @ [len]
+      (List.map (mul els_per_item) (List.range 1 (num_items - 1))) @ [!len]
     in
-    let make_slice start stop = Value.Slice(arg, longest_axis, start, stop) in
+    let make_slice start stop = Value.Slice(arg, !longest_axis, start, stop) in
     let slices = List.map2 make_slice starts stops in
     List.map Value_to_GenericValue.to_llvm slices
 	| _ -> failwith "Unsupported argument type for splitting."
