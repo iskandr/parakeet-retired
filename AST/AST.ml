@@ -125,4 +125,4 @@ and args_to_str ?(delim="; ") (args:node list) =
   String.concat delim (List.map to_str  args)
 
 let print_ast_node n =
-  Printf.printf "[AST] %s\n%!" (to_str n)
+  Printf.printf "[AST] %s (source: %s) \n%!" (to_str n) (SrcInfo.to_str n.src)
