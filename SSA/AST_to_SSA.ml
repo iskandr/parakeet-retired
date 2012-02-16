@@ -139,7 +139,7 @@ and translate_axes env codegen {data} = match data with
 and translate_adverb env codegen adverb args src =
   match adverb with
   | Prim.Map ->
-    begin match args with
+    (match args with
       | fn::{data=AST.Arr arrayArgs}::{data=AST.Arr fixedArgs}::[axes] ->
         let fnId = get_function_id fn in
         let ssaFn = FnManager.get_untyped_function fnId in
@@ -161,7 +161,30 @@ and translate_adverb env codegen adverb args src =
           exp_types = List.map (fun _ -> Type.BottomT) ssaFn.SSA.fn_output_types
         }
       | _ -> failwith "Unexpected function arguments to Map"
-    end
+    )
+  | Prim.Reduce ->
+    (match args with
+     | fn::{data=AST.Arr arrayArgs}::{data=AST.Arr fixedArgs}::[axes;_] ->
+        let fnId = get_function_id fn in
+        let ssaFn = FnManager.get_untyped_function fnId in
+        let adverbArgs = {
+          SSA.init = None;
+          axes = translate_axes env codegen axes;
+          args = translate_values env codegen arrayArgs;
+        }
+        in
+        let closure = {
+          SSA.closure_fn = fnId;
+          closure_args = translate_values env codegen fixedArgs;
+          closure_arg_types = List.map (fun _ -> Type.BottomT) fixedArgs;
+        }
+        in
+        {
+          SSA.exp = SSA.Adverb(Prim.Reduce, closure, adverbArgs);
+          exp_src = Some src;
+          exp_types = List.map (fun _ -> Type.BottomT) ssaFn.SSA.fn_output_types
+        }
+    )
   | _ ->
     failwith ("Adverb not yet supported " ^ (Prim.adverb_to_str adverb))
 
