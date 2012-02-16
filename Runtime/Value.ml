@@ -91,7 +91,6 @@ let get_strides = function
   | Array {array_strides} -> array_strides
   | _ -> failwith "Cannot get strides of non-array"
 
-
 let to_num = function
   | Scalar n -> n
   | other -> failwith $ Printf.sprintf
@@ -125,8 +124,6 @@ let mk_array (data:'a) (elt_t:Type.elt_t) (shape:Shape.t) (strides:int array) =
   }
 
 let is_scalar x = Type.is_scalar (type_of x)
-
-
 
 let rec extract = function
 	| Rotate (x, _, _)

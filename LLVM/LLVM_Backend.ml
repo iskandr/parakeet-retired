@@ -21,7 +21,8 @@ external destroy_work_queue : Int64.t -> unit = "ocaml_destroy_work_queue"
 external do_work : Int64.t -> LLE.t -> llvalue -> GV.t list list -> unit =
     "ocaml_do_work"
 (* TODO: For now, hard code the number of threads *)
-let work_queue = create_work_queue 8
+let num_cores = 8
+let work_queue = create_work_queue num_cores
 
 let optimize_module llvmModule llvmFn : unit =
   let the_fpm = PassManager.create_function llvmModule in
@@ -115,43 +116,34 @@ let free_scalar_output impT (gv:GV.t) : unit =
 let free_scalar_outputs impTypes gvs =
   List.iter2 free_scalar_output impTypes gvs
 
-let split_argument num_items arg =
+let split_argument axes num_items arg =
 	match arg with
 	| Scalar n ->
 	  List.fill (Value_to_GenericValue.to_llvm (Scalar n)) (List.til num_items)
 	| Array {data; array_type; elt_type; array_shape; array_strides} ->
-	  (* TODO: for now, only support splitting rank 1 arrays. *)
-	  assert (Shape.rank array_shape == 1);
-	  let make_item
-        {data; array_type; elt_type; array_shape; array_strides}
-        els
-        offset =
-      let newshape = Shape.of_list [els] in
-	    let newaddr = Ptr.get_slice data ((Type.sizeof elt_type) * offset) in
-	    Value_to_GenericValue.to_llvm
-	        (Array {data=newaddr; array_type; elt_type;
-	                array_shape=newshape; array_strides})
-	  in
+    (* TODO: for now, we just split the longest axis. Come up with something *)
+    (*       good later. *)
     (* TODO: does a 0-length slice work? *)
-    let len = Shape.get array_shape 0 in
+    let gt x y = if x > y then x else y in
+    let longest_axis = Array.fold_left gt (-1) (Shape.to_array array_shape) in
+    let len = Shape.get array_shape longest_axis in
     let els_per_item = safe_div len num_items in
-    let last_num = len - (els_per_item * (num_items - 1)) in
-    let nums_els = (List.fill els_per_item (List.til (num_items - 1))) @
-                   [last_num] in
     let mul x y = x * y in
-	  let os = List.map (mul els_per_item) (List.til num_items) in
-	  List.map2
-	      (make_item {data; array_type; elt_type; array_shape; array_strides})
-        nums_els
-	      os
+    let starts = List.map (mul els_per_item) (List.til num_items) in
+    let stops =
+      (List.map (mul els_per_item) (List.range 1 (num_items - 1))) @ [len]
+    in
+    let make_slice start stop = Value.Slice(arg, longest_axis, start, stop) in
+    let slices = List.map2 make_slice starts stops in
+    List.map Value_to_GenericValue.to_llvm slices
 	| _ -> failwith "Unsupported argument type for splitting."
 
 (* TODO: 1. We can easily share the LLVM descriptors amongst the chunks.
             To make things easier to get running, I'll split the Values rather
             that the LLVM GVs, and thus duplicate these structs.
 *)
-let build_work_items args num_items =
-  let list_of_split = List.map (split_argument num_items) args in
+let build_work_items axes num_items args =
+  let list_of_split = List.map (split_argument axes num_items) args in
   let get_i i l = List.nth l i in
   let strip_is i l = [List.map (get_i i) l] in
   let rec flip_l cur i stop l =
@@ -249,10 +241,10 @@ let map ~axes ~fn ~fixed args =
   let impFn : Imp.fn = SSA_to_Imp.translate_fn mapFn impTypes in
   let llvmFn = CompiledFunctionCache.compile impFn in
   let inputShapes : Shape.t list = List.map Value.get_shape (fixed @ args) in
-  let outputs : Ptr.t Value.t list  =
+  let outputs : Ptr.t Value.t list =
     allocate_output_arrays impFn inputShapes
   in
-  let work_items = build_work_items (args @ outputs) 8 in
+  let work_items = build_work_items axes num_cores (args @ outputs) in
   do_work work_queue execution_engine llvmFn work_items;
   IFDEF DEBUG THEN
     Printf.printf
