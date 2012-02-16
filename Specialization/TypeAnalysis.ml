@@ -135,12 +135,14 @@ module MkAnalysis (P : TYPE_ANALYSIS_PARAMS) = struct
         ?init
         ?axes
         ~(array_arg_types:Type.t list) =
-    Printf.printf
-      "[TypeAnalysis] inferring adverb %s over fn %s with args %s\n"
-      (Prim.adverb_to_str adverb)
-      (SSA.value_to_str fn_val)
-      (Type.type_list_to_str array_arg_types)
-    ;
+    IFDEF DEBUG THEN
+      Printf.printf
+        "[TypeAnalysis] inferring adverb %s over fn %s with args %s\n"
+        (Prim.adverb_to_str adverb)
+        (SSA.value_to_str fn_val)
+        (Type.type_list_to_str array_arg_types)
+      ;
+    ENDIF;
     if List.for_all Type.is_scalar array_arg_types then
       raise (
         TypeError("Adverbs must have at least one non-scalar argument", None))
@@ -223,9 +225,11 @@ module MkAnalysis (P : TYPE_ANALYSIS_PARAMS) = struct
     | App(lhs, args) ->
         let lhsT = value tenv lhs in
         let argTypes = helpers.eval_values tenv args in
-        Printf.printf "[exp] Node: %s Types:%s\n"
-          (SSA.exp_to_str expNode)
-          (Type.type_list_to_str argTypes);
+        IFDEF DEBUG THEN
+          Printf.printf "[exp] Node: %s Types:%s\n"
+            (SSA.exp_to_str expNode)
+            (Type.type_list_to_str argTypes);
+        ENDIF;
         if Type.is_array lhsT
         then [TypeInfer.infer_simple_array_op Prim.Index (lhsT::argTypes)]
         else infer_app tenv lhs.value argTypes
@@ -251,7 +255,6 @@ module MkAnalysis (P : TYPE_ANALYSIS_PARAMS) = struct
             (SSA.exp_to_str expNode)
 
   let stmt tenv stmtNode helpers =
-    Printf.printf "\n[stmt] %s\n%!" (SSA.stmt_node_to_str stmtNode);
     match stmtNode.stmt with
     | Set(ids, rhs) ->
       let types : Type.t list = exp tenv rhs helpers in
@@ -283,7 +286,13 @@ let type_analysis
       ~(specializer:SSA.value-> Signature.t -> SSA.fn)
       ~(fn:SSA.fn)
       ~(signature:Signature.t) =
-  Printf.printf "Specializing %s with signature %s\n" (SSA.fn_to_str fn) (Signature.to_str signature);
+  IFDEF DEBUG THEN
+    Printf.printf
+      "Specializing %s with signature %s\n"
+      (SSA.fn_to_str fn)
+      (Signature.to_str signature)
+    ;
+  ENDIF;
   let module Params : TYPE_ANALYSIS_PARAMS = struct
     let infer_output_types =
       (fun fnVal fnSig -> (specializer fnVal fnSig).fn_output_types)

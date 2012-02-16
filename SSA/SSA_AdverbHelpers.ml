@@ -82,6 +82,20 @@ let mk_scan ?src closure ?axes init args =
   mk_adverb ?src Prim.Scan closure ~axes ~init args outTypes
 
 
+
+
+(* to keep stable FnId's for repeatedly generated adverbs of the same function*)
+(* we cache our results*)
+type fn_cache_key = {
+  nested_fn_id : FnId.t;
+  adverb : Prim.adverb;
+  fixed_types : Type.t list;
+  array_types : Type.t list;
+  adverb_axes : SSA.value_nodes;
+}
+
+let adverb_fn_cache : (fn_cache_key, FnId.t) Hashtbl.t = Hashtbl.create 127
+
 let mk_map_fn
       ?(src:SrcInfo.t option)
       ~(nested_fn:SSA.fn)
@@ -98,16 +112,32 @@ let mk_map_fn
       (Type.type_list_to_str array_types)
     ;
   ENDIF;
-  let constructor = function
-    | inputs, outputs, [] ->
-      let fixed, arrays = List.split_nth (List.length fixed_types) inputs in
-      let closure = SSA_Helpers.closure nested_fn fixed in
-      [outputs <--  mk_map ?src closure ~axes arrays]
-    | _ -> assert false
+  let cache_key = {
+    nested_fn_id = nested_fn.SSA.fn_id;
+    adverb = Prim.Map;
+    fixed_types = fixed_types;
+    array_types = array_types;
+    adverb_axes = axes
+  }
   in
-  let numAxes = List.length axes in
-  SSA_Helpers.fn_builder
-    ~name:"map_wrapper"
-    ~input_types:(fixed_types @ array_types)
-    ~output_types:(Type.increase_ranks numAxes nested_fn.SSA.fn_output_types)
-    constructor
+  match Hashtbl.find_option adverb_fn_cache cache_key with
+    | Some fnId -> FnManager.get_typed_function fnId
+    | None ->
+
+      let constructor = function
+        | inputs, outputs, [] ->
+          let fixed, arrays = List.split_nth (List.length fixed_types) inputs in
+          let closure = SSA_Helpers.closure nested_fn fixed in
+          [outputs <--  mk_map ?src closure ~axes arrays]
+        | _ -> assert false
+      in
+      let nAxes = List.length axes in
+      let fn =
+        SSA_Helpers.fn_builder
+          ~name:"map_wrapper"
+          ~input_types:(fixed_types @ array_types)
+          ~output_types:(Type.increase_ranks nAxes nested_fn.fn_output_types)
+          constructor
+      in
+      Hashtbl.replace adverb_fn_cache cache_key fn.fn_id;
+      fn

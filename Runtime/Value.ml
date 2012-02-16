@@ -76,6 +76,7 @@ let rec get_underlying_array = function
   | Scalar n -> failwith "Unable to get underlying array for scalar."
   | Explode (n, s) -> failwith "Don't know how to handle explodes yet."
   | Shift (a, _, _, _)
+  | FixDim(a, _, _)
   | Slice (a, _, _, _)
   | Rotate (a, _, _) -> get_underlying_array a
   | Range _ -> failwith "Don't know how to handle ranges yet."
