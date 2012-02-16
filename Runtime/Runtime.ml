@@ -56,7 +56,6 @@ module rec Scheduler : SCHEDULER = struct
   let array_op (op : Prim.array_op) (args : value list) = assert false
 end
 and Interp : INTERP = struct
-
   let eval_value (valNode : SSA.value_node) : value =
     match valNode.value with
     | Var id -> Env.lookup id
@@ -174,7 +173,6 @@ and Interp : INTERP = struct
     (* use the generic math eval function                                    *)
     | op, _ -> Value.Scalar (MathEval.eval_pqnum_op op nums)
 end
-
 
 let call (fn:SSA.fn) (hostData: Ptr.t Value.t list) : Ptr.t Value.t list =
   Env.push_env ();

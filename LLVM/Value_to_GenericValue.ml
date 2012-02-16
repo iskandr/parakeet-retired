@@ -78,7 +78,10 @@ let rec to_llvm = function
 	  int64 ptr
   | Value.FixDim (v, dim, idx) ->
     (* TODO: This is wasteful.  It's unnecessary to actually malloc new *)
-    (*       shapes and strides.  Should clean up later. *)
+    (*       shapes.  In addition, if we have multiple slices into the same *)
+    (*       base array, we generate multiple structs for that array in *)
+    (*       addition to the waste for the slice itself. Should really clean *)
+    (*       up later. *)
     let ptr = HostMemspace.malloc (8 + 8 + 8) in
     let a = to_llvm v in
     let a_ll_ptr = GenericValue.as_int64 a in
@@ -105,7 +108,10 @@ let rec to_llvm = function
     int64 ptr
   | Value.Slice (v, dim, start, stop) ->
 	  (* TODO: This is wasteful.  It's unnecessary to actually malloc new *)
-    (*       shapes.  Should clean up later. *)
+    (*       shapes.  In addition, if we have multiple slices into the same *)
+    (*       base array, we generate multiple structs for that array in *)
+    (*       addition to the waste for the slice itself. Should really clean *)
+    (*       up later. *)
 	  let ptr = HostMemspace.malloc (8 + 8 + 8) in
     let a = to_llvm v in
     let a_ll_ptr = GenericValue.as_int64 a in
@@ -119,7 +125,7 @@ let rec to_llvm = function
     let dim_stride = astrides.(dim) in
     let addr = Int64.add a_ll_ptr (Int64.of_int (el_size * dim_stride)) in
     let slice_shape = Array.append (Array.make 0 0) (Shape.to_array ashape) in
-    Array.set slice_shape dim (stop - start + 1);
+    Array.set slice_shape dim (stop - start);
     let ll_shape = Array.to_c_int_array slice_shape in
 	  HostMemspace.set_int64 ptr 0 addr;
 	  HostMemspace.set_int64 ptr 1 ll_shape;
