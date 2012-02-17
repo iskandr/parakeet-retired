@@ -66,15 +66,15 @@ let mk_map ?src closure ?axes (args:value_nodes) =
   in
   mk_adverb ?src Prim.Map closure ~axes ?init:None args outputTypes
 
-let mk_reduce ?src closure ?axes init args =
+let mk_reduce ?src closure ?axes ?init args =
   let axes : value_nodes = infer_adverb_axes_from_args ?axes args in
   let outTypes : Type.t list  = closure_output_types closure in
-  mk_adverb ?src Prim.Reduce closure ~axes ~init args outTypes
+  mk_adverb ?src Prim.Reduce closure ~axes ?init args outTypes
 
-let mk_scan ?src closure ?axes init args =
+let mk_scan ?src closure ?axes ?init args =
   let axes : value_nodes = infer_adverb_axes_from_args ?axes args in
   let outTypes : Type.t list = closure_output_types closure in
-  mk_adverb ?src Prim.Scan closure ~axes ~init args outTypes
+  mk_adverb ?src Prim.Scan closure ~axes ?init args outTypes
 
 
 

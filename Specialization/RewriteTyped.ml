@@ -133,32 +133,37 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
     let argTypes = SSA_Helpers.types_of_value_nodes array_args in
     let numAxes = List.length axes in
     let eltTypes = List.map (Type.peel ~num_axes:numAxes) argTypes in
-    match adverb, init with
-      | Prim.Map, None ->
+    match adverb, init, eltTypes with
+      | Prim.Map, None, _ ->
         let nestedSig =
           Signature.from_input_types (closureArgTypes @ eltTypes)
         in
         let closure = mk_typed_closure fn_val nestedSig in
         SSA_AdverbHelpers.mk_map closure (closure_args @ array_args)
-      | Prim.Map, Some _ -> failwith "Unexpected initial args for Map"
-      | Prim.Reduce, None ->
-        let arity = FnManager.output_arity_of_value fn_val in
-        let initArgs, args = List.split_nth arity array_args in
-        let initTypes, argTypes = List.split_nth arity argTypes in
-        let eltTypes = List.map Type.peel argTypes in
-        (* TODO: fix this nonsense *)
-        let accTypes = [Type.AnyT] in
-        let reduceSignature =
-          Signature.from_types (accTypes @ eltTypes) accTypes
+      | Prim.Map, Some _, _ -> failwith "Map can't have initial args"
+      | Prim.Reduce, None, [eltT] ->
+        if FnManager.output_arity_of_value fn_val <> 1 then
+          failwith "Reduce without initial args can only produce 1 output"
+        ;
+        (* assume that the accumulator is the same as the array element type *)
+        let nestedSig =
+          Signature.from_input_types (closureArgTypes @ [eltT; eltT])
         in
-        let reduceClosure = mk_typed_closure fn_val reduceSignature in
-        SSA_AdverbHelpers.mk_reduce ?src ?axes:None reduceClosure initArgs args
-      | Prim.AllPairs, _ -> assert false
+        let closure = mk_typed_closure fn_val nestedSig in
+        SSA_AdverbHelpers.mk_reduce ?src closure ~axes ?init:None array_args
+      | Prim.Reduce, None, _ ->
+        failwith "Reduce without initial args can only have 1 input"
+
+      | Prim.AllPairs, None, [x;y] -> assert false
+      | Prim.AllPairs, Some _, [_;_] ->
+        failwith "AllPairs operator can't have initial args"
+      | Prim.AllPairs, _, _ -> failwith "AllPairs operator must have two inputs"
         (*let eltTypes = List.map Type.peel_vec argTypes in
         let eltSignature = Signature.from_input_types eltTypes in
         *)
 
-      | other, _ -> failwith $ (Prim.adverb_to_str other) ^ " not implemented"
+      | other, _, _ ->
+        failwith $ (Prim.adverb_to_str other) ^ " not implemented"
 
 
   let rewrite_array_op

@@ -13,12 +13,12 @@ val mk_map :
    ?src:SrcInfo.t -> closure -> ?axes:value_nodes  -> value_nodes -> exp_node
 
 val mk_reduce :
-    ?src:SrcInfo.t -> closure -> ?axes:value_nodes ->
-        value_node list -> value_nodes -> exp_node
+    ?src:SrcInfo.t -> closure -> ?axes:value_nodes -> ?init:value_nodes ->
+      value_nodes -> exp_node
 
 val mk_scan :
-   ?src:SrcInfo.t -> closure -> ?axes:value_nodes ->
-    value_nodes -> value_nodes -> exp_node
+    ?src:SrcInfo.t -> closure -> ?axes:value_nodes -> ?init:value_nodes ->
+      value_nodes -> exp_node
 
 val mk_map_fn :
       ?src:SrcInfo.t ->
