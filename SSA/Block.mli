@@ -23,4 +23,8 @@ val fold_backward : ('b -> 'a -> 'b) -> 'b -> 'a t -> 'b
 
 val for_all : ('a -> bool) -> 'a t -> bool
 val exists : ('a -> bool) -> 'a t -> bool
+val find_first : ('a -> 'b option) -> 'a t -> 'b option
+
 val to_str : ('a -> string) -> 'a t -> string
+
+

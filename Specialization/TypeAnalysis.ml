@@ -43,12 +43,13 @@ module MkAnalysis (P : TYPE_ANALYSIS_PARAMS) = struct
     let inputTypes = ref (Signature.input_types P.signature) in
     IFDEF DEBUG THEN
       if List.length !inputIds <> List.length !inputTypes then
-        failwith  $ Printf.sprintf
-            "[TypeAnalysis]
-                mismatching number of input IDs (%s) and types (%s) in %s"
-            (String.concat ", " (List.map ID.to_str !inputIds))
-            (Type.type_list_to_str !inputTypes)
-            (FnId.to_str fundef.fn_id)
+        let errorMsg = Printf.sprintf
+          "mismatching number of input IDs (%s) and types (%s) in %s"
+          (String.concat ", " (List.map ID.to_str !inputIds))
+          (Type.type_list_to_str !inputTypes)
+          (FnId.to_str fundef.fn_id)
+        in
+        raise (TypeError(errorMsg, SSA.find_fn_src_info fundef))
     ENDIF;
     while !inputIds <> [] && !inputTypes <> [] do
       Hashtbl.add tenv (List.hd !inputIds) (List.hd !inputTypes);
@@ -67,10 +68,8 @@ module MkAnalysis (P : TYPE_ANALYSIS_PARAMS) = struct
               (Type.type_list_to_str !outputTypes)
               (FnId.to_str fundef.fn_id)
           in
-          raise (TypeError (msg, None))
-          ;
-    ENDIF;
-
+          raise (TypeError (msg, SSA.find_fn_src_info fundef))
+      ENDIF;
       while !outputIds <> [] && !outputTypes <> [] do
         Hashtbl.add tenv (List.hd !outputIds) (List.hd !outputTypes);
         outputIds := List.tl !outputIds;
@@ -121,12 +120,13 @@ module MkAnalysis (P : TYPE_ANALYSIS_PARAMS) = struct
 
 
   let infer_adverb
-       tenv
+        ?(src:SrcInfo.t option)
+        ~(tenv:env)
         ~(adverb:Prim.adverb)
         ~(fn_val:SSA.value)
         ?(closure_arg_types=[])
-        ?init
-        ?axes
+        ?(init:Type.t list option)
+        ?(axes:SSA.value list option)
         ~(array_arg_types:Type.t list) =
     IFDEF DEBUG THEN
       Printf.printf
@@ -138,7 +138,7 @@ module MkAnalysis (P : TYPE_ANALYSIS_PARAMS) = struct
     ENDIF;
     if List.for_all Type.is_scalar array_arg_types then
       raise (
-        TypeError("Adverbs must have at least one non-scalar argument", None))
+        TypeError("Adverbs must have at least one non-scalar argument", src))
     ;
     let maxPossibleAxes =
       SSA_AdverbHelpers.max_num_axes_from_array_types array_arg_types
@@ -156,33 +156,44 @@ module MkAnalysis (P : TYPE_ANALYSIS_PARAMS) = struct
             (Prim.adverb_to_str adverb)
             maxPossibleAxes
         in
-        raise (TypeError(msg, None))
+        raise (TypeError(msg, src))
     in
-    match adverb with
-    | Prim.Map ->
-      if init <> None then
-        raise (TypeError("Map can't have initial values", None))
-      ;
-      let eltTypes = List.map (Type.peel ~num_axes:numAxes) array_arg_types in
+    let eltTypes = List.map (Type.peel ~num_axes:numAxes) array_arg_types in
+    match adverb, init, eltTypes with
+    | Prim.Map, None, _ ->
       let eltResultTypes = infer_app tenv fn_val eltTypes in
       Type.increase_ranks numAxes eltResultTypes
-(*
-    | Prim.Reduce ->
-      let eltTypes = List.map (Type.peel ~num_axes:numAxes) vecTypes in
-      let accTypes = infer_app tenv fnVal (initTypes @ eltTypes) in
-      let accTypes' = infer_app tenv fnVal (accTypes @ eltTypes) in
+    | Prim.Map, Some _, _ ->
+      raise (TypeError("Map can't have initial values", src))
+    (* if not given initial values then we assume operator is binary and*)
+    (* used first two elements of the array *)
+    | Prim.Reduce, None, [eltT] ->
+      let accTypes = infer_app tenv fn_val [eltT;eltT] in
+      if List.length accTypes <> 1 then
+        raise (
+          TypeError("Reduce without inital args must return one value", src))
+      else accTypes
+    | Prim.Reduce, None, _ ->
+      raise (
+        TypeError("Reduce without intial args must have one input array", src))
+    | Prim.Reduce, Some inits, _  -> assert false
+    (*
+      let accTypes = infer_app tenv fn_val (initTypes @ eltTypes) in
+      let accTypes' = infer_app tenv fn_val (accTypes @ eltTypes) in
       if accTypes <> accTypes' then
         failwith "unable to infer accumulator type"
       ;
       accTypes
+    *)
+    (*
     | Prim.AllPairs ->
         let eltTypes = List.map (Type.peel ~num_axes:numAxes) argTypes in
         let outTypes = infer_app tenv fnVal  eltTypes in
         Type.increase_ranks 2 outTypes
 *)
-    | other -> failwith (Prim.adverb_to_str other ^ " not impl")
+    | other, _, _ -> failwith (Prim.adverb_to_str other ^ " not impl")
 
-  let exp tenv expNode helpers =
+  let exp (tenv:env) expNode helpers =
     let src = expNode.exp_src in
     match expNode.exp with
     | App({value=SSA.Prim (Prim.Adverb adverb)}, args) ->
@@ -194,10 +205,7 @@ module MkAnalysis (P : TYPE_ANALYSIS_PARAMS) = struct
       begin match adverb with
         | Prim.Map
         | Prim.AllPairs ->
-          infer_adverb
-            tenv
-            ~adverb
-            ~fn_val:fn.value
+          infer_adverb ?src ~tenv ~adverb ~fn_val:fn.value
             ?closure_arg_types:None
             ?init:None
             ?axes:None
@@ -207,9 +215,7 @@ module MkAnalysis (P : TYPE_ANALYSIS_PARAMS) = struct
       end
     | SSA.Adverb(adverb, {closure_fn; closure_arg_types}, {axes;init;args}) ->
       let argTypes = helpers.eval_values tenv args in
-      infer_adverb
-        tenv
-        ~adverb
+      infer_adverb ?src ~tenv ~adverb
         ~fn_val:(GlobalFn closure_fn)
         ~closure_arg_types
         ?init:None

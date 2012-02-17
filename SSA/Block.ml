@@ -64,4 +64,14 @@ let exists f block =
   done;
   !b
 
+let find_first f block =
+  let result = ref None in
+  let i = ref 0 in
+  let n = length block in
+  while !result = None && !i < n do
+    result := f (idx block !i);
+    i := !i + 1
+  done;
+  !result
+
 let to_str f block = fold_forward (fun s x -> s ^ "\n" ^ (f x)) "" block

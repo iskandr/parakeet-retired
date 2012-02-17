@@ -104,3 +104,5 @@ val value_list_to_str : ?sep:string -> value list -> string
 
 val fn_to_str : fn -> string
 val closure_to_str : closure -> string
+
+val find_fn_src_info : fn -> SrcInfo.t option

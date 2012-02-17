@@ -257,4 +257,21 @@ let fn_to_str (fundef:fn) =
   sprintf "%s (%s)=>(%s) { %s \n }" name inputs outputs body
 
 
+(* search through a block and return the first srcinfo, *)
+(* if one exists. Return None otherwise *)
+let rec get_stmt_src_info {stmt; stmt_src} =
+  if stmt_src <> None then stmt_src
+  else match stmt with
+    | If(_, tBlock, fBlock, _) ->
+      let tSrc = get_block_src_info tBlock in
+      if tSrc = None then get_block_src_info fBlock
+      else tSrc
+    | WhileLoop(condBlock, _, body, _) ->
+      let condSrc = get_block_src_info condBlock in
+      if condSrc = None then get_block_src_info body
+      else condSrc
+    | _ -> None
+and get_block_src_info block = Block.find_first get_stmt_src_info block
 
+
+let find_fn_src_info fn = get_block_src_info fn.body
