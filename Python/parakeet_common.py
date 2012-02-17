@@ -1,10 +1,10 @@
 from ctypes import *
-import atexit, os, sys 
+import atexit, os, sys
 
 verbose = True
 debug = False
 def LOG(msg):
-  if verbose: 
+  if verbose:
     print "[Parakeet]", msg
     sys.stdout.flush()
 
@@ -47,11 +47,11 @@ class return_val_t(Structure):
               ("results", POINTER(_ret_t))]
 
 ###############################################################################
-#  Load the C library into a global named LibPar 
+#  Load the C library into a global named LibPar
 ###############################################################################
 
 def init_parakeet_lib():
-  LibPar = cdll.LoadLibrary(os.getenv('HOME') + '/.parakeet/libparakeetpy.so')  
+  LibPar = cdll.LoadLibrary(os.getenv('HOME') + '/.parakeet/libparakeetpy.so')
   LibPar.parakeet_init()
   LibPar.mk_array.restype = c_void_p
   LibPar.mk_assign.restype = c_void_p
@@ -77,6 +77,7 @@ def init_parakeet_lib():
   LibPar.mk_void.restype = c_void_p
   LibPar.mk_return.restype = c_void_p
   LibPar.print_ast_node.restype = c_void_p
+  LibPar.mk_source_info_struct.restype = c_void_p
 
   #get global values for parakeet types
   LibPar.bool_t = c_int.in_dll(LibPar, "parakeet_bool_elt_t").value

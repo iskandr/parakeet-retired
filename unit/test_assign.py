@@ -1,6 +1,7 @@
 #!/usr/bin/python
+import unit
+from unit import parakeet
 from parakeet import PAR
-import sys
 
 @PAR
 def ret_three():
@@ -14,3 +15,4 @@ def test_assign():
 
 if __name__ == '__main__':
   test_assign()
+
