@@ -6,13 +6,14 @@ from parakeet import PAR
 def sqr_dist(x,y):
   return parakeet.sum((x-y) * (x-y))
 
-@PAR
+#@PAR
 def minidx(C,x):
   return parakeet.argmin(parakeet.map(sqr_dist,C,fixed=[x]))
 
 def calc_centroid(X,a,i):
   return parakeet.mean(X[a == i], 0)
 
+@PAR 
 def kmeans(X,assign,k):
   C = parakeet.map(calc_centroid, arange(k), fixed=[X, assign])
   converged = False

@@ -101,9 +101,19 @@ let run_function untypedId ~globals ~args : ret_val =
         let typedFundef = get_specialized_function untypedId signature in
         let outputs = Runtime.call typedFundef args in
         Success outputs
-      with exn ->
-      (
-        let errorMsg = Printexc.to_string exn in
+      with exn -> (
+        let errorMsg =
+          match exn with
+          | TypeAnalysis.TypeError(txt, srcOpt) ->
+            let srcStr =
+              Option.map_default
+                (fun srcInfo -> "at " ^ (SrcInfo.to_str srcInfo))
+                "(no source info)"
+                srcOpt
+            in
+            Printf.sprintf "Type Error: %s %s" txt srcStr
+          | _ ->  Printexc.to_string exn
+        in
         Printf.printf "\nParakeet failed with the following error:\n";
         Printf.printf "- %s\n\n" errorMsg;
         Printf.printf "OCaml Backtrace:\n";

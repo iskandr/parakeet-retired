@@ -1,3 +1,4 @@
+exception TypeError of string * (SrcInfo.t option)
 
 val type_analysis :
       specializer : (SSA.value -> Signature.t -> SSA.fn) ->
