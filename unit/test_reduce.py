@@ -1,5 +1,6 @@
 import numpy as np
-import parakeet
+import unit
+from unit import parakeet
 from parakeet import PAR 
 
 @PAR

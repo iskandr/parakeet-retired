@@ -1,6 +1,7 @@
 #!/usr/bin/python
 import numpy as np
-import parakeet
+import unit
+from unit import parakeet
 from parakeet import PAR
 
 # TODO: Add support for transposed view Y.T

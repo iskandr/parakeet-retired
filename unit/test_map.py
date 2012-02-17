@@ -1,8 +1,8 @@
 #!/usr/bin/python
 import numpy as np
-import parakeet
+import sys, unit
+from unit import parakeet
 from parakeet import PAR
-import sys
 
 @PAR 
 def implicit_map(x):
