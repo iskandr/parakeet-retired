@@ -30,10 +30,8 @@ let closure_input_types closure =
 let closure_output_types closure =
   (FnManager.get_typed_function closure.closure_fn).fn_output_types
 
-let infer_adverb_axes_from_rank ?axes rank =
-  match axes with
-    | Some axes -> axes
-    | None -> List.map SSA_Helpers.int32 (List.til rank)
+let infer_adverb_axes_from_rank rank =
+  List.map SSA_Helpers.int32 (List.til rank)
 
 (* given a list of input array types, infer the largest number *)
 (* of axes feasible to map over them-- min of all ranks except 0 *)
@@ -47,12 +45,9 @@ let rec max_num_axes_from_array_types = function
       | x, y -> min x y
     end
 
-let infer_adverb_axes_from_types ?axes (types:Type.t list) =
-  match axes with
-  | Some axes -> axes
-  | None ->
-    let numAxes = max_num_axes_from_array_types types in
-    List.map SSA_Helpers.int32 (List.til numAxes)
+let infer_adverb_axes_from_types (types:Type.t list) =
+  let numAxes = max_num_axes_from_array_types types in
+  List.map SSA_Helpers.int32 (List.til numAxes)
 
 let infer_adverb_axes_from_args ?axes (otherArgs:value_nodes) =
   match axes with
@@ -102,7 +97,10 @@ let mk_map_fn
       ?(axes : SSA.value_nodes option)
       ?(fixed_types=[])
       ~(array_types: Type.t list) =
-  let axes = infer_adverb_axes_from_types ?axes array_types in
+  let axes = match axes with
+    | Some axes -> axes
+    | None -> infer_adverb_axes_from_types array_types
+  in
   IFDEF DEBUG THEN
     Printf.printf
       "[mk_map_fn] nested=%s, axes=%s, fixed=[%s], inputs=[%s]\n"

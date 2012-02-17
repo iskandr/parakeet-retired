@@ -2,8 +2,8 @@ open SSA
 
 
 val max_num_axes_from_array_types : Type.t list -> int
-val infer_adverb_axes_from_rank : ?axes:value_nodes -> int -> value_nodes
-val infer_adverb_axes_from_types : ?axes:value_nodes -> Type.t list -> value_nodes
+val infer_adverb_axes_from_rank : int -> value_nodes
+val infer_adverb_axes_from_types : Type.t list -> value_nodes
 val infer_adverb_axes_from_args :
   ?axes:value_nodes -> value_nodes -> value_nodes
 

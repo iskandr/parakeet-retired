@@ -32,8 +32,7 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
     | Num n -> Type.ScalarT (ParNum.type_of n)
     | other -> Type.BottomT
 
-  let infer_value_node_type valNode =
-    infer_value_type valNode.value
+  let infer_value_node_type valNode = infer_value_type valNode.value
 
   (* keeps only the portion of the second list which is longer than the first *)
   let rec keep_tail l1 l2 =
@@ -112,39 +111,39 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
 
   let coerce_values t vs = List.map (coerce_value t) vs
 
-  let rewrite_adverb src adverb fnVal
+  let rewrite_adverb
+        ?(src:SrcInfo.t option)
+        ~(adverb:Prim.adverb)
+        ~(fn_val:SSA.value)
+        ~(axes:SSA.value_node list)
         ?(closure_args=[])
-        ?arg_types
-        ?init
-        ?axes
-        argNodes  =
+        ?(init:SSA.value_node list option)
+        ~(array_args : SSA.value_node list) =
     IFDEF DEBUG THEN
       Printf.printf
         "[RewriteTyped.rewrite_adverb] %s(fn=%s, args=[%s])\n"
         (Prim.adverb_to_str adverb)
-        (SSA.value_to_str fnVal)
-        (SSA.value_nodes_to_str argNodes)
+        (SSA.value_to_str fn_val)
+        (SSA.value_nodes_to_str array_args)
       ;
     ENDIF;
-    assert (init=None);
-    assert (axes=None);
-    assert (closure_args=[]);
-    let argTypes = match arg_types with
-      | None -> SSA_Helpers.types_of_value_nodes argNodes
-      | Some types -> types
-    in
-    let axes = SSA_AdverbHelpers.infer_adverb_axes_from_types ?axes argTypes in
+    (* since all the value_nodes we're seeing at this point have already*)
+    (* been annotated you can just grab their type via valNode.value_type *)
+    let closureArgTypes = SSA_Helpers.types_of_value_nodes closure_args in
+    let argTypes = SSA_Helpers.types_of_value_nodes array_args in
     let numAxes = List.length axes in
-    match adverb with
-      | Prim.Map ->
-        let eltTypes = List.map (Type.peel ~num_axes:numAxes) argTypes in
-        let closure =
-          mk_typed_closure fnVal (Signature.from_input_types eltTypes)
+    let eltTypes = List.map (Type.peel ~num_axes:numAxes) argTypes in
+    match adverb, init with
+      | Prim.Map, None ->
+        let nestedSig =
+          Signature.from_input_types (closureArgTypes @ eltTypes)
         in
-        SSA_AdverbHelpers.mk_map closure argNodes
-      | Prim.Reduce ->
-        let arity = FnManager.output_arity_of_value fnVal in
-        let initArgs, args = List.split_nth arity argNodes in
+        let closure = mk_typed_closure fn_val nestedSig in
+        SSA_AdverbHelpers.mk_map closure (closure_args @ array_args)
+      | Prim.Map, Some _ -> failwith "Unexpected initial args for Map"
+      | Prim.Reduce, None ->
+        let arity = FnManager.output_arity_of_value fn_val in
+        let initArgs, args = List.split_nth arity array_args in
         let initTypes, argTypes = List.split_nth arity argTypes in
         let eltTypes = List.map Type.peel argTypes in
         (* TODO: fix this nonsense *)
@@ -152,14 +151,14 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
         let reduceSignature =
           Signature.from_types (accTypes @ eltTypes) accTypes
         in
-        let reduceClosure = mk_typed_closure fnVal reduceSignature in
+        let reduceClosure = mk_typed_closure fn_val reduceSignature in
         SSA_AdverbHelpers.mk_reduce ?src ?axes:None reduceClosure initArgs args
-      | Prim.AllPairs ->
+      | Prim.AllPairs, _ -> assert false
         (*let eltTypes = List.map Type.peel_vec argTypes in
         let eltSignature = Signature.from_input_types eltTypes in
         *)
-        assert false
-      | other -> failwith $ (Prim.adverb_to_str other) ^ " not implemented"
+
+      | other, _ -> failwith $ (Prim.adverb_to_str other) ^ " not implemented"
 
 
   let rewrite_array_op
@@ -208,7 +207,15 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
     | Prim ((Prim.ScalarOp op) as p) ->
       let outT = TypeInfer.infer_scalar_op op argTypes in
       if Type.is_array outT then
-        rewrite_adverb src Prim.Map fnVal ~arg_types:argTypes argNodes
+        let axes = SSA_AdverbHelpers.infer_adverb_axes_from_types argTypes in
+        rewrite_adverb
+          ?src
+          ~adverb:Prim.Map
+          ~fn_val:fnVal
+          ~closure_args:[]
+          ?init:None
+          ~axes
+          ~array_args:argNodes
       else
         (* most scalar ops expect all their arguments to be of the same*)
         (* type, except for Select, whose first argument is always a bool *)
@@ -233,8 +240,18 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
     | Prim (Prim.ArrayOp op) -> rewrite_array_op src op argNodes argTypes
     | Prim (Prim.Adverb adverb) ->
       begin match argNodes, argTypes with
-        | fn::args, _::argTypes ->
-          rewrite_adverb src adverb fn.value ~arg_types:argTypes args
+        | fn::args, _::arrayTypes ->
+          let axes =
+            SSA_AdverbHelpers.infer_adverb_axes_from_types arrayTypes
+          in
+          rewrite_adverb
+            ?src
+            ~adverb
+            ~fn_val:fn.value
+            ~axes
+            ~closure_args:[]
+            ?init:None
+            ~array_args:args
         | _ -> assert false
       end
     | GlobalFn _ ->
@@ -256,8 +273,20 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
       | App (fn, args), _ ->
         rewrite_app expNode.exp_src fn (annotate_values args)
       | Adverb (adverb, {closure_fn; closure_args}, {init; axes; args}), _ ->
-        let args' = annotate_values args in
-        rewrite_adverb expNode.exp_src adverb (GlobalFn closure_fn) args'
+        let arrayArgs = annotate_values args in
+        let arrayTypes = SSA_Helpers.types_of_value_nodes arrayArgs in
+        let axes = match axes with
+          | Some axes -> annotate_values axes
+          | None -> SSA_AdverbHelpers.infer_adverb_axes_from_types arrayTypes
+        in
+        rewrite_adverb
+          ?src:expNode.exp_src
+          ~adverb
+          ~fn_val:(GlobalFn closure_fn)
+          ~axes
+          ~closure_args:(annotate_values closure_args)
+          ?init:(Option.map annotate_values init)
+          ~array_args:arrayArgs
       | _ -> failwith $
                Printf.sprintf
                  "[RewriteTyped] Type specialization for %s not implemented"
