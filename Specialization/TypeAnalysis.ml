@@ -162,13 +162,26 @@ module MkAnalysis (P : TYPE_ANALYSIS_PARAMS) = struct
     match adverb, init, eltTypes with
     | Prim.Map, None, _ ->
       let eltResultTypes = infer_app tenv fn_val eltTypes in
-      Type.increase_ranks numAxes eltResultTypes
+      let resultTypes = Type.increase_ranks numAxes eltResultTypes in
+      IFDEF DEBUG THEN
+        Printf.printf
+          "[TypeAnalysis.infer_adverb] Inferred output for map: %s\n"
+          (Type.type_list_to_str resultTypes)
+        ;
+      ENDIF;
+      resultTypes
     | Prim.Map, Some _, _ ->
       raise (TypeError("Map can't have initial values", src))
     (* if not given initial values then we assume operator is binary and*)
     (* used first two elements of the array *)
     | Prim.Reduce, None, [eltT] ->
       let accTypes = infer_app tenv fn_val [eltT;eltT] in
+      IFDEF DEBUG THEN
+        Printf.printf
+          "[TypeAnalysis.infer_adverb] Inferred output for reduce: %s\n"
+          (Type.type_list_to_str accTypes)
+        ;
+      ENDIF;
       if List.length accTypes <> 1 then
         raise (
           TypeError("Reduce without inital args must return one value", src))
