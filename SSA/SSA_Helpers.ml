@@ -308,7 +308,14 @@ let fn_builder
       ~(output_types : Type.t list)
       ?(local_types = [])
       (construct : value_nodes * value_nodes * value_nodes -> stmt_node list) =
-
+  IFDEF DEBUG THEN
+    Printf.printf
+      "[SSA_Helpers.mk_fn] name: %s, input_types = %s, output_types = %s\n%!"
+      (match name with None -> "<none>" | Some name -> name)
+      (Type.type_list_to_str input_types)
+      (Type.type_list_to_str output_types)
+    ;
+  ENDIF;
   (* inputs *)
   let nInputs = List.length input_types in
   let inputIds = ID.gen_named_list "input" nInputs in

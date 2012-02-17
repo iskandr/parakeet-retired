@@ -119,13 +119,6 @@ module MkAnalysis (P : TYPE_ANALYSIS_PARAMS) = struct
             "Inference for function application where fn = %s not implemented"
             (SSA.value_to_str fnVal)
 
-  let infer_map
-        tenv
-        ~(untyped_fn_id:FnId.t)
-        ~(closure_arg_types:Type.t list)
-        ~(array_arg_types:Type.t list)
-        ~(n_axes:int) =
-    assert false
 
   let infer_adverb
        tenv

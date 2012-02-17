@@ -1,6 +1,7 @@
 open Base
 
 val add_untyped :  ?optimize:bool -> string -> SSA.fn -> unit
+val add_typed : ?optimize:bool -> SSA.fn -> unit
 
 val add_untyped_list : ?optimize:bool -> (string * SSA.fn) list -> unit
 val add_untyped_map : ?optimize:bool ->  SSA.fn String.Map.t -> unit

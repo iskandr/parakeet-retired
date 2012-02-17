@@ -27,7 +27,7 @@ class WrappedFunction:
     # TODO: assume there are no globals now
     ret = LibPar.run_function(self.parakeet_untyped_id, None, 0, inputs, n_args)
     if ret.return_code != 0:
-      raise RuntimeError("[Parakeet] Execution failed")
+      raise RuntimeError("[Parakeet] Execution failed: %s" % ret.error_msg)
     else:
       print "Got %d results" % ret.results_len
       if ret.results_len > 0:

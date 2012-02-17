@@ -12,18 +12,24 @@ open Printf
 let untypedPrimFnCache : (Prim.t * int, SSA.fn) Hashtbl.t =
   Hashtbl.create 127
 
-let mk_untyped_prim_fn prim arity : SSA.fn =
+let mk_untyped_prim_fn (prim:Prim.t) arity : SSA.fn =
   let key = (prim,arity) in
   if Hashtbl.mem untypedPrimFnCache key  then
     Hashtbl.find untypedPrimFnCache key
   else
   let inputs = ID.gen_named_list "input" arity in
   let output = ID.gen_named "output" in
-  let bottoms = List.map (fun _ -> Type.BottomT) inputs in
   let inputVars = List.map SSA_Helpers.var inputs in
   let rhs = SSA_Helpers.app (SSA_Helpers.wrap_value (Prim prim)) inputVars in
   let body = Block.singleton (SSA_Helpers.set [output] rhs) in
-  let fn = SSA_Helpers.mk_fn inputs [output] body in
+  let fn =
+    SSA_Helpers.mk_fn
+      ~name:("prim_" ^ (Prim.to_str prim))
+      ?tenv:None
+      ~input_ids:inputs
+      ~output_ids:[output]
+      ~body
+  in
   (Hashtbl.add untypedPrimFnCache key fn; fn)
 
 let mk_typed_scalar_prim (op : Prim.scalar_op) ?optOutType argTypes =
@@ -140,7 +146,7 @@ and scalarize_fn untyped vecSig =
   let scalarSig = Signature.from_input_types scalarTypes in
   let scalarFn = specialize_value (SSA.GlobalFn untyped.fn_id) scalarSig in
   let scalarOutputTypes = scalarFn.fn_output_types in
-  let outTypes = List.map (Type.increase_rank 1) scalarOutputTypes in
+  let outTypes = List.map (Type.increase_rank numAxes) scalarOutputTypes in
   let scalarClosure = SSA_Helpers.closure scalarFn [] in
   SSA_Codegen.mk_codegen_fn inTypes outTypes (fun codegen inputs outputs ->
     let outIds = List.map SSA_Helpers.get_id outputs in
@@ -173,7 +179,7 @@ and specialize_value fnVal signature =
           let typed =
             if List.for_all Type.is_scalar inputTypes
             then mk_typed_scalar_prim op ?optOutType inputTypes
-            else
+            else begin
             (* if we're adding two arrays, then turn it into a map over both *)
             (* axes, but if we're adding an array to a vector we can only map*)
             (* over one axis *)
@@ -197,6 +203,7 @@ and specialize_value fnVal signature =
                 ~axes:(SSA_AdverbHelpers.infer_adverb_axes_from_rank maxRank)
                 ~fixed_types:[]
                 ~array_types:inputTypes
+            end
           in
           FnManager.add_specialization ~optimize:false fnVal signature typed;
           typed

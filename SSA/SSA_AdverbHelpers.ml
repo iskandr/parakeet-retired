@@ -105,7 +105,7 @@ let mk_map_fn
   let axes = infer_adverb_axes_from_types ?axes array_types in
   IFDEF DEBUG THEN
     Printf.printf
-      "mk_map_fn] nested=%s, axes=%s, fixed=[%s], inputs=[%s]\n"
+      "[mk_map_fn] nested=%s, axes=%s, fixed=[%s], inputs=[%s]\n"
       (FnId.to_str nested_fn.fn_id)
       (SSA.value_nodes_to_str axes)
       (Type.type_list_to_str fixed_types)
@@ -123,7 +123,6 @@ let mk_map_fn
   match Hashtbl.find_option adverb_fn_cache cache_key with
     | Some fnId -> FnManager.get_typed_function fnId
     | None ->
-
       let constructor = function
         | inputs, outputs, [] ->
           let fixed, arrays = List.split_nth (List.length fixed_types) inputs in
@@ -139,5 +138,6 @@ let mk_map_fn
           ~output_types:(Type.increase_ranks nAxes nested_fn.fn_output_types)
           constructor
       in
+      FnManager.add_typed ~optimize:false fn;
       Hashtbl.replace adverb_fn_cache cache_key fn.fn_id;
       fn

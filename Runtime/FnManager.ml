@@ -43,6 +43,10 @@ let add_untyped ?(optimize=true) name fn =
   Hashtbl.add state.untyped_id_to_name id name;
   FnTable.add ~opt_queue:optimize fn state.untyped_functions
 
+let add_typed ?(optimize=true) fn =
+  let id = fn.SSA.fn_id in
+  FnTable.add ~opt_queue:optimize fn state.typed_functions
+
 let curry2 f (x,y) = f x y
 
 let add_untyped_list ?(optimize=true) (fnList: (string * SSA.fn) list) =
