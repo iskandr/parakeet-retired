@@ -162,26 +162,13 @@ module MkAnalysis (P : TYPE_ANALYSIS_PARAMS) = struct
     match adverb, init, eltTypes with
     | Prim.Map, None, _ ->
       let eltResultTypes = infer_app tenv fn_val eltTypes in
-      let resultTypes = Type.increase_ranks numAxes eltResultTypes in
-      IFDEF DEBUG THEN
-        Printf.printf
-          "[TypeAnalysis.infer_adverb] Inferred output for map: %s\n"
-          (Type.type_list_to_str resultTypes)
-        ;
-      ENDIF;
-      resultTypes
+      Type.increase_ranks numAxes eltResultTypes
     | Prim.Map, Some _, _ ->
       raise (TypeError("Map can't have initial values", src))
     (* if not given initial values then we assume operator is binary and*)
     (* used first two elements of the array *)
     | Prim.Reduce, None, [eltT] ->
       let accTypes = infer_app tenv fn_val [eltT;eltT] in
-      IFDEF DEBUG THEN
-        Printf.printf
-          "[TypeAnalysis.infer_adverb] Inferred output for reduce: %s\n"
-          (Type.type_list_to_str accTypes)
-        ;
-      ENDIF;
       if List.length accTypes <> 1 then
         raise (
           TypeError("Reduce without inital args must return one value", src))
@@ -228,12 +215,21 @@ module MkAnalysis (P : TYPE_ANALYSIS_PARAMS) = struct
       end
     | SSA.Adverb(adverb, {closure_fn; closure_arg_types}, {axes;init;args}) ->
       let argTypes = helpers.eval_values tenv args in
-      infer_adverb ?src ~tenv ~adverb
-        ~fn_val:(GlobalFn closure_fn)
-        ~closure_arg_types
-        ?init:None
-        ?axes:None
-        ~array_arg_types:argTypes
+      let resultTypes =
+        infer_adverb ?src ~tenv ~adverb ~fn_val:(GlobalFn closure_fn)
+          ~closure_arg_types
+          ?init:None
+          ?axes:None
+          ~array_arg_types:argTypes
+      in
+      IFDEF DEBUG THEN
+        Printf.printf
+          "[TypeAnalysis.exp] Inferred output for adverb %s: %s\n"
+          (Prim.adverb_to_str adverb)
+          (Type.type_list_to_str resultTypes)
+        ;
+      ENDIF;
+      resultTypes
     | App(lhs, args) ->
         let lhsT = value tenv lhs in
         let argTypes = helpers.eval_values tenv args in
