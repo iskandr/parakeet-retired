@@ -112,6 +112,8 @@ let run_function untypedId ~globals ~args : ret_val =
                 srcOpt
             in
             Printf.sprintf "Type Error: %s %s" txt srcStr
+          | ShapeInference.ShapeInferenceFailure txt ->
+            Printf.sprintf "Shape Error: %s" txt
           | _ ->  Printexc.to_string exn
         in
         Printf.printf "\nParakeet failed with the following error:\n";
