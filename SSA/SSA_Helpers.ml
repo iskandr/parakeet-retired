@@ -7,7 +7,6 @@ open SSA
    function being mapped
 *)
 
-
 let mk_fn ?name ?(tenv=ID.Map.empty) ~input_ids ~output_ids ~body : SSA.fn =
   let inTypes =
     List.map (fun id -> ID.Map.find_default id tenv Type.BottomT) input_ids
@@ -29,7 +28,6 @@ let mk_fn ?name ?(tenv=ID.Map.empty) ~input_ids ~output_ids ~body : SSA.fn =
     fn_id = fnId
   }
 
-
 (* get the id of a variable value node *)
 let get_id valNode = match valNode.value with
   | Var id -> id
@@ -37,12 +35,9 @@ let get_id valNode = match valNode.value with
      "[SSA->get_id] expected variable, received %s"
      (value_to_str other)
 
-
-
 (***********************************************************************)
 (*                          Value Helpers                              *)
 (***********************************************************************)
-
 
 let wrap_value ?src ?(ty=Type.BottomT) (v:value) : value_node =
   { value = v; value_src = src; value_type = ty }
@@ -148,16 +143,12 @@ let exp ?src ?types exp =
 let call ?src fnId outTypes args  =
   { exp = Call(fnId, args); exp_types = outTypes; exp_src=src}
 
-
-
-
 let closure fundef args = {
   closure_fn = fundef.fn_id;
   closure_args = args;
   closure_arg_types = List.map (fun v -> v.value_type) args;
 
 }
-
 
 (****************************************************************)
 (*                Statement Helpers                             *)
@@ -177,7 +168,6 @@ let setidx ?src lhs indices rhs =
     stmt_src = src;
     stmt_id = StmtId.gen()
   }
-
 
 (**********************************************************************)
 (*           DSL for more compactly building small SSA functions      *)
@@ -230,11 +220,9 @@ let incr (x:ID.t) (y:value_node) = set [x] (plus @@ [y;one])
 let set_int (x:ID.t) (y:Int32.t) =
   set [x] (vals_exp [Num (ParNum.Int32 y)])
 
-
 (****************************************************************)
 (*                 Phi-Node Helpers                             *)
 (****************************************************************)
-
 
 let phi ?src ?ty id left right =
   {
@@ -251,7 +239,6 @@ let is_empty_phi phiNode = match phiNode.phi_left, phiNode.phi_right with
       idLeft == ID.undefined && idRight == ID.undefined &&
       phiNode.phi_id == ID.undefined
   | _ -> false
-
 
 (* make a block of phi nodes merging IDs from the three lists given *)
 let rec phi_nodes outIds leftIds rightIds =
@@ -300,14 +287,12 @@ let rec types_of_value_nodes = function
   | [] -> []
   | vNode::rest -> vNode.value_type :: (types_of_value_nodes rest)
 
-
-
 let fn_builder
-      ?name
-      ~(input_types : Type.t list)
-      ~(output_types : Type.t list)
-      ?(local_types = [])
-      (construct : value_nodes * value_nodes * value_nodes -> stmt_node list) =
+    ?name
+    ~(input_types : Type.t list)
+    ~(output_types : Type.t list)
+    ?(local_types = [])
+    (construct : value_nodes * value_nodes * value_nodes -> stmt_node list) =
   IFDEF DEBUG THEN
     Printf.printf
       "[SSA_Helpers.mk_fn] name: %s, input_types = %s, output_types = %s\n%!"

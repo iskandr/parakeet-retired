@@ -51,13 +51,13 @@ let infer_adverb_axes_from_types (types:Type.t list) =
 
 let infer_adverb_axes_from_args ?axes (otherArgs:value_nodes) =
   match axes with
-    | Some axes -> axes
-    | None ->
-      let argTypes = List.map (fun vNode -> vNode.value_type) otherArgs in
-      let numAxes = max_num_axes_from_array_types argTypes in
-      List.map SSA_Helpers.int32 (List.til numAxes)
+  | Some axes -> axes
+  | None ->
+    let argTypes = List.map (fun vNode -> vNode.value_type) otherArgs in
+    let numAxes = max_num_axes_from_array_types argTypes in
+    List.map SSA_Helpers.int32 (List.til numAxes)
 
-let mk_map ?src closure ?axes (args:value_nodes) =
+let mk_map ?src closure ?axes ?init (args:value_nodes) =
   (* if axes not specified, then infer them *)
   let axes : value_node list = infer_adverb_axes_from_args ?axes args in
   let n_axes = List.length axes in
@@ -76,9 +76,6 @@ let mk_scan ?src closure ?axes ?init args =
   let outTypes : Type.t list = closure_output_types closure in
   mk_adverb ?src Prim.Scan closure ~axes ?init args outTypes
 
-
-
-
 (* to keep stable FnId's for repeatedly generated adverbs of the same function*)
 (* we cache our results*)
 type fn_cache_key = {
@@ -91,12 +88,23 @@ type fn_cache_key = {
 
 let adverb_fn_cache : (fn_cache_key, FnId.t) Hashtbl.t = Hashtbl.create 127
 
-let mk_map_fn
-      ?(src:SrcInfo.t option)
-      ~(nested_fn:SSA.fn)
-      ?(axes : SSA.value_nodes option)
-      ?(fixed_types=[])
-      ~(array_types: Type.t list) =
+type fn_maker_t =
+  ?src:SrcInfo.t ->
+  SSA.closure ->
+  ?axes:SSA.value_nodes ->
+  ?init:SSA.value_nodes ->
+  SSA.value_nodes ->
+  SSA.exp_node
+
+let mk_fn
+    ?(src:SrcInfo.t option)
+    ~(nested_fn:SSA.fn)
+    ?(axes:SSA.value_nodes option)
+    ~(fixed_types:Type.t list)
+    ~(array_types:Type.t list)
+    ?(init:SSA.value_nodes=[])
+    ~(name:string)
+    ~(fn_maker:fn_maker_t) =
   let axes = match axes with
     | Some axes -> axes
     | None -> infer_adverb_axes_from_types array_types
@@ -125,13 +133,13 @@ let mk_map_fn
         | inputs, outputs, [] ->
           let fixed, arrays = List.split_nth (List.length fixed_types) inputs in
           let closure = SSA_Helpers.closure nested_fn fixed in
-          [outputs <--  mk_map ?src closure ~axes arrays]
+          [outputs <-- fn_maker ?src closure ~axes ~init arrays]
         | _ -> assert false
       in
       let nAxes = List.length axes in
       let fn =
         SSA_Helpers.fn_builder
-          ~name:"map_wrapper"
+          ~name:name
           ~input_types:(fixed_types @ array_types)
           ~output_types:(Type.increase_ranks nAxes nested_fn.fn_output_types)
           constructor
@@ -139,3 +147,37 @@ let mk_map_fn
       FnManager.add_typed ~optimize:false fn;
       Hashtbl.replace adverb_fn_cache cache_key fn.fn_id;
       fn
+
+let mk_map_fn
+    ?(src:SrcInfo.t option)
+    ~(nested_fn:SSA.fn)
+    ?(axes:SSA.value_nodes option)
+    ?(fixed_types:Type.t list=[])
+    ~(array_types:Type.t list) =
+  mk_fn
+    ?src
+    ~nested_fn
+    ?axes
+    ?fixed_types
+    ~array_types
+    ?init:None
+    ~name:"map_wrapper"
+    ~fn_maker:mk_map
+
+let mk_reduce_fn
+    ?(src:SrcInfo.t option)
+    ~(nested_fn:SSA.fn)
+    ?(axes:SSA.value_nodes option)
+    ?(fixed_types:Type.t list=[])
+    ~(array_types:Type.t list)
+    ?(init:SSA.value_nodes option) =
+  mk_fn
+    ?src
+    ~nested_fn
+    ?axes
+    ?fixed_types
+    ~array_types
+    ?init
+    ~name:"reduce_wrapper"
+    ~fn_maker:mk_reduce
+
