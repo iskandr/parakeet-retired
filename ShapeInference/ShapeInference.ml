@@ -70,7 +70,7 @@ module ShapeAnalysis (P: PARAMS) =  struct
       match adverb, init, args with
         | Prim.Map, None, _ ->
           let nAxes = List.length axes in
-          if maxRank >= nAxes then
+          if nAxes > maxRank then
             raise (ShapeInferenceFailure "Too many axes for Map")
           else
           let eltShapes = SymbolicShape.peel_shape_list ~axes args in
