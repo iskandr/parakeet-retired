@@ -3,7 +3,7 @@
 open Base
 open SSA
 
-(* if a function contains nothing but a map, extracted the nested
+(* if a function contains nothing but a map, extract the nested
    function being mapped
 *)
 
@@ -263,7 +263,6 @@ let rec collect_phi_values chooseLeft = function
     let currVal = if chooseLeft then p.phi_left else p.phi_right in
     p.phi_id :: ids, currVal :: valNodes
 
-
 (* get the ids from a list of variable value nodes *)
 let get_ids vars = List.map get_id vars
 
@@ -273,7 +272,6 @@ let get_fn_id valNode = match valNode.value with
       Printf.sprintf
         "[SSA->get_fn_id] expected global function, received %s"
         (value_to_str other)
-
 
 let get_fn_ids valNodes = List.map get_fn_id valNodes
 let empty_stmt = set [] (vals_exp [])

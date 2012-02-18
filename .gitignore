@@ -1,6 +1,7 @@
 qcode/.*
 */*.o
 */*.cu_o
+*/*/*.cu_o
 */*/*.o
 *.pyc
 */*.pyc
@@ -8,8 +9,12 @@ qcode/.*
 .project
 .settings
 */*.a
+*/*/*.a
 _build
 *~
+*swp
+*/*swp
+*/*/*swp
 *.aux
 *.log
 *.native

@@ -260,7 +260,31 @@ let map ~axes ~fn ~fixed args =
   ENDIF;
   outputs
 
-let reduce ~axes ~fn ~fixed ?init args = assert false
+let reduce ~axes ~fn ~fixed ?init args =
+  (*
+  let init = match init with
+    | Some init -> List.map SSA_Helpers.wrap_value init
+    | None -> []
+  in
+  *)
+  let reduceFn = SSA_AdverbHelpers.mk_reduce_fn
+    ?src:None
+    ~nested_fn:fn
+    ~axes:(List.map SSA_Helpers.int32 axes)
+    ~fixed_types:(List.map Value.type_of fixed)
+    ~array_types:(List.map Value.type_of args)
+    ~init:[]
+  in
+  let impTypes = List.map ImpType.type_of_value (fixed @ args) in
+  let impFn : Imp.fn = SSA_to_Imp.translate_fn reduceFn impTypes in
+  let llvmFn = CompiledFunctionCache.compile impFn in
+  let inputShapes : Shape.t list = List.map Value.get_shape (fixed @ args) in
+  let outputs : Ptr.t Value.t list =
+    allocate_output_arrays impFn inputShapes
+  in
+  let work_items = build_work_items axes num_cores (args @ outputs) in
+  do_work work_queue execution_engine llvmFn work_items;
+  outputs
 
 let scan ~axes ~fn ~fixed ?init args = assert false
 

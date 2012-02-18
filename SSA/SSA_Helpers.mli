@@ -1,6 +1,5 @@
 open SSA
 
-
 val mk_fn :
       ?name:string ->
       ?tenv:tenv -> input_ids:ID.t list -> output_ids:ID.t list ->
@@ -13,7 +12,6 @@ val stmt : ?src:SrcInfo.t -> ?id:StmtId.t -> stmt -> stmt_node
 val set : ?src:SrcInfo.t -> ID.t list -> exp_node -> stmt_node
 val setidx :
       ?src:SrcInfo.t -> value_node -> value_nodes -> value_node -> stmt_node
-
 
 (* get the id of a variable value node *)
 val get_id : value_node -> ID.t

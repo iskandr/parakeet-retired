@@ -33,7 +33,7 @@ type adverb_args = {
 
 type exp =
   (* application of arbitrary values used only in untyped code *)
-  | App of  value_node * value_nodes
+  | App of value_node * value_nodes
   (* construction of arrays and values used by both typed and untyped ssa *)
   | Arr of value_nodes
   | Values of value_nodes
@@ -42,7 +42,6 @@ type exp =
   | Call of FnId.t * value_nodes
   | PrimApp of Prim.t * value_nodes
   | Adverb of Prim.adverb * closure * adverb_args
-
 
 and exp_node = {
   exp: exp;
@@ -59,9 +58,9 @@ type stmt =
   (* testBlock, testVal, body, loop header, loop exit *)
   | WhileLoop of block * value_node * block * phi_nodes
 and stmt_node = {
-    stmt: stmt;
-    stmt_src: SrcInfo.t option;
-    stmt_id : StmtId.t;
+  stmt: stmt;
+  stmt_src: SrcInfo.t option;
+  stmt_id : StmtId.t;
 }
 and block = stmt_node Block.t
 and phi_node = {
@@ -84,15 +83,12 @@ type fn = {
 }
 and tenv = Type.t ID.Map.t
 
-
 let is_simple_exp = function
   | Call _
   | PrimApp _
   | Adverb _
   | App _ -> false
   | _ -> true
-
-
 
 open Printf
 
@@ -179,7 +175,6 @@ let exp_to_str expNode =
         (closure_to_str closure)
         (adverb_args_to_str adverb_args)
 
-
 let phi_node_to_str ?(space="") phiNode =
   Printf.sprintf "%s%s : %s <- phi(%s, %s)"
     space
@@ -203,50 +198,47 @@ and stmt_node_to_str ?(space="") ?(tenv=ID.Map.empty) stmtNode =
       (value_nodes_to_str indices)
       (value_node_to_str rhs)
   | If (cond,tBlock,fBlock, phiNodes) ->
-      let space' =  "\t"^space in
-      let tStr =
-        Printf.sprintf "%s  <Then>:\n%s"
-          space
-          (block_to_str ~space:space' ~tenv tBlock)
-      in
-      let fStr =
-        Printf.sprintf "%s  <Else>:\n%s"
-          space
-          (block_to_str ~space:space' ~tenv fBlock)
-      in
-      let mergeStr =
-        Printf.sprintf "%s  <Merge>:\n%s"
-          space
-          (phi_nodes_to_str ~space:space' phiNodes)
-      in
-      Printf.sprintf "If (%s)\n%s\n%s\n%s"
-         (value_node_to_str cond) tStr fStr mergeStr
-
+    let space' =  "\t"^space in
+    let tStr =
+      Printf.sprintf "%s  <Then>:\n%s"
+        space
+        (block_to_str ~space:space' ~tenv tBlock)
+    in
+    let fStr =
+      Printf.sprintf "%s  <Else>:\n%s"
+        space
+        (block_to_str ~space:space' ~tenv fBlock)
+    in
+    let mergeStr =
+      Printf.sprintf "%s  <Merge>:\n%s"
+        space
+        (phi_nodes_to_str ~space:space' phiNodes)
+    in
+    Printf.sprintf "If (%s)\n%s\n%s\n%s"
+       (value_node_to_str cond) tStr fStr mergeStr
   | WhileLoop (testBlock, testVal, body, header) ->
-      let space' =  "\t"^space in
-      let headerStr =
-        Printf.sprintf "%s  <Header>:\n%s"
-          space
-          (phi_nodes_to_str ~space:space' header)
-      in
-
-      let loopTestStr =
-        Printf.sprintf "%s  <TestBlock>:%s\n%s  <TestVal>: %s"
-          space
-          (block_to_str ~space:space' ~tenv testBlock)
-          space
-          (value_node_to_str testVal)
-      in
-      let bodyStr =
-        Printf.sprintf "%s  <Body>:%s"
-          space
-          (block_to_str ~space:space' ~tenv body)
-      in
-
-      Printf.sprintf "while\n%s\n%s\n%s\n"
-        headerStr
-        loopTestStr
-        bodyStr
+    let space' =  "\t"^space in
+    let headerStr =
+      Printf.sprintf "%s  <Header>:\n%s"
+        space
+        (phi_nodes_to_str ~space:space' header)
+    in
+    let loopTestStr =
+      Printf.sprintf "%s  <TestBlock>:%s\n%s  <TestVal>: %s"
+        space
+        (block_to_str ~space:space' ~tenv testBlock)
+        space
+        (value_node_to_str testVal)
+    in
+    let bodyStr =
+      Printf.sprintf "%s  <Body>:%s"
+        space
+        (block_to_str ~space:space' ~tenv body)
+    in
+    Printf.sprintf "while\n%s\n%s\n%s\n"
+      headerStr
+      loopTestStr
+      bodyStr
   in space ^ str
 
 let fn_to_str (fundef:fn) =
@@ -255,7 +247,6 @@ let fn_to_str (fundef:fn) =
   let outputs = typed_id_list_to_str fundef.tenv fundef.output_ids in
   let body = block_to_str ~space:"\t" ~tenv:fundef.tenv fundef.body in
   sprintf "%s (%s)=>(%s) { %s \n }" name inputs outputs body
-
 
 (* search through a block and return the first srcinfo, *)
 (* if one exists. Return None otherwise *)
@@ -272,6 +263,5 @@ let rec get_stmt_src_info {stmt; stmt_src} =
       else condSrc
     | _ -> None
 and get_block_src_info block = Block.find_first get_stmt_src_info block
-
 
 let find_fn_src_info fn = get_block_src_info fn.body

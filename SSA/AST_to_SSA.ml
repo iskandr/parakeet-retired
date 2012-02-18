@@ -86,9 +86,6 @@ let get_function_id node =
         failwith ("Couldn't find untyped function: " ^ fnName)
     | _ -> failwith ("Expected function name, got: " ^ (AST.to_str node))
 
-
-
-
 let rec translate_exp
           (env:Env.t)
           (codegen:SSA_Codegen.codegen)
@@ -207,16 +204,13 @@ and exp_as_value env codegen prefix node : SSA.value_node =
   codegen#emit [SSA_Helpers.set [id] expNode];
   SSA_Helpers.var id
 
-
 let rec exps_as_values env codegen prefix nodes : SSA.value_node list =
   List.map (exp_as_value env codegen prefix) nodes
-
 
 let rec collect_assignment_names = function
   | [] -> []
   | {data=AST.Var name}::rest -> name :: (collect_assignment_names rest)
   | other::_ -> failwith $ "[AST_to_SSA] Unexpected LHS " ^ (AST.to_str other)
-
 
 let translate_assignment env codegen (lhs:AST.node list) rhs : Env.t =
   match lhs with

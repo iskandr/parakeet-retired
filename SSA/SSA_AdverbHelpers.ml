@@ -111,7 +111,7 @@ let mk_fn
   in
   IFDEF DEBUG THEN
     Printf.printf
-      "[mk_map_fn] nested=%s, axes=%s, fixed=[%s], inputs=[%s]\n"
+      "[mk_fn] nested=%s, axes=%s, fixed=[%s], inputs=[%s]\n"
       (FnId.to_str nested_fn.fn_id)
       (SSA.value_nodes_to_str axes)
       (Type.type_list_to_str fixed_types)
