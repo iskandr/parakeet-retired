@@ -57,40 +57,46 @@ module ShapeAnalysis (P: PARAMS) =  struct
       phi_set env id leftShape
 
     let infer_adverb
-          (adverb:Prim.adverb)
-          (fnId:FnId.t)
-          (closureArgs:SymbolicShape.t list)
-          (axes: SSA.value_nodes option)
-          (init:SymbolicShape.t list option)
-          (args:SymbolicShape.t list) =
-      let maxOuterShape, maxRank = SymbolicShape.argmax_rank args in
-      let axes : int list = match axes with
-        | None -> List.til maxRank
-        | Some ssa_axes ->
-          if List.for_all SSA_Helpers.is_const_int ssa_axes then
-            List.map SSA_Helpers.get_const_int ssa_axes
+          ~(adverb:Prim.adverb)
+          ~(fn_id:FnId.t)
+          ~(closure_args:SymbolicShape.t list)
+          ~(axes: int list)
+          ~(init:SymbolicShape.t list option)
+          ~(args:SymbolicShape.t list) =
+      let maxShape, maxRank = SymbolicShape.argmax_rank args in
+      (* split dims into those that are part of the adverb and *)
+      (* those that are held constant *)
+      let loopDims, fixedDims = SymbolicShape.split maxShape axes in
+      match adverb, init, args with
+        | Prim.Map, None, _ ->
+          let nAxes = List.length axes in
+          if maxRank >= nAxes then
+            raise (ShapeInferenceFailure "Too many axes for Map")
           else
-            raise (ShapeInferenceFailure "All adverb axes must be constants")
-      in
-      match adverb with
-        | Prim.Map ->
-          assert (init = None);
-
-          assert (maxRank >= List.length axes);
           let eltShapes = SymbolicShape.peel_shape_list ~axes args in
           (* shapes that go into the function on each iteration *)
-          let inputShapes = closureArgs @ eltShapes in
-          let callResultShapes = P.output_shapes fnId inputShapes in
-          let outerDims =
-            SymbolicShape.get_dims maxOuterShape axes
-          in
-          List.map (fun shape -> outerDims @ shape) callResultShapes
+          let inputShapes = closure_args @ eltShapes in
+          let callResultShapes = P.output_shapes fn_id inputShapes in
+          List.map (fun shape -> loopDims @ shape) callResultShapes
+        | Prim.Map, Some _, _ ->
+          raise  (ShapeInferenceFailure "Unexpected init arg to Map")
+        | Prim.Reduce, None, [s] ->
+          let inputShapes = closure_args @ [s;s] in
+          let callResultShapes = P.output_shapes fn_id inputShapes in
+          List.map (fun shape -> fixedDims @ shape) callResultShapes
+        | Prim.Reduce, None, _ ->
+          raise (
+            ShapeInferenceFailure "Too many inputs for Reduce without init")
+        | Prim.Reduce, Some initShapes, _ ->
+          let inputShapes = closure_args @ initShapes @ args in
+          let callResultShapes = P.output_shapes fn_id inputShapes in
+          List.map (fun shape -> fixedDims @ shape) callResultShapes
 
-        | Prim.Reduce -> assert false
-        | _ ->
-          failwith $ Printf.sprintf
-            "[ShapeInference] Unsupported adverb %s"
-            (Prim.adverb_to_str adverb)
+        | Prim.AllPairs, None, [_; _] ->
+          raise (ShapeInferenceFailure "AllPairs not implemented")
+        | Prim.AllPairs, Some _, [_; _] ->
+          raise (ShapeInferenceFailure "Unexpected init arg to AllPairs")
+        | Prim.Scan, _, _-> raise (ShapeInferenceFailure "Scan not implemented")
 
     let infer_array_op
           (op:Prim.array_op)
@@ -165,11 +171,20 @@ module ShapeAnalysis (P: PARAMS) =  struct
       | SSA.Cast (t, v) ->  [value env v]
       | SSA.Values vs -> shapes_of_values vs
       | SSA.Adverb (adverb, closure, {axes; init; args}) ->
-        let closureArgShapes = shapes_of_values closure.SSA.closure_args in
-        let argShapes = shapes_of_values args in
-        let initShapes = Option.map shapes_of_values init in
-        let fnId = closure.SSA.closure_fn in
-        infer_adverb adverb fnId closureArgShapes axes initShapes argShapes
+        let axes = SSA_AdverbHelpers.infer_adverb_axes_from_args ?axes args in
+        let axes : int list =
+          if List.for_all SSA_Helpers.is_const_int axes then
+            List.map SSA_Helpers.get_const_int axes
+          else
+            raise (ShapeInferenceFailure "All adverb axes must be constants")
+        in
+        infer_adverb
+          ~adverb
+          ~fn_id:(closure.SSA.closure_fn)
+          ~closure_args:(shapes_of_values closure.SSA.closure_args)
+          ~axes
+          ~init:(Option.map shapes_of_values init)
+          ~args:(shapes_of_values args)
       | _ ->
           let expStr = SSA.exp_to_str expNode in
           failwith (Printf.sprintf "[shape_infer] not implemented: %s\n" expStr)

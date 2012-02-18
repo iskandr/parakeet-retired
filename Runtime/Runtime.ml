@@ -112,6 +112,10 @@ and Interp : INTERP = struct
       let valStr = SSA.value_to_str valNode.value in
       failwith ("[eval_value] values of this type not implemented: " ^ valStr)
 
+  let eval_values (valNodes : SSA.value_node list) : value list =
+    List.map eval_value valNodes
+
+
   let eval_phi_node cond phiNode : unit =
     let id = phiNode.phi_id in
     let rhs = if cond then phiNode.phi_left else phiNode.phi_right in
@@ -145,9 +149,9 @@ and Interp : INTERP = struct
   and eval_exp (expNode : SSA.exp_node) : value list =
     match expNode.exp with
 
-    | Values valNodes -> List.map eval_value valNodes
+    | Values valNodes -> eval_values valNodes
     | Arr elts ->
-      let valArr = Array.of_list (List.map eval_value elts) in
+      let valArr = Array.of_list (eval_values elts) in
       let eltT = Type.elt_type (Value.type_of valArr.(0)) in
       let shape = Shape.of_list [Array.length valArr] in
       failwith "arrays not implemented"
@@ -161,13 +165,12 @@ and Interp : INTERP = struct
 
     (* first order array operators only *)
     | PrimApp (Prim.ArrayOp op, args) ->
-       Scheduler.array_op op (List.map eval_value args)
+       Scheduler.array_op op (eval_values args)
     | PrimApp (Prim.ScalarOp op, args) ->
-      [eval_scalar_op op (List.map eval_value args)]
+      [eval_scalar_op op (eval_values args)]
     | Call (fnId, args) ->
       let fn = FnManager.get_typed_function fnId in
-      let inputs = List.map eval_value args in
-      Scheduler.call fn inputs
+      Scheduler.call fn (eval_values args)
 
     (* currently ignores axes *)
     | Adverb (op,
@@ -175,25 +178,28 @@ and Interp : INTERP = struct
         {args = args; axes=axes; init=init}) ->
       assert (init = None);
       let fn = FnManager.get_typed_function fnId in
-      let fixed = List.map eval_value closureArgs in
-      let arrays = List.map eval_value args in
+      let fixed = eval_values closureArgs in
+      let arrays = eval_values args in
+      let init = Option.map eval_values init in
       let axes : int list = match axes with
         | None -> failwith "[Interp] Expected axes!"
         | Some axes ->
-          let vals = List.map eval_value axes in
+          let vals = eval_values axes in
           List.map Value.to_int vals
       in
-      let results = match op with
-        | Prim.Map ->  Scheduler.map ~axes fn ~fixed arrays
+      begin match op with
+        | Prim.Map ->
+          assert (init = None);
+          Scheduler.map ~axes fn ~fixed arrays
         | Prim.AllPairs ->
+          assert (init = None);
           assert (List.length arrays = 2);
           let x = List.nth arrays 0 in
           let y = List.nth arrays 1 in
           Scheduler.allpairs ~axes fn ~fixed x y
-        | _ -> failwith "Adverb not implemented"
-      in
-      results
-
+        | Prim.Scan -> Scheduler.scan ~axes fn ~fixed ?init arrays
+        | Prim.Reduce -> Scheduler.reduce ~axes fn ~fixed ?init arrays
+      end
   | _ ->
       failwith $ Printf.sprintf
         "[eval_exp] no implementation for: %s\n"

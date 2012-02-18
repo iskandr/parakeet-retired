@@ -107,16 +107,6 @@ let peel ?(axes=[0]) shape =
 
 let peel_shape_list ?(axes=[0]) shapes = List.map (peel ~axes) shapes
 
-let split_shape = function
-  | [] -> assert false
-  | dim::dims -> dim, dims
-
-let rec split_shape_list = function
-  | [] -> [], []
-  | s::rest ->
-      let d, shape = split_shape s in
-      let moreDims, moreShapes = split_shape_list rest in
-      d::moreDims, shape::moreShapes
 
 (* get the shape of maximum rank from a list of shapes *)
 let rec argmax_rank = function
@@ -176,4 +166,10 @@ let rewrite_shapes env shapes = List.map (rewrite_shape env) shapes
 
 let concat s1 s2 = s1 @ s2
 
-
+let rec split ?(curr_dim=0) shape axes =
+  match shape with
+  | [] -> [], []
+  | d::ds ->
+    let loopDims, fixedDims = split ~curr_dim:(curr_dim+1) ds axes in
+    if List.mem curr_dim axes then d::loopDims, fixedDims
+    else loopDims, d::fixedDims

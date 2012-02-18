@@ -12,6 +12,7 @@
 "Runtime/Memory" : include
 "Runtime/ShapeInference" : include
 "Runtime/CostModel" : include
+"ShapeInference" : include
 "Specialization" : include
 "SSA" : include
 "SSA/Analyses" : include

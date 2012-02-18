@@ -40,12 +40,11 @@ val peel_outer_dim : t -> t
 val peel : ?axes:int list -> t -> t
 val peel_shape_list : ?axes:int list -> t list -> t list
 
-val split_shape : t -> dim * t
-val split_shape_list : t list -> dim list * t list
+
 
 
 (* combines all dims from shapes of max rank,
-   paired with a list of shaImp.pes of rank maxRank-1 or lower.
+   paired with a list of shapes of rank maxRank-1 or lower.
    Example:
    split_max_dim [[2; 4]; [5]]  = 2 * [[4];[5]]
 *)
@@ -63,10 +62,4 @@ val rewrite_dim : t ID.Map.t -> dim -> dim
 val rewrite_shape : t ID.Map.t -> t -> t
 val rewrite_shapes : t ID.Map.t -> t list -> t list
 
-
-
-
-
-
-
-
+val split : ?curr_dim:int -> t -> int list -> t * t
