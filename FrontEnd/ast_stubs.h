@@ -18,11 +18,6 @@ typedef struct {
 
 typedef paranode_t* paranode;
 
-/**
- * We'll eventually want to include source info alongside the tree nodes so as
- * to facilitate debugging messages.  Passing pointers to these structs is thus
- * optional to each of the mk_X functions.
- */
 typedef struct source_info {
   char *filename;
   int   line;

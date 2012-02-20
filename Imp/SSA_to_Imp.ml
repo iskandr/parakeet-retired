@@ -353,7 +353,7 @@ and translate_map
       (impFn:Imp.fn)
       (closureArgs:Imp.value_node list)
       (args:Imp.value_node list)
-      (axes:int list) : Imp.stmt list  =
+      (axes:int list) : Imp.stmt list =
   let num_axes : int = List.length axes in
   let bigArray : Imp.value_node = argmax_array_rank args in
   let initBlock, loopDescriptors =
