@@ -24,8 +24,6 @@ module type INTERP = sig
   val eval_exp : SSA.exp_node -> value list
 end
 
-
-
 module rec Scheduler : SCHEDULER = struct
   let machine_model = MachineModel.build_machine_model
   let value_to_host v = DataManager.to_memspace HostMemspace.id v
@@ -40,7 +38,6 @@ module rec Scheduler : SCHEDULER = struct
     | SSA.WhileLoop (condBlock, _, body, _) ->
       block_has_adverb condBlock || block_has_adverb body
     | _ -> false
-
 
   let call (fn : SSA.fn) (args:values) =
     let hasAdverb = block_has_adverb fn.SSA.body in
@@ -115,7 +112,6 @@ and Interp : INTERP = struct
   let eval_values (valNodes : SSA.value_node list) : value list =
     List.map eval_value valNodes
 
-
   let eval_phi_node cond phiNode : unit =
     let id = phiNode.phi_id in
     let rhs = if cond then phiNode.phi_left else phiNode.phi_right in
@@ -148,7 +144,6 @@ and Interp : INTERP = struct
 
   and eval_exp (expNode : SSA.exp_node) : value list =
     match expNode.exp with
-
     | Values valNodes -> eval_values valNodes
     | Arr elts ->
       let valArr = Array.of_list (eval_values elts) in

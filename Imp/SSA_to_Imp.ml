@@ -179,40 +179,40 @@ let declare_var ssaFn shapeEnv (codegen:ImpCodegen.fn_codegen) (id, impType)  =
       codegen#declare id ~shape:symShape impType
   )
 
-let rec translate_fn  (ssaFn:SSA.fn) (impInputTypes:ImpType.t list) : Imp.fn =
+let rec translate_fn (ssaFn:SSA.fn) (impInputTypes:ImpType.t list) : Imp.fn =
   let signature = ssaFn.SSA.fn_id, impInputTypes in
   match Hashtbl.find_option cache signature with
-    | Some impFn ->
-      IFDEF DEBUG THEN
-        Printf.printf
-          "[SSA_to_Imp] Got cached Imp function for %s\n%!"
-          (FnId.to_str ssaFn.SSA.fn_id)
-          ;
-      ENDIF;
-      impFn
-    | None ->
-      let codegen = new ImpCodegen.fn_codegen in
-      let impTyEnv = InferImpTypes.infer ssaFn impInputTypes in
-      let shapeEnv : SymbolicShape.env  =
-        ShapeInference.infer_normalized_shape_env
-          (FnManager.get_typed_function_table ()) ssaFn
-      in
-      List.iter (declare_var ssaFn shapeEnv codegen) (ID.Map.to_list impTyEnv);
-      let body =
-        translate_block (codegen :> ImpCodegen.codegen) ssaFn.SSA.body
-      in
-      let ssa_name = FnId.to_str ssaFn.SSA.fn_id in
-      let arg_strings = ImpType.type_list_to_str impInputTypes in
-      let name = ssa_name ^ "[" ^ arg_strings ^ "]" in
-      let impFn = codegen#finalize_fn ~name body in
-      Hashtbl.add cache signature impFn;
-      IFDEF DEBUG THEN
-        Printf.printf
-          "[SSA_to_Imp] Created Imp function: %s\n%!"
-          (Imp.fn_to_str impFn)
+  | Some impFn ->
+    IFDEF DEBUG THEN
+      Printf.printf
+        "[SSA_to_Imp] Got cached Imp function for %s\n%!"
+        (FnId.to_str ssaFn.SSA.fn_id)
         ;
-      ENDIF;
-      impFn
+    ENDIF;
+    impFn
+  | None ->
+    let codegen = new ImpCodegen.fn_codegen in
+    let impTyEnv = InferImpTypes.infer ssaFn impInputTypes in
+    let shapeEnv : SymbolicShape.env  =
+      ShapeInference.infer_normalized_shape_env
+        (FnManager.get_typed_function_table ()) ssaFn
+    in
+    List.iter (declare_var ssaFn shapeEnv codegen) (ID.Map.to_list impTyEnv);
+    let body =
+      translate_block (codegen :> ImpCodegen.codegen) ssaFn.SSA.body
+    in
+    let ssa_name = FnId.to_str ssaFn.SSA.fn_id in
+    let arg_strings = ImpType.type_list_to_str impInputTypes in
+    let name = ssa_name ^ "[" ^ arg_strings ^ "]" in
+    let impFn = codegen#finalize_fn ~name body in
+    Hashtbl.add cache signature impFn;
+    IFDEF DEBUG THEN
+      Printf.printf
+        "[SSA_to_Imp] Created Imp function: %s\n%!"
+        (Imp.fn_to_str impFn)
+      ;
+    ENDIF;
+    impFn
 
 and translate_block (codegen : ImpCodegen.codegen) block : Imp.stmt list =
   Block.fold_forward
@@ -342,7 +342,7 @@ and translate_adverb codegen (lhsIds:ID.t list) (adverb:Prim.adverb)
     translate_map codegen lhsIds nestedFn closure_args args axes
   | Prim.Reduce ->
     translate_reduce codegen lhsIds nestedFn closure_args init args axes
-   | _ ->
+  | _ ->
     failwith $ Printf.sprintf
       "[SSA_to_Imp] Unsupported adverb %s"
       (Prim.adverb_to_str adverb)
