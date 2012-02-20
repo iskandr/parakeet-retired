@@ -98,7 +98,6 @@ let compile_const (t:ImpType.t) (n:ParNum.t) =
   | ParNum.Float64 f -> const_float t' f
   | _ -> failwith "Not a constant"
 
-
 let compile_cast (fnInfo:fn_info) original (srcT:ImpType.t) (destT:ImpType.t) =
   if srcT = destT then original
   else begin
@@ -254,7 +253,6 @@ let get_array_strides_field (fnInfo:fn_info) (array:llvalue) (idx:int) =
         strideVal
       )
 
-
 let get_array_shape_ptr (fnInfo:fn_info) (array:llvalue) : llvalue =
   match Hashtbl.find_option fnInfo.array_shape_ptr_cache array with
     | Some llvalue -> llvalue
@@ -290,7 +288,6 @@ let get_array_shape_field (fnInfo:fn_info) (array:llvalue) (idx:int) =
         dimVal
       )
 
-
 let get_array_data_ptr (fnInfo:fn_info) (array:llvalue) : llvalue =
   match Hashtbl.find_option fnInfo.array_data_ptr_cache array with
     | Some llvalue -> llvalue
@@ -303,7 +300,6 @@ let get_array_data_ptr (fnInfo:fn_info) (array:llvalue) : llvalue =
         Hashtbl.add fnInfo.array_data_ptr_cache array addr;
         addr
       )
-
 
 (* convert a list of indices into an address offset *)
 let rec compute_addr_helper
@@ -364,8 +360,6 @@ let compile_range_load
 	in
 	Llvm.build_load idxAddr "ret" fnInfo.builder
 
-
-
 (* Change to function? *)
 let rec compile_value ?(do_load=true) fnInfo (impVal:Imp.value_node) =
   match impVal.value with
@@ -416,7 +410,6 @@ and compile_values fnInfo = function
   | vNode::vNodes ->
     let llvmVal = compile_value fnInfo vNode in
     llvmVal :: (compile_values fnInfo vNodes)
-
 
 let rec compile_stmt_seq fnInfo currBB = function
   | [] -> currBB
