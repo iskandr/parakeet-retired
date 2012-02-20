@@ -8,31 +8,20 @@ val infer_adverb_axes_from_args :
 
 (* These all require us to look up information from typed function arguments *)
 
-val mk_map :
-    ?src:SrcInfo.t -> closure -> ?axes:value_nodes -> ?init:value_nodes ->
-    value_nodes -> exp_node
 
-val mk_reduce :
-    ?src:SrcInfo.t -> closure -> ?axes:value_nodes -> ?init:value_nodes ->
-    value_nodes -> exp_node
+val closure_input_types : SSA.closure -> Type.t list
+val closure_output_types : SSA.closure -> Type.t list
 
-val mk_scan :
-    ?src:SrcInfo.t -> closure -> ?axes:value_nodes -> ?init:value_nodes ->
-    value_nodes -> exp_node
+val mk_adverb :
+  ?src:SrcInfo.t -> Prim.adverb -> closure -> ?axes:value_nodes ->
+    ?init:value_nodes -> value_nodes -> exp_node
 
-val mk_map_fn :
+val mk_adverb_fn :
     ?src:SrcInfo.t ->
+    adverb:Prim.adverb ->
     nested_fn:SSA.fn ->
     ?axes:SSA.value_nodes ->
-    ?fixed_types:Type.t list ->
-    array_types:Type.t list ->
-    SSA.fn
-
-val mk_reduce_fn :
-    ?src:SrcInfo.t ->
-    nested_fn:SSA.fn ->
-    ?axes:SSA.value_nodes ->
-    ?fixed_types:Type.t list ->
-    array_types:Type.t list ->
     ?init:SSA.value_nodes ->
+    ?fixed_types:Type.t list ->
+    array_types:Type.t list ->
     SSA.fn

@@ -236,10 +236,12 @@ let call (fn:SSA.fn) args =
   call_imp_fn impFn args
 
 let map ~axes ~fn ~fixed args =
-  let mapFn = SSA_AdverbHelpers.mk_map_fn
+  let mapFn = SSA_AdverbHelpers.mk_adverb_fn
     ?src:None
+    ~adverb:Prim.Map
     ~nested_fn:fn
     ~axes:(List.map SSA_Helpers.int32 axes)
+    ?init:None
     ~fixed_types:(List.map Value.type_of fixed)
     ~array_types:(List.map Value.type_of args)
   in
@@ -267,13 +269,14 @@ let reduce ~axes ~fn ~fixed ?init args =
     | None -> []
   in
   *)
-  let reduceFn = SSA_AdverbHelpers.mk_reduce_fn
+  let reduceFn = SSA_AdverbHelpers.mk_adverb_fn
     ?src:None
+    ~adverb:Prim.Reduce
     ~nested_fn:fn
     ~axes:(List.map SSA_Helpers.int32 axes)
+    ?init:(Option.map (fun inits -> List.map Value.type_of inits) init)
     ~fixed_types:(List.map Value.type_of fixed)
     ~array_types:(List.map Value.type_of args)
-    ~init:[]
   in
   let impTypes = List.map ImpType.type_of_value (fixed @ args) in
   let impFn : Imp.fn = SSA_to_Imp.translate_fn reduceFn impTypes in

@@ -3,33 +3,6 @@ open Base
 open SSA
 open SSA_Helpers
 
-let mk_adverb
-      ?(src:SrcInfo.t option)
-      (adverb:Prim.adverb)
-      (closure:closure)
-      ?(axes:value_nodes option)
-      ?(init:value_nodes option)
-      (args:value_nodes)
-      (outputTypes:Type.t list) =
-  let adverb_args =
-  {
-    axes = axes;
-    init = init;
-    args = args;
-  }
-  in
-  {
-    exp = Adverb(adverb, closure, adverb_args);
-    exp_types = outputTypes;
-    exp_src = src
-  }
-
-let closure_input_types closure =
-  (FnManager.get_typed_function closure.closure_fn).fn_input_types
-
-let closure_output_types closure =
-  (FnManager.get_typed_function closure.closure_fn).fn_output_types
-
 let infer_adverb_axes_from_rank rank =
   List.map SSA_Helpers.int32 (List.til rank)
 
@@ -57,24 +30,44 @@ let infer_adverb_axes_from_args ?axes (otherArgs:value_nodes) =
     let numAxes = max_num_axes_from_array_types argTypes in
     List.map SSA_Helpers.int32 (List.til numAxes)
 
-let mk_map ?src closure ?axes ?init (args:value_nodes) =
-  (* if axes not specified, then infer them *)
-  let axes : value_node list = infer_adverb_axes_from_args ?axes args in
-  let n_axes = List.length axes in
+
+let closure_input_types closure =
+  (FnManager.get_typed_function closure.closure_fn).fn_input_types
+
+let closure_output_types closure =
+  (FnManager.get_typed_function closure.closure_fn).fn_output_types
+
+let mk_adverb
+      ?(src:SrcInfo.t option)
+      (adverb:Prim.adverb)
+      (closure:closure)
+      ?(axes:value_nodes option)
+      ?(init:value_nodes option)
+      (args:value_nodes) =
+  let axes : SSA.value_node list = infer_adverb_axes_from_args ?axes args in
+  let numAxes = List.length axes in
+  let nestedOutputTypes = closure_output_types closure in
   let outputTypes : Type.t list =
-    List.map (Type.increase_rank n_axes) (closure_output_types closure)
+    match adverb with
+    | Prim.Map ->
+      List.map (Type.increase_rank numAxes) nestedOutputTypes
+    | Prim.AllPairs ->
+      List.map (Type.increase_rank (numAxes+2)) nestedOutputTypes
+    | Prim.Scan
+    | Prim.Reduce -> nestedOutputTypes
   in
-  mk_adverb ?src Prim.Map closure ~axes ?init:None args outputTypes
-
-let mk_reduce ?src closure ?axes ?init args =
-  let axes : value_nodes = infer_adverb_axes_from_args ?axes args in
-  let outTypes : Type.t list  = closure_output_types closure in
-  mk_adverb ?src Prim.Reduce closure ~axes ?init args outTypes
-
-let mk_scan ?src closure ?axes ?init args =
-  let axes : value_nodes = infer_adverb_axes_from_args ?axes args in
-  let outTypes : Type.t list = closure_output_types closure in
-  mk_adverb ?src Prim.Scan closure ~axes ?init args outTypes
+  let adverb_args =
+  {
+    axes = Some axes;
+    init = init;
+    args = args;
+  }
+  in
+  {
+    exp = Adverb(adverb, closure, adverb_args);
+    exp_types = outputTypes;
+    exp_src = src
+  }
 
 (* to keep stable FnId's for repeatedly generated adverbs of the same function*)
 (* we cache our results*)
@@ -88,39 +81,34 @@ type fn_cache_key = {
 
 let adverb_fn_cache : (fn_cache_key, FnId.t) Hashtbl.t = Hashtbl.create 127
 
-type fn_maker_t =
-  ?src:SrcInfo.t ->
-  SSA.closure ->
-  ?axes:SSA.value_nodes ->
-  ?init:SSA.value_nodes ->
-  SSA.value_nodes ->
-  SSA.exp_node
 
-let mk_fn
+(* TODO: figure out what's going on with init args *)
+let mk_adverb_fn
     ?(src:SrcInfo.t option)
+    ~(adverb:Prim.adverb)
     ~(nested_fn:SSA.fn)
     ?(axes:SSA.value_nodes option)
-    ~(fixed_types:Type.t list)
-    ~(array_types:Type.t list)
-    ?(init:SSA.value_nodes=[])
-    ~(name:string)
-    ~(fn_maker:fn_maker_t) =
+    ?(init:Type.t list option)
+    ?(fixed_types : Type.t list = [])
+    ~(array_types:Type.t list) : SSA.fn =
   let axes = match axes with
     | Some axes -> axes
     | None -> infer_adverb_axes_from_types array_types
   in
   IFDEF DEBUG THEN
     Printf.printf
-      "[mk_fn] nested=%s, axes=%s, fixed=[%s], inputs=[%s]\n"
+      "[mk_adverb_fn] adverb=%s, nested=%s, axes=%s, fixed=[%s], inputs=[%s]\n"
+      (Prim.adverb_to_str adverb)
       (FnId.to_str nested_fn.fn_id)
       (SSA.value_nodes_to_str axes)
       (Type.type_list_to_str fixed_types)
       (Type.type_list_to_str array_types)
     ;
   ENDIF;
+  let name = (Prim.adverb_to_str adverb) ^ "_wrapper" in
   let cache_key = {
     nested_fn_id = nested_fn.SSA.fn_id;
-    adverb = Prim.Map;
+    adverb = adverb;
     fixed_types = fixed_types;
     array_types = array_types;
     adverb_axes = axes
@@ -133,7 +121,8 @@ let mk_fn
         | inputs, outputs, [] ->
           let fixed, arrays = List.split_nth (List.length fixed_types) inputs in
           let closure = SSA_Helpers.closure nested_fn fixed in
-          [outputs <-- fn_maker ?src closure ~axes ~init arrays]
+          let rhs = mk_adverb ?src adverb closure ~axes ?init inputs in
+          [outputs <--rhs ]
         | _ -> assert false
       in
       let nAxes = List.length axes in
@@ -147,37 +136,3 @@ let mk_fn
       FnManager.add_typed ~optimize:false fn;
       Hashtbl.replace adverb_fn_cache cache_key fn.fn_id;
       fn
-
-let mk_map_fn
-    ?(src:SrcInfo.t option)
-    ~(nested_fn:SSA.fn)
-    ?(axes:SSA.value_nodes option)
-    ?(fixed_types:Type.t list=[])
-    ~(array_types:Type.t list) =
-  mk_fn
-    ?src
-    ~nested_fn
-    ?axes
-    ?fixed_types
-    ~array_types
-    ?init:None
-    ~name:"map_wrapper"
-    ~fn_maker:mk_map
-
-let mk_reduce_fn
-    ?(src:SrcInfo.t option)
-    ~(nested_fn:SSA.fn)
-    ?(axes:SSA.value_nodes option)
-    ?(fixed_types:Type.t list=[])
-    ~(array_types:Type.t list)
-    ?(init:SSA.value_nodes option) =
-  mk_fn
-    ?src
-    ~nested_fn
-    ?axes
-    ?fixed_types
-    ~array_types
-    ?init
-    ~name:"reduce_wrapper"
-    ~fn_maker:mk_reduce
-
