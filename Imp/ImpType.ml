@@ -83,8 +83,8 @@ let rec type_of_value = function
 let peel ?(num_axes=1) = function
   | ArrayT (eltT, r) ->
     let diff = r - num_axes in
-      if diff = 0 then ScalarT eltT
-      else if diff > 0 then ArrayT (eltT, diff)
-      else failwith "[ImpType.peel] Too many axes"
+    if diff = 0 then ScalarT eltT
+    else if diff > 0 then ArrayT (eltT, diff)
+    else failwith "[ImpType.peel] Too many axes"
   | ScalarT eltT -> ScalarT eltT
   | _ -> failwith "Not implemented"
