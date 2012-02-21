@@ -39,7 +39,7 @@ let do_inline fn argVals =
   body', outputExp, typesList
 
 module type INLINE_PARAMS = sig
-  val lookup : FnId.t -> SSA.Typed.fn option
+  val lookup : FnId.t -> TypedSSA.fn option
 end
 
 module Inline_Rules (P:INLINE_PARAMS) = struct
@@ -76,8 +76,8 @@ module Inline_Rules (P:INLINE_PARAMS) = struct
           let expNode' = {outputExp with exp_src=expNode.exp_src } in
           IFDEF DEBUG THEN
             Printf.printf "Inline updated exp: %s => %s \n"
-              (SSA.Typed.exp_node_to_str expNode)
-              (SSA.Typed.exp_node_to_str expNode');
+              (TypedSSA.exp_node_to_str expNode)
+              (TypedSSA.exp_node_to_str expNode');
           ENDIF;
           UpdateWithBlock(expNode', inlineBlock)
        )

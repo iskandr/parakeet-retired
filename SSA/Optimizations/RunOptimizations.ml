@@ -3,7 +3,7 @@
 open Base
 open SSA
 
-type optimization = FnTable.t -> SSA.Typed.fn -> SSA.Typed.fn * bool
+type optimization = FnTable.t -> TypedSSA.fn -> TypedSSA.fn * bool
 
 let rec fold_optimizations ?(type_check=false) fnTable fn lastChanged =
   function
@@ -19,7 +19,7 @@ let rec fold_optimizations ?(type_check=false) fnTable fn lastChanged =
           if not $ Queue.is_empty errorLog then (
           Printf.printf
             "--- Errors found in %s after %s ---\n%!"
-            (FnId.to_str fn.SSA.Typed.fn_id)
+            (FnId.to_str fn.TypedSSA.fn_id)
             name
           ;
           TypeCheck.print_all_errors errorLog; exit 1
@@ -35,7 +35,7 @@ let rec optimize_fn
       ?(iter=1)
       ?(maxiters=100)
       (fnTable : FnTable.t)
-      (fn : SSA.Typed.fn)
+      (fn : TypedSSA.fn)
       (optimizations : (string * optimization) list) =
   let fn', changed =
     fold_optimizations ~type_check fnTable fn false optimizations
@@ -61,7 +61,7 @@ let optimize_all_fns
     IFDEF DEBUG THEN
       (*
       Printf.printf "[RunOptimizations] Starting to optimize: %s\n"
-        (SSA.Typed.fn_to_str fn)
+        (TypedSSA.fn_to_str fn)
       ;
       *)
       if type_check then  (
@@ -69,8 +69,8 @@ let optimize_all_fns
         if not $ Queue.is_empty errorLog then (
           Printf.printf
             "--- found errors in %s before optimization ---\n%s\n"
-            (FnId.to_str fn.SSA.Typed.fn_id)
-            (SSA.Typed.fn_to_str fn)
+            (FnId.to_str fn.TypedSSA.fn_id)
+            (TypedSSA.fn_to_str fn)
           ;
           TypeCheck.print_all_errors errorLog;
           exit 1
@@ -86,7 +86,7 @@ let optimize_all_fns
         Printf.printf "--- %s modified after %d optimization iters:\n%s\n\n%!"
             (FnId.to_str fn.fn_id)
             iters
-            (SSA.Typed.fn_to_str optimized)
+            (TypedSSA.fn_to_str optimized)
       ;
     ENDIF;
     FnTable.update optimized fnTable

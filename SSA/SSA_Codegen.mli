@@ -2,7 +2,6 @@
 (* function and its variables as we are in the process of constructing it. *)
 (* Should be used only from the AST_to_SSA module *)
 
-open SSA
 
 class codegen : object
     val types : Type.t ID.Map.t ref
@@ -28,7 +27,7 @@ end
 
 val mk_codegen_fn
       : Type.t list ->  Type.t list ->
-        (codegen -> value_node list-> value_node list -> unit) -> fn
+        (codegen -> value_node list-> value_node list -> unit) -> UntypedSSA.fn
 
 
 

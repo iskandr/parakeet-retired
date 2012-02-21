@@ -123,19 +123,11 @@ val set_int : ID.t -> Int32.t -> stmt_node
 val empty_stmt : stmt_node
 val is_empty_stmt : stmt_node -> bool
 
-val phi :
-     ?src:SrcInfo.t -> ?ty:Type.t ->
-       ID.t -> value_node -> value_node -> phi_node
-
 val empty_phi : phi_node
 val is_empty_phi : phi_node -> bool
 
 val phi_nodes : ID.t list -> ID.t list -> ID.t list -> phi_nodes
 
-val phi_nodes_from_values
-      : value_node list -> value_node list -> value_node list -> phi_nodes
-
-val collect_phi_values :bool -> phi_nodes -> ID.t list * value_node list
 
 val types_of_value_nodes : value_node list -> Type.t list
 

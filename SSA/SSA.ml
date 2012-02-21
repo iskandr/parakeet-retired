@@ -21,9 +21,31 @@ let phi_node_to_str  value_node_to_str phiNode =
       (value_node_to_str phiNode.phi_left)
       (value_node_to_str phiNode.phi_right)
 
-let phi_nodes_to_str  value_node_to_str  phiNodes =
+let phi_nodes_to_str value_node_to_str  phiNodes =
   let lines = List.map (phi_node_to_str  value_node_to_str) phiNodes in
   String.concat "\n" lines
+
+let phi ?src id left right =
+  { phi_id = id; phi_left = left; phi_right = right; phi_src = src; }
+
+(* make a block of phi nodes merging the three lists given *)
+let rec phi_nodes ?src outIds leftVals rightVals =
+  match outIds, leftVals, rightVals with
+    | [], _, _ | _,[],_ | _,_,[] -> []
+    | x::xs, y::ys, z::zs -> (phi ?src x y z) :: (phi_nodes ?src xs ys zs)
+
+
+(* assume a block contains only phi, collect the IDs and
+   either the left or right values
+*)
+let rec collect_phi_values chooseLeft = function
+  | [] -> [], []
+  | p::ps ->
+    let ids, valNodes = collect_phi_values chooseLeft ps in
+    let currVal = if chooseLeft then p.phi_left else p.phi_right in
+    p.phi_id :: ids, currVal :: valNodes
+
+
 
 (* 'a = type of expressions *)
 (* 'b = type of values *)
@@ -87,166 +109,5 @@ let rec get_stmt_src_info {stmt; stmt_src} =
     | _ -> None
 and get_block_src_info block = Block.find_first get_stmt_src_info block
 
-
-module Untyped = struct
-  type value =
-    | Var of ID.t
-    | Num of ParNum.t
-    | Prim of Prim.t
-    | GlobalFn of FnId.t
-
-  let value_to_str = function
-    | Var id -> ID.to_str id
-    | Num n -> ParNum.to_str n
-    | Prim p -> "prim(" ^ Prim.to_str p ^ ")"
-    | GlobalFn fnId -> FnId.to_str fnId
-
-  type value_node = { value : value; value_src : SrcInfo.t option; }
-  let value_node_to_str valNode = value_to_str valNode.value
-
-  type value_nodes = value_node list
-  let value_nodes_to_str valNodes =
-    String.concat ", " (List.map value_node_to_str valNodes)
-
-  type untyped_adverb_info =
-    (value_node, value_nodes, value_nodes option) Adverb.info
-
-  let untyped_adverb_info_to_str info =
-    let opt_to_str = Option.map_default value_nodes_to_str "none" in
-    Adverb.info_to_str value_node_to_str value_nodes_to_str opt_to_str info
-
-  type exp =
-    | Values of value_nodes
-    | Arr of value_nodes
-    | App of value_node * value_nodes
-    | Adverb of untyped_adverb_info * value_nodes
-
-  let exp_to_str = function
-    | Values vs -> sprintf "values(%s)" (value_nodes_to_str vs)
-    | Arr elts -> sprintf "array(%s)" (value_nodes_to_str elts)
-    | App (f, args) ->
-      sprintf "%s(%s)" (value_node_to_str f) (value_nodes_to_str args)
-    | Adverb (info, args) ->
-      Printf.sprintf "%s(%s)"
-        (untyped_adverb_info_to_str info)
-        (value_nodes_to_str args)
-
-  type exp_node = { exp : exp; exp_src : SrcInfo.t option }
-  let exp_node_to_str expNode = exp_to_str expNode.exp
-
-  type untyped_block = (exp_node, value_node) block
-
-  let untyped_block_to_str : untyped_block -> string =
-    block_to_str exp_node_to_str value_node_to_str
-
-  type fn = {
-    body: untyped_block;
-    input_ids: ID.t list;
-    output_ids: ID.t list;
-    fn_id : FnId.t;
-  }
-
-  let fn_to_str (fundef:fn) =
-    let name = FnId.to_str fundef.fn_id in
-    let inputs = ids_to_str fundef.input_ids in
-    let outputs = ids_to_str fundef.output_ids in
-    let body = untyped_block_to_str fundef.body in
-    wrap_str (sprintf "def %s(%s)=>(%s):\n%s" name inputs outputs body)
-
-  let find_fn_src_info {body} = get_block_src_info body
-
-  let input_arity {input_ids} = List.length input_ids
-  let output_arity {output_ids} = List.length output_ids
-  let fn_id {fn_id} = fn_id
-end
-
-module Typed = struct
-  type value = Var of ID.t | Num of ParNum.t
-  let value_to_str = function
-    | Var id -> ID.to_str id
-    | Num n -> ParNum.to_str n
-
-  type value_node = {
-    value : value;
-    value_type : Type.t;
-    value_src : SrcInfo.t option;
-  }
-  let value_node_to_str valNode =
-    sprintf "%s : %s"
-      (value_to_str valNode.value)
-      (Type.to_str valNode.value_type)
-
-  type value_nodes = value_node list
-  let value_nodes_to_str valNodes =
-    String.concat ", " (List.map value_node_to_str valNodes)
-
-
-  type typed_adverb_info = (FnId.t, value_nodes, value_nodes) Adverb.info
-
-  let typed_adverb_info_to_str info =
-    Adverb.info_to_str FnId.to_str value_nodes_to_str value_nodes_to_str info
-
-  type exp =
-    | Values of value_nodes
-    | Arr of value_nodes
-    | Call of FnId.t * value_nodes
-    | PrimApp of Prim.t * value_nodes
-    | Adverb of typed_adverb_info * value_nodes
-
-  let exp_to_str = function
-    | Values vs -> sprintf "values(%s)" (value_nodes_to_str vs)
-    | Arr elts -> sprintf "array(%s)" (value_nodes_to_str elts)
-    | Call (fnId, args) ->
-      sprintf "%s(%s)" (FnId.to_str fnId) (value_nodes_to_str args)
-    | PrimApp (p, args) ->
-      sprintf "prim[%s](%s)" (Prim.to_str p) (value_nodes_to_str args)
-    | Adverb (info, args) ->
-      Printf.sprintf "%s(%s)"
-        (typed_adverb_info_to_str info)
-        (value_nodes_to_str args)
-
-  type exp_node = {
-    exp: exp;
-    exp_src : SrcInfo.t option;
-    exp_types : Type.t list
-  }
-  let exp_node_to_str {exp} = exp_to_str exp
-
-  type typed_block = (exp_node, value_node) block
-
-  let typed_block_to_str : typed_block -> string =
-    block_to_str exp_node_to_str value_node_to_str
-  type tenv = Type.t ID.Map.t
-  type fn = {
-    body: typed_block;
-    tenv : tenv;
-    input_ids: ID.t list;
-    output_ids: ID.t list;
-    fn_input_types : Type.t list;
-    fn_output_types : Type.t list;
-    fn_id : FnId.t;
-  }
-
-  let typed_id_to_str tenv id =
-    (ID.to_str id) ^ " : " ^ (Type.to_str (ID.Map.find id tenv))
-
-  let typed_ids_to_str tenv ids =
-    String.concat ", " (List.map (typed_id_to_str tenv) ids)
-
-  let fn_to_str (fundef:fn) =
-    let name = FnId.to_str fundef.fn_id in
-    let inputs = typed_ids_to_str fundef.tenv fundef.input_ids in
-    let outputs = typed_ids_to_str fundef.tenv fundef.output_ids in
-    let body = typed_block_to_str fundef.body in
-    wrap_str (sprintf "def %s(%s)=>(%s):\n%s" name inputs outputs body)
-
-  let find_fn_src_info {body} = get_block_src_info body
-
-  let input_arity {input_ids} = List.length input_ids
-  let output_arity {output_ids} = List.length output_ids
-  let input_types {fn_input_types} = fn_input_types
-  let output_types {fn_output_types} = fn_output_types
-  let fn_id {fn_id} = fn_id
-end
 
 

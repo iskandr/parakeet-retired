@@ -1,9 +1,9 @@
 
-type optimization = FnTable.t -> SSA.Typed.fn -> SSA.Typed.fn * bool
+type optimization = FnTable.t -> TypedSSA.fn -> TypedSSA.fn * bool
 
 val optimize_fn :
-  ?type_check:bool -> ?iter:int -> ?maxiters:int -> FnTable.t -> SSA.Typed.fn ->
-    (string*optimization) list -> SSA.Typed.fn * int
+  ?type_check:bool -> ?iter:int -> ?maxiters:int -> FnTable.t -> TypedSSA.fn ->
+    (string*optimization) list -> TypedSSA.fn * int
 
 val optimize_all_fns :
   ?type_check:bool -> ?maxiters:int ->

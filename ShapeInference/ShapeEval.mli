@@ -11,9 +11,9 @@ val eval_imp_shape_env : Imp.fn -> Shape.t list -> Shape.t ID.Map.t
 
 (* returns only the output shapes of SSA function *)
 val eval_ssa_output_shapes :
-      FnTable.t -> SSA.fn -> Shape.t list -> Shape.t list
+      FnTable.t -> TypedSSA.fn -> Shape.t list -> Shape.t list
 
 val eval_ssa_shape_env
-      : FnTable.t -> SSA.fn -> Shape.t list -> Shape.t ID.Map.t
+      : FnTable.t -> TypedSSA.fn -> Shape.t list -> Shape.t ID.Map.t
 
 val get_call_output_shapes : Imp.fn -> Shape.t list -> Shape.t list

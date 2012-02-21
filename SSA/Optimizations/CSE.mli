@@ -1,1 +1,1 @@
-val cse : FnTable.t -> SSA.Typed.fn -> SSA.Typed.fn * bool
+val cse : FnTable.t -> TypedSSA.fn -> TypedSSA.fn * bool

@@ -54,14 +54,14 @@ module Replace_Rules(P: REPLACE_PARAMS) = struct
         (* if any changes made, then memory location of ids and ids' *)
         (* will be different *)
         if ids != ids' then
-          Update (SSA_Helpers.set ?src:stmtNode.stmt_src ids' rhs)
+          Update (TypedSSA.set ?src:stmtNode.stmt_src ids' rhs)
         else NoChange
     | SetIdx ({value=SSA.Typed.Var id; value_type; value_src}, idxs, rhs) ->
         if ID.Map. mem id idMap then
           let id' = ID.Map.find id idMap in
           let lhs' = {value = SSA.Typed.Var id'; value_type; value_src} in
           let newStmt =
-            SSA_Helpers.stmt ?src:stmtNode.stmt_src (SetIdx(lhs', idxs, rhs))
+            TypedSSA.stmt ?src:stmtNode.stmt_src (SetIdx(lhs', idxs, rhs))
           in
           Update newStmt
         else NoChange

@@ -224,38 +224,6 @@ let set_int (x:ID.t) (y:Int32.t) =
 (*                 Phi-Node Helpers                             *)
 (****************************************************************)
 
-let phi ?src ?ty id left right =
-  {
-    phi_id = id;
-    phi_left = left;
-    phi_right = right;
-    phi_type = Option.default Type.BottomT ty;
-    phi_src = src;
-  }
-
-
-(* make a block of phi nodes merging IDs from the three lists given *)
-let rec phi_nodes outIds leftIds rightIds =
-  match (outIds, leftIds, rightIds) with
-    | [], _, _ | _,[],_ | _,_,[] -> []
-    | x::xs, y::ys, z::zs ->
-      (phi x (var y) (var z)) :: (phi_nodes xs ys zs)
-
-let rec phi_nodes_from_values outVals leftVals rightVals =
-  match (outVals, leftVals, rightVals) with
-    | [], _, _ | _, [], _ | _, _, [] -> []
-    | x::xs, y::ys, z::zs ->
-      (phi (get_id x) y z) :: (phi_nodes_from_values xs ys zs)
-
-(* assume a block contains only phi, collect the IDs and
-   either the left or right values
-*)
-let rec collect_phi_values chooseLeft = function
-  | [] -> [], []
-  | p::ps ->
-    let ids, valNodes = collect_phi_values chooseLeft ps in
-    let currVal = if chooseLeft then p.phi_left else p.phi_right in
-    p.phi_id :: ids, currVal :: valNodes
 
 (* get the ids from a list of variable value nodes *)
 let get_ids vars = List.map get_id vars

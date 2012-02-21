@@ -69,7 +69,7 @@ module CopyEval = MkEvaluator(struct
           if nIds <> nRhs then
             failwith $ Printf.sprintf
               "[FindCopies] Wrong number of IDs on LHS of %s: expected %d, got %d"
-              (SSA.Typed.stmt_node_to_str stmtNode)
+              (TypedSSA.stmt_node_to_str stmtNode)
               nRhs
               nIds
             ;

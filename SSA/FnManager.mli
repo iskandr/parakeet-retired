@@ -1,19 +1,19 @@
 open Base
 
-val add_untyped :  ?optimize:bool -> string -> SSA.Untyped.fn -> unit
-val add_typed : ?optimize:bool -> SSA.Typed.fn -> unit
+val add_untyped :  ?optimize:bool -> string -> UntypedSSA.fn -> unit
+val add_typed : ?optimize:bool -> TypedSSA.fn -> unit
 
-val add_untyped_list :  (string * SSA.Untyped.fn) list -> unit
-val add_untyped_map :  SSA.Untyped.fn String.Map.t -> unit
+val add_untyped_list :  (string * UntypedSSA.fn) list -> unit
+val add_untyped_map :  UntypedSSA.fn String.Map.t -> unit
 
 val add_specialization :
-  ?optimize:bool -> SSA.Untyped.value -> Signature.t -> SSA.Typed.fn -> unit
+  ?optimize:bool -> UntypedSSA.value -> Signature.t -> TypedSSA.fn -> unit
 
-val maybe_get_specialization : SSA.Untyped.value -> Signature.t -> FnId.t option
+val maybe_get_specialization : UntypedSSA.value -> Signature.t -> FnId.t option
 
 val is_untyped_function : FnId.t -> bool
-val get_untyped_function : FnId.t -> SSA.Untyped.fn
-val get_typed_function : FnId.t -> SSA.Typed.fn
+val get_untyped_function : FnId.t -> UntypedSSA.fn
+val get_typed_function : FnId.t -> TypedSSA.fn
 
 val get_untyped_name : FnId.t -> string
 val get_untyped_id : string -> FnId.t
