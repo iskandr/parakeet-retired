@@ -20,6 +20,15 @@ SafeFunctions = {
   parakeet_lib.reduce:'reduce',
 }
 
+AutoTranslate = {
+#  map: parakeet_lib.map,
+#  reduce: parakeet_lib.reduce,
+  np.sum:parakeet_lib.sum,
+  np.argmin:parakeet_lib.argmin,
+  np.mean:parakeet_lib.mean,
+  np.all:parakeet_lib.all
+}
+
 BuiltinPrimitives = {
   'Add':'add',
   'Sub':'sub',
@@ -53,6 +62,7 @@ BuiltinPrimitives = {
   'Slice': 'slice',
 }
 
+# FIX::??? Similar to AutoTranslate
 adverbs = [parakeet_lib.map, parakeet_lib.reduce, parakeet_lib.allpairs, parakeet_lib.scan]
 
 
@@ -296,6 +306,12 @@ class ASTConverter():
     elif node_type == 'BinOp':
       return self.build_prim_call(src_info, name_of_ast_node(node.op), args[0],
                                   args[2])
+    elif node_type == 'BoolOp':
+      if len(args[1]) != 2:
+        raise RuntimeError("[Parakeet] Unexpected number of args for:" +
+                           node.op)
+      return self.build_prim_call(src_info, name_of_ast_node(node.op),
+                                  args[1][0], args[1][1])
     elif node_type == 'UnaryOp':
       return self.build_prim_call(src_info, name_of_ast_node(node.op), args[1])
     elif node_type == 'Compare':
@@ -387,6 +403,8 @@ class ASTConverter():
     else:
       raise RuntimeError("[Parakeet] Call.func shouldn't be", name)
     self.seen_functions.add(funRef)
+    if funRef in AutoTranslate:
+      funRef = AutoTranslate[funRef]
     return funRef
 
   def build_complex_parakeet_node(self,node,contextSet):
@@ -496,6 +514,7 @@ class ASTConverter():
                           "parakeet_node" % nodeType)
 
   def build_src_info(self, node):
+    return None
     try:
       file_name = list_to_ctypes_array(self.file_name, c_char)
       line = c_int(self.line_offset + node.lineno)

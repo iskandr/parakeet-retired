@@ -24,7 +24,7 @@ def add(x,y):
   return x+y
 
 def mult(x,y):
-  return x*y 
+  return x*y
 
 def sum(x, axis=None):
   return reduce(add, x, axis=axis, default=0)
