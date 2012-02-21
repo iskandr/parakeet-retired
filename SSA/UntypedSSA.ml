@@ -17,6 +17,8 @@
   let value_nodes_to_str valNodes =
     String.concat ", " (List.map value_node_to_str valNodes)
 
+  let wrap_value ?src value = { value = value; value_src = src }
+
   type untyped_adverb_info =
     (value_node, value_nodes, value_nodes option) Adverb.info
 
@@ -61,6 +63,17 @@
     let outputs = ids_to_str fundef.output_ids in
     let body = untyped_block_to_str fundef.body in
     wrap_str (sprintf "def %s(%s)=>(%s):\n%s" name inputs outputs body)
+
+  let mk_fn ?name ~input_ids ~output_ids ~body : fn =
+    let fnId =
+      match name with | Some name -> FnId.gen_named name | None -> FnId.gen()
+    in
+    {
+      body = body;
+      input_ids = input_ids;
+      output_ids = output_ids;
+      fn_id = fnId;
+    }
 
   let find_fn_src_info {body} = get_block_src_info body
 

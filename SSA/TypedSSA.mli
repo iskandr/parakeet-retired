@@ -30,6 +30,8 @@
     exp_types : Type.t list
   }
 
+  val wrap_exp : value_node -> exp_node
+
 
 
   type typed_block = (exp_node, value_node) SSA.block
@@ -45,6 +47,9 @@
     fn_output_types : Type.t list;
     fn_id : FnId.t;
   }
+
+  val mk_fn  : ?name:string -> tenv:tenv -> input_ids:ID.t list ->
+    output_ids:ID.t list -> body : untyped_block -> fn
 
   val typed_id_to_str : tenv -> ID.t -> string
 

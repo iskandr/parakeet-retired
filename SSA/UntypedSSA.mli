@@ -12,6 +12,7 @@
   type value_nodes = value_node list
   val value_nodes_to_str : value_nodes -> string
 
+  val wrap_value : ?src:SrcInfo.t -> value -> value_node
   type untyped_adverb_info =
     (value_node, value_nodes, value_nodes option) Adverb.info
 
@@ -34,6 +35,10 @@
     output_ids: ID.t list;
     fn_id : FnId.t;
   }
+
+  val mk_fn  : ?name:string -> input_ids:ID.t list -> output_ids:ID.t list ->
+    body : untyped_block -> fn
+
   val input_arity : fn -> int
   val output_arity : fn -> int
   val fn_id : fn -> FnId.t

@@ -17,6 +17,8 @@
   let value_nodes_to_str valNodes =
     String.concat ", " (List.map value_node_to_str valNodes)
 
+  let wrap_value ?src value ty =
+    { value = value; value_src = src; value_type = ty}
 
   type typed_adverb_info = (FnId.t, value_nodes, value_nodes) Adverb.info
 
@@ -49,6 +51,9 @@
   }
   let exp_node_to_str {exp} = exp_to_str exp
 
+  let wrap_exp valNode =
+    { exp = Values [valNode]; exp_src = None; exp_types = [valNode.value_type]}
+
   type typed_block = (exp_node, value_node) block
 
   let typed_block_to_str : typed_block -> string =
@@ -76,6 +81,23 @@
     let outputs = typed_ids_to_str fundef.tenv fundef.output_ids in
     let body = typed_block_to_str fundef.body in
     wrap_str (sprintf "def %s(%s)=>(%s):\n%s" name inputs outputs body)
+
+  let mk_fn ?name ~tenv ~input_ids ~output_ids ~body : fn =
+    let inTypes = List.map (fun id -> ID.Map.find id tenv) input_ids in
+    let outTypes = List.map (fun id -> ID.Map.find id tenv) output_ids in
+    let fnId = match name with
+      | Some name -> FnId.gen_named name
+      | None -> FnId.gen()
+    in
+    {
+      body = body;
+      tenv = tenv;
+      input_ids = input_ids;
+      output_ids = output_ids;
+      fn_input_types = inTypes;
+      fn_output_types = outTypes;
+      fn_id = fnId
+    }
 
   let find_fn_src_info {body} = get_block_src_info body
 

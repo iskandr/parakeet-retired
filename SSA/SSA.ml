@@ -46,6 +46,7 @@ let rec collect_phi_values chooseLeft = function
     p.phi_id :: ids, currVal :: valNodes
 
 
+module StmtId = UID.Make(struct let prefix = "stmt" end)
 
 (* 'a = type of expressions *)
 (* 'b = type of values *)
@@ -62,6 +63,9 @@ and ('a, 'b) stmt_node = {
 }
 (* 'a = exp type, 'b = value type *)
 and ('a,'b) block = ('a,'b) stmt_node Block.t
+
+let wrap_stmt ?src stmt =
+  { stmt = stmt; stmt_src = src; stmt_id = StmtId.gen() }
 
 let ids_to_str (ids:ID.t list) = String.concat ", " (List.map ID.to_str ids)
 

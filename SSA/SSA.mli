@@ -35,6 +35,8 @@ and ('a, 'b) stmt_node = {
 }
 and ('a,'b) block = ('a,'b) stmt_node Block.t
 
+val wrap_stmt : ?src:SrcInfo.t -> ('a, 'b) stmt -> ('a, 'b) stmt_node
+
 val ids_to_str : ID.t list -> string
 val stmt_to_str : ('a -> string) -> ('b -> string) -> ('a, 'b) stmt -> string
 val stmt_node_to_str :

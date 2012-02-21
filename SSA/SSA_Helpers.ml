@@ -7,26 +7,6 @@ open SSA
    function being mapped
 *)
 
-let mk_fn ?name ?(tenv=ID.Map.empty) ~input_ids ~output_ids ~body : SSA.fn =
-  let inTypes =
-    List.map (fun id -> ID.Map.find_default id tenv Type.BottomT) input_ids
-  in
-  let outTypes =
-    List.map (fun id -> ID.Map.find_default id tenv Type.BottomT) output_ids
-  in
-  let fnId = match name with
-    | Some name -> FnId.gen_named name
-    | None -> FnId.gen()
-  in
-  {
-    body = body;
-    tenv = tenv;
-    input_ids = input_ids;
-    output_ids = output_ids;
-    fn_input_types = inTypes;
-    fn_output_types = outTypes;
-    fn_id = fnId
-  }
 
 (* get the id of a variable value node *)
 let get_id valNode = match valNode.value with
