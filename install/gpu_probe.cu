@@ -1,11 +1,11 @@
 /*
  * Parakeet
  *
- * (c) 2009-2011 Eric Hielscher, Alex Rubinsteyn
+ * (c) 2009-2012 Eric Hielscher, Alex Rubinsteyn
  *
- * Machine Probe
+ * GPU Probe
  *
- * Utility for detecting main architectural characteristics of the given
+ * Utility for detecting main GPU characteristics of the given
  * computer for use in Parakeet's code optimization.
  * 
  * Outputs an XML file with the gathered information for use by the Parakeet
@@ -171,7 +171,7 @@ int main(int argc, char **argv) {
   //       global memory.  This may not actually be the case.  We probably want
   //       to parameterize this so as to scale to any memory size.
   int data_size = (16 << 20) * sizeof(int);
-  char *outFilename = "parakeetconf.xml";
+  char *outFilename = "parakeetgpuconf.xml";
   debug = 1;
 
   // Process command line args

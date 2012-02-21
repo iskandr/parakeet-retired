@@ -19,10 +19,27 @@ type gpu = {
   peak_global_bw : float;
 }
 
+type cache = {
+  id : int;
+  level : int;
+  cores : int list;
+  size_kb : int;
+  line_size_bytes : int;
+  associativity : int;
+}
+and
+core = {
+  id : int;
+  caches : int list;
+  thread_affinity_ids : int list;
+}
+
 type cpu = {
   id : int;
   name : string;
   clock_rate_ghz : float;
+  cores : core array;
+  caches : cache array;
 }
 
 type t = {
@@ -33,7 +50,10 @@ type t = {
 
 let build_machine_model =
   let homedir = Sys.getenv "HOME" in
-  let conffile = homedir ^ "/.parakeet/parakeetconf.xml" in
-  let x = Xml.parse_file conffile in
+  let gpufile = homedir ^ "/.parakeet/parakeetgpuconf.xml" in
+  let gpuxml = Xml.parse_file gpufile in
   (*Printf.printf "%s\n\n" (Xml.to_string_fmt x);
-  *)x
+  *)
+  let cpufile = homedir ^ "/.parakeet/parakeetcpuconf.xml" in
+  let cpuxml = Xml.parse_file cpufile in
+  gpuxml

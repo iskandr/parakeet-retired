@@ -284,10 +284,13 @@ CCFILES		:= \
 ################################################################################
 # Rules and targets
 
-all: machine_probe
+all: cpu_probe gpu_probe
 
-machine_probe: machine_probe.cu_o
-	gcc -o machine_probe machine_probe.cu_o $(INCLUDES) $(LIB)
+gpu_probe: gpu_probe.cu_o
+	gcc -o gpu_probe gpu_probe.cu_o $(INCLUDES) $(LIB)
+
+cpu_probe: cpu_probe.o
+	gcc -o cpu_probe cpu_probe.o $(INCLUDES) $(LIB)
 
 gpu_detector: gpu_detector.cu_o
 	gcc -o gpu_detector gpu_detector.cu_o $(INCLUDES) $(LIB)
