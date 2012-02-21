@@ -29,26 +29,26 @@ let rec build_loop_nests
           (descrs : loop_descr list)
           (body:Imp.block) =
   match descrs with
-    | [] -> body
-    | d::ds ->
-        let nested = build_loop_nests codegen ds body in
-        let testEltT = ImpType.elt_type d.loop_var.value_type in
-        let test = {
-          value = Imp.Op(testEltT, d.loop_test_cmp,
-                       [d.loop_var; d.loop_test_val]);
-          value_type = ImpType.bool_t
-        }
-        in
-        let next = {
-           value = Imp.Op(testEltT, d.loop_incr_op, [d.loop_var; d.loop_incr]);
-           value_type = d.loop_var.value_type;
-        }
-        in
-        let update = set d.loop_var next in
-        [
-          set d.loop_var d.loop_start;
-          Imp.While (test , nested @ [update])
-        ]
+	| [] -> body
+	| d::ds ->
+    let nested = build_loop_nests codegen ds body in
+    let testEltT = ImpType.elt_type d.loop_var.value_type in
+    let test = {
+      value = Imp.Op(testEltT, d.loop_test_cmp,
+                     [d.loop_var; d.loop_test_val]);
+      value_type = ImpType.bool_t
+    }
+    in
+    let next = {
+      value = Imp.Op(testEltT, d.loop_incr_op, [d.loop_var; d.loop_incr]);
+      value_type = d.loop_var.value_type;
+    }
+    in
+    let update = set d.loop_var next in
+    [
+      set d.loop_var d.loop_start;
+      Imp.While (test , nested @ [update])
+    ]
 
 let mk_simple_loop_descriptor
         (codegen:ImpCodegen.codegen)
@@ -77,25 +77,25 @@ let rec translate_values codegen valNodes : Imp.value_node list =
 
 let translate_array_op codegen (op:Prim.array_op) (args:Imp.value_node list) =
   match op, args with
-    | Prim.Index, array::indices ->
-      let arrayT = array.Imp.value_type  in
-      IFDEF DEBUG THEN
-        let nIndices = List.length indices in
-        let rank = ImpType.rank arrayT in
-        if rank <> nIndices then
-          failwith $ Printf.sprintf
-            "[SSA_to_Imp] Mismatch between # dims (%d) and # of indices (%d)"
-            rank
-            nIndices
-      ENDIF;
-      let resultT =  ImpType.elt_type arrayT in
-      { value = Imp.Idx(array, indices);
-        value_type = ImpType.ScalarT resultT
-      }
-    | other, _ -> failwith $
-      Printf.sprintf
-        "[SSA_to_Imp] Unsupported array op: %s"
-        (Prim.array_op_to_str other)
+	| Prim.Index, array::indices ->
+	  let arrayT = array.Imp.value_type in
+	  IFDEF DEBUG THEN
+	    let nIndices = List.length indices in
+	    let rank = ImpType.rank arrayT in
+	    if rank <> nIndices then
+	      failwith $ Printf.sprintf
+	        "[SSA_to_Imp] Mismatch between # dims (%d) and # of indices (%d)"
+	        rank
+	        nIndices
+	  ENDIF;
+	  let resultT =  ImpType.elt_type arrayT in
+	  { value = Imp.Idx(array, indices);
+	    value_type = ImpType.ScalarT resultT
+	  }
+	| other, _ -> failwith $
+	  Printf.sprintf
+	    "[SSA_to_Imp] Unsupported array op: %s"
+	    (Prim.array_op_to_str other)
 
 (* given a list of imp values, return the array of maximum rank *)
 let rec argmax_array_rank = function
