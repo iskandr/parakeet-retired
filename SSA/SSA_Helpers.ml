@@ -233,12 +233,6 @@ let phi ?src ?ty id left right =
     phi_src = src;
   }
 
-let empty_phi = phi ID.undefined (var ID.undefined) (var ID.undefined)
-let is_empty_phi phiNode = match phiNode.phi_left, phiNode.phi_right with
-  | {value=Var idLeft}, {value=Var idRight} ->
-      idLeft == ID.undefined && idRight == ID.undefined &&
-      phiNode.phi_id == ID.undefined
-  | _ -> false
 
 (* make a block of phi nodes merging IDs from the three lists given *)
 let rec phi_nodes outIds leftIds rightIds =
