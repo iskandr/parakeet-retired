@@ -1,3 +1,5 @@
+(* pp: -parser o pa_macro.cmo *)
+
   type value = Var of ID.t | Num of ParNum.t
   let value_to_str = function
     | Var id -> ID.to_str id
@@ -18,7 +20,7 @@
     String.concat ", " (List.map value_node_to_str valNodes)
 
   let wrap_value ?src value ty =
-    { value = value; value_src = src; value_type = ty}
+    { value = value; value_src = src; value_type = ty }
 
   type typed_adverb_info = (FnId.t, value_nodes, value_nodes) Adverb.info
 
@@ -49,7 +51,7 @@
     exp_src : SrcInfo.t option;
     exp_types : Type.t list
   }
-  let exp_node_to_str {exp} = exp_to_str exp
+  let exp_node_to_str { exp } = exp_to_str exp
 
   let wrap_exp valNode =
     { exp = Values [valNode]; exp_src = None; exp_types = [valNode.value_type]}
@@ -75,7 +77,7 @@
   let typed_ids_to_str tenv ids =
     String.concat ", " (List.map (typed_id_to_str tenv) ids)
 
-  let fn_to_str (fundef:fn) =
+  let fn_to_str (fundef: fn) =
     let name = FnId.to_str fundef.fn_id in
     let inputs = typed_ids_to_str fundef.tenv fundef.input_ids in
     let outputs = typed_ids_to_str fundef.tenv fundef.output_ids in
@@ -99,10 +101,93 @@
       fn_id = fnId
     }
 
-  let find_fn_src_info {body} = get_block_src_info body
 
-  let input_arity {input_ids} = List.length input_ids
-  let output_arity {output_ids} = List.length output_ids
-  let input_types {fn_input_types} = fn_input_types
-  let output_types {fn_output_types} = fn_output_types
-  let fn_id {fn_id} = fn_id
+let fn_builder
+      ?name
+      ~(input_types : Type.t list)
+      ~(output_types : Type.t list)
+      ?(local_types = [])
+      (construct : value_nodes * value_nodes * value_nodes -> stmt_node list) =
+  IFDEF DEBUG THEN
+    Printf.printf
+      "[SSA_Helpers.mk_fn] name: %s, input_types = %s, output_types = %s\n%!"
+      (match name with None -> "<none>" | Some name -> name)
+      (Type.type_list_to_str input_types)
+      (Type.type_list_to_str output_types)
+    ;
+  ENDIF;
+  (* inputs *)
+  let nInputs = List.length input_types in
+  let inputIds = ID.gen_named_list "input" nInputs in
+  let inputs = List.map2 (fun t id -> var ~ty: t id) input_types inputIds in
+  (* outputs *)
+  let nOutputs = List.length output_types in
+  let outputIds = ID.gen_named_list "output" nOutputs in
+  let outputs = List.map2 (fun t id -> var ~ty: t id) output_types outputIds in
+  (* locals *)
+  let nLocals = List.length local_types in
+  let localIds = ID.gen_named_list "temp" nLocals in
+  let locals = List.map2 (fun t id -> var ~ty: t id) local_types localIds in
+  let body = Block.of_list (construct (inputs, outputs, locals)) in
+  let tenv =
+    ID.Map.of_lists
+      (inputIds @ outputIds @ localIds)
+      (input_types @ output_types @ local_types)
+  in
+  mk_fn ?name ~tenv ~input_ids: inputIds ~output_ids: outputIds ~body
+
+  let find_fn_src_info { body } = get_block_src_info body
+
+  let input_arity { input_ids } = List.length input_ids
+  let output_arity { output_ids } = List.length output_ids
+  let input_types { fn_input_types } = fn_input_types
+  let output_types { fn_output_types } = fn_output_types
+  let fn_id { fn_id } = fn_id
+
+
+(***********************************************************************)
+(*                          Value Helpers                              *)
+(***********************************************************************)
+
+let var ?src ?(ty=Type.BottomT) (id:ID.t) : value_node =
+  { value = Var id; value_src = src; value_type = ty }
+
+let op ?src ?ty op = wrap_value ?src ?ty (Prim op)
+
+let globalfn ?src ?(ty=Type.BottomT) (id:FnId.t) : value_node=
+  { value = GlobalFn id; value_src = src; value_type = ty }
+
+let num ?src ?ty n =
+  let ty = match ty with
+    | None -> Type.ScalarT (ParNum.type_of n)
+    | Some t -> t
+  in
+  wrap_value ?src ~ty (Num n)
+
+let bool ?src b = num ?src ~ty:Type.bool (ParNum.Bool b)
+
+let int32 ?src i = num ?src ~ty:Type.int32 (ParNum.coerce_int i Type.Int32T)
+
+let float32 ?src f = num ?src ~ty:Type.float32 (ParNum.Float32 f)
+
+let float64 ?src f = num ?src ~ty:Type.float64 (ParNum.Float64 f)
+
+let is_const {value} =
+  match value with
+  | Num _ -> true
+  | _ -> false
+
+let is_const_int {value} =
+  match value with
+    | Num n -> ParNum.is_int n
+    | _ -> false
+
+let get_const {value} = match value with
+  | Num n -> n
+  | other ->
+    failwith $ Printf.sprintf "Expected constant, got %s" (value_to_str other)
+
+let get_const_int valNode =
+  let n = get_const valNode in
+  ParNum.to_int n
+

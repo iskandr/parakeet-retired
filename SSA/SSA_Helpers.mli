@@ -1,9 +1,6 @@
 open SSA
 
-val mk_fn :
-      ?name:string ->
-      ?tenv:tenv -> input_ids:ID.t list -> output_ids:ID.t list ->
-        body:block -> fn
+
 (***
      helpers for statements
  ***)
@@ -22,29 +19,6 @@ val get_ids : value_node list -> ID.t list
 val get_fn_id : value_node -> FnId.t
 val get_fn_ids : value_node list -> FnId.t list
 
-(***
-    helpers for values
- ***)
-
-val wrap_value : ?src:SrcInfo.t -> ?ty:Type.t -> value -> value_node
-
-val var : ?src:SrcInfo.t -> ?ty:Type.t -> ID.t -> value_node
-val op :  ?src:SrcInfo.t -> ?ty:Type.t -> Prim.t -> value_node
-
-val globalfn : ?src:SrcInfo.t -> ?ty:Type.t -> FnId.t -> value_node
-
-val num : ?src:SrcInfo.t -> ?ty:Type.t -> ParNum.t -> value_node
-
-val bool : ?src:SrcInfo.t -> bool -> value_node
-val int32  : ?src:SrcInfo.t -> int -> value_node
-
-val float32 : ?src:SrcInfo.t -> float -> value_node
-val float64 : ?src:SrcInfo.t -> float -> value_node
-
-val is_const : value_node -> bool
-val is_const_int : value_node -> bool
-val get_const : value_node -> ParNum.t
-val get_const_int : value_node -> int
 
 (***
     helpers for expressions
@@ -134,10 +108,7 @@ val types_of_value_nodes : value_node list -> Type.t list
 
 
 
-val fn_builder :
-  ?name:string -> input_types:Type.t list -> output_types:Type.t list ->
-    ?local_types:Type.t list ->
-      (value_nodes * value_nodes * value_nodes -> stmt_node list) -> fn
+
 
 val untyped_fn1_builder :
   (value_node -> value_node -> stmt_node list) -> fn

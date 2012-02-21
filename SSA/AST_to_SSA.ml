@@ -4,7 +4,7 @@ open AST
 open Base
 open SSA
 open SSA_Codegen
-open SSA_Helpers
+
 
 (* environment mapping strings to SSA IDs or global function IDs *)
 module Env = struct

@@ -15,54 +15,6 @@ let get_id valNode = match valNode.value with
      "[SSA->get_id] expected variable, received %s"
      (value_to_str other)
 
-(***********************************************************************)
-(*                          Value Helpers                              *)
-(***********************************************************************)
-
-let wrap_value ?src ?(ty=Type.BottomT) (v:value) : value_node =
-  { value = v; value_src = src; value_type = ty }
-
-let var ?src ?(ty=Type.BottomT) (id:ID.t) : value_node =
-  { value = Var id; value_src = src; value_type = ty }
-
-let op ?src ?ty op = wrap_value ?src ?ty (Prim op)
-
-let globalfn ?src ?(ty=Type.BottomT) (id:FnId.t) : value_node=
-  { value = GlobalFn id; value_src = src; value_type = ty }
-
-let num ?src ?ty n =
-  let ty = match ty with
-    | None -> Type.ScalarT (ParNum.type_of n)
-    | Some t -> t
-  in
-  wrap_value ?src ~ty (Num n)
-
-let bool ?src b = num ?src ~ty:Type.bool (ParNum.Bool b)
-
-let int32 ?src i = num ?src ~ty:Type.int32 (ParNum.coerce_int i Type.Int32T)
-
-let float32 ?src f = num ?src ~ty:Type.float32 (ParNum.Float32 f)
-
-let float64 ?src f = num ?src ~ty:Type.float64 (ParNum.Float64 f)
-
-let is_const {value} =
-  match value with
-  | Num _ -> true
-  | _ -> false
-
-let is_const_int {value} =
-  match value with
-    | Num n -> ParNum.is_int n
-    | _ -> false
-
-let get_const {value} = match value with
-  | Num n -> n
-  | other ->
-    failwith $ Printf.sprintf "Expected constant, got %s" (value_to_str other)
-
-let get_const_int valNode =
-  let n = get_const valNode in
-  ParNum.to_int n
 
 (****************************************************************************)
 (*                         Expression Helpers                               *)
@@ -226,40 +178,6 @@ let is_empty_stmt stmtNode =
 let rec types_of_value_nodes = function
   | [] -> []
   | vNode::rest -> vNode.value_type :: (types_of_value_nodes rest)
-
-let fn_builder
-    ?name
-    ~(input_types : Type.t list)
-    ~(output_types : Type.t list)
-    ?(local_types = [])
-    (construct : value_nodes * value_nodes * value_nodes -> stmt_node list) =
-  IFDEF DEBUG THEN
-    Printf.printf
-      "[SSA_Helpers.mk_fn] name: %s, input_types = %s, output_types = %s\n%!"
-      (match name with None -> "<none>" | Some name -> name)
-      (Type.type_list_to_str input_types)
-      (Type.type_list_to_str output_types)
-    ;
-  ENDIF;
-  (* inputs *)
-  let nInputs = List.length input_types in
-  let inputIds = ID.gen_named_list "input" nInputs in
-  let inputs = List.map2 (fun t id -> var ~ty:t id) input_types inputIds in
-  (* outputs *)
-  let nOutputs = List.length output_types in
-  let outputIds = ID.gen_named_list "output" nOutputs in
-  let outputs = List.map2 (fun t id -> var ~ty:t id) output_types outputIds in
-  (* locals *)
-  let nLocals = List.length local_types in
-  let localIds = ID.gen_named_list "temp" nLocals in
-  let locals = List.map2 (fun t id -> var ~ty:t id) local_types localIds in
-  let body = Block.of_list (construct (inputs, outputs, locals)) in
-  let tenv =
-    ID.Map.of_lists
-      (inputIds @ outputIds @ localIds)
-      (input_types @ output_types @ local_types)
-  in
-  mk_fn ?name ~tenv ~input_ids:inputIds ~output_ids:outputIds ~body
 
 (* special case for creating function with 1 input, 1 output *)
 let untyped_fn1_builder constructor =
