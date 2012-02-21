@@ -25,12 +25,12 @@ module BlockState = struct
   (* for improved performance *)
   type t = {
     stmts : (stmt_node list) ref;
-    old_block : SSA.block;
+    old_block : SSA.Typed.block;
     mutable changes : int;
   }
 
   (* initializer *)
-  let create (oldBlock:SSA.block) = {
+  let create (oldBlock:SSA.Typed.block) = {
     stmts = ref [];
     old_block = oldBlock;
     changes = 0
@@ -79,15 +79,15 @@ open BlockState
 
 let exp_update_to_str = function
   | NoChange -> "NoChange"
-  | Update e -> "Update: " ^ (SSA.exp_to_str e)
-  | UpdateWithStmts (e, _)-> "UpdateStmts: " ^ (SSA.exp_to_str e)
-  | UpdateWithBlock (e, _) -> "UpdateBlock: " ^ (SSA.exp_to_str e)
+  | Update e -> "Update: " ^ (SSA.Typed.exp_to_str e)
+  | UpdateWithStmts (e, _)-> "UpdateStmts: " ^ (SSA.Typed.exp_to_str e)
+  | UpdateWithBlock (e, _) -> "UpdateBlock: " ^ (SSA.Typed.exp_to_str e)
 
 let stmt_update_to_str = function
   | NoChange -> "NoChange"
-  | Update e -> "Update: " ^ (SSA.stmt_node_to_str e)
-  | UpdateWithStmts (e, _)-> "UpdateStmts: " ^ (SSA.stmt_node_to_str e)
-  | UpdateWithBlock (e, _) -> "UpdateBlock: " ^ (SSA.stmt_node_to_str e)
+  | Update e -> "Update: " ^ (SSA.Typed.stmt_node_to_str e)
+  | UpdateWithStmts (e, _)-> "UpdateStmts: " ^ (SSA.Typed.stmt_node_to_str e)
+  | UpdateWithBlock (e, _) -> "UpdateBlock: " ^ (SSA.Typed.stmt_node_to_str e)
 
 
 
@@ -218,7 +218,9 @@ module Mk(R: SIMPLE_TRANSFORM_RULES) = struct
       if tChanged then sub_block_changed();
       let fBlock', fChanged = transform_block cxt fBlock in
       if fChanged then sub_block_changed();
-      let merge' : SSA.phi_nodes = transform_phi_list blockState cxt merge in
+      let merge' : SSA.Typed.phi_nodes =
+        transform_phi_list blockState cxt merge
+      in
       if changed() then
         { stmtNode with stmt = If(cond', tBlock', fBlock', merge')  }
       else stmtNode

@@ -57,8 +57,8 @@ module MkEvaluator(A : ANALYSIS) = struct
   and eval_loop_header ?(changed=false) envOut envIn = function
     | [] -> envOut, changed
     | phiNode::rest ->
-      let valInfo = A.value envIn phiNode.SSA.phi_left in
-      let currEnvOut = A.phi_set envOut phiNode.SSA.phi_id valInfo in
+      let valInfo = A.value envIn phiNode.SSA.Typed.phi_left in
+      let currEnvOut = A.phi_set envOut phiNode.SSA.Typed.phi_id valInfo in
       let envOut' = Option.default envOut currEnvOut in
       let currChanged = changed || Option.is_some currEnvOut in
       eval_loop_header ~changed:currChanged envOut' envIn rest
@@ -66,10 +66,10 @@ module MkEvaluator(A : ANALYSIS) = struct
   and eval_phi_nodes ?(changed=false) envOut envLeft envRight = function
     | [] -> if changed then Some envOut else None
     | phiNode::rest ->
-      let leftInfo = A.value envLeft phiNode.SSA.phi_left in
-      let rightInfo = A.value envRight phiNode.SSA.phi_right in
+      let leftInfo = A.value envLeft phiNode.SSA.Typed.phi_left in
+      let rightInfo = A.value envRight phiNode.SSA.Typed.phi_right in
       let currEnvOut =
-        A.phi_merge envOut phiNode.SSA.phi_id leftInfo rightInfo
+        A.phi_merge envOut phiNode.SSA.Typed.phi_id leftInfo rightInfo
       in
       let envOut' = Option.default envOut currEnvOut in
       let currChanged = changed || Option.is_some currEnvOut in

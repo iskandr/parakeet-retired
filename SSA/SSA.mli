@@ -11,9 +11,11 @@ val phi_node_to_str :('a -> string) -> 'a phi_node -> string
 
 val phi_nodes_to_str : ('a -> string) -> 'a phi_nodes -> string
 
+(* 'a = type of expressions *)
+(* 'b = type of values *)
 type ('a, 'b) stmt =
   | Set of ID.t list * 'a
-  | SetIdx of 'a * 'a list * 'a
+  | SetIdx of 'b * 'b list * 'a
   | If of 'b * ('a, 'b) block * ('a, 'b) block * 'b phi_nodes
   (* testBlock, testVal, body, loop header, loop exit *)
   | WhileLoop of ('a, 'b) block * 'b * ('a, 'b) block * 'b phi_nodes
@@ -24,7 +26,7 @@ and ('a, 'b) stmt_node = {
 }
 and ('a,'b) block = ('a,'b) stmt_node Block.t
 
-val id_list_to_str : ID.t list -> string
+val ids_to_str : ID.t list -> string
 val stmt_to_str : ('a -> string) -> ('b -> string) -> ('a, 'b) stmt -> string
 val stmt_node_to_str :
   ('a -> string) -> ('b -> string) -> ('a, 'b) stmt_node -> string
@@ -108,12 +110,12 @@ module Typed : sig
     exp_types : Type.t list
   }
 
-  type tenv = Type.t ID.Map.t
+
 
   type typed_block = (exp_node, value_node) block
 
   val typed_block_to_str : typed_block -> string
-
+  type tenv = Type.t ID.Map.t
   type fn = {
     body: typed_block;
     tenv : tenv;
@@ -126,7 +128,7 @@ module Typed : sig
 
   val typed_id_to_str : tenv -> ID.t -> string
 
-  val typed_id_list_to_str : tenv -> ID.t list -> string
+  val typed_ids_to_str : tenv -> ID.t list -> string
 
   val fn_to_str : fn -> string
   val find_fn_src_info : fn -> SrcInfo.t option

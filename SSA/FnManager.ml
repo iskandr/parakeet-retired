@@ -13,7 +13,7 @@ open SSA
 type t = {
   untyped_functions : (FnId.t, SSA.Untyped.fn) Hashtbl.t;
 
-  typed_functions : TypedFnTable.t;
+  typed_functions : FnTable.t;
 
   (* functions are either ID or Prim which gets specialized on either *)
   (* types or values (see Signature.ml)   *)
@@ -29,7 +29,7 @@ let create () =
   let n = 127 in
   {
     untyped_functions = Hashtbl.create n;
-    typed_functions = TypedFnTable.create n;
+    typed_functions = FnTable.create n;
     specializations = Hashtbl.create n ;
     name_to_untyped_id = Hashtbl.create n;
     untyped_id_to_name = Hashtbl.create n;
@@ -53,7 +53,7 @@ let add_untyped_map  ?(optimize=true) fnMap =
 
 let add_typed ?(optimize=true) fn =
   let id = fn.SSA.fn_id in
-  TypedFnTable.add ~opt_queue:optimize fn state.typed_functions
+  FnTable.add ~opt_queue:optimize fn state.typed_functions
 
 
 let default_typed_optimizations =
@@ -87,16 +87,16 @@ let add_specialization
     (signature : Signature.t)
     (typedFn : SSA.fn) =
   let fnId = typedFn.SSA.fn_id in
-  if TypedFnTable.mem fnId state.typed_functions then (
+  if FnTable.mem fnId state.typed_functions then (
     (* if function is already in the fntable, don't add it again
        but make sure it really is the same function
     *)
     IFDEF DEBUG THEN
-      assert (TypedFnTable.find fnId state.typed_functions = typedFn)
+      assert (FnTable.find fnId state.typed_functions = typedFn)
     ENDIF;
     ()
   )
-  else TypedFnTable.add ~opt_queue:optimize typedFn state.typed_functions
+  else FnTable.add ~opt_queue:optimize typedFn state.typed_functions
   ;
   let key = (untypedVal, signature) in
   Hashtbl.add state.specializations key typedFn.fn_id;
@@ -139,10 +139,10 @@ let get_untyped_function untypedId =
   Hashtbl.find state.untyped_functions untypedId
 
 let get_typed_function typedId =
-  TypedFnTable.find typedId state.typed_functions
+  FnTable.find typedId state.typed_functions
 
 let get_typed_fn_from_value = function
-  | GlobalFn fnId -> TypedFnTable.find fnId state.typed_functions
+  | GlobalFn fnId -> FnTable.find fnId state.typed_functions
   | _ -> failwith "expected a function"
 
 let have_untyped_function name =

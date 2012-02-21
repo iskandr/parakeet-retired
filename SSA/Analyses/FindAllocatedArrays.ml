@@ -19,14 +19,14 @@ module Eval = SSA_Analysis.MkEvaluator(struct
 
   let value _ _  = ()
   let exp _ {exp; exp_types} _ : bool = match exp with
-    | SSA.Arr _
-    | SSA.PrimApp (Prim.ArrayOp _, _)
-    | SSA.Adverb _ -> [true]
+    | SSA.Typed.Arr _
+    | SSA.Typed.PrimApp (Prim.ArrayOp _, _)
+    | SSA.Typed.Adverb _ -> [true]
     (* TODO: *)
     (* calls only require allocation if their outputs are arrays *)
     (* OR if their locals are materialized/allocated arrays. We're not*)
     (* checking that second condition here! *)
-    | SSA.Call _ -> List.map Type.is_array exp_types
+    | SSA.Typed.Call _ -> List.map Type.is_array exp_types
     | _ -> List.map (fun _ -> false) exp_types
 
   (* phi nodes can only create array aliases *)
@@ -35,7 +35,7 @@ module Eval = SSA_Analysis.MkEvaluator(struct
 
   let stmt (set:ID.Set.t) stmtNode helpers : env option =
     match stmtNode.stmt with
-    | SSA.Set(ids, rhs) ->
+    | SSA.Typed.Set(ids, rhs) ->
       let rhsBools : bool list = exp set rhs helpers in
       Some (List.fold_left2
         (fun set id isAlloc -> if isAlloc then ID.Set.add id set else set)
@@ -45,4 +45,4 @@ module Eval = SSA_Analysis.MkEvaluator(struct
 end)
 
 
-let find_allocated_arrays : SSA.fn -> ID.Set.t = Eval.eval_fn
+let find_allocated_arrays : SSA.Typed.fn -> ID.Set.t = Eval.eval_fn

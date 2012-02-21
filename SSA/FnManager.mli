@@ -18,7 +18,7 @@ val get_typed_function : FnId.t -> SSA.Typed.fn
 val get_untyped_name : FnId.t -> string
 val get_untyped_id : string -> FnId.t
 
-val get_typed_function_table : unit -> TypedFnTable.t
+val get_typed_function_table : unit -> FnTable.t
 
 val have_untyped_function : string -> bool
 val get_untyped_arity : FnId.t -> int

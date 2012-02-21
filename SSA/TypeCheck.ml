@@ -28,12 +28,7 @@ let check_value (errorLog:errors)(tenv:tenv) (defined : ID.Set.t) vNode : unit =
   | Num _ ->
     if not $ Type.is_number vNode.value_type then
       err "number annotated with non-numeric type"
-  | Prim _
-  | GlobalFn _ -> ()
-      (*if not $ Type.is_function vNode.value_type then
-        err "expected function annotation"
-       *)
-  | Sym _ | Str _ | Unit  -> ()
+
 
 let check_value_list errorLog tenv defined values : unit =
   List.iter (check_value errorLog tenv defined) values
@@ -150,7 +145,7 @@ and check_block
       (errorLog : errors)
       (tenv : Type.t ID.Map.t)
       (defined : ID.Set.t)
-      (block : SSA.block) : ID.Set.t =
+      (block : SSA.Typed.block) : ID.Set.t =
   Block.fold_forward
     (fun accDefined stmtNode -> check_stmt errorLog tenv accDefined stmtNode)
     defined

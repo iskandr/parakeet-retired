@@ -11,7 +11,7 @@ module SimplifyRules = struct
   let dir = Forward
 
   type context = {
-    constants: SSA.value ConstantLattice.t ID.Map.t;
+    constants: SSA.Typed.value ConstantLattice.t ID.Map.t;
     copies : FindCopies.CopyLattice.t ID.Map.t;
     use_counts : (ID.t, int) Hashtbl.t;
     types : Type.t ID.Map.t;
@@ -72,7 +72,9 @@ module SimplifyRules = struct
             let ids, valNodes = SSA_Helpers.collect_phi_values b merge in
             let types = List.map get_type ids in
             let src = stmtNode.stmt_src in
-            let expNode = SSA_Helpers.exp ?src ~types (SSA.Values valNodes) in
+            let expNode =
+              SSA_Helpers.exp ?src ~types (SSA.Typed.Values valNodes)
+            in
             Update (SSA_Helpers.set ?src:stmtNode.stmt_src ids expNode)
         | _ -> NoChange
       end

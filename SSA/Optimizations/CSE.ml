@@ -2,7 +2,7 @@
 
 open Type
 open Base
-open SSA
+open SSA.Typed
 open SSA_Transform
 
 (* expressions without side effects *)

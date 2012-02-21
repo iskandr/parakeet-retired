@@ -29,7 +29,7 @@ let phi_nodes_to_str  value_node_to_str  phiNodes =
 (* 'b = type of values *)
 type ('a, 'b) stmt =
   | Set of ID.t list * 'a
-  | SetIdx of 'a * 'a list * 'b
+  | SetIdx of 'b * 'b list * 'a
   | If of 'b * ('a, 'b) block * ('a, 'b) block * 'b phi_nodes
   (* testBlock, testVal, body, loop header, loop exit *)
   | WhileLoop of ('a, 'b) block * 'b * ('a, 'b) block * 'b phi_nodes
@@ -38,17 +38,21 @@ and ('a, 'b) stmt_node = {
   stmt_src: SrcInfo.t option;
   stmt_id : StmtId.t;
 }
+(* 'a = exp type, 'b = value type *)
 and ('a,'b) block = ('a,'b) stmt_node Block.t
 
 let ids_to_str (ids:ID.t list) = String.concat ", " (List.map ID.to_str ids)
 
-let stmt_to_str exp_to_str val_to_str stmt =
-  wrap_str indent $ match stmt with
+let rec stmt_to_str
+          (exp_to_str : 'a -> string)
+          (val_to_str : 'b -> string)
+          (stmt : ('a, 'b) stmt) =
+  wrap_str $ match stmt with
   | Set (ids, rhs) -> sprintf "%s = %s" (ids_to_str ids) (exp_to_str rhs)
   | SetIdx (arr, indices, rhs) ->
     sprintf "%s[%s] = %s"
       (val_to_str arr)
-      (String.concat ", " (List.map val_to_str indices) indices)
+      (String.concat ", " (List.map val_to_str indices))
       (exp_to_str rhs)
   | If (cond, tBlock, fBlock, phiNodes) ->
     wrap_str $ sprintf "if %s:\n%s \nelse:\n%s \nmerge:\n%s"
@@ -62,8 +66,10 @@ let stmt_to_str exp_to_str val_to_str stmt =
       (val_to_str testVal)
       (block_to_str exp_to_str val_to_str body)
       (phi_nodes_to_str val_to_str phiNodes)
-and block_to_str exp_to_str val_to_str  block =
-  Block.to_str (stmt_node_to_str ~space exp_to_str val_to_str) block
+and stmt_node_to_str exp_to_str val_to_str {stmt} =
+  stmt_to_str exp_to_str val_to_str stmt
+and block_to_str exp_to_str val_to_str block =
+  Block.to_str (stmt_node_to_str exp_to_str val_to_str) block
 
 (* search through a block and return the first srcinfo, *)
 (* if one exists. Return None otherwise *)
@@ -123,7 +129,7 @@ module Untyped = struct
     | Adverb (info, args) ->
       Printf.sprintf "%s(%s)"
         (untyped_adverb_info_to_str info)
-        (value_node_to_str args)
+        (value_nodes_to_str args)
 
   type exp_node = { exp : exp; exp_src : SrcInfo.t option }
   let exp_node_to_str expNode = exp_to_str expNode.exp
@@ -142,12 +148,12 @@ module Untyped = struct
 
   let fn_to_str (fundef:fn) =
     let name = FnId.to_str fundef.fn_id in
-    let inputs = id_list_to_str fundef.input_ids in
-    let outputs = id_list_to_str fundef.output_ids in
+    let inputs = ids_to_str fundef.input_ids in
+    let outputs = ids_to_str fundef.output_ids in
     let body = untyped_block_to_str fundef.body in
     wrap_str (sprintf "def %s(%s)=>(%s):\n%s" name inputs outputs body)
 
-  let find_fn_src_info {body} = get_block_src_info block
+  let find_fn_src_info {body} = get_block_src_info body
 
   let input_arity {input_ids} = List.length input_ids
   let output_arity {output_ids} = List.length output_ids
@@ -197,20 +203,20 @@ module Typed = struct
     | Adverb (info, args) ->
       Printf.sprintf "%s(%s)"
         (typed_adverb_info_to_str info)
-        (value_node_to_str args)
+        (value_nodes_to_str args)
 
   type exp_node = {
     exp: exp;
     exp_src : SrcInfo.t option;
     exp_types : Type.t list
   }
-  type tenv = Type.t ID.Map.t
+  let exp_node_to_str {exp} = exp_to_str exp
 
   type typed_block = (exp_node, value_node) block
 
   let typed_block_to_str : typed_block -> string =
     block_to_str exp_node_to_str value_node_to_str
-
+  type tenv = Type.t ID.Map.t
   type fn = {
     body: typed_block;
     tenv : tenv;
@@ -224,17 +230,17 @@ module Typed = struct
   let typed_id_to_str tenv id =
     (ID.to_str id) ^ " : " ^ (Type.to_str (ID.Map.find id tenv))
 
-  let typed_id_list_to_str tenv ids =
+  let typed_ids_to_str tenv ids =
     String.concat ", " (List.map (typed_id_to_str tenv) ids)
 
   let fn_to_str (fundef:fn) =
     let name = FnId.to_str fundef.fn_id in
-    let inputs = typed_id_list_to_str fundef.tenv fundef.input_ids in
-    let outputs = typed_id_list_to_str fundef.tenv fundef.output_ids in
+    let inputs = typed_ids_to_str fundef.tenv fundef.input_ids in
+    let outputs = typed_ids_to_str fundef.tenv fundef.output_ids in
     let body = typed_block_to_str fundef.body in
     wrap_str (sprintf "def %s(%s)=>(%s):\n%s" name inputs outputs body)
 
-  let find_fn_src_info {body} = get_block_src_info block
+  let find_fn_src_info {body} = get_block_src_info body
 
   let input_arity {input_ids} = List.length input_ids
   let output_arity {output_ids} = List.length output_ids
