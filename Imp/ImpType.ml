@@ -1,3 +1,4 @@
+(* pp: -parser o pa_macro.cmo *)
 
 type elt_t = Type.elt_t
 type t =
@@ -12,7 +13,7 @@ type t =
 let rec to_str = function
 	| ScalarT elt_t -> Type.elt_to_str elt_t
 	| ArrayT (elt_t, r) ->
-      Printf.sprintf "array%d<%s>" r (Type.elt_to_str elt_t)
+    Printf.sprintf "array%d<%s>" r (Type.elt_to_str elt_t)
 	| ShiftT t -> Printf.sprintf "shift(%s)" (to_str t)
   | _ -> failwith "Not implemented"
 
@@ -27,8 +28,6 @@ let rec elt_type = function
   | SliceT nested
   | ShiftT nested -> elt_type nested
 
-
-
 let is_scalar = function
 	| ScalarT _ -> true
 	| _ -> false
@@ -40,7 +39,6 @@ let is_int = function
   | ScalarT Type.Int32T
   | ScalarT Type.Int64T -> true
   | _ -> false
-
 
 let is_float = function
   | ScalarT Type.Float32T
@@ -69,7 +67,8 @@ let float64_t = ScalarT Type.Float64T
 let common_type t1 t2 = match t1, t2 with
   | ScalarT t1', ScalarT t2' -> ScalarT (Type.common_elt_type t1' t2')
   | _ -> if t1 = t2 then t1 else
-         failwith ("Can't unify imp types " ^ (to_str t1) ^ " and " ^ (to_str t2))
+         failwith ("Can't unify imp types " ^ (to_str t1) ^ " and " ^
+                  (to_str t2))
 
 let rec combine_type_list = function
   | [] -> failwith "Can't combine empty type list"
@@ -84,8 +83,8 @@ let rec type_of_value = function
 let peel ?(num_axes=1) = function
   | ArrayT (eltT, r) ->
     let diff = r - num_axes in
-    if diff = 0 then ScalarT eltT
-    else if diff > 0 then ArrayT (eltT, diff)
-    else failwith "[ImpType.peel] Too many axes"
+      if diff = 0 then ScalarT eltT
+      else if diff > 0 then ArrayT (eltT, diff)
+      else failwith "[ImpType.peel] Too many axes"
   | ScalarT eltT -> ScalarT eltT
   | _ -> failwith "Not implemented"
