@@ -25,9 +25,9 @@ type loop_descr = {
 }
 
 let rec build_loop_nests
-          (codegen:ImpCodegen.codegen)
-          (descrs : loop_descr list)
-          (body:Imp.block) =
+    (codegen:ImpCodegen.codegen)
+    (descrs : loop_descr list)
+    (body:Imp.block) =
   match descrs with
 	| [] -> body
 	| d::ds ->
@@ -51,10 +51,10 @@ let rec build_loop_nests
     ]
 
 let mk_simple_loop_descriptor
-        (codegen:ImpCodegen.codegen)
-        ?(down=false)
-        ?(start=ImpHelpers.zero)
-        (stop:Imp.value_node) =
+    (codegen:ImpCodegen.codegen)
+    ?(down=false)
+    ?(start=ImpHelpers.zero)
+    (stop:Imp.value_node) =
   {
     loop_var = codegen#fresh_local ~name:"loop_idx" int32_t;
     loop_start = start;
