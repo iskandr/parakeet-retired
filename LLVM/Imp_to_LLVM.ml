@@ -115,10 +115,10 @@ let compile_cast (fnInfo:fn_info) original (srcT:ImpType.t) (destT:ImpType.t) =
         if Type.sizeof srcEltT < Type.sizeof destEltT
         then Llvm.build_fpext else Llvm.build_fptrunc
       )
-      else if ImpType.is_float srcT && ImpType.is_int destT
-           then Llvm.build_fptosi
-      else if ImpType.is_int srcT && ImpType.is_float destT
-           then Llvm.build_sitofp
+      else if ImpType.is_float srcT && ImpType.is_int destT then
+        Llvm.build_fptosi
+      else if ImpType.is_int srcT && ImpType.is_float destT then
+        Llvm.build_sitofp
       else failwith $
         Printf.sprintf "Unsupported cast from %s to %s\n"
           (ImpType.to_str srcT) (ImpType.to_str destT)
@@ -135,27 +135,27 @@ let compile_cmp (t:Type.elt_t) op (vals:llvalue list) builder =
         (List.length vals)
   in
   let cmpFn : llvalue -> llvalue -> string -> llbuilder -> llvalue =
-  match op with
-    | Prim.Eq ->
-      if Type.elt_is_int t then Llvm.build_icmp Llvm.Icmp.Eq
-      else Llvm.build_fcmp Llvm.Fcmp.Oeq
-    | Prim.Neq ->
-      if Type.elt_is_int t then Llvm.build_icmp Llvm.Icmp.Ne
-      else Llvm.build_fcmp Llvm.Fcmp.One
-    | Prim.Lt ->
-      if Type.elt_is_int t then Llvm.build_icmp Llvm.Icmp.Slt
-      else Llvm.build_fcmp Llvm.Fcmp.Olt
-    | Prim.Lte ->
-      if Type.elt_is_int t then Llvm.build_icmp Llvm.Icmp.Sle
-      else Llvm.build_fcmp Llvm.Fcmp.Ole
-    | Prim.Gt ->
-      if Type.elt_is_int t then Llvm.build_icmp Llvm.Icmp.Sgt
-      else Llvm.build_fcmp Llvm.Fcmp.Ogt
-    | Prim.Gte  ->
-      if Type.elt_is_int t then Llvm.build_icmp Llvm.Icmp.Sge
-      else Llvm.build_fcmp Llvm.Fcmp.Oge
-    | _ ->
-      failwith (Printf.sprintf "Unsupported cmp %s" (Prim.scalar_op_to_str op))
+	  match op with
+		| Prim.Eq ->
+		  if Type.elt_is_int t then Llvm.build_icmp Llvm.Icmp.Eq
+		  else Llvm.build_fcmp Llvm.Fcmp.Oeq
+		| Prim.Neq ->
+		  if Type.elt_is_int t then Llvm.build_icmp Llvm.Icmp.Ne
+		  else Llvm.build_fcmp Llvm.Fcmp.One
+		| Prim.Lt ->
+		  if Type.elt_is_int t then Llvm.build_icmp Llvm.Icmp.Slt
+		  else Llvm.build_fcmp Llvm.Fcmp.Olt
+		| Prim.Lte ->
+		  if Type.elt_is_int t then Llvm.build_icmp Llvm.Icmp.Sle
+		  else Llvm.build_fcmp Llvm.Fcmp.Ole
+		| Prim.Gt ->
+		  if Type.elt_is_int t then Llvm.build_icmp Llvm.Icmp.Sgt
+		  else Llvm.build_fcmp Llvm.Fcmp.Ogt
+		| Prim.Gte  ->
+		  if Type.elt_is_int t then Llvm.build_icmp Llvm.Icmp.Sge
+		  else Llvm.build_fcmp Llvm.Fcmp.Oge
+		| _ ->
+		  failwith (Printf.sprintf "Unsupported cmp %s" (Prim.scalar_op_to_str op))
   in
   let cmpBit = cmpFn x y "cmptmp" builder in
   let boolRepr = ImpType_to_lltype.scalar_to_lltype Type.BoolT in
@@ -220,86 +220,86 @@ let compile_math_op (t:Type.elt_t) op (vals:llvalue list) builder =
 
 let get_array_strides_ptr (fnInfo:fn_info) (array:llvalue) : llvalue =
   match Hashtbl.find_option fnInfo.array_strides_ptr_cache array with
-    | Some llvalue -> llvalue
-    | None ->
-      let stridesField = Llvm.const_int LLVM_Types.int32_t 2 in
-      let stridesFieldPtr =
-        Llvm.build_gep array
-          [|zero_i32;stridesField|] "stride_field" fnInfo.builder
-      in
-      let strides = Llvm.build_load stridesFieldPtr "strides" fnInfo.builder in
-      (
-        Hashtbl.add fnInfo.array_strides_ptr_cache array strides;
-        strides
-      )
+	| Some llvalue -> llvalue
+	| None ->
+	  let stridesField = Llvm.const_int LLVM_Types.int32_t 2 in
+	  let stridesFieldPtr =
+	    Llvm.build_gep array
+	      [|zero_i32;stridesField|] "stride_field" fnInfo.builder
+	  in
+	  let strides = Llvm.build_load stridesFieldPtr "strides" fnInfo.builder in
+	  (
+	    Hashtbl.add fnInfo.array_strides_ptr_cache array strides;
+	    strides
+	  )
 
 let get_array_strides_field (fnInfo:fn_info) (array:llvalue) (idx:int) =
   let key = array, idx in
   match Hashtbl.find_option fnInfo.array_strides_field_cache key with
-    | Some llvalue -> llvalue
-    | None ->
-      let strides : llvalue  = get_array_strides_ptr fnInfo array in
-      let stridePtr =
-        if idx <> 0 then (
-          let idxVal = Llvm.const_int LLVM_Types.int32_t idx in
-          Llvm.build_gep strides [|idxVal|] "stride_ptr" fnInfo.builder
-        )
-        else strides
-      in
-      let name = "stride" ^ (string_of_int idx) ^ "_" in
-      let strideVal = Llvm.build_load stridePtr name fnInfo.builder in
-      (
-        Hashtbl.add fnInfo.array_strides_field_cache key strideVal;
-        strideVal
-      )
+	| Some llvalue -> llvalue
+	| None ->
+	  let strides : llvalue  = get_array_strides_ptr fnInfo array in
+	  let stridePtr =
+	    if idx <> 0 then (
+	      let idxVal = Llvm.const_int LLVM_Types.int32_t idx in
+	      Llvm.build_gep strides [|idxVal|] "stride_ptr" fnInfo.builder
+	    )
+	    else strides
+	  in
+	  let name = "stride" ^ (string_of_int idx) ^ "_" in
+	  let strideVal = Llvm.build_load stridePtr name fnInfo.builder in
+	  (
+	    Hashtbl.add fnInfo.array_strides_field_cache key strideVal;
+	    strideVal
+	  )
 
 let get_array_shape_ptr (fnInfo:fn_info) (array:llvalue) : llvalue =
   match Hashtbl.find_option fnInfo.array_shape_ptr_cache array with
-    | Some llvalue -> llvalue
-    | None ->
-      let shapeField = Llvm.const_int LLVM_Types.int32_t 1 in
-      let shapeFieldPtr =
-        Llvm.build_gep array
-          [|zero_i32;shapeField|] "shape_field" fnInfo.builder
-      in
-      let shape = Llvm.build_load shapeFieldPtr "shape" fnInfo.builder in
-      (
-        Hashtbl.add fnInfo.array_shape_ptr_cache array shape;
-        shape
-      )
+  | Some llvalue -> llvalue
+  | None ->
+    let shapeField = Llvm.const_int LLVM_Types.int32_t 1 in
+    let shapeFieldPtr =
+      Llvm.build_gep array
+        [|zero_i32;shapeField|] "shape_field" fnInfo.builder
+    in
+    let shape = Llvm.build_load shapeFieldPtr "shape" fnInfo.builder in
+    (
+      Hashtbl.add fnInfo.array_shape_ptr_cache array shape;
+      shape
+    )
 
 let get_array_shape_field (fnInfo:fn_info) (array:llvalue) (idx:int) =
   let key = array, idx in
   match Hashtbl.find_option fnInfo.array_shape_field_cache key with
-    | Some llvalue -> llvalue
-    | None ->
-      let shape : llvalue  = get_array_shape_ptr fnInfo array in
-      let shapePtr : llvalue =
-        if idx <> 0 then (
-          let idxVal = Llvm.const_int LLVM_Types.int32_t idx in
-          Llvm.build_gep shape [|idxVal|] "stride_ptr" fnInfo.builder
-        )
-        else shape
-      in
-      let name = "dim" ^ (string_of_int idx) ^ "_" in
-      let dimVal = Llvm.build_load shapePtr name fnInfo.builder in
-      (
-        Hashtbl.add fnInfo.array_shape_field_cache key dimVal;
-        dimVal
+  | Some llvalue -> llvalue
+  | None ->
+    let shape : llvalue  = get_array_shape_ptr fnInfo array in
+    let shapePtr : llvalue =
+      if idx <> 0 then (
+        let idxVal = Llvm.const_int LLVM_Types.int32_t idx in
+        Llvm.build_gep shape [|idxVal|] "stride_ptr" fnInfo.builder
       )
+      else shape
+    in
+    let name = "dim" ^ (string_of_int idx) ^ "_" in
+    let dimVal = Llvm.build_load shapePtr name fnInfo.builder in
+    (
+      Hashtbl.add fnInfo.array_shape_field_cache key dimVal;
+      dimVal
+    )
 
 let get_array_data_ptr (fnInfo:fn_info) (array:llvalue) : llvalue =
   match Hashtbl.find_option fnInfo.array_data_ptr_cache array with
-    | Some llvalue -> llvalue
-    | None ->
-      let dataFieldPtr =
-        Llvm.build_gep array [|zero_i32; zero_i32|] "data_field" fnInfo.builder
-      in
-      let addr = Llvm.build_load dataFieldPtr "data_addr" fnInfo.builder in
-      (
-        Hashtbl.add fnInfo.array_data_ptr_cache array addr;
-        addr
-      )
+  | Some llvalue -> llvalue
+  | None ->
+    let dataFieldPtr =
+      Llvm.build_gep array [|zero_i32; zero_i32|] "data_field" fnInfo.builder
+    in
+    let addr = Llvm.build_load dataFieldPtr "data_addr" fnInfo.builder in
+    (
+      Hashtbl.add fnInfo.array_data_ptr_cache array addr;
+      addr
+    )
 
 (* convert a list of indices into an address offset *)
 let rec compute_addr_helper
@@ -311,13 +311,15 @@ let rec compute_addr_helper
     if Llvm.is_null currIdx then
       compute_addr_helper fnInfo array (i+1) offset otherIndices
     else
-    let strideVal : llvalue = get_array_strides_field fnInfo array i in
-    let currOffset = Llvm.build_mul strideVal currIdx "offset_term" fnInfo.builder in
-    let newOffset =
-      if Llvm.is_null offset then currOffset
-      else Llvm.build_add offset currOffset "offset" fnInfo.builder
-    in
-    compute_addr_helper fnInfo array (i+1) newOffset otherIndices
+      let strideVal : llvalue = get_array_strides_field fnInfo array i in
+      let currOffset =
+        Llvm.build_mul strideVal currIdx "offset_term" fnInfo.builder
+      in
+      let newOffset =
+        if Llvm.is_null offset then currOffset
+        else Llvm.build_add offset currOffset "offset" fnInfo.builder
+      in
+      compute_addr_helper fnInfo array (i+1) newOffset otherIndices
   | [] -> offset
 
 let compile_arr_idx
