@@ -6,7 +6,6 @@ type value =
   | Var of ID.t
   | Num of ParNum.t
   | Str of string
-  | Sym of string
   | Unit
   | Prim of Prim.t
   | GlobalFn of FnId.t
@@ -113,7 +112,6 @@ let value_to_str = function
   | Var id -> ID.to_str id
   | Num n -> ParNum.to_str n
   | Str s -> "\""^s ^"\""
-  | Sym s -> "`" ^ s
   | Unit -> "()"
   | Prim p -> "PRIM(" ^ (Prim.to_str p) ^ ")"
 

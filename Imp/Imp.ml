@@ -29,7 +29,7 @@ type value =
   | CudaInfo of cuda_info * coord
   | Idx of value_node * value_node list
   | Val of value_node
-  | Op of  Type.elt_t * Prim.scalar_op * value_node list
+  | Op of Type.elt_t * Prim.scalar_op * value_node list
   | Select of ImpType.t * value_node * value_node * value_node
   | Cast of ImpType.t * value_node
   | DimSize of value_node * value_node
@@ -76,7 +76,7 @@ let empty_fn = {
   local_ids = [];
   storage = ID.Map.empty;
   types = ID.Map.empty;
-  shapes=ID.Map.empty
+  shapes = ID.Map.empty
 }
 
 let get_var_type (fn:fn) (id:ID.t) =

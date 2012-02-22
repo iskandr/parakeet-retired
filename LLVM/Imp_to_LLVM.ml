@@ -44,7 +44,7 @@ type fn_info = {
   output_llvm_types : Llvm.lltype list;
 
   named_values : (string, Llvm.llvalue) Hashtbl.t;
-  builder: Llvm.llbuilder;
+  builder : Llvm.llbuilder;
   name : string;
 
   array_strides_ptr_cache : (Llvm.llvalue, Llvm.llvalue) Hashtbl.t;
@@ -69,11 +69,11 @@ let create_fn_info (fn : Imp.fn) =
 
     input_llvm_types = List.map ImpType_to_lltype.to_lltype inputImpTypes;
     local_llvm_types = List.map ImpType_to_lltype.to_lltype localImpTypes;
-    (* IMPORTANT: outputs are allocated outside the functiona and the *)
+    (* IMPORTANT: outputs are allocated outside the function and the *)
     (* addresses of their locations are passed in *)
     output_llvm_types =
-       List.map adjust_output_pointer
-         (List.map ImpType_to_lltype.to_lltype outputImpTypes);
+      List.map adjust_output_pointer
+        (List.map ImpType_to_lltype.to_lltype outputImpTypes);
 
     named_values = Hashtbl.create 13;
     builder = Llvm.builder context;

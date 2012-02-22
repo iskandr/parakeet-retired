@@ -1,12 +1,11 @@
 (* pp: -parser o pa_macro.cmo *)
 
 open Base
-open SSA
 open Printf
+open SSA
 
 type errors = (SrcInfo.t option * string) Queue.t
 type tenv = Type.t ID.Map.t
-
 
 let check_value (errorLog:errors)(tenv:tenv) (defined : ID.Set.t) vNode : unit =
  let err msg = Queue.add (vNode.value_src, msg) errorLog in
@@ -33,7 +32,7 @@ let check_value (errorLog:errors)(tenv:tenv) (defined : ID.Set.t) vNode : unit =
       (*if not $ Type.is_function vNode.value_type then
         err "expected function annotation"
        *)
-  | Sym _ | Str _ | Unit  -> ()
+  | Str _ | Unit  -> ()
 
 let check_value_list errorLog tenv defined values : unit =
   List.iter (check_value errorLog tenv defined) values

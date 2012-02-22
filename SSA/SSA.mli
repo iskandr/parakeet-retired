@@ -3,7 +3,6 @@ type value =
   | Var of ID.t
   | Num of ParNum.t
   | Str of string
-  | Sym of string
   | Unit
   | Prim of Prim.t
   | GlobalFn of FnId.t
