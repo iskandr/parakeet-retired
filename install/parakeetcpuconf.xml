@@ -1,61 +1,57 @@
 <Machine>
   <CPU>
     <Id>0</Id>
-    <NumCores>4</NumCores>
-    <NumThreadsPerCore>2</NumThreadsPerCore>
-    <CacheLevels>3</CacheLevels>
     <Core>
       <Id>0</Id>
-      <Thread>
+      <Threads>
         <AffinityId>0</AffinityId>
-      </Thread>
-      <Thread>
         <AffinityId>4</AffinityId>
-      </Thread>
-      <L1Cache>0</L1Cache>
-      <L2Cache>4</L2Cache>
-      <L3Cache>8</L3Cache>
+      </Threads>
+      <Caches>
+        <L1Cache>0</L1Cache>
+        <L2Cache>4</L2Cache>
+        <L3Cache>8</L3Cache>
+      </Caches>
     </Core>
     <Core>
       <Id>1</Id>
-      <Thread>
+      <Threads>
         <AffinityId>1</AffinityId>
-      </Thread>
-      <Thread>
         <AffinityId>5</AffinityId>
-      </Thread>
-      <L1Cache>1</L1Cache>
-      <L2Cache>5</L2Cache>
-      <L3Cache>8</L3Cache>
+      </Threads>
+      <Caches>
+        <L1Cache>1</L1Cache>
+        <L2Cache>5</L2Cache>
+        <L3Cache>8</L3Cache>
+      </Caches>
     </Core>
     <Core>
       <Id>2</Id>
-      <Thread>
+      <Threads>
         <AffinityId>2</AffinityId>
-      </Thread>
-      <Thread>
         <AffinityId>6</AffinityId>
-      </Thread>
-      <L1Cache>2</L1Cache>
-      <L2Cache>6</L2Cache>
-      <L3Cache>8</L3Cache>
+      </Threads>
+      <Caches>
+        <L1Cache>2</L1Cache>
+        <L2Cache>6</L2Cache>
+        <L3Cache>8</L3Cache>
+      </Caches>
     </Core>
     <Core>
       <Id>3</Id>
-      <Thread>
+      <Threads>
         <AffinityId>3</AffinityId>
-      </Thread>
-      <Thread>
         <AffinityId>7</AffinityId>
-      </Thread>
-      <L1Cache>3</L1Cache>
-      <L2Cache>7</L2Cache>
-      <L3Cache>8</L3Cache>
+      </Threads>
+      <Caches>
+        <L1Cache>3</L1Cache>
+        <L2Cache>7</L2Cache>
+        <L3Cache>8</L3Cache>
+      </Caches>
     </Core>
     <Cache>
       <Id>0</Id>
       <Level>1</Level>
-      <NumCores>1</NumCores>
       <Cores>
         <Core>0</Core>
       </Cores>
@@ -66,7 +62,6 @@
     <Cache>
       <Id>1</Id>
       <Level>1</Level>
-      <NumCores>1</NumCores>
       <Cores>
         <Core>1</Core>
       </Cores>
@@ -77,7 +72,6 @@
     <Cache>
       <Id>2</Id>
       <Level>1</Level>
-      <NumCores>1</NumCores>
       <Cores>
         <Core>2</Core>
       </Cores>
@@ -88,7 +82,6 @@
     <Cache>
       <Id>3</Id>
       <Level>1</Level>
-      <NumCores>1</NumCores>
       <Cores>
         <Core>3</Core>
       </Cores>
@@ -99,7 +92,6 @@
     <Cache>
       <Id>4</Id>
       <Level>2</Level>
-      <NumCores>1</NumCores>
       <Cores>
         <Core>0</Core>
       </Cores>
@@ -110,7 +102,6 @@
     <Cache>
       <Id>5</Id>
       <Level>2</Level>
-      <NumCores>1</NumCores>
       <Cores>
         <Core>1</Core>
       </Cores>
@@ -121,7 +112,6 @@
     <Cache>
       <Id>6</Id>
       <Level>2</Level>
-      <NumCores>1</NumCores>
       <Cores>
         <Core>2</Core>
       </Cores>
@@ -132,7 +122,6 @@
     <Cache>
       <Id>7</Id>
       <Level>2</Level>
-      <NumCores>1</NumCores>
       <Cores>
         <Core>3</Core>
       </Cores>
@@ -143,7 +132,6 @@
     <Cache>
       <Id>8</Id>
       <Level>3</Level>
-      <NumCores>4</NumCores>
       <Cores>
         <Core>0</Core>
         <Core>1</Core>

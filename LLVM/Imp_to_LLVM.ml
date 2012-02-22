@@ -303,10 +303,10 @@ let get_array_data_ptr (fnInfo:fn_info) (array:llvalue) : llvalue =
 
 (* convert a list of indices into an address offset *)
 let rec compute_addr_helper
-          (fnInfo:fn_info)
-          (array:Llvm.llvalue)
-          (i:int)
-          (offset:Llvm.llvalue) = function
+    (fnInfo:fn_info)
+    (array:Llvm.llvalue)
+    (i:int)
+    (offset:Llvm.llvalue) = function
   | currIdx :: otherIndices ->
     if Llvm.is_null currIdx then
       compute_addr_helper fnInfo array (i+1) offset otherIndices
@@ -323,10 +323,10 @@ let rec compute_addr_helper
   | [] -> offset
 
 let compile_arr_idx
-      (array:Llvm.llvalue)
-      (indices:Llvm.llvalue list)
-      (imp_elt_t:Type.elt_t)
-      (fnInfo:fn_info) =
+    (array:Llvm.llvalue)
+    (indices:Llvm.llvalue list)
+    (imp_elt_t:Type.elt_t)
+    (fnInfo:fn_info) =
   let builder = fnInfo.builder in
   let dataPtr = get_array_data_ptr fnInfo array in
 	let offset = compute_addr_helper fnInfo array 0 zero_i32 indices in
@@ -340,10 +340,10 @@ let compile_arr_idx
   Llvm.build_inttoptr newAddr64 (Llvm.type_of dataPtr) "idxAddr" builder
 
 let compile_range_load
-      (array:Llvm.llvalue)
-      (indices:Llvm.llvalue list)
-      (imp_elt_t:Type.elt_t)
-      (fnInfo:fn_info) =
+    (array:Llvm.llvalue)
+    (indices:Llvm.llvalue list)
+    (imp_elt_t:Type.elt_t)
+    (fnInfo:fn_info) =
 	let startIdx = Llvm.const_int LLVM_Types.int32_t 0 in
 	let startPtr =
 	  Llvm.build_gep array [|zero_i32;startIdx|] "gep_start" fnInfo.builder
