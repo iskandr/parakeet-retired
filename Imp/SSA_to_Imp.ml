@@ -107,9 +107,9 @@ let rec argmax_array_rank = function
     else restResult
 
 let translate_array_literal
-      (codegen:ImpCodegen.codegen)
-      (lhsId:ID.t)
-      (elts:SSA.value_node list)  =
+    (codegen:ImpCodegen.codegen)
+    (lhsId:ID.t)
+    (elts:SSA.value_node list)  =
   let ssaTypes = List.map (fun {SSA.value_type} -> value_type) elts in
   if not (List.for_all Type.is_scalar ssaTypes) then
     failwith "[SSA_to_Imp] Nested arrays not yet implemented"
@@ -128,9 +128,9 @@ let translate_array_literal
 (* given an array, map a list of its axes into *)
 (* a list of statements and a list of dimsize values *)
 let rec size_of_axes
-          (codegen:ImpCodegen.codegen)
-          (array:Imp.value_node)
-          (axes:int list) : Imp.block * Imp.value_node list =
+    (codegen:ImpCodegen.codegen)
+    (array:Imp.value_node)
+    (axes:int list) : Imp.block * Imp.value_node list =
   match axes with
   | [] -> [], []
   | axis::rest ->
@@ -143,9 +143,9 @@ let rec size_of_axes
 (* given an array and a list of axes, create a list of loop descriptors*)
 (* which we can turn into nested loops over the array *)
 let rec axes_to_loop_descriptors
-          (codegen:ImpCodegen.codegen)
-          (array : Imp.value_node)
-          (axes : int list) : Imp.block * loop_descr list =
+    (codegen:ImpCodegen.codegen)
+    (array : Imp.value_node)
+    (axes : int list) : Imp.block * loop_descr list =
   let stmts, sizes = size_of_axes codegen array axes in
   let loopDescriptors = List.map
     (mk_simple_loop_descriptor codegen) sizes in
@@ -313,11 +313,11 @@ and translate_exp (codegen:ImpCodegen.codegen) expNode : Imp.value_node  =
 	| _ -> failwith $ "[ssa->imp] unrecognized exp: " ^ (SSA.exp_to_str expNode)
 
 and translate_adverb codegen (lhsIds:ID.t list) (adverb:Prim.adverb)
-      ~(ssa_fn:SSA.fn)
-      ~(closure_args:Imp.value_node list)
-      ~(init:Imp.value_node list option)
-      ~(args:Imp.value_node list)
-      ~(axes:int list) : Imp.stmt list =
+    ~(ssa_fn:SSA.fn)
+    ~(closure_args:Imp.value_node list)
+    ~(init:Imp.value_node list option)
+    ~(args:Imp.value_node list)
+    ~(axes:int list) : Imp.stmt list =
   assert (init = None);
   IFDEF DEBUG THEN
     Printf.printf "Closure args: %s, array args: %s\n%!"
@@ -348,12 +348,12 @@ and translate_adverb codegen (lhsIds:ID.t list) (adverb:Prim.adverb)
       (Prim.adverb_to_str adverb)
 
 and translate_map
-      (codegen:ImpCodegen.codegen)
-      (lhsIds:ID.t list)
-      (impFn:Imp.fn)
-      (closureArgs:Imp.value_node list)
-      (args:Imp.value_node list)
-      (axes:int list) : Imp.stmt list =
+    (codegen:ImpCodegen.codegen)
+    (lhsIds:ID.t list)
+    (impFn:Imp.fn)
+    (closureArgs:Imp.value_node list)
+    (args:Imp.value_node list)
+    (axes:int list) : Imp.stmt list =
   let num_axes : int = List.length axes in
   let bigArray : Imp.value_node = argmax_array_rank args in
   let initBlock, loopDescriptors =
@@ -384,11 +384,11 @@ and translate_map
   initBlock @ loops
 
 and translate_reduce
-      (codegen:ImpCodegen.codegen)
-      (lhsIds:ID.t list)
-      (impFn:Imp.fn)
-      (closureArgs:Imp.value_node list)
-      (initArgs:Imp.value_node list option)
-      (args:Imp.value_node list)
-      (axes:int list)  =
+    (codegen:ImpCodegen.codegen)
+    (lhsIds:ID.t list)
+    (impFn:Imp.fn)
+    (closureArgs:Imp.value_node list)
+    (initArgs:Imp.value_node list option)
+    (args:Imp.value_node list)
+    (axes:int list)  =
   assert false

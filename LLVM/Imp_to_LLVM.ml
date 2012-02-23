@@ -389,10 +389,10 @@ let rec compile_value ?(do_load=true) fnInfo (impVal:Imp.value_node) =
       compile_cmp t op vals' fnInfo.builder
     else
       compile_math_op t op vals' fnInfo.builder
-  | Imp.Cast(t, v) ->
+  | Imp.Cast (t, v) ->
     let original = compile_value fnInfo v in
     compile_cast fnInfo original v.Imp.value_type t
-  | Imp.Idx(arr, indices) ->
+  | Imp.Idx (arr, indices) ->
     let llvmArray = compile_value ~do_load:false fnInfo arr in
     let llvmIndices = List.map (compile_value fnInfo) indices in
     begin match arr.value_type with
@@ -409,7 +409,7 @@ let rec compile_value ?(do_load=true) fnInfo (impVal:Imp.value_node) =
 
 and compile_values fnInfo = function
   | [] -> []
-  | vNode::vNodes ->
+  | vNode :: vNodes ->
     let llvmVal = compile_value fnInfo vNode in
     llvmVal :: (compile_values fnInfo vNodes)
 
@@ -468,7 +468,7 @@ and compile_stmt fnInfo currBB stmt =
         let instr = Llvm.build_store rhs register fnInfo.builder in
         currBB
     end
-  | Imp.SetIdx(arr, indices, rhs) ->
+  | Imp.SetIdx (arr, indices, rhs) ->
     let arrayPtr : Llvm.llvalue = compile_value ~do_load:false fnInfo arr in
     let indexRegisters : Llvm.llvalue list = compile_values fnInfo indices in
     let imp_elt_t = match arr.value_type with

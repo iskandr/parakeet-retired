@@ -1,4 +1,3 @@
-
 type elt_t = Type.elt_t
 
 type t =
@@ -9,6 +8,7 @@ type t =
 	| ShiftT of t
   | SliceT of t
   | RangeT of elt_t
+  | VecSliceT of elt_t * int
 
 val to_str : t -> string
 val type_list_to_str : t list -> string

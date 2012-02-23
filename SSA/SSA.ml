@@ -1,6 +1,7 @@
 (* pp: -parser o pa_macro.cmo *)
 
 open Base
+open Printf
 
 type value =
   | Var of ID.t
@@ -19,9 +20,9 @@ and value_node = {
 and value_nodes = value_node list
 
 type closure = {
-  closure_fn: FnId.t;
-  closure_args: value_node list;
-  closure_arg_types: Type.t list;
+  closure_fn : FnId.t;
+  closure_args : value_node list;
+  closure_arg_types : Type.t list;
 }
 
 type adverb_args = {
@@ -43,7 +44,7 @@ type exp =
   | Adverb of Prim.adverb * closure * adverb_args
 
 and exp_node = {
-  exp: exp;
+  exp : exp;
   exp_src : SrcInfo.t option;
   (* because a function applicatin might return multiple values,*)
   (* expressions have multiple types *)
@@ -64,18 +65,18 @@ and stmt_node = {
 and block = stmt_node Block.t
 and phi_node = {
   phi_id : ID.t;
-  phi_left:  value_node;
-  phi_right: value_node;
+  phi_left : value_node;
+  phi_right : value_node;
   phi_type : Type.t;
   phi_src : SrcInfo.t option;
 }
 and phi_nodes = phi_node list
 
 type fn = {
-  body: block;
+  body : block;
   tenv : tenv;
-  input_ids: ID.t list;
-  output_ids: ID.t list;
+  input_ids : ID.t list;
+  output_ids : ID.t list;
   fn_input_types : Type.t list;
   fn_output_types : Type.t list;
   fn_id : FnId.t;
@@ -88,8 +89,6 @@ let is_simple_exp = function
   | Adverb _
   | App _ -> false
   | _ -> true
-
-open Printf
 
 let rec id_list_to_str = function
   | [] -> ""

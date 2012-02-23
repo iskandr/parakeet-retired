@@ -211,7 +211,6 @@ let index = op (Prim.ArrayOp Prim.Index)
 let find = op (Prim.ArrayOp Prim.Find)
 let dimsize = op (Prim.ArrayOp Prim.DimSize)
 
-
 let value x = exp $ Values [x]
 let values xs = exp $ Values xs
 
@@ -243,15 +242,15 @@ let is_empty_phi phiNode = match phiNode.phi_left, phiNode.phi_right with
 (* make a block of phi nodes merging IDs from the three lists given *)
 let rec phi_nodes outIds leftIds rightIds =
   match (outIds, leftIds, rightIds) with
-    | [], _, _ | _,[],_ | _,_,[] -> []
-    | x::xs, y::ys, z::zs ->
-      (phi x (var y) (var z)) :: (phi_nodes xs ys zs)
+  | [], _, _ | _,[],_ | _,_,[] -> []
+  | x::xs, y::ys, z::zs ->
+    (phi x (var y) (var z)) :: (phi_nodes xs ys zs)
 
 let rec phi_nodes_from_values outVals leftVals rightVals =
   match (outVals, leftVals, rightVals) with
-    | [], _, _ | _, [], _ | _, _, [] -> []
-    | x::xs, y::ys, z::zs ->
-      (phi (get_id x) y z) :: (phi_nodes_from_values xs ys zs)
+  | [], _, _ | _, [], _ | _, _, [] -> []
+  | x::xs, y::ys, z::zs ->
+    (phi (get_id x) y z) :: (phi_nodes_from_values xs ys zs)
 
 (* assume a block contains only phi, collect the IDs and
    either the left or right values
