@@ -4,14 +4,13 @@ module CoreLanguage : sig
 	type value_node = { value : value; value_src : SrcInfo.t option }
 	type value_nodes = value_node list
 
-	type untyped_adverb_info =
-	  (value_node, value_nodes, value_nodes option) Adverb.info
+	type adverb_info = (value_node, value_nodes, value_nodes option) Adverb.info
 
 	type exp =
 	  | Values of value_nodes
 	  | Arr of value_nodes
 	  | App of value_node * value_nodes
-	  | Adverb of untyped_adverb_info * value_nodes
+	  | Adverb of adverb_info * value_nodes
 	type exp_node = { exp : exp; exp_src : SrcInfo.t option }
 
   type phi_node = value_node PhiNode.t
@@ -43,7 +42,7 @@ module PrettyPrinters : sig
   val value_to_str : value -> string
   val value_node_to_str : value_node -> string
   val value_nodes_to_str : value_nodes -> string
-  val untyped_adverb_info_to_str : untyped_adverb_info -> string
+  val adverb_info_to_str : adverb_info -> string
   val exp_to_str : exp -> string
 
   val exp_node_to_str : exp_node -> string
@@ -59,6 +58,29 @@ module PrettyPrinters : sig
 end
 include module type of PrettyPrinters
 
+val wrap_value : ?src: SrcInfo.t -> value -> value_node
+val wrap_exp : ?src : SrcInfo.t -> value_node -> exp_node
+
+val is_empty_exp : exp -> bool
+val is_empty_exp_node : exp_node -> bool
+
+module ValueHelpers : sig
+  val op :  ?src:SrcInfo.t ->  Prim.t -> value_node
+  val globalfn : ?src:SrcInfo.t -> FnId.t -> value_node
+  val get_id : value_node -> ID.t
+  val var : ?src:SrcInfo.t -> ID.t -> value_node
+  val num : ?src:SrcInfo.t -> ParNum.t -> value_node
+  val bool : ?src:SrcInfo.t -> bool -> value_node
+  val int32  : ?src:SrcInfo.t -> int -> value_node
+  val float32 : ?src:SrcInfo.t -> float -> value_node
+  val float64 : ?src:SrcInfo.t -> float -> value_node
+  val is_const : value_node -> bool
+  val is_const_int : value_node -> bool
+  val get_const : value_node -> ParNum.t
+  val get_const_int : value_node -> int
+end
+include module type of ValueHelpers
+
 module FnHelpers : sig
 	val mk_fn :
 	  ?name: string -> input_ids: (ID.t list) -> output_ids: (ID.t list) ->
@@ -72,9 +94,4 @@ module FnHelpers : sig
 end
 include module type of FnHelpers
 
-val wrap_value : ?src: SrcInfo.t -> value -> value_node
-val wrap_exp : ?src : SrcInfo.t -> value_node -> exp_node
-
-val is_empty_exp : exp -> bool
-val is_empty_exp_node : exp_node -> bool
 

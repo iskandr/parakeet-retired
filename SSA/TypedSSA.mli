@@ -4,7 +4,7 @@ module CoreLanguage : sig
 	  { value : value; value_type : Type.t; value_src : SrcInfo.t option }
 
 	type value_nodes = value_node list
-	type typed_adverb_info = (FnId.t, value_nodes, value_nodes) Adverb.info
+	type adverb_info = (FnId.t, value_nodes, value_nodes) Adverb.info
 
 
 	type exp =
@@ -12,7 +12,7 @@ module CoreLanguage : sig
 	  | Arr of value_nodes
 	  | Call of FnId.t * value_nodes
 	  | PrimApp of Prim.t * value_nodes
-	  | Adverb of typed_adverb_info * value_nodes
+	  | Adverb of adverb_info * value_nodes
     | Cast of Type.t * value_node
 
 	type exp_node =
@@ -54,12 +54,11 @@ module PrettyPrinters : sig
   val value_to_str : value -> string
   val value_node_to_str : value_node -> string
   val value_nodes_to_str : value_nodes -> string
-  val typed_adverb_info_to_str : typed_adverb_info -> string
+  val adverb_info_to_str : adverb_info -> string
   val exp_to_str : exp -> string
 
   val exp_node_to_str : exp_node -> string
 
-  val ids_to_str : ID.t list -> string
   val phi_node_to_str : phi_node -> string
   val phi_nodes_to_str : phi_nodes -> string
   val stmt_to_str : stmt -> string
@@ -72,21 +71,23 @@ module PrettyPrinters : sig
 end
 include module type of PrettyPrinters
 
+
+val wrap_value : ?src: SrcInfo.t -> value -> Type.t -> value_node
+val wrap_exp : value_node -> exp_node
+val wrap_stmt : ?src:SrcInfo.t -> stmt -> stmt_node
+
+val is_empty_exp : exp -> bool
+val is_empty_exp_node : exp_node -> bool
+val is_empty_stmt : stmt_node -> bool
+
 module ValueHelpers : sig
     val get_id : value_node -> ID.t
-    val var : ?src:SrcInfo.t -> ?ty:Type.t -> ID.t -> value_node
-    val op :  ?src:SrcInfo.t -> ?ty:Type.t -> Prim.t -> value_node
-
-    val globalfn : ?src:SrcInfo.t -> ?ty:Type.t -> FnId.t -> value_node
-
-    val num : ?src:SrcInfo.t -> ?ty:Type.t -> ParNum.t -> value_node
-
+    val var : ?src:SrcInfo.t -> Type.t -> ID.t -> value_node
+    val num : ?src:SrcInfo.t -> ParNum.t -> value_node
     val bool : ?src:SrcInfo.t -> bool -> value_node
     val int32  : ?src:SrcInfo.t -> int -> value_node
-
     val float32 : ?src:SrcInfo.t -> float -> value_node
     val float64 : ?src:SrcInfo.t -> float -> value_node
-
     val is_const : value_node -> bool
     val is_const_int : value_node -> bool
     val get_const : value_node -> ParNum.t
@@ -119,12 +120,4 @@ module FnHelpers  : sig
 end
 include module type of FnHelpers
 
-
-val wrap_value : ?src: SrcInfo.t -> value -> Type.t -> value_node
-val wrap_exp : value_node -> exp_node
-val wrap_stmt : ?src:SrcInfo.t -> stmt -> stmt_node
-
-val is_empty_exp : exp -> bool
-val is_empty_exp_node : exp_node -> bool
-val is_empty_stmt : stmt_node -> bool
 

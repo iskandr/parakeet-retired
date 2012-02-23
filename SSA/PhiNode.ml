@@ -6,7 +6,7 @@ type 'a t = {
 }
 
 let to_str value_node_to_str phiNode =
-  sprintf "%s <- phi(%s, %s)"
+  Printf.sprintf "%s <- phi(%s, %s)"
     (ID.to_str phiNode.phi_id)
     (value_node_to_str phiNode.phi_left)
     (value_node_to_str phiNode.phi_right)
@@ -19,7 +19,7 @@ let mk ?src id left right =
 let rec mk_list ?src outIds leftVals rightVals =
   match outIds, leftVals, rightVals with
   | [], _, _ | _,[],_ | _,_,[] -> []
-  | x::xs, y::ys, z::zs -> (phi ?src x y z) :: (phi_nodes ?src xs ys zs)
+  | x::xs, y::ys, z::zs -> (mk ?src x y z) :: (mk_list ?src xs ys zs)
 
 (* assume a block contains only phi, collect the IDs and
    either the left or right values

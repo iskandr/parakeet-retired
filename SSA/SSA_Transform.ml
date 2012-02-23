@@ -159,15 +159,19 @@ module Mk(R: SIMPLE_TRANSFORM_RULES) = struct
       if changed() then {expNode with exp=PrimApp(prim,args')}
       else expNode
 
-    | Adverb(op, closure, adverb_args) ->
-      let closureArgs' = transform_values blockState cxt closure.closure_args in
-      let args' = transform_values blockState cxt adverb_args.args in
-      let axes' = transform_optional_values blockState cxt adverb_args.axes in
-      let init' = transform_optional_values blockState cxt adverb_args.init in
+    | Adverb({Adverb.fixed_args; init; axes} as adverbInfo, args) ->
+      let fixedArgs' = transform_values blockState cxt fixed_args in
+      let axes' = transform_values blockState cxt axes in
+      let init' = transform_optional_values blockState cxt init in
+      let args' = transform_values blockState cxt args in
       if changed() then
-        let closure' = { closure with closure_args = closureArgs' } in
-        let adverb_args' = { args = args'; init = init'; axes=axes' } in
-        { expNode with exp = Adverb(op, closure', adverb_args') }
+        let adverbInfo' = { adverbInfo with
+          Adverb.fixed_args = fixedArgs';
+          init = init';
+          axes = axes'
+        }
+        in
+        { expNode with exp = Adverb(adverbInfo', args') }
       else expNode
       in
     BlockState.process_update blockState expNode' (R.exp cxt expNode')
@@ -200,12 +204,12 @@ module Mk(R: SIMPLE_TRANSFORM_RULES) = struct
       if changed() then {stmtNode with stmt=Set(ids, rhsExpNode) }
       else stmtNode
 
-    | SetIdx (lhs, indices, rhsVal) ->
+    | SetIdx (lhs, indices, rhs) ->
       let lhs = transform_value blockState cxt lhs in
       let indices = transform_values blockState cxt indices in
-      let rhsVal =  transform_value blockState cxt rhsVal in
+      let rhs =  transform_exp blockState cxt rhs in
       if changed() then
-        {stmtNode with stmt=SetIdx(lhs, indices, rhsVal)}
+        {stmtNode with stmt=SetIdx(lhs, indices, rhs)}
       else stmtNode
     | If (cond, tBlock, fBlock, merge) ->
       let cond' = transform_value blockState cxt cond  in
