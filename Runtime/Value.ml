@@ -81,7 +81,7 @@ let rec get_underlying_array = function
   | Rotate (a, _, _) -> get_underlying_array a
   | Range _ -> failwith "Don't know how to handle ranges yet."
 
-let rec shape_of =  function
+let rec shape_of = function
   | Array {array_shape} -> array_shape
   | Scalar _ -> Shape.scalar_shape
   | _ -> failwith "[Value.shape_of] Not yet implemented"

@@ -297,17 +297,25 @@ let reduce ~axes ~fn ~fixed ?init args =
       | [[]] -> cur
       | hd :: rest -> rest
     else
+      let get_slice arg ty shape : GV.t =
+        (* Have to handle the case of slicing out scalars specially *)
+        if Shape.rank shape == 1 then
+          let data = match Value.extract arg with
+            | Some d -> d
+            | None -> failwith "Array expected in reduce intermediate slicing\n"
+          in
+          let ptr = HostMemspace.get_ptr_to_index data.Ptr.addr ty i in
+          GV.of_int64 LLVM_Types.int64_t ptr
+        else
+          let val_slice = Value.Slice(arg, 0, i, i + 1) in
+          Value_to_GenericValue.to_llvm val_slice
+      in
       let slices =
-        (* TODO: Need to handle vector of scalars specially so that each *)
-        (*       thread treats its output as a scalar rather than a vector? *)
-        List.map (fun arg -> Value.Slice(arg, 0, i, i + 1)) interms
+        List.map3 get_slice interms eltTypes intermShapes
       in
       slice_interms (cur @ [slices]) (i + 1)
   in
-  let imp_slices = slice_interms [[]] 0 in
-  let interm_slices =
-    List.map (List.map Value_to_GenericValue.to_llvm) imp_slices
-  in
+  let interm_slices = slice_interms [[]] 0 in
   let input_items = build_work_items axes num_cores args in
   let work_items = List.map2 (fun a b -> a @ b) input_items interm_slices in
   do_work work_queue execution_engine llvmFn work_items;
