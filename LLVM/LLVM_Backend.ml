@@ -320,7 +320,7 @@ let reduce ~axes ~fn ~fixed ?init args =
     List.map2 GenericValue_to_Value.of_generic_value llvmOutputs outTypes
   in
   free_scalar_outputs outTypes llvmOutputs;
-  (* TODO: not freeing intermediates because GC will take care of them? *)
+  (* Nnot freeing intermediates because GC will take care of them *)
   outputs
 
 let scan ~axes ~fn ~fixed ?init args = assert false

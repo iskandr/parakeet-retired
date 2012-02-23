@@ -147,7 +147,6 @@ let closure fundef args = {
   closure_fn = fundef.fn_id;
   closure_args = args;
   closure_arg_types = List.map (fun v -> v.value_type) args;
-
 }
 
 (****************************************************************)

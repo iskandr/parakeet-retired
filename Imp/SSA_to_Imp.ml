@@ -284,7 +284,7 @@ and translate_exp (codegen:ImpCodegen.codegen) expNode : Imp.value_node  =
   match expNode.SSA.exp with
 	| SSA.Values [v] -> translate_value codegen v
 	| SSA.Values _ -> failwith "multiple value expressions not supported"
-	| SSA.PrimApp (Prim.ScalarOp op, args) ->
+	| SSA.PrimApp(Prim.ScalarOp op, args) ->
 	  let args' = translate_values codegen args in
 	  let opType, returnType =
 	    if Prim.is_comparison op then
@@ -295,10 +295,10 @@ and translate_exp (codegen:ImpCodegen.codegen) expNode : Imp.value_node  =
 	      retT, retT
 	  in
 	  {
-      value = Op( opType, op, args');
+      value = Op(opType, op, args');
       value_type = ImpType.ScalarT returnType
     }
-	| SSA.PrimApp (Prim.ArrayOp op, args) ->
+	| SSA.PrimApp(Prim.ArrayOp op, args) ->
 	  let impArgs = translate_values codegen args in
 	  translate_array_op codegen op impArgs
 	| SSA.Cast(t, src) ->
@@ -390,5 +390,5 @@ and translate_reduce
     (closureArgs:Imp.value_node list)
     (initArgs:Imp.value_node list option)
     (args:Imp.value_node list)
-    (axes:int list)  =
+    (axes:int list) =
   assert false
