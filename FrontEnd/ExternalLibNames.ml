@@ -43,6 +43,7 @@ let prim_names = Hashtbl.of_list [
   "index",  ArrayOp Index;
   "slice", ArrayOp Slice;
   "range", ArrayOp Range;
+  "size", ArrayOp DimSize;
 ]
 
 let get_prim str = match Hashtbl.find_option prim_names str with

@@ -6,16 +6,16 @@ from parakeet_values import python_value_to_parakeet, parakeet_value_to_python
 
 
 class WrappedFunction:
-  def __init__(self, old_function): 
-    self.old_function = old_function 
-    # pretend we are the same function 
+  def __init__(self, old_function):
+    self.old_function = old_function
+    # pretend we are the same function
     self.__name__ = old_function.__name__
     self.__module__ = old_function.__module__
     fun_id = register_function(old_function)
     assert fun_id is not None
     VisitedFunctions[self] = fun_id
     self.parakeet_untyped_id = fun_id
-  
+
   def __call__(self, *args, **kwds):
     # todo: implement keyword arguments in parakeet
     assert len(kwds) == 0
@@ -33,7 +33,7 @@ class WrappedFunction:
       if ret.results_len > 0:
         return parakeet_value_to_python(ret.results[0])
       else:
-        return 
+        return
 
   def call_original(self, *args, **kwds):
     return self.old_function(*args, **kwds)
