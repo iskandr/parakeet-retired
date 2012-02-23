@@ -18,15 +18,18 @@ SafeFunctions = {
   math.sqrt:'sqrt',
   parakeet_lib.map:'map',
   parakeet_lib.reduce:'reduce',
+  np.size:'size',
 }
 
 AutoTranslate = {
 #  map: parakeet_lib.map,
 #  reduce: parakeet_lib.reduce,
   np.sum:parakeet_lib.sum,
+  sum:parakeet_lib.sum,
   np.argmin:parakeet_lib.argmin,
   np.mean:parakeet_lib.mean,
-  np.all:parakeet_lib.all
+  np.all:parakeet_lib.all,
+  len:parakeet_lib._len
 }
 
 BuiltinPrimitives = {
@@ -62,7 +65,6 @@ BuiltinPrimitives = {
   'Slice': 'slice',
 }
 
-# FIX::??? Similar to AutoTranslate
 adverbs = [parakeet_lib.map, parakeet_lib.reduce, parakeet_lib.allpairs, parakeet_lib.scan]
 
 
@@ -402,9 +404,9 @@ class ASTConverter():
       funRef = currModule
     else:
       raise RuntimeError("[Parakeet] Call.func shouldn't be", name)
-    self.seen_functions.add(funRef)
     if funRef in AutoTranslate:
       funRef = AutoTranslate[funRef]
+    self.seen_functions.add(funRef)
     return funRef
 
   def build_complex_parakeet_node(self,node,contextSet):
@@ -514,9 +516,9 @@ class ASTConverter():
                           "parakeet_node" % nodeType)
 
   def build_src_info(self, node):
-    return None
+    #return None
     try:
-      file_name = list_to_ctypes_array(self.file_name, c_char)
+      file_name = c_char_p(self.file_name)
       line = c_int(self.line_offset + node.lineno)
       col = c_int(node.col_offset)
       return LibPar.mk_source_info_struct(file_name, line, col)

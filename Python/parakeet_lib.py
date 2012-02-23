@@ -14,11 +14,11 @@ def argmin(x):
   gib1,res,gib2 = reduce(argminHelper, x,default=[100000000000,-1,0])
   return res
 
-def And(x,y):
+def _and(x,y):
   return x and y
 
 def all(x):
-  return reduce(And,x,default=1)
+  return reduce(_and,x,default=1)
 
 def add(x,y):
   return x+y
@@ -35,6 +35,9 @@ def mean(x, axis=None):
 
 def dot(x,y):
   return sum(x*y)
+
+def _len(x):
+  return np.size(x, 0)
 
 #-----Map/Reduce/Scan
 
