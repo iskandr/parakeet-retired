@@ -286,7 +286,7 @@ let reduce ~axes ~fn ~fixed ?init args =
       let t_shape = Shape.create 1 in
       Shape.set t_shape 0 num_cores;
       Shape.append t_shape shape
-    | _ -> failwith "Unexpected output type from reduction."
+    | _ -> failwith "Unexpected output type from reduction"
   in
   let intermShapes = List.map2 get_interm_shape outputShapes outTypes in
   let interms = List.map2 allocate_array eltTypes intermShapes in
@@ -302,7 +302,7 @@ let reduce ~axes ~fn ~fixed ?init args =
         if Shape.rank shape == 1 then
           let data = match Value.extract arg with
             | Some d -> d
-            | None -> failwith "Array expected in reduce intermediate slicing\n"
+            | None -> failwith "Array expected in reduce intermediate slicing"
           in
           let ptr = HostMemspace.get_ptr_to_index data.Ptr.addr ty i in
           GV.of_int64 LLVM_Types.int64_t ptr
@@ -328,11 +328,35 @@ let reduce ~axes ~fn ~fixed ?init args =
     List.map2 GenericValue_to_Value.of_generic_value llvmOutputs outTypes
   in
   free_scalar_outputs outTypes llvmOutputs;
-  (* Nnot freeing intermediates because GC will take care of them *)
+  (* Not freeing intermediates because GC will take care of them *)
+  outputs
+
+let allpairs ~axes ~fn ~fixed x y =
+  let args = [x;y] in
+  let allpairsFn = SSA_AdverbHelpers.mk_allpairs_fn
+    ?src:None
+    ~nested_fn:fn
+    ~axes:(List.map SSA_Helpers.int32 axes)
+    ~fixed_types:(List.map Value.type_of fixed)
+    ~array_types:(List.map Value.type_of args)
+  in
+  let impTypes = List.map ImpType.type_of_value (fixed @ args) in
+  let impFn : Imp.fn = SSA_to_Imp.translate_fn allpairsFn impTypes in
+  let llvmFn = CompiledFunctionCache.compile impFn in
+  let inputShapes : Shape.t list = List.map Value.get_shape (fixed @ args) in
+  let outputs : Ptr.t Value.t list =
+    allocate_output_arrays impFn inputShapes
+  in
+  let work_items = build_work_items axes num_cores (args @ outputs) in
+  do_work work_queue execution_engine llvmFn work_items;
+  IFDEF DEBUG THEN
+    Printf.printf
+      "[LLVM_Backend.call_imp_fn] Got function results: %s\n%!"
+      (Value.list_to_str outputs)
+    ;
+  ENDIF;
   outputs
 
 let scan ~axes ~fn ~fixed ?init args = assert false
-
-let allpairs ~axes ~fn ~fixed x y = assert false
 
 let array_op p args = assert false
