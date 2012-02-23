@@ -1,4 +1,5 @@
 open Base
+open PhiNode
 open TypedSSA
 
 type direction = Forward | Backward
@@ -137,12 +138,6 @@ module Mk(R: SIMPLE_TRANSFORM_RULES) = struct
     | Values vs ->
       let vs' = transform_values blockState cxt vs in
       if changed() then {expNode with exp = Values vs'} else expNode
-
-    | App(fn,args) ->
-      let fn' = transform_value blockState cxt fn in
-      let args' = transform_values blockState cxt args in
-      if changed () then {expNode with exp = App(fn', args')}
-      else expNode
 
     | Arr elts ->
       let elts' = transform_values blockState cxt elts in

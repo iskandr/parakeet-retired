@@ -23,3 +23,4 @@ module type ORD = sig
 end
 
 val safe_div : int -> int -> int
+val wrap_str : string -> string
