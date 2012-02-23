@@ -28,9 +28,9 @@ module CSE_Rules = struct
         let rhsVal = Hashtbl.find env expNode.exp in
         let src = expNode.exp_src in
         let expNode' =
-          SSA_Helpers.vals_exp ?src ~types:expNode.exp_types [rhsVal]
+          TypedSSA.vals_exp ?src ~types:expNode.exp_types [rhsVal]
         in
-        Update (SSA_Helpers.set [id] expNode')
+        Update (TypedSSA.set [id] expNode')
       )
       else (Hashtbl.add env expNode.exp (Var id); NoChange)
     | _ -> NoChange

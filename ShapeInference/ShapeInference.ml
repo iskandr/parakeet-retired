@@ -173,8 +173,8 @@ module ShapeAnalysis (P: PARAMS) =  struct
       | SSA.Adverb (adverb, closure, {axes; init; args}) ->
         let axes = SSA_AdverbHelpers.infer_adverb_axes_from_args ?axes args in
         let axes : int list =
-          if List.for_all SSA_Helpers.is_const_int axes then
-            List.map SSA_Helpers.get_const_int axes
+          if List.for_all TypedSSA.is_const_int axes then
+            List.map TypedSSA.get_const_int axes
           else
             raise (ShapeInferenceFailure "All adverb axes must be constants")
         in

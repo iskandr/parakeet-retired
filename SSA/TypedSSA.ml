@@ -1,5 +1,7 @@
 (* pp: -parser o pa_macro.cmo *)
 
+(* bottle these up in a module so we can parameterize SSA.Make *)
+module CoreLanguage = struct
   type value = Var of ID.t | Num of ParNum.t
   let value_to_str = function
     | Var id -> ID.to_str id
@@ -10,67 +12,59 @@
     value_type : Type.t;
     value_src : SrcInfo.t option;
   }
+
   let value_node_to_str valNode =
     sprintf "%s : %s"
       (value_to_str valNode.value)
       (Type.to_str valNode.value_type)
 
-  type value_nodes = value_node list
-  let value_nodes_to_str valNodes =
-    String.concat ", " (List.map value_node_to_str valNodes)
+	type value_nodes = value_node list
+	let value_nodes_to_str valNodes =
+	  String.concat ", " (List.map value_node_to_str valNodes)
 
-  let wrap_value ?src value ty =
-    { value = value; value_src = src; value_type = ty }
+	type adverb_info = (FnId.t, value_nodes, value_nodes) Adverb.info
 
-  type typed_adverb_info = (FnId.t, value_nodes, value_nodes) Adverb.info
+	let adverb_info_to_str info =
+	  Adverb.info_to_str FnId.to_str value_nodes_to_str value_nodes_to_str info
 
-  let typed_adverb_info_to_str info =
-    Adverb.info_to_str FnId.to_str value_nodes_to_str value_nodes_to_str info
+	type exp =
+	  | Values of value_nodes
+	  | Arr of value_nodes
+	  | Call of FnId.t * value_nodes
+	  | PrimApp of Prim.t * value_nodes
+	  | Adverb of typed_adverb_info * value_nodes
 
-  type exp =
-    | Values of value_nodes
-    | Arr of value_nodes
-    | Call of FnId.t * value_nodes
-    | PrimApp of Prim.t * value_nodes
-    | Adverb of typed_adverb_info * value_nodes
+	let exp_to_str = function
+	  | Values vs -> sprintf "values(%s)" (value_nodes_to_str vs)
+	  | Arr elts -> sprintf "array(%s)" (value_nodes_to_str elts)
+	  | Call (fnId, args) ->
+	    sprintf "%s(%s)" (FnId.to_str fnId) (value_nodes_to_str args)
+	  | PrimApp (p, args) ->
+	    sprintf "prim[%s](%s)" (Prim.to_str p) (value_nodes_to_str args)
+	  | Adverb (info, args) ->
+	    Printf.sprintf "%s(%s)"
+	      (typed_adverb_info_to_str info)
+	      (value_nodes_to_str args)
 
-  let exp_to_str = function
-    | Values vs -> sprintf "values(%s)" (value_nodes_to_str vs)
-    | Arr elts -> sprintf "array(%s)" (value_nodes_to_str elts)
-    | Call (fnId, args) ->
-      sprintf "%s(%s)" (FnId.to_str fnId) (value_nodes_to_str args)
-    | PrimApp (p, args) ->
-      sprintf "prim[%s](%s)" (Prim.to_str p) (value_nodes_to_str args)
-    | Adverb (info, args) ->
-      Printf.sprintf "%s(%s)"
-        (typed_adverb_info_to_str info)
-        (value_nodes_to_str args)
+	type exp_node = {
+	  exp: exp;
+	  exp_src : SrcInfo.t option;
+	  exp_types : Type.t list
+	}
+	let exp_node_to_str { exp } = exp_to_str exp
 
-  type exp_node = {
-    exp: exp;
-    exp_src : SrcInfo.t option;
-    exp_types : Type.t list
-  }
-  let exp_node_to_str { exp } = exp_to_str exp
-
-  let wrap_exp valNode =
-    { exp = Values [valNode]; exp_src = None; exp_types = [valNode.value_type]}
-
-  type typed_block = (exp_node, value_node) block
-
-  let typed_block_to_str : typed_block -> string =
-    block_to_str exp_node_to_str value_node_to_str
   type tenv = Type.t ID.Map.t
   type fn = {
-    body: typed_block;
+    body: block;
     tenv : tenv;
     input_ids: ID.t list;
     output_ids: ID.t list;
     fn_input_types : Type.t list;
     fn_output_types : Type.t list;
     fn_id : FnId.t;
-  }
 
+
+  }
   let typed_id_to_str tenv id =
     (ID.to_str id) ^ " : " ^ (Type.to_str (ID.Map.find id tenv))
 
@@ -81,25 +75,34 @@
     let name = FnId.to_str fundef.fn_id in
     let inputs = typed_ids_to_str fundef.tenv fundef.input_ids in
     let outputs = typed_ids_to_str fundef.tenv fundef.output_ids in
-    let body = typed_block_to_str fundef.body in
-    wrap_str (sprintf "def %s(%s)=>(%s):\n%s" name inputs outputs body)
+    let body = block_to_str fundef.body in
+    SSA.wrap_str (sprintf "def %s(%s)=>(%s):\n%s" name inputs outputs body)
+end
+include CoreLanguage
+include SSA.Make(CoreLanguage)
 
-  let mk_fn ?name ~tenv ~input_ids ~output_ids ~body : fn =
-    let inTypes = List.map (fun id -> ID.Map.find id tenv) input_ids in
-    let outTypes = List.map (fun id -> ID.Map.find id tenv) output_ids in
-    let fnId = match name with
-      | Some name -> FnId.gen_named name
-      | None -> FnId.gen()
-    in
-    {
-      body = body;
-      tenv = tenv;
-      input_ids = input_ids;
-      output_ids = output_ids;
-      fn_input_types = inTypes;
-      fn_output_types = outTypes;
-      fn_id = fnId
-    }
+let wrap_value ?src value ty =
+      { value = value; value_src = src; value_type = ty }
+
+let wrap_exp valNode =
+    { exp = Values [valNode]; exp_src = None; exp_types = [valNode.value_type]}
+
+let mk_fn ?name ~tenv ~input_ids ~output_ids ~body : fn =
+  let inTypes = List.map (fun id -> ID.Map.find id tenv) input_ids in
+  let outTypes = List.map (fun id -> ID.Map.find id tenv) output_ids in
+  let fnId = match name with
+    | Some name -> FnId.gen_named name
+    | None -> FnId.gen()
+  in
+  {
+    body = body;
+    tenv = tenv;
+    input_ids = input_ids;
+    output_ids = output_ids;
+    fn_input_types = inTypes;
+    fn_output_types = outTypes;
+    fn_id = fnId
+  }
 
 
 let fn_builder
@@ -148,6 +151,14 @@ let fn_builder
 (***********************************************************************)
 (*                          Value Helpers                              *)
 (***********************************************************************)
+
+
+(* get the id of a variable value node *)
+let get_id valNode = match valNode.value with
+  | Var id -> id
+  | other -> failwith $ Printf.sprintf
+     "[SSA->get_id] expected variable, received %s"
+     (value_to_str other)
 
 let var ?src ?(ty=Type.BottomT) (id:ID.t) : value_node =
   { value = Var id; value_src = src; value_type = ty }

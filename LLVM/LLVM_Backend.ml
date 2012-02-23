@@ -240,7 +240,7 @@ let map ~axes ~fn ~fixed args =
     ?src:None
     ~adverb:Prim.Map
     ~nested_fn:fn
-    ~axes:(List.map SSA_Helpers.int32 axes)
+    ~axes:(List.map TypedSSA.int32 axes)
     ?init:None
     ~fixed_types:(List.map Value.type_of fixed)
     ~array_types:(List.map Value.type_of args)
@@ -265,7 +265,7 @@ let map ~axes ~fn ~fixed args =
 let reduce ~axes ~fn ~fixed ?init args =
   (*
   let init = match init with
-    | Some init -> List.map SSA_Helpers.wrap_value init
+    | Some init -> List.map TypedSSA.wrap_value init
     | None -> []
   in
   *)
@@ -273,7 +273,7 @@ let reduce ~axes ~fn ~fixed ?init args =
     ?src:None
     ~adverb:Prim.Reduce
     ~nested_fn:fn
-    ~axes:(List.map SSA_Helpers.int32 axes)
+    ~axes:(List.map TypedSSA.int32 axes)
     ?init:(Option.map (fun inits -> List.map Value.type_of inits) init)
     ~fixed_types:(List.map Value.type_of fixed)
     ~array_types:(List.map Value.type_of args)

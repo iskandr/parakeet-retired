@@ -7,14 +7,7 @@ open SSA
    function being mapped
 *)
 
-
-(* get the id of a variable value node *)
-let get_id valNode = match valNode.value with
-  | Var id -> id
-  | other -> failwith $ Printf.sprintf
-     "[SSA->get_id] expected variable, received %s"
-     (value_to_str other)
-
+(*
 
 (****************************************************************************)
 (*                         Expression Helpers                               *)
@@ -196,3 +189,4 @@ let untyped_fn2_builder constructor =
     ~output_types:[Type.BottomT]
     ~local_types:[]
     (function [x;y], [z], [] -> constructor x y z | _ -> assert false)
+*)

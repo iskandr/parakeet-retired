@@ -1,5 +1,5 @@
 open Base
-open SSA
+open TypedSSA
 
 type direction = Forward | Backward
 
@@ -25,12 +25,12 @@ module BlockState = struct
   (* for improved performance *)
   type t = {
     stmts : (stmt_node list) ref;
-    old_block : SSA.Typed.block;
+    old_block : TypedSSA.block;
     mutable changes : int;
   }
 
   (* initializer *)
-  let create (oldBlock:SSA.Typed.block) = {
+  let create (oldBlock:TypedSSA.block) = {
     stmts = ref [];
     old_block = oldBlock;
     changes = 0
@@ -47,7 +47,7 @@ module BlockState = struct
 
   (* add statement to block unless it's a no-op *)
   let add_stmt blockState stmtNode =
-    if not (SSA_Helpers.is_empty_stmt stmtNode) then
+    if not (TypedSSA.is_empty_stmt stmtNode) then
       blockState.stmts := stmtNode :: !(blockState.stmts)
 
   let add_stmt_list blockState stmts =
@@ -79,15 +79,15 @@ open BlockState
 
 let exp_update_to_str = function
   | NoChange -> "NoChange"
-  | Update e -> "Update: " ^ (SSA.Typed.exp_to_str e)
-  | UpdateWithStmts (e, _)-> "UpdateStmts: " ^ (SSA.Typed.exp_to_str e)
-  | UpdateWithBlock (e, _) -> "UpdateBlock: " ^ (SSA.Typed.exp_to_str e)
+  | Update e -> "Update: " ^ (TypedSSA.exp_to_str e)
+  | UpdateWithStmts (e, _)-> "UpdateStmts: " ^ (TypedSSA.exp_to_str e)
+  | UpdateWithBlock (e, _) -> "UpdateBlock: " ^ (TypedSSA.exp_to_str e)
 
 let stmt_update_to_str = function
   | NoChange -> "NoChange"
-  | Update e -> "Update: " ^ (SSA.Typed.stmt_node_to_str e)
-  | UpdateWithStmts (e, _)-> "UpdateStmts: " ^ (SSA.Typed.stmt_node_to_str e)
-  | UpdateWithBlock (e, _) -> "UpdateBlock: " ^ (SSA.Typed.stmt_node_to_str e)
+  | Update e -> "Update: " ^ (TypedSSA.stmt_node_to_str e)
+  | UpdateWithStmts (e, _)-> "UpdateStmts: " ^ (TypedSSA.stmt_node_to_str e)
+  | UpdateWithBlock (e, _) -> "UpdateBlock: " ^ (TypedSSA.stmt_node_to_str e)
 
 
 
@@ -218,7 +218,7 @@ module Mk(R: SIMPLE_TRANSFORM_RULES) = struct
       if tChanged then sub_block_changed();
       let fBlock', fChanged = transform_block cxt fBlock in
       if fChanged then sub_block_changed();
-      let merge' : SSA.Typed.phi_nodes =
+      let merge' : TypedSSA.phi_nodes =
         transform_phi_list blockState cxt merge
       in
       if changed() then
