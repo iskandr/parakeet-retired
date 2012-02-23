@@ -3,15 +3,15 @@
 open Base
 
 type t = {
-  fundefs: (FnId.t, SSA.Typed.fn) Hashtbl.t;
+  fundefs: (FnId.t, TypedSSA.fn) Hashtbl.t;
   unoptimized_queue : FnId.t Queue.t;
   arities : (FnId.t, int) Hashtbl.t;
 }
 
 let add ?(opt_queue=true) fundef (cache:t) =
-  let id = fundef.SSA.Typed.fn_id in
+  let id = fundef.TypedSSA.fn_id in
   Hashtbl.add cache.fundefs id fundef;
-  let arity = SSA.Typed.input_arity fundef in
+  let arity = TypedSSA.input_arity fundef in
   Hashtbl.add cache.arities id arity;
   if opt_queue then Queue.add id cache.unoptimized_queue
 
@@ -42,7 +42,7 @@ let get_unoptimized cache =
 let get_arity fnId cache  = Hashtbl.find cache.arities fnId
 
 let update fundef cache =
-  let id = fundef.SSA.Typed.fn_id in
+  let id = fundef.TypedSSA.fn_id in
   IFDEF DEBUG THEN
     assert (Hashtbl.mem cache.fundefs id);
   ENDIF;

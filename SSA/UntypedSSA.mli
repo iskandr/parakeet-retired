@@ -94,4 +94,10 @@ module FnHelpers : sig
 end
 include module type of FnHelpers
 
-
+module StmtHelpers : sig
+  val stmt : ?src:SrcInfo.t -> ?id:StmtId.t -> stmt -> stmt_node
+  val set : ?src:SrcInfo.t -> ID.t list -> exp_node -> stmt_node
+  val setidx :
+    ?src:SrcInfo.t -> value_node -> value_nodes -> exp_node -> stmt_node
+end
+include module type of StmtHelpers

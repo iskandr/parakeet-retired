@@ -1,6 +1,6 @@
 (* collects the set of IDs which are used inside of a function body *)
 open Base
-open SSA
+open TypedSSA
 open SSA_Analysis
 
 module LiveIdEval = MkEvaluator(struct

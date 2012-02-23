@@ -156,3 +156,25 @@ module FnHelpers = struct
   let fn_id {fn_id} = fn_id
 end
 include FnHelpers
+
+module StmtHelpers = struct
+  let stmt ?src ?(id=StmtId.gen()) stmt =
+  {
+    stmt = stmt; stmt_src = src; stmt_id = id
+  }
+
+  let set ?src ids rhs =
+  {
+    stmt = Set(ids, rhs);
+    stmt_src = src;
+    stmt_id = StmtId.gen()
+  }
+
+  let setidx ?src lhs indices rhs =
+  {
+    stmt = SetIdx(lhs, indices, rhs);
+    stmt_src = src;
+    stmt_id = StmtId.gen()
+  }
+end
+include StmtHelpers

@@ -1,6 +1,7 @@
 (* pp: -parser o pa_macro.cmo *)
 
-open SSA
+open PhiNode
+open TypedSSA
 open Base
 
 
@@ -57,8 +58,8 @@ module MkEvaluator(A : ANALYSIS) = struct
   and eval_loop_header ?(changed=false) envOut envIn = function
     | [] -> envOut, changed
     | phiNode::rest ->
-      let valInfo = A.value envIn phiNode.SSA.Typed.phi_left in
-      let currEnvOut = A.phi_set envOut phiNode.SSA.Typed.phi_id valInfo in
+      let valInfo = A.value envIn phiNode.phi_left in
+      let currEnvOut = A.phi_set envOut phiNode.phi_id valInfo in
       let envOut' = Option.default envOut currEnvOut in
       let currChanged = changed || Option.is_some currEnvOut in
       eval_loop_header ~changed:currChanged envOut' envIn rest
@@ -66,10 +67,10 @@ module MkEvaluator(A : ANALYSIS) = struct
   and eval_phi_nodes ?(changed=false) envOut envLeft envRight = function
     | [] -> if changed then Some envOut else None
     | phiNode::rest ->
-      let leftInfo = A.value envLeft phiNode.SSA.Typed.phi_left in
-      let rightInfo = A.value envRight phiNode.SSA.Typed.phi_right in
+      let leftInfo = A.value envLeft phiNode.phi_left in
+      let rightInfo = A.value envRight phiNode.phi_right in
       let currEnvOut =
-        A.phi_merge envOut phiNode.SSA.Typed.phi_id leftInfo rightInfo
+        A.phi_merge envOut phiNode.phi_id leftInfo rightInfo
       in
       let envOut' = Option.default envOut currEnvOut in
       let currChanged = changed || Option.is_some currEnvOut in
@@ -135,23 +136,21 @@ module MkEvaluator(A : ANALYSIS) = struct
     | SetIdx (lhs, indices, rhs) ->
         ignore (A.value env lhs);
         iter_values env indices;
-        ignore (A.value env rhs);
+        ignore (A.exp env rhs);
         None
 
   and iter_exp_children env expNode = match expNode.exp with
-      | App(x, xs) ->  ignore $ A.value env x; iter_values env xs
       | Cast(_, v) -> ignore $ A.value env v
       | Call(_, xs)
       | PrimApp(_,xs)
       | Values xs
       | Arr xs -> iter_values env xs
-      | Adverb (_, {closure_args}, {args; init; axes}) ->
+      | Adverb ({Adverb.fixed_args; init; axes}, args) ->
         begin
-          iter_values env closure_args;
-          iter_values env args;
+          iter_values env fixed_args;
+          iter_values env axes;
           match init with Some inits -> iter_values env inits | None -> ();
-          match axes with Some axes -> iter_values env axes | None -> ()
-
+          iter_values env args
         end
 
   and iter_values env = function

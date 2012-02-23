@@ -157,7 +157,7 @@ end
 include PrettyPrinters
 
 
-let wrap_value ?src value ty =
+let wrap_value ?src ty value  =
       { value = value; value_src = src; value_type = ty }
 let wrap_exp valNode =
     { exp = Values [valNode]; exp_src = None; exp_types = [valNode.value_type]}
@@ -263,4 +263,55 @@ module FnHelpers = struct
 end
 include FnHelpers
 
+module ExpHelpers = struct
+  let primapp ?src prim ~output_types args =
+    { exp = PrimApp (prim, args); exp_src = src; exp_types = output_types}
 
+  let arr ?src argTypes elts =
+    let resultT = match argTypes with
+    | [] -> Type.BottomT
+    | Type.BottomT::_ -> Type.BottomT
+    | (Type.ScalarT elt_t)::_ -> Type.ArrayT(elt_t, 1)
+    | others -> failwith $ Printf.sprintf
+        "Invalid array element types: %s"
+        (Type.type_list_to_str others)
+    in
+    { exp=Arr elts; exp_src=src; exp_types = [resultT] }
+
+  let val_exp ?src ty (v: value) =
+    { exp=Values [wrap_value ?src ty v]; exp_src=src; exp_types = [ty] }
+
+  let vals_exp ?src types ( vs : value list) =
+  let valNodes = List.map2 (fun v ty -> wrap_value ?src ty v) vs types in
+  { exp = Values valNodes; exp_src = src; exp_types=types }
+
+  let cast ?src t v = { exp = Cast(t, v); exp_types = [t]; exp_src = src }
+
+  let exp ?src types exp = { exp= exp; exp_types = types; exp_src = src}
+
+  let call ?src fnId outTypes args  =
+    { exp = Call(fnId, args); exp_types = outTypes; exp_src=src}
+end
+include ExpHelpers
+
+module StmtHelpers = struct
+  let stmt ?src ?(id=StmtId.gen()) stmt =
+  {
+    stmt = stmt; stmt_src = src; stmt_id = id
+  }
+
+  let set ?src ids rhs =
+  {
+    stmt = Set(ids, rhs);
+    stmt_src = src;
+    stmt_id = StmtId.gen()
+  }
+
+  let setidx ?src lhs indices rhs =
+  {
+    stmt = SetIdx(lhs, indices, rhs);
+    stmt_src = src;
+    stmt_id = StmtId.gen()
+  }
+end
+include StmtHelpers

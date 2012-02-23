@@ -1,7 +1,8 @@
 (* pp: -parser o pa_macro.cmo *)
 
 open Base
-open SSA
+open PhiNode
+open TypedSSA
 open Printf
 
 type errors = (SrcInfo.t option * string) Queue.t
@@ -79,7 +80,10 @@ let rec check_stmt
           err $ Printf.sprintf "cannot index into scalar %s" (ID.to_str arrId)
       );
       check_value_list errorLog tenv defined indices;
-      check_value errorLog tenv defined rhs;
+      check_exp errorLog tenv defined rhs;
+      defined
+  | SetIdx _ ->
+      err $ "Expected lhs of setidx to be a variable";
       defined
   | If (test, tBlock, fBlock, phiNodes) ->
       check_value errorLog tenv defined test;
@@ -98,37 +102,6 @@ let rec check_stmt
 and check_exp errorLog tenv (defined : ID.Set.t) (expNode : exp_node) : unit =
   let err msg = Queue.add (expNode.exp_src, msg) errorLog in
   match expNode.exp with
-  | App (fn, args) -> err "Unexpected: Untyped function application"
-  (*
-      check_value errorLog tenv defined fn;
-      check_value_list errorLog tenv defined args;
-      let argTypes = List.map (fun v -> v.value_type) args in
-      let fnType = fn.value_type in
-      if Type.is_function fnType then (
-        let expectedTypes =  Type.fn_input_types fnType in
-        (* HACK: ignore the case where there are too few args so our primitive
-           closure implementation doesn't break
-        *)
-        if List.length expectedTypes <= List.length argTypes then (
-          if expectedTypes <> argTypes then
-            err $ sprintf
-              "type mismatch in function application\n\
-              \t  - expected: %s\n\t  - received: %s"
-              (Type.type_list_to_str expectedTypes)
-              (Type.type_list_to_str argTypes)
-            ;
-          let retTypes = Type.fn_output_types fnType in
-          if retTypes <> expNode.exp_types then
-            err $ sprintf
-              "function returns %s but context expects to receive %s"
-              (Type.type_list_to_str retTypes)
-              (Type.type_list_to_str expNode.exp_types)
-        )
-      )
-      else err $
-             sprintf "expected a function type, received: %s"
-               (Type.to_str fnType)
-  *)
   | Values vs
   | Arr vs -> check_value_list errorLog tenv defined vs
   | Cast (t, v) ->
@@ -145,7 +118,7 @@ and check_block
       (errorLog : errors)
       (tenv : Type.t ID.Map.t)
       (defined : ID.Set.t)
-      (block : SSA.Typed.block) : ID.Set.t =
+      (block : TypedSSA.block) : ID.Set.t =
   Block.fold_forward
     (fun accDefined stmtNode -> check_stmt errorLog tenv accDefined stmtNode)
     defined

@@ -1,7 +1,7 @@
 
 (* pp: -parser o pa_macro.cmo *)
 open Base
-open SSA
+open TypedSSA
 open SSA_Analysis
 
 (* identify which variables need to be malloc'd and which *)
@@ -35,7 +35,7 @@ module Eval = SSA_Analysis.MkEvaluator(struct
 
   let stmt (set:ID.Set.t) stmtNode helpers : env option =
     match stmtNode.stmt with
-    | TypedSSA.Set(ids, rhs) ->
+    | Set(ids, rhs) ->
       let rhsBools : bool list = exp set rhs helpers in
       Some (List.fold_left2
         (fun set id isAlloc -> if isAlloc then ID.Set.add id set else set)

@@ -5,10 +5,6 @@ open SSA
      helpers for statements
  ***)
 
-val stmt : ?src:SrcInfo.t -> ?id:StmtId.t -> stmt -> stmt_node
-val set : ?src:SrcInfo.t -> ID.t list -> exp_node -> stmt_node
-val setidx :
-      ?src:SrcInfo.t -> value_node -> value_nodes -> value_node -> stmt_node
 
 (* get the id of a variable value node *)
 val get_id : value_node -> ID.t
@@ -27,26 +23,7 @@ val get_fn_ids : value_node list -> FnId.t list
 val map_default_types :
       Type.t list option -> value_node list -> Type.t list
 
-val app : ?src:SrcInfo.t -> value_node -> value_node list -> exp_node
 
-val primapp :
-     ?src:SrcInfo.t -> Prim.t -> output_types:Type.t list ->
-       value_node list -> exp_node
-
-val arr :
-      ?src:SrcInfo.t -> ?types:Type.t list -> value_node list -> exp_node
-
-val val_exp : ?src:SrcInfo.t -> ?ty:Type.t ->
-      value -> exp_node
-
-val vals_exp :
-      ?src:SrcInfo.t -> ?types : Type.t list -> value list -> exp_node
-
-val cast : ?src:SrcInfo.t -> Type.t -> value_node -> exp_node
-val exp :  ?src:SrcInfo.t -> ?types:Type.t list -> exp -> exp_node
-val call :
-      ?src:SrcInfo.t -> FnId.t -> Type.t list  -> value_node list ->
-         exp_node
 
 val closure : fn -> value_node list -> closure
 

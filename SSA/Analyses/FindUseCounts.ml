@@ -1,5 +1,5 @@
 open Base
-open SSA
+open TypedSSA
 open SSA_Analysis
 
 module UseCountEval = MkEvaluator(struct

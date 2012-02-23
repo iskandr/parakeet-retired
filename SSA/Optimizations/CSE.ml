@@ -7,7 +7,7 @@ open SSA_Transform
 
 (* expressions without side effects *)
 let is_safe_exp expNode = match expNode.exp with
-  | PrimApp _ | App({value=Prim _}, _) | Arr _  | Values _ -> true
+  | PrimApp _ | Arr _  | Values _ -> true
   | _ -> false (* assume function calls unsafe by default *)
 
 (* this is a really weak form of CSE. To start handling control flow*)

@@ -1,7 +1,7 @@
 (* pp: -parser o pa_macro.cmo *)
 
 open Base
-open SSA
+open TypedSSA
 open SSA_Analysis
 
 module CopyLattice = struct

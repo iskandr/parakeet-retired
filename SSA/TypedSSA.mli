@@ -6,7 +6,6 @@ module CoreLanguage : sig
 	type value_nodes = value_node list
 	type adverb_info = (FnId.t, value_nodes, value_nodes) Adverb.info
 
-
 	type exp =
 	  | Values of value_nodes
 	  | Arr of value_nodes
@@ -33,9 +32,6 @@ module CoreLanguage : sig
     stmt_id : StmtId.t;
   }
   and block = stmt_node Block.t
-
-
-
   type tenv = Type.t ID.Map.t
   type fn =
     {
@@ -72,7 +68,7 @@ end
 include module type of PrettyPrinters
 
 
-val wrap_value : ?src: SrcInfo.t -> value -> Type.t -> value_node
+val wrap_value : ?src: SrcInfo.t ->  Type.t -> value -> value_node
 val wrap_exp : value_node -> exp_node
 val wrap_stmt : ?src:SrcInfo.t -> stmt -> stmt_node
 
@@ -120,4 +116,29 @@ module FnHelpers  : sig
 end
 include module type of FnHelpers
 
+module ExpHelpers : sig
+  val primapp :
+   ?src:SrcInfo.t -> Prim.t -> output_types:Type.t list ->
+     value_node list -> exp_node
 
+  val arr :
+    ?src:SrcInfo.t -> ?types:Type.t list -> value_node list -> exp_node
+
+  val val_exp : ?src:SrcInfo.t -> Type.t -> value -> exp_node
+
+  val vals_exp : ?src:SrcInfo.t -> Type.t list -> value list -> exp_node
+
+  val cast : ?src:SrcInfo.t -> Type.t -> value_node -> exp_node
+  val exp :  ?src:SrcInfo.t -> Type.t list -> exp -> exp_node
+  val call :
+    ?src:SrcInfo.t -> FnId.t -> Type.t list  -> value_node list -> exp_node
+end
+include module type of ExpHelpers
+
+module StmtHelpers : sig
+  val stmt : ?src:SrcInfo.t -> ?id:StmtId.t -> stmt -> stmt_node
+  val set : ?src:SrcInfo.t -> ID.t list -> exp_node -> stmt_node
+  val setidx :
+    ?src:SrcInfo.t -> value_node -> value_nodes -> exp_node -> stmt_node
+end
+include module type of StmtHelpers

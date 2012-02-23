@@ -18,55 +18,7 @@ let map_default_types optTypes values =
     | None -> List.map (fun vNode -> vNode.value_type) values
     | Some ts -> ts
 
-let app ?src fn args =
-  { exp=App(fn,args); exp_src = src; exp_types = [Type.BottomT] }
 
-let primapp ?src prim ~output_types args =
-  { exp = PrimApp (prim, args); exp_src = src; exp_types = output_types}
-
-let arr ?src ?types elts =
-  let argTypes = map_default_types types elts in
-  let resultT = match argTypes with
-    | [] -> Type.BottomT
-    | Type.BottomT::_ -> Type.BottomT
-    | (Type.ScalarT elt_t)::_ -> Type.ArrayT(elt_t, 1)
-    | others -> failwith $ Printf.sprintf
-        "Invalid array element types: %s"
-        (Type.type_list_to_str others)
-  in
-  { exp=Arr elts; exp_src=src; exp_types = [resultT] }
-
-let val_exp ?src ?ty (v: value) =
-  let ty' = match ty with
-    | None -> Type.BottomT
-    | Some ty -> ty
-  in
-  { exp=Values [wrap_value ?src v]; exp_src=src; exp_types = [ty'] }
-
-let vals_exp ?src ?types ( vs : value list) =
-  let valNodes = match types with
-    | Some types -> List.map2 (fun v ty -> wrap_value ?src ~ty v) vs types
-    | None -> List.map (wrap_value ?src) vs
-  in
-  let types' = map_default_types types valNodes in
-  { exp = Values valNodes; exp_src = src; exp_types=types' }
-
-let cast ?src t v =
-  { exp = Cast(t, v); exp_types = [t]; exp_src = src }
-
-let exp ?src ?types exp =
-  (* WARNING--- function calls may need more than 1 return type, in which
-     case the default [BottomT] is wrong
-  *)
-  let types' = match types, exp with
-    | Some ts, _ -> ts
-    | None, Values vs -> List.fill Type.BottomT vs
-    | _ -> [Type.BottomT]
-  in
-  { exp= exp; exp_types = types'; exp_src = src}
-
-let call ?src fnId outTypes args  =
-  { exp = Call(fnId, args); exp_types = outTypes; exp_src=src}
 
 let closure fundef args = {
   closure_fn = fundef.fn_id;
@@ -78,21 +30,6 @@ let closure fundef args = {
 (****************************************************************)
 (*                Statement Helpers                             *)
 (****************************************************************)
-
-let stmt ?src ?(id=StmtId.gen()) stmt =
-  { stmt = stmt; stmt_src = src; stmt_id = id }
-
-let set ?src ids rhs =
-  { stmt = Set(ids, rhs);
-    stmt_src = src;
-    stmt_id = StmtId.gen()
-  }
-
-let setidx ?src lhs indices rhs =
-  { stmt = SSA.SetIdx(lhs, indices, rhs);
-    stmt_src = src;
-    stmt_id = StmtId.gen()
-  }
 
 (**********************************************************************)
 (*           DSL for more compactly building small SSA functions      *)
