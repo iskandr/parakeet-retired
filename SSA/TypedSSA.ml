@@ -51,7 +51,11 @@ module CoreLanguage = struct
 	  exp_src : SrcInfo.t option;
 	  exp_types : Type.t list
 	}
+
 	let exp_node_to_str { exp } = exp_to_str exp
+
+  let is_empty_exp = function Values [] -> true | _ -> false
+  let is_empty_exp_node {exp} = is_empty_exp exp
 
   type tenv = Type.t ID.Map.t
   type fn = {
