@@ -2,7 +2,7 @@
 
 open Base
 open Printf
-open SSA
+open UntypedSSA
 open Type
 
 exception WrongArity
@@ -135,16 +135,3 @@ let required_scalar_op_types op argtypes =
       | _ -> failwith
             ("no valid coercions for operator " ^ (Prim.scalar_op_to_str op) ^
              " with input types " ^ (Type.type_list_to_str argtypes))
-
-(*
-let infer_q_op qOp argTypes = match qOp, argTypes with
-  (* find index of 2nd argument within the first *)
-  | Prim.Q_Question, [Type.ArrayT (elt_t1, r); t2]
-    when Type.common_type t1 t2 <> Type.AnyT -> Type.Int32T
-  | _ -> assert false
-
-let translate_q_op qOp argTypes = match qOp, argTypes with
-  | Prim.Q_Question, [Type.VecT t1; t2]
-    when Type.common_type t1 t2 <> Type.AnyT -> Prim.ArrayOp Prim.Find
-  | _ -> assert false
-*)
