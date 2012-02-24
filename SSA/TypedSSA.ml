@@ -190,6 +190,8 @@ module ValueHelpers = struct
        "[SSA->get_id] expected variable, received %s"
        (value_to_str other)
 
+  let get_ids valNodes = List.map get_id valNodes
+
   let var ?src ty (id:ID.t) : value_node =
     { value = Var id; value_src = src; value_type = ty }
 
@@ -318,6 +320,8 @@ module StmtHelpers = struct
     stmt_src = src;
     stmt_id = StmtId.gen()
   }
+
+  let set_vals ?src xs y = set ?src (get_ids xs) y
 
   let setidx ?src lhs indices rhs =
   {

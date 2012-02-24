@@ -79,6 +79,7 @@ val is_empty_stmt : stmt_node -> bool
 
 module ValueHelpers : sig
     val get_id : value_node -> ID.t
+    val get_ids : value_nodes -> ID.t list
     val var : ?src:SrcInfo.t -> Type.t -> ID.t -> value_node
     val num : ?src:SrcInfo.t -> ParNum.t -> value_node
     val bool : ?src:SrcInfo.t -> bool -> value_node
@@ -133,6 +134,7 @@ include module type of ExpHelpers
 module StmtHelpers : sig
   val stmt : ?src:SrcInfo.t -> ?id:StmtId.t -> stmt -> stmt_node
   val set : ?src:SrcInfo.t -> ID.t list -> exp_node -> stmt_node
+  val set_vals : ?src:SrcInfo.t -> value_nodes -> exp_node -> stmt_node
   val setidx :
     ?src:SrcInfo.t -> value_node -> value_nodes -> exp_node -> stmt_node
 end

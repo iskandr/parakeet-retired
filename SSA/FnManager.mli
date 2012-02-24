@@ -22,10 +22,13 @@ val get_typed_function_table : unit -> FnTable.t
 
 val have_untyped_function : string -> bool
 
-val get_untyped_arity : FnId.t -> int
-val output_arity_of_typed_fn : FnId.t -> int
+val input_arity_of_untyped_fn : FnId.t -> int
 val output_arity_of_untyped_fn : FnId.t -> int
 
+val output_arity_of_typed_fn : FnId.t -> int
+
+val input_types_of_typed_fn : FnId.t -> Type.t list
+val output_types_of_typed_fn : FnId.t -> Type.t list
 
 val optimize_typed_functions : unit -> unit
 

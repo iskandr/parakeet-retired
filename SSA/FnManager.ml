@@ -145,11 +145,19 @@ let get_typed_fn_from_value = function
 let have_untyped_function name =
   Hashtbl.mem state.name_to_untyped_id name
 
-let get_untyped_arity fnId =
+let input_arity_of_untyped_fn fnId =
   UntypedSSA.FnHelpers.input_arity (get_untyped_function fnId)
+let output_arity_of_untyped_fn fnId =
+  UntypedSSA.FnHelpers.output_arity (get_untyped_function fnId)
 
+
+let input_arity_of_typed_fn fnId =
+  TypedSSA.FnHelpers.input_arity (get_typed_function fnId)
 let output_arity_of_typed_fn fnId =
   TypedSSA.FnHelpers.output_arity (get_typed_function fnId)
 
-let output_arity_of_untyped_fn fnId =
-  UntypedSSA.FnHelpers.output_arity (get_untyped_function fnId)
+let input_types_of_typed_fn fnId =
+  TypedSSA.FnHelpers.input_types (get_typed_function fnId)
+let output_types_of_typed_fn fnId =
+  TypedSSA.FnHelpers.output_types (get_typed_function fnId)
+

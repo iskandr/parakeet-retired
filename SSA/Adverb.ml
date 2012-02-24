@@ -16,6 +16,12 @@ type ('a,'b,'c) info = {
   axes : 'c;
 }
 
+let adverb {adverb} = adverb
+let adverb_fn {adverb_fn} = adverb_fn
+let fixed_args {fixed_args} = fixed_args
+let init {init} = init
+let axes {axes} = axes
+
 let apply_to_fields ~(fn:'a->'d) ~(args:'b -> 'e) ~(axes:'c -> 'f) info =
   {
     adverb = info.adverb;
