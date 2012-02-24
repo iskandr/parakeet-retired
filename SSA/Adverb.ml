@@ -16,13 +16,14 @@ type ('a,'b,'c) info = {
   axes : 'c;
 }
 
-let apply_to_fields (f:'a->'d) (g:'b -> 'e) (h:'c -> 'f) info = {
-  adverb = info.adverb;
-  adverb_fn = f info.adverb_fn;
-  fixed_args = g info.fixed_args;
-  init = Option.map g info.init;
-  axes = h info.axes;
-}
+let apply_to_fields ~(fn:'a->'d) ~(args:'b -> 'e) ~(axes:'c -> 'f) info =
+  {
+    adverb = info.adverb;
+    adverb_fn = fn info.adverb_fn;
+    fixed_args = args info.fixed_args;
+    init = Option.map args info.init;
+    axes = axes info.axes;
+  }
 
 let info_to_str fn_to_str args_to_str axes_to_str info =
   Printf.sprintf "%s[fn=%s; fixed=%s; init=%s; axes=%s]"

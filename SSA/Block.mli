@@ -1,16 +1,11 @@
 type 'a t
 
-val empty : 'a t
 val singleton : 'a -> 'a t
 val of_list : 'a list -> 'a t
 val of_array : 'a array -> 'a t
-
 val append : 'a t -> 'a t -> 'a t
-val concat : 'a t list -> 'a t
 
-val insert_after : 'a t -> 'a -> 'a t
-val insert_before : 'a -> 'a t -> 'a t
-
+val add : 'a t -> 'a -> unit
 val length : 'a t -> int
 val idx : 'a t -> int -> 'a
 
@@ -26,5 +21,3 @@ val exists : ('a -> bool) -> 'a t -> bool
 val find_first : ('a -> 'b option) -> 'a t -> 'b option
 
 val to_str : ('a -> string) -> 'a t -> string
-
-

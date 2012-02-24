@@ -12,7 +12,8 @@ type ('a,'b,'c) info = {
 }
 
 val apply_to_fields :
-  ('a->'d) -> ('b -> 'e) -> ('c -> 'f) -> ('a,'b, 'c) info -> ('d, 'e, 'f) info
+  fn:('a->'d) -> args:('b -> 'e) -> axes:('c -> 'f) -> ('a,'b, 'c) info ->
+    ('d, 'e, 'f) info
 
 
 val info_to_str :

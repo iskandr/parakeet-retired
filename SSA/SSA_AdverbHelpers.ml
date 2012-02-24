@@ -136,3 +136,14 @@ let mk_adverb_fn
       FnManager.add_typed ~optimize:false fn;
       Hashtbl.replace adverb_fn_cache cache_key fn.fn_id;
       fn
+
+
+  let rec block_has_adverb block = Block.exists stmt_has_adverb block
+  and stmt_has_adverb {stmt} = match stmt with
+    | SSA.Set(_, {exp=SSA.Adverb _}) -> true
+    | SSA.If(_, tBlock, fBlock, _) ->
+      block_has_adverb tBlock || block_has_adverb fBlock
+    | SSA.WhileLoop (condBlock, _, body, _) ->
+      block_has_adverb condBlock || block_has_adverb body
+    | _ -> false
+ let fn_has_adverb {body} = block_has_adverb block

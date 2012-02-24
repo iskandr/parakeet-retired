@@ -9,8 +9,8 @@ val infer_adverb_axes_from_args :
 (* These all require us to look up information from typed function arguments *)
 
 
-val closure_input_types : SSA.closure -> Type.t list
-val closure_output_types : SSA.closure -> Type.t list
+val closure_input_types : TypedSSA.closure -> Type.t list
+val closure_output_types : TypedSSA.closure -> Type.t list
 
 val mk_adverb :
   ?src:SrcInfo.t -> Prim.adverb -> closure -> ?axes:value_nodes ->
@@ -19,9 +19,13 @@ val mk_adverb :
 val mk_adverb_fn :
     ?src:SrcInfo.t ->
     adverb:Prim.adverb ->
-    nested_fn:SSA.fn ->
-    ?axes:SSA.value_nodes ->
-    ?init:SSA.value_nodes ->
+    nested_fn:TypedSSA.fn ->
+    ?axes:TypedSSA.value_nodes ->
+    ?init:TypedSSA.value_nodes ->
     ?fixed_types:Type.t list ->
     array_types:Type.t list ->
-    SSA.fn
+    TypedSSA.fn
+
+val stmt_has_adverb : TypedSSA.stmt_node -> bool
+val block_has_adverb : TypedSSA.block -> bool
+val fn_has_adverb : TypedSSA.fn -> bool

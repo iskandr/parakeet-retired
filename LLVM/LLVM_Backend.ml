@@ -230,17 +230,20 @@ let call_imp_fn (impFn:Imp.fn) (args:Ptr.t Value.t list) : Ptr.t Value.t list =
   ENDIF;
   outputs
 
-let call (fn:SSA.fn) args =
+let call (fn:TypedSSA.fn) args =
   let inputTypes = List.map ImpType.type_of_value args in
   let impFn : Imp.fn = SSA_to_Imp.translate_fn fn inputTypes in
   call_imp_fn impFn args
+
+let adverb info args = assert false
+
 
 let map ~axes ~fn ~fixed args =
   let mapFn = SSA_AdverbHelpers.mk_adverb_fn
     ?src:None
     ~adverb:Prim.Map
     ~nested_fn:fn
-    ~axes:(List.map TypedSSA.int32 axes)
+    ~axes:(List.map TypedTypedSSA.int32 axes)
     ?init:None
     ~fixed_types:(List.map Value.type_of fixed)
     ~array_types:(List.map Value.type_of args)
@@ -265,7 +268,7 @@ let map ~axes ~fn ~fixed args =
 let reduce ~axes ~fn ~fixed ?init args =
   (*
   let init = match init with
-    | Some init -> List.map TypedSSA.wrap_value init
+    | Some init -> List.map TypedTypedSSA.wrap_value init
     | None -> []
   in
   *)
@@ -273,7 +276,7 @@ let reduce ~axes ~fn ~fixed ?init args =
     ?src:None
     ~adverb:Prim.Reduce
     ~nested_fn:fn
-    ~axes:(List.map TypedSSA.int32 axes)
+    ~axes:(List.map TypedTypedSSA.int32 axes)
     ?init:(Option.map (fun inits -> List.map Value.type_of inits) init)
     ~fixed_types:(List.map Value.type_of fixed)
     ~array_types:(List.map Value.type_of args)

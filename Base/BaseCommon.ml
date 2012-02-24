@@ -8,7 +8,7 @@ let (>>=) x f = f x
 let ignore x = ()
 
 let compose f g = fun x -> f (g x)
-
+let id x = x
 let debug msg =
   IFDEF DEBUG THEN Printf.printf "%s\n" msg; END;
   ()

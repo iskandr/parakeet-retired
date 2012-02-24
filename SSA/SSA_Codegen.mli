@@ -1,7 +1,7 @@
 (* The codegen object helps keep track of information about an SSA function*)
 (* function and its variables as we are in the process of constructing it. *)
-(* Should be used only from the AST_to_SSA module *)
 
+open TypedSSA
 
 class codegen : object
     val types : Type.t ID.Map.t ref
@@ -21,14 +21,9 @@ class codegen : object
           value_node list ->value_node list
 
     method emit : stmt_node list -> unit
-
-    method finalize : SSA.block
+    method finalize : block
 end
 
 val mk_codegen_fn
       : Type.t list ->  Type.t list ->
-        (codegen -> value_node list-> value_node list -> unit) -> UntypedSSA.fn
-
-
-
-
+        (codegen -> value_node list-> value_node list -> unit) -> fn
