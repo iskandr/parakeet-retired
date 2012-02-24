@@ -65,6 +65,8 @@ BuiltinPrimitives = {
   'Slice': 'slice',
 }
 
+ValidObjects = {np.add: parakeet_lib.add}
+
 adverbs = [parakeet_lib.map, parakeet_lib.reduce,
            parakeet_lib.allpairs, parakeet_lib.scan]
 
@@ -410,47 +412,92 @@ class ASTConverter():
     src_info = self.build_src_info(node)
     if nodeType == 'Call':
       funRef = self.get_function_ref(node.func)
-      childContext = set(contextSet)
-      if funRef == np.array:
-        childContext.add('array')
-        assert len(node.args) == 1
-        return self.visit(node.args[0], childContext)
-      elif funRef in adverbs:
-        fun_arg = self.build_arg_list([node.args[0]], childContext)
-        arr_args = self.build_arg_list(node.args[1:], childContext)
-        kw_args = {'fixed': self.build_parakeet_array(src_info,[]),
-                   'axis': LibPar.mk_void(None)
-                  }
-        if funRef == parakeet_lib.reduce:
-          kw_args['default'] = LibPar.mk_void(None)
-        childContext.add('rhs')
-        childContext.add('array')
-        for kw_arg in node.keywords:
-          kw = kw_arg.arg
-          val = kw_arg.value
-          if type(val).__name__ == 'List':
-            val_args = []
-            for v_arg in val.elts:
-              val_args.append(self.visit(v_arg, childContext))
-            src_info = self.build_src_info(node)
-            kw_args[kw] = self.build_parakeet_array(src_info,val_args)
-          else:
-            val = self.visit(kw_arg.value, childContext)
-            src_info = self.build_src_info(node)
-            kw_args[kw] = self.build_parakeet_array(src_info,[val])
-        args = fun_arg
-        src_info = self.build_src_info(node)
-        para_arr_args = self.build_parakeet_array(src_info,arr_args)
-        args.append(para_arr_args)
-        args.append(kw_args['fixed'])
-        args.append(kw_args['axis'])
-        if funRef == parakeet_lib.reduce:
-          args.append(kw_args['default'])
-        src_info = self.build_src_info(node)
-        return self.build_call(src_info, funRef, args)
+      if hasattr(node,'__self__') and node.__self__:
+        if node.__self__ in ValidObjects:
+          func = ValidObjects[node.__self__]
+          ### Should be it's own function?
+          if func in AutoTranslate:
+            func = AutoTranslate[func]
+          self.seen_function.add(func)
+          fun_name = func.__module__ + "." + func.__name__
+          print "registering", fun_name
+          par_name = LibPar.mk_var(c_char_p(fun_name), src_info)
+          fun_arg = par_name
+          ### End own function
+          if node.__name__ == "reduce":
+            #fun_arg, already have
+            arr_args = self.build_arg_list([node.args[0]], contextSet)
+            src_info_a = self.build_src_info(node)
+            src_info_b = self.build_src_info(node)
+            src_info_c = self.build_src_info(node)
+            kw_args = {'fixed': self.build_parakeet_array(src_info_a,[]),
+                       'default': LibPar.mk_int32_paranode(
+                           func.identity, src_info_c)
+                       }
+            if len(node.args) == 1:
+              kw_args['axis'] = LibPar.mk_int32_paranode(1,src_info_b)
+            elif len(node.args) == 2:
+              kw_args['axis'] = self.visit(node.args[1], contextSet)
+            else:
+              print "TOO MANY ARGUMENTS FOR REDUCE, DO NOT SUPPORT DTYPE"
+              assert False
+
+          """
+          src_info = self.build_src_info(node)
+          para_arr_args = self.build_parakeet_array(src_info,arr_args)
+          args.append(para_arr_args)
+          args.append(kw_args['fixed'])
+          args.append(kw_args['axis'])
+          if funRef == parakeet_lib.reduce:
+            args.append(kw_args['default'])
+          src_info = self.build_src_info(node)
+          return self.build_call(src_info, funRef, args)
+
+
+#        funArgs = self.build_arg_list(node.args, childContext)
+#        return self.build_call(src_info, funRef, funArgs)"""
       else:
-        funArgs = self.build_arg_list(node.args, childContext)
-        return self.build_call(src_info, funRef, funArgs)
+        childContext = set(contextSet)
+        if funRef == np.array:
+          childContext.add('array')
+          assert len(node.args) == 1
+          return self.visit(node.args[0], childContext)
+        elif funRef in adverbs:
+          fun_arg = self.build_arg_list([node.args[0]], childContext)
+          arr_args = self.build_arg_list(node.args[1:], childContext)
+          kw_args = {'fixed': self.build_parakeet_array(src_info,[]),
+                     'axis': LibPar.mk_void(None)
+                    }
+          if funRef == parakeet_lib.reduce:
+            kw_args['default'] = LibPar.mk_void(None)
+          childContext.add('rhs')
+          childContext.add('array')
+          for kw_arg in node.keywords:
+            kw = kw_arg.arg
+            val = kw_arg.value
+            if type(val).__name__ == 'List':
+              val_args = []
+              for v_arg in val.elts:
+                val_args.append(self.visit(v_arg, childContext))
+              src_info = self.build_src_info(node)
+              kw_args[kw] = self.build_parakeet_array(src_info,val_args)
+            else:
+              val = self.visit(kw_arg.value, childContext)
+              src_info = self.build_src_info(node)
+              kw_args[kw] = self.build_parakeet_array(src_info,[val])
+          args = fun_arg
+          src_info = self.build_src_info(node)
+          para_arr_args = self.build_parakeet_array(src_info,arr_args)
+          args.append(para_arr_args)
+          args.append(kw_args['fixed'])
+          args.append(kw_args['axis'])
+          if funRef == parakeet_lib.reduce:
+            args.append(kw_args['default'])
+          src_info = self.build_src_info(node)
+          return self.build_call(src_info, funRef, args)
+        else:
+          funArgs = self.build_arg_list(node.args, childContext)
+          return self.build_call(src_info, funRef, funArgs)
     elif nodeType == 'Subscript':
       args = []
       args.append(self.visit(node.value, contextSet))
