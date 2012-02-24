@@ -291,6 +291,7 @@ paranode get_prim(char* prim_name) {
 
 source_info_t *mk_source_info_struct(char *filename, int line, int col) {
   source_info_t *source_info = (source_info_t*)malloc(sizeof(source_info_t));
+  printf("Src info: %s, %d, %d\n", filename, line, col);
   source_info->filename = filename;
   source_info->line = line;
   source_info->col = col;
