@@ -36,3 +36,11 @@ val mk_reduce_fn :
     array_types:Type.t list ->
     ?init:SSA.value_nodes ->
     SSA.fn
+
+val mk_allpairs_fn :
+    ?src:SrcInfo.t ->
+    nested_fn:SSA.fn ->
+    ?axes:SSA.value_nodes ->
+    ?fixed_types:Type.t list ->
+    array_types:Type.t list ->
+    SSA.fn

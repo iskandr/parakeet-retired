@@ -79,6 +79,14 @@ let mk_scan ?src closure ?axes ?init args =
   let outTypes : Type.t list = closure_output_types closure in
   mk_adverb ?src Prim.Scan closure ~axes ?init args outTypes
 
+let mk_allpairs ?src closure ?axes ?init args =
+  let axes : value_nodes = infer_adverb_axes_from_args ?axes args in
+  let n_axes = List.length axes in
+  let outputTypes : Type.t list =
+    List.map (Type.increase_rank n_axes) (closure_output_types closure)
+  in
+  mk_adverb ?src Prim.AllPairs closure ~axes ?init args outputTypes
+
 (* to keep stable FnId's for repeatedly generated adverbs of the same function*)
 (* we cache our results*)
 type fn_cache_key = {
@@ -183,3 +191,19 @@ let mk_reduce_fn
     ?init
     ~name:"reduce_wrapper"
     ~fn_maker:mk_reduce
+
+let mk_allpairs_fn
+    ?(src:SrcInfo.t option)
+    ~(nested_fn:SSA.fn)
+    ?(axes:SSA.value_nodes option)
+    ?(fixed_types:Type.t list=[])
+    ~(array_types:Type.t list) =
+  mk_fn
+    ?src
+    ~nested_fn
+    ?axes
+    ?fixed_types
+    ~array_types
+    ?init:None
+    ~name:"allpairs_wrapper"
+    ~fn_maker:mk_allpairs

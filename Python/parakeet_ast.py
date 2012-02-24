@@ -67,8 +67,8 @@ BuiltinPrimitives = {
 
 ValidObjects = {np.add: parakeet_lib.add}
 
-adverbs = [parakeet_lib.map, parakeet_lib.reduce, parakeet_lib.allpairs, parakeet_lib.scan]
-
+adverbs = [parakeet_lib.map, parakeet_lib.reduce,
+           parakeet_lib.allpairs, parakeet_lib.scan]
 
 #Keeps track of the user-made functions that have been made and the built-ins
 VisitedFunctions = SafeFunctions.copy()
@@ -78,16 +78,13 @@ VisitedFunctions[np.array] = ''
 #not used yet
 FunctionGlobals = {}
 
-
 ###############################################################################
 #  Helper functions
 ###############################################################################
 
-
 #Function to get ast node(s) for built-in functions/primitives
 def ast_prim(sym):
   return c_void_p(LibPar.get_prim(sym))
-
 
 def read_file(file_name):
   try:
@@ -242,8 +239,6 @@ class ASTConverter():
 
     return self.build_simple_parakeet_node(node, parakeetNodeChildren)
 
-
-
   def build_parakeet_array(self, src_info, elts):
     c_array = list_to_ctypes_array(elts, c_void_p)
     return LibPar.mk_array(c_array, len(elts), src_info)
@@ -257,7 +252,8 @@ class ASTConverter():
       parakeet_prim_name = SafeFunctions[python_fn]
       parakeet_fn = ast_prim(parakeet_prim_name)
       if parakeet_prim_name is None:
-        raise RuntimeError("[Parakeet] Support for %s not implemented" % python_fn)
+        raise RuntimeError("[Parakeet] Support for %s not implemented" %
+                           python_fn)
     else:
       c_name = c_char_p(global_fn_name(python_fn))
       parakeet_fn = LibPar.mk_var(c_name, src_info)
@@ -595,7 +591,7 @@ def register_function(f):
     print "PRINTING OUT THE NODE"
     LibPar.print_ast_node(parakeet_syntax)
     print "\n\n\n\n"
-        #Med fix: right now, I assume there aren't any globals
+    #Med fix: right now, I assume there aren't any globals
     global_vars = []
     n_globals = len(global_vars)
     globals_array = list_to_ctypes_array(global_vars,c_char_p)
