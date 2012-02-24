@@ -427,22 +427,22 @@ class ASTConverter():
           if node.__name__ == "reduce":
             #fun_arg, already have
             arr_args = self.build_arg_list([node.args[0]], contextSet)
-              src_info_a = self.build_src_info(node)
-              src_info_b = self.build_src_info(node)
-              src_info_c = self.build_src_info(node)
-              kw_args = {'fixed': self.build_parakeet_array(src_info_a,[]),
-                         'default': LibPar.mk_int32_paranode(
-                             func.identity, src_info_c)
-                         }
-              if len(node.args) == 1:
-                kw_args['axis'] = LibPar.mk_int32_paranode(1,src_info_b)
-              elif len(node.args) == 2:
-                kw_args['axis'] = self.visit(node.args[1], contextSet)
-              else:
-                print "TOO MANY ARGUMENTS FOR REDUCE, DO NOT SUPPORT DTYPE"
-                assert False
+            src_info_a = self.build_src_info(node)
+            src_info_b = self.build_src_info(node)
+            src_info_c = self.build_src_info(node)
+            kw_args = {'fixed': self.build_parakeet_array(src_info_a,[]),
+                       'default': LibPar.mk_int32_paranode(
+                           func.identity, src_info_c)
+                       }
+            if len(node.args) == 1:
+              kw_args['axis'] = LibPar.mk_int32_paranode(1,src_info_b)
+            elif len(node.args) == 2:
+              kw_args['axis'] = self.visit(node.args[1], contextSet)
+            else:
+              print "TOO MANY ARGUMENTS FOR REDUCE, DO NOT SUPPORT DTYPE"
+              assert False
 
-"""
+          """
           src_info = self.build_src_info(node)
           para_arr_args = self.build_parakeet_array(src_info,arr_args)
           args.append(para_arr_args)
@@ -495,9 +495,9 @@ class ASTConverter():
             args.append(kw_args['default'])
           src_info = self.build_src_info(node)
           return self.build_call(src_info, funRef, args)
-      else:
-        funArgs = self.build_arg_list(node.args, childContext)
-        return self.build_call(src_info, funRef, funArgs)
+        else:
+          funArgs = self.build_arg_list(node.args, childContext)
+          return self.build_call(src_info, funRef, funArgs)
     elif nodeType == 'Subscript':
       args = []
       args.append(self.visit(node.value, contextSet))
