@@ -1,3 +1,6 @@
+open Base
+open Printf
+
 module CoreLanguage = struct
   type value =
     | Var of ID.t
@@ -66,9 +69,13 @@ module PrettyPrinters = struct
       sprintf "%s(%s)" (value_node_to_str f) (value_nodes_to_str args)
     | Adverb (info, args) ->
       Printf.sprintf "%s(%s)"
-        (untyped_adverb_info_to_str info)
+        (adverb_info_to_str info)
         (value_nodes_to_str args)
   let exp_node_to_str expNode = exp_to_str expNode.exp
+
+  let phi_node_to_str = PhiNode.to_str value_node_to_str
+  let phi_nodes_to_str phiNodes =
+    String.concat "\n" (List.map phi_node_to_str phiNodes)
 
   let rec stmt_to_str stmt =
     Base.wrap_str $ match stmt with
@@ -98,12 +105,13 @@ module PrettyPrinters = struct
 
   let fn_to_str (fundef:fn) =
     let name = FnId.to_str fundef.fn_id in
-    let inputs = ids_to_str fundef.input_ids in
-    let outputs = ids_to_str fundef.output_ids in
+    let inputs = ID.list_to_str fundef.input_ids in
+    let outputs = ID.list_to_str fundef.output_ids in
     let body = block_to_str fundef.body in
     Base.wrap_str (sprintf "def %s(%s)=>(%s):\n%s" name inputs outputs body)
 
 end
+include PrettyPrinters
 
 let wrap_value ?src value = { value = value; value_src = src }
 let wrap_exp ?src valNode =
@@ -135,6 +143,15 @@ module ValueHelpers = struct
   let float32 ?src f = num ?src (ParNum.Float32 f)
   let float64 ?src f = num ?src (ParNum.Float64 f)
   let is_const {value} = match value with | Num _ -> true | _ -> false
+  let is_const_int {value} = match value with
+    | Num n -> ParNum.is_int n
+    | _ -> false
+  let get_const {value} = match value with
+    | Num n -> n
+    | _ -> failwith "Not a constant"
+  let get_const_int {value} = match value with
+    | Num n -> ParNum.to_int n
+    | _ -> failwith "Not an integer"
 end
 include ValueHelpers
 
@@ -150,7 +167,6 @@ module FnHelpers = struct
       fn_id = fnId;
     }
 
-  let find_fn_src_info {body} = get_block_src_info body
   let input_arity {input_ids} = List.length input_ids
   let output_arity {output_ids} = List.length output_ids
   let fn_id {fn_id} = fn_id

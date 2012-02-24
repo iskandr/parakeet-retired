@@ -157,18 +157,30 @@ end
 include PrettyPrinters
 
 
+module WrapHelpers = struct
 let wrap_value ?src ty value  =
       { value = value; value_src = src; value_type = ty }
 let wrap_exp valNode =
     { exp = Values [valNode]; exp_src = None; exp_types = [valNode.value_type]}
 let wrap_stmt ?src stmt =
     { stmt = stmt; stmt_src = src; stmt_id = StmtId.gen() }
+end
+include WrapHelpers
 
-let is_empty_exp = function Values [] -> true | _ -> false
-let is_empty_exp_node {exp} = is_empty_exp exp
-let is_empty_stmt {stmt} = match stmt with
+module EmptyHelpers = struct
+  let empty_exp = {
+    exp = Values []; exp_types = []; exp_src = None
+  }
+  let empty_stmt = {
+    stmt = Set([], empty_exp); stmt_src = None; stmt_id = StmtId.gen()
+  }
+  let is_empty_exp = function Values [] -> true | _ -> false
+  let is_empty_exp_node {exp} = is_empty_exp exp
+  let is_empty_stmt {stmt} = match stmt with
   | Set([], expNode)-> is_empty_exp_node expNode
   | _ -> false
+end
+include EmptyHelpers
 
 module ValueHelpers = struct
     (* get the id of a variable value node *)

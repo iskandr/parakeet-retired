@@ -72,6 +72,7 @@ val wrap_value : ?src: SrcInfo.t ->  Type.t -> value -> value_node
 val wrap_exp : value_node -> exp_node
 val wrap_stmt : ?src:SrcInfo.t -> stmt -> stmt_node
 
+val empty_stmt : stmt_node
 val is_empty_exp : exp -> bool
 val is_empty_exp_node : exp_node -> bool
 val is_empty_stmt : stmt_node -> bool
@@ -96,15 +97,10 @@ module FnHelpers  : sig
     ?name: string -> tenv: tenv -> input_ids: (ID.t list) ->
       output_ids: (ID.t list) -> body: block -> fn
 
-
   val find_fn_src_info : fn -> SrcInfo.t option
-
   val input_arity : fn -> int
-
   val output_arity : fn -> int
-
   val input_types : fn -> Type.t list
-
   val output_types : fn -> Type.t list
 
   val fn_builder :
@@ -121,8 +117,7 @@ module ExpHelpers : sig
    ?src:SrcInfo.t -> Prim.t -> output_types:Type.t list ->
      value_node list -> exp_node
 
-  val arr :
-    ?src:SrcInfo.t -> ?types:Type.t list -> value_node list -> exp_node
+  val arr : ?src:SrcInfo.t -> Type.t list -> value_node list -> exp_node
 
   val val_exp : ?src:SrcInfo.t -> Type.t -> value -> exp_node
 

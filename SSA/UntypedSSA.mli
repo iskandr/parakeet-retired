@@ -47,7 +47,6 @@ module PrettyPrinters : sig
 
   val exp_node_to_str : exp_node -> string
 
-  val ids_to_str : ID.t list -> string
   val phi_node_to_str : phi_node -> string
   val phi_nodes_to_str : phi_nodes -> string
   val stmt_to_str : stmt -> string
@@ -90,7 +89,6 @@ module FnHelpers : sig
 	val output_arity : fn -> int
 
 	val fn_id : fn -> FnId.t
-	val find_fn_src_info : fn -> SrcInfo.t option
 end
 include module type of FnHelpers
 

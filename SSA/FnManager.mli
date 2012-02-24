@@ -1,6 +1,6 @@
 open Base
 
-val add_untyped :  ?optimize:bool -> string -> UntypedSSA.fn -> unit
+val add_untyped :  string -> UntypedSSA.fn -> unit
 val add_typed : ?optimize:bool -> TypedSSA.fn -> unit
 
 val add_untyped_list :  (string * UntypedSSA.fn) list -> unit
@@ -21,12 +21,11 @@ val get_untyped_id : string -> FnId.t
 val get_typed_function_table : unit -> FnTable.t
 
 val have_untyped_function : string -> bool
+
 val get_untyped_arity : FnId.t -> int
-
-val optimize_typed_functions : unit -> unit
-val optimize_untyped_functions : unit -> unit
-
 val output_arity_of_typed_fn : FnId.t -> int
 val output_arity_of_untyped_fn : FnId.t -> int
 
+
+val optimize_typed_functions : unit -> unit
 

@@ -2,7 +2,7 @@
 
 open Base
 open Type
-open SSA
+open TypedSSA
 open SSA_Transform
 
 open FindUseCounts
@@ -69,11 +69,11 @@ module SimplifyRules = struct
       let get_type id = ID.Map.find id cxt.types in
       begin match condVal.value with
         | Num (ParNum.Bool b) ->
-            let ids, valNodes = TypedSSA.collect_phi_values b merge in
+            let ids, valNodes = PhiNode.collect_phi_values b merge in
             let types = List.map get_type ids in
             let src = stmtNode.stmt_src in
             let expNode =
-              TypedSSA.exp ?src ~types (TypedSSA.Values valNodes)
+              TypedSSA.exp ?src types (TypedSSA.Values valNodes)
             in
             Update (TypedSSA.set ?src:stmtNode.stmt_src ids expNode)
         | _ -> NoChange

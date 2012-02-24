@@ -1,7 +1,7 @@
 (* pp: -parser o pa_macro.cmo *)
 
 open Base
-open SSA
+open TypedSSA
 
 type optimization = FnTable.t -> TypedSSA.fn -> TypedSSA.fn * bool
 
