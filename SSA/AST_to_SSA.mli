@@ -17,7 +17,7 @@ module Env : sig
   val has_id : t -> string -> bool
 end
 
-
+(* TODO: make the codegens into type buffer = stmt_node DynArray.t *)
 
 val flatten_indexing : AST.node -> AST.node list
 val translate_exp :

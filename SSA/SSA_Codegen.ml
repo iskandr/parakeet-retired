@@ -1,5 +1,5 @@
 open Base
-open SSA
+open TypedSSA
 
 class codegen =
   object (self : 'a)
