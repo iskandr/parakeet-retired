@@ -72,23 +72,25 @@ let eval_imp_shape_env (fn:Imp.fn) (inputShapes : Shape.t list) =
 
 let eval_ssa_output_shapes
       (fnTable:FnTable.t)
-      (fundef:SSA.fn)
+      (fundef:TypedSSA.fn)
       (inputShapes : Shape.t list) : Shape.t list =
   let symbolicOutputShapes =
     ShapeInference.infer_normalized_output_shapes fnTable fundef
   in
-  let shapeEnv = ID.Map.extend ID.Map.empty fundef.SSA.input_ids inputShapes in
+  let shapeEnv =
+    ID.Map.extend ID.Map.empty fundef.TypedSSA.input_ids inputShapes
+  in
   List.map (eval_shape shapeEnv) symbolicOutputShapes
 
 let eval_ssa_shape_env
       (fnTable: FnTable.t)
-      (fundef:SSA.fn)
+      (fundef:TypedSSA.fn)
       (inputShapes : Shape.t list) : Shape.t ID.Map.t =
   (* infer symbolic shapes associated with each variable in a function *)
   let symShapes = ShapeInference.infer_normalized_shape_env fnTable fundef in
   (* concrete shapes of the arguments *)
   let initShapeEnv =
-    ID.Map.extend ID.Map.empty fundef.SSA.input_ids inputShapes
+    ID.Map.extend ID.Map.empty fundef.TypedSSA.input_ids inputShapes
   in
   (* evaluate symbolic shapes to get concrete shapes *)
   ID.Map.map (eval_shape initShapeEnv) symShapes

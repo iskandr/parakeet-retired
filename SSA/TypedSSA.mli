@@ -94,6 +94,7 @@ end
 include module type of ValueHelpers
 
 module FnHelpers  : sig
+  val fn_id : fn -> FnId.t
   val mk_fn :
     ?name: string -> tenv: tenv -> input_ids: (ID.t list) ->
       output_ids: (ID.t list) -> body: block -> fn

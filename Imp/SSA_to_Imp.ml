@@ -2,7 +2,7 @@
 
 open Base
 open Imp
-open ImpCodegen
+open ImpBuilder
 open ImpHelpers
 open ImpReplace
 open ImpType
@@ -13,7 +13,7 @@ let cache : (signature, Imp.fn) Hashtbl.t = Hashtbl.create 127
 
 (* are these necessary? or should we just register each SSA variable with its *)
 (* existing name as an imp variable and then implicitly keep this information *)
-(* on the codegen object? *)
+(* on the builder object? *)
 
 type loop_descr = {
   loop_var : value_node;
@@ -25,13 +25,13 @@ type loop_descr = {
 }
 
 let rec build_loop_nests
-    (codegen:ImpCodegen.codegen)
+    (builder:ImpBuilder.builder)
     (descrs : loop_descr list)
     (body:Imp.block) =
   match descrs with
 	| [] -> body
 	| d::ds ->
-    let nested = build_loop_nests codegen ds body in
+    let nested = build_loop_nests builder ds body in
     let testEltT = ImpType.elt_type d.loop_var.value_type in
     let test = {
       value = Imp.Op(testEltT, d.loop_test_cmp,
@@ -51,12 +51,12 @@ let rec build_loop_nests
     ]
 
 let mk_simple_loop_descriptor
-    (codegen:ImpCodegen.codegen)
+    (builder:ImpBuilder.builder)
     ?(down=false)
     ?(start=ImpHelpers.zero)
     (stop:Imp.value_node) =
   {
-    loop_var = codegen#fresh_local ~name:"loop_idx" int32_t;
+    loop_var = builder#fresh_local ~name:"loop_idx" int32_t;
     loop_start = start;
     loop_test_val = stop;
     loop_test_cmp = (if down then Prim.Gt else Prim.Lt);
@@ -64,18 +64,21 @@ let mk_simple_loop_descriptor
     loop_incr_op = Prim.Add;
   }
 
-let translate_value (codegen:ImpCodegen.codegen) valNode : Imp.value_node =
+let translate_value (builder:ImpBuilder.builder) valNode : Imp.value_node =
   match valNode.TypedSSA.value with
-  | TypedSSA.Var id -> codegen#var id
-  | TypedSSA.Num n -> {value = Imp.Const n;
-                  value_type = ImpType.ScalarT (ParNum.type_of n)}
+  | TypedSSA.Var id -> builder#var id
+  | TypedSSA.Num n ->
+    {
+      value = Imp.Const n;
+      value_type = ImpType.ScalarT (ParNum.type_of n)
+    }
   | other -> failwith $
       "[ssa->imp] unrecognized value: " ^ (TypedSSA.value_to_str other)
 
-let rec translate_values codegen valNodes : Imp.value_node list =
-  List.map (translate_value codegen) valNodes
+let rec translate_values builder valNodes : Imp.value_node list =
+  List.map (translate_value builder) valNodes
 
-let translate_array_op codegen (op:Prim.array_op) (args:Imp.value_node list) =
+let translate_array_op builder (op:Prim.array_op) (args:Imp.value_node list) =
   match op, args with
 	| Prim.Index, array::indices ->
 	  let arrayT = array.Imp.value_type in
@@ -107,7 +110,7 @@ let rec argmax_array_rank = function
     else restResult
 
 let translate_array_literal
-      (codegen:ImpCodegen.codegen)
+      (builder:ImpBuilder.builder)
       (lhsId:ID.t)
       (elts:TypedSSA.value_node list)  =
   let ssaTypes = List.map (fun {TypedSSA.value_type} -> value_type) elts in
@@ -118,8 +121,8 @@ let translate_array_literal
     let firstType = List.hd ssaTypes in
     let impType = ImpType.ArrayT (Type.elt_type firstType, 1) in
     let shape = SymbolicShape.Const n in
-    let lhs = codegen#var lhsId in
-    let impElts : Imp.value_node list = translate_values codegen elts in
+    let lhs = builder#var lhsId in
+    let impElts : Imp.value_node list = translate_values builder elts in
     let assign_elt idx rhs =
       ImpHelpers.setidx lhs [ImpHelpers.int idx] rhs
     in
@@ -128,44 +131,44 @@ let translate_array_literal
 (* given an array, map a list of its axes into *)
 (* a list of statements and a list of dimsize values *)
 let rec size_of_axes
-          (codegen:ImpCodegen.codegen)
+          (builder:ImpBuilder.builder)
           (array:Imp.value_node)
           (axes:int list) : Imp.block * Imp.value_node list =
   match axes with
   | [] -> [], []
   | axis::rest ->
     let size : Imp.value_node = ImpHelpers.dim array (ImpHelpers.int axis) in
-    let temp = codegen#fresh_local ~name:"size" ImpType.int32_t in
+    let temp = builder#fresh_local ~name:"size" ImpType.int32_t in
     let stmtNode = ImpHelpers.set temp size in
-    let restBlock, restVals = size_of_axes codegen array rest in
+    let restBlock, restVals = size_of_axes builder array rest in
     stmtNode :: restBlock, temp :: restVals
 
 (* given an array and a list of axes, create a list of loop descriptors*)
 (* which we can turn into nested loops over the array *)
 let rec axes_to_loop_descriptors
-          (codegen:ImpCodegen.codegen)
+          (builder:ImpBuilder.builder)
           (array : Imp.value_node)
           (axes : int list) : Imp.block * loop_descr list =
-  let stmts, sizes = size_of_axes codegen array axes in
+  let stmts, sizes = size_of_axes builder array axes in
   let loopDescriptors = List.map
-    (mk_simple_loop_descriptor codegen) sizes in
+    (mk_simple_loop_descriptor builder) sizes in
   stmts, loopDescriptors
 
-let mk_set_val codegen (id:ID.t) (v:TypedSSA.value_node) =
-  let impVar = codegen#var id in
-  set impVar $ translate_value codegen v
+let mk_set_val builder (id:ID.t) (v:TypedSSA.value_node) =
+  let impVar = builder#var id in
+  set impVar $ translate_value builder v
 
-let translate_true_phi_node codegen phiNode =
-  let rhs = translate_value codegen phiNode.TypedSSA.phi_left in
-  Imp.Set(phiNode.TypedSSA.phi_id, rhs)
+let translate_true_phi_node builder phiNode =
+  let exp = translate_value builder (PhiNode.left phiNode) in
+  Imp.Set (PhiNode.id phiNode, exp)
 
-let translate_false_phi_node codegen phiNode =
-  let rhs = translate_value codegen phiNode.TypedSSA.phi_right in
-  Imp.Set(phiNode.TypedSSA.phi_id, rhs)
+let translate_false_phi_node builder phiNode =
+  let exp = translate_value builder (PhiNode.right phiNode) in
+  Imp.Set (PhiNode.id phiNode, exp)
 
-let declare_var ssaFn shapeEnv (codegen:ImpCodegen.fn_codegen) (id, impType)  =
+let declare_var ssaFn shapeEnv (builder:ImpBuilder.fn_builder) (id, impType)  =
   if List.mem id ssaFn.TypedSSA.input_ids then
-    codegen#declare_input id impType
+    builder#declare_input id impType
   else (
   (* inputs all have the trivial shape
      SHAPE(x) = [dim(x,0), dim(x,1), etc...]
@@ -174,9 +177,9 @@ let declare_var ssaFn shapeEnv (codegen:ImpCodegen.fn_codegen) (id, impType)  =
   *)
     let symShape = ID.Map.find id shapeEnv in
     if List.mem id ssaFn.TypedSSA.output_ids then
-      codegen#declare_output id ~shape:symShape impType
+      builder#declare_output id ~shape:symShape impType
     else
-      codegen#declare id ~shape:symShape impType
+      builder#declare id ~shape:symShape impType
   )
 
 let rec translate_fn (ssaFn:TypedSSA.fn) (impInputTypes:ImpType.t list) : Imp.fn =
@@ -191,20 +194,20 @@ let rec translate_fn (ssaFn:TypedSSA.fn) (impInputTypes:ImpType.t list) : Imp.fn
     ENDIF;
     impFn
   | None ->
-    let codegen = new ImpCodegen.fn_codegen in
+    let builder = new ImpBuilder.fn_builder in
     let impTyEnv = InferImpTypes.infer ssaFn impInputTypes in
     let shapeEnv : SymbolicShape.env  =
       ShapeInference.infer_normalized_shape_env
         (FnManager.get_typed_function_table ()) ssaFn
     in
-    List.iter (declare_var ssaFn shapeEnv codegen) (ID.Map.to_list impTyEnv);
+    List.iter (declare_var ssaFn shapeEnv builder) (ID.Map.to_list impTyEnv);
     let body =
-      translate_block (codegen :> ImpCodegen.codegen) ssaFn.TypedSSA.body
+      translate_block (builder :> ImpBuilder.builder) ssaFn.TypedSSA.body
     in
     let ssa_name = FnId.to_str ssaFn.TypedSSA.fn_id in
     let arg_strings = ImpType.type_list_to_str impInputTypes in
     let name = ssa_name ^ "[" ^ arg_strings ^ "]" in
-    let impFn = codegen#finalize_fn ~name body in
+    let impFn = builder#finalize_fn ~name body in
     Hashtbl.add cache signature impFn;
     IFDEF DEBUG THEN
       Printf.printf
@@ -214,65 +217,59 @@ let rec translate_fn (ssaFn:TypedSSA.fn) (impInputTypes:ImpType.t list) : Imp.fn
     ENDIF;
     impFn
 
-and translate_block (codegen : ImpCodegen.codegen) block : Imp.stmt list =
+and translate_block (builder : ImpBuilder.builder) block : Imp.stmt list =
   Block.fold_forward
-    (fun acc stmt -> acc @ (translate_stmt codegen stmt))
+    (fun acc stmt -> acc @ (translate_stmt builder stmt))
     []
     block
-and translate_stmt (codegen : ImpCodegen.codegen) stmtNode : Imp.stmt list  =
+and translate_stmt (builder : ImpBuilder.builder) stmtNode : Imp.stmt list  =
   match stmtNode.TypedSSA.stmt with
 	(* array literals get treated differently from other expressions since*)
 	(* they require a block of code rather than simply translating from *)
 	(* TypedSSA.exp_node to Imp.exp_node *)
 	| TypedSSA.Set([id], {TypedSSA.exp = TypedSSA.Arr elts}) ->
-	  translate_array_literal codegen id elts
+	  translate_array_literal builder id elts
   (* adverbs get special treatment since they might return multiple values *)
-  | TypedSSA.Set(ids, {TypedSSA.exp = TypedSSA.Adverb(adverb, closure, adverbArgs)})->
-    let constAxes : int list = match adverbArgs.TypedSSA.axes with
-      | Some axes ->
-        if List.for_all SSA_Helpers.is_const_int axes then
-          List.map SSA_Helpers.get_const_int axes
-        else
-          failwith "[SSA->Imp] Can only translate constant adverb axes to Imp"
-      | None -> failwith "[SSA->Imp] Found axes=None on adverb"
+  | TypedSSA.Set(ids,  {TypedSSA.exp = TypedSSA.Adverb(info, arrays)}) ->
+    let impInfo : (TypedSSA.fn, Imp.value_node list, int list) Adverb.info =
+      Adverb.apply_to_fields
+        ~fn:FnManager.get_typed_function
+        ~args:(translate_values builder)
+        ~axes:AdverbHelpers.const_axes
+        info
     in
-    translate_adverb codegen ids adverb
-      ~ssa_fn:(FnManager.get_typed_function closure.TypedSSA.closure_fn)
-      ~closure_args:(translate_values codegen closure.TypedSSA.closure_args)
-      ~init:(Option.map (translate_values codegen) adverbArgs.TypedSSA.init)
-      ~args:(translate_values codegen adverbArgs.TypedSSA.args)
-      ~axes:constAxes
+    translate_adverb builder ids impInfo (translate_values builder arrays)
 	(* all assignments other than those with an array literal RHS *)
 	| TypedSSA.Set([id], rhs) ->
-    let impRhs : Imp.value_node = translate_exp codegen rhs in
-    let impVar : Imp.value_node = codegen#var id in
+    let impRhs : Imp.value_node = translate_exp builder rhs in
+    let impVar : Imp.value_node = builder#var id in
     [set impVar impRhs]
 
 	| TypedSSA.Set(ids, {TypedSSA.exp = TypedSSA.Values vs}) ->
-	  List.map2 (mk_set_val codegen) ids vs
+	  List.map2 (mk_set_val builder) ids vs
   | TypedSSA.Set _ -> failwith "multiple assignment not supported"
 	| TypedSSA.SetIdx(lhs, indices, rhs) ->
-	  let indices : Imp.value_node list = translate_values codegen indices in
-	  let lhs : Imp.value_node = translate_value codegen lhs in
-	  let rhs : Imp.value_node = translate_value codegen rhs in
+	  let indices : Imp.value_node list = translate_values builder indices in
+	  let lhs : Imp.value_node = translate_value builder lhs in
+	  let rhs : Imp.value_node = translate_exp builder rhs in
 	  [Imp.SetIdx(lhs, indices, rhs)]
 	| TypedSSA.If(cond, tBlock, fBlock, phiNodes) ->
-    let cond' : Imp.value_node = translate_value codegen cond in
-    let tBlock' : Imp.block = translate_block codegen tBlock in
-    let fBlock' : Imp.block = translate_block codegen fBlock in
-    let trueMerge = List.map (translate_true_phi_node codegen) phiNodes in
-    let falseMerge = List.map (translate_false_phi_node codegen) phiNodes in
+    let cond' : Imp.value_node = translate_value builder cond in
+    let tBlock' : Imp.block = translate_block builder tBlock in
+    let fBlock' : Imp.block = translate_block builder fBlock in
+    let trueMerge = List.map (translate_true_phi_node builder) phiNodes in
+    let falseMerge = List.map (translate_false_phi_node builder) phiNodes in
     let tBlock' = tBlock' @ trueMerge in
     let fBlock' = fBlock' @ falseMerge in
     [Imp.If(cond', tBlock', fBlock')]
 	| TypedSSA.WhileLoop(condBlock, condVal, body, phiNodes) ->
 	  let inits : Imp.block =
-	    List.map (translate_true_phi_node codegen) phiNodes
+	    List.map (translate_true_phi_node builder) phiNodes
 	  in
-	  let condBlock : Imp.block  = translate_block codegen condBlock in
-	  let condVal : Imp.value_node = translate_value codegen condVal in
-	  let body : Imp.block = translate_block codegen body in
-	  let finals = List.map (translate_false_phi_node codegen) phiNodes in
+	  let condBlock : Imp.block  = translate_block builder condBlock in
+	  let condVal : Imp.value_node = translate_value builder condVal in
+	  let body : Imp.block = translate_block builder body in
+	  let finals = List.map (translate_false_phi_node builder) phiNodes in
 	  let fullBody = body @ finals @ condBlock in
 	  inits @ condBlock @ [Imp.While(condVal, fullBody)]
  | _ ->
@@ -280,12 +277,12 @@ and translate_stmt (codegen : ImpCodegen.codegen) stmtNode : Imp.stmt list  =
      "[Imp_to_SSA] Not yet implemented: %s"
      (TypedSSA.stmt_node_to_str stmtNode)
 
-and translate_exp (codegen:ImpCodegen.codegen) expNode : Imp.value_node  =
+and translate_exp (builder:ImpBuilder.builder) expNode : Imp.value_node  =
   match expNode.TypedSSA.exp with
-	| TypedSSA.Values [v] -> translate_value codegen v
+	| TypedSSA.Values [v] -> translate_value builder v
 	| TypedSSA.Values _ -> failwith "multiple value expressions not supported"
 	| TypedSSA.PrimApp (Prim.ScalarOp op, args) ->
-	  let args' = translate_values codegen args in
+	  let args' = translate_values builder args in
 	  let opType, returnType =
 	    if Prim.is_comparison op then
 	      let firstArg = List.hd args' in
@@ -299,72 +296,44 @@ and translate_exp (codegen:ImpCodegen.codegen) expNode : Imp.value_node  =
       value_type = ImpType.ScalarT returnType
     }
 	| TypedSSA.PrimApp (Prim.ArrayOp op, args) ->
-	  let impArgs = translate_values codegen args in
-	  translate_array_op codegen op impArgs
+	  let impArgs = translate_values builder args in
+	  translate_array_op builder op impArgs
 	| TypedSSA.Cast(t, src) ->
 	  (* cast only operates on scalar types! *)
 	  let eltT = Type.elt_type t in
 	  let impT = ImpType.ScalarT eltT in
 	  {
-      value = Imp.Cast(impT, translate_value codegen src);
+      value = Imp.Cast(impT, translate_value builder src);
       value_type = impT
     }
 	| TypedSSA.Arr _ -> failwith "[SSA_to_Imp] Unexpected array expression"
-	| _ -> failwith $ "[ssa->imp] unrecognized exp: " ^ (TypedSSA.exp_to_str expNode)
+	| _ ->
+    failwith $ Printf.sprintf
+      "[ssa->imp] unrecognized exp: %s"
+      (TypedSSA.exp_node_to_str expNode)
 
-and translate_adverb codegen (lhsIds:ID.t list) (adverb:Prim.adverb)
-      ~(ssa_fn:TypedSSA.fn)
-      ~(closure_args:Imp.value_node list)
-      ~(init:Imp.value_node list option)
-      ~(args:Imp.value_node list)
-      ~(axes:int list) : Imp.stmt list =
+(* TODO: make this do something sane for adverbs other than Map *)
+and translate_adverb
+      (builder:ImpBuilder.builder)
+      (lhsIds:ID.t list)
+      {Adverb.adverb; adverb_fn; fixed_args; init; axes}
+      (args : Imp.value_node list) : Imp.stmt list =
   assert (init = None);
-  IFDEF DEBUG THEN
-    Printf.printf "Closure args: %s, array args: %s\n%!"
-      (Imp.value_nodes_to_str closure_args)
-      (Imp.value_nodes_to_str args)
-    ;
-  ENDIF;
-  let closureArgTypes = List.map Imp.value_type closure_args in
+  let fixedTypes = List.map Imp.value_type fixed_args in
   let argTypes = List.map Imp.value_type args in
   let num_axes = List.length axes in
   let peeledArgTypes = List.map (ImpType.peel ~num_axes) argTypes in
-  let fnInputTypes = closureArgTypes @ peeledArgTypes in
-  IFDEF DEBUG THEN
-    Printf.printf "Fn input types: %s, given inputs: %s\n%!"
-      (Type.type_list_to_str ssa_fn.TypedSSA.fn_input_types)
-      (ImpType.type_list_to_str fnInputTypes)
-    ;
-  ENDIF;
-  let nestedFn : Imp.fn = translate_fn ssa_fn fnInputTypes in
-  match adverb with
-  | Prim.Map ->
-    translate_map codegen lhsIds nestedFn closure_args args axes
-  | Prim.Reduce ->
-    translate_reduce codegen lhsIds nestedFn closure_args init args axes
-  | _ ->
-    failwith $ Printf.sprintf
-      "[SSA_to_Imp] Unsupported adverb %s"
-      (Prim.adverb_to_str adverb)
-
-and translate_map
-      (codegen:ImpCodegen.codegen)
-      (lhsIds:ID.t list)
-      (impFn:Imp.fn)
-      (closureArgs:Imp.value_node list)
-      (args:Imp.value_node list)
-      (axes:int list) : Imp.stmt list =
-  let num_axes : int = List.length axes in
+  let fnInputTypes = fixedTypes @ peeledArgTypes in
+  let impFn : Imp.fn = translate_fn adverb_fn fnInputTypes in
   let bigArray : Imp.value_node = argmax_array_rank args in
   let initBlock, loopDescriptors =
-    axes_to_loop_descriptors codegen bigArray axes
+    axes_to_loop_descriptors builder bigArray axes
   in
   let indices = List.map (fun {loop_var} -> loop_var) loopDescriptors in
   let nestedArrayArgs : Imp.value_node list =
     List.map (fun arg -> ImpHelpers.idx arg indices) args
   in
-  let nestedArgs : Imp.value_node list = closureArgs @ nestedArrayArgs in
-  (* TODO: *)
+  let nestedArgs : Imp.value_node list = fixed_args @ nestedArrayArgs in
   (*   Currently assuming that axes are in order starting from zero *)
   let rec check_ordered_list ?(prev=(-1)) = function
     | [] -> failwith "[translate_map] Can't handle empty axis list"
@@ -372,23 +341,26 @@ and translate_map
     | x::xs -> (x = prev + 1) && (check_ordered_list ~prev:x xs)
   in
   check_ordered_list axes;
-  let lhsValues = List.map codegen#var lhsIds in
+  let lhsValues = List.map builder#var lhsIds in
   let nestedOutputs =
     List.map (fun arrayOutput -> ImpHelpers.idx arrayOutput indices) lhsValues
   in
-  let replaceIds = impFn.input_ids @ impFn.output_ids in
-  let replaceValues = nestedArgs @ nestedOutputs in
-  let replaceEnv = ID.Map.of_lists replaceIds replaceValues in
+  let replaceEnv =
+    ID.Map.of_lists
+      (impFn.input_ids @ impFn.output_ids)
+      (nestedArgs @ nestedOutputs)
+  in
   let fnBody = ImpReplace.replace_block replaceEnv impFn.body in
-  let loops = build_loop_nests codegen loopDescriptors fnBody in
+  let loops = build_loop_nests builder loopDescriptors fnBody in
   initBlock @ loops
+(*
+  match adverb with
+  | Prim.Map ->
+  | Prim.Reduce ->
 
-and translate_reduce
-      (codegen:ImpCodegen.codegen)
-      (lhsIds:ID.t list)
-      (impFn:Imp.fn)
-      (closureArgs:Imp.value_node list)
-      (initArgs:Imp.value_node list option)
-      (args:Imp.value_node list)
-      (axes:int list)  =
-  assert false
+  | _ ->
+    failwith $ Printf.sprintf
+      "[SSA_to_Imp] Unsupported adverb %s"
+      (Prim.adverb_to_str adverb)
+
+*)

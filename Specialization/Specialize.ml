@@ -2,7 +2,7 @@
 
 open Base
 
-open SSA_AdverbHelpers
+open AdverbHelpers
 open SSA_Codegen
 open Type
 open Printf
@@ -128,7 +128,7 @@ and scalarize_fn untyped vecSig =
       (Signature.to_str vecSig);
   ENDIF;
   let inTypes = Signature.input_types vecSig in
-  let numAxes = SSA_AdverbHelpers.max_num_axes_from_array_types inTypes in
+  let numAxes = AdverbHelpers.max_num_axes_from_array_types inTypes in
   let scalarTypes = List.map (Type.peel ~num_axes:numAxes) inTypes in
   IFDEF DEBUG THEN
     Printf.printf
@@ -183,7 +183,7 @@ and specialize_value fnVal signature =
             (* axes, but if we're adding an array to a vector we can only map*)
             (* over one axis *)
               let maxRank =
-                SSA_AdverbHelpers.max_num_axes_from_array_types inputTypes
+                AdverbHelpers.max_num_axes_from_array_types inputTypes
               in
               let nestedInputTypes =
                 List.map (Type.peel ~num_axes:maxRank) inputTypes
@@ -196,10 +196,10 @@ and specialize_value fnVal signature =
                   Signature.from_types nestedInputTypes nestedOutTypes
               in
               let nestedFn = specialize_value fnVal nestedSig in
-              SSA_AdverbHelpers.mk_map_fn
+              AdverbHelpers.mk_map_fn
                 ?src:None
                 ~nested_fn:nestedFn
-                ~axes:(SSA_AdverbHelpers.infer_adverb_axes_from_rank maxRank)
+                ~axes:(AdverbHelpers.infer_adverb_axes_from_rank maxRank)
                 ~fixed_types:[]
                 ~array_types:inputTypes
             end

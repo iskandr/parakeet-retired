@@ -1,5 +1,6 @@
 type t = Map | Reduce | Scan | AllPairs
 
+val has_accumulator : t -> bool
 val to_str : t -> string
 
 

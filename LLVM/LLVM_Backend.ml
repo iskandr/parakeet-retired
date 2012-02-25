@@ -32,27 +32,14 @@ let optimize_module llvmModule llvmFn : unit =
 
   (* Promote allocas to registers. *)
   Llvm_scalar_opts.add_memory_to_register_promotion the_fpm;
-
   Llvm_scalar_opts.add_sccp the_fpm;
   Llvm_scalar_opts.add_aggressive_dce the_fpm;
   Llvm_scalar_opts.add_instruction_combination the_fpm;
   Llvm_scalar_opts.add_cfg_simplification the_fpm;
-  (*
-  Llvm_scalar_opts.add_basic_alias_analysis the_fpm;
-  Llvm_scalar_opts.add_type_based_alias_analysis the_fpm;
-  Llvm_scalar_opts.add_ind_var_simplification the_fpm;
-  Llvm_scalar_opts.add_dead_store_elimination the_fpm;
-  Llvm_scalar_opts.add_memcpy_opt the_fpm;
   Llvm_scalar_opts.add_gvn the_fpm;
-  Llvm_scalar_opts.add_correlated_value_propagation the_fpm;
-
   Llvm_scalar_opts.add_licm the_fpm;
-  Llvm_scalar_opts.add_loop_unswitch the_fpm;
   Llvm_scalar_opts.add_loop_unroll the_fpm;
-  Llvm_scalar_opts.add_loop_unroll the_fpm;
-  Llvm_scalar_opts.add_loop_rotation the_fpm;
-  Llvm_scalar_opts.add_loop_idiom the_fpm;
-  *)
+
   ignore (PassManager.run_function llvmFn the_fpm);
   ignore (PassManager.finalize the_fpm);
   PassManager.dispose the_fpm
@@ -235,28 +222,30 @@ let call (fn:TypedSSA.fn) args =
   let impFn : Imp.fn = SSA_to_Imp.translate_fn fn inputTypes in
   call_imp_fn impFn args
 
-let adverb info args = assert false
-
-
-let map ~axes ~fn ~fixed args =
-  let mapFn = SSA_AdverbHelpers.mk_adverb_fn
-    ?src:None
-    ~adverb:Prim.Map
-    ~nested_fn:fn
-    ~axes:(List.map TypedTypedSSA.int32 axes)
-    ?init:None
-    ~fixed_types:(List.map Value.type_of fixed)
-    ~array_types:(List.map Value.type_of args)
+let adverb (info:(TypedSSA.fn, Ptr.t Value.t list, int list) Adverb.info) args =
+  (* make another Adverb.info object to call into AdverbHelpers.mk_adverb_fn *)
+  let ssaInfo :
+    (FnId.t, Type.t list, TypedSSA.value_nodes) Adverb.info =
+    Adverb.apply_to_fields
+      ~fn:TypedSSA.fn_id
+      ~args:Value.type_of_list
+      ~axes:(List.map TypedSSA.int32)
+      info
   in
+  let adverbFn = AdverbHelpers.mk_adverb_fn ssaInfo (Value.type_of_list args) in
+  assert (Adverb.init info = None);
+  let fixed = Adverb.fixed_args info in
   let impTypes = List.map ImpType.type_of_value (fixed @ args) in
-  let impFn : Imp.fn = SSA_to_Imp.translate_fn mapFn impTypes in
+  let impFn : Imp.fn = SSA_to_Imp.translate_fn adverbFn impTypes in
   let llvmFn = CompiledFunctionCache.compile impFn in
   let inputShapes : Shape.t list = List.map Value.get_shape (fixed @ args) in
   let outputs : Ptr.t Value.t list =
     allocate_output_arrays impFn inputShapes
   in
+  let axes = Adverb.axes info in
   let work_items = build_work_items axes num_cores (args @ outputs) in
   do_work work_queue execution_engine llvmFn work_items;
+  (* TODO: What happens to reduced things? We still need to recombine them!*)
   IFDEF DEBUG THEN
     Printf.printf
       "[LLVM_Backend.call_imp_fn] Got function results: %s\n%!"
@@ -264,36 +253,3 @@ let map ~axes ~fn ~fixed args =
     ;
   ENDIF;
   outputs
-
-let reduce ~axes ~fn ~fixed ?init args =
-  (*
-  let init = match init with
-    | Some init -> List.map TypedTypedSSA.wrap_value init
-    | None -> []
-  in
-  *)
-  let reduceFn = SSA_AdverbHelpers.mk_adverb_fn
-    ?src:None
-    ~adverb:Prim.Reduce
-    ~nested_fn:fn
-    ~axes:(List.map TypedTypedSSA.int32 axes)
-    ?init:(Option.map (fun inits -> List.map Value.type_of inits) init)
-    ~fixed_types:(List.map Value.type_of fixed)
-    ~array_types:(List.map Value.type_of args)
-  in
-  let impTypes = List.map ImpType.type_of_value (fixed @ args) in
-  let impFn : Imp.fn = SSA_to_Imp.translate_fn reduceFn impTypes in
-  let llvmFn = CompiledFunctionCache.compile impFn in
-  let inputShapes : Shape.t list = List.map Value.get_shape (fixed @ args) in
-  let outputs : Ptr.t Value.t list =
-    allocate_output_arrays impFn inputShapes
-  in
-  let work_items = build_work_items axes num_cores (args @ outputs) in
-  do_work work_queue execution_engine llvmFn work_items;
-  outputs
-
-let scan ~axes ~fn ~fixed ?init args = assert false
-
-let allpairs ~axes ~fn ~fixed x y = assert false
-
-let array_op p args = assert false

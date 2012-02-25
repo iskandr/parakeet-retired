@@ -73,10 +73,7 @@ module CoreLanguage = struct
     fn_input_types : Type.t list;
     fn_output_types : Type.t list;
     fn_id : FnId.t;
-
-
   }
-
 end
 include CoreLanguage
 
@@ -217,6 +214,7 @@ end
 include ValueHelpers
 
 module FnHelpers = struct
+  let fn_id {fn_id} = fn_id
 	let mk_fn ?name ~tenv ~input_ids ~output_ids ~body : fn =
 	  let inTypes = List.map (fun id -> ID.Map.find id tenv) input_ids in
 	  let outTypes = List.map (fun id -> ID.Map.find id tenv) output_ids in

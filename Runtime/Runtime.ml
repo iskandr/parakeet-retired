@@ -46,7 +46,11 @@ module rec Scheduler : SCHEDULER = struct
 
   let adverb (info: (TypedSSA.fn, values, int list) Adverb.info) args =
     let adverbInfo' =
-      Adverb.apply_to_fields ~fn:Base.id ~args:value_to_host ~axes:Base.id info
+      Adverb.apply_to_fields
+        ~fn:Base.id
+        ~args:value_to_host
+        ~axes:AdverbHelpers.const_axes
+        info
     in
     let results = LLVM_Backend.adverb adverbInfo' (List.value_to_host args) in
     List.map DataManager.from_memspace results

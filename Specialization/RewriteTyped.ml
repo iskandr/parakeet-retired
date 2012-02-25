@@ -1,6 +1,6 @@
 (* pp: -parser o pa_macro.cmo *)
 open Base
-open SSA_AdverbHelpers
+open AdverbHelpers
 open Printf
 open Type
 
@@ -150,7 +150,7 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
     let init : TypedSSA.value_nodes option = Option.map annotate_values init in
     let axes : TypedSSA.value_nodes = match axes with
       | Some axes -> annotate_values axes
-      | None -> SSA_AdverbHelpers.infer_adverb_axes_from_types arrayTypes
+      | None -> AdverbHelpers.infer_adverb_axes_from_types arrayTypes
     in
     let numAxes = List.length axes in
     let eltTypes = List.map (Type.peel ~num_axes:numAxes) arrayTypes in
@@ -164,7 +164,7 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
         axes = axes
       }
       in
-      SSA_AdverbHelpers.mk_adverb ?src info arrayArgs
+      AdverbHelpers.mk_adverb ?src info arrayArgs
     in
     match adverb, init, eltTypes with
       | Adverb.Map, None, _ ->
@@ -240,7 +240,7 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
     | Prim ((Prim.ScalarOp op) as p) ->
       let outT = TypeInfer.infer_scalar_op op argTypes in
       if Type.is_array outT then
-        let axes = SSA_AdverbHelpers.infer_adverb_axes_from_types argTypes in
+        let axes = AdverbHelpers.infer_adverb_axes_from_types argTypes in
         rewrite_adverb
           ?src
           ~adverb:Adverb.Map
@@ -274,9 +274,7 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
     | Prim (Prim.Adverb adverb) ->
       begin match argNodes, argTypes with
         | fn::args, _::arrayTypes ->
-          let axes =
-            SSA_AdverbHelpers.infer_adverb_axes_from_types arrayTypes
-          in
+          let axes = AdverbHelpers.infer_adverb_axes_from_types arrayTypes in
           rewrite_adverb
             ?src
             ~adverb

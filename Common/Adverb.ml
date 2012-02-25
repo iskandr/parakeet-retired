@@ -8,6 +8,10 @@ let to_str = function
   | Scan -> "scan"
   | AllPairs -> "allpairs"
 
+let has_accumulator = function
+  | Scan | Reduce -> true
+  | _ -> false
+
 type ('a,'b,'c) info = {
   adverb : t;
   adverb_fn : 'a;

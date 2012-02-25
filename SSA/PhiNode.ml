@@ -21,6 +21,11 @@ let rec mk_list ?src outIds leftVals rightVals =
   | [], _, _ | _,[],_ | _,_,[] -> []
   | x::xs, y::ys, z::zs -> (mk ?src x y z) :: (mk_list ?src xs ys zs)
 
+let id {phi_id} = phi_id
+let left {phi_left} = phi_left
+let right {phi_right} = phi_right
+let src {phi_src} = phi_src
+
 (* assume a block contains only phi, collect the IDs and
    either the left or right values
 *)
