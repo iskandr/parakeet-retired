@@ -555,7 +555,6 @@ class ASTConverter():
                           "parakeet_node" % nodeType)
 
   def build_src_info(self, node):
-    return None
     try:
       file_name = c_char_p(self.file_name)
       line = c_int(self.line_offset + node.lineno)

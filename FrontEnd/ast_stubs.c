@@ -291,6 +291,7 @@ paranode get_prim(char* prim_name) {
 
 source_info_t *mk_source_info_struct(char *filename, int line, int col) {
   source_info_t *source_info = (source_info_t*)malloc(sizeof(source_info_t));
+  printf("Src info: %s, %d, %d\n", filename, line, col);
   source_info->filename = filename;
   source_info->line = line;
   source_info->col = col;
@@ -323,7 +324,7 @@ static CAMLprim value mk_src_info(source_info_t *src_info) {
   
   if (src_info) {
     if (src_info->filename) {
-      int len = strlen(src_info->filename);
+      int len = strlen(src_info->filename) + 1;
       file = caml_alloc_string(len);
       memcpy(String_val(file), src_info->filename, len);
       some_none = caml_alloc_tuple(1);
