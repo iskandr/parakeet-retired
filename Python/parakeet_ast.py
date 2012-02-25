@@ -397,8 +397,10 @@ class ASTConverter():
       currModule = self.global_variables[nextNode.id]
 
       for m in moduleList:
-        currModule = currModule.__dict__[m]
-
+        try:
+          currModule = currModule.__dict__[m]
+        except AttributeError:
+          currModule = currModule.__getattribute__(m)
       funRef = currModule
     else:
       raise RuntimeError("[Parakeet] Call.func shouldn't be", name)
@@ -412,19 +414,19 @@ class ASTConverter():
     src_info = self.build_src_info(node)
     if nodeType == 'Call':
       funRef = self.get_function_ref(node.func)
-      if hasattr(node,'__self__') and node.__self__:
-        if node.__self__ in ValidObjects:
-          func = ValidObjects[node.__self__]
+      if hasattr(funRef,'__self__') and funRef.__self__:
+        if funRef.__self__ in ValidObjects:
+          func = ValidObjects[funRef.__self__]
           ### Should be it's own function?
           if func in AutoTranslate:
             func = AutoTranslate[func]
-          self.seen_function.add(func)
+          self.seen_functions.add(func)
           fun_name = func.__module__ + "." + func.__name__
           print "registering", fun_name
           par_name = LibPar.mk_var(c_char_p(fun_name), src_info)
           fun_arg = par_name
           ### End own function
-          if node.__name__ == "reduce":
+          if funRef.__name__ == "reduce":
             #fun_arg, already have
             arr_args = self.build_arg_list([node.args[0]], contextSet)
             src_info_a = self.build_src_info(node)
@@ -432,7 +434,7 @@ class ASTConverter():
             src_info_c = self.build_src_info(node)
             kw_args = {'fixed': self.build_parakeet_array(src_info_a,[]),
                        'default': LibPar.mk_int32_paranode(
-                           func.identity, src_info_c)
+                           funRef.__self__.identity, src_info_c)
                        }
             if len(node.args) == 1:
               kw_args['axis'] = LibPar.mk_int32_paranode(1,src_info_b)
@@ -441,21 +443,15 @@ class ASTConverter():
             else:
               print "TOO MANY ARGUMENTS FOR REDUCE, DO NOT SUPPORT DTYPE"
               assert False
-
-          """
-          src_info = self.build_src_info(node)
-          para_arr_args = self.build_parakeet_array(src_info,arr_args)
-          args.append(para_arr_args)
-          args.append(kw_args['fixed'])
-          args.append(kw_args['axis'])
-          if funRef == parakeet_lib.reduce:
+            src_info = self.build_src_info(node)
+            para_arr_args = self.build_parakeet_array(src_info, arr_args)
+            args = [fun_arg]
+            args.append(para_arr_args)
+            args.append(kw_args['fixed'])
+            args.append(kw_args['axis'])
             args.append(kw_args['default'])
-          src_info = self.build_src_info(node)
-          return self.build_call(src_info, funRef, args)
-
-
-#        funArgs = self.build_arg_list(node.args, childContext)
-#        return self.build_call(src_info, funRef, funArgs)"""
+            src_info = self.build_src_info(node)
+            return self.build_call(src_info, parakeet_lib.reduce, args)
       else:
         childContext = set(contextSet)
         if funRef == np.array:
@@ -617,4 +613,3 @@ def register_function(f):
     LOG("Registered %s as %s" % (f.__name__, fun_id))
     VisitedFunctions[f] = fun_id
     return fun_id
-
