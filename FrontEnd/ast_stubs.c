@@ -324,7 +324,7 @@ static CAMLprim value mk_src_info(source_info_t *src_info) {
   
   if (src_info) {
     if (src_info->filename) {
-      int len = strlen(src_info->filename);
+      int len = strlen(src_info->filename) + 1;
       file = caml_alloc_string(len);
       memcpy(String_val(file), src_info->filename, len);
       some_none = caml_alloc_tuple(1);
