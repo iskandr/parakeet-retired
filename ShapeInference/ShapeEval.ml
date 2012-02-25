@@ -51,11 +51,11 @@ let rec eval_dim_as_float shapeEnv = function
       in fn (eval_dim_as_float shapeEnv x) (eval_dim_as_float shapeEnv y)
 
 
-let eval_shape (shapeEnv: Shape.t ID.Map.t) (symShape : SymbolicShape.t) =
+let eval_shape (shapeEnv : Shape.t ID.Map.t) (symShape : SymbolicShape.t) =
   let dims = List.map (eval_dim_as_int shapeEnv) symShape in
   Shape.of_list dims
 
-let eval_imp_shape_env (fn:Imp.fn) (inputShapes : Shape.t list) =
+let eval_imp_shape_env (fn : Imp.fn) (inputShapes : Shape.t list) =
   (* shapes of all inputs *)
   let inputEnv : Shape.t ID.Map.t =
     List.fold_left2
@@ -64,7 +64,7 @@ let eval_imp_shape_env (fn:Imp.fn) (inputShapes : Shape.t list) =
       fn.input_ids
       inputShapes
   in
-  let aux (id : ID.t) (symShape:SymbolicShape.t) shapeEnv  =
+  let aux (id : ID.t) (symShape : SymbolicShape.t) shapeEnv  =
     let shape = eval_shape shapeEnv symShape in
     ID.Map.add id shape shapeEnv
   in
@@ -95,8 +95,6 @@ let eval_ssa_shape_env
   (* evaluate symbolic shapes to get concrete shapes *)
   ID.Map.map (eval_shape initShapeEnv) symShapes
 
-
-
 let get_call_output_shapes fn (inputs : Shape.t list) =
   IFDEF DEBUG THEN
     let nShapes = List.length inputs in
@@ -108,11 +106,10 @@ let get_call_output_shapes fn (inputs : Shape.t list) =
     ;
   ENDIF;
   let shapeEnv = ID.Map.extend ID.Map.empty fn.input_ids inputs in
-  let outputSymShapes : SymbolicShape.t list  =
+  let outputSymShapes : SymbolicShape.t list =
     List.map (fun id -> ID.Map.find id fn.shapes) fn.output_ids
   in
   List.map (eval_shape shapeEnv) outputSymShapes
   (*
   rewrite_shapes replaceMap rawOutputShapes
-
-*)
+  *)

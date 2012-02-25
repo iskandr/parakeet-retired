@@ -1,6 +1,7 @@
 (* pp: -parser o pa_macro.cmo *)
 
 open Base
+
 open TypedSSA
 open Printf
 open SSA_Analysis
@@ -21,6 +22,7 @@ module ConstEval = SSA_Analysis.MkEvaluator(struct
       fundef.input_ids
 
   let value env valNode = match valNode.value with
+
     | Num _ -> ConstantLattice.Const valNode.value
     | Var id ->
         (try ID.Map.find id env

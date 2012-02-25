@@ -44,7 +44,7 @@ type fn_info = {
   output_llvm_types : Llvm.lltype list;
 
   named_values : (string, Llvm.llvalue) Hashtbl.t;
-  builder: Llvm.llbuilder;
+  builder : Llvm.llbuilder;
   name : string;
 
   array_strides_ptr_cache : (Llvm.llvalue, Llvm.llvalue) Hashtbl.t;
@@ -69,11 +69,11 @@ let create_fn_info (fn : Imp.fn) =
 
     input_llvm_types = List.map ImpType_to_lltype.to_lltype inputImpTypes;
     local_llvm_types = List.map ImpType_to_lltype.to_lltype localImpTypes;
-    (* IMPORTANT: outputs are allocated outside the functiona and the *)
+    (* IMPORTANT: outputs are allocated outside the function and the *)
     (* addresses of their locations are passed in *)
     output_llvm_types =
-       List.map adjust_output_pointer
-         (List.map ImpType_to_lltype.to_lltype outputImpTypes);
+      List.map adjust_output_pointer
+        (List.map ImpType_to_lltype.to_lltype outputImpTypes);
 
     named_values = Hashtbl.create 13;
     builder = Llvm.builder context;
@@ -303,10 +303,10 @@ let get_array_data_ptr (fnInfo:fn_info) (array:llvalue) : llvalue =
 
 (* convert a list of indices into an address offset *)
 let rec compute_addr_helper
-          (fnInfo:fn_info)
-          (array:Llvm.llvalue)
-          (i:int)
-          (offset:Llvm.llvalue) = function
+    (fnInfo:fn_info)
+    (array:Llvm.llvalue)
+    (i:int)
+    (offset:Llvm.llvalue) = function
   | currIdx :: otherIndices ->
     if Llvm.is_null currIdx then
       compute_addr_helper fnInfo array (i+1) offset otherIndices
@@ -323,10 +323,10 @@ let rec compute_addr_helper
   | [] -> offset
 
 let compile_arr_idx
-      (array:Llvm.llvalue)
-      (indices:Llvm.llvalue list)
-      (imp_elt_t:Type.elt_t)
-      (fnInfo:fn_info) =
+    (array:Llvm.llvalue)
+    (indices:Llvm.llvalue list)
+    (imp_elt_t:Type.elt_t)
+    (fnInfo:fn_info) =
   let builder = fnInfo.builder in
   let dataPtr = get_array_data_ptr fnInfo array in
 	let offset = compute_addr_helper fnInfo array 0 zero_i32 indices in
@@ -340,10 +340,10 @@ let compile_arr_idx
   Llvm.build_inttoptr newAddr64 (Llvm.type_of dataPtr) "idxAddr" builder
 
 let compile_range_load
-      (array:Llvm.llvalue)
-      (indices:Llvm.llvalue list)
-      (imp_elt_t:Type.elt_t)
-      (fnInfo:fn_info) =
+    (array:Llvm.llvalue)
+    (indices:Llvm.llvalue list)
+    (imp_elt_t:Type.elt_t)
+    (fnInfo:fn_info) =
 	let startIdx = Llvm.const_int LLVM_Types.int32_t 0 in
 	let startPtr =
 	  Llvm.build_gep array [|zero_i32;startIdx|] "gep_start" fnInfo.builder
@@ -389,10 +389,10 @@ let rec compile_value ?(do_load=true) fnInfo (impVal:Imp.value_node) =
       compile_cmp t op vals' fnInfo.builder
     else
       compile_math_op t op vals' fnInfo.builder
-  | Imp.Cast(t, v) ->
+  | Imp.Cast (t, v) ->
     let original = compile_value fnInfo v in
     compile_cast fnInfo original v.Imp.value_type t
-  | Imp.Idx(arr, indices) ->
+  | Imp.Idx (arr, indices) ->
     let llvmArray = compile_value ~do_load:false fnInfo arr in
     let llvmIndices = List.map (compile_value fnInfo) indices in
     begin match arr.value_type with
@@ -409,7 +409,7 @@ let rec compile_value ?(do_load=true) fnInfo (impVal:Imp.value_node) =
 
 and compile_values fnInfo = function
   | [] -> []
-  | vNode::vNodes ->
+  | vNode :: vNodes ->
     let llvmVal = compile_value fnInfo vNode in
     llvmVal :: (compile_values fnInfo vNodes)
 
@@ -468,7 +468,7 @@ and compile_stmt fnInfo currBB stmt =
         let instr = Llvm.build_store rhs register fnInfo.builder in
         currBB
     end
-  | Imp.SetIdx(arr, indices, rhs) ->
+  | Imp.SetIdx (arr, indices, rhs) ->
     let arrayPtr : Llvm.llvalue = compile_value ~do_load:false fnInfo arr in
     let indexRegisters : Llvm.llvalue list = compile_values fnInfo indices in
     let imp_elt_t = match arr.value_type with

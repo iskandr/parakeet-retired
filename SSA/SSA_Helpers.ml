@@ -3,33 +3,7 @@
 open Base
 
 
-(* if a function contains nothing but a map, extract the nested
-   function being mapped
-*)
-
 (*
-
-(****************************************************************************)
-(*                         Expression Helpers                               *)
-(****************************************************************************)
-
-let map_default_types optTypes values =
-  match optTypes with
-    | None -> List.map (fun vNode -> vNode.value_type) values
-    | Some ts -> ts
-
-
-
-let closure fundef args = {
-  closure_fn = fundef.fn_id;
-  closure_args = args;
-  closure_arg_types = List.map (fun v -> v.value_type) args;
-
-}
-
-(****************************************************************)
-(*                Statement Helpers                             *)
-(****************************************************************)
 
 (**********************************************************************)
 (*           DSL for more compactly building small SSA functions      *)
@@ -73,7 +47,6 @@ let index = op (Prim.ArrayOp Prim.Index)
 let find = op (Prim.ArrayOp Prim.Find)
 let dimsize = op (Prim.ArrayOp Prim.DimSize)
 
-
 let value x = exp $ Values [x]
 let values xs = exp $ Values xs
 
@@ -86,44 +59,4 @@ let set_int (x:ID.t) (y:Int32.t) =
 (*                 Phi-Node Helpers                             *)
 (****************************************************************)
 
-
-(* get the ids from a list of variable value nodes *)
-let get_ids vars = List.map get_id vars
-
-let get_fn_id valNode = match valNode.value with
-  | GlobalFn fnId -> fnId
-  | other -> failwith $
-      Printf.sprintf
-        "[SSA->get_fn_id] expected global function, received %s"
-        (value_to_str other)
-
-let get_fn_ids valNodes = List.map get_fn_id valNodes
-let empty_stmt = set [] (vals_exp [])
-
-let is_empty_stmt stmtNode =
-  match stmtNode.stmt with
-    | Set ([], {exp=Values[]})->true
-    | _ -> false
-
-let rec types_of_value_nodes = function
-  | [] -> []
-  | vNode::rest -> vNode.value_type :: (types_of_value_nodes rest)
-
-(* special case for creating function with 1 input, 1 output *)
-let untyped_fn1_builder constructor =
-  fn_builder
-    ?name:None
-    ~input_types:[Type.BottomT]
-    ~output_types:[Type.BottomT]
-    ~local_types:[]
-    (function [x], [y], [] -> constructor x y | _ -> assert false)
-
-(* 2 inputs, 1 output, 0 locals *)
-let untyped_fn2_builder constructor =
-  fn_builder
-    ?name:None
-    ~input_types:[Type.BottomT]
-    ~output_types:[Type.BottomT]
-    ~local_types:[]
-    (function [x;y], [z], [] -> constructor x y z | _ -> assert false)
 *)

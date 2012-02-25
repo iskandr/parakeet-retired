@@ -131,9 +131,9 @@ let translate_array_literal
 (* given an array, map a list of its axes into *)
 (* a list of statements and a list of dimsize values *)
 let rec size_of_axes
-          (builder:ImpBuilder.builder)
-          (array:Imp.value_node)
-          (axes:int list) : Imp.block * Imp.value_node list =
+     (builder:ImpBuilder.builder)
+     (array:Imp.value_node)
+     (axes:int list) : Imp.block * Imp.value_node list =
   match axes with
   | [] -> [], []
   | axis::rest ->
@@ -146,9 +146,9 @@ let rec size_of_axes
 (* given an array and a list of axes, create a list of loop descriptors*)
 (* which we can turn into nested loops over the array *)
 let rec axes_to_loop_descriptors
-          (builder:ImpBuilder.builder)
-          (array : Imp.value_node)
-          (axes : int list) : Imp.block * loop_descr list =
+    (builder:ImpBuilder.builder)
+    (array : Imp.value_node)
+    (axes : int list) : Imp.block * loop_descr list =
   let stmts, sizes = size_of_axes builder array axes in
   let loopDescriptors = List.map
     (mk_simple_loop_descriptor builder) sizes in
@@ -292,7 +292,7 @@ and translate_exp (builder:ImpBuilder.builder) expNode : Imp.value_node  =
 	      retT, retT
 	  in
 	  {
-      value = Op( opType, op, args');
+      value = Op(opType, op, args');
       value_type = ImpType.ScalarT returnType
     }
 	| TypedSSA.PrimApp (Prim.ArrayOp op, args) ->
@@ -353,14 +353,3 @@ and translate_adverb
   let fnBody = ImpReplace.replace_block replaceEnv impFn.body in
   let loops = build_loop_nests builder loopDescriptors fnBody in
   initBlock @ loops
-(*
-  match adverb with
-  | Prim.Map ->
-  | Prim.Reduce ->
-
-  | _ ->
-    failwith $ Printf.sprintf
-      "[SSA_to_Imp] Unsupported adverb %s"
-      (Prim.adverb_to_str adverb)
-
-*)

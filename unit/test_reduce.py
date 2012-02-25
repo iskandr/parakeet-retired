@@ -3,9 +3,12 @@ import unit
 from unit import parakeet
 from parakeet import PAR 
 
+def add2(x, y):
+  return x + y
+
 @PAR
 def sum(x):
-  return parakeet.reduce(parakeet.add, x)
+  return parakeet.reduce(add2, x)
 
 def test_sum():
   x = np.random.randint(0,100,1000)
@@ -16,3 +19,4 @@ def test_sum():
 
 if __name__ == '__main__':
   test_sum()
+

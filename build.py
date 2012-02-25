@@ -124,7 +124,7 @@ for f in glob.glob("_build/*.o"):
 # Clean installation directory
 for f in glob.glob(opts['install_dir'] + "/*.so"):
   os.remove(f)
-for f in glob.glob(opts['install_dir'] + "/parakeetconf.xml"):
+for f in glob.glob(opts['install_dir'] + "/*.xml"):
   os.remove(f)
 
 # Clean Common directory
@@ -183,10 +183,11 @@ os.chdir("install")
 if subprocess.call(["make"]):
   print "Installation build failed"
   sys.exit(1)
-if subprocess.call(["./machine_probe"]):
-  print "Machine probe failed"
+if subprocess.call(["./gpu_probe"]):
+  print "GPU probe failed"
   sys.exit(1)
-shutil.move("parakeetconf.xml", opts['install_dir'])
+shutil.move("parakeetgpuconf.xml", opts['install_dir'])
+shutil.copy("parakeetcpuconf.xml", opts['install_dir'])
 os.chdir("..")
 
 # Build Python Front End

@@ -9,6 +9,7 @@ type t =
   | ShiftT of t
   | SliceT of t
   | RangeT of elt_t
+  | VecSliceT of elt_t * int (* type, width *)
 
 let rec to_str = function
 	| ScalarT elt_t -> Type.elt_to_str elt_t
@@ -23,6 +24,7 @@ let rec elt_type = function
   | RangeT t
 	| ScalarT t
   | ExplodeT (t, _)
+  | VecSliceT (t, _)
   | ArrayT (t, _) -> t
   | RotateT nested
   | SliceT nested
@@ -51,7 +53,8 @@ let is_array = function
 
 let rec rank = function
 	| ScalarT _ -> 0
-  | ExplodeT(_, r)
+  | ExplodeT (_, r)
+  | VecSliceT (_, r)
 	| ArrayT (_, r) -> r
 	| ShiftT x -> rank x
   | _ -> failwith "Not implemented"

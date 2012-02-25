@@ -104,10 +104,10 @@ let free_scalar_outputs impTypes gvs =
   List.iter2 free_scalar_output impTypes gvs
 
 let split_argument axes num_items arg =
-	match arg with
-	| Scalar n ->
-	  List.fill (Value_to_GenericValue.to_llvm (Scalar n)) (List.til num_items)
-	| Array {data; array_type; elt_type; array_shape; array_strides} ->
+  match arg with
+  | Scalar n ->
+    List.fill (Value_to_GenericValue.to_llvm (Scalar n)) (List.til num_items)
+  | Array {data; array_type; elt_type; array_shape; array_strides} ->
     (* TODO: for now, we just split the longest axis. Come up with something *)
     (*       good later. *)
     (* TODO: does a 0-length slice work? *)
@@ -129,7 +129,7 @@ let split_argument axes num_items arg =
     let make_slice start stop = Value.Slice(arg, !longest_axis, start, stop) in
     let slices = List.map2 make_slice starts stops in
     List.map Value_to_GenericValue.to_llvm slices
-	| _ -> failwith "Unsupported argument type for splitting."
+  | _ -> failwith "Unsupported argument type for splitting."
 
 (* TODO: 1. We can easily share the LLVM descriptors amongst the chunks.
             To make things easier to get running, I'll split the Values rather
@@ -253,3 +253,102 @@ let adverb (info:(TypedSSA.fn, Ptr.t Value.t list, int list) Adverb.info) args =
     ;
   ENDIF;
   outputs
+
+let reduce ~axes ~fn ~fixed ?init args =
+  let reduceFn = SSA_AdverbHelpers.mk_reduce_fn
+    ?src:None
+    ~nested_fn:fn
+    ~axes:(List.map SSA_Helpers.int32 axes)
+    ~fixed_types:(List.map Value.type_of fixed)
+    ~array_types:(List.map Value.type_of args)
+    ~init:[]
+  in
+  let impTypes = List.map ImpType.type_of_value (fixed @ args) in
+  let impFn : Imp.fn = SSA_to_Imp.translate_fn reduceFn impTypes in
+  let llvmFn = CompiledFunctionCache.compile impFn in
+  let inputShapes : Shape.t list = List.map Value.get_shape (fixed @ args) in
+  (* Have to allocate num_threads * output sizes to hold the intermediates *)
+  let outputShapes = ShapeEval.get_call_output_shapes impFn inputShapes in
+  let outTypes = Imp.output_types impFn in
+  let eltTypes = List.map ImpType.elt_type outTypes in
+  let get_interm_shape shape = function
+    | ImpType.ScalarT _ ->
+      let interm_shape = Shape.create 1 in
+      Shape.set interm_shape 0 num_cores;
+      interm_shape
+    | ImpType.ArrayT (_, _) ->
+      let t_shape = Shape.create 1 in
+      Shape.set t_shape 0 num_cores;
+      Shape.append t_shape shape
+    | _ -> failwith "Unexpected output type from reduction"
+  in
+  let intermShapes = List.map2 get_interm_shape outputShapes outTypes in
+  let interms = List.map2 allocate_array eltTypes intermShapes in
+  let llvmInterms = List.map Value_to_GenericValue.to_llvm interms in
+  let rec slice_interms cur i =
+    if i == num_cores then
+      match cur with
+      | [[]] -> cur
+      | hd :: rest -> rest
+    else
+      let get_slice arg ty shape : GV.t =
+        (* Have to handle the case of slicing out scalars specially *)
+        if Shape.rank shape == 1 then
+          let data = match Value.extract arg with
+            | Some d -> d
+            | None -> failwith "Array expected in reduce intermediate slicing"
+          in
+          let ptr = HostMemspace.get_ptr_to_index data.Ptr.addr ty i in
+          GV.of_int64 LLVM_Types.int64_t ptr
+        else
+          let val_slice = Value.Slice(arg, 0, i, i + 1) in
+          Value_to_GenericValue.to_llvm val_slice
+      in
+      let slices =
+        List.map3 get_slice interms eltTypes intermShapes
+      in
+      slice_interms (cur @ [slices]) (i + 1)
+  in
+  let interm_slices = slice_interms [[]] 0 in
+  let input_items = build_work_items axes num_cores args in
+  let work_items = List.map2 (fun a b -> a @ b) input_items interm_slices in
+  do_work work_queue execution_engine llvmFn work_items;
+  let llvmOutputs : GV.t list =
+    allocate_output_generic_values impFn inputShapes
+  in
+  let params = Array.of_list (llvmInterms @ llvmOutputs) in
+  let _ = LLE.run_function llvmFn params execution_engine in
+  let outputs =
+    List.map2 GenericValue_to_Value.of_generic_value llvmOutputs outTypes
+  in
+  free_scalar_outputs outTypes llvmOutputs;
+  (* Not freeing intermediates because GC will take care of them *)
+  outputs
+
+let allpairs ~axes ~fn ~fixed x y =
+  let args = [x;y] in
+  let allpairsFn = SSA_AdverbHelpers.mk_allpairs_fn
+    ?src:None
+    ~nested_fn:fn
+    ~axes:(List.map SSA_Helpers.int32 axes)
+    ~fixed_types:(List.map Value.type_of fixed)
+    ~array_types:(List.map Value.type_of args)
+  in
+  let impTypes = List.map ImpType.type_of_value (fixed @ args) in
+  let impFn : Imp.fn = SSA_to_Imp.translate_fn allpairsFn impTypes in
+  let llvmFn = CompiledFunctionCache.compile impFn in
+  let inputShapes : Shape.t list = List.map Value.get_shape (fixed @ args) in
+  let outputs : Ptr.t Value.t list =
+    allocate_output_arrays impFn inputShapes
+  in
+  let work_items = build_work_items axes num_cores (args @ outputs) in
+  do_work work_queue execution_engine llvmFn work_items;
+  IFDEF DEBUG THEN
+    Printf.printf
+      "[LLVM_Backend.call_imp_fn] Got function results: %s\n%!"
+      (Value.list_to_str outputs)
+    ;
+  ENDIF;
+  outputs
+
+
