@@ -6,16 +6,11 @@ open UntypedSSA
 
 exception TypeError of string * (SrcInfo.t option)
 
-let get_type_or_bottom tenv id = Hashtbl.find_default tenv id Type.BottomT
-let get_type tenv id = match Hashtbl.find_option tenv id with
-  | Some t -> t
-  | None -> failwith $ Printf.sprintf "Couldn't find type for variable %s"
-      (ID.to_str id)
-let add_type tenv id t = Hashtbl.add tenv id t; tenv
 
 (* TODO: make this complete for all SSA statements *)
 let rec is_scalar_stmt = function
-  | UntypedSSA.Set(_, {exp=UntypedSSA.App({value=UntypedSSA.Prim (Prim.ScalarOp _)}, _)})
+  | UntypedSSA.Set(_,
+    {exp=UntypedSSA.App({value=UntypedSSA.Prim (Prim.ScalarOp _)}, _)})
   | UntypedSSA.Set(_, {exp=Values _}) -> true
   | UntypedSSA.If(_, tCode, fCode, _) ->
       all_scalar_stmts tCode && all_scalar_stmts fCode
@@ -29,10 +24,22 @@ module type TYPE_ANALYSIS_PARAMS = sig
 end
 
 module Make (P : TYPE_ANALYSIS_PARAMS) = struct
-  type env = (ID.t, Type.t) Hashtbl.t
+
+  let tenv : (ID.t, Type.t) Hashtbl.t = Hashtbl.create 127
+
+  let get_type_or_bottom id = Hashtbl.find_default tenv id Type.BottomT
+  let get_type id =
+    match Hashtbl.find_option tenv id with
+    | Some t -> t
+    | None ->
+      failwith $
+      Printf.sprintf "Couldn't find type for variable %s"  (ID.to_str id)
+
+  let add_type id t = Hashtbl.add tenv id t
+  let replace_type id t = Hashtbl.replace tenv id t
 
   let analyze_fn fundef signature =
-    let tenv = Hashtbl.create 127 in
+    Hashtbl.clear tenv;
     let inputIds = ref fundef.input_ids in
     let inputTypes = ref (Signature.input_types signature) in
     IFDEF DEBUG THEN
@@ -45,8 +52,9 @@ module Make (P : TYPE_ANALYSIS_PARAMS) = struct
         in
         raise (TypeError(errorMsg, UntypedSSA.find_fn_src_info fundef))
     ENDIF;
+
     while !inputIds <> [] && !inputTypes <> [] do
-      Hashtbl.add tenv (List.hd !inputIds) (List.hd !inputTypes);
+      add_type (List.hd !inputIds) (List.hd !inputTypes);
       inputIds := List.tl !inputIds;
       inputTypes := List.tl !inputTypes
     done;
@@ -65,34 +73,33 @@ module Make (P : TYPE_ANALYSIS_PARAMS) = struct
           raise (TypeError (msg, UntypedSSA.find_fn_src_info fundef))
       ENDIF;
       while !outputIds <> [] && !outputTypes <> [] do
-        Hashtbl.add tenv (List.hd !outputIds) (List.hd !outputTypes);
+        add_type (List.hd !outputIds) (List.hd !outputTypes);
         outputIds := List.tl !outputIds;
         outputTypes := List.tl !outputTypes
       done
-    );
-    tenv
+    )
 
-  let infer_value_type tenv = function
-    | Var id -> get_type tenv id
+  let infer_value_type = function
+    | Var id -> get_type id
     | Num n -> Type.ScalarT (ParNum.type_of n)
     | _ -> Type.AnyT
 
-  let value tenv vNode = infer_value_type tenv vNode.value
+  let infer_value_node vNode = infer_value_type vNode.value
 
-  let phi_set tenv id t =
-    try (
-      let oldT = Hashtbl.find tenv id in
-      if oldT = t then None
-      else
-        let t' = Type.common_type oldT t in
-        (Hashtbl.replace tenv id t'; Some tenv)
-    )
-    with _ -> Hashtbl.replace tenv id t; Some tenv
+  let infer_value_nodes vNodes = List.map infer_value_node vNodes
+
+  let phi_set id t =
+    match Hashtbl.find_option tenv id with
+      | Some oldT ->
+        if oldT <> t then
+          let t' = Type.common_type oldT t in
+          replace_type id t'
+      | None -> replace_type id t
 
   let phi_merge tenv id tLeft tRight =
-    phi_set tenv id (Type.common_type tLeft tRight)
+    phi_set id (Type.common_type tLeft tRight)
 
-  let rec infer_app tenv fnVal (argTypes:Type.t list) =
+  let rec infer_app fnVal (argTypes:Type.t list) =
     IFDEF DEBUG THEN
       Printf.printf "[TypeAnalysis.infer_app] %s(%s)\n"
         (UntypedSSA.value_to_str fnVal)
@@ -115,21 +122,11 @@ module Make (P : TYPE_ANALYSIS_PARAMS) = struct
 
   let infer_adverb
         ?(src:SrcInfo.t option)
-        ~(tenv:env)
-        ~(adverb:Prim.adverb)
-        ~(fn_val:UntypedSSA.value)
-        ?(closure_arg_types=[])
-        ?(init:Type.t list option)
-        ?(axes:UntypedSSA.value list option)
-        ~(array_arg_types:Type.t list) =
-    IFDEF DEBUG THEN
-      Printf.printf
-        "[TypeAnalysis] inferring adverb %s over fn %s with args %s\n"
-        (Prim.adverb_to_str adverb)
-        (UntypedSSA.value_to_str fn_val)
-        (Type.type_list_to_str array_arg_types)
-      ;
-    ENDIF;
+        (info:
+          (UntypedSSA.value, Type.t list, UntypedSSA.value list option)
+          Adverb.info
+        )
+        (array_arg_types:Type.t list) =
     if List.for_all Type.is_scalar array_arg_types then
       raise (
         TypeError("Adverbs must have at least one non-scalar argument", src))
@@ -155,14 +152,14 @@ module Make (P : TYPE_ANALYSIS_PARAMS) = struct
     let eltTypes = List.map (Type.peel ~num_axes:numAxes) array_arg_types in
     match adverb, init, eltTypes with
     | Prim.Map, None, _ ->
-      let eltResultTypes = infer_app tenv fn_val eltTypes in
+      let eltResultTypes = infer_app fn_val eltTypes in
       Type.increase_ranks numAxes eltResultTypes
     | Prim.Map, Some _, _ ->
       raise (TypeError("Map can't have initial values", src))
     (* if not given initial values then we assume operator is binary and*)
     (* used first two elements of the array *)
     | Prim.Reduce, None, [eltT] ->
-      let accTypes = infer_app tenv fn_val [eltT;eltT] in
+      let accTypes = infer_app fn_val [eltT;eltT] in
       if List.length accTypes <> 1 then
         raise (
           TypeError("Reduce without inital args must return one value", src))
@@ -174,11 +171,13 @@ module Make (P : TYPE_ANALYSIS_PARAMS) = struct
 
     | other, _, _ -> failwith (Prim.adverb_to_str other ^ " not impl")
 
-  let exp (tenv:env) expNode helpers =
+  let exp expNode helpers =
     let src = expNode.exp_src in
     match expNode.exp with
     | App({value=UntypedSSA.Prim (Prim.Adverb adverb)}, args) ->
-      let argTypes = helpers.eval_values tenv args in
+      (********************************************************)
+      (* TODO: FIX THIS TO WORK WITH Adverb.info              *)
+      let argTypes = infer_value_nodes args in
       let fn, args = match args with
         | fn::rest -> fn, rest
         | _ -> raise (TypeError("too few arguments for adverb", src))
@@ -186,7 +185,7 @@ module Make (P : TYPE_ANALYSIS_PARAMS) = struct
       begin match adverb with
         | Prim.Map
         | Prim.AllPairs ->
-          infer_adverb ?src ~tenv ~adverb ~fn_val:fn.value
+          infer_adverb ?src  ~adverb ~fn_val:fn.value
             ?closure_arg_types:None
             ?init:None
             ?axes:None
@@ -195,9 +194,9 @@ module Make (P : TYPE_ANALYSIS_PARAMS) = struct
         | Prim.Scan -> assert false
       end
     | UntypedSSA.Adverb(adverb, {closure_fn; closure_arg_types}, {axes;init;args}) ->
-      let argTypes = helpers.eval_values tenv args in
+      let argTypes = infer_value_nodes args in
       let resultTypes =
-        infer_adverb ?src ~tenv ~adverb ~fn_val:(GlobalFn closure_fn)
+        infer_adverb ?src  ~adverb ~fn_val:(GlobalFn closure_fn)
           ~closure_arg_types
           ?init:None
           ?axes:None
@@ -212,8 +211,8 @@ module Make (P : TYPE_ANALYSIS_PARAMS) = struct
       ENDIF;
       resultTypes
     | App(lhs, args) ->
-        let lhsT = value tenv lhs in
-        let argTypes = helpers.eval_values tenv args in
+        let lhsT = infer_value_node lhs in
+        let argTypes = infer_value_nodes args in
         IFDEF DEBUG THEN
           Printf.printf "[exp] Node: %s Types:%s\n"
             (UntypedSSA.exp_to_str expNode)
@@ -221,9 +220,9 @@ module Make (P : TYPE_ANALYSIS_PARAMS) = struct
         ENDIF;
         if Type.is_array lhsT
         then [TypeInfer.infer_simple_array_op Prim.Index (lhsT::argTypes)]
-        else infer_app tenv lhs.value argTypes
+        else infer_app lhs.value argTypes
     | Arr elts ->
-        let commonT = Type.combine_type_list (helpers.eval_values tenv elts) in
+        let commonT = Type.combine_type_list (infer_value_nodes elts) in
         if Type.is_scalar commonT then [Type.increase_rank 1 commonT]
         else if commonT = Type.AnyT then
           let errMsg = "Couldn't find unifying type for elements of array" in
@@ -238,15 +237,15 @@ module Make (P : TYPE_ANALYSIS_PARAMS) = struct
 
 
 
-    | Values vs -> helpers.eval_values tenv vs
+    | Values vs -> infer_value_nodes vs
     | _ -> failwith $ Printf.sprintf
             "Type analysis not implemented for expression: %s"
             (UntypedSSA.exp_to_str expNode)
 
-  let stmt tenv stmtNode helpers =
+  let rec stmt stmtNode helpers : tenv =
     match stmtNode.stmt with
     | Set(ids, rhs) ->
-      let types : Type.t list = exp tenv rhs helpers in
+      let types : Type.t list = exp rhs helpers in
       IFDEF DEBUG THEN
         if List.length ids <> List.length types then
           failwith $ sprintf
@@ -254,21 +253,14 @@ module Make (P : TYPE_ANALYSIS_PARAMS) = struct
             (List.length ids)
             (List.length types)
       ENDIF;
-      let rec process_types (tenv, changed) id rhsT =
-        IFDEF DEBUG THEN
-          if rhsT = Type.AnyT then failwith "error during type inference"
-        ENDIF;
+      let aux id rhsT =
         let oldT = get_type_or_bottom tenv id in
         let newT = Type.common_type oldT rhsT in
-        let changedT = oldT <> newT in
-        let tenv' = if changedT then add_type tenv id newT else tenv in
-        tenv', (changed || changedT)
+        if oldT <> newT then
+        if changedT then replace_type id newT
       in
-      let tenv', changed =
-        List.fold_left2 process_types (tenv, false) ids types
-      in
-      if changed then Some tenv' else None
-   | _ -> helpers.eval_stmt tenv stmtNode
+      List.iter2 aux ids types
+   | _ -> (*CANT RELY ON HELPERS ANY MORE!*)
 end
 
 let type_analysis
