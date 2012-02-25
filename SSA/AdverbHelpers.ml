@@ -2,7 +2,7 @@
 open Base
 open Adverb
 open TypedSSA
-open SSA_Helpers
+
 
 let const_axes valNodes =
   if List.for_all TypedSSA.is_const_int valNodes then

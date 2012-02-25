@@ -210,6 +210,9 @@ module ValueHelpers = struct
     | other ->
       failwith $ Printf.sprintf "Expected constant, got %s" (value_to_str other)
   let get_const_int valNode = ParNum.to_int (get_const valNode)
+
+  let type_of_value_node {value_type} = value_type
+  let types_of_value_nodes valNodes = List.map type_of_value_node valNodes
 end
 include ValueHelpers
 

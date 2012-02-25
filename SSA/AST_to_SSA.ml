@@ -2,7 +2,7 @@
 
 open AST
 open Base
-open SSA
+open TypedSSA
 
 
 (* environment mapping strings to SSA IDs or global function IDs *)

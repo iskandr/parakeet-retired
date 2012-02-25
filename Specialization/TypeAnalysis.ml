@@ -32,10 +32,9 @@ module Make (P : TYPE_ANALYSIS_PARAMS) = struct
   type env = (ID.t, Type.t) Hashtbl.t
 
   let analyze_fn fundef signature =
-  let init fundef =
     let tenv = Hashtbl.create 127 in
     let inputIds = ref fundef.input_ids in
-    let inputTypes = ref (Signature.input_types P.signature) in
+    let inputTypes = ref (Signature.input_types signature) in
     IFDEF DEBUG THEN
       if List.length !inputIds <> List.length !inputTypes then
         let errorMsg = Printf.sprintf
@@ -51,9 +50,9 @@ module Make (P : TYPE_ANALYSIS_PARAMS) = struct
       inputIds := List.tl !inputIds;
       inputTypes := List.tl !inputTypes
     done;
-    if Signature.has_output_types P.signature then (
+    if Signature.has_output_types signature then (
       let outputIds = ref fundef.output_ids in
-      let outputTypes = ref (Signature.output_types P.signature) in
+      let outputTypes = ref (Signature.output_types signature) in
       IFDEF DEBUG THEN
         if List.length !outputIds <> List.length !outputTypes then
           let msg =

@@ -1,4 +1,5 @@
 (* pp: -parser o pa_macro.cmo *)
+
 open Base
 open AdverbHelpers
 open Printf
@@ -7,7 +8,7 @@ open Type
 exception RewriteFailed of string * SrcInfo.t option
 
 module type REWRITE_PARAMS = sig
-  val specializer : value -> Signature.t -> TypedSSA.fn
+  val specializer : UntypedSSA.value -> Signature.t -> TypedSSA.fn
   val tenv : (ID.t, Type.t) Hashtbl.t
 end
 
@@ -303,8 +304,20 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
         {expNode with exp = Values vs'; exp_types = types }
       | App (fn, args), _ ->
         rewrite_app expNode.exp_src fn (annotate_values args)
-      | Adverb (adverbInfo, args), _ ->
-
+      | Adverb (adverbInfo, args), _ -> rewrite_adverb ?src adverbInfo args
+        (*let args : TypedSSA.value_nodes = annotate_values args in
+        let arrayTypes = TypedSSA.ValueHelpers.types_of_value_nodes args in
+        let annotate_axes = function
+          | Some axes -> annotate_values axes
+          | None -> AdverbHelpers.infer_adverb_axes_from_types arrayTypes
+        in
+        let typedInfo =
+          Adverb.apply_to_fields
+            ~fn:(function {value} -> value)
+            ~args:annotate_values
+            ~axes:annotate_axes
+            info
+        in*)
 
       | _ -> failwith $
                Printf.sprintf

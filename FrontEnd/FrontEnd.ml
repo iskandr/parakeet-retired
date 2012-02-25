@@ -2,7 +2,6 @@
 
 open Base
 open Printf
-open SSA
 
 let init() =
   let gcParams = Gc.get() in
@@ -28,15 +27,16 @@ let register_untyped_function ~name ~globals ~args astNode =
   let argNames = globals @ args in
   let fn = AST_to_SSA.translate_fn ~name ssaEnv argNames astNode in
   FnManager.add_untyped ~optimize:true name fn;
+  let fnId = fn.UntypedSSA.fn_id in
   IFDEF DEBUG THEN
     Printf.printf "Registered %s as %s (id = %d)\n Body: %s\n%!"
       name
-      (FnId.to_str fn.SSA.fn_id)
-      fn.SSA.fn_id
-      (SSA.fn_to_str fn)
+      (FnId.to_str fnId)
+      fnId
+      (UntypedSSA.fn_to_str fn)
     ;
   ENDIF;
-  fn.SSA.fn_id
+  fnId
 
 let rec register_untyped_functions = function
   | (name, globals, args, astNode)::rest ->
@@ -55,7 +55,7 @@ type ret_val =
   | Pass
 
 let get_specialized_function untypedId signature =
-  let fnVal = SSA.GlobalFn untypedId in
+  let fnVal = UntypedSSA.GlobalFn untypedId in
   match FnManager.maybe_get_specialization fnVal signature with
   | Some typedId ->
     FnManager.get_typed_function typedId
@@ -64,7 +64,7 @@ let get_specialized_function untypedId signature =
     let unoptimizedTyped = Specialize.specialize_fn_id untypedId signature in
     (* now optimize the typed fundef and any typed functions it depends on *)
     FnManager.optimize_typed_functions ();
-    FnManager.get_typed_function unoptimizedTyped.SSA.fn_id
+    FnManager.get_typed_function unoptimizedTyped.TypedSSA.fn_id
 
 let run_function untypedId ~globals ~args : ret_val =
   IFDEF DEBUG THEN

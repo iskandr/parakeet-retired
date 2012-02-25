@@ -90,6 +90,8 @@ module ValueHelpers : sig
     val is_const_int : value_node -> bool
     val get_const : value_node -> ParNum.t
     val get_const_int : value_node -> int
+    val type_of_value_node : value_node -> Type.t
+    val types_of_value_nodes : value_nodes -> Type.t list
 end
 include module type of ValueHelpers
 

@@ -100,7 +100,7 @@ let infer_adverb op inputTypes =
 
   | _ -> failwith $ Printf.sprintf
            "inference not implemented for operator: %s with inputs %s"
-           (Prim.adverb_to_str op)
+           (Adverb.to_str op)
            (Type.type_list_to_str inputTypes)
 
 (* given an operator and types of its arguments, return list of types to which *)
