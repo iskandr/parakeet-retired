@@ -109,16 +109,11 @@ let rec specialize_fn fn signature =
      (is_scalar_block fn.body = ThreeValuedLogic.Yes)
   then scalarize_fn fn signature
   else
-  (* to avoid having to make TypeAnalysis and Specialize recursive
+  (* to avoid having to make RewriteTyped and Specialize recursive
        modules I've untied the recursion by making specialize_value
-       a parameter of TypeAnalysis.
+       a parameter
    *)
-  let tenv =
-    TypeAnalysis.type_analysis ~specializer:specialize_value ~fn ~signature
-  in
-  let typedFn =
-    RewriteTyped.rewrite_typed ~tenv ~specializer:specialize_value ~fn:fn
-  in
+  RewriteTyped.rewrite_typed ~tenv ~specializer:specialize_value ~fn:fn
   typedFn
 
 and scalarize_fn untyped vecSig =

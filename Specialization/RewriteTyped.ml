@@ -218,7 +218,7 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
         let indexOp = Prim.ArrayOp Prim.Index in
         TypedSSA.primapp ?src indexOp ~output_types:[resultType] args'
     | _ ->
-        let outT = TypeInfer.infer_simple_array_op op types in
+        let outT = TypeAnalysis.infer_simple_array_op op types in
         TypedSSA.primapp ?src (Prim.ArrayOp op) ~output_types:[outT] args
 
   let rewrite_index src lhs args =
@@ -239,7 +239,7 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
     let fnVal = fn.value in
     match fnVal with
     | Prim ((Prim.ScalarOp op) as p) ->
-      let outT = TypeInfer.infer_scalar_op op argTypes in
+      let outT = TypeAnalysis.infer_scalar_op op argTypes in
       if Type.is_array outT then
         let axes = AdverbHelpers.infer_adverb_axes_from_types argTypes in
         rewrite_adverb
@@ -393,7 +393,7 @@ end
 
 let rewrite_typed ~tenv ~specializer ~fn =
   let module Params = struct
-    let tenv = tenv
+    let tenv = TypeAnalysis.type_analysis ~specializer ~fn ~signature
     let specializer = specializer
   end
   in

@@ -113,12 +113,6 @@ module MkEvaluator(A : ANALYSIS) = struct
             loopEnv := condEnv;
             changed := bodyChanged || phiChanged || condChanged
           done;
-          (*
-          IFDEF DEBUG THEN
-            Printf.printf "[SSA_Analysis] WhileLoop converged after %d iters\n"
-              !iter;
-          ENDIF;
-          *)
           if !iter > 1 then Some !loopEnv  else None
         )
         else (
