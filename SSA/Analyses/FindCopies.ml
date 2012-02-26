@@ -1,7 +1,7 @@
 (* pp: -parser o pa_macro.cmo *)
 
 open Base
-open SSA
+open TypedSSA
 open SSA_Analysis
 
 module CopyLattice = struct
@@ -69,7 +69,7 @@ module CopyEval = MkEvaluator(struct
           if nIds <> nRhs then
             failwith $ Printf.sprintf
               "[FindCopies] Wrong number of IDs on LHS of %s: expected %d, got %d"
-              (SSA.stmt_node_to_str stmtNode)
+              (TypedSSA.stmt_node_to_str stmtNode)
               nRhs
               nIds
             ;

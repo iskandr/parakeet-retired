@@ -1,5 +1,6 @@
 open Base
 open Prim
+open Adverb
 
 let prim_names = Hashtbl.of_list [
   "add", ScalarOp Add;

@@ -1,91 +1,113 @@
 (* pp: -parser o pa_macro.cmo *)
+
 open Base
-open SSA
-open SSA_AdverbHelpers
-open SSA_Transform
+open PhiNode
+open Adverb
 open Printf
 open Type
 
+exception RewriteFailed of string * SrcInfo.t option
+
 module type REWRITE_PARAMS = sig
-  val specializer : value -> Signature.t -> fn
+  val specializer : UntypedSSA.value -> Signature.t -> TypedSSA.fn
   val tenv : (ID.t, Type.t) Hashtbl.t
 end
 
 module Rewrite_Rules (P: REWRITE_PARAMS) = struct
-
-
-
   let get_type id =
     match Hashtbl.find_option P.tenv id with
       | Some t -> t
       | None -> failwith $ "No type for " ^ (ID.to_str id)
 
-
   let set_type id t = Hashtbl.replace P.tenv id t
+
   let fresh_id t =
     let id = ID.gen_named "temp" in
     set_type id t;
     id
 
+  (*
   let infer_value_type = function
-    | Var id -> get_type id
-    | Num n -> Type.ScalarT (ParNum.type_of n)
-    | other -> Type.BottomT
+    | UntypedSSA.Var id -> get_type id
+    | UntypedSSA.Num n -> Type.ScalarT (ParNum.type_of n)
+    | _ -> Type.BottomT
 
-  let infer_value_node_type valNode = infer_value_type valNode.value
+  let infer_value_node_type (valNode:UntypedSSA.value_node) =
+    infer_value_type valNode.UntypedSSA.value
+  *)
 
-  (* keeps only the portion of the second list which is longer than the first *)
-  let rec keep_tail l1 l2 =
-    if l1 = [] then l2
-    else if l2 = [] then []
-    else keep_tail (List.tl l1) (List.tl l2)
-
-  let mk_typed_closure fnVal signature =
-    match fnVal with
-    | GlobalFn _
-    | Prim _ -> SSA_Helpers.closure (P.specializer fnVal signature) []
-    | _ ->
-      failwith $ Printf.sprintf
-        "[RewriteTyped] Expected function, got variable %s "
-        (SSA.value_to_str fnVal)
-
-  let annotate_value valNode =
-    let t = infer_value_node_type valNode in
-    if t <> valNode.value_type then { valNode with value_type = t}
-    else valNode
+  let annotate_value (valNode:UntypedSSA.value_node) : TypedSSA.value_node =
+    let src = valNode.UntypedSSA.value_src in
+    match valNode.UntypedSSA.value with
+      | UntypedSSA.Var id ->
+        {
+          TypedSSA.value = TypedSSA.Var id;
+          value_type = get_type id;
+          value_src = src
+       }
+      | UntypedSSA.Num n ->
+        {
+          TypedSSA.value = TypedSSA.Num n;
+          value_type = Type.ScalarT (ParNum.type_of n);
+          value_src = src
+        }
+      | other ->
+        let errMsg = Printf.sprintf
+          "Don't know how to convert %s into typed SSA"
+          (UntypedSSA.value_to_str other)
+        in
+        raise (RewriteFailed(errMsg, src))
 
   let annotate_values vs = List.map annotate_value vs
+
+
+ 
+  let rewrite_typed_value (t:Type.t) (typedValNode:TypedSSA.value_node) = 
+    let src = typedValNode.TypedSSA.value_src in 
+    match typedValNode.TypedSSA.value with
+      | TypedSSA.Num n ->
+        let n' = ParNum.coerce n (Type.elt_type t) in
+        TypedSSA.num ?src:typedValNode.TypedSSA.value_src n'
+      | TypedSSA.Var id ->
+        let t' = get_type id in
+        if t = t' then {typedValNode with TypedSSA.value_type = t }
+        else
+          let errMsg =
+            Printf.sprintf
+              "Cannot rewrite %s : %s to become %s"
+              (ID.to_str id)
+              (Type.to_str t')
+              (Type.to_str t)
+          in raise (RewriteFailed(errMsg, src))
+      | _ ->
+        let errMsg =
+          Printf.sprintf
+            "Can't coerce value %s to type %s"
+            (TypedSSA.value_node_to_str typedValNode)
+            (Type.to_str t)
+        in
+        raise (RewriteFailed (errMsg, src)) 
+
 
   (* rewrite a value to have type t, but can't create coercion statements
      for variables of the wrong type
    *)
-  let rewrite_value (t:Type.t) (valNode:SSA.value_node) =
-    if valNode.value_type = t then valNode
-    else match valNode.value with
-      | Num n ->
-        let n' = ParNum.coerce n (Type.elt_type t) in
-        SSA_Helpers.num ?src:valNode.value_src ~ty:t n'
-      | Var id ->
-        let t' = get_type id in
-        if t = t' then {valNode with value_type = t }
-        else failwith $
-          Printf.sprintf
-            "Cannot rewrite %s : %s to become %s"
-            (ID.to_str id)
-            (Type.to_str t')
-            (Type.to_str t)
-      | _ ->
-        failwith  $ Printf.sprintf "Can't coerce value %s to type %s"
-          (value_node_to_str valNode) (Type.to_str t)
-
+  let rewrite_value (t:Type.t) (valNode:UntypedSSA.value_node) =
+    let typedValNode : TypedSSA.value_node = annotate_value valNode in
+    if typedValNode.TypedSSA.value_type = t then typedValNode
+    else rewrite_typed_value t typedValNode 
 
   (* if a value needs to be coerced, then it gets added to this list.
      It's the job of any caller to check and clear this list
    *)
   let coercions = ref []
 
-  let add_coercion stmtNode =
-    coercions := stmtNode :: !coercions
+  let add_coercion ?src expNode =
+    let t = List.hd expNode.TypedSSA.exp_types in 
+    let id = fresh_id t in
+    let stmtNode = TypedSSA.set [id] expNode in 
+    coercions := stmtNode :: !coercions;
+    TypedSSA.var ?src t id
 
   let get_coercions () = !coercions
 
@@ -96,80 +118,103 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
     clear_coercions ();
     stmts
 
-  let coerce_value (t:Type.t) (valNode:SSA.value_node) =
-    if valNode.value_type = t then valNode
-    else match valNode.value with
-    | Var id ->
-        let t' = get_type id in
-        if t = t' then {valNode with value_type = t }
-        else
-        let coerceExp = SSA_Helpers.cast t valNode in
-        let id' =  fresh_id t in
-        add_coercion (SSA_Helpers.set [id'] coerceExp);
-        SSA_Helpers.var ~ty:t id'
-    | _ -> rewrite_value t valNode
+
+  let coerce_typed_value (t:Type.t) (simpleTyped:TypedSSA.value_node) = 
+    if simpleTyped.TypedSSA.value_type = t then simpleTyped
+    else match simpleTyped.TypedSSA.value with
+    | TypedSSA.Var id ->
+      let coerceExp = TypedSSA.cast t simpleTyped in
+      let src = simpleTyped.TypedSSA.value_src in 
+      add_coercion ?src coerceExp 
+    | _ -> rewrite_typed_value t simpleTyped
+
+  let coerce_typed_values t vs = List.map (coerce_typed_value t) vs 
+
+    
+  let coerce_value (t:Type.t) (untyped:UntypedSSA.value_node) =
+    coerce_typed_value t (annotate_value untyped)
 
   let coerce_values t vs = List.map (coerce_value t) vs
+  
+  let untyped_value_input_arity = function
+    | UntypedSSA.GlobalFn fnId -> FnManager.input_arity_of_untyped_fn fnId
+    | UntypedSSA.Prim p -> Prim.min_prim_arity p
+    | other ->
+      failwith $ Printf.sprintf
+        "Can't get arity of %s, it's not a function"
+        (UntypedSSA.value_to_str other)
+
+  let untyped_value_output_arity = function
+    | UntypedSSA.GlobalFn fnId -> 
+      FnManager.output_arity_of_untyped_fn fnId
+    | UntypedSSA.Prim p -> 1
+    | other ->
+      failwith $ Printf.sprintf
+        "Can't get arity of %s, it's not a function"
+        (UntypedSSA.value_to_str other)
 
   let rewrite_adverb
         ?(src:SrcInfo.t option)
-        ~(adverb:Prim.adverb)
-        ~(fn_val:SSA.value)
-        ~(axes:SSA.value_node list)
-        ?(closure_args=[])
-        ?(init:SSA.value_node list option)
-        ~(array_args : SSA.value_node list) =
-    IFDEF DEBUG THEN
-      Printf.printf
-        "[RewriteTyped.rewrite_adverb] %s(fn=%s, args=[%s])\n"
-        (Prim.adverb_to_str adverb)
-        (SSA.value_to_str fn_val)
-        (SSA.value_nodes_to_str array_args)
-      ;
-    ENDIF;
-    (* since all the value_nodes we're seeing at this point have already*)
-    (* been annotated you can just grab their type via valNode.value_type *)
-    let closureArgTypes = SSA_Helpers.types_of_value_nodes closure_args in
-    let argTypes = SSA_Helpers.types_of_value_nodes array_args in
+        (info : UntypedSSA.adverb_info) : TypedSSA.exp_node =
+    (* make typed version of all the adverbinfo fields *)
+    let arrayArgs : TypedSSA.value_nodes = annotate_values info.array_args in
+    let arrayTypes = TypedSSA.types_of_value_nodes arrayArgs in
+    let fixed : TypedSSA.value_nodes = annotate_values info.fixed_args in
+    let fixedTypes = TypedSSA.types_of_value_nodes fixed in
+    let init = Option.map annotate_values info.init in
+    let axes : TypedSSA.value_nodes = match info.axes with
+      | Some axes -> annotate_values axes
+      | None -> AdverbHelpers.infer_adverb_axes_from_types arrayTypes
+    in
     let numAxes = List.length axes in
-    let eltTypes = List.map (Type.peel ~num_axes:numAxes) argTypes in
-    match adverb, init, eltTypes with
-      | Prim.Map, None, _ ->
-        let nestedSig =
-          Signature.from_input_types (closureArgTypes @ eltTypes)
-        in
-        let closure = mk_typed_closure fn_val nestedSig in
-        SSA_AdverbHelpers.mk_map closure (closure_args @ array_args)
-      | Prim.Map, Some _, _ -> failwith "Map can't have initial args"
-      | Prim.Reduce, None, [eltT] ->
-        if FnManager.output_arity_of_value fn_val <> 1 then
+    let eltTypes = List.map (Type.peel ~num_axes:numAxes) arrayTypes in
+    (* cut down on code repetition since so many fields are shared below *)
+    let mk_adverb_exp (adverb:Adverb.t) (typedFn:TypedSSA.fn) =
+      AdverbHelpers.mk_adverb_exp_node ?src 	       
+        {
+          Adverb.adverb= adverb;
+          adverb_fn = typedFn.TypedSSA.fn_id;
+          fixed_args = fixed;
+          init = init;
+          axes = axes;
+          array_args = arrayArgs; 
+        }
+    in 
+    let untypedFnVal = info.adverb_fn.UntypedSSA.value in 
+    match info.adverb, init, eltTypes with
+      | Adverb.Map, None, _ ->
+        let nestedSig = Signature.from_input_types (fixedTypes @ eltTypes) in
+        let typedFn = P.specializer untypedFnVal nestedSig in
+        mk_adverb_exp Adverb.Map typedFn
+      | Adverb.Map, Some _, _ -> failwith "Map can't have initial args"
+      | Adverb.Reduce, None, [eltT] ->
+        if untyped_value_input_arity untypedFnVal <> 1 then
           failwith "Reduce without initial args can only produce 1 output"
         ;
         (* assume that the accumulator is the same as the array element type *)
         let nestedSig =
-          Signature.from_input_types (closureArgTypes @ [eltT; eltT])
+          Signature.from_input_types (fixedTypes @ [eltT; eltT])
         in
-        let closure = mk_typed_closure fn_val nestedSig in
-        SSA_AdverbHelpers.mk_reduce ?src closure ~axes ?init:None array_args
-      | Prim.Reduce, None, _ ->
+        let typedFn = P.specializer untypedFnVal nestedSig in
+        mk_adverb_exp Adverb.Reduce typedFn
+      | Adverb.Reduce, None, _ ->
         failwith "Reduce without initial args can only have 1 input"
-
-      | Prim.AllPairs, None, [x;y] -> assert false
-      | Prim.AllPairs, Some _, [_;_] ->
+      | Adverb.AllPairs, None, _ ->
+        if List.length eltTypes <> 2 then
+          failwith "AllPairs operator must have two inputs"
+        else
+          assert false 
+      | Adverb.AllPairs, Some _, [_;_] ->
         failwith "AllPairs operator can't have initial args"
-      | Prim.AllPairs, _, _ -> failwith "AllPairs operator must have two inputs"
-        (*let eltTypes = List.map Type.peel_vec argTypes in
-        let eltSignature = Signature.from_input_types eltTypes in
-        *)
 
       | other, _, _ ->
-        failwith $ (Prim.adverb_to_str other) ^ " not implemented"
+        failwith $ (Adverb.to_str other) ^ " not implemented"
 
 
   let rewrite_array_op
         (src: SrcInfo.t option)
         (op:Prim.array_op)
-        (args:SSA.value_node list)
+        (args:TypedSSA.value_nodes)
         (types:Type.t list) = match op, args, types with
     | Prim.Index, [array; index], [arrayType; indexType]
         when Type.elt_type indexType = Type.BoolT ->
@@ -178,49 +223,56 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
               failwith "Expected boolean index vector to be 1D"
         ENDIF;
         let whereT = Type.ArrayT(Type.Int32T, 1) in
-        let whereId = fresh_id whereT in
         let whereOp =  Prim.ArrayOp Prim.Where in
         let whereExp =
-          SSA_Helpers.primapp ?src whereOp ~output_types:[whereT] [index]
+          TypedSSA.primapp ?src whereOp ~output_types:[whereT] [index]
         in
-        add_coercion (SSA_Helpers.set ?src [whereId] whereExp);
-        let args' = array :: [SSA_Helpers.var ?src ~ty:whereT whereId] in
+        let whereResult = add_coercion ?src whereExp in
+        let args' = array :: [whereResult] in
         let resultType = Type.ArrayT (Type.elt_type arrayType, 1) in
         let indexOp = Prim.ArrayOp Prim.Index in
-        SSA_Helpers.primapp ?src indexOp ~output_types:[resultType] args'
+        TypedSSA.primapp ?src indexOp ~output_types:[resultType] args'
     | _ ->
-        let outT = TypeInfer.infer_simple_array_op op types in
-        SSA_Helpers.primapp ?src (Prim.ArrayOp op) ~output_types:[outT] args
+        let outT = TypeAnalysis.infer_simple_array_op op types in
+        TypedSSA.primapp ?src (Prim.ArrayOp op) ~output_types:[outT] args
 
-  let rewrite_index src lhs args =
-    let arrType = infer_value_node_type lhs in
-    let outTypes = [Type.AnyT] in
-    let arrNode = {lhs with value_type = arrType} in
-    let indexOp = Prim.ArrayOp Prim.Index in
-    SSA_Helpers.primapp ?src indexOp  ~output_types:outTypes (arrNode::args)
-
-  let rewrite_app src fn argNodes : exp_node =
+  let rewrite_app src 
+        (fn:UntypedSSA.value_node) 
+        (argNodes:TypedSSA.value_nodes) : TypedSSA.exp_node =
     IFDEF DEBUG THEN
       Printf.printf "[RewriteTyped.rewrite_app] %s(%s)\n"
-        (SSA.value_node_to_str fn)
-        (SSA.value_nodes_to_str argNodes)
+        (UntypedSSA.value_node_to_str fn)
+        (TypedSSA.value_nodes_to_str argNodes)
       ;
     ENDIF;
-    let argTypes = List.map (fun v -> v.value_type) argNodes in
-    let fnVal = fn.value in
+    let argTypes = List.map (fun v -> v.TypedSSA.value_type) argNodes in
+    let fnVal = fn.UntypedSSA.value in
+    let fnSrc = fn.UntypedSSA.value_src in 
     match fnVal with
-    | Prim ((Prim.ScalarOp op) as p) ->
-      let outT = TypeInfer.infer_scalar_op op argTypes in
+    | UntypedSSA.Prim ((Prim.ScalarOp op) as p) ->
+      let outT = TypeAnalysis.infer_scalar_op op argTypes in
       if Type.is_array outT then
-        let axes = SSA_AdverbHelpers.infer_adverb_axes_from_types argTypes in
-        rewrite_adverb
-          ?src
-          ~adverb:Prim.Map
-          ~fn_val:fnVal
-          ~closure_args:[]
-          ?init:None
-          ~axes
-          ~array_args:argNodes
+        let axes = 
+          AdverbHelpers.infer_adverb_axes_from_types argTypes  
+        in 
+        let eltTypes = 
+          List.map (fun t -> Type.ScalarT (Type.elt_type t)) argTypes
+        in
+        let typedFn = 
+          P.specializer fnVal (Signature.from_input_types eltTypes) 
+        in
+        let typedInfo : TypedSSA.adverb_info =  
+          { 
+            Adverb.adverb = Adverb.Map; 
+            adverb_fn = typedFn.TypedSSA.fn_id; 
+            fixed_args = []; 
+            init = None; 
+            array_args = argNodes;
+            axes = axes;  
+          }
+        in
+        AdverbHelpers.mk_adverb_exp_node typedInfo 
+         
       else
         (* most scalar ops expect all their arguments to be of the same*)
         (* type, except for Select, whose first argument is always a bool *)
@@ -228,8 +280,12 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
           match op, argNodes, argTypes with
           | Prim.Select, boolArg::otherArgs, _::otherTypes ->
             let inT = Type.combine_type_list otherTypes in
-            let args = boolArg :: (List.map (coerce_value inT) argNodes) in
-            SSA_Helpers.primapp p [outT] args
+            let args = 
+              (coerce_typed_value Type.bool boolArg) 
+              :: 
+              (coerce_typed_values inT argNodes) 
+            in
+            TypedSSA.primapp p [outT] args
           | _ ->
             (* if operation is a float, then make sure the inputs are*)
             (* at least float32 *)
@@ -239,110 +295,119 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
               else
                 Type.combine_type_list argTypes
             in
-            let args = List.map (coerce_value inT) argNodes in
-            SSA_Helpers.primapp p [outT] args
+            let args = coerce_typed_values inT argNodes in
+            TypedSSA.primapp p [outT] args
         end
-    | Prim (Prim.ArrayOp op) -> rewrite_array_op src op argNodes argTypes
-    | Prim (Prim.Adverb adverb) ->
-      begin match argNodes, argTypes with
-        | fn::args, _::arrayTypes ->
-          let axes =
-            SSA_AdverbHelpers.infer_adverb_axes_from_types arrayTypes
-          in
-          rewrite_adverb
-            ?src
-            ~adverb
-            ~fn_val:fn.value
-            ~axes
-            ~closure_args:[]
-            ?init:None
-            ~array_args:args
-        | _ -> assert false
-      end
-    | GlobalFn _ ->
+    | UntypedSSA.Prim (Prim.ArrayOp op) -> 
+      rewrite_array_op src op argNodes argTypes
+    | UntypedSSA.Prim (Prim.Adverb adverb) ->
+      failwith "Unexpected adverb, should have been handled in rewrite_exp"
+      
+     
+    | UntypedSSA.GlobalFn _ ->
       let typed = P.specializer fnVal (Signature.from_input_types argTypes) in
-      SSA_Helpers.call ?src typed.fn_id typed.fn_output_types argNodes
-    | Var id -> rewrite_index src fn argNodes
-    | _ -> failwith $
-             Printf.sprintf "[RewriteTyped] Unexpected function: %s"
-              (SSA.value_node_to_str fn)
+      let outputTypes = TypedSSA.output_types typed in 
+      TypedSSA.call ?src typed.TypedSSA.fn_id outputTypes argNodes
+    | UntypedSSA.Var id -> 
+      (* assume variable must be an array *) 
+      let arrType = Hashtbl.find P.tenv id in
+      let outTypes = [Type.peel ~num_axes:(List.length argNodes) arrType] in
+      let arrNode = TypedSSA.var ?src:fnSrc arrType id in 
+      let indexOp = Prim.ArrayOp Prim.Index in
+      TypedSSA.primapp ?src indexOp  ~output_types:outTypes (arrNode::argNodes)
+
+    | _ -> 
+      let errMsg = 
+        Printf.sprintf "[RewriteTyped] Unexpected function: %s"
+          (UntypedSSA.value_node_to_str fn)
+      in
+      raise (RewriteFailed(errMsg, fnSrc))
 
   let rewrite_exp types expNode =
-    match expNode.exp, types with
-      | Arr elts, [Type.ArrayT(eltT, _)] ->
-        let elts' = coerce_values (Type.ScalarT eltT) elts in
-        {expNode with exp = Arr elts'; exp_types = types}
-      | Values vs, _ ->
-        let vs' = List.map2 coerce_value types vs in
-        {expNode with exp = Values vs'; exp_types = types }
-      | App (fn, args), _ ->
-        rewrite_app expNode.exp_src fn (annotate_values args)
-      | Adverb (adverb, {closure_fn; closure_args}, {init; axes; args}), _ ->
-        let arrayArgs = annotate_values args in
-        let arrayTypes = SSA_Helpers.types_of_value_nodes arrayArgs in
-        let axes = match axes with
-          | Some axes -> annotate_values axes
-          | None -> SSA_AdverbHelpers.infer_adverb_axes_from_types arrayTypes
-        in
-        rewrite_adverb
-          ?src:expNode.exp_src
-          ~adverb
-          ~fn_val:(GlobalFn closure_fn)
-          ~axes
-          ~closure_args:(annotate_values closure_args)
-          ?init:(Option.map annotate_values init)
-          ~array_args:arrayArgs
-      | _ -> failwith $
-               Printf.sprintf
-                 "[RewriteTyped] Type specialization for %s not implemented"
-                 (SSA.exp_to_str expNode)
+    let src = expNode.UntypedSSA.exp_src in 
+    match expNode.UntypedSSA.exp, types with
+    | UntypedSSA.Arr elts, [Type.ArrayT(eltT, _)] ->
+      let elts' = coerce_values (Type.ScalarT eltT) elts in
+      { TypedSSA.exp = TypedSSA.Arr elts'; exp_types = types; exp_src = src}
+    | UntypedSSA.Values vs, _ ->
+      let vs' = List.map2 coerce_value types vs in
+      { TypedSSA.exp = TypedSSA.Values vs'; exp_types = types; exp_src = src }
+      (* WARNING: You're ignoring the expected return types here *) 
+    | UntypedSSA.Adverb adverbInfo, _ -> rewrite_adverb ?src adverbInfo
+    | UntypedSSA.App (
+       {UntypedSSA.value = UntypedSSA.Prim (Prim.Adverb adverb)}, 
+       fn::args), _ -> 
+      let untypedInfo = {
+        Adverb.adverb = adverb; adverb_fn = fn; 
+        axes = None; init = None; fixed_args = [];
+        array_args = args; 
+      }
+      in
+      rewrite_adverb ?src untypedInfo 
+    | UntypedSSA.App (fn, args), _ ->
+      rewrite_app src fn (annotate_values args)
+    | _ -> 
+      let errMsg = 
+        Printf.sprintf
+          "Type specialization for %s not implemented"
+          (UntypedSSA.exp_node_to_str expNode)
+      in
+      raise (RewriteFailed(errMsg, src))
 
   let rewrite_phi phiNode =
     let t = Hashtbl.find P.tenv phiNode.phi_id in
     let left = rewrite_value t phiNode.phi_left in
     let right = rewrite_value t phiNode.phi_right in
-    {phiNode with phi_type = t; phi_left = left; phi_right = right }
+    {phiNode with phi_left = left; phi_right = right }
 
   let rewrite_phi_nodes phiNodes = List.map rewrite_phi phiNodes
 
-  let rec stmt stmtNode : stmt_node list =
-    match stmtNode.stmt with
-    | Set(ids, rhs) ->
+  let rec stmt (stmtNode:UntypedSSA.stmt_node) : TypedSSA.stmt_node list =
+    let src = stmtNode.UntypedSSA.stmt_src in 
+    match stmtNode.UntypedSSA.stmt with
+    | UntypedSSA.Set(ids, rhs) ->
       let rhsTypes = List.map (Hashtbl.find P.tenv) ids in
-      let rhs' = rewrite_exp rhsTypes rhs in
-      let stmtNode' = {stmtNode with stmt = Set(ids, rhs')} in
-      collect_coercions stmtNode'
-
-    | SetIdx (lhs, indices, rhs) ->
-      let array = annotate_value lhs in
-      let indices = List.map (coerce_value Type.int32) indices in
-      let rhsT = Type.peel ~num_axes:(List.length indices) array.value_type in
-      let rhs = coerce_value rhsT rhs in
-      let stmtNode' = { stmtNode with stmt = SetIdx(lhs, indices, rhs) } in
-      collect_coercions stmtNode'
-
-
-    | If(cond, tBlock, fBlock, phiNodes) ->
-      let typedCond = annotate_value cond in
-      let boolCond = coerce_value Type.bool typedCond in
-      let tBlock' = transform_block tBlock in
-      let fBlock' = transform_block fBlock in
-      let phiNodes' = rewrite_phi_nodes phiNodes in
-      let stmtNode' =
-        {stmtNode with stmt = If(boolCond, tBlock', fBlock', phiNodes')}
+      let typedRhs = rewrite_exp rhsTypes rhs in
+      let typedStmtNode = 
+        TypedSSA.wrap_stmt ?src $ TypedSSA.Set(ids, typedRhs)
       in
-      collect_coercions stmtNode'
+      collect_coercions typedStmtNode
 
-    | WhileLoop(testBlock, testVal, body, header) ->
-        let body' = transform_block body in
-        let testBlock' = transform_block testBlock in
-        let typedTestVal = annotate_value testVal in
-        let boolTestVal = coerce_value Type.bool typedTestVal in
-        let header' = rewrite_phi_nodes header in
-        let stmtNode' =  { stmtNode with
-            stmt = WhileLoop(testBlock', boolTestVal, body', header')
-        }
-        in collect_coercions stmtNode'
+    | UntypedSSA.SetIdx (lhs, indices, rhs) ->
+      let typedArray = annotate_value lhs in
+      let typedIndices = List.map (coerce_value Type.int32) indices in
+      let rhsT = 
+        Type.peel ~num_axes:(List.length indices) typedArray.TypedSSA.value_type 
+      in
+      let typedRhs = rewrite_exp [rhsT] rhs in
+      let typedStmtNode = 
+        TypedSSA.wrap_stmt ?src $
+          TypedSSA.SetIdx(typedArray, typedIndices, typedRhs)
+      in 
+      collect_coercions typedStmtNode
+
+
+    | UntypedSSA.If(cond, tBlock, fBlock, phiNodes) ->
+      let cond = coerce_value Type.bool cond in
+      let tBlock = transform_block tBlock in
+      let fBlock = transform_block fBlock in
+      let phiNodes = rewrite_phi_nodes phiNodes in
+      let typedStmtNode = 
+        TypedSSA.wrap_stmt ?src $
+          TypedSSA.If(cond, tBlock, fBlock, phiNodes)
+      in 
+      collect_coercions typedStmtNode  
+
+    | UntypedSSA.WhileLoop(testBlock, testVal, body, header) ->
+      let body = transform_block body in
+      let testBlock = transform_block testBlock in
+      let testVal = coerce_value Type.bool testVal in
+      let header = rewrite_phi_nodes header in
+      let typedStmtNode = 
+        TypedSSA.wrap_stmt ?src $ 
+          TypedSSA.WhileLoop(testBlock, testVal, body, header)
+      in 
+      collect_coercions typedStmtNode
 
   and transform_block block =
     let buffer = ref [] in
@@ -354,20 +419,19 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
     Block.of_list (List.rev !buffer)
 
   and transform_fn f =
-    let body = transform_block f.body in
-    SSA_Helpers.mk_fn
-      ~name:(FnId.get_original_prefix f.fn_id)
+    let body = transform_block f.UntypedSSA.body in
+    TypedSSA.mk_fn
+      ~name:(FnId.get_original_prefix f.UntypedSSA.fn_id)
       ~tenv:(Hashtbl.fold ID.Map.add P.tenv ID.Map.empty)
-      ~input_ids:f.input_ids
-      ~output_ids:f.output_ids
+      ~input_ids:f.UntypedSSA.input_ids
+      ~output_ids:f.UntypedSSA.output_ids
       ~body
 end
 
-let rewrite_typed ~tenv ~specializer ~fn =
+let rewrite_typed ~tenv ~specializer ~fn ~signature =
   let module Params = struct
-    let tenv = tenv
+    let tenv = TypeAnalysis.type_analysis ~specializer ~fn ~signature
     let specializer = specializer
-
   end
   in
   let module Transform = Rewrite_Rules(Params) in

@@ -1,5 +1,5 @@
 
-val do_inline : 
-  SSA.fn -> SSA.value_node list -> 
-      SSA.block * SSA.exp_node * (ID.t*Type.t) list    
-val run_fn_inliner : FnTable.t -> SSA.fn -> SSA.fn * bool  
+val do_inline :
+  TypedSSA.fn -> TypedSSA.value_nodes ->
+      TypedSSA.block * TypedSSA.exp_node * (ID.t*Type.t) list
+val run_fn_inliner : FnTable.t -> TypedSSA.fn -> TypedSSA.fn * bool

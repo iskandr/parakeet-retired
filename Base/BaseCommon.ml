@@ -8,7 +8,7 @@ let (>>=) x f = f x
 let ignore x = ()
 
 let compose f g = fun x -> f (g x)
-
+let id x = x
 let debug msg =
   IFDEF DEBUG THEN Printf.printf "%s\n" msg; END;
   ()
@@ -40,3 +40,5 @@ end
 let safe_div n d =
   (n + d - 1) / d
 
+let rec wrap_str s =
+  Str.global_substitute (Str.regexp "\n") (fun _ -> "  \n") s

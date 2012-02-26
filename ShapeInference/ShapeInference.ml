@@ -1,8 +1,7 @@
 (* pp: -parser o pa_macro.cmo *)
 
 open Base
-open Base
-open SSA
+open TypedSSA
 open SSA_Analysis
 open SymbolicShape
 (* takes an SSA function and a map of its IDs to their counterparts in some
@@ -18,38 +17,39 @@ module type PARAMS = sig
 end
 
 module ShapeAnalysis (P: PARAMS) =  struct
-    type value_info = SymbolicShape.t
-    type exp_info = value_info list
-    type env = value_info ID.Map.t
+  type value_info = SymbolicShape.t
+  type exp_info = value_info list
+  type env = value_info ID.Map.t
 
-    let dir = Forward
+  let dir = Forward
 
-     let clone_env env = env
+  let clone_env env = env
 
-    (* should analysis be repeated until environment stops changing? *)
-    let iterative = true
+  (* should analysis be repeated until environment stops changing? *)
+  let iterative = true
 
-    (* TODO: add memoization on function ID here *)
-    let init fundef =
-      List.fold_left
-        (fun accEnv id ->
-          let rank = Type.rank (ID.Map.find id fundef.SSA.tenv) in
-          let shape = SymbolicShape.all_dims id rank in
-          ID.Map.add id shape accEnv
-        )
-        ID.Map.empty
-        fundef.input_ids
-
-    let value env valNode = match valNode.value with
-      | SSA.Var id -> SymbolicShape.all_dims id (Type.rank valNode.SSA.value_type)
-      | _ -> [] (* empty list indicates a scalar *)
-
-    let phi_set env id shape =
-      if ID.Map.mem id env then (
-        let oldShape = ID.Map.find id env in
-        if shape <> oldShape then failwith "Shape error"
-        else None
+  (* TODO: add memoization on function ID here *)
+  let init fundef =
+    List.fold_left
+      (fun accEnv id ->
+         let rank = Type.rank (ID.Map.find id fundef.TypedSSA.tenv) in
+         let shape = SymbolicShape.all_dims id rank in
+         ID.Map.add id shape accEnv
       )
+      ID.Map.empty
+      fundef.TypedSSA.input_ids
+
+  let value env valNode = match valNode.value with
+    | TypedSSA.Var id ->
+      SymbolicShape.all_dims id (Type.rank valNode.TypedSSA.value_type)
+    | _ -> [] (* empty list indicates a scalar *)
+
+  let phi_set env id shape =
+    if ID.Map.mem id env then (
+      let oldShape = ID.Map.find id env in
+      if shape <> oldShape then failwith "Shape error"
+      else None
+    )
       else Some (ID.Map.add id shape env)
 
     let phi_merge env id leftShape rightShape =
@@ -57,46 +57,42 @@ module ShapeAnalysis (P: PARAMS) =  struct
       phi_set env id leftShape
 
     let infer_adverb
-          ~(adverb:Prim.adverb)
-          ~(fn_id:FnId.t)
-          ~(closure_args:SymbolicShape.t list)
-          ~(axes: int list)
-          ~(init:SymbolicShape.t list option)
-          ~(args:SymbolicShape.t list) =
-      let maxShape, maxRank = SymbolicShape.argmax_rank args in
+          {Adverb.adverb; adverb_fn; fixed_args; axes; init; array_args } =
+      let maxShape, maxRank = SymbolicShape.argmax_rank array_args in
       (* split dims into those that are part of the adverb and *)
       (* those that are held constant *)
       let loopDims, fixedDims = SymbolicShape.split maxShape axes in
-      match adverb, init, args with
-        | Prim.Map, None, _ ->
+      match adverb, init, array_args with
+        | Adverb.Map, None, _ ->
           let nAxes = List.length axes in
           if nAxes > maxRank then
             raise (ShapeInferenceFailure "Too many axes for Map")
           else
-          let eltShapes = SymbolicShape.peel_shape_list ~axes args in
+          let eltShapes = SymbolicShape.peel_shape_list ~axes array_args in
           (* shapes that go into the function on each iteration *)
-          let inputShapes = closure_args @ eltShapes in
-          let callResultShapes = P.output_shapes fn_id inputShapes in
+          let inputShapes = fixed_args @ eltShapes in
+          let callResultShapes = P.output_shapes adverb_fn inputShapes in
           List.map (fun shape -> loopDims @ shape) callResultShapes
-        | Prim.Map, Some _, _ ->
+        | Adverb.Map, Some _, _ ->
           raise  (ShapeInferenceFailure "Unexpected init arg to Map")
-        | Prim.Reduce, None, [s] ->
-          let inputShapes = closure_args @ [s;s] in
-          let callResultShapes = P.output_shapes fn_id inputShapes in
+        | Adverb.Reduce, None, [s] ->
+          let inputShapes = fixed_args @ [s;s] in
+          let callResultShapes = P.output_shapes adverb_fn inputShapes in
           List.map (fun shape -> fixedDims @ shape) callResultShapes
-        | Prim.Reduce, None, _ ->
-          raise (
-            ShapeInferenceFailure "Too many inputs for Reduce without init")
-        | Prim.Reduce, Some initShapes, _ ->
-          let inputShapes = closure_args @ initShapes @ args in
-          let callResultShapes = P.output_shapes fn_id inputShapes in
+        | Adverb.Reduce, None, _ ->
+          let errMsg = "Too many inputs for Reduce without init" in
+          raise (ShapeInferenceFailure errMsg)
+        | Adverb.Reduce, Some initShapes, _ ->
+          let inputShapes = fixed_args @ initShapes @ array_args in
+          let callResultShapes = P.output_shapes adverb_fn inputShapes in
           List.map (fun shape -> fixedDims @ shape) callResultShapes
 
-        | Prim.AllPairs, None, [_; _] ->
+        | Adverb.AllPairs, None, [_; _] ->
           raise (ShapeInferenceFailure "AllPairs not implemented")
-        | Prim.AllPairs, Some _, [_; _] ->
+        | Adverb.AllPairs, Some _, [_; _] ->
           raise (ShapeInferenceFailure "Unexpected init arg to AllPairs")
-        | Prim.Scan, _, _-> raise (ShapeInferenceFailure "Scan not implemented")
+        | Adverb.Scan, _, _->
+          raise (ShapeInferenceFailure "Scan not implemented")
 
     let infer_array_op
           (op:Prim.array_op)
@@ -145,7 +141,8 @@ module ShapeAnalysis (P: PARAMS) =  struct
           (args : SymbolicShape.t list) : SymbolicShape.t list =
       match op, args with
       | Prim.ArrayOp arrayOp, _ -> [infer_array_op arrayOp args]
-      | Prim.ScalarOp _, args  when List.for_all SymbolicShape.is_scalar args ->
+      | Prim.ScalarOp _, args
+        when List.for_all SymbolicShape.is_scalar args ->
         [SymbolicShape.scalar]
       | _ ->
         failwith $ Printf.sprintf
@@ -158,45 +155,49 @@ module ShapeAnalysis (P: PARAMS) =  struct
     let exp env expNode helpers =
       let shapes_of_values valNodes = List.map (value env) valNodes in
       match expNode.exp with
-      | SSA.Call(fnId, args) ->
+      | TypedSSA.Call(fnId, args) ->
           P.output_shapes fnId (shapes_of_values args)
-      | SSA.PrimApp (op, args) ->
+      | TypedSSA.PrimApp (op, args) ->
         let argShapes = shapes_of_values args in
         infer_primapp op argShapes
-      | SSA.Arr elts ->
+      | TypedSSA.Arr elts ->
         let eltShapes = List.map (value env) elts in
         (* TODO: check that elt shapes actually match each other *)
         let n = List.length eltShapes in
         [SymbolicShape.Const n :: (List.hd eltShapes)]
-      | SSA.Cast (t, v) ->  [value env v]
-      | SSA.Values vs -> shapes_of_values vs
-      | SSA.Adverb (adverb, closure, {axes; init; args}) ->
-        let axes = SSA_AdverbHelpers.infer_adverb_axes_from_args ?axes args in
-        let axes : int list =
-          if List.for_all SSA_Helpers.is_const_int axes then
-            List.map SSA_Helpers.get_const_int axes
+      | TypedSSA.Cast (t, v) ->  [value env v]
+      | TypedSSA.Values vs -> shapes_of_values vs
+      | TypedSSA.Adverb adverbInfo ->
+        let get_const_axes (axes:TypedSSA.value_nodes) : int list =
+          if List.for_all TypedSSA.is_const_int axes then
+            List.map TypedSSA.get_const_int axes
           else
             raise (ShapeInferenceFailure "All adverb axes must be constants")
         in
-        infer_adverb
-          ~adverb
-          ~fn_id:(closure.SSA.closure_fn)
-          ~closure_args:(shapes_of_values closure.SSA.closure_args)
-          ~axes
-          ~init:(Option.map shapes_of_values init)
-          ~args:(shapes_of_values args)
+        infer_adverb $ 
+          Adverb.apply_to_fields adverbInfo
+            ~fn:(fun fnId -> fnId)
+            ~values:shapes_of_values
+            ~axes:get_const_axes
       | _ ->
-          let expStr = SSA.exp_to_str expNode in
-          failwith (Printf.sprintf "[shape_infer] not implemented: %s\n" expStr)
+          let errMsg =
+            Printf.sprintf
+              "not implemented: %s"
+              (TypedSSA.exp_node_to_str expNode)
+          in
+          raise (ShapeInferenceFailure errMsg)
 
       let stmt env stmtNode helpers = match stmtNode.stmt with
       | Set(ids, rhs) ->
           let newShapes = exp env rhs helpers in
           IFDEF DEBUG THEN
             if List.length ids <> List.length newShapes then
-              failwith ("Shape inference error in stmt '" ^
-                        (SSA.stmt_node_to_str stmtNode) ^
-                        "': number of IDs must match number of rhs shapes");
+              let errMsg =
+                "Shape inference error in stmt '" ^
+                (TypedSSA.stmt_node_to_str stmtNode) ^
+                "': number of IDs must match number of rhs shapes"
+              in
+              raise (ShapeInferenceFailure errMsg)
           ENDIF;
           let prevDefined = List.for_all (fun id ->ID.Map.mem id env) ids in
           let changed =
@@ -237,11 +238,16 @@ let rec normalize_dim
       let normalizedEnv'' = ID.Map.add id normalizedShape normalizedEnv' in
       SymbolicShape.get_dim normalizedShape idx, normalizedEnv''
   | Op (op, x, y) ->
-    let x', normalizedEnv' = normalize_dim inputSet rawShapeEnv normalizedEnv x in
-    let y', normalizedEnv'' = normalize_dim inputSet rawShapeEnv normalizedEnv' y in
+    let x', normalizedEnv' =
+      normalize_dim inputSet rawShapeEnv normalizedEnv x
+    in
+    let y', normalizedEnv'' =
+      normalize_dim inputSet rawShapeEnv normalizedEnv' y
+    in
     let resultDim = SymbolicShape.simplify_op op x' y' in
     resultDim, normalizedEnv''
   | other -> other, normalizedEnv
+
 and normalize_shape inputSet rawShapeEnv normalizedEnv shape
     : SymbolicShape.t * SymbolicShape.t ID.Map.t  =
   let foldFn (revDims, normalizedEnv) currDim =
@@ -282,8 +288,8 @@ let normalizedShapeEnvCache : (FnId.t, SymbolicShape.env) Hashtbl.t =
   Hashtbl.create 127
 
 
-let rec infer_shape_env (fnTable:FnTable.t) (fundef : SSA.fn) =
-  let fnId = fundef.SSA.fn_id in
+let rec infer_shape_env (fnTable:FnTable.t) (fundef : TypedSSA.fn) =
+  let fnId = fundef.TypedSSA.fn_id in
   match Hashtbl.find_option shapeEnvCache fnId with
     | Some shapeEnv -> shapeEnv
     | None  ->
@@ -294,20 +300,22 @@ let rec infer_shape_env (fnTable:FnTable.t) (fundef : SSA.fn) =
             infer_call_result_shapes fnTable fundef argShapes
         end
         in
-        let module ShapeEval = SSA_Analysis.MkEvaluator(ShapeAnalysis(Params)) in
+        let module ShapeEval =
+          SSA_Analysis.MkEvaluator(ShapeAnalysis(Params))
+        in
         let shapeEnv = ShapeEval.eval_fn fundef in
         Hashtbl.add shapeEnvCache fnId shapeEnv;
         shapeEnv
       end
 
-and infer_normalized_shape_env (fnTable : FnTable.t) (fundef : SSA.fn) =
-  let fnId = fundef.SSA.fn_id in
+and infer_normalized_shape_env (fnTable : FnTable.t) (fundef : TypedSSA.fn) =
+  let fnId = fundef.TypedSSA.fn_id in
   match Hashtbl.find_option normalizedShapeEnvCache fnId with
     | Some normalizedEnv -> normalizedEnv
     | None ->
       begin
         let rawShapeEnv = infer_shape_env fnTable fundef in
-        let inputIdSet = ID.Set.of_list fundef.SSA.input_ids in
+        let inputIdSet = ID.Set.of_list fundef.TypedSSA.input_ids in
         let normalizer id shape normalizedEnv =
           (* if already normalized, don't do it again *)
           if ID.Map.mem id normalizedEnv then normalizedEnv
@@ -322,8 +330,10 @@ and infer_normalized_shape_env (fnTable : FnTable.t) (fundef : SSA.fn) =
         normalizedEnv
       end
 
-and infer_normalized_output_shapes (fnTable : FnTable.t) (fundef : SSA.fn) =
-  let fnId = fundef.SSA.fn_id in
+and infer_normalized_output_shapes
+      (fnTable : FnTable.t)
+      (fundef : TypedSSA.fn) =
+  let fnId = fundef.TypedSSA.fn_id in
   try Hashtbl.find normalizedOutputShapeCache fnId
   with _ -> begin
     let shapeEnv = infer_shape_env fnTable fundef in
@@ -347,7 +357,7 @@ and infer_call_result_shapes fnTable fundef argShapes =
     List.fold_left2
       (fun env id argShape -> ID.Map.add id argShape env)
       ID.Map.empty
-      fundef.SSA.input_ids
+      fundef.TypedSSA.input_ids
       argShapes
   in
   let resultShapes =

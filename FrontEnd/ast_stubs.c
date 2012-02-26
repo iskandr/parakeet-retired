@@ -337,7 +337,7 @@ static CAMLprim value mk_src_info(source_info_t *src_info) {
     Store_field(ocaml_src_info, 0, some_none);
     Store_field(ocaml_src_info, 1, Val_int(src_info->line));
     Store_field(ocaml_src_info, 2, Val_int(src_info->col));
-    free(src_info);
+    //free(src_info);
   } else {
     ocaml_src_info = caml_alloc_tuple(3);
     Store_field(ocaml_src_info, 0, Val_int(0));

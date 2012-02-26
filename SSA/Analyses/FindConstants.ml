@@ -1,9 +1,11 @@
 (* pp: -parser o pa_macro.cmo *)
 
 open Base
+
+open TypedSSA
 open Printf
-open SSA
 open SSA_Analysis
+
 
 module ConstEval = SSA_Analysis.MkEvaluator(struct
   type value_info = value ConstantLattice.t
@@ -20,8 +22,7 @@ module ConstEval = SSA_Analysis.MkEvaluator(struct
       fundef.input_ids
 
   let value env valNode = match valNode.value with
-    | Str _
-    | Unit
+
     | Num _ -> ConstantLattice.Const valNode.value
     | Var id ->
         (try ID.Map.find id env
@@ -29,7 +30,6 @@ module ConstEval = SSA_Analysis.MkEvaluator(struct
           failwith $
             Printf.sprintf "unbound %s in constant analysis" (ID.to_str id)
         )
-    | _ ->  ConstantLattice.ManyValues
 
 
   let exp  env expNode helpers  = match expNode.exp with

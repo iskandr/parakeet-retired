@@ -1,6 +1,7 @@
 (* pp: -parser o pa_macro.cmo *)
 
 open Base
+open Adverb
 open Imp
 open ImpHelpers
 open Imp_to_LLVM
@@ -32,27 +33,14 @@ let optimize_module llvmModule llvmFn : unit =
 
   (* Promote allocas to registers. *)
   Llvm_scalar_opts.add_memory_to_register_promotion the_fpm;
-
   Llvm_scalar_opts.add_sccp the_fpm;
   Llvm_scalar_opts.add_aggressive_dce the_fpm;
   Llvm_scalar_opts.add_instruction_combination the_fpm;
   Llvm_scalar_opts.add_cfg_simplification the_fpm;
-  (*
-  Llvm_scalar_opts.add_basic_alias_analysis the_fpm;
-  Llvm_scalar_opts.add_type_based_alias_analysis the_fpm;
-  Llvm_scalar_opts.add_ind_var_simplification the_fpm;
-  Llvm_scalar_opts.add_dead_store_elimination the_fpm;
-  Llvm_scalar_opts.add_memcpy_opt the_fpm;
   Llvm_scalar_opts.add_gvn the_fpm;
-  Llvm_scalar_opts.add_correlated_value_propagation the_fpm;
-
   Llvm_scalar_opts.add_licm the_fpm;
-  Llvm_scalar_opts.add_loop_unswitch the_fpm;
   Llvm_scalar_opts.add_loop_unroll the_fpm;
-  Llvm_scalar_opts.add_loop_unroll the_fpm;
-  Llvm_scalar_opts.add_loop_rotation the_fpm;
-  Llvm_scalar_opts.add_loop_idiom the_fpm;
-  *)
+
   ignore (PassManager.run_function llvmFn the_fpm);
   ignore (PassManager.finalize the_fpm);
   PassManager.dispose the_fpm
@@ -230,28 +218,32 @@ let call_imp_fn (impFn:Imp.fn) (args:Ptr.t Value.t list) : Ptr.t Value.t list =
   ENDIF;
   outputs
 
-let call (fn:SSA.fn) args =
+let call (fn:TypedSSA.fn) args =
   let inputTypes = List.map ImpType.type_of_value args in
   let impFn : Imp.fn = SSA_to_Imp.translate_fn fn inputTypes in
   call_imp_fn impFn args
 
-let map ~axes ~fn ~fixed args =
-  let mapFn = SSA_AdverbHelpers.mk_map_fn
-    ?src:None
-    ~nested_fn:fn
-    ~axes:(List.map SSA_Helpers.int32 axes)
-    ~fixed_types:(List.map Value.type_of fixed)
-    ~array_types:(List.map Value.type_of args)
+let adverb (info:(TypedSSA.fn, Ptr.t Value.t list, int list) Adverb.info) =
+  assert (info.init = None); 
+  let adverbFn = 
+    AdverbHelpers.mk_adverb_fn $ 
+      Adverb.apply_to_fields info 
+        ~fn:TypedSSA.fn_id
+        ~values:Value.type_of_list
+        ~axes:(List.map TypedSSA.int32)
   in
-  let impTypes = List.map ImpType.type_of_value (fixed @ args) in
-  let impFn : Imp.fn = SSA_to_Imp.translate_fn mapFn impTypes in
+  let allArgValues : Ptr.t Value.t list = info.fixed_args @ info.array_args in  
+  let impTypes = List.map ImpType.type_of_value allArgValues in
+  let impFn : Imp.fn = SSA_to_Imp.translate_fn adverbFn impTypes in
   let llvmFn = CompiledFunctionCache.compile impFn in
-  let inputShapes : Shape.t list = List.map Value.get_shape (fixed @ args) in
+  let inputShapes : Shape.t list = List.map Value.get_shape allArgValues in
   let outputs : Ptr.t Value.t list =
     allocate_output_arrays impFn inputShapes
   in
-  let work_items = build_work_items axes num_cores (args @ outputs) in
+  (* TODO: looks like we're ignoring the closure values! *)
+  let work_items = build_work_items info.axes num_cores (info.array_args @ outputs) in
   do_work work_queue execution_engine llvmFn work_items;
+  (* TODO: What happens to reduced things? We still need to recombine them!*)
   IFDEF DEBUG THEN
     Printf.printf
       "[LLVM_Backend.call_imp_fn] Got function results: %s\n%!"
@@ -259,11 +251,13 @@ let map ~axes ~fn ~fixed args =
     ;
   ENDIF;
   outputs
-
+(*
 let reduce ~axes ~fn ~fixed ?init args =
-  let reduceFn = SSA_AdverbHelpers.mk_reduce_fn
-    ?src:None
-    ~nested_fn:fn
+  let reduceFn = 
+    AdverbHelpers.mk_adverb_fn
+      ?src:None
+      { Adverb.adverb = Adverb.Reduce 
+        adverb_fn = fn;
     ~axes:(List.map SSA_Helpers.int32 axes)
     ~fixed_types:(List.map Value.type_of fixed)
     ~array_types:(List.map Value.type_of args)
@@ -356,7 +350,5 @@ let allpairs ~axes ~fn ~fixed x y =
     ;
   ENDIF;
   outputs
+*)
 
-let scan ~axes ~fn ~fixed ?init args = assert false
-
-let array_op p args = assert false

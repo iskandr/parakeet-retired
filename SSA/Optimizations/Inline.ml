@@ -2,7 +2,7 @@
 
 open Base
 open Type
-open SSA
+open TypedSSA
 open SSA_Transform
 
 let do_inline fn argVals =
@@ -13,16 +13,14 @@ let do_inline fn argVals =
   in
   let replaceMap = MutableSet.fold helper idSet ID.Map.empty in
   let freshFn, _ = Replace.replace_fn replaceMap fn in
-  let rhs = SSA_Helpers.exp ~types:freshFn.fn_input_types (Values argVals) in
-  let argAssignments = SSA_Helpers.set freshFn.input_ids rhs  in
+  let rhs = TypedSSA.exp freshFn.fn_input_types (Values argVals) in
+  let argAssignments = TypedSSA.set freshFn.input_ids rhs  in
   let outputIds = freshFn.output_ids in
   let outputTypes = freshFn.fn_output_types in
   let outputValNodes =
-    List.map2 (fun id t -> SSA_Helpers.var ~ty:t id) outputIds outputTypes
+    List.map2 (fun id t -> TypedSSA.var t id) outputIds outputTypes
   in
-  let outputExp =
-    SSA_Helpers.exp ~types:freshFn.fn_output_types (Values outputValNodes)
-  in
+  let outputExp = TypedSSA.exp outputTypes (Values outputValNodes) in
   (* list of new ids and their types-- ignore types missing from tenv *)
   let typesList : (ID.t * Type.t) list =
     MutableSet.fold
@@ -39,7 +37,7 @@ let do_inline fn argVals =
   body', outputExp, typesList
 
 module type INLINE_PARAMS = sig
-  val lookup : FnId.t -> SSA.fn option
+  val lookup : FnId.t -> TypedSSA.fn option
 end
 
 module Inline_Rules (P:INLINE_PARAMS) = struct
@@ -60,9 +58,8 @@ module Inline_Rules (P:INLINE_PARAMS) = struct
   let stmt envRef stmtNode = NoChange
 
   let exp envRef expNode = match expNode.exp with
-    | Call (fnId, args)
-    | App ({value=GlobalFn fnId}, args) ->
-      (match P.lookup fnId with
+    | Call (fnId, args) ->
+      begin match P.lookup fnId with
         | None -> NoChange
         | Some fn ->
           (* make sure arity lines up *)
@@ -76,11 +73,11 @@ module Inline_Rules (P:INLINE_PARAMS) = struct
           let expNode' = {outputExp with exp_src=expNode.exp_src } in
           IFDEF DEBUG THEN
             Printf.printf "Inline updated exp: %s => %s \n"
-              (SSA.exp_to_str expNode)
-              (SSA.exp_to_str expNode');
+              (TypedSSA.exp_node_to_str expNode)
+              (TypedSSA.exp_node_to_str expNode');
           ENDIF;
           UpdateWithBlock(expNode', inlineBlock)
-       )
+       end
     | _ -> NoChange
 
   let phi env phiNode = NoChange

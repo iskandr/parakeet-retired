@@ -51,18 +51,12 @@ type array_op =
   | Slice
   | Range
 
-type adverb =
-  | Map
-  | Scan
-  | Reduce
-  | AllPairs
-
 type impure_op = ResetTimer | GetTimer | Print
 
 type t =
   | ScalarOp of scalar_op
   | ArrayOp of array_op
-  | Adverb of adverb
+  | Adverb of Adverb.t
   | ImpureOp of impure_op
 
 let is_binop = function
@@ -144,15 +138,15 @@ let min_prim_arity = function
   | ArrayOp DimSize
   | ArrayOp Find
   | ArrayOp Index -> 2
-  | Adverb Map -> 2
+  | Adverb Adverb.Map -> 2
   | Adverb _ -> 3
   | ArrayOp Slice -> 4
   | ImpureOp Print  -> 1
   | ImpureOp _ -> 0
 
 let max_prim_arity = function
-  | Adverb Map
-  | Adverb Reduce -> max_int
+  | Adverb Adverb.Map
+  | Adverb Adverb.Reduce -> max_int
   | other -> min_prim_arity other
 
 let scalar_op_to_str = function
@@ -205,11 +199,6 @@ let array_op_to_str = function
   | Where -> "where"
   | Range -> "range"
 
-let adverb_to_str = function
-  | Map -> "map"
-  | Reduce -> "reduce"
-  | Scan -> "scan"
-  | AllPairs -> "allpairs"
 
 let impure_op_to_str = function
   | ResetTimer -> "reset_timer"
@@ -219,7 +208,7 @@ let impure_op_to_str = function
 let to_str = function
   | ScalarOp op -> scalar_op_to_str op
   | ArrayOp op ->  array_op_to_str op
-  | Adverb op -> adverb_to_str op
+  | Adverb op -> Adverb.to_str op
   | ImpureOp op -> impure_op_to_str op
 
 let is_pure_op  = function

@@ -8,7 +8,7 @@ type block_info = {
     block_storages : Imp.storage ID.Map.t;
 }
 
-class codegen  = object (self)
+class builder  = object (self)
   val mutable ids : ID.Set.t = ID.Set.empty
   val mutable types : ImpType.t ID.Map.t = ID.Map.empty
   val mutable shapes : SymbolicShape.t ID.Map.t  = ID.Map.empty
@@ -81,8 +81,8 @@ class codegen  = object (self)
 
 end
 
-class fn_codegen = object (self)
-  inherit codegen
+class fn_builder = object (self)
+  inherit builder
   val mutable input_ids : ID.t list = []
   val mutable input_types : ImpType.t list = []
   val mutable input_shapes : SymbolicShape.t list  = []

@@ -8,7 +8,7 @@ type block_info = {
     block_storages : Imp.storage ID.Map.t;
 }
 
-class codegen : object
+class builder : object
   method declare : ID.t -> ?storage:Imp.storage ->
     ?shape:SymbolicShape.t -> ImpType.t -> unit
   method fresh_local_id : ?name:string -> ?storage:Imp.storage ->
@@ -21,8 +21,8 @@ class codegen : object
   method info : block_info
 end
 
-class fn_codegen : object
-  inherit codegen
+class fn_builder : object
+  inherit builder
   method declare_input : ID.t ->  ImpType.t -> unit
   method fresh_input : ImpType.t -> value_node
   method declare_output : ID.t -> ?shape:SymbolicShape.t -> ImpType.t -> unit

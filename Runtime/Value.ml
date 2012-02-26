@@ -71,6 +71,8 @@ let rec type_of = function
   | Rotate (x, _, _) -> type_of x
   | Range _ -> Type.ArrayT(Type.Int32T, 1)
 
+let type_of_list vals = List.map type_of vals
+
 let rec get_underlying_array = function
   | Array a -> a
   | Scalar n -> failwith "Unable to get underlying array for scalar."

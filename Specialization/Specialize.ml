@@ -1,9 +1,8 @@
 (* pp: -parser o pa_macro.cmo *)
 
 open Base
-open SSA
-open SSA_Helpers
-open SSA_AdverbHelpers
+
+open AdverbHelpers
 open SSA_Codegen
 open Type
 open Printf
@@ -19,11 +18,11 @@ let mk_untyped_prim_fn (prim:Prim.t) arity : SSA.fn =
   else
   let inputs = ID.gen_named_list "input" arity in
   let output = ID.gen_named "output" in
-  let inputVars = List.map SSA_Helpers.var inputs in
-  let rhs = SSA_Helpers.app (SSA_Helpers.wrap_value (Prim prim)) inputVars in
-  let body = Block.singleton (SSA_Helpers.set [output] rhs) in
+  let inputVars = List.map TypedSSA.var inputs in
+  let rhs = TypedSSA.app (TypedSSA.wrap_value (Prim prim)) inputVars in
+  let body = Block.singleton (TypedSSA.set [output] rhs) in
   let fn =
-    SSA_Helpers.mk_fn
+    TypedSSA.mk_fn
       ~name:("prim_" ^ (Prim.to_str prim))
       ?tenv:None
       ~input_ids:inputs
@@ -47,13 +46,13 @@ let mk_typed_scalar_prim (op : Prim.scalar_op) ?optOutType argTypes =
       let reqT = reqTyArr.(i) in
       if inTyArr.(i) <> reqT then begin
         let id = codegen#fresh_var reqT in
-        codegen#emit [SSA_Helpers.set [id]  (SSA_Helpers.cast reqT args.(i))];
+        codegen#emit [TypedSSA.set [id]  (TypedSSA.cast reqT args.(i))];
         args.(i) <- codegen#id_value_node id
       end
     done
     ;
     let primAppNode =
-      SSA_Helpers.primapp (Prim.ScalarOp op) [outType] (Array.to_list args)
+      TypedSSA.primapp (Prim.ScalarOp op) [outType] (Array.to_list args)
     in
     let outputVar = List.hd outputs in
     codegen#emit [[outputVar] <-- primAppNode]
@@ -110,17 +109,11 @@ let rec specialize_fn fn signature =
      (is_scalar_block fn.body = ThreeValuedLogic.Yes)
   then scalarize_fn fn signature
   else
-  (* to avoid having to make TypeAnalysis and Specialize recursive
+  (* to avoid having to make RewriteTyped and Specialize recursive
        modules I've untied the recursion by making specialize_value
-       a parameter of TypeAnalysis.
+       a parameter
    *)
-  let tenv =
-    TypeAnalysis.type_analysis ~specializer:specialize_value ~fn ~signature
-  in
-  let typedFn =
-    RewriteTyped.rewrite_typed ~tenv ~specializer:specialize_value ~fn:fn
-  in
-  typedFn
+  RewriteTyped.rewrite_typed ~tenv ~specializer:specialize_value ~fn:fn ~signature
 
 and scalarize_fn untyped vecSig =
   IFDEF DEBUG THEN
@@ -129,7 +122,7 @@ and scalarize_fn untyped vecSig =
       (Signature.to_str vecSig);
   ENDIF;
   let inTypes = Signature.input_types vecSig in
-  let numAxes = SSA_AdverbHelpers.max_num_axes_from_array_types inTypes in
+  let numAxes = AdverbHelpers.max_num_axes_from_array_types inTypes in
   let scalarTypes = List.map (Type.peel ~num_axes:numAxes) inTypes in
   IFDEF DEBUG THEN
     Printf.printf
@@ -147,11 +140,11 @@ and scalarize_fn untyped vecSig =
   let scalarFn = specialize_value (SSA.GlobalFn untyped.fn_id) scalarSig in
   let scalarOutputTypes = scalarFn.fn_output_types in
   let outTypes = List.map (Type.increase_rank numAxes) scalarOutputTypes in
-  let scalarClosure = SSA_Helpers.closure scalarFn [] in
+  let scalarClosure = TypedSSA.closure scalarFn [] in
   SSA_Codegen.mk_codegen_fn inTypes outTypes (fun codegen inputs outputs ->
-    let outIds = List.map SSA_Helpers.get_id outputs in
+    let outIds = List.map TypedSSA.get_id outputs in
     codegen#emit [
-      SSA_Helpers.set outIds (mk_map scalarClosure inputs)
+      TypedSSA.set outIds (mk_map scalarClosure inputs)
     ]
   )
 
@@ -184,7 +177,7 @@ and specialize_value fnVal signature =
             (* axes, but if we're adding an array to a vector we can only map*)
             (* over one axis *)
               let maxRank =
-                SSA_AdverbHelpers.max_num_axes_from_array_types inputTypes
+                AdverbHelpers.max_num_axes_from_array_types inputTypes
               in
               let nestedInputTypes =
                 List.map (Type.peel ~num_axes:maxRank) inputTypes
@@ -197,10 +190,10 @@ and specialize_value fnVal signature =
                   Signature.from_types nestedInputTypes nestedOutTypes
               in
               let nestedFn = specialize_value fnVal nestedSig in
-              SSA_AdverbHelpers.mk_map_fn
+              AdverbHelpers.mk_map_fn
                 ?src:None
                 ~nested_fn:nestedFn
-                ~axes:(SSA_AdverbHelpers.infer_adverb_axes_from_rank maxRank)
+                ~axes:(AdverbHelpers.infer_adverb_axes_from_rank maxRank)
                 ~fixed_types:[]
                 ~array_types:inputTypes
             end

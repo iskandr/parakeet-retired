@@ -1,1 +1,1 @@
-val replace_fn : ID.t ID.Map.t -> SSA.fn -> SSA.fn * bool  
+val replace_fn : ID.t ID.Map.t -> TypedSSA.fn -> TypedSSA.fn * bool

@@ -1,18 +1,25 @@
-type 'a t = 'a array
+type 'a t = 'a DynArray.t
 
-let empty  = [||]
-let singleton x = [|x|]
-let of_list = Array.of_list
-let of_array x = x
+let create () = DynArray.create()
 
-let append = Array.append
-let concat = Array.concat
+let singleton x =
+  let b = DynArray.make 1 in
+  DynArray.add b x;
+  b
 
-let insert_after block stmtNode = concat [block; singleton stmtNode]
-let insert_before stmtNode block = concat [singleton stmtNode; block]
+let of_list xs = DynArray.of_list xs
+let of_array xs = DynArray.of_array xs
 
-let length = Array.length
-let idx = Array.get
+let append b1 b2 =
+  let b1' = DynArray.copy b1 in
+  (* put b2 at the end of b1 *)
+  DynArray.append b2 b1';
+  b1'
+
+let add b x = DynArray.add b x
+
+let length b = DynArray.length b
+let idx b i = DynArray.get b i
 
 let iter_forward f block =
   let n = length block in

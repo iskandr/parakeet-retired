@@ -2,7 +2,6 @@
 
 open Base
 open Printf
-open SSA
 
 
 (* A program is a mapping of function names to their functions.*)
@@ -11,13 +10,13 @@ open SSA
 (* Functions are optimized before being inserted into the program *)
 
 type t = {
-  untyped_functions : FnTable.t;
+  untyped_functions : (FnId.t, UntypedSSA.fn) Hashtbl.t;
 
   typed_functions : FnTable.t;
 
   (* functions are either ID or Prim which gets specialized on either *)
   (* types or values (see Signature.ml)   *)
-  specializations : (value * Signature.t, FnId.t) Hashtbl.t;
+  specializations : (UntypedSSA.value * Signature.t, FnId.t) Hashtbl.t;
 
   name_to_untyped_id : (string, FnId.t) Hashtbl.t;
 
@@ -28,7 +27,7 @@ type t = {
 let create () =
   let n = 127 in
   {
-    untyped_functions = FnTable.create n;
+    untyped_functions = Hashtbl.create n;
     typed_functions = FnTable.create n;
     specializations = Hashtbl.create n ;
     name_to_untyped_id = Hashtbl.create n;
@@ -37,46 +36,29 @@ let create () =
 
 let state = create()
 
-let add_untyped ?(optimize=true) name fn =
-  let id = fn.SSA.fn_id in
+let add_untyped name fn =
+  let id = UntypedSSA.fn_id fn in
   Hashtbl.add state.name_to_untyped_id name id;
   Hashtbl.add state.untyped_id_to_name id name;
-  FnTable.add ~opt_queue:optimize fn state.untyped_functions
+  Hashtbl.add state.untyped_functions id fn
+
+let rec add_untyped_list = function
+  | [] -> ()
+  | (name,fn)::rest ->
+    add_untyped name fn;
+    add_untyped_list rest
+let add_untyped_map  fnMap =
+  String.Map.iter add_untyped fnMap
 
 let add_typed ?(optimize=true) fn =
-  let id = fn.SSA.fn_id in
   FnTable.add ~opt_queue:optimize fn state.typed_functions
 
-let curry2 f (x,y) = f x y
-
-let add_untyped_list ?(optimize=true) (fnList: (string * SSA.fn) list) =
-  List.iter  (curry2 (add_untyped ~optimize)) fnList
-
-let add_untyped_map  ?(optimize=true) fnMap =
-  String.Map.iter (add_untyped ~optimize) fnMap
-
-let default_untyped_optimizations =
-  [
-    "simplify", Simplify.simplify_fn;
-    "elim common subexpression", CSE.cse;
-    "inlining", Inline.run_fn_inliner;
-  ]
-
-let optimize_untyped_functions () =
-  Timing.start Timing.untypedOpt;
-  RunOptimizations.optimize_all_fns
-    ~maxiters:100
-    state.untyped_functions
-    default_untyped_optimizations
-  ;
-  Timing.stop Timing.untypedOpt
 
 let default_typed_optimizations =
   [
     (*"function cloning", TypedFunctionCloning.function_cloning;*)
     "simplify", Simplify.simplify_fn;
     "cse", CSE.cse;
-    "adverb fusion", AdverbFusion.optimize_fn;
     "inlining", Inline.run_fn_inliner;
   ]
 
@@ -95,14 +77,13 @@ let get_untyped_name id = Hashtbl.find state.untyped_id_to_name id
 let get_untyped_id name = Hashtbl.find state.name_to_untyped_id name
 
 let get_typed_function_table () = state.typed_functions
-let get_untyped_function_table () = state.untyped_functions
 
 let add_specialization
     ?(optimize=true)
-    (untypedVal : SSA.value)
+    (untypedVal : UntypedSSA.value)
     (signature : Signature.t)
-    (typedFn : SSA.fn) =
-  let fnId = typedFn.SSA.fn_id in
+    (typedFn : TypedSSA.fn) =
+  let fnId = typedFn.TypedSSA.fn_id in
   if FnTable.mem fnId state.typed_functions then (
     (* if function is already in the fntable, don't add it again
        but make sure it really is the same function
@@ -114,33 +95,33 @@ let add_specialization
   )
   else FnTable.add ~opt_queue:optimize typedFn state.typed_functions
   ;
-  let key = (untypedVal, signature) in
-  Hashtbl.add state.specializations key typedFn.fn_id;
+  let key : UntypedSSA.value * Signature.t = (untypedVal, signature) in
+  Hashtbl.add state.specializations key typedFn.TypedSSA.fn_id;
   IFDEF DEBUG THEN
     let untypedValStr =
       match untypedVal with
-      | GlobalFn untypedId ->
+      | UntypedSSA.GlobalFn untypedId ->
         let fnName = Hashtbl.find state.untyped_id_to_name untypedId in
         Printf.sprintf
-          "\"%s\" (untyped %s)" fnName (SSA.value_to_str untypedVal)
-      | _ -> SSA.value_to_str untypedVal
+          "\"%s\" (untyped %s)" fnName (UntypedSSA.value_to_str untypedVal)
+      | _ -> UntypedSSA.value_to_str untypedVal
     in
     let errorLog = TypeCheck.check_fn typedFn in
-    if not $ Queue.is_empty errorLog then (
+    if not $ Queue.is_empty errorLog then begin
       Printf.printf
         "\n --- Errors in specialization of %s for signature \"%s\"\n"
         untypedValStr
         (Signature.to_str signature)
       ;
-      Printf.printf "%s\n" (SSA.fn_to_str typedFn);
+      Printf.printf "%s\n" (TypedSSA.fn_to_str typedFn);
       TypeCheck.print_all_errors errorLog;
       failwith "Specialized function malformed"
-    )
+    end
     else
       Printf.printf "\nSpecialized %s for signature \"%s\": \n %s \n"
-      untypedValStr
-      (Signature.to_str signature)
-      (SSA.fn_to_str typedFn)
+        untypedValStr
+        (Signature.to_str signature)
+        (TypedSSA.fn_to_str typedFn)
   END
 
 let maybe_get_specialization v signature =
@@ -149,36 +130,34 @@ let maybe_get_specialization v signature =
   else None
 
 let is_untyped_function untypedId =
-  FnTable.mem untypedId state.untyped_functions
+  Hashtbl.mem state.untyped_functions untypedId
 
 let get_untyped_function untypedId =
-  FnTable.find untypedId state.untyped_functions
+  Hashtbl.find state.untyped_functions untypedId
 
 let get_typed_function typedId =
   FnTable.find typedId state.typed_functions
 
 let get_typed_fn_from_value = function
-  | GlobalFn fnId -> FnTable.find fnId state.typed_functions
+  | UntypedSSA.GlobalFn fnId -> FnTable.find fnId state.typed_functions
   | _ -> failwith "expected a function"
 
 let have_untyped_function name =
   Hashtbl.mem state.name_to_untyped_id name
 
-let get_untyped_arity fnId =
-  List.length (get_untyped_function fnId).input_ids
-
-let output_arity_of_typed_fn fnId =
-  List.length ((get_typed_function fnId).fn_output_types)
-
+let input_arity_of_untyped_fn fnId =
+  UntypedSSA.FnHelpers.input_arity (get_untyped_function fnId)
 let output_arity_of_untyped_fn fnId =
-  List.length ((get_untyped_function fnId).fn_output_types)
+  UntypedSSA.FnHelpers.output_arity (get_untyped_function fnId)
 
-let output_arity_of_value = function
-  | GlobalFn fnId ->
-    if is_untyped_function fnId then output_arity_of_untyped_fn fnId
-    else output_arity_of_typed_fn fnId
-  | Prim p -> 1
-  | other ->
-      failwith $ Printf.sprintf
-        "Can't get output arity of %s"
-        (SSA.value_to_str other)
+
+let input_arity_of_typed_fn fnId =
+  TypedSSA.FnHelpers.input_arity (get_typed_function fnId)
+let output_arity_of_typed_fn fnId =
+  TypedSSA.FnHelpers.output_arity (get_typed_function fnId)
+
+let input_types_of_typed_fn fnId =
+  TypedSSA.FnHelpers.input_types (get_typed_function fnId)
+let output_types_of_typed_fn fnId =
+  TypedSSA.FnHelpers.output_types (get_typed_function fnId)
+

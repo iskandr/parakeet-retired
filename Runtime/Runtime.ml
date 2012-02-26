@@ -1,7 +1,7 @@
 (* pp: -parser o pa_macro.cmo *)
 
 open Base
-open SSA
+open TypedSSA
 open Value
 
 type value = DataId.t Value.t
@@ -9,13 +9,7 @@ type values = value list
 
 module type SCHEDULER = sig
   val call : SSA.fn -> values -> values
-  val map : ?axes:int list -> SSA.fn -> fixed:values ->  values -> values
-  val reduce :
-    ?axes:int list -> SSA.fn -> fixed:values -> ?init:values -> values -> values
-  val scan :
-    ?axes:int list -> SSA.fn -> fixed:values -> ?init:values -> values -> values
-  val allpairs :
-    ?axes:int list -> SSA.fn -> fixed:values -> value -> value -> values
+  val adverb : (SSA.fn, values, int list) Adverb.info -> values -> values
   val array_op : Prim.array_op -> values -> values
 end
 
@@ -28,19 +22,12 @@ module rec Scheduler : SCHEDULER = struct
   let machine_model = MachineModel.build_machine_model
   let value_to_host v = DataManager.to_memspace HostMemspace.id v
 
-  (* for now, if we schedule a function which contains an adverb, *)
-  (* never compile it but instead run the body in the interpreter *)
-  let rec block_has_adverb block = Block.exists stmt_has_adverb block
-  and stmt_has_adverb {stmt} = match stmt with
-    | SSA.Set(_, {exp=SSA.Adverb _}) -> true
-    | SSA.If(_, tBlock, fBlock, _) ->
-      block_has_adverb tBlock || block_has_adverb fBlock
-    | SSA.WhileLoop (condBlock, _, body, _) ->
-      block_has_adverb condBlock || block_has_adverb body
-    | _ -> false
+
 
   let call (fn : SSA.fn) (args:values) =
-    let hasAdverb = block_has_adverb fn.SSA.body in
+    (* for now, if we schedule a function which contains an adverb, *)
+    (* never compile it but instead run the body in the interpreter *)
+    let hasAdverb = TypedSSA.fn_has_adverb fn in
     let shapely = ShapeInference.typed_fn_is_shapely fn in
     IFDEF DEBUG THEN
       Printf.printf
@@ -57,45 +44,15 @@ module rec Scheduler : SCHEDULER = struct
       List.map DataManager.from_memspace results
     else Interp.eval_call fn args
 
-  let map ?(axes=[0]) (fn:SSA.fn) ~(fixed:values) (args:values) =
-    let results =
-      LLVM_Backend.map ~axes ~fn
-        ~fixed:(List.map value_to_host fixed)
-        (List.map value_to_host args)
+  let adverb (info: (TypedSSA.fn, values, int list) Adverb.info) args =
+    let adverbInfo' =
+      Adverb.apply_to_fields
+        ~fn:Base.id
+        ~args:value_to_host
+        ~axes:AdverbHelpers.const_axes
+        info
     in
-    List.map DataManager.from_memspace results
-
-  let reduce ?(axes=[0]) (fn:SSA.fn) ~(fixed:values) ?init (args:values) =
-    let init = match init with
-      | None -> None
-      | Some inits -> Some (List.map value_to_host inits)
-    in
-    let results = LLVM_Backend.reduce ~axes ~fn
-      ~fixed:(List.map value_to_host fixed)
-      ?init
-      (List.map value_to_host args)
-    in
-    List.map DataManager.from_memspace results
-
-  let scan ?(axes=[0]) (fn:SSA.fn) ~(fixed:values) ?init (args:values) =
-    let init = match init with
-      | None -> None
-      | Some inits -> Some (List.map value_to_host inits)
-    in
-    let results = LLVM_Backend.scan ~axes ~fn
-      ~fixed:(List.map value_to_host fixed)
-      ?init
-      (List.map value_to_host args)
-    in
-    List.map DataManager.from_memspace results
-
-  let allpairs ?(axes=[0]) (fn:SSA.fn) ~(fixed:values) (x:value) (y:value) =
-    let results =
-      LLVM_Backend.allpairs ~axes ~fn
-        ~fixed:(List.map value_to_host fixed)
-        (value_to_host x)
-        (value_to_host y)
-    in
+    let results = LLVM_Backend.adverb adverbInfo' (List.value_to_host args) in
     List.map DataManager.from_memspace results
 
   let array_op (op : Prim.array_op) (args : value list) = assert false
@@ -168,33 +125,14 @@ and Interp : INTERP = struct
       Scheduler.call fn (eval_values args)
 
     (* currently ignores axes *)
-    | Adverb (op,
-        {closure_fn = fnId; closure_args = closureArgs},
-        {args = args; axes=axes; init=init}) ->
-      assert (init = None);
-      let fn = FnManager.get_typed_function fnId in
-      let fixed = eval_values closureArgs in
-      let arrays = eval_values args in
-      let init = Option.map eval_values init in
-      let axes : int list = match axes with
-        | None -> failwith "[Interp] Expected axes!"
-        | Some axes ->
-          let vals = eval_values axes in
-          List.map Value.to_int vals
+    | Adverb (adverbInfo, args) ->
+      let adverbInfo' =
+        Adverb.apply_to_fields
+          ~fn:FnManager.get_typed_function
+          ~args:eval_values
+          ~axes:(fun axes -> List.map Value.to_int (eval_values axes))
       in
-      begin match op with
-        | Prim.Map ->
-          assert (init = None);
-          Scheduler.map ~axes fn ~fixed arrays
-        | Prim.AllPairs ->
-          assert (init = None);
-          assert (List.length arrays = 2);
-          let x = List.nth arrays 0 in
-          let y = List.nth arrays 1 in
-          Scheduler.allpairs ~axes fn ~fixed x y
-        | Prim.Scan -> Scheduler.scan ~axes fn ~fixed ?init arrays
-        | Prim.Reduce -> Scheduler.reduce ~axes fn ~fixed ?init arrays
-      end
+      Scheduler.adverb adverbInfo' (eval_values args)
   | _ ->
       failwith $ Printf.sprintf
         "[eval_exp] no implementation for: %s\n"

@@ -1,4 +1,4 @@
 
-val infer : SSA.fn -> ImpType.t list -> ImpType.t ID.Map.t
+val infer : TypedSSA.fn -> ImpType.t list -> ImpType.t ID.Map.t
 
 

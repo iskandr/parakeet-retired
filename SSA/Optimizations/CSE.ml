@@ -2,12 +2,12 @@
 
 open Type
 open Base
-open SSA
+open TypedSSA
 open SSA_Transform
 
 (* expressions without side effects *)
 let is_safe_exp expNode = match expNode.exp with
-  | PrimApp _ | App({value=Prim _}, _) | Arr _  | Values _ -> true
+  | PrimApp _ | Arr _  | Values _ -> true
   | _ -> false (* assume function calls unsafe by default *)
 
 (* this is a really weak form of CSE. To start handling control flow*)
@@ -28,33 +28,15 @@ module CSE_Rules = struct
         let rhsVal = Hashtbl.find env expNode.exp in
         let src = expNode.exp_src in
         let expNode' =
-          SSA_Helpers.vals_exp ?src ~types:expNode.exp_types [rhsVal]
+          TypedSSA.vals_exp ?src expNode.exp_types [rhsVal]
         in
-        Update (SSA_Helpers.set [id] expNode')
+        Update (TypedSSA.set [id] expNode')
       )
       else (Hashtbl.add env expNode.exp (Var id); NoChange)
     | _ -> NoChange
+  (* TODO: propagate expressions through phi nodes *)
   let phi env phiNode = NoChange
-    (* if both branches of the phi node aren't in the env, then
-       key not found exception gets thrown
-    *)(*
-    try (
-      let left' = match phiNode.phi_left.value with
-      | Var leftId -> Hashtbl.find env leftId
-      | other -> other
-      in
-      let right' = match phiNode.phi_right.value with
-      | Var rightId -> Hashtbl.find env rightId
-      | other -> other
-      in
-      if left' = right' then
-        Hashtbl.
-    )
-    with
-      | _ -> NoChange
-     *)
   let exp env envNode = NoChange
-
   let value env valNode = NoChange
 end
 

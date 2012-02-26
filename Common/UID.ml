@@ -34,6 +34,9 @@ module Make(A : sig val prefix : string end)  = struct
     | Some name -> name
     | None -> "unknown_" ^ A.prefix ^ "_" ^ (string_of_int x)
 
+
+  let list_to_str ?(sep=", ") xs = String.concat sep (List.map to_str xs)
+
   (* best guess at next suffix-- still have to check whether it's free *)
   let next_suffixes : (string, int) Hashtbl.t = Hashtbl.create 127
 

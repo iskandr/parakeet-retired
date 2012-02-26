@@ -25,6 +25,7 @@ val to_str : ?array_to_str:('a array_info -> string) -> 'a t -> string
 val list_to_str : ?array_to_str:('a array_info -> string) -> 'a t list -> string
 
 val type_of : 'a t -> Type.t
+val type_of_list : 'a t list -> Type.t list
 val shape_of : 'a t -> Shape.t
 
 val get_shape : 'a t -> Shape.t

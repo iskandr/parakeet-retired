@@ -2,7 +2,7 @@
 
 open Base
 open Type
-open SSA
+open TypedSSA
 open SSA_Transform
 
 open FindUseCounts
@@ -11,7 +11,7 @@ module SimplifyRules = struct
   let dir = Forward
 
   type context = {
-    constants: SSA.value ConstantLattice.t ID.Map.t;
+    constants: TypedSSA.value ConstantLattice.t ID.Map.t;
     copies : FindCopies.CopyLattice.t ID.Map.t;
     use_counts : (ID.t, int) Hashtbl.t;
     types : Type.t ID.Map.t;
@@ -52,28 +52,30 @@ module SimplifyRules = struct
         List.partition (fun (id,_) -> is_live cxt id) pairs
       in
       if deadPairs = [] then NoChange
-      else if livePairs = [] then Update SSA_Helpers.empty_stmt
+      else if livePairs = [] then Update TypedSSA.empty_stmt
       else
         let liveIds, liveValues = List.split livePairs in
         let rhs = {expNode with exp=Values liveValues} in
-        Update (SSA_Helpers.set ?src:stmtNode.stmt_src liveIds rhs)
+        Update (TypedSSA.set ?src:stmtNode.stmt_src liveIds rhs)
     | Set (ids, exp) ->
         let rec any_live = function
           | [] -> false
           | id::rest -> (is_live cxt id) || any_live rest
         in
         if any_live ids then NoChange
-        else Update SSA_Helpers.empty_stmt
+        else Update TypedSSA.empty_stmt
 
     | If (condVal, tBlock, fBlock, merge) ->
       let get_type id = ID.Map.find id cxt.types in
       begin match condVal.value with
         | Num (ParNum.Bool b) ->
-            let ids, valNodes = SSA_Helpers.collect_phi_values b merge in
+            let ids, valNodes = PhiNode.collect_phi_values b merge in
             let types = List.map get_type ids in
             let src = stmtNode.stmt_src in
-            let expNode = SSA_Helpers.exp ?src ~types (SSA.Values valNodes) in
-            Update (SSA_Helpers.set ?src:stmtNode.stmt_src ids expNode)
+            let expNode =
+              TypedSSA.exp ?src types (TypedSSA.Values valNodes)
+            in
+            Update (TypedSSA.set ?src:stmtNode.stmt_src ids expNode)
         | _ -> NoChange
       end
     | WhileLoop (testBlock, testVal, body, header) -> NoChange
