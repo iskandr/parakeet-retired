@@ -2,6 +2,7 @@
 open Printf
 open Base
 open Type
+open Adverb
 open UntypedSSA
 
 
@@ -250,18 +251,17 @@ module Make (P : TYPE_ANALYSIS_PARAMS) = struct
   let infer_adverb
         ?(src:SrcInfo.t option)
         (info:
-          (UntypedSSA.value, Type.t list, UntypedSSA.value list option)
+          (UntypedSSA.value, Type.t list, UntypedSSA.value_node list option)
           Adverb.info
-        )
-        (array_arg_types:Type.t list) =
-    if List.for_all Type.is_scalar array_arg_types then
+        ) : Type.t list = 
+    if List.for_all Type.is_scalar info.array_args then
       raise (
         TypeError("Adverbs must have at least one non-scalar argument", src))
     ;
     let maxPossibleAxes =
-      AdverbHelpers.max_num_axes_from_array_types array_arg_types
+      AdverbHelpers.max_num_axes_from_array_types info.array_args
     in
-    let numAxes = match Adverb.axes info with
+    let numAxes = match info.axes with
       | None -> maxPossibleAxes
       | Some axes ->
         let n = List.length axes in
@@ -271,14 +271,14 @@ module Make (P : TYPE_ANALYSIS_PARAMS) = struct
           Printf.sprintf
             "Can't have %d axes for adverb %s, max allowed = %d"
             n
-            (Adverb.to_str $ info.Adverb.adverb)
+            (Adverb.to_str $ info.adverb)
             maxPossibleAxes
         in
         raise (TypeError(msg, src))
     in
-    let eltTypes = List.map (Type.peel ~num_axes:numAxes) array_arg_types in
-    let fnVal : UntypedSSA.value = Adverb.adverb_fn info in 
-    match Adverb.adverb info, Adverb.init info, eltTypes with
+    let eltTypes = List.map (Type.peel ~num_axes:numAxes) info.array_args in
+    let fnVal : UntypedSSA.value = info.adverb_fn in 
+    match info.adverb, info.init, eltTypes with
     | Adverb.Map, None, _ ->
       let eltResultTypes = infer_app fnVal eltTypes in
       Type.increase_ranks numAxes eltResultTypes
@@ -302,36 +302,31 @@ module Make (P : TYPE_ANALYSIS_PARAMS) = struct
     let src = expNode.exp_src in
     match expNode.exp with
     | App({value=UntypedSSA.Prim (Prim.Adverb adverb)}, args) ->
-      (********************************************************)
-      (* TODO: FIX THIS TO WORK WITH Adverb.info              *)
-      let argTypes = infer_value_nodes args in
-      let fn, args = match args with
+      let fn, arrayArgs = match args with
         | fn::rest -> fn, rest
         | _ -> raise (TypeError("too few arguments for adverb", src))
       in
-      begin match adverb with
-        | Prim.Map
-        | Prim.AllPairs ->
-          infer_adverb ?src  ~adverb ~fn_val:fn.value
-            ?closure_arg_types:None
-            ?init:None
-            ?axes:None
-            ~array_arg_types:argTypes
-        | Prim.Reduce
-        | Prim.Scan -> assert false
-      end
+      infer_adverb ?src { 
+        adverb = adverb; 
+        adverb_fn = fn.value; 
+        array_args = (infer_value_nodes arrayArgs); 
+        init = None;
+        axes = None; 
+        fixed_args = [];
+      } 
     | UntypedSSA.Adverb info -> 
       let resultTypes = 
         infer_adverb ?src $ 
           Adverb.apply_to_fields 
             info
             ~fn:(fun valNode -> valNode.value)
-            ~args:infer_value_nodes
-            ~axes:(function None -> None | Some axes -> infer_value_nodes axes)
+            ~values:infer_value_nodes
+            ~axes:Base.id
+      in
       IFDEF DEBUG THEN
         Printf.printf
           "[TypeAnalysis.exp] Inferred output for adverb %s: %s\n"
-          (Adverb.to_str (Adverb.adverb info))
+          (Adverb.to_str info.adverb)
           (Type.type_list_to_str resultTypes)
         ;
       ENDIF;
@@ -341,11 +336,11 @@ module Make (P : TYPE_ANALYSIS_PARAMS) = struct
         let argTypes = infer_value_nodes args in
         IFDEF DEBUG THEN
           Printf.printf "[exp] Node: %s Types:%s\n"
-            (UntypedSSA.exp_to_str expNode)
+            (UntypedSSA.exp_node_to_str expNode)
             (Type.type_list_to_str argTypes);
         ENDIF;
         if Type.is_array lhsT
-        then [TypeInfer.infer_simple_array_op Prim.Index (lhsT::argTypes)]
+        then [infer_simple_array_op Prim.Index (lhsT::argTypes)]
         else infer_app lhs.value argTypes
     | Arr elts ->
         let commonT = Type.combine_type_list (infer_value_nodes elts) in
@@ -366,7 +361,7 @@ module Make (P : TYPE_ANALYSIS_PARAMS) = struct
     | Values vs -> infer_value_nodes vs
     | _ -> failwith $ Printf.sprintf
             "Type analysis not implemented for expression: %s"
-            (UntypedSSA.exp_to_str expNode)
+            (UntypedSSA.exp_node_to_str expNode)
 
 
 
@@ -379,7 +374,7 @@ module Make (P : TYPE_ANALYSIS_PARAMS) = struct
     let tRight = infer_value_node phi_right in
     TypeEnv.merge_type phi_id (Type.common_type tLeft tRight)
 
-  let analyze_phi_nodes phiNodes = List.iter analyze_phi_nodes phiNodes
+  let analyze_phi_nodes phiNodes = List.iter analyze_phi_node phiNodes
 
   let rec analyze_stmt (stmtNode:UntypedSSA.stmt_node) : unit =
     let src = stmtNode.stmt_src in
@@ -393,7 +388,7 @@ module Make (P : TYPE_ANALYSIS_PARAMS) = struct
             (List.length ids)
             (List.length types)
       ENDIF;
-      List.iter2 TypeEnv.replace_type ids types
+      List.iter2 TypeEnv.merge_type ids types
     | If(_, tBlock, fBlock, phiNodes) ->
         analyze_block tBlock;
         analyze_block fBlock;
@@ -410,7 +405,7 @@ module Make (P : TYPE_ANALYSIS_PARAMS) = struct
            raise $ TypeError("loop analysis failed to terminate", src)
          else (
             analyze_block condBlock;
-            analyze_block block;
+            analyze_block body;
             analyze_phi_nodes phiNodes
         )
       done
@@ -429,7 +424,7 @@ module Make (P : TYPE_ANALYSIS_PARAMS) = struct
           (Type.type_list_to_str inputTypes)
           (FnId.to_str fundef.fn_id)
         in
-        raise (TypeError(errorMsg, UntypedSSA.find_fn_src_info fundef))
+        raise (TypeError(errorMsg, None))
     ENDIF;
     List.iter2 TypeEnv.add_type inputIds inputTypes;
     if Signature.has_output_types signature then begin
@@ -444,7 +439,7 @@ module Make (P : TYPE_ANALYSIS_PARAMS) = struct
               (Type.type_list_to_str outputTypes)
               (FnId.to_str fundef.fn_id)
           in
-          raise (TypeError (msg, UntypedSSA.find_fn_src_info fundef))
+          raise (TypeError (msg, None))
       ENDIF;
       List.iter2 TypeEnv.add_type outputIds outputTypes
     end;
@@ -453,9 +448,9 @@ module Make (P : TYPE_ANALYSIS_PARAMS) = struct
 end
 
 let type_analysis
-      ~(specializer:UntypedSSA.value-> Signature.t -> UntypedSSA.fn)
+      ~(specializer:UntypedSSA.value-> Signature.t -> TypedSSA.fn)
       ~(fn:UntypedSSA.fn)
-      ~(signature:Signature.t) =
+      ~(signature:Signature.t) : (ID.t, Type.t) Hashtbl.t =
   IFDEF DEBUG THEN
     Printf.printf
       "Specializing %s with signature %s\n"
@@ -465,7 +460,7 @@ let type_analysis
   ENDIF;
   let module Params : TYPE_ANALYSIS_PARAMS = struct
     let infer_output_types =
-      (fun fnVal fnSig -> (specializer fnVal fnSig).fn_output_types)
+      (fun fnVal fnSig -> TypedSSA.output_types (specializer fnVal fnSig))
   end
   in
   let module TypeEval = Make(Params) in

@@ -266,7 +266,6 @@ module FnHelpers = struct
 	  mk_fn ?name ~tenv ~input_ids: inputIds ~output_ids: outputIds ~body
 
 	  let find_fn_src_info { body } = get_block_src_info body
-
 	  let input_arity { input_ids } = List.length input_ids
 	  let output_arity { output_ids } = List.length output_ids
 	  let input_types { fn_input_types } = fn_input_types

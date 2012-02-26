@@ -21,12 +21,6 @@ type ('a,'b,'c) info = {
   array_args : 'b; 
 }
 
-let adverb {adverb} = adverb
-let adverb_fn {adverb_fn} = adverb_fn
-let fixed_args {fixed_args} = fixed_args
-let init {init} = init
-let axes {axes} = axes
-let array_args {array_args} = array_args 
 
 let apply_to_fields info ~(fn:'a->'d) ~(values:'b -> 'e) ~(axes:'c -> 'f) =
   {

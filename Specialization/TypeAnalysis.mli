@@ -10,7 +10,7 @@ val required_scalar_op_types :
 
 
 val type_analysis :
-      specializer : (UntypedSSA.value -> Signature.t -> UntypedSSA.fn) ->
+      specializer : (UntypedSSA.value -> Signature.t -> TypedSSA.fn) ->
       fn : UntypedSSA.fn ->
       signature : Signature.t ->
       (ID.t, Type.t) Hashtbl.t

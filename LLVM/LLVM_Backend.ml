@@ -241,7 +241,7 @@ let adverb (info:(TypedSSA.fn, Ptr.t Value.t list, int list) Adverb.info) =
     allocate_output_arrays impFn inputShapes
   in
   (* TODO: looks like we're ignoring the closure values! *)
-  let work_items = build_work_items axes num_cores (info.array_args @ outputs) in
+  let work_items = build_work_items info.axes num_cores (info.array_args @ outputs) in
   do_work work_queue execution_engine llvmFn work_items;
   (* TODO: What happens to reduced things? We still need to recombine them!*)
   IFDEF DEBUG THEN
