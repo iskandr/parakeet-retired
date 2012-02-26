@@ -1,5 +1,7 @@
 type 'a t = 'a DynArray.t
 
+let create () = DynArray.create()
+
 let singleton x =
   let b = DynArray.make 1 in
   DynArray.add b x;

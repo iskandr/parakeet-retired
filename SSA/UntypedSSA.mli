@@ -1,6 +1,11 @@
 module CoreLanguage : sig
 	type value =
-	  | Var of ID.t | Num of ParNum.t | Prim of Prim.t | GlobalFn of FnId.t
+	  | Var of ID.t 
+          | Num of ParNum.t 
+          | Prim of Prim.t 
+          | GlobalFn of FnId.t
+          | Void 
+
 	type value_node = { value : value; value_src : SrcInfo.t option }
 	type value_nodes = value_node list
 

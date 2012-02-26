@@ -7,6 +7,7 @@ module CoreLanguage = struct
     | Num of ParNum.t
     | Prim of Prim.t
     | GlobalFn of FnId.t
+    | Void 
 
   type value_node = { value : value; value_src : SrcInfo.t option; }
   type value_nodes = value_node list
@@ -51,7 +52,7 @@ module PrettyPrinters = struct
     | Num n -> ParNum.to_str n
     | Prim p -> "prim(" ^ Prim.to_str p ^ ")"
     | GlobalFn fnId -> FnId.to_str fnId
-
+    | Void -> "void" 
 
   let value_node_to_str valNode = value_to_str valNode.value
 

@@ -2,8 +2,7 @@
 
 open AST
 open Base
-open TypedSSA
-
+open UntypedSSA
 
 (* environment mapping strings to SSA IDs or global function IDs *)
 module Env = struct
@@ -87,7 +86,7 @@ let get_function_id node =
 
 let rec translate_exp
           (env:Env.t)
-          (buffer:SSA_buffer.buffer)
+          (block:UntypedSSA.block)
           (node : AST.node) : UntypedSSA.exp_node =
 
   (* simple values generate no statements and don't modify the env *)
@@ -95,138 +94,104 @@ let rec translate_exp
     {
       exp = Values [UntypedSSA.wrap_value v];
       exp_src=Some node.src;
-      exp_types=[Type.BottomT]
     }
   in
   match node.data with
   | AST.Var name -> value $ Env.lookup env name
-  | AST.Prim p -> value (Prim p)
-  | AST.Num n -> value (Num n)
-  | AST.Str s -> value (Str s)
-  | AST.Void -> value Unit
-  | AST.App (fn, args) -> translate_app env buffer fn args node.src
+  | AST.Prim p -> value (UntypedSSA.Prim p)
+  | AST.Num n -> value (UntypedSSA.Num n)
+  | AST.Void -> value UntypedSSA.Void
+  | AST.App (fn, args) -> translate_app env block fn args node.src
   (* TODO: lambda lift here *)
   | AST.Lam (vars, body) -> failwith "lambda lifting not implemented"
   | AST.Arr args ->
-      let ssaArgs = translate_values env buffer args in
-      UntypedSSA.arr ssaArgs
+    { 
+      UntypedSSA.exp = UntypedSSA.Arr (translate_values env block args);
+      exp_src = Some node.src; 
+    }    
   | AST.If _  -> failwith "unexpected If while converting to SSA"
   | AST.Assign _ -> failwith "unexpected Assign while converting to SSA"
   | AST.Block _  -> failwith "unexpected Block while converting to SSA"
   | AST.WhileLoop _ -> failwith "unexpected WhileLoop while converting to SSA"
   | AST.CountLoop _ -> failwith "unexpected CountLoop while converting to SSA"
 
-and translate_value env buffer node : UntypedSSA.value_node =
+and translate_value env block node : UntypedSSA.value_node =
   (* simple values generate no statements and don't modify the environment *)
   match node.AST.data with
   | AST.Var name -> UntypedSSA.wrap_value (Env.lookup env name)
-  | AST.Prim p -> UntypedSSA.wrap_value (Prim p)
-  | AST.Num n -> UntypedSSA.wrap_value (Num n)
-  | AST.Str s -> UntypedSSA.wrap_value (Str s)
+  | AST.Prim p -> UntypedSSA.wrap_value (UntypedSSA.Prim p)
+  | AST.Num n -> UntypedSSA.wrap_value (UntypedSSA.Num n)
+  | AST.Void -> UntypedSSA.wrap_value UntypedSSA.Void
   (* anything not an immediate value must be evaluated in its own statement
      and then named
   *)
-  | _ -> exp_as_value env buffer "temp" node
-and translate_values env buffer nodes =
-  List.map (translate_value env buffer) nodes
-and translate_axes env buffer {data} = match data with
-  | AST.Arr axes -> Some (translate_values env buffer axes)
+  | _ -> exp_as_value env block "temp" node
+and translate_values env block nodes =
+  List.map (translate_value env block) nodes
+and translate_axes env block {data} = match data with
+  | AST.Arr axes -> Some (translate_values env block axes)
   | _ -> None
-and translate_adverb env buffer adverb args src =
-  match adverb with
-  | Prim.Map ->
-    (match args with
-      | fn::{data=AST.Arr arrayArgs}::{data=AST.Arr fixedArgs}::[axes] ->
-        let fnId = get_function_id fn in
-        let ssaFn = FnManager.get_untyped_function fnId in
-        let adverbArgs = {
-          UntypedSSA.init = None;
-          axes = translate_axes env buffer axes;
-          args = translate_values env buffer arrayArgs;
-        }
-        in
-        let closure = {
-          UntypedSSA.closure_fn = fnId;
-          closure_args = translate_values env buffer fixedArgs;
-          closure_arg_types = List.map (fun _ -> Type.BottomT) fixedArgs;
-        }
-        in
-        {
-          UntypedSSA.exp = UntypedSSA.Adverb(Prim.Map, closure, adverbArgs);
-          exp_src = Some src;
-          exp_types = List.map (fun _ -> Type.BottomT) ssaFn.UntypedSSA.fn_output_types
-        }
-      | _ -> failwith "Unexpected function arguments to Map"
-    )
-  | Prim.Reduce ->
-    (match args with
-     | fn::{data=AST.Arr arrayArgs}::{data=AST.Arr fixedArgs}::[axes;_] ->
-        let fnId = get_function_id fn in
-        let ssaFn = FnManager.get_untyped_function fnId in
-        let adverbArgs = {
-          UntypedSSA.init = None;
-          axes = translate_axes env buffer axes;
-          args = translate_values env buffer arrayArgs;
-        }
-        in
-        let closure = {
-          UntypedSSA.closure_fn = fnId;
-          closure_args = translate_values env buffer fixedArgs;
-          closure_arg_types = List.map (fun _ -> Type.BottomT) fixedArgs;
-        }
-        in
-        {
-          UntypedSSA.exp = UntypedSSA.Adverb(Prim.Reduce, closure, adverbArgs);
-          exp_src = Some src;
-          exp_types = List.map (fun _ -> Type.BottomT) ssaFn.UntypedSSA.fn_output_types
-        }
-    )
-  | _ ->
-    failwith ("Adverb not yet supported " ^ (Prim.adverb_to_str adverb))
+and translate_adverb env block adverb args (src:SrcInfo.t) =
+  match args with 
+  (* TODO: support initial arguments *) 
+  | fn::{data=AST.Arr arrayArgs}::{data=AST.Arr fixedArgs}::axes::_ -> 
+    let adverbInfo = { 
+      Adverb.adverb = adverb; 
+      adverb_fn = translate_value env block fn; 
+      axes = translate_axes env block axes; 
+      array_args = translate_values env block arrayArgs; 
+      fixed_args = translate_values env block fixedArgs; 
+      init = None;
+    }
+    in 
+    { 
+      UntypedSSA.exp = UntypedSSA.Adverb adverbInfo; 
+      exp_src = Some src
+    }
+  | _ -> failwith "Malformed adverb args"  
 
-and translate_app env buffer fn args src = match fn.data with
+and translate_app env block fn args (src:SrcInfo.t) = match fn.data with
   | AST.Prim (Prim.Adverb adverb) ->
-    translate_adverb env buffer adverb args src
+    translate_adverb env block adverb args src
   | _ ->
-    let ssaFn : UntypedSSA.value_node = translate_value env buffer fn in
-    let ssaArgs : UntypedSSA.value_node list = translate_values env buffer args in
+    let ssaFn : UntypedSSA.value_node = translate_value env block fn in
+    let ssaArgs : UntypedSSA.value_node list = translate_values env block args in
     {
       exp= App(ssaFn, ssaArgs);
       exp_src=Some src;
-      exp_types=[Type.BottomT]
     }
 (* recursively flatten subexpressions and return last expression *)
 (* as a value *)
-and exp_as_value env buffer prefix node : UntypedSSA.value_node =
+and exp_as_value env block prefix node : UntypedSSA.value_node =
   let id = ID.gen_named prefix in
-  let expNode = translate_exp env buffer node in
-  buffer#emit [UntypedSSA.set [id] expNode];
+  let expNode = translate_exp env block node in
+  Block.add block (UntypedSSA.set [id] expNode);
   UntypedSSA.var id
 
-let rec exps_as_values env buffer prefix nodes : UntypedSSA.value_node list =
-  List.map (exp_as_value env buffer prefix) nodes
+let rec exps_as_values env block prefix nodes : UntypedSSA.value_node list =
+  List.map (exp_as_value env block prefix) nodes
 
 let rec collect_assignment_names = function
   | [] -> []
   | {data=AST.Var name}::rest -> name :: (collect_assignment_names rest)
   | other::_ -> failwith $ "[AST_to_SSA] Unexpected LHS " ^ (AST.to_str other)
 
-let translate_assignment env buffer (lhs:AST.node list) rhs : Env.t =
+let translate_assignment env block (lhs:AST.node list) rhs : Env.t =
   match lhs with
   (* if the first element of the lhs is a variable assume they all are *)
   | {AST.data=AST.Var _}::_ ->
     let names = collect_assignment_names lhs in
     let ids = List.map ID.gen_named names in
-    let rhsExp = translate_exp env buffer rhs in
-    buffer#emit [UntypedSSA.stmt $ Set(ids, rhsExp)];
+    let rhsExp = translate_exp env block rhs in
+    Block.add block (UntypedSSA.stmt $ Set(ids, rhsExp));
     Env.add_list env names ids
   | [{AST.data=AST.App({data=AST.Prim (Prim.ArrayOp Prim.Index)}, _)} as lhs] ->
-    let rhs = translate_value env buffer rhs in
+    let rhs = translate_exp env block rhs in
     let allIndices : AST.node list  = flatten_indexing lhs in
-    let lhsList = translate_values env buffer allIndices in
+    let lhsList = translate_values env block allIndices in
     begin match lhsList with
       | varNode::indices ->
-        buffer#emit [UntypedSSA.setidx varNode indices rhs];
+        Block.add block (UntypedSSA.setidx varNode indices rhs);
         env
       | _ -> failwith $ Printf.sprintf
         "[AST_to_SSA] Unexpected indexing arguments: %s"
@@ -237,10 +202,11 @@ let translate_assignment env buffer (lhs:AST.node list) rhs : Env.t =
 
 let rec translate_stmt
           (env:Env.t)
-          (buffer:SSA_buffer.buffer)
+          (block:UntypedSSA.block)
           (retIds : ID.t list)
           (node : AST.node) : Env.t =
-  let mk_stmt s = UntypedSSA.stmt ~src:node.AST.src s in
+  let src = node.AST.src in 
+  let mk_stmt s = UntypedSSA.stmt ~src s in
   match node.AST.data with
   | AST.Return nodes ->
       if List.length nodes <> List.length retIds then
@@ -250,57 +216,57 @@ let rec translate_stmt
           (List.length retIds)
       else
       let rhs : UntypedSSA.exp_node =
-        UntypedSSA.exp (UntypedSSA.Values (translate_values env buffer nodes))
+        {
+          UntypedSSA.exp = 
+            UntypedSSA.Values (translate_values env block nodes);
+          UntypedSSA.exp_src = Some src;
+        }
       in
-      buffer#emit [UntypedSSA.set retIds rhs];
+      Block.add block (UntypedSSA.set retIds rhs);
       env
 
   | AST.If(cond, trueNode, falseNode) ->
-      let condVal = exp_as_value env buffer "cond" cond  in
+      let condVal = exp_as_value env block "cond" cond  in
       let tNames : string PSet.t =  AST.defs trueNode in
       let fNames : string PSet.t = AST.defs falseNode in
       let mergeNames = PSet.to_list $ PSet.union tNames fNames in
       (* for now always include retIds in case we have to return *)
       let mergeIds = retIds @ ID.gen_fresh_list (List.length mergeNames) in
-      let truebuffer = new SSA_buffer.buffer in
-      let falsebuffer = new SSA_buffer.buffer in
+      let trueBlock : UntypedSSA.block = Block.create() in
+      let falseBlock : UntypedSSA.block = Block.create () in
       (* if we need to return a particular value, we track the returned
          value along each branch and then set the return var to be the
          SSA merge of the two branch values
       *)
-      let trueEnv = translate_stmt env truebuffer retIds trueNode in
+      let trueEnv = translate_stmt env trueBlock retIds trueNode in
       let trueIds = List.map (Env.lookup_id trueEnv) mergeNames in
-      let falseEnv = translate_stmt env falsebuffer retIds falseNode in
+      let falseEnv = translate_stmt env falseBlock retIds falseNode in
       let falseIds = List.map (Env.lookup_id falseEnv) mergeNames in
-      let phiNodes = UntypedSSA.phi_nodes mergeIds trueIds falseIds in
-      let trueBlock = truebuffer#finalize in
-      let falseBlock = falsebuffer#finalize in
-      buffer#emit [mk_stmt $ If(condVal,trueBlock,falseBlock, phiNodes)];
+      let phiLefts = List.map UntypedSSA.var trueIds in 
+      let phiRights = List.map UntypedSSA.var falseIds in 
+      let phiNodes = PhiNode.mk_list mergeIds phiLefts phiRights in
+      Block.add block (mk_stmt $ If(condVal, trueBlock, falseBlock, phiNodes));
       Env.add_list env mergeNames mergeIds
 
-  | AST.Assign(lhsList, rhs) -> translate_assignment env buffer lhsList rhs
+  | AST.Assign(lhsList, rhs) -> translate_assignment env block lhsList rhs
 
-  | AST.Block nodes  -> translate_block env buffer retIds nodes
+  | AST.Block nodes  -> translate_block env block retIds nodes
   | AST.WhileLoop(cond,body) ->
         (* FIX: I don't think this properly handles SSA gates for variables
            modified in the cond block
         *)
-      let bodybuffer = new SSA_buffer.buffer in
-      (* update the body buffer and generate a loop gate *)
-      let header, exitEnv = translate_loop_body env bodybuffer retIds body  in
-      let ssaBody = bodybuffer#finalize in
-      let condbuffer = new SSA_buffer.buffer in
-      let condVal = exp_as_value exitEnv condbuffer "cond" cond in
-      let condBlock = condbuffer#finalize in
-      buffer#emit [
-        mk_stmt $ WhileLoop(condBlock, condVal, ssaBody, header)
-
-      ];
+      let bodyBlock : UntypedSSA.block = Block.create () in
+      (* update the body block and generate a loop gate *)
+      let header, exitEnv = translate_loop_body env bodyBlock retIds body  in
+      let condBlock : UntypedSSA.block = Block.create () in
+      let condVal = exp_as_value exitEnv condBlock "cond" cond in
+      Block.add block 
+        (mk_stmt $ WhileLoop(condBlock, condVal, bodyBlock, header));
       env
 
   | AST.CountLoop(upper,body) ->
     (* store the upper loop limit in a fresh ID *)
-      let upperVal = exp_as_value env buffer "upper" upper in
+      let upperVal = exp_as_value env block "upper" upper in
 
       (* SSA form requires the counter variable to carry three distinct IDs:
            - before the loop starts
@@ -313,33 +279,33 @@ let rec translate_stmt
       let startCounterVar = UntypedSSA.var startCounterId in
       let endCounterId = ID.gen_named "end_counter" in
       let endCounterVar = UntypedSSA.var endCounterId in
-      (* initialize loop counter to 1 *)
-      buffer#emit [UntypedSSA.set_int initCounterId 0l];
+      let init = wrap_exp $ UntypedSSA.int32 0 in (* (UntypedSSA.Num (ParNum.Int32 0L)) in  
+      *)Block.add block (UntypedSSA.set [initCounterId] init);
       let condId = ID.gen_named "cond" in
       let condBlock =
         Block.singleton $
           UntypedSSA.set [condId]
             (UntypedSSA.app UntypedSSA.lt [startCounterVar; upperVal])
       in
-      let bodybuffer = new SSA_buffer.buffer in
-      (* update the body buffer and generate a loop gate *)
-      let header, exitEnv = translate_loop_body env bodybuffer retIds body  in
+      let bodyblock = Block.create () in
+      (* update the body block and generate a loop gate *)
+      let header, exitEnv = translate_loop_body env bodyblock retIds body  in
       (* incremenet counter and add SSA gate for counter to loopGate *)
-      bodybuffer#emit [UntypedSSA.incr endCounterId startCounterVar];
+      Block.add bodyBlock (UntypedSSA.incr endCounterId startCounterVar);
 
       let header' =
         (PhiNode.mk startCounterId initCounterVar endCounterVar) :: header
       in
       let condVal = UntypedSSA.var condId in
-      let ssaBody = bodybuffer#finalize in
-      buffer#emit [mk_stmt $ WhileLoop(condBlock, condVal,  ssaBody, header')];
+      Block.add block 
+        (mk_stmt $ WhileLoop(condBlock, condVal, bodyBlock, header'));
       exitEnv
   | _ ->
       failwith $ Printf.sprintf
         "[AST_to_SSA] Expected statement, received %s"
         (AST.to_str node)
 
-and translate_loop_body envBefore buffer retIds  body : phi_nodes * Env.t =
+and translate_loop_body envBefore block retIds  body : phi_nodes * Env.t =
   (* FIX: use a better AST_Info without all this local/global junk *)
   let bodyDefs : string PSet.t = AST.defs body in
   let bodyUses : string PSet.t = AST.uses body in
@@ -362,7 +328,7 @@ and translate_loop_body envBefore buffer retIds  body : phi_nodes * Env.t =
      defined before loop and the recently created IDs of variables
      which feed back into the loop
   *)
-  let envEnd : Env.t = translate_stmt envOverlap buffer retIds body in
+  let envEnd : Env.t = translate_stmt envOverlap block retIds body in
   let mk_header_phi name =
     let prevId = Env.lookup_id envBefore name in
     let startId = Env.lookup_id envOverlap name in
@@ -374,12 +340,12 @@ and translate_loop_body envBefore buffer retIds  body : phi_nodes * Env.t =
   let loopHeader = List.map mk_header_phi needsPhi in
   loopHeader , envOverlap
 
-and translate_block env buffer retIds = function
+and translate_block env block retIds = function
   | [] -> env
-  | [lastNode] -> translate_stmt env buffer retIds lastNode
+  | [lastNode] -> translate_stmt env block retIds lastNode
   | node::nodes ->
-    let nodeEnv = translate_stmt env buffer retIds node in
-    translate_block nodeEnv buffer retIds nodes
+    let nodeEnv = translate_stmt env block retIds node in
+    translate_block nodeEnv block retIds nodes
 
 (* given the arg names and AST body of function, generate its SSA fundef *)
 and translate_fn ?name parentEnv argNames (body:AST.node) : UntypedSSA.fn =
@@ -394,9 +360,11 @@ and translate_fn ?name parentEnv argNames (body:AST.node) : UntypedSSA.fn =
      assume globalMap contains only functions
   *)
   let initEnv = Env.extend parentEnv argNames argIds in
-  let buffer = new buffer in
-  let _ = translate_stmt initEnv buffer retIds body in
-  (* make an empty type env since this function hasn't been typed yet *)
-  let body = DynArray. buffer#finalize in
-  UntypedSSA.mk_fn ?name ?tenv:None ~body ~input_ids:argIds ~output_ids:retIds
+  let typedBlock : UntypedSSA.block = Block.create () in
+  let _ = translate_stmt initEnv typedBlock retIds body in
+  UntypedSSA.mk_fn 
+    ?name 
+    ~body:typedBlock 
+    ~input_ids:argIds 
+    ~output_ids:retIds
 

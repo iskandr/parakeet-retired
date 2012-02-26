@@ -1,5 +1,6 @@
 type 'a t
 
+val create : unit -> 'a t 
 val singleton : 'a -> 'a t
 val of_list : 'a list -> 'a t
 val of_array : 'a array -> 'a t
