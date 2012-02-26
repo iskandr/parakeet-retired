@@ -113,8 +113,7 @@ let rec specialize_fn fn signature =
        modules I've untied the recursion by making specialize_value
        a parameter
    *)
-  RewriteTyped.rewrite_typed ~tenv ~specializer:specialize_value ~fn:fn
-  typedFn
+  RewriteTyped.rewrite_typed ~tenv ~specializer:specialize_value ~fn:fn ~signature
 
 and scalarize_fn untyped vecSig =
   IFDEF DEBUG THEN
