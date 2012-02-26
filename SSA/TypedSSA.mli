@@ -11,7 +11,7 @@ module CoreLanguage : sig
 	  | Arr of value_nodes
 	  | Call of FnId.t * value_nodes
 	  | PrimApp of Prim.t * value_nodes
-	  | Adverb of adverb_info * value_nodes
+	  | Adverb of adverb_info 
     | Cast of Type.t * value_node
 
 	type exp_node =

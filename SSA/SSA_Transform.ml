@@ -159,21 +159,17 @@ module Mk(R: SIMPLE_TRANSFORM_RULES) = struct
       if changed() then {expNode with exp=PrimApp(prim,args')}
       else expNode
 
-    | Adverb({Adverb.fixed_args; init; axes} as adverbInfo, args) ->
-      let fixedArgs' = transform_values blockState cxt fixed_args in
-      let axes' = transform_values blockState cxt axes in
-      let init' = transform_optional_values blockState cxt init in
-      let args' = transform_values blockState cxt args in
+    | Adverb adverbInfo ->
+      let adverbInfo' = 
+        Adverb.apply_to_fields adverbInfo
+          ~fn:Base.id
+          ~values:(transform_values blockState cxt)
+          ~axes:(transform_values blockState cxt)
+      in 
       if changed() then
-        let adverbInfo' = { adverbInfo with
-          Adverb.fixed_args = fixedArgs';
-          init = init';
-          axes = axes'
-        }
-        in
-        { expNode with exp = Adverb(adverbInfo', args') }
+        { expNode with exp = Adverb adverbInfo' }
       else expNode
-      in
+    in
     BlockState.process_update blockState expNode' (R.exp cxt expNode')
 
   let rec transform_block cxt (block:block) =

@@ -12,13 +12,11 @@ val infer_adverb_axes_from_args :
   ?axes:value_nodes -> value_nodes -> value_nodes
 
 
-val mk_adverb :
-  ?src:SrcInfo.t ->
-    (FnId.t, value_nodes, value_nodes) Adverb.info -> value_nodes -> exp_node
+val mk_adverb_exp_node :
+  ?src:SrcInfo.t -> (FnId.t, value_nodes, value_nodes) Adverb.info -> exp_node
 
 val mk_adverb_fn :
-    ?src:SrcInfo.t ->
-      (FnId.t, Type.t list, value_nodes) Adverb.info -> Type.t list -> fn
+    ?src:SrcInfo.t -> (FnId.t, Type.t list, value_nodes) Adverb.info -> fn
 
 val stmt_has_adverb : TypedSSA.stmt_node -> bool
 val block_has_adverb : TypedSSA.block -> bool

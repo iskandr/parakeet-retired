@@ -57,19 +57,18 @@ module ShapeAnalysis (P: PARAMS) =  struct
       phi_set env id leftShape
 
     let infer_adverb
-          {Adverb.adverb; adverb_fn; fixed_args; axes; init }
-          (args : SymbolicShape.t list) =
-      let maxShape, maxRank = SymbolicShape.argmax_rank args in
+          {Adverb.adverb; adverb_fn; fixed_args; axes; init; array_args } =
+      let maxShape, maxRank = SymbolicShape.argmax_rank array_args in
       (* split dims into those that are part of the adverb and *)
       (* those that are held constant *)
       let loopDims, fixedDims = SymbolicShape.split maxShape axes in
-      match adverb, init, args with
+      match adverb, init, array_args with
         | Adverb.Map, None, _ ->
           let nAxes = List.length axes in
           if nAxes > maxRank then
             raise (ShapeInferenceFailure "Too many axes for Map")
           else
-          let eltShapes = SymbolicShape.peel_shape_list ~axes args in
+          let eltShapes = SymbolicShape.peel_shape_list ~axes array_args in
           (* shapes that go into the function on each iteration *)
           let inputShapes = fixed_args @ eltShapes in
           let callResultShapes = P.output_shapes adverb_fn inputShapes in
@@ -84,7 +83,7 @@ module ShapeAnalysis (P: PARAMS) =  struct
           let errMsg = "Too many inputs for Reduce without init" in
           raise (ShapeInferenceFailure errMsg)
         | Adverb.Reduce, Some initShapes, _ ->
-          let inputShapes = fixed_args @ initShapes @ args in
+          let inputShapes = fixed_args @ initShapes @ array_args in
           let callResultShapes = P.output_shapes adverb_fn inputShapes in
           List.map (fun shape -> fixedDims @ shape) callResultShapes
 
@@ -168,21 +167,18 @@ module ShapeAnalysis (P: PARAMS) =  struct
         [SymbolicShape.Const n :: (List.hd eltShapes)]
       | TypedSSA.Cast (t, v) ->  [value env v]
       | TypedSSA.Values vs -> shapes_of_values vs
-      | TypedSSA.Adverb (adverbInfo, args) ->
+      | TypedSSA.Adverb adverbInfo ->
         let get_const_axes (axes:TypedSSA.value_nodes) : int list =
           if List.for_all TypedSSA.is_const_int axes then
             List.map TypedSSA.get_const_int axes
           else
             raise (ShapeInferenceFailure "All adverb axes must be constants")
         in
-        let shapelyInfo : (FnId.t, SymbolicShape.t list, int list) Adverb.info =
-          Adverb.apply_to_fields
+        infer_adverb $ 
+          Adverb.apply_to_fields adverbInfo
             ~fn:(fun fnId -> fnId)
-            ~args:shapes_of_values
+            ~values:shapes_of_values
             ~axes:get_const_axes
-            adverbInfo
-        in
-        infer_adverb shapelyInfo (shapes_of_values args)
       | _ ->
           let errMsg =
             Printf.sprintf

@@ -23,7 +23,7 @@ let infer_binop (op:Prim.scalar_op) (t1:Type.t) (t2:Type.t) : Type.t  =
         (Type.to_str t1)
         (Type.to_str t2)
     in
-    raise TypeError(errMsg, None)
+    raise $ TypeError(errMsg, None)
   | t3 ->
     if Prim.is_comparison op then Type.fill_elt_type t3 BoolT
     else if Prim.is_float_binop op then
@@ -48,7 +48,7 @@ let infer_select predT t1 t2 =
           (Type.to_str t1)
           (Type.to_str t2)
       in
-      raise TypeError(errMsg, None)
+      raise $ TypeError(errMsg, None)
     | t3 ->
       if Type.rank predT = Type.rank t3 then t3
       else
@@ -66,7 +66,7 @@ let infer_scalar_op op argTypes = match op, argTypes with
         (Prim.scalar_op_to_str other)
         (Type.type_list_to_str types)
     in
-    raise TypeError(errMsg, None)
+    raise $ TypeError(errMsg, None)
 
 let infer_indexing_result eltT rank indexTypes =
   let nIndices = List.length indexTypes in
@@ -143,7 +143,7 @@ let required_scalar_op_types op argtypes =
         let errMsg =
           Printf.sprintf
             "no valid coercions for operator %s with input types %s"
-            (Prim.scalar_op_to_str op) ^
+            (Prim.scalar_op_to_str op) 
             (Type.type_list_to_str argtypes)
         in
         raise (TypeError(errMsg, None))
@@ -234,9 +234,9 @@ module Make (P : TYPE_ANALYSIS_PARAMS) = struct
     ENDIF;
     match fnVal with
     | Prim (Prim.ArrayOp arrayOp) ->
-      [TypeInfer.infer_simple_array_op arrayOp argTypes]
+      [infer_simple_array_op arrayOp argTypes]
     | Prim (Prim.ScalarOp scalarOp) ->
-      [TypeInfer.infer_scalar_op scalarOp argTypes]
+      [infer_scalar_op scalarOp argTypes]
     | GlobalFn _ ->
       let signature = Signature.from_input_types argTypes in
       P.infer_output_types fnVal signature
@@ -261,7 +261,7 @@ module Make (P : TYPE_ANALYSIS_PARAMS) = struct
     let maxPossibleAxes =
       AdverbHelpers.max_num_axes_from_array_types array_arg_types
     in
-    let numAxes = match axes with
+    let numAxes = match Adverb.axes info with
       | None -> maxPossibleAxes
       | Some axes ->
         let n = List.length axes in
@@ -271,32 +271,32 @@ module Make (P : TYPE_ANALYSIS_PARAMS) = struct
           Printf.sprintf
             "Can't have %d axes for adverb %s, max allowed = %d"
             n
-            (Prim.adverb_to_str adverb)
+            (Adverb.to_str $ info.Adverb.adverb)
             maxPossibleAxes
         in
         raise (TypeError(msg, src))
     in
     let eltTypes = List.map (Type.peel ~num_axes:numAxes) array_arg_types in
-    match adverb, init, eltTypes with
-    | Prim.Map, None, _ ->
-      let eltResultTypes = infer_app fn_val eltTypes in
+    let fnVal : UntypedSSA.value = Adverb.adverb_fn info in 
+    match Adverb.adverb info, Adverb.init info, eltTypes with
+    | Adverb.Map, None, _ ->
+      let eltResultTypes = infer_app fnVal eltTypes in
       Type.increase_ranks numAxes eltResultTypes
-    | Prim.Map, Some _, _ ->
+    | Adverb.Map, Some _, _ ->
       raise (TypeError("Map can't have initial values", src))
     (* if not given initial values then we assume operator is binary and*)
     (* used first two elements of the array *)
-    | Prim.Reduce, None, [eltT] ->
-      let accTypes = infer_app fn_val [eltT;eltT] in
+    | Adverb.Reduce, None, [eltT] ->
+      let accTypes = infer_app fnVal [eltT;eltT] in
       if List.length accTypes <> 1 then
-        raise (
-          TypeError("Reduce without inital args must return one value", src))
+        raise $
+          TypeError("Reduce without inital args must return one value", src)
       else accTypes
-    | Prim.Reduce, None, _ ->
-      raise (
-        TypeError("Reduce without intial args must have one input array", src))
-    | Prim.Reduce, Some inits, _  -> assert false
-
-    | other, _, _ -> failwith (Prim.adverb_to_str other ^ " not impl")
+    | Adverb.Reduce, None, _ ->
+      raise $
+        TypeError("Reduce without intial args must have one input array", src)
+    | Adverb.Reduce, Some inits, _  -> failwith "Reduce with inits not implemented"
+    | other, _, _ -> failwith (Adverb.to_str other ^ " not impl")
 
   let infer_exp expNode =
     let src = expNode.exp_src in
@@ -320,19 +320,18 @@ module Make (P : TYPE_ANALYSIS_PARAMS) = struct
         | Prim.Reduce
         | Prim.Scan -> assert false
       end
-    | UntypedSSA.Adverb(adverb, {closure_fn; closure_arg_types}, {axes;init;args}) ->
-      let argTypes = infer_value_nodes args in
-      let resultTypes =
-        infer_adverb ?src  ~adverb ~fn_val:(GlobalFn closure_fn)
-          ~closure_arg_types
-          ?init:None
-          ?axes:None
-          ~array_arg_types:argTypes
-      in
+    | UntypedSSA.Adverb info -> 
+      let resultTypes = 
+        infer_adverb ?src $ 
+          Adverb.apply_to_fields 
+            info
+            ~fn:(fun valNode -> valNode.value)
+            ~args:infer_value_nodes
+            ~axes:(function None -> None | Some axes -> infer_value_nodes axes)
       IFDEF DEBUG THEN
         Printf.printf
           "[TypeAnalysis.exp] Inferred output for adverb %s: %s\n"
-          (Prim.adverb_to_str adverb)
+          (Adverb.to_str (Adverb.adverb info))
           (Type.type_list_to_str resultTypes)
         ;
       ENDIF;

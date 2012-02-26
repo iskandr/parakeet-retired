@@ -17,7 +17,7 @@ module CoreLanguage = struct
     | Values of value_nodes
     | Arr of value_nodes
     | App of value_node * value_nodes
-    | Adverb of adverb_info * value_nodes
+    | Adverb of adverb_info 
 
   type exp_node = { exp : exp; exp_src : SrcInfo.t option }
 
@@ -60,17 +60,14 @@ module PrettyPrinters = struct
 
   let adverb_info_to_str info =
     let opt_to_str = Option.map_default value_nodes_to_str "none" in
-    Adverb.info_to_str value_node_to_str value_nodes_to_str opt_to_str info
+    Adverb.info_to_str info value_node_to_str value_nodes_to_str opt_to_str
 
   let exp_to_str = function
     | Values vs -> sprintf "values(%s)" (value_nodes_to_str vs)
     | Arr elts -> sprintf "array(%s)" (value_nodes_to_str elts)
     | App (f, args) ->
       sprintf "%s(%s)" (value_node_to_str f) (value_nodes_to_str args)
-    | Adverb (info, args) ->
-      Printf.sprintf "%s(%s)"
-        (adverb_info_to_str info)
-        (value_nodes_to_str args)
+    | Adverb info -> adverb_info_to_str info
   let exp_node_to_str expNode = exp_to_str expNode.exp
 
   let phi_node_to_str = PhiNode.to_str value_node_to_str

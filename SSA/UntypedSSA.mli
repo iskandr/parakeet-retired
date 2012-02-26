@@ -10,7 +10,7 @@ module CoreLanguage : sig
 	  | Values of value_nodes
 	  | Arr of value_nodes
 	  | App of value_node * value_nodes
-	  | Adverb of adverb_info * value_nodes
+	  | Adverb of adverb_info 
 	type exp_node = { exp : exp; exp_src : SrcInfo.t option }
 
   type phi_node = value_node PhiNode.t
@@ -81,14 +81,12 @@ end
 include module type of ValueHelpers
 
 module FnHelpers : sig
-	val mk_fn :
-	  ?name: string -> input_ids: (ID.t list) -> output_ids: (ID.t list) ->
-	    body: block -> fn
-
-	val input_arity : fn -> int
-	val output_arity : fn -> int
-
-	val fn_id : fn -> FnId.t
+  val mk_fn :
+    ?name: string -> input_ids: (ID.t list) -> output_ids: (ID.t list) ->
+      body: block -> fn
+  val input_arity : fn -> int
+  val output_arity : fn -> int
+  val fn_id : fn -> FnId.t
 end
 include module type of FnHelpers
 

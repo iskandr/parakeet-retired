@@ -224,36 +224,36 @@ and translate_block (builder : ImpBuilder.builder) block : Imp.stmt list =
     block
 and translate_stmt (builder : ImpBuilder.builder) stmtNode : Imp.stmt list  =
   match stmtNode.TypedSSA.stmt with
-	(* array literals get treated differently from other expressions since*)
-	(* they require a block of code rather than simply translating from *)
-	(* TypedSSA.exp_node to Imp.exp_node *)
-	| TypedSSA.Set([id], {TypedSSA.exp = TypedSSA.Arr elts}) ->
-	  translate_array_literal builder id elts
+  (* array literals get treated differently from other expressions since*)
+  (* they require a block of code rather than simply translating from *)
+  (* TypedSSA.exp_node to Imp.exp_node *)
+  | TypedSSA.Set([id], {TypedSSA.exp = TypedSSA.Arr elts}) ->
+    translate_array_literal builder id elts
   (* adverbs get special treatment since they might return multiple values *)
-  | TypedSSA.Set(ids,  {TypedSSA.exp = TypedSSA.Adverb(info, arrays)}) ->
+  | TypedSSA.Set(ids,  {TypedSSA.exp = TypedSSA.Adverb info }) ->
     let impInfo : (TypedSSA.fn, Imp.value_node list, int list) Adverb.info =
       Adverb.apply_to_fields
         ~fn:FnManager.get_typed_function
-        ~args:(translate_values builder)
+        ~values:(translate_values builder)
         ~axes:AdverbHelpers.const_axes
         info
     in
-    translate_adverb builder ids impInfo (translate_values builder arrays)
+    translate_adverb builder ids impInfo
 	(* all assignments other than those with an array literal RHS *)
-	| TypedSSA.Set([id], rhs) ->
+  | TypedSSA.Set([id], rhs) ->
     let impRhs : Imp.value_node = translate_exp builder rhs in
     let impVar : Imp.value_node = builder#var id in
     [set impVar impRhs]
 
-	| TypedSSA.Set(ids, {TypedSSA.exp = TypedSSA.Values vs}) ->
-	  List.map2 (mk_set_val builder) ids vs
+  | TypedSSA.Set(ids, {TypedSSA.exp = TypedSSA.Values vs}) ->
+    List.map2 (mk_set_val builder) ids vs
   | TypedSSA.Set _ -> failwith "multiple assignment not supported"
-	| TypedSSA.SetIdx(lhs, indices, rhs) ->
-	  let indices : Imp.value_node list = translate_values builder indices in
-	  let lhs : Imp.value_node = translate_value builder lhs in
-	  let rhs : Imp.value_node = translate_exp builder rhs in
-	  [Imp.SetIdx(lhs, indices, rhs)]
-	| TypedSSA.If(cond, tBlock, fBlock, phiNodes) ->
+  | TypedSSA.SetIdx(lhs, indices, rhs) ->
+    let indices : Imp.value_node list = translate_values builder indices in
+    let lhs : Imp.value_node = translate_value builder lhs in
+    let rhs : Imp.value_node = translate_exp builder rhs in
+    [Imp.SetIdx(lhs, indices, rhs)]
+  | TypedSSA.If(cond, tBlock, fBlock, phiNodes) ->
     let cond' : Imp.value_node = translate_value builder cond in
     let tBlock' : Imp.block = translate_block builder tBlock in
     let fBlock' : Imp.block = translate_block builder fBlock in
@@ -262,16 +262,16 @@ and translate_stmt (builder : ImpBuilder.builder) stmtNode : Imp.stmt list  =
     let tBlock' = tBlock' @ trueMerge in
     let fBlock' = fBlock' @ falseMerge in
     [Imp.If(cond', tBlock', fBlock')]
-	| TypedSSA.WhileLoop(condBlock, condVal, body, phiNodes) ->
-	  let inits : Imp.block =
-	    List.map (translate_true_phi_node builder) phiNodes
-	  in
-	  let condBlock : Imp.block  = translate_block builder condBlock in
-	  let condVal : Imp.value_node = translate_value builder condVal in
-	  let body : Imp.block = translate_block builder body in
-	  let finals = List.map (translate_false_phi_node builder) phiNodes in
-	  let fullBody = body @ finals @ condBlock in
-	  inits @ condBlock @ [Imp.While(condVal, fullBody)]
+  | TypedSSA.WhileLoop(condBlock, condVal, body, phiNodes) ->
+    let inits : Imp.block = 
+      List.map (translate_true_phi_node builder) phiNodes 
+    in
+    let condBlock : Imp.block  = translate_block builder condBlock in
+    let condVal : Imp.value_node = translate_value builder condVal in
+    let body : Imp.block = translate_block builder body in
+    let finals = List.map (translate_false_phi_node builder) phiNodes in
+    let fullBody = body @ finals @ condBlock in
+    inits @ condBlock @ [Imp.While(condVal, fullBody)]
  | _ ->
    failwith $ Printf.sprintf
      "[Imp_to_SSA] Not yet implemented: %s"
@@ -316,22 +316,22 @@ and translate_exp (builder:ImpBuilder.builder) expNode : Imp.value_node  =
 and translate_adverb
       (builder:ImpBuilder.builder)
       (lhsIds:ID.t list)
-      {Adverb.adverb; adverb_fn; fixed_args; init; axes}
-      (args : Imp.value_node list) : Imp.stmt list =
+      {Adverb.adverb; adverb_fn; fixed_args; init; axes; array_args}
+      : Imp.stmt list =
   assert (init = None);
   let fixedTypes = List.map Imp.value_type fixed_args in
-  let argTypes = List.map Imp.value_type args in
+  let argTypes = List.map Imp.value_type array_args in
   let num_axes = List.length axes in
   let peeledArgTypes = List.map (ImpType.peel ~num_axes) argTypes in
   let fnInputTypes = fixedTypes @ peeledArgTypes in
   let impFn : Imp.fn = translate_fn adverb_fn fnInputTypes in
-  let bigArray : Imp.value_node = argmax_array_rank args in
+  let bigArray : Imp.value_node = argmax_array_rank array_args in
   let initBlock, loopDescriptors =
     axes_to_loop_descriptors builder bigArray axes
   in
   let indices = List.map (fun {loop_var} -> loop_var) loopDescriptors in
   let nestedArrayArgs : Imp.value_node list =
-    List.map (fun arg -> ImpHelpers.idx arg indices) args
+    List.map (fun arg -> ImpHelpers.idx arg indices) array_args
   in
   let nestedArgs : Imp.value_node list = fixed_args @ nestedArrayArgs in
   (*   Currently assuming that axes are in order starting from zero *)

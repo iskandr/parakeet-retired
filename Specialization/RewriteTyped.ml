@@ -157,16 +157,16 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
     let eltTypes = List.map (Type.peel ~num_axes:numAxes) arrayTypes in
     (* cut down on code repetition since so many fields are shared below *)
     let mk_adverb_exp adverb typedFn =
-      let info = {
-        Adverb.adverb= adverb;
-        adverb_fn = typedFn;
-        fixed_args = fixed;
-        init = init;
-        axes = axes
-      }
-      in
-      AdverbHelpers.mk_adverb ?src info arrayArgs
-    in
+      AdverbHelpers.mk_adverb_exp_node ?src 	       
+        {
+          Adverb.adverb= adverb;
+          adverb_fn = typedFn;
+          fixed_args = fixed;
+          init = init;
+          axes = axes;
+          array_args = arrayArgs; 
+        }
+    in 
     match adverb, init, eltTypes with
       | Adverb.Map, None, _ ->
         let nestedSig = Signature.from_input_types (fixedTypes @ eltTypes) in

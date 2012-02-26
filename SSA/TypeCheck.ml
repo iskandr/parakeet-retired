@@ -1,6 +1,7 @@
 (* pp: -parser o pa_macro.cmo *)
 
 open Base
+open Printf
 open PhiNode
 open TypedSSA
 

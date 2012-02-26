@@ -18,6 +18,7 @@ type ('a,'b,'c) info = {
   fixed_args : 'b;
   init : 'b option;
   axes : 'c;
+  array_args : 'b; 
 }
 
 let adverb {adverb} = adverb
@@ -25,20 +26,23 @@ let adverb_fn {adverb_fn} = adverb_fn
 let fixed_args {fixed_args} = fixed_args
 let init {init} = init
 let axes {axes} = axes
+let array_args {array_args} = array_args 
 
-let apply_to_fields ~(fn:'a->'d) ~(args:'b -> 'e) ~(axes:'c -> 'f) info =
+let apply_to_fields info ~(fn:'a->'d) ~(values:'b -> 'e) ~(axes:'c -> 'f) =
   {
     adverb = info.adverb;
     adverb_fn = fn info.adverb_fn;
-    fixed_args = args info.fixed_args;
-    init = Option.map args info.init;
+    fixed_args = values info.fixed_args;
+    init = Option.map values info.init;
     axes = axes info.axes;
+    array_args = values info.array_args; 
   }
 
-let info_to_str fn_to_str args_to_str axes_to_str info =
-  Printf.sprintf "%s[fn=%s; fixed=%s; init=%s; axes=%s]"
+let info_to_str info fn_to_str values_to_str axes_to_str =
+  Printf.sprintf "%s[fn=%s; fixed=%s; init=%s; axes=%s](%s)"
     (to_str info.adverb)
     (fn_to_str info.adverb_fn)
-    (args_to_str info.fixed_args)
-    (match info.init with None -> "None" | Some init -> args_to_str init)
+    (values_to_str info.fixed_args)
+    (match info.init with None -> "None" | Some init -> values_to_str init)
     (axes_to_str info.axes)
+    (values_to_str info.array_args)

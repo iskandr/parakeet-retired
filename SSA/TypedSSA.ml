@@ -21,7 +21,7 @@ module CoreLanguage = struct
 	  | Arr of value_nodes
 	  | Call of FnId.t * value_nodes
 	  | PrimApp of Prim.t * value_nodes
-	  | Adverb of adverb_info * value_nodes
+	  | Adverb of adverb_info 
     | Cast of Type.t * value_node
 
 	type exp_node = {
@@ -91,7 +91,7 @@ module PrettyPrinters = struct
     String.concat ", " (List.map value_node_to_str valNodes)
 
   let adverb_info_to_str info =
-    Adverb.info_to_str FnId.to_str value_nodes_to_str value_nodes_to_str info
+    Adverb.info_to_str info FnId.to_str value_nodes_to_str value_nodes_to_str
 
   let exp_to_str = function
     | Values vs -> sprintf "values(%s)" (value_nodes_to_str vs)
@@ -100,10 +100,7 @@ module PrettyPrinters = struct
       sprintf "%s(%s)" (FnId.to_str fnId) (value_nodes_to_str args)
     | PrimApp (p, args) ->
       sprintf "prim[%s](%s)" (Prim.to_str p) (value_nodes_to_str args)
-    | Adverb (info, args) ->
-      Printf.sprintf "%s(%s)"
-        (adverb_info_to_str info)
-        (value_nodes_to_str args)
+    | Adverb info -> adverb_info_to_str info
     | Cast (t, x) ->
       sprintf "cast[%s](%s)" (Type.to_str t) (value_node_to_str x)
   let exp_node_to_str { exp } = exp_to_str exp
