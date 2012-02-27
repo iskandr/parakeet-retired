@@ -1,5 +1,3 @@
-
-
 type t = Map | Reduce | Scan | AllPairs
 
 let to_str = function
@@ -20,7 +18,6 @@ type ('a,'b,'c) info = {
   axes : 'c;
   array_args : 'b;
 }
-
 
 let apply_to_fields info ~(fn:'a->'d) ~(values:'b -> 'e) ~(axes:'c -> 'f) =
   {

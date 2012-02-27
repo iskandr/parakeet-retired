@@ -223,53 +223,18 @@ let call (fn:TypedSSA.fn) args =
   let impFn : Imp.fn = SSA_to_Imp.translate_fn fn inputTypes in
   call_imp_fn impFn args
 
-let adverb (info:(TypedSSA.fn, Ptr.t Value.t list, int list) Adverb.info) =
-  assert (info.init = None);
-  let adverbFn =
-    AdverbHelpers.mk_adverb_fn $
-      Adverb.apply_to_fields info
-        ~fn:TypedSSA.fn_id
-        ~values:Value.type_of_list
-        ~axes:(List.map TypedSSA.int32)
-  in
-  let allArgValues : Ptr.t Value.t list = info.fixed_args @ info.array_args in
-  let impTypes = List.map ImpType.type_of_value allArgValues in
-  let impFn : Imp.fn = SSA_to_Imp.translate_fn adverbFn impTypes in
-  let llvmFn = CompiledFunctionCache.compile impFn in
-  let inputShapes : Shape.t list = List.map Value.get_shape allArgValues in
+let exec_map impFn inputShapes axes array_args llvmFn =
   let outputs : Ptr.t Value.t list =
     allocate_output_arrays impFn inputShapes
   in
   (* TODO: looks like we're ignoring the closure values! *)
   let work_items =
-    build_work_items info.axes num_cores (info.array_args @ outputs)
+    build_work_items axes num_cores (array_args @ outputs)
   in
   do_work work_queue execution_engine llvmFn work_items;
-  (* TODO: What happens to reduced things? We still need to recombine them!*)
-  IFDEF DEBUG THEN
-    Printf.printf
-      "[LLVM_Backend.call_imp_fn] Got function results: %s\n%!"
-      (Value.list_to_str outputs)
-    ;
-  ENDIF;
   outputs
 
-(*
-let reduce ~axes ~fn ~fixed ?init args =
-  let reduceFn =
-    AdverbHelpers.mk_adverb_fn
-      ?src:None
-      { Adverb.adverb = Adverb.Reduce
-        adverb_fn = fn;
-    ~axes:(List.map SSA_Helpers.int32 axes)
-    ~fixed_types:(List.map Value.type_of fixed)
-    ~array_types:(List.map Value.type_of args)
-    ~init:[]
-  in
-  let impTypes = List.map ImpType.type_of_value (fixed @ args) in
-  let impFn : Imp.fn = SSA_to_Imp.translate_fn reduceFn impTypes in
-  let llvmFn = CompiledFunctionCache.compile impFn in
-  let inputShapes : Shape.t list = List.map Value.get_shape (fixed @ args) in
+let exec_reduce impFn inputShapes axes array_args llvmFn =
   (* Have to allocate num_threads * output sizes to hold the intermediates *)
   let outputShapes = ShapeEval.get_call_output_shapes impFn inputShapes in
   let outTypes = Imp.output_types impFn in
@@ -313,7 +278,7 @@ let reduce ~axes ~fn ~fixed ?init args =
       slice_interms (cur @ [slices]) (i + 1)
   in
   let interm_slices = slice_interms [[]] 0 in
-  let input_items = build_work_items axes num_cores args in
+  let input_items = build_work_items axes num_cores array_args in
   let work_items = List.map2 (fun a b -> a @ b) input_items interm_slices in
   do_work work_queue execution_engine llvmFn work_items;
   let llvmOutputs : GV.t list =
@@ -328,24 +293,26 @@ let reduce ~axes ~fn ~fixed ?init args =
   (* Not freeing intermediates because GC will take care of them *)
   outputs
 
-let allpairs ~axes ~fn ~fixed x y =
-  let args = [x;y] in
-  let allpairsFn = SSA_AdverbHelpers.mk_allpairs_fn
-    ?src:None
-    ~nested_fn:fn
-    ~axes:(List.map SSA_Helpers.int32 axes)
-    ~fixed_types:(List.map Value.type_of fixed)
-    ~array_types:(List.map Value.type_of args)
+let adverb (info:(TypedSSA.fn, Ptr.t Value.t list, int list) Adverb.info) =
+  assert (info.init = None);
+  let adverbFn =
+    AdverbHelpers.mk_adverb_fn $
+      Adverb.apply_to_fields info
+        ~fn:TypedSSA.fn_id
+        ~values:Value.type_of_list
+        ~axes:(List.map TypedSSA.int32)
   in
-  let impTypes = List.map ImpType.type_of_value (fixed @ args) in
-  let impFn : Imp.fn = SSA_to_Imp.translate_fn allpairsFn impTypes in
+  let allArgValues : Ptr.t Value.t list = info.fixed_args @ info.array_args in
+  let impTypes = List.map ImpType.type_of_value allArgValues in
+  let impFn : Imp.fn = SSA_to_Imp.translate_fn adverbFn impTypes in
   let llvmFn = CompiledFunctionCache.compile impFn in
-  let inputShapes : Shape.t list = List.map Value.get_shape (fixed @ args) in
-  let outputs : Ptr.t Value.t list =
-    allocate_output_arrays impFn inputShapes
+  let inputShapes : Shape.t list = List.map Value.get_shape allArgValues in
+  let outputs = match info.adverb with
+  | Map -> exec_map impFn inputShapes info.axes info.array_args llvmFn
+  | Reduce -> exec_reduce impFn inputShapes info.axes info.array_args llvmFn
+  | AllPairs -> exec_map impFn inputShapes info.axes info.array_args llvmFn
+  | Scan -> failwith "Adverb exec function not implemented yet.\n%!"
   in
-  let work_items = build_work_items axes num_cores (args @ outputs) in
-  do_work work_queue execution_engine llvmFn work_items;
   IFDEF DEBUG THEN
     Printf.printf
       "[LLVM_Backend.call_imp_fn] Got function results: %s\n%!"
@@ -353,4 +320,3 @@ let allpairs ~axes ~fn ~fixed x y =
     ;
   ENDIF;
   outputs
-*)
