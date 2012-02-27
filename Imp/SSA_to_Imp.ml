@@ -25,6 +25,9 @@ type loop_descr = {
   loop_incr_op : Prim.scalar_op;
 }
 
+let get_loop_vars loopDescriptors =
+  List.map (fun {loop_var} -> loop_var) loopDescriptors
+
 let rec build_loop_nests
     (builder:ImpBuilder.builder)
     (descrs : loop_descr list)
@@ -327,6 +330,7 @@ and translate_adverb
         let impType = InferImpTypes.simple_conversion t in
         vectorize_adverb builder lhsVars info impType
   else translate_sequential_adverb builder lhsVars info
+
 and translate_sequential_adverb
       (builder:ImpBuilder.builder)
       (lhsVars : Imp.value_node list)
@@ -338,36 +342,48 @@ and translate_sequential_adverb
   let peeledArgTypes = List.map (ImpType.peel ~num_axes) argTypes in
   let fnInputTypes = fixedTypes @ peeledArgTypes in
   let impFn : Imp.fn = translate_fn info.adverb_fn fnInputTypes in
+  (* To implement Map, Scan, and Reduce we loop over the specified axes *)
+  (* of the biggest array argument. *)
+  (* AllPairs is different in that we loop over the axes of the first arg *)
+  (* and nested within we loop over the same set of axes of the second arg. *)
   let initBlock, loopDescriptors, allIndexVars, nestedArrayArgs =
     match info.adverb with
-    | Adverb.Map ->
-      let biggestArray : Imp.value_node = argmax_array_rank info.array_args in
-      let init, loops =
-        axes_to_loop_descriptors builder biggestArray info.axes
-      in
-      let indexVars = List.map (fun {loop_var} -> loop_var) loops in
-      let nestedArrayArgs : Imp.value_node list =
-        List.map (fun arg -> ImpHelpers.idx arg indexVars) info.array_args
-      in
-      init, loops, indexVars, nestedArrayArgs
     | Adverb.AllPairs ->
       (match info.array_args with
         | [x;y] ->
           let xInit, xLoops = axes_to_loop_descriptors builder x info.axes in
-          let xIndexVars = List.map (fun {loop_var} -> loop_var) xLoops in
+          let xIndexVars = get_loop_vars xLoops in
           let yInit, yLoops = axes_to_loop_descriptors builder y info.axes in
-          let yIndexVars = List.map (fun {loop_var} -> loop_var) yLoops in
+          let yIndexVars = get_loop_vars yLoops in
           let nestedArrayArgs =
             [ImpHelpers.idx x xIndexVars; ImpHelpers.idx y yIndexVars]
           in
           xInit@yInit, xLoops@yLoops, xIndexVars@yIndexVars, nestedArrayArgs
         | _ -> failwith "allpairs requires two args"
       )
-    | _ -> failwith "not implemented"
+    | _ ->
+      (* pick any of the highest rank arrays in the input list *)
+      let biggestArray : Imp.value_node = argmax_array_rank info.array_args in
+      (* init is a block which gets the dimensions of array we're traversing *)
+      let init, loops : (Imp.stmt list) * (loop_descr list) =
+        axes_to_loop_descriptors builder biggestArray info.axes
+      in
+      let indexVars = get_loop_vars loops in
+      let nestedArrayArgs : Imp.value_node list =
+        List.map (fun arg -> ImpHelpers.idx arg indexVars) info.array_args
+      in
+      init, loops, indexVars, nestedArrayArgs
   in
-  let nestedArgs : Imp.value_node list = info.fixed_args @ nestedArrayArgs in
-  let nestedOutputs =
-    List.map (fun out -> ImpHelpers.idx out allIndexVars) lhsVars
+  let nestedArgs, nestedOutputs =
+    match adverb.adverb, adverb.init with
+      | Prim.AllPairs, None
+      | Prim.Map, None ->
+        let nestedInputs = info.fixed_args @ nestedArrayArgs in
+        let nestedOutputs =
+          List.map (fun out -> ImpHelpers.idx out allIndexVars) lhsVars
+        in
+        nestedInputs, nestedOuputs
+      | _ -> assert false
   in
   let replaceEnv =
     ID.Map.of_lists
@@ -382,4 +398,6 @@ and vectorize_adverb
       (builder : ImpBuilder.builder)
       (lhsVars : Imp.value_node list)
       (info : (TypedSSA.fn, Imp.value_nodes, Imp.value_nodes) Adverb.info)
-      (eltT : ImpType.t) = failwith "Vectorizer not implemented"
+      (eltT : ImpType.t) =
+   translate_sequential_adverb builder lhsVars info
+
