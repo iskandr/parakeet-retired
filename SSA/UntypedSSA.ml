@@ -230,6 +230,7 @@ module ScalarHelpers = struct
     control_flow && is_scalar_block tCode && is_scalar_block fCode
   | WhileLoop (condBlock, _, body, _) ->
     control_flow && is_scalar_block condBlock && is_scalar_block body
+  | SetIdx _ -> false
   and is_scalar_stmt_node ?(control_flow=false) stmtNode =
     is_scalar_stmt ~control_flow stmtNode.stmt
   and is_scalar_block ?(control_flow=false) block =
