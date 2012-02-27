@@ -1,10 +1,10 @@
 module CoreLanguage : sig
 	type value =
-	  | Var of ID.t 
-          | Num of ParNum.t 
-          | Prim of Prim.t 
+	  | Var of ID.t
+          | Num of ParNum.t
+          | Prim of Prim.t
           | GlobalFn of FnId.t
-          | Void 
+          | Void
 
 	type value_node = { value : value; value_src : SrcInfo.t option }
 	type value_nodes = value_node list
@@ -15,7 +15,7 @@ module CoreLanguage : sig
 	  | Values of value_nodes
 	  | Arr of value_nodes
 	  | App of value_node * value_nodes
-	  | Adverb of adverb_info 
+	  | Adverb of adverb_info
 	type exp_node = { exp : exp; exp_src : SrcInfo.t option }
 
   type phi_node = value_node PhiNode.t
@@ -82,8 +82,33 @@ module ValueHelpers : sig
   val is_const_int : value_node -> bool
   val get_const : value_node -> ParNum.t
   val get_const_int : value_node -> int
+
+  val lt : value_node
+  val lte : value_node
+  val gt : value_node
+  val gte : value_node
+  val eq : value_node
+  val neq : value_node
+  val plus : value_node
+  val zero : value_node
+  val one: value_node
+
 end
 include module type of ValueHelpers
+
+module ExpHelpers : sig
+  val app : value_node -> value_node list -> exp_node
+end
+include module type of ExpHelpers
+
+module StmtHelpers : sig
+  val stmt : ?src:SrcInfo.t -> ?id:StmtId.t -> stmt -> stmt_node
+  val set : ?src:SrcInfo.t -> ID.t list -> exp_node -> stmt_node
+  val setidx :
+    ?src:SrcInfo.t -> value_node -> value_nodes -> exp_node -> stmt_node
+
+end
+include module type of StmtHelpers
 
 module FnHelpers : sig
   val mk_fn :
@@ -94,11 +119,3 @@ module FnHelpers : sig
   val fn_id : fn -> FnId.t
 end
 include module type of FnHelpers
-
-module StmtHelpers : sig
-  val stmt : ?src:SrcInfo.t -> ?id:StmtId.t -> stmt -> stmt_node
-  val set : ?src:SrcInfo.t -> ID.t list -> exp_node -> stmt_node
-  val setidx :
-    ?src:SrcInfo.t -> value_node -> value_nodes -> exp_node -> stmt_node
-end
-include module type of StmtHelpers

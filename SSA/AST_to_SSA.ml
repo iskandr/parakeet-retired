@@ -105,10 +105,10 @@ let rec translate_exp
   (* TODO: lambda lift here *)
   | AST.Lam (vars, body) -> failwith "lambda lifting not implemented"
   | AST.Arr args ->
-    { 
+    {
       UntypedSSA.exp = UntypedSSA.Arr (translate_values env block args);
-      exp_src = Some node.src; 
-    }    
+      exp_src = Some node.src;
+    }
   | AST.If _  -> failwith "unexpected If while converting to SSA"
   | AST.Assign _ -> failwith "unexpected Assign while converting to SSA"
   | AST.Block _  -> failwith "unexpected Block while converting to SSA"
@@ -132,23 +132,23 @@ and translate_axes env block {data} = match data with
   | AST.Arr axes -> Some (translate_values env block axes)
   | _ -> None
 and translate_adverb env block adverb args (src:SrcInfo.t) =
-  match args with 
-  (* TODO: support initial arguments *) 
-  | fn::{data=AST.Arr arrayArgs}::{data=AST.Arr fixedArgs}::axes::_ -> 
-    let adverbInfo = { 
-      Adverb.adverb = adverb; 
-      adverb_fn = translate_value env block fn; 
-      axes = translate_axes env block axes; 
-      array_args = translate_values env block arrayArgs; 
-      fixed_args = translate_values env block fixedArgs; 
+  match args with
+  (* TODO: support initial arguments *)
+  | fn::{data=AST.Arr arrayArgs}::{data=AST.Arr fixedArgs}::axes::_ ->
+    let adverbInfo = {
+      Adverb.adverb = adverb;
+      adverb_fn = translate_value env block fn;
+      axes = translate_axes env block axes;
+      array_args = translate_values env block arrayArgs;
+      fixed_args = translate_values env block fixedArgs;
       init = None;
     }
-    in 
-    { 
-      UntypedSSA.exp = UntypedSSA.Adverb adverbInfo; 
+    in
+    {
+      UntypedSSA.exp = UntypedSSA.Adverb adverbInfo;
       exp_src = Some src
     }
-  | _ -> failwith "Malformed adverb args"  
+  | _ -> failwith "Malformed adverb args"
 
 and translate_app env block fn args (src:SrcInfo.t) = match fn.data with
   | AST.Prim (Prim.Adverb adverb) ->
@@ -205,7 +205,7 @@ let rec translate_stmt
           (block:UntypedSSA.block)
           (retIds : ID.t list)
           (node : AST.node) : Env.t =
-  let src = node.AST.src in 
+  let src = node.AST.src in
   let mk_stmt s = UntypedSSA.stmt ~src s in
   match node.AST.data with
   | AST.Return nodes ->
@@ -217,7 +217,7 @@ let rec translate_stmt
       else
       let rhs : UntypedSSA.exp_node =
         {
-          UntypedSSA.exp = 
+          UntypedSSA.exp =
             UntypedSSA.Values (translate_values env block nodes);
           UntypedSSA.exp_src = Some src;
         }
@@ -242,8 +242,8 @@ let rec translate_stmt
       let trueIds = List.map (Env.lookup_id trueEnv) mergeNames in
       let falseEnv = translate_stmt env falseBlock retIds falseNode in
       let falseIds = List.map (Env.lookup_id falseEnv) mergeNames in
-      let phiLefts = List.map UntypedSSA.var trueIds in 
-      let phiRights = List.map UntypedSSA.var falseIds in 
+      let phiLefts = List.map UntypedSSA.var trueIds in
+      let phiRights = List.map UntypedSSA.var falseIds in
       let phiNodes = PhiNode.mk_list mergeIds phiLefts phiRights in
       Block.add block (mk_stmt $ If(condVal, trueBlock, falseBlock, phiNodes));
       Env.add_list env mergeNames mergeIds
@@ -260,7 +260,7 @@ let rec translate_stmt
       let header, exitEnv = translate_loop_body env bodyBlock retIds body  in
       let condBlock : UntypedSSA.block = Block.create () in
       let condVal = exp_as_value exitEnv condBlock "cond" cond in
-      Block.add block 
+      Block.add block
         (mk_stmt $ WhileLoop(condBlock, condVal, bodyBlock, header));
       env
 
@@ -277,28 +277,36 @@ let rec translate_stmt
       let initCounterVar = UntypedSSA.var initCounterId in
       let startCounterId = ID.gen_named "start_counter" in
       let startCounterVar = UntypedSSA.var startCounterId in
-      let endCounterId = ID.gen_named "end_counter" in
-      let endCounterVar = UntypedSSA.var endCounterId in
-      let init = wrap_exp $ UntypedSSA.int32 0 in (* (UntypedSSA.Num (ParNum.Int32 0L)) in  
+      let init = wrap_exp $ UntypedSSA.int32 0 in (* (UntypedSSA.Num (ParNum.Int32 0L)) in
       *)Block.add block (UntypedSSA.set [initCounterId] init);
       let condId = ID.gen_named "cond" in
-      let condBlock =
-        Block.singleton $
-          UntypedSSA.set [condId]
-            (UntypedSSA.app UntypedSSA.lt [startCounterVar; upperVal])
+      let test =
+        { UntypedSSA.exp =
+            UntypedSSA.App(UntypedSSA.lt,[startCounterVar; upperVal]);
+          exp_src = Some src;
+        }
       in
-      let bodyblock = Block.create () in
+      let condBlock = Block.singleton (UntypedSSA.set [condId] test) in
+      let bodyBlock = Block.create () in
       (* update the body block and generate a loop gate *)
-      let header, exitEnv = translate_loop_body env bodyblock retIds body  in
+      let header, exitEnv = translate_loop_body env bodyBlock retIds body  in
       (* incremenet counter and add SSA gate for counter to loopGate *)
-      Block.add bodyBlock (UntypedSSA.incr endCounterId startCounterVar);
-
+      let endCounterId = ID.gen_named "end_counter" in
+      let endCounterVar = UntypedSSA.var endCounterId in
+      let incrExp : UntypedSSA.exp_node =
+        { UntypedSSA.exp =
+            UntypedSSA.App(UntypedSSA.plus, [startCounterVar; UntypedSSA.one]);
+          exp_src = Some src;
+        }
+      in
+      Block.add bodyBlock (UntypedSSA.set [endCounterId] incrExp);
       let header' =
         (PhiNode.mk startCounterId initCounterVar endCounterVar) :: header
       in
       let condVal = UntypedSSA.var condId in
-      Block.add block 
-        (mk_stmt $ WhileLoop(condBlock, condVal, bodyBlock, header'));
+      Block.add block
+        (mk_stmt $ WhileLoop(condBlock, condVal, bodyBlock, header'))
+      ;
       exitEnv
   | _ ->
       failwith $ Printf.sprintf
@@ -362,9 +370,9 @@ and translate_fn ?name parentEnv argNames (body:AST.node) : UntypedSSA.fn =
   let initEnv = Env.extend parentEnv argNames argIds in
   let typedBlock : UntypedSSA.block = Block.create () in
   let _ = translate_stmt initEnv typedBlock retIds body in
-  UntypedSSA.mk_fn 
-    ?name 
-    ~body:typedBlock 
-    ~input_ids:argIds 
+  UntypedSSA.mk_fn
+    ?name
+    ~body:typedBlock
+    ~input_ids:argIds
     ~output_ids:retIds
 

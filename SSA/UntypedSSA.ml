@@ -7,7 +7,7 @@ module CoreLanguage = struct
     | Num of ParNum.t
     | Prim of Prim.t
     | GlobalFn of FnId.t
-    | Void 
+    | Void
 
   type value_node = { value : value; value_src : SrcInfo.t option; }
   type value_nodes = value_node list
@@ -18,7 +18,7 @@ module CoreLanguage = struct
     | Values of value_nodes
     | Arr of value_nodes
     | App of value_node * value_nodes
-    | Adverb of adverb_info 
+    | Adverb of adverb_info
 
   type exp_node = { exp : exp; exp_src : SrcInfo.t option }
 
@@ -52,7 +52,7 @@ module PrettyPrinters = struct
     | Num n -> ParNum.to_str n
     | Prim p -> "prim(" ^ Prim.to_str p ^ ")"
     | GlobalFn fnId -> FnId.to_str fnId
-    | Void -> "void" 
+    | Void -> "void"
 
   let value_node_to_str valNode = value_to_str valNode.value
 
@@ -150,26 +150,28 @@ module ValueHelpers = struct
   let get_const_int {value} = match value with
     | Num n -> ParNum.to_int n
     | _ -> failwith "Not an integer"
+
+  let lt = wrap_value (Prim (Prim.ScalarOp Prim.Lt))
+  let lte = wrap_value (Prim (Prim.ScalarOp Prim.Lte))
+  let gt = wrap_value (Prim (Prim.ScalarOp Prim.Gt))
+  let gte = wrap_value (Prim (Prim.ScalarOp Prim.Gte))
+  let eq = wrap_value (Prim (Prim.ScalarOp Prim.Eq))
+  let neq = wrap_value (Prim (Prim.ScalarOp Prim.Neq))
+
+  let plus = wrap_value (Prim (Prim.ScalarOp Prim.Add))
+  let zero = wrap_value (Num (ParNum.zero Type.Int32T))
+  let one = wrap_value (Num (ParNum.one Type.Int32T))
 end
 include ValueHelpers
 
-module FnHelpers = struct
-  let mk_fn ?name ~input_ids ~output_ids ~body : fn =
-    let fnId =
-      match name with | Some name -> FnId.gen_named name | None -> FnId.gen()
-    in
-    {
-      body = body;
-      input_ids = input_ids;
-      output_ids = output_ids;
-      fn_id = fnId;
-    }
 
-  let input_arity {input_ids} = List.length input_ids
-  let output_arity {output_ids} = List.length output_ids
-  let fn_id {fn_id} = fn_id
+module ExpHelpers = struct
+  let app lhs args =
+    { exp = App(lhs, args);
+      exp_src = None;
+    }
 end
-include FnHelpers
+include ExpHelpers
 
 module StmtHelpers = struct
   let stmt ?src ?(id=StmtId.gen()) stmt =
@@ -190,5 +192,26 @@ module StmtHelpers = struct
     stmt_src = src;
     stmt_id = StmtId.gen()
   }
+
 end
 include StmtHelpers
+
+
+module FnHelpers = struct
+  let mk_fn ?name ~input_ids ~output_ids ~body : fn =
+    let fnId =
+      match name with | Some name -> FnId.gen_named name | None -> FnId.gen()
+    in
+    {
+      body = body;
+      input_ids = input_ids;
+      output_ids = output_ids;
+      fn_id = fnId;
+    }
+
+  let input_arity {input_ids} = List.length input_ids
+  let output_arity {output_ids} = List.length output_ids
+  let fn_id {fn_id} = fn_id
+end
+include FnHelpers
+

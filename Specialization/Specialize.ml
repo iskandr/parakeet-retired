@@ -8,23 +8,24 @@ open Type
 open Printf
 
 (* make a fresh function definition whose body is only an untyped prim *)
-let untypedPrimFnCache : (Prim.t * int, SSA.fn) Hashtbl.t =
+let untypedPrimFnCache : (Prim.t * int, UntypedSSA.fn) Hashtbl.t =
   Hashtbl.create 127
 
-let mk_untyped_prim_fn (prim:Prim.t) arity : SSA.fn =
+let mk_untyped_prim_fn (prim:Prim.t) arity : UntypedSSA.fn =
   let key = (prim,arity) in
   if Hashtbl.mem untypedPrimFnCache key  then
     Hashtbl.find untypedPrimFnCache key
   else
   let inputs = ID.gen_named_list "input" arity in
   let output = ID.gen_named "output" in
-  let inputVars = List.map TypedSSA.var inputs in
-  let rhs = TypedSSA.app (TypedSSA.wrap_value (Prim prim)) inputVars in
-  let body = Block.singleton (TypedSSA.set [output] rhs) in
+  let inputVars = List.map UntypedSSA.var inputs in
+  let rhs =
+    UntypedSSA.app (UntypedSSA.wrap_value (Prim prim)) inputVars
+  in
+  let body = Block.singleton (UntypedSSA.set [output] rhs) in
   let fn =
-    TypedSSA.mk_fn
+    UntypedSSA.mk_fn
       ~name:("prim_" ^ (Prim.to_str prim))
-      ?tenv:None
       ~input_ids:inputs
       ~output_ids:[output]
       ~body
@@ -70,21 +71,21 @@ let mk_typed_scalar_prim (op : Prim.scalar_op) ?optOutType argTypes =
 
 (* checks whether a statement uses an untyped scalar operator *)
 let rec is_scalar_stmt stmtNode = match stmtNode.stmt with
-  | SSA.Set(_, {exp=SSA.App({value=SSA.Prim (Prim.ScalarOp _)}, _)}) ->
+  | UntypedSSA.Set(_,
+      {exp= UntypedSSA.App(
+        {UntypedSSA.value=UntypedSSA.Prim (Prim.ScalarOp _)},
+       _)}) ->
     ThreeValuedLogic.Yes
-  | SSA.Set(_, {exp=Values _}) -> ThreeValuedLogic.Maybe
-  | SSA.If(_, tCode, fCode, _) ->
-      ThreeValuedLogic.combine (is_scalar_block tCode) (is_scalar_block fCode)
+  | UntypedSSA.Set(_, {Untyped.exp=UntypedSSA.Values _}) ->
+    ThreeValuedLogic.Maybe
+  | UntypedSSA.If(_, tCode, fCode, _) ->
+    ThreeValuedLogic.combine (is_scalar_block tCode) (is_scalar_block fCode)
   | _ -> ThreeValuedLogic.No
-
 and is_scalar_block block =
   Block.fold_forward
     (fun acc stmtNode -> ThreeValuedLogic.combine acc (is_scalar_stmt stmtNode))
     ThreeValuedLogic.Maybe
     block
-
-
-
 
 let rec specialize_fn fn signature =
   IFDEF DEBUG THEN
@@ -137,7 +138,9 @@ and scalarize_fn untyped vecSig =
         (Type.type_list_to_str scalarTypes)
   ENDIF;
   let scalarSig = Signature.from_input_types scalarTypes in
-  let scalarFn = specialize_value (SSA.GlobalFn untyped.fn_id) scalarSig in
+  let scalarFn =
+    specialize_value (UntypedSSA.GlobalFn untyped.fn_id) scalarSig
+  in
   let scalarOutputTypes = scalarFn.fn_output_types in
   let outTypes = List.map (Type.increase_rank numAxes) scalarOutputTypes in
   let scalarClosure = TypedSSA.closure scalarFn [] in
@@ -160,48 +163,49 @@ and specialize_value fnVal signature =
   | None ->
     let inputTypes = Signature.input_types signature in
     (match fnVal with
-      | SSA.GlobalFn fnId ->
+      | UntypedSSA.GlobalFn fnId ->
         let untyped = FnManager.get_untyped_function fnId in
         let typed = specialize_fn untyped signature in
         FnManager.add_specialization ~optimize:true fnVal signature typed;
         typed
-      | SSA.Prim (Prim.ScalarOp op) ->
-          let optOutType =
-            Option.map List.hd (Signature.output_types_option signature)
-          in
-          let typed =
-            if List.for_all Type.is_scalar inputTypes
-            then mk_typed_scalar_prim op ?optOutType inputTypes
-            else begin
-            (* if we're adding two arrays, then turn it into a map over both *)
-            (* axes, but if we're adding an array to a vector we can only map*)
-            (* over one axis *)
-              let maxRank =
-                AdverbHelpers.max_num_axes_from_array_types inputTypes
-              in
-              let nestedInputTypes =
-                List.map (Type.peel ~num_axes:maxRank) inputTypes
-              in
-              let nestedSig = match optOutType with
-                | None ->
-                  Signature.from_input_types nestedInputTypes
-                | Some outT ->
-                  let nestedOutTypes = [Type.peel ~num_axes:maxRank outT] in
-                  Signature.from_types nestedInputTypes nestedOutTypes
-              in
-              let nestedFn = specialize_value fnVal nestedSig in
-              AdverbHelpers.mk_map_fn
-                ?src:None
-                ~nested_fn:nestedFn
-                ~axes:(AdverbHelpers.infer_adverb_axes_from_rank maxRank)
-                ~fixed_types:[]
-                ~array_types:inputTypes
-            end
-          in
-          FnManager.add_specialization ~optimize:false fnVal signature typed;
-          typed
+      | UntypedSSA.Prim (Prim.ScalarOp op) ->
+        let optOutType =
+          Option.map List.hd (Signature.output_types_option signature)
+        in
+        let typed =
+          if List.for_all Type.is_scalar inputTypes
+          then mk_typed_scalar_prim op ?optOutType inputTypes
+          else begin
+          (* if we're adding two arrays, then turn it into a map over both *)
+          (* axes, but if we're adding an array to a vector we can only map*)
+          (* over one axis *)
+            let maxRank =
+              AdverbHelpers.max_num_axes_from_array_types inputTypes
+            in
+            let nestedInputTypes =
+              List.map (Type.peel ~num_axes:maxRank) inputTypes
+            in
+            let nestedSig = match optOutType with
+              | None ->
+                Signature.from_input_types nestedInputTypes
+              | Some outT ->
+                let nestedOutTypes = [Type.peel ~num_axes:maxRank outT] in
+                Signature.from_types nestedInputTypes nestedOutTypes
+            in
+            let nestedFn = specialize_value fnVal nestedSig in
+            let adverbInfo = {
+              Adverb.adverb = Adverb.Map;
+              adverb_fn = nestedFn;
+              axes = AdverbHelpers.infer_adverb_axes_from_rank maxRank;
+              fixed_args = [];
+              init = None;
+              array_args =
+             }
+            in
 
-      | SSA.Prim p ->
+            FnManager.add_specialization ~optimize:false fnVal signature typed;
+            typed
+      | UntypedSSA.Prim p ->
           let arity = List.length inputTypes in
           assert (arity >= Prim.min_prim_arity p &&
                   arity <= Prim.max_prim_arity p);
