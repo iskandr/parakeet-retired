@@ -37,6 +37,11 @@ module type ORD = sig
   val compare : t -> t -> int
 end
 
+let rec is_sequence ?(start=0) = function
+  | [] -> true
+  | [x] -> x = start
+  | x::xs -> (x = start) && (is_sequence ~start:(start+1) xs)
+
 let safe_div n d =
   (n + d - 1) / d
 

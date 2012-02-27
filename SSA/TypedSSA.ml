@@ -267,12 +267,22 @@ module FnHelpers = struct
 	  in
 	  mk_fn ?name ~tenv ~input_ids: inputIds ~output_ids: outputIds ~body
 
-	  let find_fn_src_info { body } = get_block_src_info body
-	  let input_arity { input_ids } = List.length input_ids
-	  let output_arity { output_ids } = List.length output_ids
-	  let input_types { fn_input_types } = fn_input_types
-	  let output_types { fn_output_types } = fn_output_types
-	  let fn_id { fn_id } = fn_id
+  let find_fn_src_info { body } = get_block_src_info body
+	let input_arity { input_ids } = List.length input_ids
+	let output_arity { output_ids } = List.length output_ids
+	let input_types { fn_input_types } = fn_input_types
+	let output_types { fn_output_types } = fn_output_types
+	let fn_id { fn_id } = fn_id
+
+
+  (* if al variables in the function have the same type then return it, *)
+  (* otherwise return None *)
+  let get_single_type {tenv} =
+    let aux id t = function
+      | None -> None
+      | Some oldT -> if oldT = t then Some t else None
+    in
+    ID.Map.fold aux tenv (Some (snd $ ID.Map.choose tenv))
 end
 include FnHelpers
 

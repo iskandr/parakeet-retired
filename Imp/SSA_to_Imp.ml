@@ -1,6 +1,7 @@
 (* pp: -parser o pa_macro.cmo *)
 
 open Base
+open Adverb
 open Imp
 open ImpBuilder
 open ImpHelpers
@@ -238,7 +239,8 @@ and translate_stmt (builder : ImpBuilder.builder) stmtNode : Imp.stmt list  =
         ~axes:AdverbHelpers.const_axes
         info
     in
-    translate_adverb builder ids impInfo
+    let lhsValues = List.map builder#var ids in
+    translate_adverb builder lhsValues impInfo
 	(* all assignments other than those with an array literal RHS *)
   | TypedSSA.Set([id], rhs) ->
     let impRhs : Imp.value_node = translate_exp builder rhs in
@@ -315,35 +317,40 @@ and translate_exp (builder:ImpBuilder.builder) expNode : Imp.value_node  =
 (* TODO: make this do something sane for adverbs other than Map *)
 and translate_adverb
       (builder:ImpBuilder.builder)
-      (lhsIds:ID.t list)
-      {Adverb.adverb; adverb_fn; fixed_args; init; axes; array_args}
+      (lhsVars: Imp.value_node list)
+      (info : (TypedSSA.fn, Imp.value_node list, int list) Adverb.info)
       : Imp.stmt list =
-  assert (init = None);
-  let fixedTypes = List.map Imp.value_type fixed_args in
-  let argTypes = List.map Imp.value_type array_args in
-  let num_axes = List.length axes in
+  if TypedSSA.ScalarHelpers.is_scalar_fn ~control_flow:false info.adverb_fn then
+    match TypedSSA.FnHelpers.get_single_type info.adverb_fn with
+      | None -> translate_sequential_adverb builder lhsVars info
+      | Some t ->
+        let impType = InferImpTypes.simple_conversion t in
+        vectorize_adverb builder lhsVars info impType
+  else translate_sequential_adverb builder lhsVars info
+and translate_sequential_adverb
+      (builder:ImpBuilder.builder)
+      (lhsVars : Imp.value_node list)
+      (info : (TypedSSA.fn, Imp.value_node list, int list) Adverb.info)
+      : Imp.stmt list =
+  let fixedTypes = List.map Imp.value_type info.fixed_args in
+  let argTypes = List.map Imp.value_type info.array_args in
+  let num_axes = List.length info.axes in
   let peeledArgTypes = List.map (ImpType.peel ~num_axes) argTypes in
   let fnInputTypes = fixedTypes @ peeledArgTypes in
-  let impFn : Imp.fn = translate_fn adverb_fn fnInputTypes in
-  let bigArray : Imp.value_node = argmax_array_rank array_args in
+  let impFn : Imp.fn = translate_fn info.adverb_fn fnInputTypes in
+  let bigArray : Imp.value_node = argmax_array_rank info.array_args in
   let initBlock, loopDescriptors =
-    axes_to_loop_descriptors builder bigArray axes
+    axes_to_loop_descriptors builder bigArray info.axes
   in
   let indices = List.map (fun {loop_var} -> loop_var) loopDescriptors in
   let nestedArrayArgs : Imp.value_node list =
-    List.map (fun arg -> ImpHelpers.idx arg indices) array_args
+    List.map (fun arg -> ImpHelpers.idx arg indices) info.array_args
   in
-  let nestedArgs : Imp.value_node list = fixed_args @ nestedArrayArgs in
+  let nestedArgs : Imp.value_node list = info.fixed_args @ nestedArrayArgs in
   (*   Currently assuming that axes are in order starting from zero *)
-  let rec check_ordered_list ?(prev=(-1)) = function
-    | [] -> failwith "[translate_map] Can't handle empty axis list"
-    | [x] -> x = (prev + 1)
-    | x::xs -> (x = prev + 1) && (check_ordered_list ~prev:x xs)
-  in
-  check_ordered_list axes;
-  let lhsValues = List.map builder#var lhsIds in
+  assert (Base.is_sequence ~start:0 info.axes);
   let nestedOutputs =
-    List.map (fun arrayOutput -> ImpHelpers.idx arrayOutput indices) lhsValues
+    List.map (fun arrayOutput -> ImpHelpers.idx arrayOutput indices) lhsVars
   in
   let replaceEnv =
     ID.Map.of_lists
@@ -353,5 +360,9 @@ and translate_adverb
   let fnBody = ImpReplace.replace_block replaceEnv impFn.body in
   let loops = build_loop_nests builder loopDescriptors fnBody in
   initBlock @ loops
-and translate_sequential_adverb = assert false
-and translate_vectorized_adverb = assert false
+
+and vectorize_adverb
+      (builder : ImpBuilder.builder)
+      (lhsVars : Imp.value_node list)
+      (info : (TypedSSA.fn, Imp.value_node list, int list) Adverb.info)
+      (eltT : ImpType.t) = failwith "Vectorizer not implemented"

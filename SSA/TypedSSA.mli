@@ -115,6 +115,8 @@ module FnHelpers  : sig
         output_types: (Type.t list) ->
           ?local_types: (Type.t list) ->
             ((value_nodes * value_nodes * value_nodes) -> stmt_node list) -> fn
+
+  val get_single_type : fn -> Type.t option
 end
 include module type of FnHelpers
 
@@ -153,4 +155,5 @@ module ScalarHelpers : sig
   val is_scalar_stmt_node : ?control_flow:bool -> stmt_node -> bool
   val is_scalar_block : ?control_flow:bool -> block -> bool
   val is_scalar_fn : ?control_flow:bool -> fn -> bool
+
 end
