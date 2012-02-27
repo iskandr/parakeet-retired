@@ -98,15 +98,16 @@ module PrettyPrinters = struct
       (phi_nodes_to_str phiNodes)
   and stmt_node_to_str {stmt} = stmt_to_str stmt
   and block_to_str block =
-    Block.to_str stmt_node_to_str block
+    Base.wrap_str (Block.to_str stmt_node_to_str block)
 
+  let fn_id_to_str (fundef:fn) = FnId.to_str fundef.fn_id
 
   let fn_to_str (fundef:fn) =
-    let name = FnId.to_str fundef.fn_id in
+    let name = fn_id_to_str fundef in
     let inputs = ID.list_to_str fundef.input_ids in
     let outputs = ID.list_to_str fundef.output_ids in
     let body = block_to_str fundef.body in
-    Base.wrap_str (sprintf "def %s(%s)=>(%s):\n%s" name inputs outputs body)
+    (sprintf "def %s(%s)=>(%s):%s" name inputs outputs body)
 
 end
 include PrettyPrinters

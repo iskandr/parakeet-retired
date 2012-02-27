@@ -57,7 +57,7 @@ module PrettyPrinters : sig
   val stmt_to_str : stmt -> string
   val stmt_node_to_str : stmt_node -> string
   val block_to_str :  block -> string
-
+  val fn_id_to_str : fn -> string
   val fn_to_str : fn -> string
 end
 include module type of PrettyPrinters

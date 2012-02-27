@@ -21,7 +21,7 @@ module CoreLanguage = struct
 	  | Arr of value_nodes
 	  | Call of FnId.t * value_nodes
 	  | PrimApp of Prim.t * value_nodes
-	  | Adverb of adverb_info 
+	  | Adverb of adverb_info
     | Cast of Type.t * value_node
 
 	type exp_node = {
@@ -133,7 +133,7 @@ module PrettyPrinters = struct
       (phi_nodes_to_str phiNodes)
   and stmt_node_to_str {stmt} = stmt_to_str stmt
   and block_to_str block =
-    Block.to_str stmt_node_to_str block
+    Base.wrap_str (Block.to_str stmt_node_to_str block)
 
   let typed_id_to_str tenv id =
     (ID.to_str id) ^ " : " ^ (Type.to_str (ID.Map.find id tenv))
@@ -141,12 +141,14 @@ module PrettyPrinters = struct
   let typed_ids_to_str tenv ids =
     String.concat ", " (List.map (typed_id_to_str tenv) ids)
 
+  let fn_id_to_str (fundef:fn) = FnId.to_str fundef.fn_id
+
   let fn_to_str (fundef: fn) =
-    let name = FnId.to_str fundef.fn_id in
+    let name = fn_id_to_str fundef in
     let inputs = typed_ids_to_str fundef.tenv fundef.input_ids in
     let outputs = typed_ids_to_str fundef.tenv fundef.output_ids in
     let body = block_to_str fundef.body in
-    Base.wrap_str (sprintf "def %s(%s)=>(%s):\n%s" name inputs outputs body)
+    sprintf "def %s(%s)=>(%s):%s" name inputs outputs body
 end
 include PrettyPrinters
 
