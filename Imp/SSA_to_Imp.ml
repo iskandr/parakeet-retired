@@ -375,14 +375,14 @@ and translate_sequential_adverb
       init, loops, indexVars, nestedArrayArgs
   in
   let nestedArgs, nestedOutputs =
-    match adverb.adverb, adverb.init with
-      | Prim.AllPairs, None
-      | Prim.Map, None ->
+    match info.adverb, info.init with
+      | Adverb.AllPairs, None
+      | Adverb.Map, None ->
         let nestedInputs = info.fixed_args @ nestedArrayArgs in
         let nestedOutputs =
           List.map (fun out -> ImpHelpers.idx out allIndexVars) lhsVars
         in
-        nestedInputs, nestedOuputs
+        nestedInputs, nestedOutputs
       | _ -> assert false
   in
   let replaceEnv =
