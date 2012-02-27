@@ -77,7 +77,6 @@ def init_parakeet_lib():
   LibPar.mk_void.restype = c_void_p
   LibPar.mk_return.restype = c_void_p
   LibPar.print_ast_node.restype = c_void_p
-  LibPar.mk_source_info_struct.restype = c_void_p
 
   #get global values for parakeet types
   LibPar.bool_t = c_int.in_dll(LibPar, "parakeet_bool_elt_t").value

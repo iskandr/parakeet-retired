@@ -1,7 +1,7 @@
 (* pp: -parser o pa_macro.cmo *)
 
-open Base
 open Adverb
+open Base
 open Imp
 open ImpHelpers
 open Imp_to_LLVM
@@ -253,6 +253,7 @@ let adverb (info:(TypedSSA.fn, Ptr.t Value.t list, int list) Adverb.info) =
     ;
   ENDIF;
   outputs
+
 (*
 let reduce ~axes ~fn ~fixed ?init args =
   let reduceFn =
@@ -353,4 +354,3 @@ let allpairs ~axes ~fn ~fixed x y =
   ENDIF;
   outputs
 *)
-
