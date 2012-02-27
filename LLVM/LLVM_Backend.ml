@@ -224,15 +224,15 @@ let call (fn:TypedSSA.fn) args =
   call_imp_fn impFn args
 
 let adverb (info:(TypedSSA.fn, Ptr.t Value.t list, int list) Adverb.info) =
-  assert (info.init = None); 
-  let adverbFn = 
-    AdverbHelpers.mk_adverb_fn $ 
-      Adverb.apply_to_fields info 
+  assert (info.init = None);
+  let adverbFn =
+    AdverbHelpers.mk_adverb_fn $
+      Adverb.apply_to_fields info
         ~fn:TypedSSA.fn_id
         ~values:Value.type_of_list
         ~axes:(List.map TypedSSA.int32)
   in
-  let allArgValues : Ptr.t Value.t list = info.fixed_args @ info.array_args in  
+  let allArgValues : Ptr.t Value.t list = info.fixed_args @ info.array_args in
   let impTypes = List.map ImpType.type_of_value allArgValues in
   let impFn : Imp.fn = SSA_to_Imp.translate_fn adverbFn impTypes in
   let llvmFn = CompiledFunctionCache.compile impFn in
@@ -241,7 +241,9 @@ let adverb (info:(TypedSSA.fn, Ptr.t Value.t list, int list) Adverb.info) =
     allocate_output_arrays impFn inputShapes
   in
   (* TODO: looks like we're ignoring the closure values! *)
-  let work_items = build_work_items info.axes num_cores (info.array_args @ outputs) in
+  let work_items =
+    build_work_items info.axes num_cores (info.array_args @ outputs)
+  in
   do_work work_queue execution_engine llvmFn work_items;
   (* TODO: What happens to reduced things? We still need to recombine them!*)
   IFDEF DEBUG THEN
@@ -253,10 +255,10 @@ let adverb (info:(TypedSSA.fn, Ptr.t Value.t list, int list) Adverb.info) =
   outputs
 (*
 let reduce ~axes ~fn ~fixed ?init args =
-  let reduceFn = 
+  let reduceFn =
     AdverbHelpers.mk_adverb_fn
       ?src:None
-      { Adverb.adverb = Adverb.Reduce 
+      { Adverb.adverb = Adverb.Reduce
         adverb_fn = fn;
     ~axes:(List.map SSA_Helpers.int32 axes)
     ~fixed_types:(List.map Value.type_of fixed)

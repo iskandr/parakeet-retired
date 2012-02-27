@@ -89,7 +89,7 @@ let add_specialization
        but make sure it really is the same function
     *)
     IFDEF DEBUG THEN
-      assert (FnTable.find fnId state.typed_functions = typedFn)
+      assert (FnTable.find fnId state.typed_functions == typedFn)
     ENDIF;
     ()
   )
