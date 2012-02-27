@@ -134,11 +134,11 @@ let translate_array_literal
 let rec size_of_axes
      (builder:ImpBuilder.builder)
      (array:Imp.value_node)
-     (axes:int list) : Imp.block * Imp.value_node list =
+     (axes:Imp.value_nodes) : Imp.block * Imp.value_node list =
   match axes with
   | [] -> [], []
   | axis::rest ->
-    let size : Imp.value_node = ImpHelpers.dim array (ImpHelpers.int axis) in
+    let size : Imp.value_node = ImpHelpers.dim array axis in
     let temp = builder#fresh_local ~name:"size" ImpType.int32_t in
     let stmtNode = ImpHelpers.set temp size in
     let restBlock, restVals = size_of_axes builder array rest in
@@ -149,7 +149,7 @@ let rec size_of_axes
 let rec axes_to_loop_descriptors
     (builder:ImpBuilder.builder)
     (array : Imp.value_node)
-    (axes : int list) : Imp.block * loop_descr list =
+    (axes : Imp.value_nodes) : Imp.block * loop_descr list =
   let stmts, sizes = size_of_axes builder array axes in
   let loopDescriptors = List.map
     (mk_simple_loop_descriptor builder) sizes in
@@ -232,12 +232,12 @@ and translate_stmt (builder : ImpBuilder.builder) stmtNode : Imp.stmt list  =
     translate_array_literal builder id elts
   (* adverbs get special treatment since they might return multiple values *)
   | TypedSSA.Set(ids,  {TypedSSA.exp = TypedSSA.Adverb info }) ->
-    let impInfo : (TypedSSA.fn, Imp.value_node list, int list) Adverb.info =
+    let impInfo : (TypedSSA.fn, Imp.value_nodes, Imp.value_nodes) Adverb.info =
       Adverb.apply_to_fields
+         info
         ~fn:FnManager.get_typed_function
         ~values:(translate_values builder)
-        ~axes:AdverbHelpers.const_axes
-        info
+        ~axes:(translate_values builder)
     in
     let lhsValues = List.map builder#var ids in
     translate_adverb builder lhsValues impInfo
@@ -318,7 +318,7 @@ and translate_exp (builder:ImpBuilder.builder) expNode : Imp.value_node  =
 and translate_adverb
       (builder:ImpBuilder.builder)
       (lhsVars: Imp.value_node list)
-      (info : (TypedSSA.fn, Imp.value_node list, int list) Adverb.info)
+      (info : (TypedSSA.fn, Imp.value_nodes, Imp.value_nodes) Adverb.info)
       : Imp.stmt list =
   if TypedSSA.ScalarHelpers.is_scalar_fn ~control_flow:false info.adverb_fn then
     match TypedSSA.FnHelpers.get_single_type info.adverb_fn with
@@ -330,7 +330,7 @@ and translate_adverb
 and translate_sequential_adverb
       (builder:ImpBuilder.builder)
       (lhsVars : Imp.value_node list)
-      (info : (TypedSSA.fn, Imp.value_node list, int list) Adverb.info)
+      (info : (TypedSSA.fn, Imp.value_nodes, Imp.value_nodes) Adverb.info)
       : Imp.stmt list =
   let fixedTypes = List.map Imp.value_type info.fixed_args in
   let argTypes = List.map Imp.value_type info.array_args in
@@ -347,8 +347,6 @@ and translate_sequential_adverb
     List.map (fun arg -> ImpHelpers.idx arg indices) info.array_args
   in
   let nestedArgs : Imp.value_node list = info.fixed_args @ nestedArrayArgs in
-  (*   Currently assuming that axes are in order starting from zero *)
-  assert (Base.is_sequence ~start:0 info.axes);
   let nestedOutputs =
     List.map (fun arrayOutput -> ImpHelpers.idx arrayOutput indices) lhsVars
   in
@@ -364,5 +362,5 @@ and translate_sequential_adverb
 and vectorize_adverb
       (builder : ImpBuilder.builder)
       (lhsVars : Imp.value_node list)
-      (info : (TypedSSA.fn, Imp.value_node list, int list) Adverb.info)
+      (info : (TypedSSA.fn, Imp.value_nodes, Imp.value_nodes) Adverb.info)
       (eltT : ImpType.t) = failwith "Vectorizer not implemented"
