@@ -338,17 +338,36 @@ and translate_sequential_adverb
   let peeledArgTypes = List.map (ImpType.peel ~num_axes) argTypes in
   let fnInputTypes = fixedTypes @ peeledArgTypes in
   let impFn : Imp.fn = translate_fn info.adverb_fn fnInputTypes in
-  let bigArray : Imp.value_node = argmax_array_rank info.array_args in
-  let initBlock, loopDescriptors =
-    axes_to_loop_descriptors builder bigArray info.axes
-  in
-  let indices = List.map (fun {loop_var} -> loop_var) loopDescriptors in
-  let nestedArrayArgs : Imp.value_node list =
-    List.map (fun arg -> ImpHelpers.idx arg indices) info.array_args
+  let initBlock, loopDescriptors, allIndexVars, nestedArrayArgs =
+    match info.adverb with
+    | Adverb.Map ->
+      let biggestArray : Imp.value_node = argmax_array_rank info.array_args in
+      let init, loops =
+        axes_to_loop_descriptors builder biggestArray info.axes
+      in
+      let indexVars = List.map (fun {loop_var} -> loop_var) loops in
+      let nestedArrayArgs : Imp.value_node list =
+        List.map (fun arg -> ImpHelpers.idx arg indexVars) info.array_args
+      in
+      init, loops, indexVars, nestedArrayArgs
+    | Adverb.AllPairs ->
+      (match info.array_args with
+        | [x;y] ->
+          let xInit, xLoops = axes_to_loop_descriptors builder x info.axes in
+          let xIndexVars = List.map (fun {loop_var} -> loop_var) xLoops in
+          let yInit, yLoops = axes_to_loop_descriptors builder y info.axes in
+          let yIndexVars = List.map (fun {loop_var} -> loop_var) yLoops in
+          let nestedArrayArgs =
+            [ImpHelpers.idx x xIndexVars; ImpHelpers.idx y yIndexVars]
+          in
+          xInit@yInit, xLoops@yLoops, xIndexVars@yIndexVars, nestedArrayArgs
+        | _ -> failwith "allpairs requires two args"
+      )
+    | _ -> failwith "not implemented"
   in
   let nestedArgs : Imp.value_node list = info.fixed_args @ nestedArrayArgs in
   let nestedOutputs =
-    List.map (fun arrayOutput -> ImpHelpers.idx arrayOutput indices) lhsVars
+    List.map (fun out -> ImpHelpers.idx out allIndexVars) lhsVars
   in
   let replaceEnv =
     ID.Map.of_lists
