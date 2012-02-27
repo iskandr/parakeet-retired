@@ -26,7 +26,7 @@ let register_untyped_function ~name ~globals ~args astNode =
   let ssaEnv = AST_to_SSA.Env.GlobalScope FnManager.get_untyped_id in
   let argNames = globals @ args in
   let fn = AST_to_SSA.translate_fn ~name ssaEnv argNames astNode in
-  FnManager.add_untyped ~optimize:true name fn;
+  FnManager.add_untyped name fn;
   let fnId = fn.UntypedSSA.fn_id in
   IFDEF DEBUG THEN
     Printf.printf "Registered %s as %s (id = %d)\n Body: %s\n%!"
@@ -60,7 +60,6 @@ let get_specialized_function untypedId signature =
   | Some typedId ->
     FnManager.get_typed_function typedId
   | None ->
-    FnManager.optimize_untyped_functions ();
     let unoptimizedTyped = Specialize.specialize_fn_id untypedId signature in
     (* now optimize the typed fundef and any typed functions it depends on *)
     FnManager.optimize_typed_functions ();
@@ -80,7 +79,7 @@ let run_function untypedId ~globals ~args : ret_val =
   let argTypes = List.map Value.type_of args in
   let untypedFn = FnManager.get_untyped_function untypedId in
   let nargs = List.length args in
-  let arity = List.length untypedFn.input_ids in
+  let arity = List.length untypedFn.UntypedSSA.input_ids in
   if nargs <> arity then
     let errorMsg =
       Printf.sprintf

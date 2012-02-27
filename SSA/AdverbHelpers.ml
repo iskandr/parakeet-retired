@@ -74,8 +74,10 @@ let mk_adverb_fn
     | None ->
       let constructor = function
         | inputs, outputs, [] ->
-          let fixed, arrays = List.split_nth (List.length info.fixed_args) inputs in
-          let valueInfo = { info with 
+          let fixed, arrays =
+            List.split_nth (List.length info.fixed_args) inputs
+          in
+          let valueInfo = { info with
             fixed_args = fixed;
             init = None;
             array_args = arrays;
@@ -85,7 +87,7 @@ let mk_adverb_fn
         | _ -> assert false
       in
       let nAxes = List.length info.axes in
-      let nestedFnId = info.adverb_fn in 
+      let nestedFnId = info.adverb_fn in
       let nestedOutputTypes = FnManager.output_types_of_typed_fn nestedFnId in
       let outputTypes = Type.increase_ranks nAxes nestedOutputTypes in
       let newfn =
