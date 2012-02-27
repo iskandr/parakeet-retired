@@ -17,34 +17,33 @@ module Env : sig
   val has_id : t -> string -> bool
 end
 
-type buffer = UntypedSSA.stmt_node DynArray.t
 
 val flatten_indexing : AST.node -> AST.node list
-val translate_exp : Env.t -> buffer -> AST.node -> UntypedSSA.exp_node
-
-val translate_value : Env.t -> buffer -> AST.node -> UntypedSSA.value_node
-
+val translate_exp : Env.t -> UntypedSSA.block -> AST.node -> UntypedSSA.exp_node
+val translate_value :
+  Env.t -> UntypedSSA.block -> AST.node -> UntypedSSA.value_node
 val translate_values :
-  Env.t -> buffer -> AST.node list -> UntypedSSA.value_node list
+  Env.t -> UntypedSSA.block -> AST.node list -> UntypedSSA.value_node list
 
 
 val exp_as_value :
-  Env.t -> buffer -> string -> AST.node -> UntypedSSA.value_node
-
+  Env.t -> UntypedSSA.block -> string -> AST.node -> UntypedSSA.value_node
 val exps_as_values :
-  Env.t -> buffer -> string -> AST.node list -> UntypedSSA.value_node list
+  Env.t -> UntypedSSA.block -> string -> AST.node list ->
+    UntypedSSA.value_node list
 
 val translate_assignment :
-  Env.t -> buffer -> AST.node list -> AST.node -> Env.t
+  Env.t -> UntypedSSA.block -> AST.node list -> AST.node -> Env.t
 
 
 val translate_stmt :
-  Env.t -> buffer -> ID.t list -> AST.node -> Env.t
+  Env.t -> UntypedSSA.block -> ID.t list -> AST.node -> Env.t
 
 val translate_loop_body :
-  Env.t -> buffer -> ID.t list ->  AST.node -> UntypedSSA.phi_node list * Env.t
+  Env.t -> UntypedSSA.block -> ID.t list ->  AST.node -> UntypedSSA.phi_node list * Env.t
 
-val translate_block : Env.t -> buffer -> ID.t list -> AST.node list -> Env.t
+val translate_block :
+  Env.t -> UntypedSSA.block -> ID.t list -> AST.node list -> Env.t
 
 val translate_fn :
   ?name:string -> Env.t -> string list -> AST.node -> UntypedSSA.fn

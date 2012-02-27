@@ -1,6 +1,7 @@
 (* pp: -parser o pa_macro.cmo *)
 
 open Base
+open PhiNode
 open TypedSSA
 open Value
 
@@ -8,31 +9,29 @@ type value = DataId.t Value.t
 type values = value list
 
 module type SCHEDULER = sig
-  val call : SSA.fn -> values -> values
-  val adverb : (SSA.fn, values, int list) Adverb.info -> values -> values
+  val call : TypedSSA.fn -> values -> values
+  val adverb : (TypedSSA.fn, values, values) Adverb.info -> values
   val array_op : Prim.array_op -> values -> values
 end
 
 module type INTERP = sig
-  val eval_call : SSA.fn -> value list -> value list
-  val eval_exp : SSA.exp_node -> value list
+  val eval_call : TypedSSA.fn -> value list -> value list
+  val eval_exp : TypedSSA.exp_node -> value list
 end
 
 module rec Scheduler : SCHEDULER = struct
   let machine_model = MachineModel.build_machine_model
   let value_to_host v = DataManager.to_memspace HostMemspace.id v
 
-
-
-  let call (fn : SSA.fn) (args:values) =
+  let call (fn : TypedSSA.fn) (args:values) =
     (* for now, if we schedule a function which contains an adverb, *)
     (* never compile it but instead run the body in the interpreter *)
-    let hasAdverb = TypedSSA.fn_has_adverb fn in
+    let hasAdverb = AdverbHelpers.fn_has_adverb fn in
     let shapely = ShapeInference.typed_fn_is_shapely fn in
     IFDEF DEBUG THEN
       Printf.printf
         "[Scheduler] Calling %s with args %s (has_adverb = %b, shapely=%b)\n"
-        (FnId.to_str fn.SSA.fn_id)
+        (FnId.to_str fn.TypedSSA.fn_id)
         (String.concat ", " (List.map Value.to_str args))
         hasAdverb
         shapely
@@ -44,29 +43,29 @@ module rec Scheduler : SCHEDULER = struct
       List.map DataManager.from_memspace results
     else Interp.eval_call fn args
 
-  let adverb (info: (TypedSSA.fn, values, int list) Adverb.info) args =
-    let adverbInfo' =
-      Adverb.apply_to_fields
-        ~fn:Base.id
-        ~args:value_to_host
-        ~axes:AdverbHelpers.const_axes
-        info
+  let adverb (info: (TypedSSA.fn, values, values) Adverb.info) =
+    let results : Ptr.t Value.t list =
+      LLVM_Backend.adverb $
+        Adverb.apply_to_fields
+          info
+          ~fn:Base.id
+          ~values:(List.map value_to_host)
+          ~axes:(List.map Value.to_int)
     in
-    let results = LLVM_Backend.adverb adverbInfo' (List.value_to_host args) in
     List.map DataManager.from_memspace results
 
   let array_op (op : Prim.array_op) (args : value list) = assert false
 end
 and Interp : INTERP = struct
-  let eval_value (valNode : SSA.value_node) : value =
+  let eval_value (valNode : TypedSSA.value_node) : value =
     match valNode.value with
     | Var id -> Env.lookup id
     | Num n -> Value.Scalar n
     | _ ->
-      let valStr = SSA.value_to_str valNode.value in
+      let valStr = TypedSSA.value_to_str valNode.value in
       failwith ("[eval_value] values of this type not implemented: " ^ valStr)
 
-  let eval_values (valNodes : SSA.value_node list) : value list =
+  let eval_values (valNodes : TypedSSA.value_nodes) : value list =
     List.map eval_value valNodes
 
   let eval_phi_node cond phiNode : unit =
@@ -78,7 +77,7 @@ and Interp : INTERP = struct
   let eval_phi_nodes cond phiNodes = List.iter (eval_phi_node cond) phiNodes
 
   let rec eval_block block = Block.iter_forward eval_stmt block
-  and eval_stmt (stmtNode : SSA.stmt_node) : unit =
+  and eval_stmt (stmtNode : TypedSSA.stmt_node) : unit =
     match stmtNode.stmt with
     | Set (ids, expNode) -> Env.set_bindings ids (eval_exp expNode)
     | SetIdx (id, indices, rhs) -> assert false
@@ -99,7 +98,7 @@ and Interp : INTERP = struct
         cond := eval_value testVal
       done
 
-  and eval_exp (expNode : SSA.exp_node) : value list =
+  and eval_exp (expNode : TypedSSA.exp_node) : value list =
     match expNode.exp with
     | Values valNodes -> eval_values valNodes
     | Arr elts ->
@@ -123,22 +122,20 @@ and Interp : INTERP = struct
     | Call (fnId, args) ->
       let fn = FnManager.get_typed_function fnId in
       Scheduler.call fn (eval_values args)
-
-    (* currently ignores axes *)
-    | Adverb (adverbInfo, args) ->
-      let adverbInfo' =
+    | Adverb adverbInfo ->
+      Scheduler.adverb $
         Adverb.apply_to_fields
+          adverbInfo
           ~fn:FnManager.get_typed_function
-          ~args:eval_values
-          ~axes:(fun axes -> List.map Value.to_int (eval_values axes))
-      in
-      Scheduler.adverb adverbInfo' (eval_values args)
+          ~values:eval_values
+          ~axes:eval_values
+
   | _ ->
       failwith $ Printf.sprintf
         "[eval_exp] no implementation for: %s\n"
-        (SSA.exp_to_str expNode)
+        (TypedSSA.exp_node_to_str expNode)
 
-  and eval_call (fn:SSA.fn) (args:values) =
+  and eval_call (fn:TypedSSA.fn) (args:values) =
     Env.push_env();
     Env.set_bindings fn.input_ids args;
     eval_block fn.body;
@@ -163,7 +160,7 @@ and Interp : INTERP = struct
     | op, _ -> Value.Scalar (MathEval.eval_pqnum_op op nums)
 end
 
-let call (fn:SSA.fn) (hostData: Ptr.t Value.t list) : Ptr.t Value.t list =
+let call (fn:TypedSSA.fn) (hostData: Ptr.t Value.t list) : Ptr.t Value.t list =
   Env.push_env ();
   let inputs : values = List.map DataManager.from_memspace hostData in
   let outputVals : values = Scheduler.call fn inputs in
