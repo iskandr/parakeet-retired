@@ -148,7 +148,28 @@ let required_scalar_op_types op argtypes =
             (Type.type_list_to_str argtypes)
         in
         raise (TypeError(errMsg, None))
-
+(*
+let infer_typed_adverb_result
+      ?src
+      (info : (TypedSSA.fn, Type.t list, int) Adverb.info) : Type.t list =
+  let eltTypes = TypedSSA.FnHelpers.input_types info.adverb_fn in
+  let eltResultTypes = TypedSSA.FnHelpers.output_types info.adverb_fn in
+  match info.adverb, info.init  with
+  | Adverb.Map, None -> Type.increase_ranks info.axes eltResultTypes
+  | Adverb.Reduce, None ->
+    if List.length eltResultTypes <> 1 then
+      raise $
+        TypeError("Reduce without inital args must return one value", src)
+    else if List.length eltTypes - List.length adverb.fixed_args <> 2 then
+      raise $
+        TypeError("Reduce without initial args requires binary operator", src)
+    else eltResultTypes
+  | Adverb.Reduce, Some inits -> failwith "Reduce with inits not implemented"
+  | Adverb.Map, Some _ ->
+    raise $ TypeError("Map can't have initial values", src)
+  | Adverb.AllPairs, Some _ ->
+    raise $ TypeError("AllPairs can't take initial arguments", src)
+*)
 (* TODO: make this complete for all SSA statements *)
 let rec is_scalar_stmt = function
   | UntypedSSA.Set(_,

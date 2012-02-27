@@ -112,7 +112,7 @@ and check_exp errorLog tenv (defined : ID.Set.t) (expNode : exp_node) : unit =
           (Type.to_str t)
   | Call (typedFn, args) -> ()
   | PrimApp (typedPrim, args) -> ()
-  | Adverb adverbInfo  ->
+  | Adverb adverbInfo  -> ()
 
 
 and check_block
