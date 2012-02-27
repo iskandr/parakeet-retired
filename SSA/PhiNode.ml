@@ -26,6 +26,12 @@ let left {phi_left} = phi_left
 let right {phi_right} = phi_right
 let src {phi_src} = phi_src
 
+
+let rec collect_phi_ids = function
+  | [] -> []
+  | {phi_id}::rest -> phi_id :: (collect_phi_ids rest)
+
+
 (* assume a block contains only phi, collect the IDs and
    either the left or right values
 *)

@@ -169,9 +169,16 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
         mk_adverb_exp Adverb.Map typedFn
       | Adverb.Map, Some _, _ -> failwith "Map can't have initial args"
       | Adverb.Reduce, None, [eltT] ->
-        if untyped_value_input_arity untypedFnVal <> 1 then
-          failwith "Reduce without initial args can only produce 1 output"
-        ;
+        let inputArity = untyped_value_input_arity untypedFnVal in
+        if inputArity <> 2 then
+          let errMsg =
+            Printf.sprintf
+              "Reduce without init requires binary operator, given %s (arity %d"
+              (UntypedSSA.PrettyPrinters.value_to_str untypedFnVal)
+              inputArity
+          in
+          raise $ RewriteFailed(errMsg, src)
+        else
         (* assume that the accumulator is the same as the array element type *)
         let nestedSig =
           Signature.from_input_types (fixedTypes @ [eltT; eltT])
