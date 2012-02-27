@@ -19,6 +19,9 @@ let int64 (i:Int64.t) = GenericValue.of_int64 LLVM_Types.int64_t i
 let float32 f = GenericValue.of_float LLVM_Types.float32_t f
 let float64 f = GenericValue.of_float LLVM_Types.float64_t f
 
+let array_cache : (Int64.t Value.t, GenericValue.t) Hashtbl.t =
+  Hashtbl.create 127
+
 let parnum_to_generic = function
   | Bool b -> if b then int16 1 else int16 0
   | Char c -> int16 (Char.code c)
@@ -29,16 +32,24 @@ let parnum_to_generic = function
   | Float64 f -> float64 f
   | _ -> assert false
 
-let rec to_llvm = function
+let rec to_llvm value =
+  match value with
   | Value.Scalar s -> parnum_to_generic s
   | Value.Array a ->
-	  let ptr = HostMemspace.malloc (8 + 8 + 8) in
-	  let cshape = Array.to_c_int_array (Shape.to_array a.array_shape) in
-	  let cstrides = Array.to_c_int_array a.array_strides in
-	  HostMemspace.set_int64 ptr 0 a.data.addr;
-	  HostMemspace.set_int64 ptr 1 cshape;
-	  HostMemspace.set_int64 ptr 2 cstrides;
-	  int64 ptr
+    let addr_value = Value.map Ptr.addr value in
+    (match Hashtbl.find_option array_cache addr_value with
+      | Some gv_ptr ->
+        gv_ptr
+      | None ->
+        let ptr = HostMemspace.malloc (8 + 8 + 8) in
+        let cshape = Array.to_c_int_array (Shape.to_array a.array_shape) in
+        let cstrides = Array.to_c_int_array a.array_strides in
+        HostMemspace.set_int64 ptr 0 a.data.addr;
+        HostMemspace.set_int64 ptr 1 cshape;
+        HostMemspace.set_int64 ptr 2 cstrides;
+        let gv_ptr = int64 ptr in
+        Hashtbl.add array_cache addr_value gv_ptr;
+        gv_ptr)
   | Value.Explode (scalar, shape) ->
 	  let ptr = HostMemspace.malloc (8 + 8) in
 	  let cshape = Array.to_c_int_array (Shape.to_array shape) in
@@ -142,6 +153,8 @@ let to_llvm_pointer = function
   | Value.Scalar s -> Obj.magic s
   | other -> to_llvm other
 
+(* TODO: we really probably want to delete values so as to be able to clean *)
+(*       up the array_cache *)
 let rec delete_llvm_ptr ptr = function
   | ImpType.ScalarT _ -> ()
   | ImpType.ArrayT _ ->
@@ -161,7 +174,6 @@ let rec delete_llvm_ptr ptr = function
     (*delete_llvm_ptr data*)
     HostMemspace.free ptr;
     failwith "Don't know how to clean up slice memory"
-
   | ImpType.RangeT _ -> HostMemspace.free ptr
 
 (* Note: this doesn't delete the data, only the gv struct *)
