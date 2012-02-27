@@ -170,16 +170,8 @@ let infer_typed_adverb_result
   | Adverb.AllPairs, Some _ ->
     raise $ TypeError("AllPairs can't take initial arguments", src)
 *)
-(* TODO: make this complete for all SSA statements *)
-let rec is_scalar_stmt = function
-  | UntypedSSA.Set(_,
-    {exp=UntypedSSA.App({value=UntypedSSA.Prim (Prim.ScalarOp _)}, _)})
-  | UntypedSSA.Set(_, {exp=Values _}) -> true
-  | UntypedSSA.If(_, tCode, fCode, _) ->
-      all_scalar_stmts tCode && all_scalar_stmts fCode
-  | _ -> false
-and is_scalar_stmt_node stmtNode = is_scalar_stmt stmtNode.stmt
-and all_scalar_stmts stmts = Block.for_all is_scalar_stmt_node stmts
+
+
 
 (* Eek, a mutable type environment! Ain't it the devil? *)
 module TypeEnv : sig

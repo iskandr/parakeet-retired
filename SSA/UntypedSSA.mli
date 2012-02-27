@@ -119,3 +119,13 @@ module FnHelpers : sig
   val fn_id : fn -> FnId.t
 end
 include module type of FnHelpers
+
+module ScalarHelpers : sig
+  val is_scalar_exp : exp -> bool
+  val is_scalar_exp_node : exp_node -> bool
+  val is_scalar_stmt : ?control_flow:bool -> stmt -> bool
+  val is_scalar_stmt_node : ?control_flow:bool -> stmt_node -> bool
+  val is_scalar_block : ?control_flow:bool -> block -> bool
+  val is_scalar_fn : ?control_flow:bool -> fn -> bool
+end
+include module type of ScalarHelpers

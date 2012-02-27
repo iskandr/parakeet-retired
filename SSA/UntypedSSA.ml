@@ -216,3 +216,26 @@ module FnHelpers = struct
 end
 include FnHelpers
 
+module ScalarHelpers = struct
+  let is_scalar_exp = function
+    | App({value=Prim (Prim.ScalarOp _)}, _ )
+    | Values _ -> true
+    | _ -> false
+
+  let is_scalar_exp_node {exp} = is_scalar_exp exp
+
+  let rec is_scalar_stmt ?(control_flow=false) = function
+  | Set(_, expNode) -> is_scalar_exp_node expNode
+  | If(_, tCode, fCode, _) ->
+    control_flow && is_scalar_block tCode && is_scalar_block fCode
+  | WhileLoop (condBlock, _, body, _) ->
+    control_flow && is_scalar_block condBlock && is_scalar_block body
+  and is_scalar_stmt_node ?(control_flow=false) stmtNode =
+    is_scalar_stmt ~control_flow stmtNode.stmt
+  and is_scalar_block ?(control_flow=false) block =
+    Block.for_all (is_scalar_stmt_node ~control_flow) block
+
+  let is_scalar_fn ?(control_flow=false) fn =
+    is_scalar_block ~control_flow fn.body
+end
+include ScalarHelpers

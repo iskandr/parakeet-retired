@@ -4,9 +4,6 @@ val mk_untyped_prim_fn : Prim.t -> int -> UntypedSSA.fn
 val mk_typed_scalar_prim :
   Prim.scalar_op -> ?optOutType:Type.t -> Type.t list ->  TypedSSA.fn
 
-val is_scalar_stmt : UntypedSSA.stmt_node -> ThreeValuedLogic.t
-val is_scalar_block : UntypedSSA.block -> ThreeValuedLogic.t
-
 
 val scalarize_fn : UntypedSSA.fn -> Signature.t -> TypedSSA.fn
 

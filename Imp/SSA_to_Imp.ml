@@ -263,8 +263,8 @@ and translate_stmt (builder : ImpBuilder.builder) stmtNode : Imp.stmt list  =
     let fBlock' = fBlock' @ falseMerge in
     [Imp.If(cond', tBlock', fBlock')]
   | TypedSSA.WhileLoop(condBlock, condVal, body, phiNodes) ->
-    let inits : Imp.block = 
-      List.map (translate_true_phi_node builder) phiNodes 
+    let inits : Imp.block =
+      List.map (translate_true_phi_node builder) phiNodes
     in
     let condBlock : Imp.block  = translate_block builder condBlock in
     let condVal : Imp.value_node = translate_value builder condVal in
@@ -353,3 +353,5 @@ and translate_adverb
   let fnBody = ImpReplace.replace_block replaceEnv impFn.body in
   let loops = build_loop_nests builder loopDescriptors fnBody in
   initBlock @ loops
+and translate_sequential_adverb = assert false
+and translate_vectorized_adverb = assert false

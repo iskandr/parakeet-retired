@@ -68,24 +68,6 @@ let mk_typed_scalar_prim (op : Prim.scalar_op) ?optOutType argTypes =
 
 
 
-(* checks whether a statement uses an untyped scalar operator *)
-let rec is_scalar_stmt stmtNode =
-  UntypedSSA.(
-    match stmtNode.UntypedSSA.stmt with
-    | Set(_, {exp= App({value=Prim (Prim.ScalarOp _)},_)}) ->
-      ThreeValuedLogic.Yes
-    | Set(_, {exp=Values _}) ->
-      ThreeValuedLogic.Maybe
-    | If(_, tCode, fCode, _) ->
-      ThreeValuedLogic.combine (is_scalar_block tCode) (is_scalar_block fCode)
-    | _ -> ThreeValuedLogic.No
-  )
-
-and is_scalar_block block =
-  Block.fold_forward
-    (fun acc stmtNode -> ThreeValuedLogic.combine acc (is_scalar_stmt stmtNode))
-    ThreeValuedLogic.Maybe
-    block
 
 let rec specialize_fn fn signature =
   IFDEF DEBUG THEN
@@ -105,9 +87,9 @@ let rec specialize_fn fn signature =
   let maxRank = List.fold_left max 0 ranks in
 
   if not (Signature.has_output_types signature) &&
-     maxRank > 0 &&
-     List.for_all (fun r -> r = 0 || r = maxRank) ranks &&
-     (is_scalar_block fn.UntypedSSA.body = ThreeValuedLogic.Yes)
+    maxRank > 0 &&
+    List.for_all (fun r -> r = 0 || r = maxRank) ranks &&
+    (UntypedSSA.ScalarHelpers.is_scalar_fn ~control_flow:false fn)
   then scalarize_fn fn signature
   else
   (* to avoid having to make RewriteTyped and Specialize recursive
