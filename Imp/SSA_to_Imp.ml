@@ -316,22 +316,22 @@ and translate_exp (builder:ImpBuilder.builder) expNode : Imp.value_node  =
 
 (* TODO: make this do something sane for adverbs other than Map *)
 and translate_adverb
-      (builder:ImpBuilder.builder)
-      (lhsVars: Imp.value_node list)
-      (info : (TypedSSA.fn, Imp.value_nodes, Imp.value_nodes) Adverb.info)
-      : Imp.stmt list =
+    (builder:ImpBuilder.builder)
+    (lhsVars: Imp.value_node list)
+    (info : (TypedSSA.fn, Imp.value_nodes, Imp.value_nodes) Adverb.info)
+    : Imp.stmt list =
   if TypedSSA.ScalarHelpers.is_scalar_fn ~control_flow:false info.adverb_fn then
     match TypedSSA.FnHelpers.get_single_type info.adverb_fn with
-      | None -> translate_sequential_adverb builder lhsVars info
-      | Some t ->
-        let impType = InferImpTypes.simple_conversion t in
-        vectorize_adverb builder lhsVars info impType
+    | None -> translate_sequential_adverb builder lhsVars info
+    | Some t ->
+      let impType = InferImpTypes.simple_conversion t in
+      vectorize_adverb builder lhsVars info impType
   else translate_sequential_adverb builder lhsVars info
 and translate_sequential_adverb
-      (builder:ImpBuilder.builder)
-      (lhsVars : Imp.value_node list)
-      (info : (TypedSSA.fn, Imp.value_nodes, Imp.value_nodes) Adverb.info)
-      : Imp.stmt list =
+    (builder:ImpBuilder.builder)
+    (lhsVars : Imp.value_node list)
+    (info : (TypedSSA.fn, Imp.value_nodes, Imp.value_nodes) Adverb.info)
+    : Imp.stmt list =
   let fixedTypes = List.map Imp.value_type info.fixed_args in
   let argTypes = List.map Imp.value_type info.array_args in
   let num_axes = List.length info.axes in
@@ -360,7 +360,8 @@ and translate_sequential_adverb
   initBlock @ loops
 
 and vectorize_adverb
-      (builder : ImpBuilder.builder)
-      (lhsVars : Imp.value_node list)
-      (info : (TypedSSA.fn, Imp.value_nodes, Imp.value_nodes) Adverb.info)
-      (eltT : ImpType.t) = failwith "Vectorizer not implemented"
+    (builder : ImpBuilder.builder)
+    (lhsVars : Imp.value_node list)
+    (info : (TypedSSA.fn, Imp.value_nodes, Imp.value_nodes) Adverb.info)
+    (eltT : ImpType.t) = failwith "Vectorizer not implemented"
+
