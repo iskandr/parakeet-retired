@@ -107,24 +107,6 @@ let select cond t f =
     value_type = t.value_type
   }
 
-let idx arr indices =
-  let arrT = arr.value_type in
-  (* for convenience, treat indexing into scalars as the identity operation *)
-  if ImpType.is_scalar arrT then arr
-  else begin
-    assert (ImpType.is_array arrT);
-    let numIndices = List.length indices in
-    let rank = ImpType.rank arrT in
-    if numIndices <> rank then
-      failwith $ Printf.sprintf
-        "[ImpHelpers] Expected %d indices, got %d"
-        rank
-        numIndices
-    ;
-    let eltT = ImpType.elt_type arrT in
-    {value = Idx(arr, indices); value_type = ImpType.ScalarT eltT}
-  end
-
 let dim (arr:value_node) (idx:value_node) = wrap_int32 $ (DimSize(arr, idx))
 
 let len x = dim (int 0) x
@@ -237,3 +219,71 @@ let add_simplify (d1:value_node) (d2:value_node) : value_node =
   | Const (ParNum.Float64 x), (Const ParNum.Float64 y) ->
     {d1 with value = Const (ParNum.Float64 (x +. y)) }
   | _ -> add d1 d2
+
+(* assume indices are into sequential dims *)
+let idx arr indices =
+  let arrT = arr.value_type in
+  (* for convenience, treat indexing into scalars as the identity operation *)
+  if ImpType.is_scalar arrT then arr
+  else begin
+    assert (ImpType.is_array arrT);
+    let numIndices = List.length indices in
+    let rank = ImpType.rank arrT in
+    if numIndices <> rank then
+      failwith $ Printf.sprintf
+        "[ImpHelpers] Expected %d indices, got %d"
+        rank
+        numIndices
+    ;
+    let eltT = ImpType.elt_type arrT in
+    { value = Idx(arr, indices); value_type = ImpType.ScalarT eltT }
+  end
+
+let is_const_int {value} = match value with
+  | Const n -> ParNum.is_int n
+  | _ -> false
+
+let get_const_int {value} = match value with
+  | Const n -> ParNum.to_int n
+  | _ -> failwith "Not an integer!"
+
+let fixdim ~arr ~dim ~idx : value_node  =
+  {
+    value = FixDim(arr, dim, idx);
+    value_type = ImpType.peel ~num_axes:1 arr.value_type
+  }
+
+(* recursively build fixdim nodes for a list of indices *)
+let rec fixdims ~arr ~dims ~indices : value_node =
+   match dims, indices with
+   | d::ds, i::is -> fixdims ~arr:(fixdim arr d i ) ~dims:ds ~indices:is
+   | [], [] -> arr
+   | _ -> failwith "Expected dims and indices to be of same length"
+
+let slice ~arr ~dim ~start ~stop =
+  { value = Slice(arr, dim, start, stop);
+    value_type = arr.value_type
+  }
+
+let copy x : value_node =
+  let t = x.value_type in
+  if ImpType.is_scalar t then x
+  else { value = Copy x; value_type = ImpType.type_of_copy t}
+
+let permute (dims:int list) indices : value_node list  =
+  let compare_pair (m,_) (n,_) = compare m n in
+  let sortedPairs = List.fast_sort compare_pair (List.combine dims indices) in
+  List.map snd sortedPairs
+
+let rec idx_or_fixdims
+  ~(arr:value_node)
+  ~(dims:value_nodes)
+  ~(indices:value_nodes) : value_node =
+  let nIndices = List.length indices in
+  assert (List.length dims = nIndices);
+  let arrT = arr.value_type in
+  (* for convenience, treat indexing into scalars as the identity operation *)
+  if ImpType.is_scalar arrT then arr
+  else if ImpType.rank arrT = nIndices && List.for_all is_const_int dims then
+    idx arr (permute (List.map get_const_int dims) indices)
+  else fixdims arr dims indices

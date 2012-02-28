@@ -70,6 +70,11 @@ class builder = object (self)
       let temp : Imp.value_node = self#fresh_local ~name ty in
       temp, [ImpHelpers.set temp (ImpHelpers.cast ty v)]
 
+
+  method get_shape id = ID.Map.find id shapes
+  method get_type id = ID.Map.find id types
+  method get_storage id = ID.Map.find id storages
+
   method info : block_info =
     {
       block_ids = ID.Set.to_list ids;

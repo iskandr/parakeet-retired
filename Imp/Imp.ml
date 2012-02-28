@@ -33,7 +33,9 @@ type value =
   | Select of ImpType.t * value_node * value_node * value_node
   | Cast of ImpType.t * value_node
   | DimSize of value_node * value_node
-  | FreezeDim of value_node * value_node * value_node
+  | FixDim of value_node * value_node * value_node
+  | Slice of value_node * value_node * value_node * value_node
+  | Copy of value_node
   | ArrayField of array_field * value_node
 and value_node = {
   value : value;
@@ -142,14 +144,25 @@ let rec value_to_str = function
       (value_node_to_str trueVal)
       (value_node_to_str falseVal)
   | Cast (tNew, v) ->
-      sprintf "cast %s->%s (%s)"
-        (ImpType.to_str  v.value_type)
-        (ImpType.to_str tNew)
-        (value_node_to_str v)
+    sprintf "cast %s->%s (%s)"
+      (ImpType.to_str  v.value_type) (ImpType.to_str tNew)
+      (value_node_to_str v)
   | DimSize (arr, idx) ->
-      sprintf "dimsize(%s, %s)"
-        (value_node_to_str arr)
-        (value_node_to_str idx)
+    sprintf "dimsize(%s, %s)" (value_node_to_str arr) (value_node_to_str idx)
+  | FixDim (arr, dim, idx) ->
+    sprintf "fixdim(%s, dim=%s, idx=%s)"
+      (value_node_to_str arr)
+      (value_node_to_str dim)
+      (value_node_to_str idx)
+  | Slice (arr, dim, start, stop) ->
+    sprintf "slice(%s, dim=%s, start=%s, stop=%s)"
+      (value_node_to_str arr)
+      (value_node_to_str dim)
+      (value_node_to_str start)
+      (value_node_to_str stop)
+  | Copy arr ->
+    sprintf "copy(%s)" (value_node_to_str arr)
+
 and value_node_to_str {value} = value_to_str value
 and value_nodes_to_str vNodes =
   String.concat ", " (List.map value_node_to_str vNodes)

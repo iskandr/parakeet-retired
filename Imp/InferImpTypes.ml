@@ -34,7 +34,18 @@ module ImpTypeAnalysis(P:IMP_TYPE_PARAMS) = struct
   let dir = Forward
   let iterative = false
 
-  let init fn = ID.Map.of_lists fn.input_ids P.input_imp_types
+  let init fn =
+    IFDEF DEBUG THEN
+      let nInputs = List.length fn.input_ids in
+      let nImpTypes = List.length P.input_imp_types in
+      if nInputs <> nImpTypes then
+        failwith $ Printf.sprintf
+          "[InferImpTypes] Expected %d args for %s, got %d"
+          nInputs
+          (TypedSSA.PrettyPrinters.fn_id_to_str fn)
+          nImpTypes
+    ENDIF;
+    ID.Map.of_lists fn.input_ids P.input_imp_types
 
   let value tenv {value; value_type} =
     if Type.is_scalar value_type then simple_conversion value_type
@@ -67,7 +78,6 @@ module ImpTypeAnalysis(P:IMP_TYPE_PARAMS) = struct
         "[InferImpTypes] Unsupported primitive: %s (with args %s)"
         (Prim.to_str p)
         (TypedSSA.value_nodes_to_str args)
-
   let phi_set tenv id rhs = Some (add_binding tenv id rhs)
   let phi_merge tenv id _ right = Some (add_binding tenv id right)
 

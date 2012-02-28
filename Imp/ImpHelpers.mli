@@ -48,9 +48,7 @@ val gridDim : vec3
 val int32 : Int32.t -> value_node
 
 val int : int -> value_node
-
 val zero : value_node
-
 val one : value_node
 
 (*val infinity : value_node*)
@@ -103,7 +101,6 @@ val ( =$ ) : ?t:Type.elt_t -> value_node -> value_node -> value_node
 val neq : ?t:Type.elt_t -> value_node -> value_node -> value_node
 val ( <>$ ) : ?t:Type.elt_t -> value_node -> value_node -> value_node
 
-
 val not_ : value_node -> value_node
 val (!$) : value_node -> value_node
 
@@ -122,3 +119,20 @@ val ln_64 : value_node -> value_node
 val id_of_value : value_node -> ID.t
 
 val var : ty:ImpType.t -> ID.t -> value_node
+
+val is_const_int : value_node -> bool
+val get_const_int : value_node -> int
+
+val fixdim : arr:value_node -> dim:value_node -> idx:value_node -> value_node
+val fixdims :
+  arr:value_node -> dims:value_nodes -> indices:value_nodes -> value_node
+
+val slice :
+  arr:value_node -> dim:value_node -> start:value_node -> stop:value_node ->
+    value_node
+
+val copy : value_node -> value_node
+
+val idx_or_fixdims :
+  arr:value_node -> dims:value_node list -> indices:value_node list ->
+    value_node

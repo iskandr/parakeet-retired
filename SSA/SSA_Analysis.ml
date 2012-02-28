@@ -133,20 +133,18 @@ module MkEvaluator(A : ANALYSIS) = struct
         ignore (A.exp env rhs);
         None
 
-  and iter_exp_children env expNode = match expNode.exp with
-      | Cast(_, v) -> ignore $ A.value env v
-      | Call(_, xs)
-      | PrimApp(_,xs)
-      | Values xs
-      | Arr xs -> iter_values env xs
-      | Adverb ({Adverb.fixed_args; init; axes; array_args}) ->
-        begin
-          iter_values env fixed_args;
-          iter_values env axes;
-          match init with Some inits -> iter_values env inits | None -> ();
-          iter_values env array_args
-        end
-
+  and iter_exp_children env expNode =
+    match expNode.exp with
+    | Cast(_, v) -> ignore $ A.value env v
+    | Call(_, xs)
+    | PrimApp(_,xs)
+    | Values xs
+    | Arr xs -> iter_values env xs
+    | Adverb ({Adverb.fixed_args; init; axes; array_args}) ->
+      iter_values env fixed_args;
+      iter_values env axes;
+      match init with Some inits -> iter_values env inits | None -> ();
+      iter_values env array_args
   and iter_values env = function
     | [] -> () | v::vs -> let _ = A.value env v in iter_values env vs
   and eval_values env = function

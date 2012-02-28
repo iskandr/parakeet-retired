@@ -19,6 +19,10 @@ class builder : object
   method var : ID.t -> value_node
   method cast : value_node -> ImpType.t -> value_node * (stmt list)
   method info : block_info
+
+  method get_shape : ID.t -> SymbolicShape.t
+  method get_type : ID.t -> ImpType.t
+  method get_storage : ID.t -> Imp.storage
 end
 
 class fn_builder : object
