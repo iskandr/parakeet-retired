@@ -210,7 +210,8 @@ let build_cpu (node:Xml.xml) =
       cpu_id = -1;
       cpu_clock_rate_ghz = 0.0;
       cores = Array.make 0 dummy_core;
-      caches = Array.make 0 dummy_cache
+      caches = Array.make 0 dummy_cache;
+      vector_bitwidth = 0
     } in
     let cpu_children = Xml.children cpunode in
     let cpu = List.fold_left consume_cpu_child initialcpu cpu_children in
@@ -239,7 +240,7 @@ let build_gpu (node:Xml.xml) =
 	  peak_global_bw = 0.0;
   }
 
-let build_machine_model =
+let build_machine_model () =
   let homedir = Sys.getenv "HOME" in
   let gpufile = homedir ^ "/.parakeet/parakeetgpuconf.xml" in
   let gpuxml = Xml.parse_file gpufile in

@@ -7,6 +7,7 @@ open ImpBuilder
 open ImpHelpers
 open ImpReplace
 open ImpType
+open MachineModel
 
 (* cache translation for each distinct set of arg types to a function *)
 type signature = FnId.t * ImpType.t list
@@ -14,7 +15,7 @@ let cache : (signature, Imp.fn) Hashtbl.t = Hashtbl.create 127
 let vector_cache : (signature, Imp.fn) Hashtbl.t = Hashtbl.create 127
 
 (* For now, we are assuming only 1 CPU *)
-let vector_bitwidth = MachineModel.machine_model.cpus.(0).vector_bitwidth
+let vector_bitwidth = machine_model.cpus.(0).vector_bitwidth
 
 (* are these necessary? or should we just register each SSA variable with its *)
 (* existing name as an imp variable and then implicitly keep this information *)
@@ -282,7 +283,7 @@ and translate_stmt (builder : ImpBuilder.builder) stmtNode : Imp.stmt list  =
     in
     let condBlock : Imp.block = translate_block builder condBlock in
     let condVal : Imp.value_node = translate_value builder condVal in
-    let body : Imp.block = translate_block builder bodyint32_t in
+    let body : Imp.block = translate_block builder body in
     let finals = List.map (translate_false_phi_node builder) phiNodes in
     let fullBody = body @ finals @ condBlock in
     inits @ condBlock @ [Imp.While(condVal, fullBody)]
@@ -393,22 +394,21 @@ and translate_sequential_adverb
         | _ -> failwith "allpairs requires two args"
       )
     | _ -> failwith "malformed adverb"
-
   in
   let nestedArrays = List.map (slice_along_axes indexVars) info.array_args in
   let nestedInputs, nestedOutputs =
     match info.adverb, info.init with
-      | Adverb.Map, None
-      | Adverb.AllPairs, None ->
-        let nestedOutputs = List.map (slice_along_axes indexVars) lhsVars in
-        info.fixed_args @ nestedArrays, nestedOutputs
-      | Adverb.Reduce, None ->
-        info.fixed_args @ lhsVars @ nestedArrays, lhsVars
-      | Adverb.Reduce, Some inits ->
-        failwith "reduce with inits not implemented"
-      | Adverb.Scan, None -> failwith "scan without inits not implemented"
-      | Adverb.Scan, Some inits -> failwith "scan with init not implemented"
-      | _ -> failwith "malformed adverb"
+    | Adverb.Map, None
+    | Adverb.AllPairs, None ->
+      let nestedOutputs = List.map (slice_along_axes indexVars) lhsVars in
+      info.fixed_args @ nestedArrays, nestedOutputs
+    | Adverb.Reduce, None ->
+      info.fixed_args @ lhsVars @ nestedArrays, lhsVars
+    | Adverb.Reduce, Some inits ->
+      failwith "reduce with inits not implemented"
+    | Adverb.Scan, None -> failwith "scan without inits not implemented"
+    | Adverb.Scan, Some inits -> failwith "scan with init not implemented"
+    | _ -> failwith "malformed adverb"
   in
   let nestedInputTypes = Imp.value_types nestedInputs in
   let impFn : Imp.fn =
@@ -428,7 +428,8 @@ and vectorize_adverb
     (builder : ImpBuilder.builder)
     (lhsVars : Imp.value_node list)
     (info : (TypedSSA.fn, Imp.value_nodes, Imp.value_nodes) Adverb.info)
-    (eltT : ImpType.t) =
+    (eltT : ImpType.elt_t)
+    : Imp.stmt list =
   let fixedTypes = List.map Imp.value_type info.fixed_args in
   let argTypes = List.map Imp.value_type info.array_args in
   let num_axes = List.length info.axes in
@@ -442,19 +443,19 @@ and vectorize_adverb
     (* innermost axis.  That axis is treated differently so as to be *)
     (* vectorized. *)
     let biggestArray : Imp.value_node = argmax_array_rank info.array_args in
-    let num_axes = List.length axes in
+    let num_axes = List.length info.axes in
     let outerInit, outerLoops : (Imp.stmt list) * (loop_descr list) =
       axes_to_loop_descriptors
-        builder biggestArray List.take (num_axes - 1) info.axes
+        builder biggestArray (List.take (num_axes - 1) info.axes)
     in
     let outerIndexVars = get_loop_vars outerLoops in
     (* Vectorize the innermost axis. *)
     let lastAxis = List.hd (List.rev info.axes) in
-    let lastInit, lastSize = size_of_axes builder biggestArray [lastAxis] in
-    let vecLen = vector_bitwidth / (8 * (sizeof eltT)) in
-    let impVecLen = ImpHelpers.int32 vecLen in
-    let numVecLoops = ImpHelpers.div int32_t lastSize impVecLen in
-    let vecLoopBound = ImpHelpers.mul int32_t numVecLoops impVecLen in
+    let [lastInit], [lastSize] = size_of_axes builder biggestArray [lastAxis] in
+    let vecLen = vector_bitwidth / (8 * (Type.sizeof eltT)) in
+    let impVecLen = ImpHelpers.int vecLen in
+    let numVecLoops = ImpHelpers.div ~t:Type.Int32T lastSize impVecLen in
+    let vecLoopBound = ImpHelpers.mul ~t:Type.Int32T numVecLoops impVecLen in
     let vecDescriptor =
       {
         loop_var = builder#fresh_local ~name:"vec_loop_idx" int32_t;
@@ -468,19 +469,21 @@ and vectorize_adverb
     let vecIndexVars = outerIndexVars @ [vecDescriptor.loop_var] in
     let vecSliceArgs =
       List.map
-        (fun arg -> ImpHelpers.vec_slice arg vecIndexVars) info.array_args
+        (fun arg -> ImpHelpers.vec_slice arg vecLen vecIndexVars)
+        info.array_args
     in
     let vecNestedArgs = info.fixed_args @ vecSliceArgs in
-    let vecSliceOutputs =
-      List.map (fun arg -> ImpHelpers.vec_slice arg vecIndexVars) lhsVars
+    let vecOutputs =
+      List.map (fun arg -> ImpHelpers.vec_slice arg vecLen vecIndexVars) lhsVars
     in
 	  let vecReplaceEnv =
 	    ID.Map.of_lists
-	      (impFn.input_ids @ impFn.output_ids)
-	      (vecNestedArgs @ vecNestedOutputs)
+	      (vecFn.input_ids @ vecFn.output_ids)
+	      (vecNestedArgs @ vecOutputs)
 	  in
-    let vecFnBody = ImpReplace.replace_block replaceEnv vecFn.body in
-    let vecLoop = build_loop_nests builder [vecDescriptor] vecFn.body in
+    let vecFnBody = ImpReplace.replace_block vecReplaceEnv vecFn.body in
+    let vecLoop = build_loop_nests builder [vecDescriptor] vecFnBody in
+
     (* Add loop to handle straggler elements that can't be vectorized *)
     (* TODO: check whether we want to add this loop based on shape? *)
     let seqFn = translate_fn info.adverb_fn fnInputTypes in
@@ -494,16 +497,23 @@ and vectorize_adverb
         loop_incr_op = Prim.Add;
       }
     in
+    let seqIndexVars = outerIndexVars @ [seqDescriptor.loop_var] in
+    let seqArrayArgs =
+      List.map (fun arg -> ImpHelpers.idx arg seqIndexVars) info.array_args
+    in
+    let seqNestedArgs = info.fixed_args @ seqArrayArgs in
+    let seqNestedOutputs =
+      List.map (fun arg -> ImpHelpers.idx arg seqIndexVars) lhsVars
+    in
 	  let seqReplaceEnv =
 	    ID.Map.of_lists
-	      (impFn.input_ids @ impFn.output_ids)
-	      (nestedArgs @ nestedOutputs)
+	      (seqFn.input_ids @ seqFn.output_ids)
+	      (seqNestedArgs @ seqNestedOutputs)
 	  in
 	  let seqFnBody = ImpReplace.replace_block seqReplaceEnv seqFn.body in
-	  let vecLoops =
-      build_loop_nests builder loopDescriptors [vecFnBody;seqFnBody]
-    in
-	  outerInit @ last_init @ vecLoops
+    let seqLoop = build_loop_nests builder [seqDescriptor] seqFnBody in
+	  let vecLoops = build_loop_nests builder outerLoops (vecLoop @ seqLoop) in
+	  outerInit @ [lastInit] @ vecLoops
   | _ -> translate_sequential_adverb builder lhsVars info
 
 and vectorize_fn (ssaFn:TypedSSA.fn) (impInputTypes:ImpType.t list)
@@ -533,7 +543,7 @@ and vectorize_fn (ssaFn:TypedSSA.fn) (impInputTypes:ImpType.t list)
     let arg_strings = ImpType.type_list_to_str impInputTypes in
     let name = ssa_name ^ "[" ^ arg_strings ^ "]" in
     let impFn = builder#finalize_fn ~name body in
-    Hashtbl.add cache signature impFn;
+    Hashtbl.add vector_cache signature impFn;
     IFDEF DEBUG THEN
       Printf.printf
         "[SSA_to_Imp] Created Imp function: %s\n%!"

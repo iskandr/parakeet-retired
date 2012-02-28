@@ -111,23 +111,6 @@ let dim (arr:value_node) (idx:value_node) = wrap_int32 $ (DimSize(arr, idx))
 
 let len x = dim (int 0) x
 
-let vec_slice arr indices width =
-  let arrT = arr.value_type in
-  if ImpType.is_scalar arrT then failwith "Can't VecSlice into a scalar"
-  else begin
-    assert (ImpType.is_array arrT);
-    let numIndices = List.length indices in
-    let rank = ImpType.rank arrT in
-    if numIndices <> rank then
-      failwith $ Printf.sprintf
-        "[ImpHelpers] Expected %d indices, got %d"
-        rank
-        numIndices
-    ;
-    let eltT = ImpType.elt_type arrT in
-    {value = Idx(arr, indices); value_type = ImpType.VecSliceT(eltT, width)}
-  end
-
 let max_ ?t x y = typed_op Prim.Max ?t [x;y]
 let min_ ?t x y = typed_op Prim.Min ?t [x;y]
 
@@ -236,7 +219,24 @@ let idx arr indices =
         numIndices
     ;
     let eltT = ImpType.elt_type arrT in
-    { value = Idx(arr, indices); value_type = ImpType.ScalarT eltT }
+    {value = Idx(arr, indices); value_type = ImpType.ScalarT eltT}
+  end
+
+let vec_slice arr width indices =
+  let arrT = arr.value_type in
+  if ImpType.is_scalar arrT then failwith "Can't VecSlice into a scalar"
+  else begin
+    assert (ImpType.is_array arrT);
+    let numIndices = List.length indices in
+    let rank = ImpType.rank arrT in
+    if numIndices <> rank then
+      failwith $ Printf.sprintf
+        "[ImpHelpers] Expected %d indices, got %d"
+        rank
+        numIndices
+    ;
+    let eltT = ImpType.elt_type arrT in
+    {value = Idx(arr, indices); value_type = ImpType.VecSliceT(eltT, width)}
   end
 
 let is_const_int {value} = match value with
