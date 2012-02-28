@@ -21,7 +21,7 @@ module CoreLanguage = struct
 	  | Arr of value_nodes
 	  | Call of FnId.t * value_nodes
 	  | PrimApp of Prim.t * value_nodes
-	  | Adverb of adverb_info 
+	  | Adverb of adverb_info
     | Cast of Type.t * value_node
 
 	type exp_node = {
@@ -133,7 +133,7 @@ module PrettyPrinters = struct
       (phi_nodes_to_str phiNodes)
   and stmt_node_to_str {stmt} = stmt_to_str stmt
   and block_to_str block =
-    Block.to_str stmt_node_to_str block
+    Base.wrap_str (Block.to_str stmt_node_to_str block)
 
   let typed_id_to_str tenv id =
     (ID.to_str id) ^ " : " ^ (Type.to_str (ID.Map.find id tenv))
@@ -141,12 +141,14 @@ module PrettyPrinters = struct
   let typed_ids_to_str tenv ids =
     String.concat ", " (List.map (typed_id_to_str tenv) ids)
 
+  let fn_id_to_str (fundef:fn) = FnId.to_str fundef.fn_id
+
   let fn_to_str (fundef: fn) =
-    let name = FnId.to_str fundef.fn_id in
+    let name = fn_id_to_str fundef in
     let inputs = typed_ids_to_str fundef.tenv fundef.input_ids in
     let outputs = typed_ids_to_str fundef.tenv fundef.output_ids in
     let body = block_to_str fundef.body in
-    Base.wrap_str (sprintf "def %s(%s)=>(%s):\n%s" name inputs outputs body)
+    sprintf "def %s(%s)=>(%s):%s" name inputs outputs body
 end
 include PrettyPrinters
 
@@ -265,12 +267,22 @@ module FnHelpers = struct
 	  in
 	  mk_fn ?name ~tenv ~input_ids: inputIds ~output_ids: outputIds ~body
 
-	  let find_fn_src_info { body } = get_block_src_info body
-	  let input_arity { input_ids } = List.length input_ids
-	  let output_arity { output_ids } = List.length output_ids
-	  let input_types { fn_input_types } = fn_input_types
-	  let output_types { fn_output_types } = fn_output_types
-	  let fn_id { fn_id } = fn_id
+  let find_fn_src_info { body } = get_block_src_info body
+	let input_arity { input_ids } = List.length input_ids
+	let output_arity { output_ids } = List.length output_ids
+	let input_types { fn_input_types } = fn_input_types
+	let output_types { fn_output_types } = fn_output_types
+	let fn_id { fn_id } = fn_id
+
+
+  (* if al variables in the function have the same type then return it, *)
+  (* otherwise return None *)
+  let get_single_type {tenv} =
+    let aux id t = function
+      | None -> None
+      | Some oldT -> if oldT = t then Some t else None
+    in
+    ID.Map.fold aux tenv (Some (snd $ ID.Map.choose tenv))
 end
 include FnHelpers
 
@@ -329,3 +341,29 @@ module StmtHelpers = struct
 end
 include StmtHelpers
 
+
+module ScalarHelpers = struct
+  let is_scalar_exp = function
+    | Values _
+    | PrimApp (Prim.ScalarOp _ , _) -> true
+    | Cast (t,_) -> Type.is_scalar t
+    | _ -> false
+
+  let is_scalar_exp_node {exp} = is_scalar_exp exp
+
+  let rec is_scalar_stmt ?(control_flow=false) = function
+    | Set(_, expNode) -> is_scalar_exp_node expNode
+    | If(_, tCode, fCode, _) ->
+      control_flow && is_scalar_block tCode && is_scalar_block fCode
+    | WhileLoop (condBlock, _, body, _) ->
+      control_flow && is_scalar_block condBlock && is_scalar_block body
+    | SetIdx _ -> false
+  and is_scalar_stmt_node ?(control_flow=false) stmtNode =
+    is_scalar_stmt ~control_flow stmtNode.stmt
+  and is_scalar_block ?(control_flow=false) block =
+    Block.for_all (is_scalar_stmt_node ~control_flow) block
+
+  let is_scalar_fn ?(control_flow=false) fn =
+    is_scalar_block ~control_flow fn.body
+end
+include ScalarHelpers

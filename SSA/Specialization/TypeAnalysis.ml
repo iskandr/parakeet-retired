@@ -144,26 +144,39 @@ let required_scalar_op_types op argtypes =
         let errMsg =
           Printf.sprintf
             "no valid coercions for operator %s with input types %s"
-            (Prim.scalar_op_to_str op) 
+            (Prim.scalar_op_to_str op)
             (Type.type_list_to_str argtypes)
         in
         raise (TypeError(errMsg, None))
+(*
+let infer_typed_adverb_result
+      ?src
+      (info : (TypedSSA.fn, Type.t list, int) Adverb.info) : Type.t list =
+  let eltTypes = TypedSSA.FnHelpers.input_types info.adverb_fn in
+  let eltResultTypes = TypedSSA.FnHelpers.output_types info.adverb_fn in
+  match info.adverb, info.init  with
+  | Adverb.Map, None -> Type.increase_ranks info.axes eltResultTypes
+  | Adverb.Reduce, None ->
+    if List.length eltResultTypes <> 1 then
+      raise $
+        TypeError("Reduce without inital args must return one value", src)
+    else if List.length eltTypes - List.length adverb.fixed_args <> 2 then
+      raise $
+        TypeError("Reduce without initial args requires binary operator", src)
+    else eltResultTypes
+  | Adverb.Reduce, Some inits -> failwith "Reduce with inits not implemented"
+  | Adverb.Map, Some _ ->
+    raise $ TypeError("Map can't have initial values", src)
+  | Adverb.AllPairs, Some _ ->
+    raise $ TypeError("AllPairs can't take initial arguments", src)
+*)
 
-(* TODO: make this complete for all SSA statements *)
-let rec is_scalar_stmt = function
-  | UntypedSSA.Set(_,
-    {exp=UntypedSSA.App({value=UntypedSSA.Prim (Prim.ScalarOp _)}, _)})
-  | UntypedSSA.Set(_, {exp=Values _}) -> true
-  | UntypedSSA.If(_, tCode, fCode, _) ->
-      all_scalar_stmts tCode && all_scalar_stmts fCode
-  | _ -> false
-and is_scalar_stmt_node stmtNode = is_scalar_stmt stmtNode.stmt
-and all_scalar_stmts stmts = Block.for_all is_scalar_stmt_node stmts
+
 
 (* Eek, a mutable type environment! Ain't it the devil? *)
 module TypeEnv : sig
-  val reset : unit -> unit
-  val get_tenv : unit -> (ID.t, Type.t) Hashtbl.t
+  val push : unit -> unit
+  val pop : unit -> (ID.t, Type.t) Hashtbl.t
   val get_type : ID.t -> Type.t
   val get_type_or_bottom : ID.t -> Type.t
   val add_type : ID.t -> Type.t -> unit
@@ -172,12 +185,15 @@ module TypeEnv : sig
   val changed_since : int -> bool
   val find_option : ID.t -> Type.t option
 end = struct
-  let tenv : (ID.t, Type.t) Hashtbl.t = Hashtbl.create 127
-  let get_tenv () = tenv
-  let reset () = Hashtbl.clear tenv
-  let get_type_or_bottom id = Hashtbl.find_default tenv id Type.BottomT
+  type tenv = (ID.t, Type.t) Hashtbl.t
+  let tenv_stack : tenv Stack.t = Stack.create()
+  let push () = Stack.push (Hashtbl.create 127) tenv_stack
+  let pop () = Stack.pop tenv_stack
+  let top () = Stack.top tenv_stack
+
+  let get_type_or_bottom id = Hashtbl.find_default (top()) id Type.BottomT
   let get_type id =
-    match Hashtbl.find_option tenv id with
+    match Hashtbl.find_option (top()) id with
     | Some t -> t
     | None ->
       let errMsg =
@@ -191,9 +207,14 @@ end = struct
   let changed_since v = version() <> v
   let really_add_type id t =
     tenv_version := !tenv_version + 1;
-    Hashtbl.add tenv id t
+    Hashtbl.add (top()) id t
   let add_type id t =
-    if Hashtbl.mem tenv id then
+    IFDEF DEBUG THEN
+      Printf.printf "[TypeEnv] Adding %s : %s\n%!"
+        (ID.to_str id)
+        (Type.to_str t)
+    ENDIF;
+    if Hashtbl.mem (top()) id then
       let errMsg =
         Printf.sprintf
           "Can't add %s : %s to type environment, binding already exists"
@@ -204,13 +225,13 @@ end = struct
     else really_add_type id t
 
   let merge_type id t =
-    match Hashtbl.find_option tenv id with
+    match Hashtbl.find_option (top()) id with
       | None -> really_add_type id t
       | Some oldT ->
         let commonT = Type.common_type oldT t in
         if t <> commonT then really_add_type id commonT
   let find_option id  =
-    Hashtbl.find_option tenv id
+    Hashtbl.find_option (top()) id
 end
 (* used this functor parameter to recursively call back into Specialize *)
 module type TYPE_ANALYSIS_PARAMS = sig
@@ -253,7 +274,7 @@ module Make (P : TYPE_ANALYSIS_PARAMS) = struct
         (info:
           (UntypedSSA.value, Type.t list, UntypedSSA.value_node list option)
           Adverb.info
-        ) : Type.t list = 
+        ) : Type.t list =
     if List.for_all Type.is_scalar info.array_args then
       raise (
         TypeError("Adverbs must have at least one non-scalar argument", src))
@@ -277,7 +298,7 @@ module Make (P : TYPE_ANALYSIS_PARAMS) = struct
         raise (TypeError(msg, src))
     in
     let eltTypes = List.map (Type.peel ~num_axes:numAxes) info.array_args in
-    let fnVal : UntypedSSA.value = info.adverb_fn in 
+    let fnVal : UntypedSSA.value = info.adverb_fn in
     match info.adverb, info.init, eltTypes with
     | Adverb.Map, None, _ ->
       let eltResultTypes = infer_app fnVal eltTypes in
@@ -306,18 +327,18 @@ module Make (P : TYPE_ANALYSIS_PARAMS) = struct
         | fn::rest -> fn, rest
         | _ -> raise (TypeError("too few arguments for adverb", src))
       in
-      infer_adverb ?src { 
-        adverb = adverb; 
-        adverb_fn = fn.value; 
-        array_args = (infer_value_nodes arrayArgs); 
+      infer_adverb ?src {
+        adverb = adverb;
+        adverb_fn = fn.value;
+        array_args = (infer_value_nodes arrayArgs);
         init = None;
-        axes = None; 
+        axes = None;
         fixed_args = [];
-      } 
-    | UntypedSSA.Adverb info -> 
-      let resultTypes = 
-        infer_adverb ?src $ 
-          Adverb.apply_to_fields 
+      }
+    | UntypedSSA.Adverb info ->
+      let resultTypes =
+        infer_adverb ?src $
+          Adverb.apply_to_fields
             info
             ~fn:(fun valNode -> valNode.value)
             ~values:infer_value_nodes
@@ -335,7 +356,7 @@ module Make (P : TYPE_ANALYSIS_PARAMS) = struct
         let lhsT = infer_value_node lhs in
         let argTypes = infer_value_nodes args in
         IFDEF DEBUG THEN
-          Printf.printf "[exp] Node: %s Types:%s\n"
+          Printf.printf "[TypeAnalysis.exp] Node: %s Types:%s\n"
             (UntypedSSA.exp_node_to_str expNode)
             (Type.type_list_to_str argTypes);
         ENDIF;
@@ -355,18 +376,14 @@ module Make (P : TYPE_ANALYSIS_PARAMS) = struct
               (Type.to_str commonT)
           in
           raise (TypeError(errMsg, expNode.exp_src))
-
-
-
     | Values vs -> infer_value_nodes vs
     | _ -> failwith $ Printf.sprintf
             "Type analysis not implemented for expression: %s"
             (UntypedSSA.exp_node_to_str expNode)
 
-
-
   let init_phi_node {PhiNode.phi_id; phi_left} =
     TypeEnv.add_type phi_id (infer_value_node phi_left)
+
   let init_phi_nodes phiNodes = List.iter init_phi_node phiNodes
 
   let analyze_phi_node {PhiNode.phi_id; phi_left; phi_right} =
@@ -377,11 +394,16 @@ module Make (P : TYPE_ANALYSIS_PARAMS) = struct
   let analyze_phi_nodes phiNodes = List.iter analyze_phi_node phiNodes
 
   let rec analyze_stmt (stmtNode:UntypedSSA.stmt_node) : unit =
+    IFDEF DEBUG THEN
+      Printf.printf "[TypeAnalysis.infer_stmt] %s\n%!"
+        (UntypedSSA.PrettyPrinters.stmt_node_to_str stmtNode)
+    ENDIF;
     let src = stmtNode.stmt_src in
     match stmtNode.stmt with
     | Set(ids, rhs) ->
       let types : Type.t list = infer_exp rhs in
       IFDEF DEBUG THEN
+        Printf.printf "  RHS types: %s\n%!" (Type.type_list_to_str types);
         if List.length ids <> List.length types then
           failwith $ sprintf
             "malformed SET statement: %d ids for %d rhs values \n"
@@ -413,7 +435,7 @@ module Make (P : TYPE_ANALYSIS_PARAMS) = struct
     Block.iter_forward analyze_stmt block
 
   let analyze_fn fundef signature =
-    TypeEnv.reset();
+    TypeEnv.push();
     let inputIds = fundef.input_ids in
     let inputTypes = Signature.input_types signature in
     IFDEF DEBUG THEN
@@ -426,7 +448,7 @@ module Make (P : TYPE_ANALYSIS_PARAMS) = struct
         in
         raise (TypeError(errorMsg, None))
     ENDIF;
-    List.iter2 TypeEnv.add_type inputIds inputTypes;
+    let () = List.iter2 TypeEnv.add_type inputIds inputTypes in
     if Signature.has_output_types signature then begin
       let outputIds = fundef.output_ids in
       let outputTypes = Signature.output_types signature in
@@ -444,7 +466,20 @@ module Make (P : TYPE_ANALYSIS_PARAMS) = struct
       List.iter2 TypeEnv.add_type outputIds outputTypes
     end;
     analyze_block fundef.body;
-    TypeEnv.get_tenv()
+    let tenv = TypeEnv.pop() in
+    IFDEF DEBUG THEN
+      Printf.printf "[TypeAnalysis] Inferred types for %s(%s):\n%!"
+        (UntypedSSA.PrettyPrinters.fn_id_to_str fundef)
+        (Signature.to_str signature)
+      ;
+
+      Hashtbl.iter
+        (fun id t -> Printf.printf "  -- %s : %s\n"
+          (ID.to_str id) (Type.to_str t))
+        tenv
+      ;
+    ENDIF;
+    tenv
 end
 
 let type_analysis
@@ -453,8 +488,8 @@ let type_analysis
       ~(signature:Signature.t) : (ID.t, Type.t) Hashtbl.t =
   IFDEF DEBUG THEN
     Printf.printf
-      "Specializing %s with signature %s\n"
-      (UntypedSSA.fn_to_str fn)
+      "Inferring types for %s with signature %s\n"
+      (FnId.to_str fn.UntypedSSA.fn_id)
       (Signature.to_str signature)
     ;
   ENDIF;
@@ -465,4 +500,3 @@ let type_analysis
   in
   let module TypeEval = Make(Params) in
   TypeEval.analyze_fn fn signature
-

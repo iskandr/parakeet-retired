@@ -57,7 +57,7 @@ module PrettyPrinters : sig
   val stmt_to_str : stmt -> string
   val stmt_node_to_str : stmt_node -> string
   val block_to_str :  block -> string
-
+  val fn_id_to_str : fn -> string
   val fn_to_str : fn -> string
 end
 include module type of PrettyPrinters
@@ -119,3 +119,13 @@ module FnHelpers : sig
   val fn_id : fn -> FnId.t
 end
 include module type of FnHelpers
+
+module ScalarHelpers : sig
+  val is_scalar_exp : exp -> bool
+  val is_scalar_exp_node : exp_node -> bool
+  val is_scalar_stmt : ?control_flow:bool -> stmt -> bool
+  val is_scalar_stmt_node : ?control_flow:bool -> stmt_node -> bool
+  val is_scalar_block : ?control_flow:bool -> block -> bool
+  val is_scalar_fn : ?control_flow:bool -> fn -> bool
+end
+include module type of ScalarHelpers

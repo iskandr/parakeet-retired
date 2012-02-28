@@ -33,11 +33,10 @@ let check_value_list errorLog tenv defined values : unit =
   List.iter (check_value errorLog tenv defined) values
 
 let rec check_stmt
-          (errorLog : errors)
-          (tenv : tenv)
-          (defined : ID.Set.t)
-          (stmtNode:stmt_node)
-          : ID.Set.t =
+  (errorLog : errors)
+  (tenv : tenv)
+  (defined : ID.Set.t)
+  (stmtNode:stmt_node) : ID.Set.t =
   let err msg = Queue.add (stmtNode.stmt_src, msg) errorLog in
   match stmtNode.stmt with
   | Set (ids, rhs) ->
@@ -85,9 +84,12 @@ let rec check_stmt
       defined
   | If (test, tBlock, fBlock, phiNodes) ->
       check_value errorLog tenv defined test;
+      if test.value_type <> Type.bool then
+        err $ "If statement requires boolean condition"
+      ;
       let defined = check_block errorLog tenv defined tBlock in
       let defined = check_block errorLog tenv defined fBlock in
-      let phiIds = List.map (fun phiNode -> phiNode.phi_id) phiNodes in
+      let phiIds = PhiNode.collect_phi_ids phiNodes in
       ID.Set.add_list phiIds defined
 
   | WhileLoop (testBlock, testVal, body, phiNodes) ->
@@ -110,7 +112,8 @@ and check_exp errorLog tenv (defined : ID.Set.t) (expNode : exp_node) : unit =
           (Type.to_str t)
   | Call (typedFn, args) -> ()
   | PrimApp (typedPrim, args) -> ()
-  | Adverb _  -> ()
+  | Adverb adverbInfo  -> ()
+
 
 and check_block
       (errorLog : errors)

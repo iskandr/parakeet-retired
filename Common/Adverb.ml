@@ -1,5 +1,3 @@
-
-
 type t = Map | Reduce | Scan | AllPairs
 
 let to_str = function
@@ -18,9 +16,8 @@ type ('a,'b,'c) info = {
   fixed_args : 'b;
   init : 'b option;
   axes : 'c;
-  array_args : 'b; 
+  array_args : 'b;
 }
-
 
 let apply_to_fields info ~(fn:'a->'d) ~(values:'b -> 'e) ~(axes:'c -> 'f) =
   {
@@ -29,11 +26,11 @@ let apply_to_fields info ~(fn:'a->'d) ~(values:'b -> 'e) ~(axes:'c -> 'f) =
     fixed_args = values info.fixed_args;
     init = Option.map values info.init;
     axes = axes info.axes;
-    array_args = values info.array_args; 
+    array_args = values info.array_args;
   }
 
 let info_to_str info fn_to_str values_to_str axes_to_str =
-  Printf.sprintf "%s[fn=%s; fixed=%s; init=%s; axes=%s](%s)"
+  Printf.sprintf "%s[fn=%s; fixed=(%s); init=%s; axes=%s](%s)"
     (to_str info.adverb)
     (fn_to_str info.adverb_fn)
     (values_to_str info.fixed_args)

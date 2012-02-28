@@ -1,6 +1,7 @@
 (* pp: -parser o pa_macro.cmo *)
 
 open Base
+open Adverb
 open Imp
 open ImpBuilder
 open ImpHelpers
@@ -23,6 +24,9 @@ type loop_descr = {
   loop_incr : value_node;
   loop_incr_op : Prim.scalar_op;
 }
+
+let get_loop_vars loopDescriptors =
+  List.map (fun {loop_var} -> loop_var) loopDescriptors
 
 let rec build_loop_nests
     (builder:ImpBuilder.builder)
@@ -133,11 +137,11 @@ let translate_array_literal
 let rec size_of_axes
      (builder:ImpBuilder.builder)
      (array:Imp.value_node)
-     (axes:int list) : Imp.block * Imp.value_node list =
+     (axes:Imp.value_nodes) : Imp.block * Imp.value_node list =
   match axes with
   | [] -> [], []
   | axis::rest ->
-    let size : Imp.value_node = ImpHelpers.dim array (ImpHelpers.int axis) in
+    let size : Imp.value_node = ImpHelpers.dim array axis in
     let temp = builder#fresh_local ~name:"size" ImpType.int32_t in
     let stmtNode = ImpHelpers.set temp size in
     let restBlock, restVals = size_of_axes builder array rest in
@@ -148,7 +152,7 @@ let rec size_of_axes
 let rec axes_to_loop_descriptors
     (builder:ImpBuilder.builder)
     (array : Imp.value_node)
-    (axes : int list) : Imp.block * loop_descr list =
+    (axes : Imp.value_nodes) : Imp.block * loop_descr list =
   let stmts, sizes = size_of_axes builder array axes in
   let loopDescriptors = List.map
     (mk_simple_loop_descriptor builder) sizes in
@@ -231,14 +235,15 @@ and translate_stmt (builder : ImpBuilder.builder) stmtNode : Imp.stmt list  =
     translate_array_literal builder id elts
   (* adverbs get special treatment since they might return multiple values *)
   | TypedSSA.Set(ids,  {TypedSSA.exp = TypedSSA.Adverb info }) ->
-    let impInfo : (TypedSSA.fn, Imp.value_node list, int list) Adverb.info =
+    let impInfo : (TypedSSA.fn, Imp.value_nodes, Imp.value_nodes) Adverb.info =
       Adverb.apply_to_fields
+         info
         ~fn:FnManager.get_typed_function
         ~values:(translate_values builder)
-        ~axes:AdverbHelpers.const_axes
-        info
+        ~axes:(translate_values builder)
     in
-    translate_adverb builder ids impInfo
+    let lhsValues = List.map builder#var ids in
+    translate_adverb builder lhsValues impInfo
 	(* all assignments other than those with an array literal RHS *)
   | TypedSSA.Set([id], rhs) ->
     let impRhs : Imp.value_node = translate_exp builder rhs in
@@ -263,8 +268,8 @@ and translate_stmt (builder : ImpBuilder.builder) stmtNode : Imp.stmt list  =
     let fBlock' = fBlock' @ falseMerge in
     [Imp.If(cond', tBlock', fBlock')]
   | TypedSSA.WhileLoop(condBlock, condVal, body, phiNodes) ->
-    let inits : Imp.block = 
-      List.map (translate_true_phi_node builder) phiNodes 
+    let inits : Imp.block =
+      List.map (translate_true_phi_node builder) phiNodes
     in
     let condBlock : Imp.block  = translate_block builder condBlock in
     let condVal : Imp.value_node = translate_value builder condVal in
@@ -315,35 +320,70 @@ and translate_exp (builder:ImpBuilder.builder) expNode : Imp.value_node  =
 (* TODO: make this do something sane for adverbs other than Map *)
 and translate_adverb
       (builder:ImpBuilder.builder)
-      (lhsIds:ID.t list)
-      {Adverb.adverb; adverb_fn; fixed_args; init; axes; array_args}
+      (lhsVars: Imp.value_node list)
+      (info : (TypedSSA.fn, Imp.value_nodes, Imp.value_nodes) Adverb.info)
       : Imp.stmt list =
-  assert (init = None);
-  let fixedTypes = List.map Imp.value_type fixed_args in
-  let argTypes = List.map Imp.value_type array_args in
-  let num_axes = List.length axes in
+  if TypedSSA.ScalarHelpers.is_scalar_fn ~control_flow:false info.adverb_fn then
+    match TypedSSA.FnHelpers.get_single_type info.adverb_fn with
+      | None -> translate_sequential_adverb builder lhsVars info
+      | Some t ->
+        let impType = InferImpTypes.simple_conversion t in
+        vectorize_adverb builder lhsVars info impType
+  else translate_sequential_adverb builder lhsVars info
+
+and translate_sequential_adverb
+      (builder:ImpBuilder.builder)
+      (lhsVars : Imp.value_node list)
+      (info : (TypedSSA.fn, Imp.value_nodes, Imp.value_nodes) Adverb.info)
+      : Imp.stmt list =
+  let fixedTypes = List.map Imp.value_type info.fixed_args in
+  let argTypes = List.map Imp.value_type info.array_args in
+  let num_axes = List.length info.axes in
   let peeledArgTypes = List.map (ImpType.peel ~num_axes) argTypes in
   let fnInputTypes = fixedTypes @ peeledArgTypes in
-  let impFn : Imp.fn = translate_fn adverb_fn fnInputTypes in
-  let bigArray : Imp.value_node = argmax_array_rank array_args in
-  let initBlock, loopDescriptors =
-    axes_to_loop_descriptors builder bigArray axes
+  let impFn : Imp.fn = translate_fn info.adverb_fn fnInputTypes in
+  (* To implement Map, Scan, and Reduce we loop over the specified axes *)
+  (* of the biggest array argument. *)
+  (* AllPairs is different in that we loop over the axes of the first arg *)
+  (* and nested within we loop over the same set of axes of the second arg. *)
+  let initBlock, loopDescriptors, allIndexVars, nestedArrayArgs =
+    match info.adverb with
+    | Adverb.AllPairs ->
+      (match info.array_args with
+        | [x;y] ->
+          let xInit, xLoops = axes_to_loop_descriptors builder x info.axes in
+          let xIndexVars = get_loop_vars xLoops in
+          let yInit, yLoops = axes_to_loop_descriptors builder y info.axes in
+          let yIndexVars = get_loop_vars yLoops in
+          let nestedArrayArgs =
+            [ImpHelpers.idx x xIndexVars; ImpHelpers.idx y yIndexVars]
+          in
+          xInit@yInit, xLoops@yLoops, xIndexVars@yIndexVars, nestedArrayArgs
+        | _ -> failwith "allpairs requires two args"
+      )
+    | _ ->
+      (* pick any of the highest rank arrays in the input list *)
+      let biggestArray : Imp.value_node = argmax_array_rank info.array_args in
+      (* init is a block which gets the dimensions of array we're traversing *)
+      let init, loops : (Imp.stmt list) * (loop_descr list) =
+        axes_to_loop_descriptors builder biggestArray info.axes
+      in
+      let indexVars = get_loop_vars loops in
+      let nestedArrayArgs : Imp.value_node list =
+        List.map (fun arg -> ImpHelpers.idx arg indexVars) info.array_args
+      in
+      init, loops, indexVars, nestedArrayArgs
   in
-  let indices = List.map (fun {loop_var} -> loop_var) loopDescriptors in
-  let nestedArrayArgs : Imp.value_node list =
-    List.map (fun arg -> ImpHelpers.idx arg indices) array_args
-  in
-  let nestedArgs : Imp.value_node list = fixed_args @ nestedArrayArgs in
-  (*   Currently assuming that axes are in order starting from zero *)
-  let rec check_ordered_list ?(prev=(-1)) = function
-    | [] -> failwith "[translate_map] Can't handle empty axis list"
-    | [x] -> x = (prev + 1)
-    | x::xs -> (x = prev + 1) && (check_ordered_list ~prev:x xs)
-  in
-  check_ordered_list axes;
-  let lhsValues = List.map builder#var lhsIds in
-  let nestedOutputs =
-    List.map (fun arrayOutput -> ImpHelpers.idx arrayOutput indices) lhsValues
+  let nestedArgs, nestedOutputs =
+    match info.adverb, info.init with
+      | Adverb.AllPairs, None
+      | Adverb.Map, None ->
+        let nestedInputs = info.fixed_args @ nestedArrayArgs in
+        let nestedOutputs =
+          List.map (fun out -> ImpHelpers.idx out allIndexVars) lhsVars
+        in
+        nestedInputs, nestedOutputs
+      | _ -> assert false
   in
   let replaceEnv =
     ID.Map.of_lists
@@ -353,3 +393,11 @@ and translate_adverb
   let fnBody = ImpReplace.replace_block replaceEnv impFn.body in
   let loops = build_loop_nests builder loopDescriptors fnBody in
   initBlock @ loops
+
+and vectorize_adverb
+      (builder : ImpBuilder.builder)
+      (lhsVars : Imp.value_node list)
+      (info : (TypedSSA.fn, Imp.value_nodes, Imp.value_nodes) Adverb.info)
+      (eltT : ImpType.t) =
+   translate_sequential_adverb builder lhsVars info
+

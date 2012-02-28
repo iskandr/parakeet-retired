@@ -13,10 +13,10 @@
 "Runtime/ShapeInference" : include
 "Runtime/CostModel" : include
 "ShapeInference" : include
-"Specialization" : include
 "SSA" : include
 "SSA/Analyses" : include
 "SSA/Optimizations" : include
+"SSA/Specialization" : include
 "stubs" : include
 "Tests" : include
 "/usr/local/lib/ocaml" : include

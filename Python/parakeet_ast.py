@@ -1,8 +1,23 @@
+import ast, math, numpy as np, parakeet_lib
 from ctypes import *
-import ast, math
-import numpy as np
 from parakeet_common import LibPar, LOG, list_to_ctypes_array
-import parakeet_lib
+
+###############################################################################
+#  C types struct for source information
+###############################################################################
+
+class _c_source_info_t(Structure):
+  _fields_ = [("filename", c_char_p),
+              ("line", c_int),
+              ("col", c_int)]
+
+class _source_info_t:
+  def __init__(self, c_src):
+    self.c_source_info = c_src
+    if c_src is not None:
+      self.addr = addressof(c_src)
+    else:
+      self.addr = 0
 
 ###############################################################################
 #  Global variables
@@ -241,11 +256,11 @@ class ASTConverter():
 
   def build_parakeet_array(self, src_info, elts):
     c_array = list_to_ctypes_array(elts, c_void_p)
-    return LibPar.mk_array(c_array, len(elts), src_info)
+    return LibPar.mk_array(c_array, len(elts), src_info.addr)
 
   def build_parakeet_block(self, src_info, stmts):
     c_array = list_to_ctypes_array(stmts, c_void_p)
-    return LibPar.mk_block(c_array, len(stmts), src_info)
+    return LibPar.mk_block(c_array, len(stmts), src_info.addr)
 
   def build_call(self, src_info, python_fn, args):
     if python_fn in SafeFunctions:
@@ -256,11 +271,11 @@ class ASTConverter():
                            python_fn)
     else:
       c_name = c_char_p(global_fn_name(python_fn))
-      parakeet_fn = LibPar.mk_var(c_name, src_info)
+      parakeet_fn = LibPar.mk_var(c_name, src_info.addr)
     parakeet_args = list_to_ctypes_array(args,c_void_p)
     n = len(parakeet_args)
     LOG("Call(%s,%s,%s)" % (parakeet_fn, parakeet_args, n))
-    return LibPar.mk_app(parakeet_fn, parakeet_args, n, src_info)
+    return LibPar.mk_app(parakeet_fn, parakeet_args, n, src_info.addr)
 
   def build_prim_call(self, src_info, python_op_name, *args):
     LOG("build_prim_call(%s, %s)" % (python_op_name, args))
@@ -270,16 +285,17 @@ class ASTConverter():
       raise RuntimeError('Prim not implemented: %s' % python_op_name)
     else:
       prim = ast_prim(parakeet_op_name)
-    return LibPar.mk_app(prim, parakeet_args, len(parakeet_args), src_info)
+    return LibPar.mk_app(prim, parakeet_args, len(parakeet_args),
+                         src_info.addr)
 
   def build_var(self, src_info,name):
     #Special case for booleans
     if name == 'True':
-      return LibPar.mk_bool_paranode(1, src_info)
+      return LibPar.mk_bool_paranode(1, src_info.addr)
     elif name == 'False':
-      return LibPar.mk_bool_paranode(0, src_info)
+      return LibPar.mk_bool_paranode(0, src_info.addr)
     else:
-      return LibPar.mk_var(c_char_p(name), src_info)
+      return LibPar.mk_var(c_char_p(name), src_info.addr)
 
   def build_num(self, src_info, str_num):
     """
@@ -288,9 +304,9 @@ class ASTConverter():
     num = eval(str_num)
     LOG("%s(%s)" %(type(num), num))
     if type(num) == int:
-      return LibPar.mk_int32_paranode(num,src_info)
+      return LibPar.mk_int32_paranode(num, src_info.addr)
     elif type(num) == float:
-      return LibPar.mk_float_paranode(c_float(num),src_info)
+      return LibPar.mk_float_paranode(c_float(num), src_info.addr)
     else:
       assert False
 
@@ -336,12 +352,12 @@ class ASTConverter():
       src_info = self.build_src_info(node)
       elseBlock = self.build_parakeet_block(src_info,args[2])
       src_info = self.build_src_info(node)
-      return LibPar.mk_if(args[0], thenBlock, elseBlock, src_info)
+      return LibPar.mk_if(args[0], thenBlock, elseBlock, src_info.addr)
     elif node_type == 'While':
       LOG("while(%s, %s)" % (args[0], args[1]))
-      block = self.build_parakeet_block(src_info,args[1])
+      block = self.build_parakeet_block(src_info, args[1])
       src_info = self.build_src_info(node)
-      return LibPar.mk_whileloop(args[0], block, src_info)
+      return LibPar.mk_whileloop(args[0], block, src_info.addr)
     elif node_type == 'Attribute':
       LOG("Attribute %s " % str(args))
       #NOTE: doesn't make ANY sense right now
@@ -359,7 +375,7 @@ class ASTConverter():
         src_info = self.build_src_info(node)
         funName = funRef.__module__ + "." + funRef.__name__
         print "registering", funName
-        parName = LibPar.mk_var(c_char_p(funName), src_info)
+        parName = LibPar.mk_var(c_char_p(funName), src_info.addr)
         results.append(parName)
       else:
         result = self.visit(node, contextSet)
@@ -423,7 +439,7 @@ class ASTConverter():
           self.seen_functions.add(func)
           fun_name = func.__module__ + "." + func.__name__
           print "registering", fun_name
-          par_name = LibPar.mk_var(c_char_p(fun_name), src_info)
+          par_name = LibPar.mk_var(c_char_p(fun_name), src_info.addr)
           fun_arg = par_name
           ### End own function
           if funRef.__name__ == "reduce":
@@ -434,10 +450,11 @@ class ASTConverter():
             src_info_c = self.build_src_info(node)
             kw_args = {'fixed': self.build_parakeet_array(src_info_a,[]),
                        'default': LibPar.mk_int32_paranode(
-                           funRef.__self__.identity, src_info_c)
+                                    funRef.__self__.identity, src_info_c)
                        }
             if len(node.args) == 1:
-              kw_args['axis'] = LibPar.mk_int32_paranode(1,src_info_b)
+              kw_args['axis'] = LibPar.mk_int32_paranode(1,
+                                                         addressof(src_info_b))
             elif len(node.args) == 2:
               kw_args['axis'] = self.visit(node.args[1], contextSet)
             else:
@@ -516,18 +533,18 @@ class ASTConverter():
       #Might not be right for no return
       if node.value is None:
         LOG("return()")
-        return LibPar.mk_return(None, 0,src_info)
+        return LibPar.mk_return(None, 0, src_info.addr)
       elif type(node.value).__name__ == "Tuple":
         children = ast.iter_child_nodes(node.value)
         elts = self.build_arg_list(children, contextSet)
         ret_args = list_to_ctypes_array(elts, c_void_p)
-        LOG("return(%s,%s)" % (ret_args,len(elts)))
-        return LibPar.mk_return(ret_args,len(elts),src_info)
+        LOG("return(%s,%s)" % (ret_args, len(elts)))
+        return LibPar.mk_return(ret_args, len(elts), src_info.addr)
       else:
         ret = self.visit(node.value, contextSet)
         ret_args = list_to_ctypes_array([ret], c_void_p)
-        LOG("return(%s,%s)" % (ret_args,1))
-        return LibPar.mk_return(ret_args,1,src_info)
+        LOG("return(%s,%s)" % (ret_args, 1))
+        return LibPar.mk_return(ret_args, 1, src_info.addr)
     elif nodeType == 'Assign':
       print "In assign"
       leftChildContext = set(contextSet)
@@ -549,7 +566,7 @@ class ASTConverter():
       rhs_arg = self.visit(node.value, rightChildContext)
       print "before mk_assign"
       LOG("assign(%s,%s,%s)" % (lhs_args, num_args, rhs_arg))
-      return LibPar.mk_assign(lhs_args, num_args, rhs_arg, src_info)
+      return LibPar.mk_assign(lhs_args, num_args, rhs_arg, src_info.addr)
     else:
       raise RuntimerError("[Parakeet] %s not supported in build_complex_" +
                           "parakeet_node" % nodeType)
@@ -559,9 +576,9 @@ class ASTConverter():
       file_name = c_char_p(self.file_name)
       line = c_int(self.line_offset + node.lineno)
       col = c_int(node.col_offset)
-      return LibPar.mk_source_info_struct(file_name, line, col)
+      return _source_info_t(_c_source_info_t(file_name, line, col))
     except AttributeError:
-      return None
+      return _source_info_t(None)
 
 ###############################################################################
 #  Function Registration

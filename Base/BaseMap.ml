@@ -27,11 +27,9 @@ module type S = sig
   val values : 'a t -> 'a list
   (*val value_set
   let value_set map = KeySet.of_list (values map)*)
-
-  val partition : (key -> 'a -> bool) -> 'a t -> ('a t) * ('a t)
   val partition_by_key : (key -> bool) -> 'a t -> ('a t) * ('a t)
   val partition_by_value : ('a -> bool) -> 'a t -> ('a t) * ('a t)
-  val num_keys : 'a t -> int
+
   val combine : 'a t -> 'a t -> 'a t
   val extend : 'a t -> key list -> 'a list -> 'a t
 
@@ -97,10 +95,6 @@ module Make (M: ORD) = struct
     iter (fun k v -> DynArray.add keys k; DynArray.add values v) map;
     DynArray.to_array keys, DynArray.to_array values
 
-  let filter f map =
-    let aux k v acc = if f k v then add k v acc else acc in
-    fold aux map empty
-
   let filter_by_key f map =
     let aux k v acc = if f k then add k v acc else acc in
     fold aux map empty
@@ -131,11 +125,6 @@ module Make (M: ORD) = struct
 
   (*let value_set map = KeySet.of_list (values map)*)
 
-  let partition f map =
-    let aux k v (accT, accF) =
-      if f k v then add k v accT, accF else accT, add k v accF in
-    fold aux map (empty,empty)
-
   let partition_by_key f map =
     let aux k v (accT, accF) =
       if f k then add k v accT, accF else accT, add k v accF in
@@ -145,8 +134,6 @@ module Make (M: ORD) = struct
     let aux k v (accT, accF) =
       if f v then add k v accT, accF else accT, add k v accF in
     fold aux map (empty,empty)
-
-  let num_keys map = List.length $ keys map
 
   let combine map1 map2 = add_list (to_list map1) map2
 

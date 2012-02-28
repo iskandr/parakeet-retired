@@ -22,5 +22,7 @@ module type ORD = sig
   val compare : t -> t -> int
 end
 
+val is_sequence : ?start:int -> int list -> bool
+
 val safe_div : int -> int -> int
 val wrap_str : string -> string

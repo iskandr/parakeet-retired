@@ -15,5 +15,5 @@ val mk_list : ?src:SrcInfo.t -> ID.t list -> 'a list -> 'a list -> 'a t list
 
 val to_str : ('a -> string) -> 'a t -> string
 
-
+val collect_phi_ids : 'a t list -> ID.t list
 val collect_phi_values : bool -> 'a t list -> ID.t list * 'a list

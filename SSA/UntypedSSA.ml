@@ -98,15 +98,16 @@ module PrettyPrinters = struct
       (phi_nodes_to_str phiNodes)
   and stmt_node_to_str {stmt} = stmt_to_str stmt
   and block_to_str block =
-    Block.to_str stmt_node_to_str block
+    Base.wrap_str (Block.to_str stmt_node_to_str block)
 
+  let fn_id_to_str (fundef:fn) = FnId.to_str fundef.fn_id
 
   let fn_to_str (fundef:fn) =
-    let name = FnId.to_str fundef.fn_id in
+    let name = fn_id_to_str fundef in
     let inputs = ID.list_to_str fundef.input_ids in
     let outputs = ID.list_to_str fundef.output_ids in
     let body = block_to_str fundef.body in
-    Base.wrap_str (sprintf "def %s(%s)=>(%s):\n%s" name inputs outputs body)
+    (sprintf "def %s(%s)=>(%s):%s" name inputs outputs body)
 
 end
 include PrettyPrinters
@@ -215,3 +216,27 @@ module FnHelpers = struct
 end
 include FnHelpers
 
+module ScalarHelpers = struct
+  let is_scalar_exp = function
+    | App({value=Prim (Prim.ScalarOp _)}, _ )
+    | Values _ -> true
+    | _ -> false
+
+  let is_scalar_exp_node {exp} = is_scalar_exp exp
+
+  let rec is_scalar_stmt ?(control_flow=false) = function
+  | Set(_, expNode) -> is_scalar_exp_node expNode
+  | If(_, tCode, fCode, _) ->
+    control_flow && is_scalar_block tCode && is_scalar_block fCode
+  | WhileLoop (condBlock, _, body, _) ->
+    control_flow && is_scalar_block condBlock && is_scalar_block body
+  | SetIdx _ -> false
+  and is_scalar_stmt_node ?(control_flow=false) stmtNode =
+    is_scalar_stmt ~control_flow stmtNode.stmt
+  and is_scalar_block ?(control_flow=false) block =
+    Block.for_all (is_scalar_stmt_node ~control_flow) block
+
+  let is_scalar_fn ?(control_flow=false) fn =
+    is_scalar_block ~control_flow fn.body
+end
+include ScalarHelpers

@@ -11,7 +11,7 @@ module CoreLanguage : sig
 	  | Arr of value_nodes
 	  | Call of FnId.t * value_nodes
 	  | PrimApp of Prim.t * value_nodes
-	  | Adverb of adverb_info 
+	  | Adverb of adverb_info
     | Cast of Type.t * value_node
 
 	type exp_node =
@@ -63,6 +63,8 @@ module PrettyPrinters : sig
 
   val typed_id_to_str : tenv -> ID.t -> string
   val typed_ids_to_str : tenv -> ID.t list -> string
+
+  val fn_id_to_str : fn -> string
   val fn_to_str : fn -> string
 end
 include module type of PrettyPrinters
@@ -113,6 +115,8 @@ module FnHelpers  : sig
         output_types: (Type.t list) ->
           ?local_types: (Type.t list) ->
             ((value_nodes * value_nodes * value_nodes) -> stmt_node list) -> fn
+
+  val get_single_type : fn -> Type.t option
 end
 include module type of FnHelpers
 
@@ -142,3 +146,14 @@ module StmtHelpers : sig
     ?src:SrcInfo.t -> value_node -> value_nodes -> exp_node -> stmt_node
 end
 include module type of StmtHelpers
+
+
+module ScalarHelpers : sig
+  val is_scalar_exp : exp -> bool
+  val is_scalar_exp_node : exp_node -> bool
+  val is_scalar_stmt : ?control_flow:bool -> stmt -> bool
+  val is_scalar_stmt_node : ?control_flow:bool -> stmt_node -> bool
+  val is_scalar_block : ?control_flow:bool -> block -> bool
+  val is_scalar_fn : ?control_flow:bool -> fn -> bool
+
+end

@@ -39,7 +39,9 @@ and value_node = {
   value_type : ImpType.t;
 }
 
-and stmt =
+type value_nodes = value_node list
+
+type stmt =
   | If of value_node * block * block
   | While of value_node * block (* test, body *)
   | Set of ID.t * value_node

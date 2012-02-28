@@ -84,16 +84,8 @@ let add_specialization
     (signature : Signature.t)
     (typedFn : TypedSSA.fn) =
   let fnId = typedFn.TypedSSA.fn_id in
-  if FnTable.mem fnId state.typed_functions then (
-    (* if function is already in the fntable, don't add it again
-       but make sure it really is the same function
-    *)
-    IFDEF DEBUG THEN
-      assert (FnTable.find fnId state.typed_functions = typedFn)
-    ENDIF;
-    ()
-  )
-  else FnTable.add ~opt_queue:optimize typedFn state.typed_functions
+  if not (FnTable.mem fnId state.typed_functions) then
+   FnTable.add ~opt_queue:optimize typedFn state.typed_functions
   ;
   let key : UntypedSSA.value * Signature.t = (untypedVal, signature) in
   Hashtbl.add state.specializations key typedFn.TypedSSA.fn_id;
