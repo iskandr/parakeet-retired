@@ -323,12 +323,16 @@ and translate_adverb
       (lhsVars: Imp.value_node list)
       (info : (TypedSSA.fn, Imp.value_nodes, Imp.value_nodes) Adverb.info)
       : Imp.stmt list =
-  if TypedSSA.ScalarHelpers.is_scalar_fn ~control_flow:false info.adverb_fn then
+  let argTypes = List.map Imp.value_type info.array_args in
+  let maxArgRank =
+    List.fold_left (fun acc t -> max acc (ImpType.rank t)) 0 argTypes
+  in
+  if maxArgRank = 1 && TypedSSA.ScalarHelpers.is_scalar_fn info.adverb_fn then
+    (* only vectorize function which use one type in their body *)
     match TypedSSA.FnHelpers.get_single_type info.adverb_fn with
       | None -> translate_sequential_adverb builder lhsVars info
-      | Some t ->
-        let impType = InferImpTypes.simple_conversion t in
-        vectorize_adverb builder lhsVars info impType
+      | Some (Type.ScalarT eltT) ->
+        vectorize_adverb builder lhsVars info eltT
   else translate_sequential_adverb builder lhsVars info
 
 and translate_sequential_adverb
@@ -383,7 +387,11 @@ and translate_sequential_adverb
           List.map (fun out -> ImpHelpers.idx out allIndexVars) lhsVars
         in
         nestedInputs, nestedOutputs
-      | _ -> assert false
+      | Adverb.Reduce, None -> failwith "reduce not implemented"
+      | Adverb.Reduce, Some inits -> failwith "reduce not implemented"
+      | Adverb.Scan, None -> failwith "scan not implemented"
+      | Adverb.Scan, Some inits -> failwith "scan not implemented"
+      | _ -> failwith "malformed adverb"
   in
   let replaceEnv =
     ID.Map.of_lists
@@ -397,7 +405,11 @@ and translate_sequential_adverb
 and vectorize_adverb
       (builder : ImpBuilder.builder)
       (lhsVars : Imp.value_node list)
-      (info : (TypedSSA.fn, Imp.value_nodes, Imp.value_nodes) Adverb.info)
-      (eltT : ImpType.t) =
-   translate_sequential_adverb builder lhsVars info
+      (adverbInfo : (TypedSSA.fn, Imp.value_nodes, Imp.value_nodes) Adverb.info)
+      (eltT : Type.elt_t) =
+  let nbits = Type.sizeof eltT * 8 in
+  let biggestArg : Imp.value_node = argmax_array_rank adverbInfo.array_args in
+  assert (ImpType.rank biggestArg.value_type = 1);
+  (* TODO: actually vectorize here *)
+  translate_sequential_adverb builder lhsVars adverbInfo
 

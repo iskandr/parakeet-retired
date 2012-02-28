@@ -45,5 +45,5 @@ let rec is_sequence ?(start=0) = function
 let safe_div n d =
   (n + d - 1) / d
 
-let rec wrap_str s =
+let rec indent_newlines s =
   Str.global_substitute (Str.regexp "\n") (fun _ -> "\n  ") s

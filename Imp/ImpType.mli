@@ -34,3 +34,4 @@ val combine_type_list : t list -> t
 val type_of_value : 'a Value.t -> t
 
 val peel : ?num_axes:int -> t -> t
+

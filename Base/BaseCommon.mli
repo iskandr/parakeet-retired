@@ -25,4 +25,4 @@ end
 val is_sequence : ?start:int -> int list -> bool
 
 val safe_div : int -> int -> int
-val wrap_str : string -> string
+val indent_newlines : string -> string

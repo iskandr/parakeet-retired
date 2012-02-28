@@ -102,7 +102,6 @@ val ( =$ ) : ?t:Type.elt_t -> value_node -> value_node -> value_node
 val neq : ?t:Type.elt_t -> value_node -> value_node -> value_node
 val ( <>$ ) : ?t:Type.elt_t -> value_node -> value_node -> value_node
 
-
 val not_ : value_node -> value_node
 val (!$) : value_node -> value_node
 
