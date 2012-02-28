@@ -35,3 +35,5 @@ val type_of_value : 'a Value.t -> t
 
 val peel : ?num_axes:int -> t -> t
 
+val type_of_copy : t -> t
+

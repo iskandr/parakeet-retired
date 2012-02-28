@@ -31,7 +31,9 @@ type value =
   | Select of ImpType.t * value_node * value_node * value_node
   | Cast of ImpType.t * value_node
   | DimSize of value_node * value_node
-  | FreezeDim of value_node * value_node * value_node
+  | FixDim of value_node * value_node * value_node
+  | Slice of value_node * value_node * value_node * value_node
+  | Copy of value_node
   | ArrayField of array_field * value_node
 
 and value_node = {
@@ -85,9 +87,9 @@ val get_var_shape : fn -> ID.t -> SymbolicShape.t
 
 val cuda_info_to_str : cuda_info -> string
 val coord_to_str : coord -> string
-
+val array_storage_to_str : storage -> string
 val value_type : value_node -> ImpType.t
-
+val value_types : value_node list -> ImpType.t list
 
 val value_to_str : value -> string
 val value_node_to_str : value_node -> string
