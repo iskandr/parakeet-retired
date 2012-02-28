@@ -9,7 +9,7 @@ type t =
   | ShiftT of t
   | SliceT of t
   | RangeT of elt_t
-  | VecSliceT of elt_t * int (* type, width *)
+  | VecSliceT of t * int (* array, width *)
 
 let rec to_str = function
 	| ScalarT elt_t -> Type.elt_to_str elt_t
@@ -24,8 +24,8 @@ let rec elt_type = function
   | RangeT t
 	| ScalarT t
   | ExplodeT (t, _)
-  | VecSliceT (t, _)
   | ArrayT (t, _) -> t
+  | VecSliceT (nested, _)
   | RotateT nested
   | SliceT nested
   | ShiftT nested -> elt_type nested

@@ -41,6 +41,7 @@ type cpu_t = {
   cpu_clock_rate_ghz : float;
   cores : core_t array;
   caches : cache_t array;
+  vector_bitwidth : int;
 }
 
 type t = {
@@ -63,6 +64,7 @@ let print_cpu cpu =
     Printf.printf " Core affinity ids: %s\n" (String.concat " " affinities)
   in
   Array.iter print_core cpu.cores;
+  Printf.printf "CPU Vector bitwidth: %d\n%!" cpu.vector_bitwidth;
   Printf.printf "CPU number of caches: %d\n%!" (Array.length cpu.caches);
   let print_cache cache =
     Printf.printf " Cache id: %d\n" cache.cache_id;
@@ -169,6 +171,9 @@ let consume_cpu_child (cpu:cpu_t) (node:Xml.xml) =
   if test_tag node "Id" then
     let id = int_of_string (get_tag_val node) in
     {cpu with cpu_id = id}
+  else if test_tag node "VectorBitWidth" then
+    let bitwidth = int_of_string (get_tag_val node) in
+    {cpu with vector_bitwidth = bitwidth}
   else if test_tag node "Core" then
     let core = build_core node cpu in
     let new_cores = Array.append cpu.cores (Array.make 1 core) in
@@ -243,4 +248,6 @@ let build_machine_model =
   let cpuxml = Xml.parse_file cpufile in
   let cpus = Array.make 1 (build_cpu cpuxml) in
   IFDEF DEBUG THEN print_cpu cpus.(0); ENDIF;
-  {gpus = gpus;cpus = cpus; total_ram = 16384}
+  {gpus = gpus; cpus = cpus; total_ram = 16384}
+
+let machine_model = build_machine_model ()

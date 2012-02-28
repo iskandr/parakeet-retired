@@ -3,12 +3,12 @@ open Imp
 
 (* IMP STATEMENTS *)
 let syncthreads = SyncThreads
-let if_ cond t f  = If(cond,t,f)
+let if_ cond t f  = If(cond, t, f)
 let ifTrue cond t = if_ cond t []
 let while_ cond code = While(cond, code)
 let comment str = Comment str
 
-let set v rhs = match v.value  with
+let set v rhs = match v.value with
   | Var id -> Set(id,rhs)
   | _ -> assert false
 
@@ -18,23 +18,22 @@ let rec setidx arr indices rhs = SetIdx(arr, indices, rhs)
 let wrap_bool (v : value) : value_node =
   {value=v; value_type = ImpType.bool_t}
 let wrap_char (v : value) : value_node =
-  { value=v; value_type = ImpType.char_t}
+  {value=v; value_type = ImpType.char_t}
 let wrap_int16 (v : value) : value_node =
-  { value=v; value_type = ImpType.int16_t}
+  {value=v; value_type = ImpType.int16_t}
 let wrap_int32 (v : value) : value_node =
-  { value=v; value_type = ImpType.int32_t}
+  {value=v; value_type = ImpType.int32_t}
 let wrap_int64 (v : value) : value_node =
-  { value=v; value_type = ImpType.int32_t}
+  {value=v; value_type = ImpType.int32_t}
 let wrap_float32 (v : value) : value_node =
-  { value=v; value_type = ImpType.float32_t}
+  {value=v; value_type = ImpType.float32_t}
 let wrap_float64 (v : value) : value_node =
-  { value=v; value_type = ImpType.float64_t}
+  {value=v; value_type = ImpType.float64_t}
 
-
-let wrap (v:value) (ty:ImpType.t) = { value = v; value_type = ty }
+let wrap (v:value) (ty:ImpType.t) = {value = v; value_type = ty}
 
 (* CAST AN EXPRESSION TO A NEW TYPE
-   (or leave it alone if it's already that type
+   (or leave it alone if it's already that type)
 *)
 
 let cast (t:ImpType.t) (valNode:value_node) : value_node =
@@ -50,7 +49,7 @@ let cast (t:ImpType.t) (valNode:value_node) : value_node =
       { value = Const n'; value_type = t}
     | _ ->
       let sameSize = Type.sizeof old_elt_t = Type.sizeof elt_t in
-      if  sameSize || Type.is_scalar_subtype old_elt_t elt_t then
+      if sameSize || Type.is_scalar_subtype old_elt_t elt_t then
         {value_type = t; value = Cast(t, valNode)}
       else failwith $
         Printf.sprintf "[imp->cast] cannot create cast from %s to %s : %s"
@@ -58,12 +57,13 @@ let cast (t:ImpType.t) (valNode:value_node) : value_node =
           (ImpType.to_str t)
           (value_node_to_str valNode)
    )
+
 let common_type ?t (args : value_node list) =
  match t with
  | Some t -> ImpType.ScalarT t
  | None ->
-     let types = List.map (fun node -> node.value_type) args in
-     ImpType.combine_type_list types
+   let types = List.map (fun node -> node.value_type) args in
+   ImpType.combine_type_list types
 
 let typed_op op ?t (args : value_node list) : value_node =
   let argType = common_type ?t args in
@@ -79,8 +79,8 @@ let cmp_op op ?t args =
   wrap_bool $ Op (eltT, op, args)
 
 (* CUDA stuff *)
-type vec3 = { x: value_node; y: value_node; z: value_node}
-let mk_vec3 (f : coord -> value_node) : vec3  = { x = f X; y = f Y; z = f Z}
+type vec3 = {x: value_node; y: value_node; z: value_node}
+let mk_vec3 (f : coord -> value_node) : vec3  = {x = f X; y = f Y; z = f Z}
 
 let threadIdx =
   mk_vec3 (fun coord -> wrap_int16 $ CudaInfo(ThreadIdx, coord))
@@ -89,8 +89,7 @@ let blockIdx =
 let blockDim =
   mk_vec3 (fun coord -> wrap_int16 $ CudaInfo(BlockDim, coord))
 let gridDim =
-  mk_vec3 (fun coord -> wrap_int16 $ CudaInfo (GridDim, coord))
-
+  mk_vec3 (fun coord -> wrap_int16 $ CudaInfo(GridDim, coord))
 
 (* GENERAL IMP EXPRESSIONS *)
 let int32 i = wrap_int32 $ Const (ParNum.Int32 i)
@@ -123,12 +122,29 @@ let idx arr indices =
         numIndices
     ;
     let eltT = ImpType.elt_type arrT in
-    { value = Idx(arr, indices); value_type = ImpType.ScalarT eltT }
+    {value = Idx(arr, indices); value_type = ImpType.ScalarT eltT}
   end
 
-let dim (arr:value_node) (idx:value_node) = wrap_int32 $ (DimSize( arr, idx))
+let dim (arr:value_node) (idx:value_node) = wrap_int32 $ (DimSize(arr, idx))
 
 let len x = dim (int 0) x
+
+let vec_slice arr indices width =
+  let arrT = arr.value_type in
+  if ImpType.is_scalar arrT then failwith "Can't VecSlice into a scalar"
+  else begin
+    assert (ImpType.is_array arrT);
+    let numIndices = List.length indices in
+    let rank = ImpType.rank arrT in
+    if numIndices <> rank then
+      failwith $ Printf.sprintf
+        "[ImpHelpers] Expected %d indices, got %d"
+        rank
+        numIndices
+    ;
+    let eltT = ImpType.elt_type arrT in
+    {value = Idx(arr, indices); value_type = ImpType.VecSliceT(eltT, width)}
+  end
 
 let max_ ?t x y = typed_op Prim.Max ?t [x;y]
 let min_ ?t x y = typed_op Prim.Min ?t [x;y]
@@ -139,44 +155,43 @@ let ( *$ ) = mul
 let add ?t x y = typed_op Prim.Add ?t [x; y]
 let ( +$ ) = add
 
-let div ?t  x y = typed_op Prim.Div ?t [x; y]
+let div ?t x y = typed_op Prim.Div ?t [x; y]
 let ( /$ ) = div
 
 let sub ?t x y = typed_op Prim.Sub ?t [x; y]
 let ( -$ ) = sub
 
-let mod_ ?t  x y = typed_op Prim.Mod ?t  [x; y]
+let mod_ ?t x y = typed_op Prim.Mod ?t [x; y]
 let ( %$ ) = mod_
 
 let safe_div_ ?t x y = typed_op Prim.SafeDiv ?t [x;y]
 
-let lt ?t x y = cmp_op Prim.Lt ?t  [x; y]
+let lt ?t x y = cmp_op Prim.Lt ?t [x; y]
 let ( <$ ) = lt
 
-let lte ?t  x y = cmp_op Prim.Lte ?t [x; y]
+let lte ?t x y = cmp_op Prim.Lte ?t [x; y]
 let ( <=$ ) = lte
 
-let gt ?t  x y = cmp_op Prim.Gt ?t  [x;y]
+let gt ?t x y = cmp_op Prim.Gt ?t [x;y]
 let ( >$ ) = gt
 
-let gte ?t  x y = cmp_op Prim.Gte ?t  [x;y]
+let gte ?t x y = cmp_op Prim.Gte ?t [x;y]
 let ( >=$ ) = gte
 
-let eq ?t x y = cmp_op Prim.Eq ?t  [x;y]
+let eq ?t x y = cmp_op Prim.Eq ?t [x;y]
 let ( =$ ) = eq
 
-let neq ?t x y = cmp_op Prim.Neq ?t  [x;y]
+let neq ?t x y = cmp_op Prim.Neq ?t [x;y]
 let ( <>$ ) = neq
 
-
 let not_ x = typed_op Prim.Not ~t:Type.BoolT [x]
-let (!$) = not_
+let ( !$ ) = not_
 
 let and_ x y = typed_op Prim.And ~t:Type.BoolT [x;y]
-let (&&$) = and_
+let ( &&$ ) = and_
 
 let or_ x y = typed_op Prim.Or ~t:Type.BoolT [x;y]
-let (||$) = or_
+let ( ||$ ) = or_
 
 let sqrt32 x = typed_op Prim.Sqrt ~t:Type.Float32T [x]
 let sqrt64 x = typed_op Prim.Sqrt ~t:Type.Float64T [x]
@@ -188,7 +203,7 @@ let id_of_value valNode = match valNode.value with
   | Var id -> id
   | _ -> assert false
 
-let var ~ty id =  {value = Var id; value_type = ty}
+let var ~ty id = {value = Var id; value_type = ty}
 
 let max_simplify (d1:value_node) (d2:value_node) : value_node =
   if d1.value = d2.value then d1 else max_ d1 d2
@@ -209,7 +224,7 @@ let mul_simplify (d1:value_node) (d2:value_node) =
     {d1  with value =  Const (ParNum.Float64 (x *. y)) }
   | _ -> mul d1 d2
 
-let add_simplify (d1:value_node) (d2:value_node) : value_node  =
+let add_simplify (d1:value_node) (d2:value_node) : value_node =
   match d1.value, d2.value with
   | Const n1, _ when ParNum.is_zero n1 -> d2
   | _, Const n2 when ParNum.is_zero n2 -> d1

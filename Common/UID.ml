@@ -21,7 +21,7 @@ module type S = sig
   val of_int : int -> t
 end
 *)
-module Make(A : sig val prefix : string end)  = struct
+module Make(A : sig val prefix : string end) = struct
   type t = int
   let name_to_id : (string, t) Hashtbl.t = Hashtbl.create 127
   let id_to_name : (t, string) Hashtbl.t = Hashtbl.create 127
@@ -34,7 +34,6 @@ module Make(A : sig val prefix : string end)  = struct
     | Some name -> name
     | None -> "unknown_" ^ A.prefix ^ "_" ^ (string_of_int x)
 
-
   let list_to_str ?(sep=", ") xs = String.concat sep (List.map to_str xs)
 
   (* best guess at next suffix-- still have to check whether it's free *)
@@ -42,13 +41,12 @@ module Make(A : sig val prefix : string end)  = struct
 
   let try_next_suffix (prefix:string) : string =
     match Hashtbl.find_option next_suffixes prefix with
-      | Some i ->
-        Hashtbl.replace next_suffixes prefix (i+1);
-        prefix ^ (string_of_int i)
-      | None ->
-        Hashtbl.add next_suffixes prefix 2;
-        prefix
-
+    | Some i ->
+      Hashtbl.replace next_suffixes prefix (i+1);
+      prefix ^ (string_of_int i)
+    | None ->
+      Hashtbl.add next_suffixes prefix 2;
+      prefix
 
   let max_id = ref 0
   let next_id () =
@@ -71,7 +69,7 @@ module Make(A : sig val prefix : string end)  = struct
     if count <= 0 then []
     else
       let curr = gen_named prefix in
-      let rest =  gen_named_list prefix (count - 1) in
+      let rest = gen_named_list prefix (count - 1) in
       curr :: rest
 
   let gen_named_array (prefix:string) (count:int) : t array =

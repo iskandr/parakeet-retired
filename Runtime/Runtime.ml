@@ -20,7 +20,7 @@ module type INTERP = sig
 end
 
 module rec Scheduler : SCHEDULER = struct
-  let machine_model = MachineModel.build_machine_model
+  let machine_model = MachineModel.machine_model
   let value_to_host v = DataManager.to_memspace HostMemspace.id v
 
   let call (fn : TypedSSA.fn) (args:values) =

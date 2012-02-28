@@ -8,10 +8,10 @@ type block_info = {
     block_storages : Imp.storage ID.Map.t;
 }
 
-class builder  = object (self)
+class builder = object (self)
   val mutable ids : ID.Set.t = ID.Set.empty
   val mutable types : ImpType.t ID.Map.t = ID.Map.empty
-  val mutable shapes : SymbolicShape.t ID.Map.t  = ID.Map.empty
+  val mutable shapes : SymbolicShape.t ID.Map.t = ID.Map.empty
   val mutable storages : Imp.storage ID.Map.t = ID.Map.empty
 
   method declare (id:ID.t) ?storage ?shape (ty:ImpType.t) =
@@ -63,7 +63,6 @@ class builder  = object (self)
     let ty = ID.Map.find id types in
     { value = Imp.Var id; value_type = ty }
 
-
   method cast (v:value_node) (ty:ImpType.t) : value_node * stmt list =
     if v.value_type = ty then v, []
     else
@@ -78,14 +77,13 @@ class builder  = object (self)
       block_shapes = shapes;
       block_storages = storages;
     }
-
 end
 
 class fn_builder = object (self)
   inherit builder
   val mutable input_ids : ID.t list = []
   val mutable input_types : ImpType.t list = []
-  val mutable input_shapes : SymbolicShape.t list  = []
+  val mutable input_shapes : SymbolicShape.t list = []
 
   val mutable output_ids : ID.t list = []
   val mutable output_types : ImpType.t list = []
@@ -120,7 +118,7 @@ class fn_builder = object (self)
     let blockInfo = self#info in
     let nonlocals = input_ids @ output_ids in
     let localIds =
-      List.filter (fun id -> not $ List.mem id nonlocals)  blockInfo.block_ids
+      List.filter (fun id -> not $ List.mem id nonlocals) blockInfo.block_ids
     in
     let id = match name with
       | Some name -> FnId.gen_named name
@@ -130,7 +128,7 @@ class fn_builder = object (self)
       id = id;
       input_ids = input_ids;
       output_ids = output_ids;
-      local_ids =  localIds;
+      local_ids = localIds;
       storage = blockInfo.block_storages;
       types = blockInfo.block_types;
       shapes = blockInfo.block_shapes;

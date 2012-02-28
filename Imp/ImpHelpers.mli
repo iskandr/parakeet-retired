@@ -63,6 +63,7 @@ val select : value_node -> value_node -> value_node -> value_node
 val idx : value_node -> value_node list -> value_node
 val dim : value_node -> value_node -> value_node
 val len : value_node -> value_node
+val vec_slice : value_node -> value_node list -> int -> value_node
 
 val max_ : ?t:Type.elt_t -> value_node -> value_node -> value_node
 val min_ : ?t:Type.elt_t -> value_node -> value_node -> value_node

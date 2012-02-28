@@ -2,7 +2,6 @@ open Base
 open Imp
 open Printf
 
-
 let rec replace_value (env:Imp.value_node ID.Map.t) (valNode:Imp.value_node) =
   let value' = match valNode.value with
   | Var id ->
@@ -32,15 +31,15 @@ let rec replace_value (env:Imp.value_node ID.Map.t) (valNode:Imp.value_node) =
   in {valNode with value = value'}
 
 and replace_values
-      (env:Imp.value_node ID.Map.t)
-      (valNodes:Imp.value_node list) =
+    (env:Imp.value_node ID.Map.t)
+    (valNodes:Imp.value_node list) =
   List.map (replace_value env) valNodes
 
 (* FIND/REPLACE identifiers in Imp statement *)
 let rec replace_stmt (env:Imp.value_node ID.Map.t) = function
   | If (cond, tBlock, fBlock) ->
     let tBlock : Imp.stmt list = replace_block env tBlock in
-    let fBlock : Imp.stmt list  = replace_block env fBlock in
+    let fBlock : Imp.stmt list = replace_block env fBlock in
     let cond : Imp.value_node = replace_value env cond in
     If(cond, tBlock, fBlock)
   | While (cond, body) ->
@@ -56,7 +55,7 @@ let rec replace_stmt (env:Imp.value_node ID.Map.t) = function
         (ID.to_str id)
         (Imp.value_node_to_str other)
     end
-  | SetIdx ({value=Var id} as lhs, indices,rhs) ->
+  | SetIdx ({value=Var id} as lhs, indices, rhs) ->
     let rhs = replace_value env rhs in
     let indices = replace_values env indices in
     begin match ID.Map.find_option id env with
@@ -66,7 +65,7 @@ let rec replace_stmt (env:Imp.value_node ID.Map.t) = function
       | Some {value=Idx(lhs', indices')} ->
         SetIdx(lhs', indices' @ indices, rhs)
     end
-  | other  ->
+  | other ->
     failwith $ Printf.sprintf
       "Unsupported statement: %s"
       (Imp.stmt_to_str other)
@@ -75,4 +74,3 @@ and replace_block (env:Imp.value_node ID.Map.t) = function
   | stmt::rest ->
     let stmt = replace_stmt env stmt in
     stmt :: (replace_block env rest)
-

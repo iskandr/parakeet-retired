@@ -1,7 +1,7 @@
 (* pp: -parser o pa_macro.cmo *)
 
-open Base
 open Adverb
+open Base
 open Imp
 open ImpBuilder
 open ImpHelpers
@@ -11,6 +11,10 @@ open ImpType
 (* cache translation for each distinct set of arg types to a function *)
 type signature = FnId.t * ImpType.t list
 let cache : (signature, Imp.fn) Hashtbl.t = Hashtbl.create 127
+let vector_cache : (signature, Imp.fn) Hashtbl.t = Hashtbl.create 127
+
+(* For now, we are assuming only 1 CPU *)
+let vector_bitwidth = MachineModel.machine_model.cpus.(0).vector_bitwidth
 
 (* are these necessary? or should we just register each SSA variable with its *)
 (* existing name as an imp variable and then implicitly keep this information *)
@@ -30,11 +34,11 @@ let get_loop_vars loopDescriptors =
 
 let rec build_loop_nests
     (builder:ImpBuilder.builder)
-    (descrs : loop_descr list)
+    (descrs:loop_descr list)
     (body:Imp.block) =
   match descrs with
-	| [] -> body
-	| d::ds ->
+  | [] -> body
+  | d::ds ->
     let nested = build_loop_nests builder ds body in
     let testEltT = ImpType.elt_type d.loop_var.value_type in
     let test = {
@@ -51,7 +55,7 @@ let rec build_loop_nests
     let update = set d.loop_var next in
     [
       set d.loop_var d.loop_start;
-      Imp.While (test , nested @ [update])
+      Imp.While (test, nested @ [update])
     ]
 
 let mk_simple_loop_descriptor
@@ -84,25 +88,25 @@ let rec translate_values builder valNodes : Imp.value_node list =
 
 let translate_array_op builder (op:Prim.array_op) (args:Imp.value_node list) =
   match op, args with
-	| Prim.Index, array::indices ->
-	  let arrayT = array.Imp.value_type in
-	  IFDEF DEBUG THEN
-	    let nIndices = List.length indices in
-	    let rank = ImpType.rank arrayT in
-	    if rank <> nIndices then
-	      failwith $ Printf.sprintf
-	        "[SSA_to_Imp] Mismatch between # dims (%d) and # of indices (%d)"
-	        rank
-	        nIndices
-	  ENDIF;
-	  let resultT =  ImpType.elt_type arrayT in
-	  { value = Imp.Idx(array, indices);
-	    value_type = ImpType.ScalarT resultT
-	  }
-	| other, _ -> failwith $
-	  Printf.sprintf
-	    "[SSA_to_Imp] Unsupported array op: %s"
-	    (Prim.array_op_to_str other)
+  | Prim.Index, array::indices ->
+    let arrayT = array.Imp.value_type in
+    IFDEF DEBUG THEN
+      let nIndices = List.length indices in
+      let rank = ImpType.rank arrayT in
+      if rank <> nIndices then
+        failwith $ Printf.sprintf
+          "[SSA_to_Imp] Mismatch between # dims (%d) and # of indices (%d)"
+          rank
+          nIndices
+    ENDIF;
+    let resultT =  ImpType.elt_type arrayT in
+    { value = Imp.Idx(array, indices);
+      value_type = ImpType.ScalarT resultT
+    }
+  | other, _ -> failwith $
+    Printf.sprintf
+      "[SSA_to_Imp] Unsupported array op: %s"
+      (Prim.array_op_to_str other)
 
 (* given a list of imp values, return the array of maximum rank *)
 let rec argmax_array_rank = function
@@ -116,7 +120,7 @@ let rec argmax_array_rank = function
 let translate_array_literal
       (builder:ImpBuilder.builder)
       (lhsId:ID.t)
-      (elts:TypedSSA.value_node list)  =
+      (elts:TypedSSA.value_node list) =
   let ssaTypes = List.map (fun {TypedSSA.value_type} -> value_type) elts in
   if not (List.for_all Type.is_scalar ssaTypes) then
     failwith "[SSA_to_Imp] Nested arrays not yet implemented"
@@ -135,9 +139,9 @@ let translate_array_literal
 (* given an array, map a list of its axes into *)
 (* a list of statements and a list of dimsize values *)
 let rec size_of_axes
-     (builder:ImpBuilder.builder)
-     (array:Imp.value_node)
-     (axes:Imp.value_nodes) : Imp.block * Imp.value_node list =
+    (builder:ImpBuilder.builder)
+    (array:Imp.value_node)
+    (axes:Imp.value_nodes) : Imp.block * Imp.value_node list =
   match axes with
   | [] -> [], []
   | axis::rest ->
@@ -147,12 +151,12 @@ let rec size_of_axes
     let restBlock, restVals = size_of_axes builder array rest in
     stmtNode :: restBlock, temp :: restVals
 
-(* given an array and a list of axes, create a list of loop descriptors*)
+(* given an array and a list of axes, create a list of loop descriptors *)
 (* which we can turn into nested loops over the array *)
 let rec axes_to_loop_descriptors
     (builder:ImpBuilder.builder)
-    (array : Imp.value_node)
-    (axes : Imp.value_nodes) : Imp.block * loop_descr list =
+    (array:Imp.value_node)
+    (axes:Imp.value_nodes) : Imp.block * loop_descr list =
   let stmts, sizes = size_of_axes builder array axes in
   let loopDescriptors = List.map
     (mk_simple_loop_descriptor builder) sizes in
@@ -170,7 +174,7 @@ let translate_false_phi_node builder phiNode =
   let exp = translate_value builder (PhiNode.right phiNode) in
   Imp.Set (PhiNode.id phiNode, exp)
 
-let declare_var ssaFn shapeEnv (builder:ImpBuilder.fn_builder) (id, impType)  =
+let declare_var ssaFn shapeEnv (builder:ImpBuilder.fn_builder) (id, impType) =
   if List.mem id ssaFn.TypedSSA.input_ids then
     builder#declare_input id impType
   else (
@@ -186,7 +190,8 @@ let declare_var ssaFn shapeEnv (builder:ImpBuilder.fn_builder) (id, impType)  =
       builder#declare id ~shape:symShape impType
   )
 
-let rec translate_fn (ssaFn:TypedSSA.fn) (impInputTypes:ImpType.t list) : Imp.fn =
+let rec translate_fn (ssaFn:TypedSSA.fn) (impInputTypes:ImpType.t list)
+    : Imp.fn =
   let signature = ssaFn.TypedSSA.fn_id, impInputTypes in
   match Hashtbl.find_option cache signature with
   | Some impFn ->
@@ -200,7 +205,7 @@ let rec translate_fn (ssaFn:TypedSSA.fn) (impInputTypes:ImpType.t list) : Imp.fn
   | None ->
     let builder = new ImpBuilder.fn_builder in
     let impTyEnv = InferImpTypes.infer ssaFn impInputTypes in
-    let shapeEnv : SymbolicShape.env  =
+    let shapeEnv : SymbolicShape.env =
       ShapeInference.infer_normalized_shape_env
         (FnManager.get_typed_function_table ()) ssaFn
     in
@@ -228,13 +233,13 @@ and translate_block (builder : ImpBuilder.builder) block : Imp.stmt list =
     block
 and translate_stmt (builder : ImpBuilder.builder) stmtNode : Imp.stmt list  =
   match stmtNode.TypedSSA.stmt with
-  (* array literals get treated differently from other expressions since*)
+  (* array literals get treated differently from other expressions since *)
   (* they require a block of code rather than simply translating from *)
   (* TypedSSA.exp_node to Imp.exp_node *)
   | TypedSSA.Set([id], {TypedSSA.exp = TypedSSA.Arr elts}) ->
     translate_array_literal builder id elts
   (* adverbs get special treatment since they might return multiple values *)
-  | TypedSSA.Set(ids,  {TypedSSA.exp = TypedSSA.Adverb info }) ->
+  | TypedSSA.Set(ids, {TypedSSA.exp = TypedSSA.Adverb info}) ->
     let impInfo : (TypedSSA.fn, Imp.value_nodes, Imp.value_nodes) Adverb.info =
       Adverb.apply_to_fields
          info
@@ -244,12 +249,11 @@ and translate_stmt (builder : ImpBuilder.builder) stmtNode : Imp.stmt list  =
     in
     let lhsValues = List.map builder#var ids in
     translate_adverb builder lhsValues impInfo
-	(* all assignments other than those with an array literal RHS *)
+  (* all assignments other than those with an array literal RHS *)
   | TypedSSA.Set([id], rhs) ->
     let impRhs : Imp.value_node = translate_exp builder rhs in
     let impVar : Imp.value_node = builder#var id in
     [set impVar impRhs]
-
   | TypedSSA.Set(ids, {TypedSSA.exp = TypedSSA.Values vs}) ->
     List.map2 (mk_set_val builder) ids vs
   | TypedSSA.Set _ -> failwith "multiple assignment not supported"
@@ -271,9 +275,9 @@ and translate_stmt (builder : ImpBuilder.builder) stmtNode : Imp.stmt list  =
     let inits : Imp.block =
       List.map (translate_true_phi_node builder) phiNodes
     in
-    let condBlock : Imp.block  = translate_block builder condBlock in
+    let condBlock : Imp.block = translate_block builder condBlock in
     let condVal : Imp.value_node = translate_value builder condVal in
-    let body : Imp.block = translate_block builder body in
+    let body : Imp.block = translate_block builder bodyint32_t in
     let finals = List.map (translate_false_phi_node builder) phiNodes in
     let fullBody = body @ finals @ condBlock in
     inits @ condBlock @ [Imp.While(condVal, fullBody)]
@@ -284,35 +288,35 @@ and translate_stmt (builder : ImpBuilder.builder) stmtNode : Imp.stmt list  =
 
 and translate_exp (builder:ImpBuilder.builder) expNode : Imp.value_node  =
   match expNode.TypedSSA.exp with
-	| TypedSSA.Values [v] -> translate_value builder v
-	| TypedSSA.Values _ -> failwith "multiple value expressions not supported"
-	| TypedSSA.PrimApp (Prim.ScalarOp op, args) ->
-	  let args' = translate_values builder args in
-	  let opType, returnType =
-	    if Prim.is_comparison op then
-	      let firstArg = List.hd args' in
-	      ImpType.elt_type firstArg.value_type, Type.BoolT
-	    else
-	      let retT = Type.elt_type (List.hd expNode.TypedSSA.exp_types) in
-	      retT, retT
-	  in
-	  {
+  | TypedSSA.Values [v] -> translate_value builder v
+  | TypedSSA.Values _ -> failwith "multiple value expressions not supported"
+  | TypedSSA.PrimApp(Prim.ScalarOp op, args) ->
+    let args' = translate_values builder args in
+    let opType, returnType =
+      if Prim.is_comparison op then
+        let firstArg = List.hd args' in
+        ImpType.elt_type firstArg.value_type, Type.BoolT
+      else
+        let retT = Type.elt_type (List.hd expNode.TypedSSA.exp_types) in
+        retT, retT
+    in
+    {
       value = Op(opType, op, args');
       value_type = ImpType.ScalarT returnType
     }
-	| TypedSSA.PrimApp (Prim.ArrayOp op, args) ->
-	  let impArgs = translate_values builder args in
-	  translate_array_op builder op impArgs
-	| TypedSSA.Cast(t, src) ->
-	  (* cast only operates on scalar types! *)
-	  let eltT = Type.elt_type t in
-	  let impT = ImpType.ScalarT eltT in
-	  {
+  | TypedSSA.PrimApp(Prim.ArrayOp op, args) ->
+    let impArgs = translate_values builder args in
+    translate_array_op builder op impArgs
+  | TypedSSA.Cast(t, src) ->
+    (* cast only operates on scalar types! *)
+    let eltT = Type.elt_type t in
+    let impT = ImpType.ScalarT eltT in
+    {
       value = Imp.Cast(impT, translate_value builder src);
       value_type = impT
     }
-	| TypedSSA.Arr _ -> failwith "[SSA_to_Imp] Unexpected array expression"
-	| _ ->
+  | TypedSSA.Arr _ -> failwith "[SSA_to_Imp] Unexpected array expression"
+  | _ ->
     failwith $ Printf.sprintf
       "[ssa->imp] unrecognized exp: %s"
       (TypedSSA.exp_node_to_str expNode)
@@ -334,7 +338,7 @@ and translate_adverb
 and translate_sequential_adverb
     (builder:ImpBuilder.builder)
     (lhsVars : Imp.value_node list)
-    (info : (TypedSSA.fn, Imp.value_nodes, Imp.value_nodes) Adverb.info)
+    (info:(TypedSSA.fn, Imp.value_nodes, Imp.value_nodes) Adverb.info)
     : Imp.stmt list =
   let fixedTypes = List.map Imp.value_type info.fixed_args in
   let argTypes = List.map Imp.value_type info.array_args in
@@ -376,14 +380,14 @@ and translate_sequential_adverb
   in
   let nestedArgs, nestedOutputs =
     match info.adverb, info.init with
-      | Adverb.AllPairs, None
-      | Adverb.Map, None ->
-        let nestedInputs = info.fixed_args @ nestedArrayArgs in
-        let nestedOutputs =
-          List.map (fun out -> ImpHelpers.idx out allIndexVars) lhsVars
-        in
-        nestedInputs, nestedOutputs
-      | _ -> assert false
+    | Adverb.AllPairs, None
+    | Adverb.Map, None ->
+      let nestedInputs = info.fixed_args @ nestedArrayArgs in
+      let nestedOutputs =
+        List.map (fun out -> ImpHelpers.idx out allIndexVars) lhsVars
+      in
+      nestedInputs, nestedOutputs
+    | _ -> assert false
   in
   let replaceEnv =
     ID.Map.of_lists
@@ -394,10 +398,121 @@ and translate_sequential_adverb
   let loops = build_loop_nests builder loopDescriptors fnBody in
   initBlock @ loops
 
+(* We assume that the function is a scalar function at this point *)
 and vectorize_adverb
     (builder : ImpBuilder.builder)
     (lhsVars : Imp.value_node list)
     (info : (TypedSSA.fn, Imp.value_nodes, Imp.value_nodes) Adverb.info)
     (eltT : ImpType.t) =
-  translate_sequential_adverb builder lhsVars info
+  let fixedTypes = List.map Imp.value_type info.fixed_args in
+  let argTypes = List.map Imp.value_type info.array_args in
+  let num_axes = List.length info.axes in
+  let peeledArgTypes = List.map (ImpType.peel ~num_axes) argTypes in
+  let fnInputTypes = fixedTypes @ peeledArgTypes in
+  match info.adverb with
+  | Adverb.Map ->
+    (* TODO: for now, only vectorize maps *)
+    let vecFn = vectorize_fn info.adverb_fn fnInputTypes in
+    (* Get the biggest array, and then create outer loops for all but the *)
+    (* innermost axis.  That axis is treated differently so as to be *)
+    (* vectorized. *)
+    let biggestArray : Imp.value_node = argmax_array_rank info.array_args in
+    let num_axes = List.length axes in
+    let outerInit, outerLoops : (Imp.stmt list) * (loop_descr list) =
+      axes_to_loop_descriptors
+        builder biggestArray List.take (num_axes - 1) info.axes
+    in
+    let outerIndexVars = get_loop_vars outerLoops in
+    (* Vectorize the innermost axis. *)
+    let lastAxis = List.hd (List.rev info.axes) in
+    let lastInit, lastSize = size_of_axes builder biggestArray [lastAxis] in
+    let vecLen = vector_bitwidth / (sizeof eltT) in
+    let impVecLen = ImpHelpers.int32 vecLen in
+    let numVecLoops = ImpHelpers.div int32_t lastSize impVecLen in
+    let vecLoopBound = ImpHelpers.mul int32_t numVecLoops impVecLen in
+    let vecDescriptor =
+      {
+        loop_var = builder#fresh_local ~name:"vec_loop_idx" int32_t;
+        loop_start = ImpHelpers.zero;
+        loop_test_val = vecLoopBound;
+        loop_test_cmp = Prim.Lt;
+        loop_incr = impVecLen;
+        loop_incr_op = Prim.Add;
+      }
+    in
+    let vecIndexVars = outerIndexVars @ [vecDescriptor.loop_var] in
+    let vecSliceArgs =
+      List.map
+        (fun arg -> ImpHelpers.vec_slice arg vecIndexVars) info.array_args
+    in
+    let vecNestedArgs = info.fixed_args @ vecSliceArgs in
+    let vecSliceOutputs =
+      List.map (fun arg -> ImpHelpers.vec_slice arg vecIndexVars) lhsVars
+    in
+	  let vecReplaceEnv =
+	    ID.Map.of_lists
+	      (impFn.input_ids @ impFn.output_ids)
+	      (vecNestedArgs @ vecNestedOutputs)
+	  in
+    let vecFnBody = ImpReplace.replace_block replaceEnv vecFn.body in
+    let vecLoop = build_loop_nests builder [vecDescriptor] vecFn.body in
+    (* Add loop to handle straggler elements that can't be vectorized *)
+    (* TODO: check whether we want to add this loop based on shape? *)
+    let seqFn = translate_fn info.adverb_fn fnInputTypes in
+    let seqDescriptor =
+      {
+        loop_var = vecDescriptor.loop_var;
+        loop_start = vecLoopBound;
+        loop_test_val = lastSize;
+        loop_test_cmp = Prim.Lt;
+        loop_incr = ImpHelpers.one;
+        loop_incr_op = Prim.Add;
+      }
+    in
+	  let seqReplaceEnv =
+	    ID.Map.of_lists
+	      (impFn.input_ids @ impFn.output_ids)
+	      (nestedArgs @ nestedOutputs)
+	  in
+	  let seqFnBody = ImpReplace.replace_block seqReplaceEnv seqFn.body in
+	  let vecLoops =
+      build_loop_nests builder loopDescriptors [vecFnBody;seqFnBody]
+    in
+	  outerInit @ last_init @ vecLoops
+  | _ -> translate_sequential_adverb builder lhsVars info
 
+and vectorize_fn (ssaFn:TypedSSA.fn) (impInputTypes:ImpType.t list)
+    : Imp.fn =
+  let signature = ssaFn.TypedSSA.fn_id, impInputTypes in
+  match Hashtbl.find_option vector_cache signature with
+  | Some impFn ->
+    IFDEF DEBUG THEN
+      Printf.printf
+        "[SSA_to_Imp] Got cached Imp function for %s\n%!"
+        (FnId.to_str ssaFn.TypedSSA.fn_id)
+        ;
+    ENDIF;
+    impFn
+  | None ->
+    let builder = new ImpBuilder.fn_builder in
+    let impTyEnv = InferImpTypes.infer ssaFn impInputTypes in
+    let shapeEnv : SymbolicShape.env =
+      ShapeInference.infer_normalized_shape_env
+        (FnManager.get_typed_function_table ()) ssaFn
+    in
+    List.iter (declare_var ssaFn shapeEnv builder) (ID.Map.to_list impTyEnv);
+    let body =
+      translate_block (builder :> ImpBuilder.builder) ssaFn.TypedSSA.body
+    in
+    let ssa_name = FnId.to_str ssaFn.TypedSSA.fn_id in
+    let arg_strings = ImpType.type_list_to_str impInputTypes in
+    let name = ssa_name ^ "[" ^ arg_strings ^ "]" in
+    let impFn = builder#finalize_fn ~name body in
+    Hashtbl.add cache signature impFn;
+    IFDEF DEBUG THEN
+      Printf.printf
+        "[SSA_to_Imp] Created Imp function: %s\n%!"
+        (Imp.fn_to_str impFn)
+      ;
+    ENDIF;
+    impFn
