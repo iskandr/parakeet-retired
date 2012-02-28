@@ -390,7 +390,6 @@ and translate_sequential_adverb
         | _ -> failwith "allpairs requires two args"
       )
     | _ -> failwith "malformed adverb"
-
   in
   let nestedArrays = List.map (slice_along_axes indexVars) info.array_args in
   let nestedInputs, nestedOutputs =
