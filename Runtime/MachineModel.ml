@@ -252,3 +252,10 @@ let build_machine_model () =
   {gpus = gpus; cpus = cpus; total_ram = 16384}
 
 let machine_model = build_machine_model ()
+
+let num_hw_threads =
+  let affinity_counts =
+    Array.map (fun a -> Array.length a.thread_affinity_ids)
+              machine_model.cpus.(0).cores
+  in
+  Array.fold_left (fun x y -> x + y) 0 affinity_counts
