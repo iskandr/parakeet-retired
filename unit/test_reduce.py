@@ -1,15 +1,11 @@
 #!/usr/bin/python
 import numpy as np
-import unit
-from unit import parakeet
+import parakeet
 from parakeet import PAR 
-
 
 @PAR
 def sum_all_elts(x):
   return parakeet.reduce(parakeet.add, x)
-
-
 
 def test_sum():
   x = np.random.randn(10,1000)

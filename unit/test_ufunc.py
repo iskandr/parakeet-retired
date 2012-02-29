@@ -1,6 +1,5 @@
 #!/usr/bin/python
-import unit
-from unit import parakeet
+import parakeet
 from parakeet import PAR
 import numpy as np
 
