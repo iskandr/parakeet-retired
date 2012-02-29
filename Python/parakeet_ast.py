@@ -23,7 +23,7 @@ class _source_info_t:
 #  Global variables
 ###############################################################################
 
-SafeFunctions = {
+ParakeetOperators = {
   np.add:'add',
   abs: 'abs',
   np.arange: 'range',
@@ -90,16 +90,24 @@ adverbs = [parakeet_lib.map, parakeet_lib.reduce,
            parakeet_lib.allpairs, parakeet_lib.scan]
 
 #Keeps track of the user-made functions that have been made and the built-ins
-VisitedFunctions = SafeFunctions.copy()
+VisitedFunctions = ParakeetOperators.copy()
 VisitedFunctions[np.array] = ''
-
-#global variables referenced by each function, for when they are called
-#not used yet
-FunctionGlobals = {}
 
 ###############################################################################
 #  Helper functions
 ###############################################################################
+
+def build_fn_node(src_info, python_fn):
+  if python_fn in ParakeetOperators:
+    parakeet_prim_name = ParakeetOperators[python_fn]
+    parakeet_fn = ast_prim(parakeet_prim_name)
+    if parakeet_prim_name is None:
+      raise RuntimeError("[Parakeet] Support for %s not implemented" %
+                         python_fn)
+  else:
+    c_name = c_char_p(global_fn_name(python_fn))
+    parakeet_fn = LibPar.mk_var(c_name, src_info.addr)
+  return parakeet_fn
 
 #Function to get ast node(s) for built-in functions/primitives
 def ast_prim(sym):
@@ -271,15 +279,7 @@ class ASTConverter():
     return LibPar.mk_block(c_array, len(stmts), src_info.addr)
 
   def build_call(self, src_info, python_fn, args):
-    if python_fn in SafeFunctions:
-      parakeet_prim_name = SafeFunctions[python_fn]
-      parakeet_fn = ast_prim(parakeet_prim_name)
-      if parakeet_prim_name is None:
-        raise RuntimeError("[Parakeet] Support for %s not implemented" %
-                           python_fn)
-    else:
-      c_name = c_char_p(global_fn_name(python_fn))
-      parakeet_fn = LibPar.mk_var(c_name, src_info.addr)
+    parakeet_fn = build_fn_node(src_info, python_fn)
     parakeet_args = list_to_ctypes_array(args,c_void_p)
     n = len(parakeet_args)
     LOG("Call(%s,%s,%s)" % (parakeet_fn, parakeet_args, n))
@@ -378,10 +378,7 @@ class ASTConverter():
       funRef = self.register_if_function(node)
       if funRef is not None:
         src_info = self.build_src_info(node)
-        funName = global_fn_name(funRef)
-        print "registering", funName
-        parName = LibPar.mk_var(c_char_p(funName), src_info.addr)
-        results.append(parName)
+        results.append(build_fn_node(src_info, funRef))
       else:
         result = self.visit(node, contextSet)
         if result is not None:
