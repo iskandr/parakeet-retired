@@ -30,28 +30,41 @@ module LoopHelpers = struct
   let get_loop_vars loopDescriptors =
     List.map (fun {loop_var} -> loop_var) loopDescriptors
 
-  let rec build_loop_nests (descrs:loop_descr list) (body:Imp.block) =
-    match descrs with
-	  | [] -> body
-	  | d::ds ->
-	    let nested = build_loop_nests ds body in
-	    let testEltT = ImpType.elt_type d.loop_var.value_type in
-	    let test = {
-	      value = Imp.Op(testEltT, d.loop_test_cmp,
-	                     [d.loop_var; d.loop_test_val]);
-	      value_type = ImpType.bool_t
-	    }
-	    in
-	    let next = {
-	      value = Imp.Op(testEltT, d.loop_incr_op, [d.loop_var; d.loop_incr]);
-	      value_type = d.loop_var.value_type;
-	    }
-	    in
-	    let update = set d.loop_var next in
-	    [
-	      set d.loop_var d.loop_start;
-	      Imp.While (test, nested @ [update])
-	    ]
+  let build_loop_nests
+        (builder:ImpBuilder.builder)
+        ?(skip_first_iter = false)
+        (descrs:loop_descr list)
+        (body:Imp.block) =
+    let beforeLoops = ref [] in
+    let rec aux = function
+      | [] -> body
+      | d::ds ->
+	      let testT : Type.elt_t = ImpType.elt_type d.loop_var.value_type in
+	      let test = {
+	        value = Imp.Op(testT, d.loop_test_cmp,[d.loop_var; d.loop_test_val]);
+	        value_type = ImpType.bool_t
+	      }
+	      in
+	      let next = {
+	        value = Imp.Op(testT, d.loop_incr_op, [d.loop_var; d.loop_incr]);
+	        value_type = d.loop_var.value_type;
+	      }
+	      in
+	      let init =
+          (* if this is this innermost loop iteration, *)
+          (* and we're supposed to skip the first iteration, *)
+          (* then initialize to "initidx" *)
+          if ds = [] && skip_first_iter then
+            let init = builder#fresh_local ~name:"initidx" ImpType.int32_t in (
+            beforeLoops :=
+                [ImpHelpers.set init (ImpHelpers.add d.loop_start d.loop_incr)]
+            ;
+            [set d.loop_var init; set init d.loop_start]
+          )
+          else [set d.loop_var d.loop_start]
+        in
+	      init @ [Imp.While (test, (aux ds) @ [set d.loop_var next])]
+    in !beforeLoops @ aux descrs
 
 	let mk_simple_loop_descriptor
 	    (builder:ImpBuilder.builder)
@@ -66,6 +79,7 @@ module LoopHelpers = struct
 	    loop_incr = (if down then ImpHelpers.int (-1) else ImpHelpers.one);
 	    loop_incr_op = Prim.Add;
 	  }
+
 
   (* given an array, map a list of its axes into *)
   (* a list of statements and a list of dimsize values *)
@@ -128,7 +142,9 @@ module LoopHelpers = struct
       ImpHelpers.idx_or_fixdims ~arr:from_array ~dims:axes ~indices:indexVars
     in
 
-    let loops = build_loop_nests loopDescriptors [ImpHelpers.set lhs rhs] in
+    let loops =
+      build_loop_nests builder loopDescriptors [ImpHelpers.set lhs rhs]
+    in
     initBlock @ loops
 end
 open LoopHelpers
@@ -393,7 +409,7 @@ and translate_sequential_adverb
   in
   (* pick any of the highest rank arrays in the input list *)
   let biggestArray : Imp.value_node = argmax_array_rank info.array_args in
-  let initBlock, loopDescriptors, indexVars, nestedArrays =
+  let initBlock, loopDescriptors, indexVars, nestedArrays, skipFirstIter =
     match info.adverb, info.init with
     | Adverb.Map, None ->
       (* init is a block which gets the dimensions of array we're traversing *)
@@ -404,10 +420,10 @@ and translate_sequential_adverb
       let nestedArrays =
         List.map (slice_along_axes indexVars) info.array_args
       in
-      initBlock, loops, indexVars, nestedArrays
+      initBlock, loops, indexVars, nestedArrays, false
     | Adverb.Reduce, None ->
-      let initBlock, loops = axes_to_loop_descriptors
-          ~skip_first_iter:true builder biggestArray info.axes
+      let initBlock, loops =
+        axes_to_loop_descriptors builder biggestArray info.axes
       in
       let indexVars = get_loop_vars loops in
       (* the initial value for a reduction is the first elt of the array *)
@@ -423,7 +439,7 @@ and translate_sequential_adverb
       let nestedArrays =
         List.map (slice_along_axes indexVars) info.array_args
       in
-      initBlock @ copyStmts, loops, indexVars, nestedArrays
+      initBlock @ copyStmts, loops, indexVars, nestedArrays, true
     | Adverb.AllPairs, None ->
       (match info.array_args with
         | [x;y] ->
@@ -434,7 +450,7 @@ and translate_sequential_adverb
           let nestedArrays =
             [slice_along_axes xIndexVars x; slice_along_axes yIndexVars y]
           in
-          xInit@yInit, xLoops@yLoops, xIndexVars@yIndexVars, nestedArrays
+          xInit@yInit, xLoops@yLoops, xIndexVars@yIndexVars, nestedArrays, false
         | _ -> failwith "allpairs requires two args"
       )
     | _ -> failwith "malformed adverb"
@@ -470,7 +486,10 @@ and translate_sequential_adverb
       (nestedInputs @ nestedOutputs)
   in
   let fnBody = ImpReplace.replace_block replaceEnv impFn.body in
-  let loops = build_loop_nests loopDescriptors fnBody in
+  let loops =
+    build_loop_nests
+      ~skip_first_iter:skipFirstIter builder loopDescriptors fnBody
+  in
   initBlock @ loops
 
 (* We assume that the function is a scalar function at this point *)
@@ -532,7 +551,7 @@ and vectorize_adverb
 	      (vecNestedArgs @ vecOutputs)
 	  in
     let vecFnBody = ImpReplace.replace_block vecReplaceEnv vecFn.body in
-    let vecLoop = build_loop_nests [vecDescriptor] vecFnBody in
+    let vecLoop = build_loop_nests builder [vecDescriptor] vecFnBody in
 
     (* Add loop to handle straggler elements that can't be vectorized *)
     (* TODO: check whether we want to add this loop based on shape? *)
@@ -561,11 +580,11 @@ and vectorize_adverb
 	      (seqNestedArgs @ seqNestedOutputs)
 	  in
 	  let seqFnBody = ImpReplace.replace_block seqReplaceEnv seqFn.body in
-    let seqLoop = build_loop_nests [seqDescriptor] seqFnBody in
+    let seqLoop = build_loop_nests builder [seqDescriptor] seqFnBody in
 
     (* Build the outer loops, injected the vectorized and sequential inner *)
     (* loops.  Then return the vectorized block. *)
-	  let vecLoops = build_loop_nests outerLoops (vecLoop @ seqLoop) in
+	  let vecLoops = build_loop_nests builder outerLoops (vecLoop @ seqLoop) in
 	  outerInit @ [lastInit] @ vecLoops
   | _ -> translate_sequential_adverb builder lhsVars info
 
