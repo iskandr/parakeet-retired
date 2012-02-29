@@ -33,6 +33,7 @@ SafeFunctions = {
   math.sqrt:'sqrt',
   parakeet_lib.map:'map',
   parakeet_lib.reduce:'reduce',
+  parakeet_lib.allpairs:'allpairs', 
   np.size:'size',
 }
 
