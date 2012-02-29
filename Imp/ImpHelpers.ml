@@ -270,7 +270,14 @@ let rec idx_or_fixdims
   ~(dims:value_nodes)
   ~(indices:value_nodes) : value_node =
   let nIndices = List.length indices in
-  assert (List.length dims = nIndices);
+  IFDEF DEBUG THEN 
+    let nDims = List.length dims in
+    if nDims <> nIndices then 
+      failwith $ Printf.sprintf 
+        "[idx_or_fixdims] Mismatch between # of dims (%d) and # of indices(%d)"
+        nDims
+        nIndices
+  ENDIF; 
   let arrT = arr.value_type in
   (* for convenience, treat indexing into scalars as the identity operation *)
   if ImpType.is_scalar arrT then arr

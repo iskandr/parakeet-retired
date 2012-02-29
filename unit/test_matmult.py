@@ -3,7 +3,7 @@ import parakeet
 
 @parakeet.PAR
 def dot(x,y):
-  return parakeet.reduce(np.add, x*y)
+  return parakeet.reduce(parakeet.add, x*y)
 
 # for now, assume Y is already transposed 
 @parakeet.PAR

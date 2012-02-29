@@ -38,19 +38,22 @@ let infer_adverb_axes_from_args ?axes (otherArgs:value_nodes) =
     let numAxes = max_num_axes_from_array_types argTypes in
     List.map TypedSSA.int32 (List.til numAxes)
 
+let adverb_output_types adverb numAxes nestedOutputTypes = 
+  match adverb with
+  | Adverb.Scan 
+  | Adverb.Map ->
+    List.map (Type.increase_rank numAxes) nestedOutputTypes
+  | Adverb.AllPairs ->
+    List.map (Type.increase_rank (numAxes * 2)) nestedOutputTypes
+  | Adverb.Reduce -> nestedOutputTypes
+
 let mk_adverb_exp_node
       ?(src:SrcInfo.t option)
       (info : (FnId.t, value_nodes, value_nodes) Adverb.info) =
   let numAxes = List.length info.axes in
   let nestedOutputTypes = FnManager.output_types_of_typed_fn info.adverb_fn in
-  let outputTypes : Type.t list =
-    match info.adverb with
-    | Adverb.Map ->
-      List.map (Type.increase_rank numAxes) nestedOutputTypes
-    | Adverb.AllPairs ->
-      List.map (Type.increase_rank (numAxes * 2)) nestedOutputTypes
-    | Adverb.Scan
-    | Adverb.Reduce -> nestedOutputTypes
+  let outputTypes : Type.t list = 
+    adverb_output_types info.adverb numAxes nestedOutputTypes
   in
   {
     exp = Adverb info;
@@ -89,7 +92,9 @@ let mk_adverb_fn
       let nAxes = List.length info.axes in
       let nestedFnId = info.adverb_fn in
       let nestedOutputTypes = FnManager.output_types_of_typed_fn nestedFnId in
-      let outputTypes = Type.increase_ranks nAxes nestedOutputTypes in
+      let outputTypes = 
+        adverb_output_types info.adverb nAxes nestedOutputTypes 
+      in
       let newfn =
         TypedSSA.fn_builder
           ~name:(Adverb.to_str info.adverb ^ "_wrapper")
