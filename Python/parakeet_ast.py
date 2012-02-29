@@ -33,7 +33,8 @@ SafeFunctions = {
   math.sqrt:'sqrt',
   parakeet_lib.map:'map',
   parakeet_lib.reduce:'reduce',
-  parakeet_lib.allpairs:'allpairs', 
+  parakeet_lib.scan:'scan',
+  parakeet_lib.allpairs:'allpairs',
   np.size:'size',
 }
 
@@ -81,8 +82,10 @@ BuiltinPrimitives = {
   'Slice': 'slice',
 }
 
-ValidObjects = {np.add: parakeet_lib.add}
-
+ValidObjects = {np.add: parakeet_lib.add,
+                np.subtract: parakeet_lib.sub,
+                np.multiply: parakeet_lib.mult,
+                np.divide: parakeet_lib.div}
 adverbs = [parakeet_lib.map, parakeet_lib.reduce,
            parakeet_lib.allpairs, parakeet_lib.scan]
 
@@ -171,10 +174,14 @@ class ParakeetUnsupported(Exception):
 
 # always assume functions have a module but
 def global_fn_name(fn, default_name="<unknown_function>"):
-  if hasattr(fn, '__name__'):
-    return fn.__module__ + "." + fn.__name__
+  if hasattr(fn, '__module__'):
+    moduleName = fn.__module__
   else:
-    return fn.__module__ + "." + default_name
+    moduleName = fn.__class__.__module__
+  if hasattr(fn, '__name__'):
+    return moduleName + "." + fn.__name__
+  else:
+    return moduleName + "." + default_name
 
 def name_of_ast_node(op):
   return op.__class__.__name__
@@ -350,14 +357,11 @@ class ASTConverter():
     elif node_type == 'If':
       LOG("if(%s, %s, %s)" % (args[0], args[1], args[2]))
       thenBlock = self.build_parakeet_block(src_info,args[1])
-      src_info = self.build_src_info(node)
       elseBlock = self.build_parakeet_block(src_info,args[2])
-      src_info = self.build_src_info(node)
       return LibPar.mk_if(args[0], thenBlock, elseBlock, src_info.addr)
     elif node_type == 'While':
       LOG("while(%s, %s)" % (args[0], args[1]))
       block = self.build_parakeet_block(src_info, args[1])
-      src_info = self.build_src_info(node)
       return LibPar.mk_whileloop(args[0], block, src_info.addr)
     elif node_type == 'Attribute':
       LOG("Attribute %s " % str(args))
@@ -374,7 +378,7 @@ class ASTConverter():
       funRef = self.register_if_function(node)
       if funRef is not None:
         src_info = self.build_src_info(node)
-        funName = funRef.__module__ + "." + funRef.__name__
+        funName = global_fn_name(funRef)
         print "registering", funName
         parName = LibPar.mk_var(c_char_p(funName), src_info.addr)
         results.append(parName)
@@ -414,14 +418,17 @@ class ASTConverter():
       currModule = self.global_variables[nextNode.id]
 
       for m in moduleList:
-        currModule = currModule.__dict__[m]
-
+        try:
+          currModule = currModule.__dict__[m]
+        except AttributeError:
+          currModule = currModule.__getattribute__(m)
       funRef = currModule
     else:
       raise RuntimeError("[Parakeet] Call.func shouldn't be", name)
     if funRef in AutoTranslate:
       funRef = AutoTranslate[funRef]
-    self.seen_functions.add(funRef)
+    if not hasattr(funRef,'__self__') or not funRef.__self__:
+      self.seen_functions.add(funRef)
     return funRef
 
   def build_complex_parakeet_node(self,node,contextSet):
@@ -429,51 +436,43 @@ class ASTConverter():
     src_info = self.build_src_info(node)
     if nodeType == 'Call':
       funRef = self.get_function_ref(node.func)
-      if hasattr(node,'__self__') and node.__self__:
-        if node.__self__ in ValidObjects:
-          func = ValidObjects[node.__self__]
+      if hasattr(funRef,'__self__') and funRef.__self__:
+        if funRef.__self__ in ValidObjects:
+          func = ValidObjects[funRef.__self__]
           ### Should be it's own function?
           if func in AutoTranslate:
             func = AutoTranslate[func]
-          self.seen_function.add(func)
-          fun_name = func.__module__ + "." + func.__name__
+          self.seen_functions.add(func)
+          fun_name = global_fn_name(func)
           print "registering", fun_name
           par_name = LibPar.mk_var(c_char_p(fun_name), src_info.addr)
           fun_arg = par_name
           ### End own function
-          if node.__name__ == "reduce":
-            #fun_arg, already have
+          kw_args = {'fixed': self.build_parakeet_array(src_info,[])}
+          if funRef.__name__ == "reduce" or "accumulate":
             arr_args = self.build_arg_list([node.args[0]], contextSet)
-            src_info_a = self.build_src_info(node)
-            src_info_b = self.build_src_info(node)
-            src_info_c = self.build_src_info(node)
-            kw_args = {'fixed': self.build_parakeet_array(src_info_a,[]),
-                       'default': LibPar.mk_int32_paranode(
-                                    func.identity, addressof(src_info_c))
-                       }
+            kw_args['default'] = LibPar.mk_int32_paranode(
+                                   funRef.__self__.identity, src_info.addr)
             if len(node.args) == 1:
-              kw_args['axis'] = LibPar.mk_int32_paranode(1,
-                                                         addressof(src_info_b))
+              kw_args['axis'] = LibPar.mk_int32_paranode(0, src_info.addr)
             elif len(node.args) == 2:
               kw_args['axis'] = self.visit(node.args[1], contextSet)
             else:
-              print "TOO MANY ARGUMENTS FOR REDUCE, DO NOT SUPPORT DTYPE"
+              print "TOO MANY ARGUMENTS FOR %s, DO NOT SUPPORT DTYPE" % (
+                      funRef.__name__)
               assert False
-
-          """
-          src_info = self.build_src_info(node)
-          para_arr_args = self.build_parakeet_array(src_info,arr_args)
-          args.append(para_arr_args)
-          args.append(kw_args['fixed'])
-          args.append(kw_args['axis'])
-          if funRef == parakeet_lib.reduce:
+            para_arr_args = self.build_parakeet_array(src_info, arr_args)
+            args = [fun_arg]
+            args.append(para_arr_args)
+            args.append(kw_args['fixed'])
+            args.append(kw_args['axis'])
             args.append(kw_args['default'])
-          src_info = self.build_src_info(node)
-          return self.build_call(src_info, funRef, args)
-
-
-#        funArgs = self.build_arg_list(node.args, childContext)
-#        return self.build_call(src_info, funRef, funArgs)"""
+            if funRef.__name__ == "reduce":
+              return self.build_call(src_info, parakeet_lib.reduce, args)
+            elif funRef.__name__ == "accumulate":
+              return self.build_call(src_info, parakeet_lib.scan, args)
+            else:
+              assert False
       else:
         childContext = set(contextSet)
         if funRef == np.array:
@@ -497,21 +496,17 @@ class ASTConverter():
               val_args = []
               for v_arg in val.elts:
                 val_args.append(self.visit(v_arg, childContext))
-              src_info = self.build_src_info(node)
               kw_args[kw] = self.build_parakeet_array(src_info,val_args)
             else:
               val = self.visit(kw_arg.value, childContext)
-              src_info = self.build_src_info(node)
               kw_args[kw] = self.build_parakeet_array(src_info,[val])
           args = fun_arg
-          src_info = self.build_src_info(node)
           para_arr_args = self.build_parakeet_array(src_info,arr_args)
           args.append(para_arr_args)
           args.append(kw_args['fixed'])
           args.append(kw_args['axis'])
           if funRef == parakeet_lib.reduce:
             args.append(kw_args['default'])
-          src_info = self.build_src_info(node)
           return self.build_call(src_info, funRef, args)
         else:
           funArgs = self.build_arg_list(node.args, childContext)
@@ -625,7 +620,7 @@ def register_function(f):
         register_function(other_fn)
         LOG("[register_function] Visited %s" % other_fn.__name__)
 
-    fun_name = f.__module__ + "." + f.__name__
+    fun_name = global_fn_name(f)
     c_str = c_char_p(fun_name)
     fun_id = c_int(
       LibPar.register_untyped_function(
@@ -634,4 +629,3 @@ def register_function(f):
     LOG("Registered %s as %s" % (f.__name__, fun_id))
     VisitedFunctions[f] = fun_id
     return fun_id
-
