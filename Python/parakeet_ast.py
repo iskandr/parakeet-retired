@@ -33,11 +33,8 @@ SafeFunctions = {
   math.sqrt:'sqrt',
   parakeet_lib.map:'map',
   parakeet_lib.reduce:'reduce',
-<<<<<<< HEAD
   parakeet_lib.scan:'scan',
-=======
-  parakeet_lib.allpairs:'allpairs', 
->>>>>>> 5e8e533ff2c100dfe46337be476abfca6a3fed05
+  parakeet_lib.allpairs:'allpairs',
   np.size:'size',
 }
 
@@ -177,10 +174,14 @@ class ParakeetUnsupported(Exception):
 
 # always assume functions have a module but
 def global_fn_name(fn, default_name="<unknown_function>"):
-  if hasattr(fn, '__name__'):
-    return fn.__module__ + "." + fn.__name__
+  if hasattr(fn, '__module__'):
+    moduleName = fn.__module__
   else:
-    return fn.__module__ + "." + default_name
+    moduleName = fn.__class__.__module__
+  if hasattr(fn, '__name__'):
+    return moduleName + "." + fn.__name__
+  else:
+    return moduleName + "." + default_name
 
 def name_of_ast_node(op):
   return op.__class__.__name__
@@ -377,7 +378,7 @@ class ASTConverter():
       funRef = self.register_if_function(node)
       if funRef is not None:
         src_info = self.build_src_info(node)
-        funName = funRef.__module__ + "." + funRef.__name__
+        funName = global_fn_name(funRef)
         print "registering", funName
         parName = LibPar.mk_var(c_char_p(funName), src_info.addr)
         results.append(parName)
@@ -442,7 +443,7 @@ class ASTConverter():
           if func in AutoTranslate:
             func = AutoTranslate[func]
           self.seen_functions.add(func)
-          fun_name = func.__module__ + "." + func.__name__
+          fun_name = global_fn_name(func)
           print "registering", fun_name
           par_name = LibPar.mk_var(c_char_p(fun_name), src_info.addr)
           fun_arg = par_name
@@ -619,7 +620,7 @@ def register_function(f):
         register_function(other_fn)
         LOG("[register_function] Visited %s" % other_fn.__name__)
 
-    fun_name = f.__module__ + "." + f.__name__
+    fun_name = global_fn_name(f)
     c_str = c_char_p(fun_name)
     fun_id = c_int(
       LibPar.register_untyped_function(
