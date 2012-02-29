@@ -1,3 +1,5 @@
+(* pp: -parser o pa_macro.cmo *)
+
 open Base
 open Imp
 
@@ -20,7 +22,7 @@ class builder = object (self)
       | None ->
         if ImpType.is_scalar ty then Imp.Stack
         else failwith $ Printf.sprintf
-          "[ImpCodegen] Variable %s : %s cannot be declared without storage"
+          "[ImpBuilder] Variable %s : %s cannot be declared without storage"
           (ID.to_str id)
           (ImpType.to_str ty)
     in
@@ -29,12 +31,25 @@ class builder = object (self)
       | None ->
         if ImpType.is_scalar ty then SymbolicShape.scalar
         else failwith $ Printf.sprintf
-          "[ImpCodegen] Variable %s : %s cannot be declared without shape"
+          "[ImpBuilder] Variable %s : %s cannot be declared without shape"
           (ID.to_str id)
           (ImpType.to_str ty)
     in
-    assert (ImpType.rank ty = SymbolicShape.rank shape);
-    assert (not (ID.Set.mem id ids));
+    IFDEF DEBUG THEN
+      if ImpType.rank ty <> SymbolicShape.rank shape then
+        failwith $
+          Printf.sprintf
+            "[ImpBuilder] Mismatch between rank of type %s and shape %s for %s"
+              (ImpType.to_str ty)
+              (SymbolicShape.to_str shape)
+              (ID.to_str id)
+     ;
+     if ID.Set.mem id ids then
+       failwith $
+         Printf.sprintf
+           "[ImpBuilder] Identifier already declared: %s"
+           (ID.to_str id)
+    ENDIF;
     ids <- ID.Set.add id ids;
     types <- ID.Map.add id ty types;
     shapes <- ID.Map.add id shape shapes;

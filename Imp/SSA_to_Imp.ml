@@ -209,6 +209,9 @@ let rec translate_fn (ssaFn:TypedSSA.fn) (impInputTypes:ImpType.t list)
     ENDIF;
     impFn
   | None ->
+    IFDEF DEBUG THEN
+      Printf.printf "[SSA_to_Imp] Translating \n%s\n" (TypedSSA.fn_to_str ssaFn)
+    ENDIF;
     let builder = new ImpBuilder.fn_builder in
     let impTyEnv = InferImpTypes.infer ssaFn impInputTypes in
     let shapeEnv : SymbolicShape.env =
@@ -219,9 +222,8 @@ let rec translate_fn (ssaFn:TypedSSA.fn) (impInputTypes:ImpType.t list)
     let body =
       translate_block (builder :> ImpBuilder.builder) ssaFn.TypedSSA.body
     in
-    let ssa_name = FnId.to_str ssaFn.TypedSSA.fn_id in
     let arg_strings = ImpType.type_list_to_str impInputTypes in
-    let name = ssa_name ^ "[" ^ arg_strings ^ "]" in
+    let name = (FnId.to_str ssaFn.TypedSSA.fn_id) ^ "[" ^ arg_strings ^ "]" in
     let impFn = builder#finalize_fn ~name body in
     Hashtbl.add cache signature impFn;
     IFDEF DEBUG THEN
