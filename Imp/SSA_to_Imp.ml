@@ -17,61 +17,137 @@ let vector_cache : (signature, Imp.fn) Hashtbl.t = Hashtbl.create 127
 (* For now, we are assuming only 1 CPU *)
 let vector_bitwidth = machine_model.cpus.(0).vector_bitwidth
 
-(* are these necessary? or should we just register each SSA variable with its *)
-(* existing name as an imp variable and then implicitly keep this information *)
-(* on the builder object? *)
-
-type loop_descr = {
-  loop_var : value_node;
-  loop_start : value_node;
-  loop_test_val : value_node;
-  loop_test_cmp : Prim.scalar_op;
-  loop_incr : value_node;
-  loop_incr_op : Prim.scalar_op;
-}
-
-let get_loop_vars loopDescriptors =
-  List.map (fun {loop_var} -> loop_var) loopDescriptors
-
-let rec build_loop_nests
-    (builder:ImpBuilder.builder)
-    (descrs:loop_descr list)
-    (body:Imp.block) =
-  match descrs with
-  | [] -> body
-  | d::ds ->
-    let nested = build_loop_nests builder ds body in
-    let testEltT = ImpType.elt_type d.loop_var.value_type in
-    let test = {
-      value = Imp.Op(testEltT, d.loop_test_cmp,
-                     [d.loop_var; d.loop_test_val]);
-      value_type = ImpType.bool_t
-    }
-    in
-    let next = {
-      value = Imp.Op(testEltT, d.loop_incr_op, [d.loop_var; d.loop_incr]);
-      value_type = d.loop_var.value_type;
-    }
-    in
-    let update = set d.loop_var next in
-    [
-      set d.loop_var d.loop_start;
-      Imp.While (test, nested @ [update])
-    ]
-
-let mk_simple_loop_descriptor
-    (builder:ImpBuilder.builder)
-    ?(down=false)
-    ?(start=ImpHelpers.zero)
-    (stop:Imp.value_node) =
-  {
-    loop_var = builder#fresh_local ~name:"loop_idx" int32_t;
-    loop_start = start;
-    loop_test_val = stop;
-    loop_test_cmp = (if down then Prim.Gt else Prim.Lt);
-    loop_incr = (if down then ImpHelpers.int (-1) else ImpHelpers.one);
-    loop_incr_op = Prim.Add;
+module LoopHelpers = struct
+  type loop_descr = {
+    loop_var : value_node;
+    loop_start : value_node;
+    loop_test_val : value_node;
+    loop_test_cmp : Prim.scalar_op;
+    loop_incr : value_node;
+    loop_incr_op : Prim.scalar_op;
   }
+
+  let get_loop_vars loopDescriptors =
+    List.map (fun {loop_var} -> loop_var) loopDescriptors
+
+  let build_loop_nests
+        (builder:ImpBuilder.builder)
+        ?(skip_first_iter = false)
+        (descrs:loop_descr list)
+        (body:Imp.block) =
+    let beforeLoops = ref [] in
+    let rec aux = function
+      | [] -> body
+      | d::ds ->
+	      let testT : Type.elt_t = ImpType.elt_type d.loop_var.value_type in
+	      let test = {
+	        value = Imp.Op(testT, d.loop_test_cmp,[d.loop_var; d.loop_test_val]);
+	        value_type = ImpType.bool_t
+	      }
+	      in
+	      let next = {
+	        value = Imp.Op(testT, d.loop_incr_op, [d.loop_var; d.loop_incr]);
+	        value_type = d.loop_var.value_type;
+	      }
+	      in
+	      let init =
+          (* if this is this innermost loop iteration, *)
+          (* and we're supposed to skip the first iteration, *)
+          (* then initialize to "initidx" *)
+          if ds = [] && skip_first_iter then
+            let init = builder#fresh_local ~name:"initidx" ImpType.int32_t in (
+            beforeLoops :=
+                [ImpHelpers.set init (ImpHelpers.add d.loop_start d.loop_incr)]
+            ;
+            [set d.loop_var init; set init d.loop_start]
+          )
+          else [set d.loop_var d.loop_start]
+        in
+	      init @ [Imp.While (test, (aux ds) @ [set d.loop_var next])]
+    in !beforeLoops @ aux descrs
+
+	let mk_simple_loop_descriptor
+	    (builder:ImpBuilder.builder)
+	    ?(down=false)
+	    ?(start=ImpHelpers.zero)
+	    (stop:Imp.value_node) =
+	  {
+	    loop_var = builder#fresh_local ~name:"loop_idx" int32_t;
+	    loop_start = start;
+	    loop_test_val = stop;
+	    loop_test_cmp = (if down then Prim.Gt else Prim.Lt);
+	    loop_incr = (if down then ImpHelpers.int (-1) else ImpHelpers.one);
+	    loop_incr_op = Prim.Add;
+	  }
+
+
+  (* given an array, map a list of its axes into *)
+  (* a list of statements and a list of dimsize values *)
+  let rec size_of_axes
+        (builder:ImpBuilder.builder)
+        (array:Imp.value_node)
+        (axes:Imp.value_nodes) : Imp.block * Imp.value_node list =
+      match axes with
+      | [] -> [], []
+      | axis::rest ->
+        let size : Imp.value_node = ImpHelpers.dim array axis in
+        let temp = builder#fresh_local ~name:"size" ImpType.int32_t in
+        let stmtNode = ImpHelpers.set temp size in
+        let restBlock, restVals = size_of_axes builder array rest in
+        stmtNode :: restBlock, temp :: restVals
+
+
+	(* given an array and a list of axes, create a list of loop descriptors *)
+	(* which we can turn into nested loops over the array *)
+	let rec axes_to_loop_descriptors
+	    ?(skip_first_iter=false)
+	    (builder:ImpBuilder.builder)
+	    (array:Imp.value_node)
+	    (axes:Imp.value_nodes) : Imp.block * loop_descr list =
+	  let stmts, sizes = size_of_axes builder array axes in
+	  let loopDescriptors = List.map (mk_simple_loop_descriptor builder) sizes in
+    if skip_first_iter then
+      (* modify innermost descriptor if need to skip its first iteration *)
+      match List.rev loopDescriptors with
+        | last::rest ->
+          stmts, List.rev ({last with loop_start = ImpHelpers.one}::rest)
+	      | [] -> stmts, []
+    else stmts, loopDescriptors
+
+
+	let copy (builder:ImpBuilder.builder) ~from_array ~to_array =
+	  let toType = to_array.value_type in
+	  let toRank = ImpType.rank toType in
+	  IFDEF DEBUG THEN
+	    let fromType = from_array.value_type in
+	    let fromRank = ImpType.rank fromType in
+	    (* allow from_array to be a scalar *)
+	    if fromRank > 0 && toRank <> fromRank then
+	      failwith $ Printf.sprintf
+	        "[SSA_to_Imp] Can't copy from %s (rank=%d) to %s (rank=%d)"
+	        (ImpType.to_str fromType)
+	        fromRank
+	        (ImpType.to_str toType)
+	        toRank
+	  ENDIF;
+	  let axes = ImpHelpers.ints_til toRank in
+	  let initBlock, loopDescriptors =
+      axes_to_loop_descriptors builder to_array axes
+    in
+	  let indexVars = get_loop_vars loopDescriptors in
+    let lhs =
+      ImpHelpers.idx_or_fixdims ~arr:to_array ~dims:axes ~indices:indexVars
+    in
+    let rhs =
+      ImpHelpers.idx_or_fixdims ~arr:from_array ~dims:axes ~indices:indexVars
+    in
+
+    let loops =
+      build_loop_nests builder loopDescriptors [ImpHelpers.set lhs rhs]
+    in
+    initBlock @ loops
+end
+open LoopHelpers
 
 let translate_value (builder:ImpBuilder.builder) valNode : Imp.value_node =
   match valNode.TypedSSA.value with
@@ -137,36 +213,6 @@ let translate_array_literal
     in
     List.mapi assign_elt impElts
 
-(* given an array, map a list of its axes into *)
-(* a list of statements and a list of dimsize values *)
-let rec size_of_axes
-    (builder:ImpBuilder.builder)
-    (array:Imp.value_node)
-    (axes:Imp.value_nodes) : Imp.block * Imp.value_node list =
-  match axes with
-  | [] -> [], []
-  | axis::rest ->
-    let size : Imp.value_node = ImpHelpers.dim array axis in
-    let temp = builder#fresh_local ~name:"size" ImpType.int32_t in
-    let stmtNode = ImpHelpers.set temp size in
-    let restBlock, restVals = size_of_axes builder array rest in
-    stmtNode :: restBlock, temp :: restVals
-
-(* given an array and a list of axes, create a list of loop descriptors *)
-(* which we can turn into nested loops over the array *)
-let rec axes_to_loop_descriptors
-    ?(skip_first_iter=false)
-    (builder:ImpBuilder.builder)
-    (array:Imp.value_node)
-    (axes:Imp.value_nodes) : Imp.block * loop_descr list =
-  let stmts, sizes = size_of_axes builder array axes in
-  let loopDescriptors =
-    match  List.map (mk_simple_loop_descriptor builder) sizes with
-      | l::ls when skip_first_iter ->
-        {l with loop_start = ImpHelpers.one}::ls
-      | ls -> ls
-  in
-  stmts, loopDescriptors
 
 let mk_set_val builder (id:ID.t) (v:TypedSSA.value_node) =
   let impVar = builder#var id in
@@ -196,6 +242,8 @@ let declare_var ssaFn shapeEnv (builder:ImpBuilder.fn_builder) (id, impType) =
       builder#declare id ~shape:symShape impType
   )
 
+
+
 let rec translate_fn (ssaFn:TypedSSA.fn) (impInputTypes:ImpType.t list)
     : Imp.fn =
   let signature = ssaFn.TypedSSA.fn_id, impInputTypes in
@@ -209,6 +257,9 @@ let rec translate_fn (ssaFn:TypedSSA.fn) (impInputTypes:ImpType.t list)
     ENDIF;
     impFn
   | None ->
+    IFDEF DEBUG THEN
+      Printf.printf "[SSA_to_Imp] Translating \n%s\n" (TypedSSA.fn_to_str ssaFn)
+    ENDIF;
     let builder = new ImpBuilder.fn_builder in
     let impTyEnv = InferImpTypes.infer ssaFn impInputTypes in
     let shapeEnv : SymbolicShape.env =
@@ -219,9 +270,8 @@ let rec translate_fn (ssaFn:TypedSSA.fn) (impInputTypes:ImpType.t list)
     let body =
       translate_block (builder :> ImpBuilder.builder) ssaFn.TypedSSA.body
     in
-    let ssa_name = FnId.to_str ssaFn.TypedSSA.fn_id in
     let arg_strings = ImpType.type_list_to_str impInputTypes in
-    let name = ssa_name ^ "[" ^ arg_strings ^ "]" in
+    let name = (FnId.to_str ssaFn.TypedSSA.fn_id) ^ "[" ^ arg_strings ^ "]" in
     let impFn = builder#finalize_fn ~name body in
     Hashtbl.add cache signature impFn;
     IFDEF DEBUG THEN
@@ -359,7 +409,7 @@ and translate_sequential_adverb
   in
   (* pick any of the highest rank arrays in the input list *)
   let biggestArray : Imp.value_node = argmax_array_rank info.array_args in
-  let initBlock, loopDescriptors, indexVars, nestedArrays =
+  let initBlock, loopDescriptors, indexVars, nestedArrays, skipFirstIter =
     match info.adverb, info.init with
     | Adverb.Map, None ->
       (* init is a block which gets the dimensions of array we're traversing *)
@@ -370,10 +420,10 @@ and translate_sequential_adverb
       let nestedArrays =
         List.map (slice_along_axes indexVars) info.array_args
       in
-      initBlock, loops, indexVars, nestedArrays
+      initBlock, loops, indexVars, nestedArrays, false
     | Adverb.Reduce, None ->
-      let initBlock, loops = axes_to_loop_descriptors
-          ~skip_first_iter:true builder biggestArray info.axes
+      let initBlock, loops =
+        axes_to_loop_descriptors builder biggestArray info.axes
       in
       let indexVars = get_loop_vars loops in
       (* the initial value for a reduction is the first elt of the array *)
@@ -383,12 +433,13 @@ and translate_sequential_adverb
           ~dims:info.axes
           ~indices:(List.map (fun _ -> ImpHelpers.zero) indexVars)
       in
-      let initAcc = List.hd lhsVars in
-      let copyStmt = ImpHelpers.set initAcc (ImpHelpers.copy initVal) in
+      let copyStmts =
+        copy builder ~from_array:initVal ~to_array:(List.hd lhsVars)
+      in
       let nestedArrays =
         List.map (slice_along_axes indexVars) info.array_args
       in
-      initBlock @ [copyStmt], loops, indexVars, nestedArrays
+      initBlock @ copyStmts, loops, indexVars, nestedArrays, true
     | Adverb.AllPairs, None ->
       (match info.array_args with
         | [x;y] ->
@@ -399,7 +450,7 @@ and translate_sequential_adverb
           let nestedArrays =
             [slice_along_axes xIndexVars x; slice_along_axes yIndexVars y]
           in
-          xInit@yInit, xLoops@yLoops, xIndexVars@yIndexVars, nestedArrays
+          xInit@yInit, xLoops@yLoops, xIndexVars@yIndexVars, nestedArrays, false
         | _ -> failwith "allpairs requires two args"
       )
     | _ -> failwith "malformed adverb"
@@ -435,7 +486,10 @@ and translate_sequential_adverb
       (nestedInputs @ nestedOutputs)
   in
   let fnBody = ImpReplace.replace_block replaceEnv impFn.body in
-  let loops = build_loop_nests builder loopDescriptors fnBody in
+  let loops =
+    build_loop_nests
+      ~skip_first_iter:skipFirstIter builder loopDescriptors fnBody
+  in
   initBlock @ loops
 
 (* We assume that the function is a scalar function at this point *)

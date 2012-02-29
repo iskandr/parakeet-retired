@@ -40,7 +40,7 @@ let set_bool p offset b = set_char p offset (Char.chr (if b then 1 else 0))
 
 let get_ptr_to_index (addr:Int64.t) (eltT:Type.elt_t) (index:int) : Int64.t =
   let elt_size = Type.sizeof eltT in
-  let offset = Int64.of_int(elt_size * index * 8) in
+  let offset = Int64.of_int(elt_size * index) in
   Int64.add addr offset
 
 let deref_scalar (addr:Int64.t) (eltT:Type.elt_t) : ParNum.t =

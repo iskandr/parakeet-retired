@@ -77,17 +77,24 @@ module ShapeAnalysis (P: PARAMS) =  struct
       | Adverb.Map, Some _, _ ->
         raise  (ShapeInferenceFailure "Unexpected init arg to Map")
       | Adverb.AllPairs, None, [_; _] ->
-        let inputShapes = fixed_args @ eltShapes in 
-        let callResultShapes = P.output_shapes adverb_fn inputShapes in 
+        let inputShapes = fixed_args @ eltShapes in
+        let callResultShapes = P.output_shapes adverb_fn inputShapes in
         List.map (fun shape -> loopDims @ loopDims @ shape) callResultShapes
-      | Adverb.AllPairs, None, _ -> 
+      | Adverb.AllPairs, None, _ ->
         raise (ShapeInferenceFailure "AllPairs must have two input arrays")
       | Adverb.AllPairs, Some _, _ ->
         raise (ShapeInferenceFailure "Unexpected init arg to AllPairs")
-      | Adverb.Reduce, None, [s] ->
-        let inputShapes = fixed_args @ [s;s] in
-        let callResultShapes = P.output_shapes adverb_fn inputShapes in
-        List.map (fun shape -> fixedDims @ shape) callResultShapes
+      | Adverb.Reduce, None, [accShape] ->
+        let inputShapes  = fixed_args @ [accShape; accShape] in
+        begin match  P.output_shapes adverb_fn inputShapes with
+          | [result] ->
+            if SymbolicShape.rank result <> SymbolicShape.rank accShape then
+              raise (ShapeInferenceFailure
+                "Reduction operator must return same rank as initial value")
+            else [result]
+          | _ ->
+           raise (ShapeInferenceFailure "Reduce operator must return 1 result")
+        end
       | Adverb.Reduce, None, _ ->
         let errMsg = "Too many inputs for Reduce without init" in
         raise (ShapeInferenceFailure errMsg)
@@ -325,6 +332,15 @@ and infer_normalized_shape_env (fnTable : FnTable.t) (fundef : TypedSSA.fn) =
       in
       let normalizedEnv = ID.Map.fold normalizer rawShapeEnv ID.Map.empty in
       Hashtbl.add normalizedShapeEnvCache fnId normalizedEnv;
+      IFDEF DEBUG THEN
+        Printf.printf "\nInferred shapes for %s:\n"
+          (TypedSSA.PrettyPrinters.fn_id_to_str fundef)
+        ;
+        let print_shape k v =
+          Printf.printf "  -- %s : %s\n" (ID.to_str k) (SymbolicShape.to_str v)
+        in
+        ID.Map.iter print_shape normalizedEnv
+      ENDIF;
       normalizedEnv
     end
 

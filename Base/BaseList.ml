@@ -59,12 +59,21 @@ include ExtList.List
   let rec map f = function
     | [] -> []
     | [x] -> [f x]
-    | [x; y] -> [f x; f y]
-    | [x; y; z] -> [f x; f y; f z]
-    | [x; y; z; w] -> [f x; f y; f z; f w]
-    | [x; y; z; w; a] -> [f x; f y; f z; f w; f a]
-    | x::y::z::w::a::b::rest ->
-        (f x)::(f y)::(f z)::(f w)::(f a)::(f b)::(map f rest)
+    | [x; y] ->
+      let a = f x in
+      let b = f y in
+      [a;b]
+    | [x; y; z] ->
+      let a = f x in
+      let b = f y in
+      let c = f z in
+      [a;b;c]
+    | x::y::z::w::rest ->
+      let a = f x in
+      let b = f y in
+      let c = f z in
+      let d = f w in
+      a::b::c::d::(map f rest)
 
   let min = function
     | head::tail -> fold_left min head tail

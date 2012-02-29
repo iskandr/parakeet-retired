@@ -1,6 +1,5 @@
 #!/usr/bin/python
-import sys, unit
-from unit import parakeet
+import parakeet, sys
 from parakeet import PAR 
 
 @PAR

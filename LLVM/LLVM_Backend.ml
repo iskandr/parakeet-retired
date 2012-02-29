@@ -6,7 +6,6 @@ open Imp
 open ImpHelpers
 open Imp_to_LLVM
 open Llvm
-open MachineModel
 open Value
 
 let memspace_id = HostMemspace.id
@@ -25,8 +24,8 @@ external destroy_work_queue : Int64.t -> unit = "ocaml_destroy_work_queue"
 external do_work : Int64.t -> LLE.t -> llvalue -> GV.t list list -> unit =
     "ocaml_do_work"
 
-let num_cores = Array.length machine_model.cpus.(0).cores
-let work_queue = create_work_queue num_cores
+let num_threads = MachineModel.num_hw_threads
+let work_queue = create_work_queue num_threads
 
 let optimize_module llvmModule llvmFn : unit =
   let the_fpm = PassManager.create_function llvmModule in
@@ -110,9 +109,8 @@ let split_argument axes num_items arg =
   | Scalar n ->
     List.fill (Value_to_GenericValue.to_llvm (Scalar n)) (List.til num_items)
   | Array {data; array_type; elt_type; array_shape; array_strides} ->
-    (* TODO: for now, we just split the longest axis. Come up with something *)
+    (* TODO: for now, we just split the first axis. Come up with something *)
     (*       good later. *)
-    (* TODO: does a 0-length slice work? *)
     let longest_axis = ref 0 in
     let len = ref 0 in
     Array.iteri (fun idx dim ->
@@ -122,6 +120,8 @@ let split_argument axes num_items arg =
       ))
       (Shape.to_array array_shape)
     ;
+    longest_axis := 0;
+    len := Shape.get array_shape 0;
     let els_per_item = safe_div !len num_items in
     let mul x y = x * y in
     let starts = List.map (mul els_per_item) (List.til num_items) in
@@ -230,7 +230,7 @@ let exec_map impFn inputShapes axes array_args llvmFn =
   in
   (* TODO: looks like we're ignoring the closure values! *)
   let work_items =
-    build_work_items axes num_cores (array_args @ outputs)
+    build_work_items axes num_threads (array_args @ outputs)
   in
   do_work work_queue execution_engine llvmFn work_items;
   outputs
@@ -243,11 +243,11 @@ let exec_reduce impFn inputShapes axes array_args llvmFn =
   let get_interm_shape shape = function
     | ImpType.ScalarT _ ->
       let interm_shape = Shape.create 1 in
-      Shape.set interm_shape 0 num_cores;
+      Shape.set interm_shape 0 num_threads;
       interm_shape
     | ImpType.ArrayT (_, _) ->
       let t_shape = Shape.create 1 in
-      Shape.set t_shape 0 num_cores;
+      Shape.set t_shape 0 num_threads;
       Shape.append t_shape shape
     | _ -> failwith "Unexpected output type from reduction"
   in
@@ -255,20 +255,20 @@ let exec_reduce impFn inputShapes axes array_args llvmFn =
   let interms = List.map2 allocate_array eltTypes intermShapes in
   let llvmInterms = List.map Value_to_GenericValue.to_llvm interms in
   let rec slice_interms cur i =
-    if i == num_cores then
+    if i == num_threads then
       match cur with
       | [[]] -> cur
       | hd :: rest -> rest
     else
       let get_slice arg ty shape : GV.t =
         (* Have to handle the case of slicing out scalars specially *)
-        if Shape.rank shape == 1 then
+        if Shape.rank shape == 1 then (
           let data = match Value.extract arg with
             | Some d -> d
             | None -> failwith "Array expected in reduce intermediate slicing"
           in
           let ptr = HostMemspace.get_ptr_to_index data.Ptr.addr ty i in
-          GV.of_int64 LLVM_Types.int64_t ptr
+          GV.of_int64 LLVM_Types.int64_t ptr)
         else
           let val_slice = Value.Slice(arg, 0, i, i + 1) in
           Value_to_GenericValue.to_llvm val_slice
@@ -279,13 +279,39 @@ let exec_reduce impFn inputShapes axes array_args llvmFn =
       slice_interms (cur @ [slices]) (i + 1)
   in
   let interm_slices = slice_interms [[]] 0 in
-  let input_items = build_work_items axes num_cores array_args in
+  let input_items = build_work_items axes num_threads array_args in
   let work_items = List.map2 (fun a b -> a @ b) input_items interm_slices in
   do_work work_queue execution_engine llvmFn work_items;
+
+  (* Change the shape of the intermediate so that the sequential function *)
+  (* can use it as its input. *)
+  let seqInputs =
+    let num_axes = List.length axes in
+    if num_axes > 1 then
+      let get_dummy_shape shape =
+        let t_array = Array.make (num_axes - 1) 1 in
+        Shape.append (Shape.of_array t_array) shape
+      in
+      let seqInputShapes = List.map get_dummy_shape intermShapes in
+      let f arr shape =
+        let info = match arr with
+          | Array i -> i
+          | _ -> failwith "Unexpected intermediate type for reduction"
+        in
+        let newStrides =
+          strides_from_shape shape (Type.sizeof info.elt_type)
+        in
+        Value.Array {info with array_shape=shape; array_strides=newStrides}
+      in
+      let seqInputs = List.map2 f interms seqInputShapes in
+      List.map Value_to_GenericValue.to_llvm seqInputs
+    else
+      llvmInterms
+  in
   let llvmOutputs : GV.t list =
     allocate_output_generic_values impFn inputShapes
   in
-  let params = Array.of_list (llvmInterms @ llvmOutputs) in
+  let params = Array.of_list (seqInputs @ llvmOutputs) in
   let _ = LLE.run_function llvmFn params execution_engine in
   let outputs =
     List.map2 GenericValue_to_Value.of_generic_value llvmOutputs outTypes

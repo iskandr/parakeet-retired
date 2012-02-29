@@ -10,7 +10,7 @@ let comment str = Comment str
 
 let set v rhs = match v.value with
   | Var id -> Set(id,rhs)
-  | _ -> assert false
+  | other -> failwith $ "[ImpHelpers] Can't set " ^ (Imp.value_to_str other)
 
 let rec setidx arr indices rhs = SetIdx(arr, indices, rhs)
 
@@ -98,8 +98,12 @@ let float f = wrap_float32 $ Const (ParNum.Float32 f)
 let double d = wrap_float64 $ Const (ParNum.Float64 d)
 let bool b = wrap_bool $ Const (ParNum.Bool b)
 
+
 let zero = int 0
 let one = int 1
+
+let ints_til (n:int) : value_node list  =  List.map int (List.til n)
+
 
 let select cond t f =
   assert (t.value_type = f.value_type);
@@ -265,11 +269,6 @@ let slice ~arr ~dim ~start ~stop =
     value_type = arr.value_type
   }
 
-let copy x : value_node =
-  let t = x.value_type in
-  if ImpType.is_scalar t then x
-  else { value = Copy x; value_type = ImpType.type_of_copy t}
-
 let permute (dims:int list) indices : value_node list  =
   let compare_pair (m,_) (n,_) = compare m n in
   let sortedPairs = List.fast_sort compare_pair (List.combine dims indices) in
@@ -280,14 +279,14 @@ let rec idx_or_fixdims
   ~(dims:value_nodes)
   ~(indices:value_nodes) : value_node =
   let nIndices = List.length indices in
-  IFDEF DEBUG THEN 
+  IFDEF DEBUG THEN
     let nDims = List.length dims in
-    if nDims <> nIndices then 
-      failwith $ Printf.sprintf 
+    if nDims <> nIndices then
+      failwith $ Printf.sprintf
         "[idx_or_fixdims] Mismatch between # of dims (%d) and # of indices(%d)"
         nDims
         nIndices
-  ENDIF; 
+  ENDIF;
   let arrT = arr.value_type in
   (* for convenience, treat indexing into scalars as the identity operation *)
   if ImpType.is_scalar arrT then arr
