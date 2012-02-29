@@ -13,7 +13,7 @@ module type REWRITE_PARAMS = sig
   val tenv : (ID.t, Type.t) Hashtbl.t
 end
 
-module Rewrite_Rules (P: REWRITE_PARAMS) = struct
+module Make(P: REWRITE_PARAMS) = struct
   let get_type id =
     match Hashtbl.find_option P.tenv id with
       | Some t -> t
@@ -94,11 +94,10 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
 
   let clear_coercions () = coercions := []
 
-  let collect_coercions stmtNode =
-    let stmts = stmtNode :: get_coercions()  in
+  let collect_coercions ()  =
+    let stmts = get_coercions()  in
     clear_coercions ();
     stmts
-
 
   let coerce_typed_value (t:Type.t) (simpleTyped:TypedSSA.value_node) =
     if simpleTyped.TypedSSA.value_type = t then simpleTyped
@@ -355,7 +354,7 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
 
   let rewrite_phi_nodes phiNodes = List.map rewrite_phi phiNodes
 
-  let rec stmt (stmtNode:UntypedSSA.stmt_node) : TypedSSA.stmt_node list =
+  let rec rewrite_stmt (stmtNode:UntypedSSA.stmt_node) : TypedSSA.stmt_node list =
     IFDEF DEBUG THEN
       Printf.printf "[RewriteTyped.stmt] %s\n%!"
         (UntypedSSA.PrettyPrinters.stmt_node_to_str stmtNode)
@@ -365,58 +364,56 @@ module Rewrite_Rules (P: REWRITE_PARAMS) = struct
     | UntypedSSA.Set(ids, rhs) ->
       let rhsTypes = List.map (Hashtbl.find P.tenv) ids in
       let typedRhs = rewrite_exp rhsTypes rhs in
-      let typedStmtNode =
-        TypedSSA.wrap_stmt ?src $ TypedSSA.Set(ids, typedRhs)
-      in
-      collect_coercions typedStmtNode
+      let stmtNode = TypedSSA.wrap_stmt ?src $ TypedSSA.Set(ids, typedRhs) in
+      collect_coercions () @ [stmtNode]
 
     | UntypedSSA.SetIdx (lhs, indices, rhs) ->
       let typedArray = annotate_value lhs in
-      let typedIndices = List.map (coerce_value Type.int32) indices in
+      let indices : TypedSSA.value_node list = 
+        List.map (coerce_value Type.int32) indices in
       let rhsT =
         Type.peel ~num_axes:(List.length indices) typedArray.TypedSSA.value_type
       in
-      let typedRhs = rewrite_exp [rhsT] rhs in
-      let typedStmtNode =
-        TypedSSA.wrap_stmt ?src $
-          TypedSSA.SetIdx(typedArray, typedIndices, typedRhs)
+      let rhs : TypedSSA.exp_node = rewrite_exp [rhsT] rhs in
+      let typedStmtNode = 
+        TypedSSA.wrap_stmt ?src $ TypedSSA.SetIdx(typedArray, indices, rhs)
       in
-      collect_coercions typedStmtNode
-
+      collect_coercions() @ [typedStmtNode]
 
     | UntypedSSA.If(cond, tBlock, fBlock, phiNodes) ->
-      let cond = coerce_value Type.bool cond in
-      let tBlock = transform_block tBlock in
-      let fBlock = transform_block fBlock in
+      let tBlock = rewrite_block tBlock in
+      let fBlock = rewrite_block fBlock in
       let phiNodes = rewrite_phi_nodes phiNodes in
+      (* do cond last so its coercions don't get mixed with blocks above *)
+      let cond = coerce_value Type.bool cond in
       let typedStmtNode =
-        TypedSSA.wrap_stmt ?src $
-          TypedSSA.If(cond, tBlock, fBlock, phiNodes)
+        TypedSSA.wrap_stmt ?src $ TypedSSA.If(cond, tBlock, fBlock, phiNodes)
       in
-      collect_coercions typedStmtNode
+      collect_coercions() @ [typedStmtNode]
 
     | UntypedSSA.WhileLoop(testBlock, testVal, body, header) ->
-      let body = transform_block body in
-      let testBlock = transform_block testBlock in
-      let testVal = coerce_value Type.bool testVal in
+      let body = rewrite_block body in
+      let testBlock = rewrite_block testBlock in
       let header = rewrite_phi_nodes header in
+      (* do testVal last so its coercions don't get mixed with blocks above *)
+      let testVal = coerce_value Type.bool testVal in
       let typedStmtNode =
         TypedSSA.wrap_stmt ?src $
           TypedSSA.WhileLoop(testBlock, testVal, body, header)
       in
-      collect_coercions typedStmtNode
+      collect_coercions() @ [typedStmtNode]
 
-  and transform_block block =
-    let buffer = ref [] in
-    let process_stmt stmtNode =
-      let newStmts = stmt stmtNode in
-      buffer := newStmts @ !buffer
+  and rewrite_block (untypedBlock : UntypedSSA.block) : TypedSSA.block =
+    let typedBlock = Block.create () in 
+    let process_stmt (untyped:UntypedSSA.stmt_node) =
+      let stmts = rewrite_stmt untyped in 
+      List.iter (fun s -> Block.add typedBlock s) stmts
     in
-    Block.iter_forward process_stmt block;
-    Block.of_list (List.rev !buffer)
-
-  and transform_fn f =
-    let body = transform_block f.UntypedSSA.body in
+    Block.iter_forward process_stmt untypedBlock;
+    typedBlock
+ 
+  and rewrite_fn f =
+    let body : TypedSSA.block= rewrite_block f.UntypedSSA.body in
     TypedSSA.mk_fn
       ~name:(FnId.get_original_prefix f.UntypedSSA.fn_id)
       ~tenv:(Hashtbl.fold ID.Map.add P.tenv ID.Map.empty)
@@ -437,5 +434,5 @@ let rewrite_typed ~specializer ~fn ~signature =
     let specializer = specializer
   end
   in
-  let module Transform = Rewrite_Rules(Params) in
-  Transform.transform_fn fn
+  let module Rewriter = Make(Params) in
+  Rewriter.rewrite_fn fn

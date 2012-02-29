@@ -94,6 +94,7 @@ module PrettyPrinters = struct
     Adverb.info_to_str info FnId.to_str value_nodes_to_str value_nodes_to_str
 
   let exp_to_str = function
+    | Values [v] -> value_node_to_str v
     | Values vs -> sprintf "values(%s)" (value_nodes_to_str vs)
     | Arr elts -> sprintf "array(%s)" (value_nodes_to_str elts)
     | Call (fnId, args) ->
@@ -111,7 +112,7 @@ module PrettyPrinters = struct
     String.concat "\n" lines
 
   let rec stmt_to_str stmt =
-    Base.wrap_str $ match stmt with
+    match stmt with
     | Set (ids, rhs) ->
       sprintf "%s = %s" (ID.list_to_str ids) (exp_node_to_str rhs)
     | SetIdx (arr, indices, rhs) ->
@@ -119,21 +120,22 @@ module PrettyPrinters = struct
       (value_node_to_str arr)
       (String.concat ", " (List.map value_node_to_str indices))
       (exp_node_to_str rhs)
-  | If (cond, tBlock, fBlock, phiNodes) ->
-    wrap_str $ sprintf "if %s:\n%s \nelse:\n%s \nmerge:\n%s"
-      (value_node_to_str cond)
-      (block_to_str tBlock)
-      (block_to_str fBlock)
-      (phi_nodes_to_str phiNodes)
-  | WhileLoop (testBlock, testVal, body, phiNodes) ->
-    wrap_str $ sprintf "while %s:\nloop header:\n%s\ndo:\n%s\nmerge:\n%s"
-      (block_to_str testBlock)
-      (value_node_to_str testVal)
-      (block_to_str body)
-      (phi_nodes_to_str phiNodes)
+    | If (cond, tBlock, fBlock, phiNodes) ->
+      sprintf "if %s then%s\nelse%s\nmerge%s"
+        (value_node_to_str cond)
+        (Base.indent_newlines (block_to_str tBlock))
+        (Base.indent_newlines (block_to_str fBlock))
+        (Base.indent_newlines $ "\n\n" ^ (phi_nodes_to_str phiNodes))
+    | WhileLoop (testBlock, testVal, body, phiNodes) ->
+      sprintf "while %s\nloop header%s\ndo%s\nmerge%s"
+        (Base.indent_newlines (block_to_str testBlock))
+        (value_node_to_str testVal)
+        (Base.indent_newlines (block_to_str body))
+        (Base.indent_newlines $ "\n" ^ (phi_nodes_to_str phiNodes))
+
   and stmt_node_to_str {stmt} = stmt_to_str stmt
   and block_to_str block =
-    Base.wrap_str (Block.to_str stmt_node_to_str block)
+    Base.indent_newlines (Block.to_str stmt_node_to_str block)
 
   let typed_id_to_str tenv id =
     (ID.to_str id) ^ " : " ^ (Type.to_str (ID.Map.find id tenv))

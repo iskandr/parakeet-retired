@@ -91,3 +91,11 @@ let peel ?(num_axes=1) = function
     else failwith "[ImpType.peel] Too many axes"
   | ScalarT eltT -> ScalarT eltT
   | _ -> failwith "Not implemented"
+
+
+let type_of_copy t =
+  if is_scalar t then t
+  else
+    let r = rank t in
+    let eltT = elt_type t in
+    ArrayT(eltT, r)

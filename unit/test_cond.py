@@ -1,7 +1,7 @@
 #!/usr/bin/python
 from numpy import *
-import unit
-from unit import parakeet
+#import unit
+#from unit import parakeet
 from parakeet import PAR
 import sys
 

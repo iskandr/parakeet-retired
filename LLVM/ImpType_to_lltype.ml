@@ -23,3 +23,4 @@ let rec to_lltype = function
       Llvm.struct_type context [|nested; int32_t; int32_t; int32_t|]
     in
     Llvm.pointer_type structT
+  (* todo: implement FixDimT, SliceT *)

@@ -299,25 +299,39 @@ module Make (P : TYPE_ANALYSIS_PARAMS) = struct
     in
     let eltTypes = List.map (Type.peel ~num_axes:numAxes) info.array_args in
     let fnVal : UntypedSSA.value = info.adverb_fn in
-    match info.adverb, info.init, eltTypes with
-    | Adverb.Map, None, _ ->
+    match info.adverb, info.init with
+    | Adverb.Map, None ->
       let eltResultTypes = infer_app fnVal eltTypes in
       Type.increase_ranks numAxes eltResultTypes
-    | Adverb.Map, Some _, _ ->
-      raise (TypeError("Map can't have initial values", src))
     (* if not given initial values then we assume operator is binary and*)
     (* used first two elements of the array *)
-    | Adverb.Reduce, None, [eltT] ->
+    | Adverb.Reduce, None  ->
+      if List.length eltTypes <> 1 then
+        raise $
+          TypeError("Reduce without intial args must have one input array", src)
+      ;
+      let eltT = List.hd eltTypes in
       let accTypes = infer_app fnVal [eltT;eltT] in
       if List.length accTypes <> 1 then
         raise $
           TypeError("Reduce without inital args must return one value", src)
       else accTypes
-    | Adverb.Reduce, None, _ ->
+
+    | Adverb.AllPairs, None ->
+      if List.length eltTypes <> 2 then
+        raise $
+          TypeError("AllPairs must have two arguments", src)
+      else
+        let eltResultTypes = infer_app fnVal eltTypes in
+        Type.increase_ranks (2*numAxes) eltResultTypes
+    | Adverb.AllPairs, Some _ ->
       raise $
-        TypeError("Reduce without intial args must have one input array", src)
-    | Adverb.Reduce, Some inits, _  -> failwith "Reduce with inits not implemented"
-    | other, _, _ -> failwith (Adverb.to_str other ^ " not impl")
+        TypeError("AllPairs can't have initial arguments", src)
+    | Adverb.Map, Some _ ->
+      raise (TypeError("Map can't have initial values", src))
+    | Adverb.Reduce, Some inits  ->
+      failwith "Reduce with inits not implemented"
+    | Adverb.Scan, _ -> failwith "Scan not implemented"
 
   let infer_exp expNode =
     let src = expNode.exp_src in
