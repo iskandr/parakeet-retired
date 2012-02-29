@@ -30,6 +30,6 @@ def test_sum_rows():
   assert np.sum( (parakeet_sum_rows - np_sum_rows)**2) <= 0.001
 
 if __name__ == '__main__':
-  #test_sum()
-  test_sum_rows()
+  test_sum()
+  #test_sum_rows()
 

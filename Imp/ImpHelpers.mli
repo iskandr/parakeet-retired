@@ -49,6 +49,8 @@ val int : int -> value_node
 val zero : value_node
 val one : value_node
 
+val ints_til : int -> value_node list
+
 (*val infinity : value_node*)
 
 val float : float -> value_node
@@ -128,8 +130,6 @@ val fixdims :
 val slice :
   arr:value_node -> dim:value_node -> start:value_node -> stop:value_node ->
     value_node
-
-val copy : value_node -> value_node
 
 val idx_or_fixdims :
   arr:value_node -> dims:value_node list -> indices:value_node list ->

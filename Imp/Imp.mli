@@ -33,7 +33,6 @@ type value =
   | DimSize of value_node * value_node
   | FixDim of value_node * value_node * value_node
   | Slice of value_node * value_node * value_node * value_node
-  | Copy of value_node
   | ArrayField of array_field * value_node
 
 and value_node = {

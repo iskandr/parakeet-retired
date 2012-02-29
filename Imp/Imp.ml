@@ -35,7 +35,6 @@ type value =
   | DimSize of value_node * value_node
   | FixDim of value_node * value_node * value_node
   | Slice of value_node * value_node * value_node * value_node
-  | Copy of value_node
   | ArrayField of array_field * value_node
 and value_node = {
   value : value;
@@ -160,8 +159,7 @@ let rec value_to_str = function
       (value_node_to_str dim)
       (value_node_to_str start)
       (value_node_to_str stop)
-  | Copy arr ->
-    sprintf "copy(%s)" (value_node_to_str arr)
+
 
 and value_node_to_str {value} = value_to_str value
 and value_nodes_to_str vNodes =
