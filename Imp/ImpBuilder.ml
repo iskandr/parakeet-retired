@@ -44,9 +44,11 @@ class builder = object (self)
               (SymbolicShape.to_str shape)
               (ID.to_str id)
      ;
-      if not (ID.Set.mem id ids) then
-        failwith $
-          Printf.sprintf "[ImpBuilder] Undeclared identifier %s" (ID.to_str id)
+     if ID.Set.mem id ids then
+       failwith $
+         Printf.sprintf
+           "[ImpBuilder] Identifier already declared: %s"
+           (ID.to_str id)
     ENDIF;
     ids <- ID.Set.add id ids;
     types <- ID.Map.add id ty types;
