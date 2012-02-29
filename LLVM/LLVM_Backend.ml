@@ -109,9 +109,8 @@ let split_argument axes num_items arg =
   | Scalar n ->
     List.fill (Value_to_GenericValue.to_llvm (Scalar n)) (List.til num_items)
   | Array {data; array_type; elt_type; array_shape; array_strides} ->
-    (* TODO: for now, we just split the longest axis. Come up with something *)
+    (* TODO: for now, we just split the first axis. Come up with something *)
     (*       good later. *)
-    (* TODO: does a 0-length slice work? *)
     let longest_axis = ref 0 in
     let len = ref 0 in
     Array.iteri (fun idx dim ->
@@ -121,6 +120,8 @@ let split_argument axes num_items arg =
       ))
       (Shape.to_array array_shape)
     ;
+    longest_axis := 0;
+    len := Shape.get array_shape 0;
     let els_per_item = safe_div !len num_items in
     let mul x y = x * y in
     let starts = List.map (mul els_per_item) (List.til num_items) in
@@ -281,10 +282,36 @@ let exec_reduce impFn inputShapes axes array_args llvmFn =
   let input_items = build_work_items axes num_threads array_args in
   let work_items = List.map2 (fun a b -> a @ b) input_items interm_slices in
   do_work work_queue execution_engine llvmFn work_items;
+
+  (* Change the shape of the intermediate so that the sequential function *)
+  (* can use it as its input. *)
+  let seqInputs =
+    let num_axes = List.length axes in
+    if num_axes > 1 then
+      let get_dummy_shape shape =
+        let t_array = Array.make (num_axes - 1) 1 in
+        Shape.append (Shape.of_array t_array) shape
+      in
+      let seqInputShapes = List.map get_dummy_shape intermShapes in
+      let f arr shape =
+        let info = match arr with
+          | Array i -> i
+          | _ -> failwith "Unexpected intermediate type for reduction"
+        in
+        let newStrides =
+          strides_from_shape shape (Type.sizeof info.elt_type)
+        in
+        Value.Array {info with array_shape=shape; array_strides=newStrides}
+      in
+      let seqInputs = List.map2 f interms seqInputShapes in
+      List.map Value_to_GenericValue.to_llvm seqInputs
+    else
+      llvmInterms
+  in
   let llvmOutputs : GV.t list =
     allocate_output_generic_values impFn inputShapes
   in
-  let params = Array.of_list (llvmInterms @ llvmOutputs) in
+  let params = Array.of_list (seqInputs @ llvmOutputs) in
   let _ = LLE.run_function llvmFn params execution_engine in
   let outputs =
     List.map2 GenericValue_to_Value.of_generic_value llvmOutputs outTypes

@@ -1,9 +1,7 @@
 #!/usr/bin/python
 from numpy import *
-import unit
-from unit import parakeet
+import parakeet, sys
 from parakeet import PAR
-import sys
 
 @PAR
 def bool(c):
