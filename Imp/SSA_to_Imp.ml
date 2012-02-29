@@ -337,13 +337,13 @@ and translate_adverb
   let maxArgRank =
     List.fold_left (fun acc t -> max acc (ImpType.rank t)) 0 argTypes
   in
-  if maxArgRank = 1 && TypedSSA.ScalarHelpers.is_scalar_fn info.adverb_fn then
+  (*if maxArgRank = 1 && TypedSSA.ScalarHelpers.is_scalar_fn info.adverb_fn then
     (* only vectorize function which use one type in their body *)
     match TypedSSA.FnHelpers.get_single_type info.adverb_fn with
     | None -> translate_sequential_adverb builder lhsVars info
     | Some (Type.ScalarT eltT) ->
       vectorize_adverb builder lhsVars info eltT
-  else translate_sequential_adverb builder lhsVars info
+  else*) translate_sequential_adverb builder lhsVars info
 
 and translate_sequential_adverb
       (builder:ImpBuilder.builder)
@@ -368,7 +368,7 @@ and translate_sequential_adverb
       in
       let indexVars = get_loop_vars loops in
       let nestedArrays =
-        List.map (slice_along_axes indexVars) info.array_args 
+        List.map (slice_along_axes indexVars) info.array_args
       in
       initBlock, loops, indexVars, nestedArrays
     | Adverb.Reduce, None ->
@@ -385,8 +385,8 @@ and translate_sequential_adverb
       in
       let initAcc = List.hd lhsVars in
       let copyStmt = ImpHelpers.set initAcc (ImpHelpers.copy initVal) in
-      let nestedArrays = 
-        List.map (slice_along_axes indexVars) info.array_args 
+      let nestedArrays =
+        List.map (slice_along_axes indexVars) info.array_args
       in
       initBlock @ [copyStmt], loops, indexVars, nestedArrays
     | Adverb.AllPairs, None ->
@@ -396,9 +396,9 @@ and translate_sequential_adverb
           let xIndexVars = get_loop_vars xLoops in
           let yInit, yLoops = axes_to_loop_descriptors builder y info.axes in
           let yIndexVars = get_loop_vars yLoops in
-          let nestedArrays = 
+          let nestedArrays =
             [slice_along_axes xIndexVars x; slice_along_axes yIndexVars y]
-          in 
+          in
           xInit@yInit, xLoops@yLoops, xIndexVars@yIndexVars, nestedArrays
         | _ -> failwith "allpairs requires two args"
       )
@@ -406,15 +406,15 @@ and translate_sequential_adverb
   in
   let nestedInputs, nestedOutputs =
     match info.adverb, info.init with
-    | Adverb.Map, None -> 
+    | Adverb.Map, None ->
       let nestedOutputs = List.map (slice_along_axes indexVars) lhsVars in
       info.fixed_args @ nestedArrays, nestedOutputs
     | Adverb.AllPairs, None ->
-      let nAxes = List.length info.axes in 
+      let nAxes = List.length info.axes in
       let constOutputAxes = List.til (2*List.length info.axes) in
-      let outputAxes = List.map ImpHelpers.int constOutputAxes in  
-      let nestedOutputs = 
-        List.map (fun arr -> idx_or_fixdims arr outputAxes indexVars) lhsVars 
+      let outputAxes = List.map ImpHelpers.int constOutputAxes in
+      let nestedOutputs =
+        List.map (fun arr -> idx_or_fixdims arr outputAxes indexVars) lhsVars
       in
       info.fixed_args @ nestedArrays, nestedOutputs
     | Adverb.Reduce, None ->
