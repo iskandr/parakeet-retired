@@ -7,8 +7,15 @@ from parakeet import PAR
 def sum_all_elts(x):
   return parakeet.reduce(parakeet.add, x)
 
-def test_sum():
-  x = np.random.randn(10,1000)
+def test_1d_sum():
+  x = np.arange(1000)
+  psum = sum_all_elts(x)
+  npsum = np.sum(x)
+  print "Python: %d, Parakeet: %d" % (npsum, psum)
+  assert npsum == psum
+
+def test_2d_sum():
+  x = np.random.randint(0, 100, (10,1000))
   parakeet_sum = sum_all_elts(x)
   np_sum = np.sum(x)
   print "Python: %s, Parakeet: %s" % (np_sum, parakeet_sum)
@@ -26,6 +33,7 @@ def test_sum_rows():
   assert np.sum( (parakeet_sum_rows - np_sum_rows)**2) <= 0.001
 
 if __name__ == '__main__':
-  test_sum()
+  test_1d_sum()
+  test_2d_sum()
   #test_sum_rows()
 
