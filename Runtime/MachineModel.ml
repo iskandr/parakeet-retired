@@ -171,7 +171,7 @@ let consume_cpu_child (cpu:cpu_t) (node:Xml.xml) =
   if test_tag node "Id" then
     let id = int_of_string (get_tag_val node) in
     {cpu with cpu_id = id}
-  else if test_tag node "VectorBitWidth" then
+  else if test_tag node "VectorBitwidth" then
     let bitwidth = int_of_string (get_tag_val node) in
     {cpu with vector_bitwidth = bitwidth}
   else if test_tag node "Core" then

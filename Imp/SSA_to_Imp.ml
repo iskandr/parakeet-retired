@@ -512,6 +512,9 @@ and vectorize_adverb
 	  in
 	  let seqFnBody = ImpReplace.replace_block seqReplaceEnv seqFn.body in
     let seqLoop = build_loop_nests builder [seqDescriptor] seqFnBody in
+
+    (* Build the outer loops, injected the vectorized and sequential inner *)
+    (* loops.  Then return the vectorized block. *)
 	  let vecLoops = build_loop_nests builder outerLoops (vecLoop @ seqLoop) in
 	  outerInit @ [lastInit] @ vecLoops
   | _ -> translate_sequential_adverb builder lhsVars info
