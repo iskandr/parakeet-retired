@@ -63,19 +63,27 @@ module ShapeAnalysis (P: PARAMS) =  struct
       (* split dims into those that are part of the adverb and *)
       (* those that are held constant *)
       let loopDims, fixedDims = SymbolicShape.split maxShape axes in
-      match adverb, init, array_args with
+      let nAxes = List.length axes in
+      if nAxes > maxRank then
+        raise (ShapeInferenceFailure "Too many axes")
+      else
+      let eltShapes = SymbolicShape.peel_shape_list ~axes array_args in
+      match adverb, init, eltShapes with
       | Adverb.Map, None, _ ->
-        let nAxes = List.length axes in
-        if nAxes > maxRank then
-          raise (ShapeInferenceFailure "Too many axes for Map")
-        else
-          let eltShapes = SymbolicShape.peel_shape_list ~axes array_args in
-          (* shapes that go into the function on each iteration *)
-          let inputShapes = fixed_args @ eltShapes in
-          let callResultShapes = P.output_shapes adverb_fn inputShapes in
-          List.map (fun shape -> loopDims @ shape) callResultShapes
+        (* shapes that go into the function on each iteration *)
+        let inputShapes = fixed_args @ eltShapes in
+        let callResultShapes = P.output_shapes adverb_fn inputShapes in
+        List.map (fun shape -> loopDims @ shape) callResultShapes
       | Adverb.Map, Some _, _ ->
         raise  (ShapeInferenceFailure "Unexpected init arg to Map")
+      | Adverb.AllPairs, None, [_; _] ->
+        let inputShapes = fixed_args @ eltShapes in 
+        let callResultShapes = P.output_shapes adverb_fn inputShapes in 
+        List.map (fun shape -> loopDims @ loopDims @ shape) callResultShapes
+      | Adverb.AllPairs, None, _ -> 
+        raise (ShapeInferenceFailure "AllPairs must have two input arrays")
+      | Adverb.AllPairs, Some _, _ ->
+        raise (ShapeInferenceFailure "Unexpected init arg to AllPairs")
       | Adverb.Reduce, None, [s] ->
         let inputShapes = fixed_args @ [s;s] in
         let callResultShapes = P.output_shapes adverb_fn inputShapes in
@@ -87,10 +95,6 @@ module ShapeAnalysis (P: PARAMS) =  struct
         let inputShapes = fixed_args @ initShapes @ array_args in
         let callResultShapes = P.output_shapes adverb_fn inputShapes in
         List.map (fun shape -> fixedDims @ shape) callResultShapes
-      | Adverb.AllPairs, None, [_; _] ->
-        raise (ShapeInferenceFailure "AllPairs not implemented")
-      | Adverb.AllPairs, Some _, [_; _] ->
-        raise (ShapeInferenceFailure "Unexpected init arg to AllPairs")
       | Adverb.Scan, _, _->
         raise (ShapeInferenceFailure "Scan not implemented")
 
@@ -214,7 +218,6 @@ module ShapeAnalysis (P: PARAMS) =  struct
       | _ -> helpers.eval_stmt env stmtNode
 
 end
-
 
 (* given a dim expression (one elt of a shape) which may reference
    intermediate variables, "normalize" it to only refer to input variables

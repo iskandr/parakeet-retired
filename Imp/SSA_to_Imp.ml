@@ -359,7 +359,7 @@ and translate_sequential_adverb
   in
   (* pick any of the highest rank arrays in the input list *)
   let biggestArray : Imp.value_node = argmax_array_rank info.array_args in
-  let initBlock, loopDescriptors, indexVars =
+  let initBlock, loopDescriptors, indexVars, nestedArrays =
     match info.adverb, info.init with
     | Adverb.Map, None ->
       (* init is a block which gets the dimensions of array we're traversing *)
@@ -367,7 +367,10 @@ and translate_sequential_adverb
         axes_to_loop_descriptors builder biggestArray info.axes
       in
       let indexVars = get_loop_vars loops in
-      initBlock, loops, indexVars
+      let nestedArrays =
+        List.map (slice_along_axes indexVars) info.array_args 
+      in
+      initBlock, loops, indexVars, nestedArrays
     | Adverb.Reduce, None ->
       let initBlock, loops = axes_to_loop_descriptors
           ~skip_first_iter:true builder biggestArray info.axes
@@ -382,7 +385,10 @@ and translate_sequential_adverb
       in
       let initAcc = List.hd lhsVars in
       let copyStmt = ImpHelpers.set initAcc (ImpHelpers.copy initVal) in
-      initBlock @ [copyStmt], loops, indexVars
+      let nestedArrays = 
+        List.map (slice_along_axes indexVars) info.array_args 
+      in
+      initBlock @ [copyStmt], loops, indexVars, nestedArrays
     | Adverb.AllPairs, None ->
       (match info.array_args with
         | [x;y] ->
@@ -390,17 +396,26 @@ and translate_sequential_adverb
           let xIndexVars = get_loop_vars xLoops in
           let yInit, yLoops = axes_to_loop_descriptors builder y info.axes in
           let yIndexVars = get_loop_vars yLoops in
-          xInit@yInit, xLoops@yLoops, xIndexVars@yIndexVars
+          let nestedArrays = 
+            [slice_along_axes xIndexVars x; slice_along_axes yIndexVars y]
+          in 
+          xInit@yInit, xLoops@yLoops, xIndexVars@yIndexVars, nestedArrays
         | _ -> failwith "allpairs requires two args"
       )
     | _ -> failwith "malformed adverb"
   in
-  let nestedArrays = List.map (slice_along_axes indexVars) info.array_args in
   let nestedInputs, nestedOutputs =
     match info.adverb, info.init with
-    | Adverb.Map, None
-    | Adverb.AllPairs, None ->
+    | Adverb.Map, None -> 
       let nestedOutputs = List.map (slice_along_axes indexVars) lhsVars in
+      info.fixed_args @ nestedArrays, nestedOutputs
+    | Adverb.AllPairs, None ->
+      let nAxes = List.length info.axes in 
+      let constOutputAxes = List.til (2*List.length info.axes) in
+      let outputAxes = List.map ImpHelpers.int constOutputAxes in  
+      let nestedOutputs = 
+        List.map (fun arr -> idx_or_fixdims arr outputAxes indexVars) lhsVars 
+      in
       info.fixed_args @ nestedArrays, nestedOutputs
     | Adverb.Reduce, None ->
       info.fixed_args @ lhsVars @ nestedArrays, lhsVars

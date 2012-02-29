@@ -23,8 +23,14 @@ def all(x):
 def add(x,y):
   return x+y
 
+def sub(x,y):
+  return x-y
+
 def mult(x,y):
   return x*y
+
+def div(x,y):
+  return x/y
 
 def sum(x, axis=None):
   return reduce(add, x, axis=axis, default=0)
@@ -165,8 +171,56 @@ def reduce(function, *args, **kwargs):
 def allpairs(f, x, y, fixed=None, axes=None):
   assert False
 
-def scan(f, *args, **kwargs):
-  assert False
+def scan(function, *args, **kwargs):
+  arrays = args[:]
+  try:
+    axes = kwargs['axis']
+    if type(axes) != list and axes != None:
+      axes = [axes]
+  except KeyError:
+    axes = range(arrays[0].ndim)
+  if axes == None:
+    axes = range(arrays[0].ndim)
+  try:
+    fixed = kwargs['fixed']
+  except KeyError:
+    fixed = []
+
+  if axes:
+    split_arrays = splitArrays(*arrays, axis=axes, curr_done = 0)
+  else:
+    split_arrays = [[array] for array in arrays]
+  #If there is a default, use it
+  try:
+    prev_res = kwargs['default']
+    if type(prev_res) != list:
+      prev_res = [prev_res]
+    start_index = 0
+  #Otherwise, call with the first 2 chunks
+  except:
+    raise RuntimeError("[parakeet_lib] default required for scan")
+  anss = []
+  for chunk_i in range(len(split_arrays[0])):
+    curr_args = fixed[:]
+    curr_args.extend(prev_res)
+    #array as in the original sense at the top of the function
+    for array in split_arrays:
+      curr_args.append(array[chunk_i])
+    prev_res = function(*curr_args)
+    prev_res_shape = np.array(prev_res).shape
+    anss.append(prev_res)
+    if type(prev_res) == tuple:
+      prev_res = list(prev_res)
+    else:
+      prev_res = [prev_res]
+  mod_shape = []
+  orig_shape = arrays[0].shape
+  for axis in axes:
+    mod_shape.append(orig_shape[axis])
+  mod_shape.extend(ans_shape)
+  anss = np.array(anss)
+  anss = anss.reshape(mod_shape)
+  return anss
 
 def addMultipleRet(x,bo,st,y):
   return y+x, True, "Fish"

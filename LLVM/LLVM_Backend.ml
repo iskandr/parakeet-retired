@@ -8,6 +8,9 @@ open Imp_to_LLVM
 open Llvm
 open Value
 
+
+let memspace_id = HostMemspace.id
+
 module GV = Llvm_executionengine.GenericValue
 module LLE = Llvm_executionengine.ExecutionEngine
 
@@ -21,6 +24,8 @@ external create_work_queue : int -> Int64.t = "ocaml_create_work_queue"
 external destroy_work_queue : Int64.t -> unit = "ocaml_destroy_work_queue"
 external do_work : Int64.t -> LLE.t -> llvalue -> GV.t list list -> unit =
     "ocaml_do_work"
+
+
 (* TODO: For now, hard code the number of threads *)
 let num_cores = 8
 let work_queue = create_work_queue num_cores
@@ -45,7 +50,6 @@ let optimize_module llvmModule llvmFn : unit =
   ignore (PassManager.finalize the_fpm);
   PassManager.dispose the_fpm
 
-let memspace_id = HostMemspace.id
 
 let strides_from_shape shape eltSize =
   let rank = Shape.rank shape in
