@@ -161,13 +161,22 @@ module Make(P: REWRITE_PARAMS) = struct
         }
     in
     let untypedFnVal = info.adverb_fn.UntypedSSA.value in
-    match info.adverb, init, eltTypes with
-      | Adverb.Map, None, _ ->
+    match info.adverb, init with
+      | Adverb.AllPairs, None
+      | Adverb.Map, None  ->
         let nestedSig = Signature.from_input_types (fixedTypes @ eltTypes) in
         let typedFn = P.specializer untypedFnVal nestedSig in
-        mk_adverb_exp Adverb.Map typedFn
-      | Adverb.Map, Some _, _ -> failwith "Map can't have initial args"
-      | Adverb.Reduce, None, [eltT] ->
+        mk_adverb_exp info.adverb typedFn
+      | Adverb.Map, Some _ -> failwith "Map can't have initial args"
+      | Adverb.AllPairs, None -> 
+        failwith "AllPairs operator must have two inputs"
+      | Adverb.AllPairs, Some _ ->
+        failwith "AllPairs operator can't have initial args"
+      | Adverb.Reduce, None ->
+        if List.length eltTypes <> 1 then 
+          failwith "Reduce without initial args can only have 1 input"  
+        else 
+        let eltT = List.hd eltTypes in 
         let inputArity = untyped_value_input_arity untypedFnVal in
         if inputArity <> 2 then
           let errMsg =
@@ -184,18 +193,7 @@ module Make(P: REWRITE_PARAMS) = struct
         in
         let typedFn = P.specializer untypedFnVal nestedSig in
         mk_adverb_exp Adverb.Reduce typedFn
-      | Adverb.Reduce, None, _ ->
-        failwith "Reduce without initial args can only have 1 input"
-      | Adverb.AllPairs, None, _ ->
-        if List.length eltTypes <> 2 then
-          failwith "AllPairs operator must have two inputs"
-        else
-          assert false
-      | Adverb.AllPairs, Some _, [_;_] ->
-        failwith "AllPairs operator can't have initial args"
-
-      | other, _, _ ->
-        failwith $ (Adverb.to_str other) ^ " not implemented"
+      | _ -> failwith "Malformed adverb"
 
 
   let rewrite_array_op

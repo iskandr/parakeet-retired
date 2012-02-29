@@ -6,9 +6,9 @@ def dot(x,y):
   return parakeet.reduce(np.add, x*y)
 
 # for now, assume Y is already transposed 
-@PAR
+@parakeet.PAR
 def mm(X,Y):
-  return allpairs(dot, X, Y, axis=[0])
+  return parakeet.allpairs(dot, X, Y, axis=[0])
 
 def test_mm():
   X = np.random.randn(1000, 1000)
