@@ -35,7 +35,11 @@ value ocaml_create_work_queue(value num_threads) {
   CAMLparam1(num_threads);
 
   if (!inited) {
-    LLVMStartMultithreaded();
+    if (!LLVMStartMultithreaded()) {
+      printf("Failed to start LLVM multithreading!\n");
+    } else {
+      printf("Started LLVM multithreading.\n");
+    }
     inited = 1;
   }
 

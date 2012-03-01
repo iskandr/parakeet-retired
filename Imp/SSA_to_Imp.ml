@@ -96,7 +96,6 @@ module LoopHelpers = struct
         let restBlock, restVals = size_of_axes builder array rest in
         stmtNode :: restBlock, temp :: restVals
 
-
 	(* given an array and a list of axes, create a list of loop descriptors *)
 	(* which we can turn into nested loops over the array *)
 	let rec axes_to_loop_descriptors

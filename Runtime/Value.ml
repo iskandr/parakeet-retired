@@ -11,12 +11,12 @@ type 'a array_info = {
 type 'a t =
   | Array of 'a array_info
   | Scalar of ParNum.t
-  | Explode of ParNum.t * Shape.t           (* scalar, shape *)
-  | Rotate of 'a t * int * int              (* array, dim, offset *)
-  | Shift of 'a t * int * int * ParNum.t    (* array, dim, offset, default *)
-  | FixDim of 'a t * int * int              (* array, dim, idx *)
-  | Slice of 'a t * int * int * int         (* array, dim, start, end *)
-  | Range of int * int * int                (* start, stop, step *)
+  | Explode of ParNum.t * Shape.t         (* scalar, shape *)
+  | Rotate of 'a t * int * int            (* array, dim, offset *)
+  | Shift of 'a t * int * int * ParNum.t  (* array, dim, offset, default *)
+  | FixDim of 'a t * int * int            (* array, dim, idx *)
+  | Slice of 'a t * int * int * int       (* array, dim, start, end *)
+  | Range of int * int * int              (* start, stop, step *)
 
 (* since array data is polymorphic it's by default printed as the *)
 (* totally uninformative string '<array>'. If you want something more*)
