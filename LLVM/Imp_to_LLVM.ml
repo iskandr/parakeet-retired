@@ -1,15 +1,15 @@
+(* pp: -parser o pa_macro.cmo *)
+
 open Base
 open Imp
 open Llvm
 open LLVM_Types
-
 
 let zero_i32 = Llvm.const_int LLVM_Types.int32_t 0
 let zero_i64 = Llvm.const_int LLVM_Types.int64_t 0
 
 let context = Llvm.global_context ()
 let global_module = Llvm.create_module context "parakeet_module"
-
 
 type fn_info = {
   input_ids : ID.t list;
@@ -20,24 +20,29 @@ type fn_info = {
   named_values : (string, Llvm.llvalue) Hashtbl.t;
   builder : Llvm.llbuilder;
   name : string;
-
 }
 
-let create_fn_info (fn : Imp.fn) =
-  {
-    input_ids = fn.Imp.input_ids;
-    local_ids = fn.Imp.local_ids;
-    output_ids = fn.Imp.output_ids;
-    imp_types = fn.Imp.types;
+let create_fn_info (fn : Imp.fn) = {
+	input_ids = fn.Imp.input_ids;
+	local_ids = fn.Imp.local_ids;
+	output_ids = fn.Imp.output_ids;
+	imp_types = fn.Imp.types;
 
-    named_values = Hashtbl.create 13;
-    builder = Llvm.builder context;
-    name = FnId.to_str fn.Imp.id;
-  }
-
+	named_values = Hashtbl.create 13;
+	builder = Llvm.builder context;
+  name = FnId.to_str fn.Imp.id;
+}
 
 module LLVM_Intrinsics =
   LLVM_Intrinsics.MkIntrinsics(struct let m = global_module end)
+
+let llvm_printf str vals builder =
+  IFDEF DEBUG THEN
+    let str = Llvm.build_global_stringptr str "printfstr" builder in
+    let args = Array.append [|str|] (Array.of_list vals) in
+    Llvm.build_call LLVM_Intrinsics.printf args "printf" builder;
+  ENDIF;
+  ()
 
 module Indexing = struct
   let array_field_to_idx = function
@@ -59,12 +64,12 @@ module Indexing = struct
     | FrozenIdx -> 2
 
 	let get_array_strides_ptr (fnInfo:fn_info) (array:llvalue) : llvalue =
-	    let stridesField = Llvm.const_int LLVM_Types.int32_t 2 in
-	    let stridesFieldPtr =
-	      Llvm.build_gep array
-	        [|zero_i32;stridesField|] "stride_field" fnInfo.builder
-	    in
-	    Llvm.build_load stridesFieldPtr "strides" fnInfo.builder
+	  let stridesField = Llvm.const_int LLVM_Types.int32_t 2 in
+	  let stridesFieldPtr =
+	    Llvm.build_gep array
+	      [|zero_i32;stridesField|] "stride_field" fnInfo.builder
+	  in
+	  Llvm.build_load stridesFieldPtr "strides" fnInfo.builder
 
 	let get_array_strides_field (fnInfo:fn_info) (array:llvalue) (idx:int) =
 	  let strides : llvalue  = get_array_strides_ptr fnInfo array in
@@ -146,27 +151,25 @@ module Indexing = struct
 	    (indices:Llvm.llvalue list)
 	    (imp_elt_t:Type.elt_t)
 	    (fnInfo:fn_info) =
-	    let startIdx = Llvm.const_int LLVM_Types.int32_t 0 in
-	    let startPtr =
-	      Llvm.build_gep array [|zero_i32;startIdx|] "gep_start" fnInfo.builder
-	    in
-	    let start = Llvm.build_load startPtr "start" fnInfo.builder in
-	    let idxInt = match indices with
-	      | [arg] ->
-	        Llvm.build_add start arg "rangeAdd" fnInfo.builder
-	      | _ -> failwith $ Printf.sprintf
-	        "[Imp_to_LLVM] Calling range with multiple arguments"
-	    in
-	    let eltType = ImpType_to_lltype.scalar_to_lltype imp_elt_t in
-	    let eltPtrType = Llvm.pointer_type eltType in
-	    let idxAddr =
-	      Llvm.build_inttoptr idxInt eltPtrType "idxAddr" fnInfo.builder
-	    in
-	    Llvm.build_load idxAddr "ret" fnInfo.builder
-
+	  let startIdx = Llvm.const_int LLVM_Types.int32_t 0 in
+	  let startPtr =
+	    Llvm.build_gep array [|zero_i32;startIdx|] "gep_start" fnInfo.builder
+	  in
+	  let start = Llvm.build_load startPtr "start" fnInfo.builder in
+	  let idxInt = match indices with
+	    | [arg] ->
+	      Llvm.build_add start arg "rangeAdd" fnInfo.builder
+	    | _ -> failwith $ Printf.sprintf
+	      "[Imp_to_LLVM] Calling range with multiple arguments"
+	  in
+	  let eltType = ImpType_to_lltype.scalar_to_lltype imp_elt_t in
+	  let eltPtrType = Llvm.pointer_type eltType in
+	  let idxAddr =
+	    Llvm.build_inttoptr idxInt eltPtrType "idxAddr" fnInfo.builder
+	  in
+	  Llvm.build_load idxAddr "ret" fnInfo.builder
 end
 open Indexing
-
 
 let compile_const (t:ImpType.t) (n:ParNum.t) =
   let t' : lltype = ImpType_to_lltype.to_lltype t in
@@ -252,7 +255,11 @@ let compile_math_op (t:Type.elt_t) op (vals:llvalue list) builder =
     if Type.elt_is_int t then Llvm.build_sub x y "subtmp" builder
     else Llvm.build_fsub x y "subftmp" builder
 	| Prim.Mult, [ x; y ] ->
-	  if Type.elt_is_int t then Llvm.build_mul x y "multmp" builder
+	  if Type.elt_is_int t then (
+      let rslt = Llvm.build_mul x y "multmp" builder in
+      llvm_printf "Mul'd %d and %d to get %d\n" [x;y;rslt] builder;
+      rslt
+    )
 	  else Llvm.build_fmul x y "mulftmp" builder
 	| Prim.Div, [ x; y ] ->
     if Type.elt_is_int t then Llvm.build_sdiv x y "sdivtmp" builder
@@ -300,7 +307,6 @@ let compile_math_op (t:Type.elt_t) op (vals:llvalue list) builder =
     failwith $ Printf.sprintf "Unsupported math op %s with %d args"
       (Prim.scalar_op_to_str op) (List.length vals)
 
-
 (* Change to function? *)
 let rec compile_value ?(do_load=true) fnInfo (impVal:Imp.value_node) =
   match impVal.value with
@@ -319,8 +325,9 @@ let rec compile_value ?(do_load=true) fnInfo (impVal:Imp.value_node) =
     let llvmIdx = compile_value fnInfo idx in
     let shape = get_array_shape_ptr fnInfo llvmArr in
     let dimPtr = Llvm.build_gep shape [|llvmIdx|] "dim_ptr" fnInfo.builder in
-    Llvm.build_load dimPtr "dim" fnInfo.builder
-
+    let dim = Llvm.build_load dimPtr "dim" fnInfo.builder in
+    llvm_printf "Dimsize: %d\n" [dim] fnInfo.builder;
+    dim
   | Imp.Const const -> compile_const impVal.Imp.value_type const
   | Imp.Op (t, op, vals) ->
     let vals' =  List.map (compile_value fnInfo) vals in
@@ -438,7 +445,6 @@ let preload_array_metadata fnInfo (id:ID.t)  (arr:llvalue) =
   in
   let impType = ID.Map.find id fnInfo.imp_types in
   ()
-
 
 let init_local_var fnInfo (id:ID.t) (t:Llvm.lltype) =
   let varName = ID.to_str id in

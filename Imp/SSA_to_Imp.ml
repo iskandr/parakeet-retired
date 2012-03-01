@@ -513,6 +513,7 @@ and vectorize_adverb
   let num_axes = List.length info.axes in
   let peeledArgTypes = List.map (ImpType.peel ~num_axes) argTypes in
   let fnInputTypes = fixedTypes @ peeledArgTypes in
+  let impFn = translate_fn info.adverb_fn fnInputTypes in
   match info.adverb with
   | Adverb.Map ->
     (* TODO: for now, only vectorize maps *)
@@ -530,16 +531,15 @@ and vectorize_adverb
     let lastAxis = List.hd (List.rev info.axes) in
     let [lastInit], [lastSize] = size_of_axes builder biggestArray [lastAxis] in
     let vecLen = vector_bitwidth / (8 * (Type.sizeof eltT)) in
-    let impVecLen = builder#fresh_local ~name:"vec_len" int32_t in
+    let impVecLen = ImpHelpers.int vecLen in
     let impVecLoopBound = builder#fresh_local ~name:"vec_loop_bound" int32_t in
     let vecInit = [
-      ImpHelpers.set impVecLen (ImpHelpers.int vecLen);
+      lastInit;
       ImpHelpers.set
         impVecLoopBound (ImpHelpers.div ~t:Type.Int32T lastSize impVecLen);
       ImpHelpers.set
         impVecLoopBound
-        (ImpHelpers.mul ~t:Type.Int32T impVecLoopBound impVecLen);
-      lastInit
+        (ImpHelpers.mul ~t:Type.Int32T impVecLoopBound impVecLen)
     ]
     in
     let vecDescriptor =
@@ -562,10 +562,7 @@ and vectorize_adverb
     let vecOutputs =
       List.map (fun arg -> ImpHelpers.vec_slice arg vecLen vecIndexVars) lhsVars
     in
-    let vecInputTypes =
-      fixedTypes @ (List.fill (VecSliceT(eltT, vecLen)) argTypes)
-    in
-    let vecFn = vectorize_fn info.adverb_fn vecInputTypes in
+    let vecFn = Imp_to_SSE.vectorize_fn impFn in
 	  let vecReplaceEnv =
 	    ID.Map.of_lists
 	      (vecFn.input_ids @ vecFn.output_ids)
@@ -576,10 +573,9 @@ and vectorize_adverb
 
     (* Add loop to handle straggler elements that can't be vectorized *)
     (* TODO: check whether we want to add this loop based on shape? *)
-    let seqFn = translate_fn info.adverb_fn fnInputTypes in
     let seqDescriptor =
       {
-        loop_var = vecDescriptor.loop_var;
+        loop_var = builder#fresh_local ~name:"seq_loop_idx" int32_t;
         loop_start = impVecLoopBound;
         loop_test_val = lastSize;
         loop_test_cmp = Prim.Lt;
@@ -597,10 +593,10 @@ and vectorize_adverb
     in
 	  let seqReplaceEnv =
 	    ID.Map.of_lists
-	      (seqFn.input_ids @ seqFn.output_ids)
+	      (impFn.input_ids @ impFn.output_ids)
 	      (seqNestedArgs @ seqNestedOutputs)
 	  in
-	  let seqFnBody = ImpReplace.replace_block seqReplaceEnv seqFn.body in
+	  let seqFnBody = ImpReplace.replace_block seqReplaceEnv impFn.body in
     let seqLoop = build_loop_nests builder [seqDescriptor] seqFnBody in
 
     (* Build the outer loops, injected the vectorized and sequential inner *)
@@ -608,38 +604,3 @@ and vectorize_adverb
 	  let vecLoops = build_loop_nests builder outerLoops (vecLoop @ seqLoop) in
 	  outerInit @ vecInit @ vecLoops
   | _ -> translate_sequential_adverb builder lhsVars info
-
-and vectorize_fn (ssaFn:TypedSSA.fn) (impInputTypes:ImpType.t list) : Imp.fn =
-  let signature = ssaFn.TypedSSA.fn_id, impInputTypes in
-  match Hashtbl.find_option vector_cache signature with
-  | Some impFn ->
-    IFDEF DEBUG THEN
-      Printf.printf
-        "[SSA_to_Imp] Got cached Imp function for %s\n%!"
-        (FnId.to_str ssaFn.TypedSSA.fn_id)
-        ;
-    ENDIF;
-    impFn
-  | None ->
-    let builder = new ImpBuilder.fn_builder in
-    let impTyEnv = InferImpTypes.infer ssaFn impInputTypes in
-    let shapeEnv : SymbolicShape.env =
-      ShapeInference.infer_normalized_shape_env
-        (FnManager.get_typed_function_table ()) ssaFn
-    in
-    List.iter (declare_var ssaFn shapeEnv builder) (ID.Map.to_list impTyEnv);
-    let body =
-      translate_block (builder :> ImpBuilder.builder) ssaFn.TypedSSA.body
-    in
-    let ssa_name = FnId.to_str ssaFn.TypedSSA.fn_id in
-    let arg_strings = ImpType.type_list_to_str impInputTypes in
-    let name = ssa_name ^ "[" ^ arg_strings ^ "]" in
-    let impFn = builder#finalize_fn ~name body in
-    Hashtbl.add vector_cache signature impFn;
-    IFDEF DEBUG THEN
-      Printf.printf
-        "[SSA_to_Imp] Created Imp function: %s\n%!"
-        (Imp.fn_to_str impFn)
-      ;
-    ENDIF;
-    impFn
