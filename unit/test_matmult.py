@@ -1,12 +1,13 @@
 #!/usr/bin/python
-import numpy as np 
-import parakeet 
+import numpy as np
+from unit import parakeet
+import parakeet
 
 @parakeet.PAR
 def dot(x,y):
   return parakeet.reduce(parakeet.add, x*y)
 
-# for now, assume Y is already transposed 
+# for now, assume Y is already transposed
 @parakeet.PAR
 def mm(X,Y):
   return parakeet.allpairs(dot, X, Y, axis=[0])
@@ -20,5 +21,5 @@ def test_mm():
 
 if __name__ == '__main__':
   test_mm()
-  
-  
+
+

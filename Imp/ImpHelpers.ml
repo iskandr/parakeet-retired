@@ -269,27 +269,4 @@ let slice ~arr ~dim ~start ~stop =
     value_type = arr.value_type
   }
 
-let permute (dims:int list) indices : value_node list  =
-  let compare_pair (m,_) (n,_) = compare m n in
-  let sortedPairs = List.fast_sort compare_pair (List.combine dims indices) in
-  List.map snd sortedPairs
 
-let rec idx_or_fixdims
-  ~(arr:value_node)
-  ~(dims:value_nodes)
-  ~(indices:value_nodes) : value_node =
-  let nIndices = List.length indices in
-  IFDEF DEBUG THEN
-    let nDims = List.length dims in
-    if nDims <> nIndices then
-      failwith $ Printf.sprintf
-        "[idx_or_fixdims] Mismatch between # of dims (%d) and # of indices(%d)"
-        nDims
-        nIndices
-  ENDIF;
-  let arrT = arr.value_type in
-  (* for convenience, treat indexing into scalars as the identity operation *)
-  if ImpType.is_scalar arrT then arr
-  else if ImpType.rank arrT = nIndices && List.for_all is_const_int dims then
-    idx arr (permute (List.map get_const_int dims) indices)
-  else fixdims arr dims indices

@@ -113,39 +113,60 @@ module LoopHelpers = struct
 	      | [] -> stmts, []
     else stmts, loopDescriptors
 
-	let copy (builder:ImpBuilder.builder) ~from_array ~to_array =
-	  let toType = to_array.value_type in
-	  let toRank = ImpType.rank toType in
-	  IFDEF DEBUG THEN
-	    let fromType = from_array.value_type in
-	    let fromRank = ImpType.rank fromType in
-	    (* allow from_array to be a scalar *)
-	    if fromRank > 0 && toRank <> fromRank then
-	      failwith $ Printf.sprintf
-	        "[SSA_to_Imp] Can't copy from %s (rank=%d) to %s (rank=%d)"
-	        (ImpType.to_str fromType)
-	        fromRank
-	        (ImpType.to_str toType)
-	        toRank
-	  ENDIF;
-	  let axes = ImpHelpers.ints_til toRank in
-	  let initBlock, loopDescriptors =
-      axes_to_loop_descriptors builder to_array axes
-    in
-	  let indexVars = get_loop_vars loopDescriptors in
-    let lhs =
-      ImpHelpers.idx_or_fixdims ~arr:to_array ~dims:axes ~indices:indexVars
-    in
-    let rhs =
-      ImpHelpers.idx_or_fixdims ~arr:from_array ~dims:axes ~indices:indexVars
-    in
-
-    let loops =
-      build_loop_nests builder loopDescriptors [ImpHelpers.set lhs rhs]
-    in
-    initBlock @ loops
 end
 open LoopHelpers
+
+let permute (dims:int list) indices : value_node list  =
+  let compare_pair (m,_) (n,_) = compare m n in
+  let sortedPairs = List.fast_sort compare_pair (List.combine dims indices) in
+  List.map snd sortedPairs
+
+let rec idx_or_fixdims
+  ~(arr:value_node)
+  ~(dims:value_nodes)
+  ~(indices:value_nodes) : value_node =
+  let nIndices = List.length indices in
+  IFDEF DEBUG THEN
+    let nDims = List.length dims in
+    if nDims <> nIndices then
+      failwith $ Printf.sprintf
+        "[idx_or_fixdims] Mismatch between # of dims (%d) and # of indices(%d)"
+        nDims
+        nIndices
+  ENDIF;
+  let arrT = arr.value_type in
+  (* for convenience, treat indexing into scalars as the identity operation *)
+  if ImpType.is_scalar arrT then arr
+  else if ImpType.rank arrT = nIndices && List.for_all is_const_int dims then
+    idx arr (permute (List.map get_const_int dims) indices)
+  else fixdims arr dims indices
+
+let copy (builder:ImpBuilder.builder) ~from_array ~to_array =
+  let toType = to_array.value_type in
+  let toRank = ImpType.rank toType in
+  IFDEF DEBUG THEN
+    let fromType = from_array.value_type in
+    let fromRank = ImpType.rank fromType in
+    (* allow from_array to be a scalar *)
+    if fromRank > 0 && toRank <> fromRank then
+      failwith $ Printf.sprintf
+            "[SSA_to_Imp] Can't copy from %s (rank=%d) to %s (rank=%d)"
+            (ImpType.to_str fromType)
+            fromRank
+            (ImpType.to_str toType)
+            toRank
+  ENDIF;
+  let axes = ImpHelpers.ints_til toRank in
+  let initBlock, loopDescriptors =
+    axes_to_loop_descriptors builder to_array axes
+  in
+  let indexVars = get_loop_vars loopDescriptors in
+  let lhs = idx_or_fixdims ~arr:to_array ~dims:axes ~indices:indexVars in
+  let rhs = idx_or_fixdims ~arr:from_array ~dims:axes ~indices:indexVars in
+  let loops =
+    build_loop_nests builder loopDescriptors [ImpHelpers.set lhs rhs]
+  in
+  initBlock @ loops
 
 let translate_value (builder:ImpBuilder.builder) valNode : Imp.value_node =
   match valNode.TypedSSA.value with
@@ -402,9 +423,7 @@ and translate_sequential_adverb
   (* of the biggest array argument. *)
   (* AllPairs is different in that we loop over the axes of the first arg *)
   (* and nested within we loop over the same set of axes of the second arg. *)
-  let slice_along_axes indexVars arr =
-    ImpHelpers.idx_or_fixdims arr info.axes indexVars
-  in
+  let slice_along_axes indexVars arr = idx_or_fixdims arr info.axes indexVars in
   (* pick any of the highest rank arrays in the input list *)
   let biggestArray : Imp.value_node = argmax_array_rank info.array_args in
   let initBlock, loopDescriptors, indexVars, nestedArrays, skipFirstIter =
@@ -424,12 +443,10 @@ and translate_sequential_adverb
         axes_to_loop_descriptors builder biggestArray info.axes
       in
       let indexVars = get_loop_vars loops in
+      let zeroIndices = List.map (fun _ -> ImpHelpers.zero) indexVars in
       (* the initial value for a reduction is the first elt of the array *)
       let initVal =
-        ImpHelpers.idx_or_fixdims
-          ~arr:biggestArray
-          ~dims:info.axes
-          ~indices:(List.map (fun _ -> ImpHelpers.zero) indexVars)
+        idx_or_fixdims ~arr:biggestArray ~dims:info.axes ~indices:zeroIndices
       in
       let copyStmts =
         copy builder ~from_array:initVal ~to_array:(List.hd lhsVars)

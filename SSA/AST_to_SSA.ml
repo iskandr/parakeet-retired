@@ -85,10 +85,9 @@ let get_function_id node =
     | _ -> failwith ("Expected function name, got: " ^ (AST.to_str node))
 
 let rec translate_exp
-          (env:Env.t)
-          (block:UntypedSSA.block)
-          (node : AST.node) : UntypedSSA.exp_node =
-
+  (env:Env.t)
+  (block:UntypedSSA.block)
+  (node : AST.node) : UntypedSSA.exp_node =
   (* simple values generate no statements and don't modify the env *)
   let value v =
     {
@@ -128,9 +127,14 @@ and translate_value env block node : UntypedSSA.value_node =
   | _ -> exp_as_value env block "temp" node
 and translate_values env block nodes =
   List.map (translate_value env block) nodes
-and translate_axes env block {data} = match data with
+
+and translate_axes env block astNode = match astNode.data with
   | AST.Arr axes -> Some (translate_values env block axes)
-  | _ -> None
+  | AST.Num n -> Some ([UntypedSSA.ValueHelpers.num ~src:astNode.src n])
+  | AST.Void -> None
+  | other ->
+    failwith $ Printf.sprintf "Unrecognized axes arg: %s" (AST.to_str astNode)
+
 and translate_adverb env block adverb args (src:SrcInfo.t) =
   match args with
   (* TODO: support initial arguments *)

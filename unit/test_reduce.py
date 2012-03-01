@@ -5,7 +5,7 @@ from parakeet import PAR
 
 @PAR
 def sum_all_elts(x):
-  return parakeet.reduce(parakeet.add, x)
+  return parakeet.reduce(np.add, x)
 
 def test_1d_sum():
   x = np.arange(1000)
