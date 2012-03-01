@@ -6,6 +6,8 @@ type cuda_info = ThreadIdx | BlockIdx | BlockDim | GridDim
 type coord = X | Y | Z
 
 type array_field =
+  | Shape
+  | Strides
   | RangeStart
   | RangeStop
   | ShiftData
@@ -15,13 +17,7 @@ type array_field =
   | RotData
   | RotDim
   | RotAmt
-  | SliceData
-  | SliceDim
-  | SliceStart
-  | SliceStop
-  | FrozenData
-  | FrozenDim
-  | FrozenIdx
+
 
 type value =
   | Var of ID.t
@@ -122,6 +118,19 @@ let cuda_info_to_str = function
   | BlockDim -> "blockdim"
   | GridDim -> "griddim"
 
+let array_field_to_str = function
+  | Shape -> "shape"
+  | Strides -> "strides"
+  | RangeStart -> "range_start"
+  | RangeStop -> "range_stop"
+  | ShiftData -> "shift_data"
+  | ShiftAmt -> "shift_amt"
+  | ShiftDim -> "shift_dim"
+  | ShiftDefault -> "shift_default"
+  | RotData -> "rot_data"
+  | RotDim -> "rot_dim"
+  | RotAmt -> "rot_amt"
+
 let rec value_to_str = function
   | Var id -> ID.to_str id
   | Const n -> ParNum.to_str n
@@ -159,6 +168,10 @@ let rec value_to_str = function
       (value_node_to_str dim)
       (value_node_to_str start)
       (value_node_to_str stop)
+  | ArrayField(field, v) ->
+     sprintf "field(%s, %s)"
+       (array_field_to_str field)
+       (value_node_to_str v)
 
 
 and value_node_to_str {value} = value_to_str value
