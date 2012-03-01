@@ -198,12 +198,13 @@ def name_of_ast_node(op):
 #  Converter
 ###############################################################################
 class ASTConverter():
-  def __init__(self, arg_names, file_name, line_offset):
+  def __init__(self, global_refs, arg_names, file_name, line_offset):
     self.seen_functions = set([])
     self.arg_names = arg_names
     self.global_variables = set()
     self.file_name = file_name
     self.line_offset = line_offset
+    self.global_refs = global_refs
 
   # currContext is a set of strings telling us which nodes are parents
   # of the current one in the syntax tree
@@ -392,8 +393,8 @@ class ASTConverter():
     name = type(node).__name__
     if name == 'Name':
       funName = node.id
-      if funName in self.global_variables:
-        funRef = self.global_variables[funName]
+      if funName in self.global_refs:
+        funRef = self.global_refs[funName]
       elif funName in __builtins__:
         funRef = __builtins__[funName]
       else:
@@ -409,7 +410,7 @@ class ASTConverter():
         moduleList = [nextNode.attr] + moduleList
         nextNode = nextNode.value
 
-      currModule = self.global_variables[nextNode.id]
+      currModule = self.global_refs[nextNode.id]
 
       for m in moduleList:
         try:
@@ -561,7 +562,6 @@ class ASTConverter():
     elif nodeType == 'Attribute':
       if 'lhs' in contextSet:
         raise RuntimeError("[Parakeet] Assignment to attributes not supported")
-      #Still need to check if it's local :(
       currNodeType = nodeType
       currNode = node
       var_str = ""
@@ -570,6 +570,8 @@ class ASTConverter():
         currNode = currNode.value
         currNodeType = type(currNode).__name__
       var_str = currNode.id + var_str
+      if var_str in self.arg_names:
+        raise ("[Parakeet] Object parameters not supported")
       self.global_variables.add(var_str)
       c_name = c_char_p(var_str)
       return LibPar.mk_var(c_name, src_info.addr)
@@ -599,11 +601,12 @@ def register_function(f):
     print "[parse_function] Parsing", info[1]
     file_name = f.__code__.co_filename
     line_offset = f.__code__.co_firstlineno
+    global_refs = f.func_globals
     arg_names = info[2]
     body_source = info[1]
     body_ast = ast.parse(body_source)
     body_ast = ast.fix_missing_locations(body_ast)
-    AST = ASTConverter(arg_names, file_name, line_offset)
+    AST = ASTConverter(global_refs, arg_names, file_name, line_offset)
     parakeet_syntax = AST.visit(body_ast)
     print "\n\n\n\n"
     print "PRINTING OUT THE NODE"
