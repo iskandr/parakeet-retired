@@ -34,16 +34,15 @@ let optimize_module llvmModule llvmFn : unit =
   Llvm_target.TargetData.add (LLE.target_data execution_engine) pm;
 
   (* Promote allocas to registers. *)
-  Lllvm_scalar_opts.(
-    add_memory_to_register_promotion pm;
-    add_sccp pm;
-    add_aggressive_dce pm;
-    add_instruction_combination pm;
-    add_cfg_simplification pm;
-    add_gvn pm;
-    add_licm pm;
-    add_loop_unroll pm;
-  );
+  Llvm_scalar_opts.add_memory_to_register_promotion pm;
+  Llvm_scalar_opts.add_sccp pm;
+  Llvm_scalar_opts.add_aggressive_dce pm;
+  Llvm_scalar_opts.add_instruction_combination pm;
+  Llvm_scalar_opts.add_cfg_simplification pm;
+  Llvm_scalar_opts.add_gvn pm;
+  Llvm_scalar_opts.add_licm pm;
+  Llvm_scalar_opts.add_loop_unroll pm;
+
   ignore (PassManager.run_function llvmFn pm);
   ignore (PassManager.finalize pm);
   PassManager.dispose pm
