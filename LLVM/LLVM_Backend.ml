@@ -122,7 +122,7 @@ let split_argument axes num_items arg =
     ;
     longest_axis := 0;
     len := Shape.get array_shape 0;
-    let els_per_item = safe_div !len num_items in
+    let els_per_item = !len / num_items in
     let mul x y = x * y in
     let starts = List.map (mul els_per_item) (List.til num_items) in
     let stops =
