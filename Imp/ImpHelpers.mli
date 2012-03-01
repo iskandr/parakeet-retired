@@ -130,7 +130,3 @@ val fixdims :
 val slice :
   arr:value_node -> dim:value_node -> start:value_node -> stop:value_node ->
     value_node
-
-val idx_or_fixdims :
-  arr:value_node -> dims:value_node list -> indices:value_node list ->
-    value_node
