@@ -186,23 +186,25 @@ let call_imp_fn (impFn:Imp.fn) (args:Ptr.t Value.t list) : Ptr.t Value.t list =
   ENDIF;
   let llvmFn = CompiledFunctionCache.compile impFn in
   let llvmInputs : GV.t list = List.map Value_to_GenericValue.to_llvm args in
+  IFDEF DEBUG THEN
+    Printf.printf "input_types: %s\n" (ImpType.type_list_to_str (Imp.input_types impFn));
+    let convert_gv : GV.t -> ImpType.t -> Ptr.t Value.t  =
+      GenericValue_to_Value.of_generic_value ~boxed_scalars:false
+    in
+    let vals = List.map2 convert_gv llvmInputs (Imp.input_types impFn) in
+    Printf.printf "[LLVM_Backend.call_imp_fn] GenericValue inputs: %s\n%!"
+      (Value.list_to_str vals)
+    ;
+  ENDIF;
   let argShapes = List.map Value.shape_of args in
   let llvmOutputs : GV.t list =
     allocate_output_generic_values impFn argShapes
   in
+  let impOutputTypes = Imp.output_types impFn in
+  let params : GV.t array = Array.of_list (llvmInputs @ llvmOutputs) in
   IFDEF DEBUG THEN
     Printf.printf "[LLVM_Backend.call_imp_fn] Running function\n%!";
   ENDIF;
-  let impInputTypes = Imp.input_types impFn in
-  let impOutputTypes = Imp.output_types impFn in
-  IFDEF DEBUG THEN
-    let convert_gv =
-      GenericValue_to_Value.of_generic_value ~boxed_scalars:false
-    in
-    let vals = List.map2 convert_gv  llvmInputs impInputTypes in
-    Printf.printf "  -- input params: %s\n%!" (Value.list_to_str vals);
-  ENDIF;
-  let params : GV.t array = Array.of_list (llvmInputs @ llvmOutputs) in
   let _ = LLE.run_function llvmFn params execution_engine in
   IFDEF DEBUG THEN
     Printf.printf " :: function completed\n%!";

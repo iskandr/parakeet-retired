@@ -6,7 +6,6 @@ type t =
   | ExplodeT of elt_t * int
   | RotateT of t
 	| ShiftT of t
-  | SliceT of t
   | RangeT of elt_t
   | VecSliceT of elt_t * int
 

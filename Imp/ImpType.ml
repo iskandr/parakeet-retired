@@ -7,7 +7,6 @@ type t =
   | ExplodeT of elt_t * int
   | RotateT of t
   | ShiftT of t
-  | SliceT of t
   | RangeT of elt_t
   | VecSliceT of elt_t * int (* type, width *)
 
@@ -28,7 +27,6 @@ let rec elt_type = function
   | VecSliceT (t, _)
   | ArrayT (t, _) -> t
   | RotateT nested
-  | SliceT nested
   | ShiftT nested -> elt_type nested
 
 let is_scalar = function
