@@ -16,6 +16,7 @@ let rec to_str = function
 	| ArrayT (elt_t, r) ->
     Printf.sprintf "array%d<%s>" r (Type.elt_to_str elt_t)
 	| ShiftT t -> Printf.sprintf "shift(%s)" (to_str t)
+  | VecSliceT (elt_t, w) -> Printf.sprintf "vecslice(%d)" w
   | _ -> failwith "Not implemented"
 
 let type_list_to_str ts = String.concat ", " (List.map to_str ts)
@@ -91,7 +92,6 @@ let peel ?(num_axes=1) = function
     else failwith "[ImpType.peel] Too many axes"
   | ScalarT eltT -> ScalarT eltT
   | _ -> failwith "Not implemented"
-
 
 let type_of_copy t =
   if is_scalar t then t

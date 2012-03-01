@@ -98,12 +98,10 @@ let float f = wrap_float32 $ Const (ParNum.Float32 f)
 let double d = wrap_float64 $ Const (ParNum.Float64 d)
 let bool b = wrap_bool $ Const (ParNum.Bool b)
 
-
 let zero = int 0
 let one = int 1
 
 let ints_til (n:int) : value_node list  =  List.map int (List.til n)
-
 
 let select cond t f =
   assert (t.value_type = f.value_type);
@@ -268,5 +266,3 @@ let slice ~arr ~dim ~start ~stop =
   { value = Slice(arr, dim, start, stop);
     value_type = arr.value_type
   }
-
-
