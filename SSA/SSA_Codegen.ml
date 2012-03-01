@@ -58,6 +58,7 @@ end
 (* Once the body is finished, wrap up the code and type environment *)
 (* as a fundef *)
 let mk_codegen_fn
+      ?name
       (inputTypes : Type.t list)
       (outputTypes  : Type.t list)
       (constr : codegen -> value_node list -> value_node list -> unit)  =
@@ -79,7 +80,7 @@ let mk_codegen_fn
   (* allow user provided function to populate the codegen body *)
   let _ = constr codegen inputVars outputVars in
   TypedSSA.mk_fn
-    ?name:None
+    ?name
     ~body:codegen#finalize
     ~tenv:codegen#get_type_env
     ~input_ids:inputIds

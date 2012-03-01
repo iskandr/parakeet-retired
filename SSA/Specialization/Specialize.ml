@@ -24,7 +24,7 @@ let mk_untyped_prim_fn (prim:Prim.t) arity : UntypedSSA.fn =
   let body = Block.singleton (UntypedSSA.set [output] rhs) in
   let fn =
     UntypedSSA.mk_fn
-      ~name:("prim_" ^ (Prim.to_str prim))
+      ~name:("prim" ^ (Prim.to_str prim))
       ~input_ids:inputs
       ~output_ids:[output]
       ~body
@@ -34,30 +34,35 @@ let mk_untyped_prim_fn (prim:Prim.t) arity : UntypedSSA.fn =
 let mk_typed_scalar_prim (op : Prim.scalar_op) ?optOutType argTypes =
   let reqArgTypes =  TypeAnalysis.required_scalar_op_types op argTypes in
   let inferredOutType = TypeAnalysis.infer_scalar_op op reqArgTypes in
+  let name =
+    Printf.sprintf "prim%s{%s%s}"
+      (Prim.scalar_op_to_str op)
+      (Type.type_list_to_str ~sep:"," argTypes)
+      (match optOutType with None -> "" | Some t -> "=>" ^ (Type.to_str t))
+  in
   let outType = match optOutType with
     | Some t -> t
     | None -> inferredOutType
   in
-  SSA_Codegen.mk_codegen_fn argTypes [outType] $ fun codegen inputs outputs ->
-    let args = Array.of_list inputs in
-    let inTyArr = Array.of_list argTypes in
-    let reqTyArr = Array.of_list reqArgTypes in
-    for i = 0 to Array.length args - 1 do
-      let reqT = reqTyArr.(i) in
-      if inTyArr.(i) <> reqT then begin
-        let id = codegen#fresh_var reqT in
-        codegen#emit [TypedSSA.set [id]  (TypedSSA.cast reqT args.(i))];
-        args.(i) <- codegen#id_value_node id
-      end
-    done
-    ;
-    let primAppNode =
-      TypedSSA.primapp (Prim.ScalarOp op) [outType] (Array.to_list args)
-    in
-    let outputVar = List.hd outputs in
-    codegen#emit [TypedSSA.set [TypedSSA.get_id outputVar] primAppNode]
-
-
+  SSA_Codegen.mk_codegen_fn ~name argTypes [outType] $
+    fun codegen inputs outputs ->
+      let args = Array.of_list inputs in
+      let inTyArr = Array.of_list argTypes in
+      let reqTyArr = Array.of_list reqArgTypes in
+      for i = 0 to Array.length args - 1 do
+        let reqT = reqTyArr.(i) in
+        if inTyArr.(i) <> reqT then begin
+          let id = codegen#fresh_var reqT in
+          codegen#emit [TypedSSA.set [id]  (TypedSSA.cast reqT args.(i))];
+          args.(i) <- codegen#id_value_node id
+        end
+      done
+      ;
+      let primAppNode =
+        TypedSSA.primapp (Prim.ScalarOp op) [outType] (Array.to_list args)
+      in
+      let outputVar = List.hd outputs in
+      codegen#emit [TypedSSA.set [TypedSSA.get_id outputVar] primAppNode]
 
 (* 1) some statements (ie, those involving array ops)
       make a function definitely not a scalar-only function.

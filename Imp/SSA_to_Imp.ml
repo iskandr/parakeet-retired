@@ -242,21 +242,21 @@ let translate_false_phi_node builder phiNode =
   let exp = translate_value builder (PhiNode.right phiNode) in
   Imp.Set (PhiNode.id phiNode, exp)
 
-let declare_var ssaFn shapeEnv (builder:ImpBuilder.fn_builder) (id, impType) =
-  if List.mem id ssaFn.TypedSSA.input_ids then
-    builder#declare_input id impType
-  else (
-  (* inputs all have the trivial shape
-     SHAPE(x) = [dim(x,0), dim(x,1), etc...]
-     but outputs and locals actually have non-trivial
-     shapes which need to be declared
-  *)
-    let symShape = ID.Map.find id shapeEnv in
-    if List.mem id ssaFn.TypedSSA.output_ids then
-      builder#declare_output id ~shape:symShape impType
-    else
-      builder#declare id ~shape:symShape impType
-  )
+
+let declare_input (builder:ImpBuilder.fn_builder) typeEnv id =
+  let impType = ID.Map.find id typeEnv in
+  builder#declare_input id impType
+
+let declare_output (builder:ImpBuilder.fn_builder) shapeEnv typeEnv id =
+  let impType = ID.Map.find id typeEnv in
+  let shape = ID.Map.find id shapeEnv in
+  builder#declare_output id ~shape impType
+
+let declare_local_var (builder:ImpBuilder.fn_builder) nonlocals shapes (id, t) =
+  if not (List.mem id nonlocals) then
+    let shape = ID.Map.find id shapes in
+    builder#declare id ~shape t
+
 
 let rec translate_fn (ssaFn:TypedSSA.fn) (impInputTypes:ImpType.t list)
     : Imp.fn =
@@ -280,7 +280,13 @@ let rec translate_fn (ssaFn:TypedSSA.fn) (impInputTypes:ImpType.t list)
       ShapeInference.infer_normalized_shape_env
         (FnManager.get_typed_function_table ()) ssaFn
     in
-    List.iter (declare_var ssaFn shapeEnv builder) (ID.Map.to_list impTyEnv);
+    let inputIds = ssaFn.TypedSSA.input_ids in
+    let outputIds = ssaFn.TypedSSA.output_ids in
+    List.iter (declare_input builder impTyEnv) inputIds;
+    List.iter (declare_output builder shapeEnv impTyEnv) outputIds;
+    let nonlocals = inputIds @ outputIds in
+    let typePairs : (ID.t * ImpType.t) list = ID.Map.to_list impTyEnv in
+    List.iter (declare_local_var builder nonlocals shapeEnv) typePairs;
     let body =
       translate_block (builder :> ImpBuilder.builder) ssaFn.TypedSSA.body
     in
@@ -604,3 +610,4 @@ and vectorize_adverb
 	  let vecLoops = build_loop_nests builder outerLoops (vecLoop @ seqLoop) in
 	  outerInit @ vecInit @ vecLoops
   | _ -> translate_sequential_adverb builder lhsVars info
+

@@ -13,7 +13,7 @@ def sum(x):
   return parakeet.reduce(add2, x)
 
 def test_sum():
-  x = np.ones((1000,50), dtype=np.int64)
+  x = np.ones((1000,50), dtype=np.float)
   parakeet_sum = sum(x)
   np_sum = np.sum(x)
   for i in range(8):

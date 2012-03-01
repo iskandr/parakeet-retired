@@ -46,6 +46,8 @@ let llvm_printf str vals builder =
 
 module Indexing = struct
   let array_field_to_idx = function
+    | Shape -> 1
+    | Strides -> 2
     | RangeStart -> 0
     | RangeStop -> 1
     | ShiftData -> 0
@@ -55,13 +57,7 @@ module Indexing = struct
     | RotData -> 0
     | RotDim -> 1
     | RotAmt -> 2
-    | SliceData -> 0
-    | SliceDim -> 1
-    | SliceStart -> 2
-    | SliceStop -> 3
-    | FrozenData -> 0
-    | FrozenDim -> 1
-    | FrozenIdx -> 2
+
 
 	let get_array_strides_ptr (fnInfo:fn_info) (array:llvalue) : llvalue =
 	  let stridesField = Llvm.const_int LLVM_Types.int32_t 2 in

@@ -15,7 +15,7 @@ def test_1d_sum():
   assert npsum == psum
 
 def test_2d_sum():
-  x = np.random.randint(0, 100, (10,1000))
+  x = np.random.randint(0, 100, (14,50))
   parakeet_sum = sum_all_elts(x)
   np_sum = np.sum(x)
   print "Python: %s, Parakeet: %s" % (np_sum, parakeet_sum)

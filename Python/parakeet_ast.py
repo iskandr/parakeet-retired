@@ -198,12 +198,13 @@ def name_of_ast_node(op):
 #  Converter
 ###############################################################################
 class ASTConverter():
-  def __init__(self, global_vars, arg_names, file_name, line_offset):
+  def __init__(self, global_refs, arg_names, file_name, line_offset):
     self.seen_functions = set([])
     self.arg_names = arg_names
-    self.global_variables = global_vars
+    self.global_variables = set()
     self.file_name = file_name
     self.line_offset = line_offset
+    self.global_refs = global_refs
 
   # currContext is a set of strings telling us which nodes are parents
   # of the current one in the syntax tree
@@ -225,7 +226,7 @@ class ASTConverter():
       else:
         raise ParakeetUnsupported(
             "lists and tuples are not supported outside of numpy arrays")
-    elif nodeType in ['Call', 'Subscript', 'Return', 'Assign']:
+    elif nodeType in ['Call', 'Subscript', 'Return', 'Assign','Attribute']:
       return self.build_complex_parakeet_node(node,contextSet)
     parakeetNodeChildren = []
     for childName, childNode in ast.iter_fields(node):
@@ -260,11 +261,13 @@ class ASTConverter():
         #######################################################################
         #  Literal
         #######################################################################
-        if 'lhs' in contextSet:
-          if not str(childNode) in self.arg_names:
-            if nodeType == 'Name':
+        if not str(childNode) in self.arg_names:
+          if nodeType == 'Name':
+            if 'lhs' in contextSet:
               raise ParakeetUnsupported(str(childNode) +
                                         " is a global variable")
+            else:
+              self.global_variables.add(str(childNode))
         # assume last arg to build_simple_parakeet_node for literals is a string
         parakeetNodeChildren.append(str(childNode))
 
@@ -363,11 +366,6 @@ class ASTConverter():
       LOG("while(%s, %s)" % (args[0], args[1]))
       block = self.build_parakeet_block(src_info, args[1])
       return LibPar.mk_whileloop(args[0], block, src_info.addr)
-    elif node_type == 'Attribute':
-      LOG("Attribute %s " % str(args))
-      #NOTE: doesn't make ANY sense right now
-      #return args[1]
-      assert False
     else:
       print "[Parakeet]", node_type, "with args", str(args), "not handled"
       return None
@@ -395,8 +393,8 @@ class ASTConverter():
     name = type(node).__name__
     if name == 'Name':
       funName = node.id
-      if funName in self.global_variables:
-        funRef = self.global_variables[funName]
+      if funName in self.global_refs:
+        funRef = self.global_refs[funName]
       elif funName in __builtins__:
         funRef = __builtins__[funName]
       else:
@@ -412,7 +410,7 @@ class ASTConverter():
         moduleList = [nextNode.attr] + moduleList
         nextNode = nextNode.value
 
-      currModule = self.global_variables[nextNode.id]
+      currModule = self.global_refs[nextNode.id]
 
       for m in moduleList:
         try:
@@ -448,8 +446,7 @@ class ASTConverter():
           kw_args = {'fixed': self.build_parakeet_array(src_info,[])}
           if funRef.__name__ == "reduce" or "accumulate":
             arr_args = self.build_arg_list([node.args[0]], contextSet)
-            kw_args['default'] = LibPar.mk_int32_paranode(
-                                   funRef.__self__.identity, src_info.addr)
+            kw_args['default'] = LibPar.mk_void(None)
             if len(node.args) == 1:
               kw_args['axis'] = LibPar.mk_int32_paranode(0, src_info.addr)
             elif len(node.args) == 2:
@@ -543,7 +540,6 @@ class ASTConverter():
         LOG("return(%s,%s)" % (ret_args, 1))
         return LibPar.mk_return(ret_args, 1, src_info.addr)
     elif nodeType == 'Assign':
-      print "In assign"
       leftChildContext = set(contextSet)
       rightChildContext = set(contextSet)
       leftChildContext.add('lhs')
@@ -561,9 +557,27 @@ class ASTConverter():
         lhs_args = list_to_ctypes_array([elt], c_void_p)
         num_args = 1
       rhs_arg = self.visit(node.value, rightChildContext)
-      print "before mk_assign"
       LOG("assign(%s,%s,%s)" % (lhs_args, num_args, rhs_arg))
       return LibPar.mk_assign(lhs_args, num_args, rhs_arg, src_info.addr)
+    elif nodeType == 'Attribute':
+      if 'lhs' in contextSet:
+        raise RuntimeError("[Parakeet] Assignment to attributes not supported")
+      currNodeType = nodeType
+      currNode = node
+      var_str = ""
+      while (currNodeType != "Name"):
+        var_str = "." + currNode.attr + var_str
+        currNode = currNode.value
+        currNodeType = type(currNode).__name__
+        if currNodeType not in ('Name','Attribute'):
+          raise RuntimeError("[Parakeet] Accessing with %s not supported" %
+                             currNodeType)
+      var_str = currNode.id + var_str
+      if var_str in self.arg_names:
+        raise ("[Parakeet] Object parameters not supported")
+      self.global_variables.add(var_str)
+      c_name = c_char_p(var_str)
+      return LibPar.mk_var(c_name, src_info.addr)
     else:
       raise RuntimerError("[Parakeet] %s not supported in build_complex_" +
                           "parakeet_node" % nodeType)
@@ -590,18 +604,19 @@ def register_function(f):
     print "[parse_function] Parsing", info[1]
     file_name = f.__code__.co_filename
     line_offset = f.__code__.co_firstlineno
+    global_refs = f.func_globals
     arg_names = info[2]
     body_source = info[1]
     body_ast = ast.parse(body_source)
     body_ast = ast.fix_missing_locations(body_ast)
-    AST = ASTConverter(f.func_globals, arg_names, file_name, line_offset)
+    AST = ASTConverter(global_refs, arg_names, file_name, line_offset)
     parakeet_syntax = AST.visit(body_ast)
     print "\n\n\n\n"
     print "PRINTING OUT THE NODE"
     LibPar.print_ast_node(parakeet_syntax)
     print "\n\n\n\n"
     #Med fix: right now, I assume there aren't any globals
-    global_vars = []
+    global_vars = list(AST.global_variables)
     n_globals = len(global_vars)
     globals_array = list_to_ctypes_array(global_vars,c_char_p)
 
@@ -625,4 +640,4 @@ def register_function(f):
 
     LOG("Registered %s as %s" % (f.__name__, fun_id))
     VisitedFunctions[f] = fun_id
-    return fun_id
+    return fun_id, global_vars

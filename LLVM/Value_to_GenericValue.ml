@@ -168,8 +168,7 @@ let rec delete_llvm_ptr ptr = function
     HostMemspace.free shapeptr;
     HostMemspace.free ptr
   | ImpType.RotateT _
-  | ImpType.ShiftT _
-  | ImpType.SliceT _ ->
+  | ImpType.ShiftT _ ->
     let data = HostMemspace.get_int64 ptr 0 in
     (*delete_llvm_ptr data*)
     HostMemspace.free ptr;

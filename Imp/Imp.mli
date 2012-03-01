@@ -3,6 +3,8 @@ type cuda_info = ThreadIdx | BlockIdx | BlockDim | GridDim
 type coord = X | Y | Z
 
 type array_field =
+  | Shape
+  | Strides
   | RangeStart
   | RangeStop
   | ShiftData
@@ -12,13 +14,6 @@ type array_field =
   | RotData
   | RotDim
   | RotAmt
-  | SliceData
-  | SliceDim
-  | SliceStart
-  | SliceStop
-  | FrozenData
-  | FrozenDim
-  | FrozenIdx
 
 
 type value =

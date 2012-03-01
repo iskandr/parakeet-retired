@@ -25,5 +25,5 @@ class codegen : object
 end
 
 val mk_codegen_fn
-      : Type.t list ->  Type.t list ->
+      : ?name:string -> Type.t list ->  Type.t list ->
         (codegen -> value_node list-> value_node list -> unit) -> fn

@@ -28,24 +28,24 @@ let num_threads = MachineModel.num_hw_threads
 let work_queue = create_work_queue num_threads
 
 let optimize_module llvmModule llvmFn : unit =
-  let the_fpm = PassManager.create_function llvmModule in
+  let pm = PassManager.create_function llvmModule in
   (* Set up the optimizer pipeline.  Start with registering info about how the
    * target lays out data structures. *)
-  Llvm_target.TargetData.add (LLE.target_data execution_engine) the_fpm;
+  Llvm_target.TargetData.add (LLE.target_data execution_engine) pm;
 
   (* Promote allocas to registers. *)
-  Llvm_scalar_opts.add_memory_to_register_promotion the_fpm;
-  Llvm_scalar_opts.add_sccp the_fpm;
-  Llvm_scalar_opts.add_aggressive_dce the_fpm;
-  Llvm_scalar_opts.add_instruction_combination the_fpm;
-  Llvm_scalar_opts.add_cfg_simplification the_fpm;
-  Llvm_scalar_opts.add_gvn the_fpm;
-  Llvm_scalar_opts.add_licm the_fpm;
-  Llvm_scalar_opts.add_loop_unroll the_fpm;
+  Llvm_scalar_opts.add_memory_to_register_promotion pm;
+  Llvm_scalar_opts.add_sccp pm;
+  Llvm_scalar_opts.add_aggressive_dce pm;
+  Llvm_scalar_opts.add_instruction_combination pm;
+  Llvm_scalar_opts.add_cfg_simplification pm;
+  Llvm_scalar_opts.add_gvn pm;
+  Llvm_scalar_opts.add_licm pm;
+  Llvm_scalar_opts.add_loop_unroll pm;
 
-  ignore (PassManager.run_function llvmFn the_fpm);
-  ignore (PassManager.finalize the_fpm);
-  PassManager.dispose the_fpm
+  ignore (PassManager.run_function llvmFn pm);
+  ignore (PassManager.finalize pm);
+  PassManager.dispose pm
 
 let strides_from_shape shape eltSize =
   let rank = Shape.rank shape in
@@ -186,23 +186,25 @@ let call_imp_fn (impFn:Imp.fn) (args:Ptr.t Value.t list) : Ptr.t Value.t list =
   ENDIF;
   let llvmFn = CompiledFunctionCache.compile impFn in
   let llvmInputs : GV.t list = List.map Value_to_GenericValue.to_llvm args in
+  IFDEF DEBUG THEN
+    Printf.printf "input_types: %s\n" (ImpType.type_list_to_str (Imp.input_types impFn));
+    let convert_gv : GV.t -> ImpType.t -> Ptr.t Value.t  =
+      GenericValue_to_Value.of_generic_value ~boxed_scalars:false
+    in
+    let vals = List.map2 convert_gv llvmInputs (Imp.input_types impFn) in
+    Printf.printf "[LLVM_Backend.call_imp_fn] GenericValue inputs: %s\n%!"
+      (Value.list_to_str vals)
+    ;
+  ENDIF;
   let argShapes = List.map Value.shape_of args in
   let llvmOutputs : GV.t list =
     allocate_output_generic_values impFn argShapes
   in
+  let impOutputTypes = Imp.output_types impFn in
+  let params : GV.t array = Array.of_list (llvmInputs @ llvmOutputs) in
   IFDEF DEBUG THEN
     Printf.printf "[LLVM_Backend.call_imp_fn] Running function\n%!";
   ENDIF;
-  let impInputTypes = Imp.input_types impFn in
-  let impOutputTypes = Imp.output_types impFn in
-  IFDEF DEBUG THEN
-    let convert_gv =
-      GenericValue_to_Value.of_generic_value ~boxed_scalars:false
-    in
-    let vals = List.map2 convert_gv  llvmInputs impInputTypes in
-    Printf.printf "  -- input params: %s\n%!" (Value.list_to_str vals);
-  ENDIF;
-  let params : GV.t array = Array.of_list (llvmInputs @ llvmOutputs) in
   let _ = LLE.run_function llvmFn params execution_engine in
   IFDEF DEBUG THEN
     Printf.printf " :: function completed\n%!";
