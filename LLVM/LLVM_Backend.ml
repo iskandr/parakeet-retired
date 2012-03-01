@@ -28,24 +28,25 @@ let num_threads = MachineModel.num_hw_threads
 let work_queue = create_work_queue num_threads
 
 let optimize_module llvmModule llvmFn : unit =
-  let the_fpm = PassManager.create_function llvmModule in
+  let pm = PassManager.create_function llvmModule in
   (* Set up the optimizer pipeline.  Start with registering info about how the
    * target lays out data structures. *)
-  Llvm_target.TargetData.add (LLE.target_data execution_engine) the_fpm;
+  Llvm_target.TargetData.add (LLE.target_data execution_engine) pm;
 
   (* Promote allocas to registers. *)
-  Llvm_scalar_opts.add_memory_to_register_promotion the_fpm;
-  Llvm_scalar_opts.add_sccp the_fpm;
-  Llvm_scalar_opts.add_aggressive_dce the_fpm;
-  Llvm_scalar_opts.add_instruction_combination the_fpm;
-  Llvm_scalar_opts.add_cfg_simplification the_fpm;
-  Llvm_scalar_opts.add_gvn the_fpm;
-  Llvm_scalar_opts.add_licm the_fpm;
-  Llvm_scalar_opts.add_loop_unroll the_fpm;
-
-  ignore (PassManager.run_function llvmFn the_fpm);
-  ignore (PassManager.finalize the_fpm);
-  PassManager.dispose the_fpm
+  Lllvm_scalar_opts.(
+    add_memory_to_register_promotion pm;
+    add_sccp pm;
+    add_aggressive_dce pm;
+    add_instruction_combination pm;
+    add_cfg_simplification pm;
+    add_gvn pm;
+    add_licm pm;
+    add_loop_unroll pm;
+  );
+  ignore (PassManager.run_function llvmFn pm);
+  ignore (PassManager.finalize pm);
+  PassManager.dispose pm
 
 let strides_from_shape shape eltSize =
   let rank = Shape.rank shape in
