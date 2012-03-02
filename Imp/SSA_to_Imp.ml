@@ -193,7 +193,7 @@ let translate_array_op builder (op:Prim.array_op) (args:Imp.value_node list) =
           rank
           nIndices
     ENDIF;
-    let resultT =  ImpType.elt_type arrayT in
+    let resultT = ImpType.elt_type arrayT in
     { value = Imp.Idx(array, indices);
       value_type = ImpType.ScalarT resultT
     }
@@ -242,7 +242,6 @@ let translate_false_phi_node builder phiNode =
   let exp = translate_value builder (PhiNode.right phiNode) in
   Imp.Set (PhiNode.id phiNode, exp)
 
-
 let declare_input (builder:ImpBuilder.fn_builder) typeEnv id =
   let impType = ID.Map.find id typeEnv in
   builder#declare_input id impType
@@ -256,7 +255,6 @@ let declare_local_var (builder:ImpBuilder.fn_builder) nonlocals shapes (id, t) =
   if not (List.mem id nonlocals) then
     let shape = ID.Map.find id shapes in
     builder#declare id ~shape t
-
 
 let rec translate_fn (ssaFn:TypedSSA.fn) (impInputTypes:ImpType.t list)
     : Imp.fn =
@@ -416,10 +414,10 @@ and translate_adverb
   else translate_sequential_adverb builder lhsVars info
 
 and translate_sequential_adverb
-      (builder:ImpBuilder.builder)
-      (lhsVars : Imp.value_node list)
-      (info : (TypedSSA.fn, Imp.value_nodes, Imp.value_nodes) Adverb.info)
-      : Imp.stmt list =
+    (builder:ImpBuilder.builder)
+    (lhsVars : Imp.value_node list)
+    (info : (TypedSSA.fn, Imp.value_nodes, Imp.value_nodes) Adverb.info)
+    : Imp.stmt list =
   (* To implement Map, Scan, and Reduce we loop over the specified axes *)
   (* of the biggest array argument. *)
   (* AllPairs is different in that we loop over the axes of the first arg *)
@@ -568,14 +566,22 @@ and vectorize_adverb
     let vecOutputs =
       List.map (fun arg -> ImpHelpers.vec_slice arg vecLen vecIndexVars) lhsVars
     in
-    let vecFn = Imp_to_SSE.vectorize_fn impFn in
+    let vecFn = Imp_to_SSE.vectorize_fn impFn vecLen in
 	  let vecReplaceEnv =
 	    ID.Map.of_lists
 	      (vecFn.input_ids @ vecFn.output_ids)
 	      (vecNestedArgs @ vecOutputs)
 	  in
     let vecFnBody = ImpReplace.replace_block vecReplaceEnv vecFn.body in
+    Printf.printf
+      "vecFnBody: \n%s\n%!"
+      (String.concat "\n" (List.map (stmt_to_str ~spaces:"") vecFnBody))
+    ;
     let vecLoop = build_loop_nests builder [vecDescriptor] vecFnBody in
+    Printf.printf
+      "vecLoop: \n%s\n%!"
+      (String.concat "\n" (List.map (stmt_to_str ~spaces:"") vecLoop))
+    ;
 
     (* Add loop to handle straggler elements that can't be vectorized *)
     (* TODO: check whether we want to add this loop based on shape? *)

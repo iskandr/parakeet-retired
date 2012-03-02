@@ -18,10 +18,10 @@ type array_field =
   | RotDim
   | RotAmt
 
-
 type value =
   | Var of ID.t
   | Const of ParNum.t
+  | VecConst of ParNum.t list
   | CudaInfo of cuda_info * coord
   | Idx of value_node * value_node list
   | Val of value_node
@@ -134,6 +134,8 @@ let array_field_to_str = function
 let rec value_to_str = function
   | Var id -> ID.to_str id
   | Const n -> ParNum.to_str n
+  | VecConst ns ->
+    sprintf "(%s)" (String.concat ", " (List.map ParNum.to_str ns))
   | CudaInfo(cuda_info, coord) ->
     sprintf "%s.%s" (cuda_info_to_str cuda_info) (coord_to_str coord)
   | Idx (arr, args) ->
@@ -172,7 +174,6 @@ let rec value_to_str = function
      sprintf "field(%s, %s)"
        (array_field_to_str field)
        (value_node_to_str v)
-
 
 and value_node_to_str {value} = value_to_str value
 and value_nodes_to_str vNodes =

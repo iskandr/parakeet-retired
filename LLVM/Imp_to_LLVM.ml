@@ -58,7 +58,6 @@ module Indexing = struct
     | RotDim -> 1
     | RotAmt -> 2
 
-
 	let get_array_strides_ptr (fnInfo:fn_info) (array:llvalue) : llvalue =
 	  let stridesField = Llvm.const_int LLVM_Types.int32_t 2 in
 	  let stridesFieldPtr =
@@ -325,6 +324,9 @@ let rec compile_value ?(do_load=true) fnInfo (impVal:Imp.value_node) =
     llvm_printf "Dimsize: %d\n" [dim] fnInfo.builder;
     dim
   | Imp.Const const -> compile_const impVal.Imp.value_type const
+  | Imp.VecConst vals ->
+    let vals = List.map (compile_const impVal.Imp.value_type) vals in
+    const_vector (Array.of_list vals)
   | Imp.Op (t, op, vals) ->
     let vals' =  List.map (compile_value fnInfo) vals in
     if Prim.is_comparison op then

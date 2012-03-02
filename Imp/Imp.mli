@@ -1,4 +1,3 @@
-
 type cuda_info = ThreadIdx | BlockIdx | BlockDim | GridDim
 type coord = X | Y | Z
 
@@ -15,10 +14,10 @@ type array_field =
   | RotDim
   | RotAmt
 
-
 type value =
   | Var of ID.t
   | Const of ParNum.t
+  | VecConst of ParNum.t list
   | CudaInfo of cuda_info * coord
   | Idx of value_node * value_node list
   | Val of value_node
@@ -45,7 +44,6 @@ type stmt =
   | SyncThreads
   | Comment of string
 and block = stmt list
-
 
 type storage =
   | Stack
@@ -94,5 +92,4 @@ val block_to_str : ?spaces:string -> stmt list -> string
 val fn_to_str : fn -> string
 
 val always_const : value_node -> bool
-
 
