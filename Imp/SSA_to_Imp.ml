@@ -124,6 +124,8 @@ let rec idx_or_fixdims
     ~(dims:value_nodes)
     ~(indices:value_nodes) : value_node =
   let nIndices = List.length indices in
+  let arrT = arr.value_type in
+  let rank = ImpType.rank arrT in
   IFDEF DEBUG THEN
     let nDims = List.length dims in
     if nDims <> nIndices then
@@ -131,11 +133,18 @@ let rec idx_or_fixdims
         "[idx_or_fixdims] Mismatch between # of dims (%d) and # of indices(%d)"
         nDims
         nIndices
+    ;
+    if (nIndices > rank) && (rank > 0) then
+      failwith $ Printf.sprintf
+        "[idx_or_fixdims] Can't index into rank %d array with %d indices"
+        rank
+        nIndices
+    ;
   ENDIF;
-  let arrT = arr.value_type in
   (* for convenience, treat indexing into scalars as the identity operation *)
-  if ImpType.is_scalar arrT then arr
-  else if ImpType.rank arrT = nIndices && List.for_all is_const_int dims then
+  if rank = 0 then arr
+  else if rank = 1 then idx arr indices
+  else if rank = nIndices && (List.for_all ImpHelpers.is_const_int dims) then
     idx arr (permute (List.map get_const_int dims) indices)
   else fixdims arr dims indices
 
@@ -439,13 +448,13 @@ and translate_sequential_adverb
       (lhsVars : Imp.value_node list)
       (info : (TypedSSA.fn, Imp.value_nodes, Imp.value_nodes) Adverb.info)
       : Imp.stmt list =
-  (* To implement Map, Scan, and Reduce we loop over the specified axes *)
-  (* of the biggest array argument. *)
-  (* AllPairs is different in that we loop over the axes of the first arg *)
-  (* and nested within we loop over the same set of axes of the second arg. *)
   let slice_along_axes indexVars arr = idx_or_fixdims arr info.axes indexVars in
   (* pick any of the highest rank arrays in the input list *)
   let biggestArray : Imp.value_node = argmax_array_rank info.array_args in
+  (* To implement Map, Scan, and Reduce we loop over the specified axes *)
+  (* of the biggest array argument. AllPairs is different in that we loop *)
+  (* over the axes of the first arg and nested within we loop over the *)
+  (* same set of axes of the second arg. *)
   let initBlock, loopDescriptors, indexVars, nestedArrays, skipFirstIter =
     match info.adverb, info.init with
     | Adverb.Map, None ->

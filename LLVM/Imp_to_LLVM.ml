@@ -41,8 +41,9 @@ module LLVM_Intrinsics =
 
 module Indexing = struct
   let array_field_to_idx = function
-    | Shape -> 1
-    | Strides -> 2
+    | ArrayData -> 0
+    | ArrayShape -> 1
+    | ArrayStrides -> 2
     | RangeStart -> 0
     | RangeStop -> 1
     | ShiftData -> 0
@@ -53,16 +54,21 @@ module Indexing = struct
     | RotDim -> 1
     | RotAmt -> 2
 
+  let data_field : llvalue =
+    Llvm.const_int int32_t (array_field_to_idx Imp.ArrayData)
+  let strides_field : llvalue =
+    Llvm.const_int int32_t (array_field_to_idx Imp.ArrayStrides)
+  let shape_field : llvalue =
+    Llvm.const_int int32_t (array_field_to_idx Imp.ArrayShape)
 
 	let get_array_strides_ptr (fnInfo:fn_info) (array:llvalue) : llvalue =
-	    let stridesField = Llvm.const_int LLVM_Types.int32_t 2 in
 	    let stridesFieldPtr =
 	      Llvm.build_gep array
-	        [|zero_i32;stridesField|] "stride_field" fnInfo.builder
+	        [|zero_i32; strides_field|] "stride_field" fnInfo.builder
 	    in
 	    Llvm.build_load stridesFieldPtr "strides" fnInfo.builder
 
-	let get_array_strides_field (fnInfo:fn_info) (array:llvalue) (idx:int) =
+	let get_array_strides_elt (fnInfo:fn_info) (array:llvalue) (idx:int) =
 	  let strides : llvalue  = get_array_strides_ptr fnInfo array in
 	  let stridePtr =
 	    if idx <> 0 then (
@@ -75,14 +81,12 @@ module Indexing = struct
 	  Llvm.build_load stridePtr name fnInfo.builder
 
 	let get_array_shape_ptr (fnInfo:fn_info) (array:llvalue) : llvalue =
-	  let shapeField = Llvm.const_int LLVM_Types.int32_t 1 in
 	  let shapeFieldPtr =
-	    Llvm.build_gep array [|zero_i32;shapeField|] "shape_field" fnInfo.builder
+	    Llvm.build_gep array [|zero_i32;shape_field|] "shape_field" fnInfo.builder
 	  in
 	  Llvm.build_load shapeFieldPtr "shape" fnInfo.builder
 
-	let get_array_shape_field (fnInfo:fn_info) (array:llvalue) (idx:int) =
-
+	let get_array_shape_elt (fnInfo:fn_info) (array:llvalue) (idx:int) =
    let shape : llvalue  = get_array_shape_ptr fnInfo array in
    let shapePtr : llvalue =
      if idx <> 0 then (
@@ -109,7 +113,7 @@ module Indexing = struct
 	    if Llvm.is_null currIdx then
 	      compute_addr_helper fnInfo array (i+1) offset otherIndices
 	    else
-	      let strideVal : llvalue = get_array_strides_field fnInfo array i in
+	      let strideVal : llvalue = get_array_strides_elt fnInfo array i in
 	      let currOffset =
 	        Llvm.build_mul strideVal currIdx "offset_term" fnInfo.builder
 	      in
@@ -198,7 +202,7 @@ let compile_cast (fnInfo:fn_info) original (srcT:ImpType.t) (destT:ImpType.t) =
       else if ImpType.is_int srcT && ImpType.is_float destT then
         Llvm.build_sitofp
       else failwith $
-        Printf.sprintf "Unsupported cast from %s to %s\n"
+        Printf.sprintf "Unsupported cast from %s to %s"
           (ImpType.to_str srcT) (ImpType.to_str destT)
     in
     castFn original destLlvmType "cast_tmp" fnInfo.builder
@@ -341,7 +345,7 @@ let rec compile_value ?(do_load=true) fnInfo (impVal:Imp.value_node) =
       end
 	| _ ->
 	  failwith $ Printf.sprintf
-      "[Imp_to_LLVM] Not implemented %s\n"
+      "[Imp_to_LLVM] Not implemented %s"
 	    (Imp.value_node_to_str impVal)
 
 and compile_values fnInfo = function

@@ -257,10 +257,12 @@ let fixdim ~arr ~dim ~idx : value_node  =
 
 (* recursively build fixdim nodes for a list of indices *)
 let rec fixdims ~arr ~dims ~indices : value_node =
-   match dims, indices with
-   | d::ds, i::is -> fixdims ~arr:(fixdim arr d i ) ~dims:ds ~indices:is
-   | [], [] -> arr
-   | _ -> failwith "Expected dims and indices to be of same length"
+  match dims, indices with
+    | [], [] -> arr
+    | [_], [i] when ImpType.rank arr.value_type = 1 ->
+      idx arr [i]
+    | d::ds, i::is -> fixdims ~arr:(fixdim arr d i ) ~dims:ds ~indices:is
+    | _ -> failwith "Expected dims and indices to be of same length"
 
 let slice ~arr ~dim ~start ~stop =
   { value = Slice(arr, dim, start, stop);
