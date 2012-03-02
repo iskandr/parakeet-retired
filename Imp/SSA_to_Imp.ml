@@ -39,7 +39,7 @@ module LoopHelpers = struct
     let rec aux = function
       | [] -> body
       | d::ds ->
-	      let testT : Type.elt_t = ImpType.elt_type d.loop_var.value_type in
+	      let testT = d.loop_var.value_type in
 	      let test = {
 	        value = Imp.Op(testT, d.loop_test_cmp,[d.loop_var; d.loop_test_val]);
 	        value_type = ImpType.bool_t
@@ -384,14 +384,16 @@ and translate_exp (builder:ImpBuilder.builder) expNode : Imp.value_node  =
     let opType, returnType =
       if Prim.is_comparison op then
         let firstArg = List.hd args' in
-        ImpType.elt_type firstArg.value_type, Type.BoolT
+        firstArg.value_type, ImpType.bool_t
       else
-        let retT = Type.elt_type (List.hd expNode.TypedSSA.exp_types) in
+        let retT =
+          ImpType.ScalarT (Type.elt_type (List.hd expNode.TypedSSA.exp_types))
+        in
         retT, retT
     in
     {
       value = Op(opType, op, args');
-      value_type = ImpType.ScalarT returnType
+      value_type = returnType
     }
   | TypedSSA.PrimApp(Prim.ArrayOp op, args) ->
     let impArgs = translate_values builder args in
@@ -425,10 +427,8 @@ and translate_adverb
     match TypedSSA.FnHelpers.get_single_type info.adverb_fn with
     | None -> translate_sequential_adverb builder lhsVars info
     | Some (Type.ScalarT eltT) ->
-      translate_sequential_adverb builder lhsVars info
-      (*
+      (*translate_sequential_adverb builder lhsVars info*)
       vectorize_adverb builder lhsVars info eltT
-      *)
   else translate_sequential_adverb builder lhsVars info
 
 and translate_sequential_adverb
@@ -558,10 +558,16 @@ and vectorize_adverb
     let vecInit = [
       lastInit;
       ImpHelpers.set
-        impVecLoopBound (ImpHelpers.div ~t:Type.Int32T lastSize impVecLen);
+        impVecLoopBound (ImpHelpers.sub ~t:Type.Int32T lastSize impVecLen);
       ImpHelpers.set
         impVecLoopBound
-        (ImpHelpers.mul ~t:Type.Int32T impVecLoopBound impVecLen)
+        (ImpHelpers.div ~t:Type.Int32T impVecLoopBound impVecLen);
+      ImpHelpers.set
+        impVecLoopBound
+        (ImpHelpers.mul ~t:Type.Int32T impVecLoopBound impVecLen);
+      ImpHelpers.set
+        impVecLoopBound
+        (ImpHelpers.add ~t:Type.Int32T impVecLoopBound ImpHelpers.one)
     ]
     in
     let vecDescriptor =
@@ -591,15 +597,7 @@ and vectorize_adverb
 	      (vecNestedArgs @ vecOutputs)
 	  in
     let vecFnBody = ImpReplace.replace_block vecReplaceEnv vecFn.body in
-    Printf.printf
-      "vecFnBody: \n%s\n%!"
-      (String.concat "\n" (List.map (stmt_to_str ~spaces:"") vecFnBody))
-    ;
     let vecLoop = build_loop_nests builder [vecDescriptor] vecFnBody in
-    Printf.printf
-      "vecLoop: \n%s\n%!"
-      (String.concat "\n" (List.map (stmt_to_str ~spaces:"") vecLoop))
-    ;
 
     (* Add loop to handle straggler elements that can't be vectorized *)
     (* TODO: check whether we want to add this loop based on shape? *)
@@ -629,7 +627,7 @@ and vectorize_adverb
 	  let seqFnBody = ImpReplace.replace_block seqReplaceEnv impFn.body in
     let seqLoop = build_loop_nests builder [seqDescriptor] seqFnBody in
 
-    (* Build the outer loops, injected the vectorized and sequential inner *)
+    (* Build the outer loops, injecting the vectorized and sequential inner *)
     (* loops.  Then return the vectorized block. *)
 	  let vecLoops = build_loop_nests builder outerLoops (vecLoop @ seqLoop) in
 	  outerInit @ vecInit @ vecLoops

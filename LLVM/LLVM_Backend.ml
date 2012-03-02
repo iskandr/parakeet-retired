@@ -6,6 +6,7 @@ open Imp
 open ImpHelpers
 open Imp_to_LLVM
 open Llvm
+open MachineModel
 open Value
 
 let memspace_id = HostMemspace.id
@@ -26,6 +27,9 @@ external do_work : Int64.t -> LLE.t -> llvalue -> GV.t list list -> unit =
 
 let num_threads = MachineModel.num_hw_threads
 let work_queue = create_work_queue num_threads
+
+(* For now, we are assuming only 1 CPU *)
+let vector_bitwidth = MachineModel.machine_model.cpus.(0).vector_bitwidth
 
 let optimize_module llvmModule llvmFn : unit =
   let pm = PassManager.create_function llvmModule in
@@ -104,7 +108,18 @@ let free_scalar_output impT (gv:GV.t) : unit =
 let free_scalar_outputs impTypes gvs =
   List.iter2 free_scalar_output impTypes gvs
 
-let split_argument axes num_items arg =
+let get_arg_alignment arg =
+  match arg with
+  | Scalar _ -> 1
+  | Array {elt_type} ->
+    (* TODO: I'm just assuming this is the correct alignment formula... *)
+    let byte_alignment = vector_bitwidth / 8 in
+    let el_size = Type.sizeof elt_type in
+    let q = byte_alignment / el_size in
+    if q * el_size = byte_alignment then q
+    else q * byte_alignment
+
+let split_argument axes num_items alignment arg =
   match arg with
   | Scalar n ->
     List.fill (Value_to_GenericValue.to_llvm (Scalar n)) (List.til num_items)
@@ -122,7 +137,10 @@ let split_argument axes num_items arg =
     ;
     longest_axis := 0;
     len := Shape.get array_shape 0;
-    let els_per_item = !len / num_items in
+    (* TODO: For now, an easy division of the elements that works. Probably *)
+    (*       want to do something slightly more sophisticated so as to evenly *)
+    (*       divide the work amongst the threads. *)
+    let els_per_item = (!len / num_items / alignment) * alignment in
     let mul x y = x * y in
     let starts = List.map (mul els_per_item) (List.til num_items) in
     let stops =
@@ -138,7 +156,11 @@ let split_argument axes num_items arg =
             that the LLVM GVs, and thus duplicate these structs.
 *)
 let build_work_items axes num_items args =
-  let list_of_split = List.map (split_argument axes num_items) args in
+  let alignments = List.map get_arg_alignment args in
+  let alignment =
+    List.fold_left (fun x y -> if x > y then x else y) 0 alignments
+  in
+  let list_of_split = List.map (split_argument axes num_items alignment) args in
   let get_i i l = List.nth l i in
   let strip_is i l = [List.map (get_i i) l] in
   let rec flip_l cur i stop l =

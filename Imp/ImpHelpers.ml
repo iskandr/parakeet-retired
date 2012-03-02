@@ -67,16 +67,13 @@ let common_type ?t (args : value_node list) =
 
 let typed_op op ?t (args : value_node list) : value_node =
   let argType = common_type ?t args in
-  assert (ImpType.is_scalar argType);
-  let eltT = ImpType.elt_type argType in
-  wrap (Op (eltT, op, args)) argType
+  wrap (Op (argType, op, args)) argType
 
 (* Same as typed_op, but with comparison operators which always return bools *)
 let cmp_op op ?t args =
   let argType = common_type ?t args in
   assert (ImpType.is_scalar argType);
-  let eltT = ImpType.elt_type argType in
-  wrap_bool $ Op (eltT, op, args)
+  wrap_bool $ Op (argType, op, args)
 
 (* CUDA stuff *)
 type vec3 = {x: value_node; y: value_node; z: value_node}
@@ -101,7 +98,7 @@ let bool b = wrap_bool $ Const (ParNum.Bool b)
 let zero = int 0
 let one = int 1
 
-let ints_til (n:int) : value_node list  =  List.map int (List.til n)
+let ints_til (n:int) : value_node list = List.map int (List.til n)
 
 let select cond t f =
   assert (t.value_type = f.value_type);

@@ -25,7 +25,7 @@ type value =
   | CudaInfo of cuda_info * coord
   | Idx of value_node * value_node list
   | Val of value_node
-  | Op of Type.elt_t * Prim.scalar_op * value_node list
+  | Op of ImpType.t * Prim.scalar_op * value_node list
   | Select of ImpType.t * value_node * value_node * value_node
   | Cast of ImpType.t * value_node
   | DimSize of value_node * value_node
@@ -145,7 +145,7 @@ let rec value_to_str = function
   | Op (argT, op, args) ->
     sprintf "%s:%s (%s)"
       (Prim.scalar_op_to_str op)
-      (Type.elt_to_str argT)
+      (ImpType.to_str argT)
       (value_nodes_to_str args)
   | Select (t, cond, trueVal, falseVal) ->
     sprintf "select:%s(%s, %s, %s)"
@@ -155,7 +155,7 @@ let rec value_to_str = function
       (value_node_to_str falseVal)
   | Cast (tNew, v) ->
     sprintf "cast %s->%s (%s)"
-      (ImpType.to_str  v.value_type) (ImpType.to_str tNew)
+      (ImpType.to_str v.value_type) (ImpType.to_str tNew)
       (value_node_to_str v)
   | DimSize (arr, idx) ->
     sprintf "dimsize(%s, %s)" (value_node_to_str arr) (value_node_to_str idx)
@@ -253,6 +253,7 @@ let fn_to_str fn =
 let rec always_const {value} = match value with
   | CudaInfo _
   | Const _
+  | VecConst _
   | DimSize _ -> true
   | Cast (_, arg) -> always_const arg
   | Select (_, pred, arg1, arg2) ->

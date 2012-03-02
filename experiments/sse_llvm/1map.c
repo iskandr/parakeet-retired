@@ -18,6 +18,7 @@ typedef union {
 
 extern void map_wrapper_5B_array1_3C_int64_3E__5D_(array_t*, array_t*);
 extern void map_wrapper_nosse_5B_array1_3C_int64_3E__5D_(array_t*, array_t*);
+extern void map_wrapper_gen_sse(array_t*, array_t*);
 
 void print_array(array_t *a, int num_els) {
   printf("\n[");
@@ -81,6 +82,7 @@ int main(int argc, char** argv) {
   gettimeofday(&stop, NULL);
   timersub(&stop, &start, &result);
   nosse_time = result.tv_sec + result.tv_usec / 1000000.0;
+  map_wrapper_gen_sse(&input, &output);
 
   // Time the C cases
   int *c_output = (int*)malloc(num_els * sizeof(int));
