@@ -48,8 +48,8 @@ and block = stmt list
 
 
 type storage =
-  | Stack
-  | HeapAlloc
+  | Global
+  | Local
   | Alias
   | CudaShared
 

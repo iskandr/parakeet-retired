@@ -20,7 +20,7 @@ class builder = object (self)
     let storage = match storage with
       | Some storage -> storage
       | None ->
-        if ImpType.is_scalar ty then Imp.Stack
+        if ImpType.is_scalar ty then Imp.Local
         else failwith $ Printf.sprintf
           "[ImpBuilder] Variable %s : %s cannot be declared without storage"
           (ID.to_str id)
@@ -73,7 +73,7 @@ class builder = object (self)
 
   method var (id:ID.t) : value_node =
     if not $ ID.Set.mem id ids
-    then failwith $ "[ImpCodegen] ID not found: " ^ ID.to_str id
+    then failwith $ "[ImpBuilder] ID not found: " ^ ID.to_str id
     else
     let ty = ID.Map.find id types in
     { value = Imp.Var id; value_type = ty }
@@ -114,7 +114,7 @@ class fn_builder = object (self)
     input_types <- input_types @ [t];
     let shape = SymbolicShape.all_dims id (ImpType.rank t) in
     input_shapes <- input_shapes @ [shape];
-    let storage = if ImpType.is_scalar t then Imp.Stack else Imp.Alias in
+    let storage = if ImpType.is_scalar t then Imp.Local else Imp.Alias in
     self#declare id ~storage ~shape t
 
   method fresh_input (t:ImpType.t) : value_node =
@@ -126,7 +126,7 @@ class fn_builder = object (self)
     output_ids <- output_ids @ [id];
     output_types <- output_types @ [t];
     output_shapes <- output_shapes @ [shape];
-    let storage = if ImpType.is_scalar t then Imp.Stack else Imp.HeapAlloc in
+    let storage = if ImpType.is_scalar t then Imp.Local else Imp.Global in
     self#declare id ~storage ~shape t
 
   method fresh_output ?(shape=SymbolicShape.scalar) (t:ImpType.t) : value_node =

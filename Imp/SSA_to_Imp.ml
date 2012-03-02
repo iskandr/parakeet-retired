@@ -252,11 +252,15 @@ let declare_output (builder:ImpBuilder.fn_builder) shapeEnv typeEnv id =
   let shape = ID.Map.find id shapeEnv in
   builder#declare_output id ~shape impType
 
-let declare_local_var (builder:ImpBuilder.fn_builder) nonlocals shapes (id, t) =
-  if not (List.mem id nonlocals) then
-    let shape = ID.Map.find id shapes in
-    builder#declare id ~shape t
 
+
+let declare_local_var 
+      (builder:ImpBuilder.fn_builder) nonlocals shapes storages (id, t) =
+  if not (List.mem id nonlocals) then (
+    let shape = ID.Map.find id shapes in
+    let storage = ID.Map.find id storages in 
+    builder#declare id ~shape ~storage t
+  )
 
 let rec translate_fn (ssaFn:TypedSSA.fn) (impInputTypes:ImpType.t list)
     : Imp.fn =
@@ -280,13 +284,17 @@ let rec translate_fn (ssaFn:TypedSSA.fn) (impInputTypes:ImpType.t list)
       ShapeInference.infer_normalized_shape_env
         (FnManager.get_typed_function_table ()) ssaFn
     in
+    let storageEnv : Imp.storage ID.Map.t = InferImpStorage.infer ssaFn in
     let inputIds = ssaFn.TypedSSA.input_ids in
     let outputIds = ssaFn.TypedSSA.output_ids in
     List.iter (declare_input builder impTyEnv) inputIds;
     List.iter (declare_output builder shapeEnv impTyEnv) outputIds;
     let nonlocals = inputIds @ outputIds in
-    let typePairs : (ID.t * ImpType.t) list = ID.Map.to_list impTyEnv in
-    List.iter (declare_local_var builder nonlocals shapeEnv) typePairs;
+    let () = 
+      List.iter 
+        (declare_local_var builder nonlocals shapeEnv storageEnv) 
+        (ID.Map.to_list impTyEnv)
+    in
     let body =
       translate_block (builder :> ImpBuilder.builder) ssaFn.TypedSSA.body
     in

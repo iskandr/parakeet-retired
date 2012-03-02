@@ -50,6 +50,11 @@ type array_op =
   | ArgMax
   | Slice
   | Range
+  | Transpose
+  | Shape
+  | Strides
+  | Flatten
+  | Copy
 
 type impure_op = ResetTimer | GetTimer | Print
 
@@ -138,8 +143,8 @@ let min_prim_arity = function
   | ArrayOp DimSize
   | ArrayOp Find
   | ArrayOp Index -> 2
-  | Adverb Adverb.Map -> 2
-  | Adverb _ -> 3
+  | Adverb Adverb.AllPairs -> 3
+  | Adverb _ -> 2
   | ArrayOp Slice -> 4
   | ImpureOp Print  -> 1
   | ImpureOp _ -> 0
@@ -198,6 +203,11 @@ let array_op_to_str = function
   | Slice -> "slice"
   | Where -> "where"
   | Range -> "range"
+  | Transpose -> "transpose"
+  | Shape -> "shape"
+  | Strides -> "strides"
+  | Flatten -> "flatten"
+  | Copy -> "copy"
 
 
 let impure_op_to_str = function

@@ -34,7 +34,7 @@ module ImpStorageAnalysis = struct
       fn.input_ids
 
   let value tenv {value; value_type} =
-    if Type.is_scalar value_type then Imp.Stack
+    if Type.is_scalar value_type then Imp.Local
     else match value with
     | TypedSSA.Var id ->
       if not $ ID.Map.mem id tenv then
@@ -43,14 +43,14 @@ module ImpStorageAnalysis = struct
         ID.Map.find id tenv
     | _ -> assert false
 
-  let exp env {exp; exp_types} helpers : ImpType.t list =
+  let exp env {exp; exp_types} helpers : Imp.storage list =
     match exp with
     | Values vs -> List.map (value env) vs
     | Cast _
-    | PrimApp (Prim.ScalarOp _, _) -> [Imp.Stack]
-    | PrimApp (Prim.ArrayOp op, args)
+    | PrimApp (Prim.ScalarOp _, _) -> [Imp.Local]
+    | PrimApp (Prim.ArrayOp _, _)
     | Adverb _
-    | Arr _ -> List.map (fun _ -> Imp.HeapAlloc) exp_types
+    | Arr _ -> List.map (fun _ -> Imp.Global) exp_types
 
     | Call (fnId, args) ->
       failwith "[InferImpTypes] Typed function calls not implemented"
@@ -67,7 +67,7 @@ module ImpStorageAnalysis = struct
     match stmtNode.stmt with
     | TypedSSA.Set(ids, rhs) ->
       Some (add_bindings env ids (exp env rhs helpers))
-    | _ -> helpers.eval_stmt tenv stmtNode
+    | _ -> helpers.eval_stmt env stmtNode
 end
 
 
