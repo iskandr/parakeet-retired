@@ -11,7 +11,7 @@ def argminHelper(currMin, currMinIndex, currIndex, currArrVal):
   return currMin, currMinIndex, currIndex+1
 
 def argmin(x):
-  gib1,res,gib2 = reduce(argminHelper, x,default=[100000000000,-1,0])
+  gib1,res,gib2 = reduce(argminHelper, x, default=[100000000000,-1,0])
   return res
 
 def _and(x,y):

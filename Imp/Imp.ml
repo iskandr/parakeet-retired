@@ -49,8 +49,8 @@ type stmt =
 and block = stmt list
 
 type storage =
-  | Stack
-  | HeapAlloc
+  | Global
+  | Local
   | Alias
   | CudaShared
 
@@ -224,8 +224,8 @@ and block_to_str ?(spaces="") stmts =
   String.concat "\n" (List.map (stmt_to_str ~spaces) stmts)
 
 let array_storage_to_str = function
-  | Stack -> "stack"
-  | HeapAlloc -> "heap"
+  | Global -> "global"
+  | Local -> "local"
   | Alias -> "alias"
   | CudaShared -> "shared"
 
