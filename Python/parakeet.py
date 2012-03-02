@@ -1,4 +1,5 @@
 from ctypes import c_void_p
+import re
 
 from parakeet_ast import register_function, VisitedFunctions, list_to_ctypes_array
 from parakeet_common import LibPar, LOG
@@ -49,7 +50,6 @@ class WrappedFunction:
     var_parts = var.split('.')
     curr_val = self.old_function.func_globals[var_parts[0]]
     for i in range(1, len(var_parts)):
-      #Regular expression to extract []
       curr_val = curr_val.__dict__[var_parts[i]]
     return curr_val
 

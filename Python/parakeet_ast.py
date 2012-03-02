@@ -569,6 +569,9 @@ class ASTConverter():
         var_str = "." + currNode.attr + var_str
         currNode = currNode.value
         currNodeType = type(currNode).__name__
+        if currNodeType not in ('Name','Attribute'):
+          raise RuntimeError("[Parakeet] Accessing with %s not supported" %
+                             currNodeType)
       var_str = currNode.id + var_str
       if var_str in self.arg_names:
         raise ("[Parakeet] Object parameters not supported")
