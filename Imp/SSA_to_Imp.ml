@@ -254,11 +254,11 @@ let declare_output (builder:ImpBuilder.fn_builder) shapeEnv typeEnv id =
 
 
 
-let declare_local_var 
+let declare_local_var
       (builder:ImpBuilder.fn_builder) nonlocals shapes storages (id, t) =
   if not (List.mem id nonlocals) then (
     let shape = ID.Map.find id shapes in
-    let storage = ID.Map.find id storages in 
+    let storage = ID.Map.find id storages in
     builder#declare id ~shape ~storage t
   )
 
@@ -290,9 +290,9 @@ let rec translate_fn (ssaFn:TypedSSA.fn) (impInputTypes:ImpType.t list)
     List.iter (declare_input builder impTyEnv) inputIds;
     List.iter (declare_output builder shapeEnv impTyEnv) outputIds;
     let nonlocals = inputIds @ outputIds in
-    let () = 
-      List.iter 
-        (declare_local_var builder nonlocals shapeEnv storageEnv) 
+    let () =
+      List.iter
+        (declare_local_var builder nonlocals shapeEnv storageEnv)
         (ID.Map.to_list impTyEnv)
     in
     let body =
@@ -316,6 +316,10 @@ and translate_block (builder : ImpBuilder.builder) block : Imp.stmt list =
     []
     block
 and translate_stmt (builder : ImpBuilder.builder) stmtNode : Imp.stmt list  =
+  IFDEF DEBUG THEN
+    Printf.printf "[SSA_to_Imp.translate_stmt] %s\n"
+      (TypedSSA.stmt_node_to_str stmtNode)
+  ENDIF;
   match stmtNode.TypedSSA.stmt with
   (* array literals get treated differently from other expressions since *)
   (* they require a block of code rather than simply translating from *)
@@ -371,6 +375,10 @@ and translate_stmt (builder : ImpBuilder.builder) stmtNode : Imp.stmt list  =
      (TypedSSA.stmt_node_to_str stmtNode)
 
 and translate_exp (builder:ImpBuilder.builder) expNode : Imp.value_node  =
+  IFDEF DEBUG THEN
+    Printf.printf "[SSA_to_Imp.translate_exp] %s\n"
+      (TypedSSA.exp_node_to_str expNode)
+  ENDIF;
   match expNode.TypedSSA.exp with
   | TypedSSA.Values [v] -> translate_value builder v
   | TypedSSA.Values _ -> failwith "multiple value expressions not supported"
@@ -420,7 +428,10 @@ and translate_adverb
     match TypedSSA.FnHelpers.get_single_type info.adverb_fn with
     | None -> translate_sequential_adverb builder lhsVars info
     | Some (Type.ScalarT eltT) ->
+      translate_sequential_adverb builder lhsVars info
+      (*
       vectorize_adverb builder lhsVars info eltT
+      *)
   else translate_sequential_adverb builder lhsVars info
 
 and translate_sequential_adverb
