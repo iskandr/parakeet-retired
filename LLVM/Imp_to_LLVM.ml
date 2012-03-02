@@ -301,11 +301,13 @@ let compile_math_op (t:Type.elt_t) op (vals:llvalue list) builder =
 let rec compile_value ?(do_load=true) fnInfo (impVal:Imp.value_node) =
   match impVal.value with
   | Imp.Var id ->
-      begin match Hashtbl.find_option fnInfo.named_values (ID.to_str id) with
-        | None -> failwith "unknown variable name"
+      let name = ID.to_str id in
+      begin match Hashtbl.find_option fnInfo.named_values name with
+        | None ->
+          failwith $"[Imp_to_LLVM] unknown variable " ^ name
         | Some ptr ->
           if do_load then
-            let tempName = (ID.to_str id) ^ "_value" in
+            let tempName = name ^ "_value" in
             build_load ptr tempName fnInfo.builder
           else ptr
       end
@@ -355,6 +357,10 @@ let rec compile_stmt_seq fnInfo currBB = function
     compile_stmt_seq fnInfo newBB tail
 
 and compile_stmt fnInfo currBB stmt =
+  IFDEF DEBUG THEN
+    Printf.printf "[Imp_to_LLVM.compile_stmt] %s\n"
+      (Imp.stmt_to_str stmt)
+  ENDIF;
   match stmt with
   | Imp.If (cond, then_, else_) ->
     let llCond = compile_value fnInfo cond in
