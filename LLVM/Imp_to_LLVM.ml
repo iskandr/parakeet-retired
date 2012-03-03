@@ -65,7 +65,8 @@ module Indexing = struct
   *)
   let get_array_field_addr (fnInfo:fn_info) (array:llvalue) field : llvalue =
     IFDEF DEBUG THEN
-      Printf.printf "get_array_field_addr %s\n%!"
+      Printf.printf "get_array_field_addr %s.%s\n%!"
+        (Llvm.value_name array)
         (Imp.array_field_to_str field);
       Llvm.dump_value array;
     ENDIF;
@@ -75,7 +76,8 @@ module Indexing = struct
 
   let get_array_field (fnInfo:fn_info) (array:llvalue) field : llvalue =
     IFDEF DEBUG THEN
-      Printf.printf "get_array_field %s\n%!"
+      Printf.printf "get_array_field %s.%s\n%!"
+        (Llvm.value_name array)
         (Imp.array_field_to_str field);
       Llvm.dump_value array;
     ENDIF;
@@ -113,23 +115,18 @@ module Indexing = struct
    in
    Llvm.build_load eltPtr ("dim" ^ (string_of_int idx) ^ "_") fnInfo.builder
 
-	let get_array_data (fnInfo:fn_info) (array:llvalue) : llvalue =
-    IFDEF DEBUG THEN
-      Printf.printf "get_array_data\n%!";
-      Llvm.dump_value array;
-    ENDIF;
-    let dataFieldPtr = get_array_field fnInfo array ArrayData in
-	  Llvm.build_load dataFieldPtr "data_addr" fnInfo.builder
 
 	(* convert a list of indices into an address offset *)
-	let rec compute_addr_helper
-	    (fnInfo:fn_info)
-	    (array:Llvm.llvalue)
-	    (i:int)
-	    (offset:Llvm.llvalue) = function
+	let rec compute_offset
+      (fnInfo:fn_info)
+      (array:Llvm.llvalue)
+      ?(i=0)
+	    ?(offset=zero_i32)
+      (indices:llvalue list) : llvalue =
+    match indices with
 	  | currIdx :: otherIndices ->
 	    if Llvm.is_null currIdx then
-	      compute_addr_helper fnInfo array (i+1) offset otherIndices
+	      compute_offset fnInfo array ~i:(i+1) ~offset otherIndices
 	    else (
 	      let strideVal : llvalue = get_array_strides_elt fnInfo array i in
         Llvm.dump_value strideVal;
@@ -139,12 +136,19 @@ module Indexing = struct
         Llvm.dump_value currOffset;
 	      let newOffset =
 	        if Llvm.is_null offset then currOffset
-	        else Llvm.build_add offset currOffset "offset" fnInfo.builder
+	        else
+            (let instr =
+               Llvm.build_add offset currOffset "offset" fnInfo.builder
+             in
+             Llvm.dump_value instr;
+             instr
+            )
 	      in
-	      compute_addr_helper fnInfo array (i+1) newOffset otherIndices
+
+	      compute_offset fnInfo array ~i:(i+1) ~offset:newOffset otherIndices
       )
 	  | [] ->
-      Printf.printf "Done with compute_addr_helper\n%!";
+      Printf.printf "Done with compute_offset\n%!";
       offset
 
 	let compile_arr_idx
@@ -152,20 +156,21 @@ module Indexing = struct
 	    (indices:Llvm.llvalue list)
 	    (imp_elt_t:Type.elt_t)
 	    (fnInfo:fn_info) =
-	  let builder = fnInfo.builder in
-	  let dataPtr = get_array_data fnInfo array in
-	  let offset = compute_addr_helper fnInfo array 0 zero_i32 indices in
-	  let offset64 =
-	    Llvm.build_zext_or_bitcast offset LlvmType.int64_t "offsetCast" builder
-	  in
-    Llvm.dump_value offset64;
-	  let dataPtr64 =
-	    Llvm.build_ptrtoint dataPtr LlvmType.int64_t "basePtrInt" builder
-	  in
-    Llvm.dump_value dataPtr64;
-	  let newAddr64 = Llvm.build_add dataPtr64 offset64 "idxAddrInt" builder in
-    Llvm.dump_value newAddr64;
-	  Llvm.build_inttoptr newAddr64 (Llvm.type_of dataPtr) "idxAddr" builder
+    IFDEF DEBUG THEN
+      Printf.printf "[LLVM compile_arr_idx]: %s[%s] : %s\n"
+        (Llvm.value_name array)
+        (String.concat ", " (List.map Llvm.value_name indices))
+        (Type.elt_to_str imp_elt_t)
+    ENDIF;
+	  let dataPtr = get_array_field fnInfo array ArrayData  in
+    Llvm.dump_value dataPtr;
+	  let offset = compute_offset fnInfo array indices in
+    Llvm.dump_value offset;
+	  let newAddr =
+      Llvm.build_gep dataPtr [|zero_i32; offset|] "idxAddr" fnInfo.builder
+    in
+    Llvm.dump_value newAddr;
+	  newAddr
 
 	let compile_range_load
 	    (array:Llvm.llvalue)
@@ -502,7 +507,7 @@ let copy_array (fnInfo:fn_info) srcAddr destAddr nelts =
 (* we instead load all of the metadata into stack allocated arrays and*)
 (* hope the fields get turned into SSA variables (and thus optimized) *)
 let copy_array_metadata (fnInfo:fn_info)  (src:llvalue) (dest:llvalue) rank  =
-  let srcData = get_array_data fnInfo src in
+  let srcData = get_array_field fnInfo src ArrayData in
   let destDataField = get_array_field_addr fnInfo dest ArrayData in
   let _ = Llvm.build_store srcData destDataField fnInfo.builder in
 
