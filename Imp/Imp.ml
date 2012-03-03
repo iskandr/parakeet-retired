@@ -23,11 +23,21 @@ let fields_of_type = function
   | ImpType.ScalarT _ -> []
   | ImpType.ArrayT _ -> [ArrayData; ArrayShape; ArrayStrides]
   | ImpType.RangeT _ -> [RangeStart; RangeStop]
+  | ImpType.PtrT _ -> failwith "Pointers have no fields"
   | ImpType.ExplodeT _ -> failwith "Explode not yet implemented"
   | ImpType.RotateT _ -> failwith "Rotate not yet implemented"
   | ImpType.ShiftT _ -> failwith "Shift not yet implemented"
 
 
+let rec field_types = function
+  | ImpType.ScalarT _ -> []
+  | ImpType.ArrayT(eltT, rank) ->
+    [
+      ImpType.PtrT (eltT, None);
+      ImpType.PtrT (Type.Int32T, Some rank);
+      ImpType.PtrT (Type.Int32T, Some rank);
+    ]
+  | _ -> failwith "Not implemented"
 type value =
   | Var of ID.t
   | Const of ParNum.t
