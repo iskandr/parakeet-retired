@@ -58,11 +58,7 @@ module Indexing = struct
     | RotDim -> 1
     | RotAmt -> 2
 
-  (*
-  let data_field : llvalue = mk_int32 (array_field_to_idx Imp.ArrayData)
-  let strides_field : llvalue = mk_int32 (array_field_to_idx Imp.ArrayStrides)
-  let shape_field : llvalue = mk_int32 (array_field_to_idx Imp.ArrayShape)
-  *)
+
   let get_array_field_addr (fnInfo:fn_info) (array:llvalue) field : llvalue =
     let resultName =
       (Llvm.value_name array) ^ "."  ^(Imp.array_field_to_str field) ^ ".addr"
@@ -494,14 +490,14 @@ let allocate_local_array_info
 
 let copy_array (fnInfo:fn_info) srcAddr destAddr nelts =
   for i = 0 to nelts - 1 do
-    let src =
-      Llvm.build_gep srcAddr [|mk_int32 i|] "src" fnInfo.builder
-    in
+    let idx = mk_int64 i in
+    let src = Llvm.build_gep srcAddr [|idx|] "src" fnInfo.builder in
     Llvm.dump_value src;
-    let elt = Llvm.build_load src ("elt_" ^ string_of_int i) fnInfo.builder in
-    let dest =
-      Llvm.build_gep destAddr [|mk_int32 i|] "dest" fnInfo.builder
+    let eltName =
+      (Llvm.value_name srcAddr) ^ "_elt_" ^ (string_of_int i) ^ "_"
     in
+    let elt = Llvm.build_load src eltName fnInfo.builder in
+    let dest = Llvm.build_gep destAddr [|idx|] "dest" fnInfo.builder in
     Llvm.dump_value dest;
     let storeInstr = Llvm.build_store elt dest fnInfo.builder in
     Llvm.dump_value storeInstr
@@ -567,7 +563,7 @@ let init_nonlocal_var (fnInfo:fn_info) (id:ID.t) (param:Llvm.llvalue) =
     (* struct pointers. Make local copies of their metadata *)
     | _ ->
       let ptrT = Llvm.pointer_type llvmT in
-      let ptrName = varName^"_array_ptr" in
+      let ptrName = varName^"_ptr" in
       let paramPtr = Llvm.build_inttoptr param ptrT ptrName fnInfo.builder in
       let local = allocate_local_array_info fnInfo varName impT llvmT in
       copy_array_metadata fnInfo paramPtr local (ImpType.rank impT);
