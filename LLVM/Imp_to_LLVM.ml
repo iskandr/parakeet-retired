@@ -64,27 +64,25 @@ module Indexing = struct
   let shape_field : llvalue = mk_int32 (array_field_to_idx Imp.ArrayShape)
   *)
   let get_array_field_addr (fnInfo:fn_info) (array:llvalue) field : llvalue =
+    let resultName =
+      (Llvm.value_name array) ^ "."  ^(Imp.array_field_to_str field) ^ ".addr"
+    in
     IFDEF DEBUG THEN
-      Printf.printf "get_array_field_addr %s.%s\n%!"
-        (Llvm.value_name array)
-        (Imp.array_field_to_str field);
-      Llvm.dump_value array;
+      Printf.printf "get_array_field_addr %s\n%!" resultName;
     ENDIF;
-    let name = Imp.array_field_to_str field ^ "_field_addr" in
     let indices = [|zero_i32; mk_int32 (array_field_to_idx field) |] in
-    Llvm.build_gep array indices name fnInfo.builder
+    Llvm.build_gep array indices resultName fnInfo.builder
 
   let get_array_field (fnInfo:fn_info) (array:llvalue) field : llvalue =
+    let resultName =
+      Llvm.value_name array ^ "."^ Imp.array_field_to_str field
+    in
     IFDEF DEBUG THEN
-      Printf.printf "get_array_field %s.%s\n%!"
-        (Llvm.value_name array)
-        (Imp.array_field_to_str field);
-      Llvm.dump_value array;
+      Printf.printf "get_array_field %s\n%!" resultName;
     ENDIF;
     let addr = get_array_field_addr fnInfo array field in
     Llvm.dump_value addr;
-    let name = Imp.array_field_to_str field in
-    Llvm.build_load addr name fnInfo.builder
+    Llvm.build_load addr resultName fnInfo.builder
 
   let get_array_strides_elt (fnInfo:fn_info) (array:llvalue) (idx:int) =
     IFDEF DEBUG THEN
