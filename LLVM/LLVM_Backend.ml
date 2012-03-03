@@ -171,7 +171,7 @@ module CompiledFunctionCache = struct
         IFDEF DEBUG THEN
           Llvm_analysis.assert_valid_function llvmFn;
         ENDIF;
-        (*optimize_module Imp_to_LLVM.global_module llvmFn;*)
+        optimize_module Imp_to_LLVM.global_module llvmFn;
         IFDEF DEBUG THEN
           print_endline  "[LLVM_Backend.call_imp_fn] Generated LLVM function";
           Llvm.dump_value llvmFn;

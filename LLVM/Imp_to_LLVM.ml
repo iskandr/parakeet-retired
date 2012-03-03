@@ -86,18 +86,24 @@ module Indexing = struct
 
   let get_array_strides_elt (fnInfo:fn_info) (array:llvalue) (idx:int) =
     IFDEF DEBUG THEN
-      Printf.printf "get_array_strides_elt: %d\n%!" idx;
-      Llvm.dump_value array;
+      Printf.printf "get_array_strides_elt: %s.strides[%d]\n%!"
+       (Llvm.value_name array)
+       idx
+      ;
     ENDIF;
+
 	  let strides : llvalue  = get_array_field fnInfo array ArrayStrides in
+    Llvm.dump_value strides;
 	  let stridePtr =
 	    if idx <> 0 then
 	      Llvm.build_gep strides [|mk_int32 idx|] "stride_ptr" fnInfo.builder
 	    else
         strides
 	  in
-	  let name = "stride_" ^ (string_of_int idx) in
-	  Llvm.build_load stridePtr name fnInfo.builder
+    let resultName =
+      Llvm.value_name array ^ ".strides.elt" ^ string_of_int idx ^ "_"
+    in
+	  Llvm.build_load stridePtr resultName fnInfo.builder
 
 	let get_array_shape_elt (fnInfo:fn_info) (array:llvalue) (idx:int) =
     IFDEF DEBUG THEN
@@ -165,7 +171,7 @@ module Indexing = struct
 	  let offset = compute_offset fnInfo array indices in
     Llvm.dump_value offset;
 	  let newAddr =
-      Llvm.build_gep dataPtr [|zero_i32; offset|] "idxAddr" fnInfo.builder
+      Llvm.build_gep dataPtr [|offset|] "idxAddr" fnInfo.builder
     in
     Llvm.dump_value newAddr;
 	  newAddr
@@ -511,10 +517,11 @@ let copy_array_metadata (fnInfo:fn_info)  (src:llvalue) (dest:llvalue) rank  =
 
   let srcShapeField = get_array_field fnInfo src ArrayShape in
   let destShapeField = get_array_field fnInfo dest ArrayShape in
-  copy_array fnInfo srcShapeField destShapeField rank;
+  let () = copy_array fnInfo srcShapeField destShapeField rank in
   let srcStridesField = get_array_field fnInfo src ArrayStrides in
   let destStridesField = get_array_field fnInfo dest ArrayStrides in
-  copy_array fnInfo srcStridesField destStridesField rank
+  let () = copy_array fnInfo srcStridesField destStridesField rank in
+  ()
 
 let init_local_var (fnInfo:fn_info) (id:ID.t) =
   let impT = ID.Map.find id fnInfo.imp_types in
