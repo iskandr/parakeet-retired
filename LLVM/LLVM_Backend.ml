@@ -169,6 +169,7 @@ module CompiledFunctionCache = struct
       begin
         let llvmFn : Llvm.llvalue = Imp_to_LLVM.compile_fn impFn in
         IFDEF DEBUG THEN
+          Printf.printf "Validating generated function...\n%!";
           Llvm_analysis.assert_valid_function llvmFn;
         ENDIF;
         optimize_module Imp_to_LLVM.global_module llvmFn;

@@ -480,11 +480,13 @@ let allocate_local_array_info
   let rank = mk_int32 (ImpType.rank impT) in
   Llvm.build_store
     (Llvm.build_array_alloca int32_t rank (name^"_shape") fnInfo.builder)
-    (Indexing.get_array_field fnInfo local ArrayShape)
+    (Indexing.get_array_field_addr fnInfo local ArrayShape)
+    fnInfo.builder
   ;
   Llvm.build_store
     (Llvm.build_array_alloca int32_t rank (name^"_strides") fnInfo.builder)
-    (Indexing.get_array_field fnInfo local ArrayStrides)
+    (Indexing.get_array_field_addr fnInfo local ArrayStrides)
+    fnInfo.builder
   ;
   local
 
@@ -503,25 +505,25 @@ let copy_array (fnInfo:fn_info) srcAddr destAddr nelts =
     Llvm.dump_value dest;
     let storeInstr = Llvm.build_store elt dest fnInfo.builder in
     Llvm.dump_value storeInstr
-
   done
 
 
 (* to avoid loads from shape/stride arrays in the heart of tight loops, *)
 (* we instead load all of the metadata into stack allocated arrays and*)
 (* hope the fields get turned into SSA variables (and thus optimized) *)
-let copy_array_metadata (fnInfo:fn_info)  (src:llvalue) (dest:llvalue) rank  =
+let copy_array_metadata (fnInfo:fn_info) (src:llvalue) (dest:llvalue) rank  =
   let srcData = get_array_field fnInfo src ArrayData in
   let destDataField = get_array_field_addr fnInfo dest ArrayData in
   let _ = Llvm.build_store srcData destDataField fnInfo.builder in
 
   let srcShapeField = get_array_field fnInfo src ArrayShape in
   let destShapeField = get_array_field fnInfo dest ArrayShape in
-  let () = copy_array fnInfo srcShapeField destShapeField rank in
+  copy_array fnInfo srcShapeField destShapeField rank;
+
   let srcStridesField = get_array_field fnInfo src ArrayStrides in
   let destStridesField = get_array_field fnInfo dest ArrayStrides in
-  let () = copy_array fnInfo srcStridesField destStridesField rank in
-  ()
+  copy_array fnInfo srcStridesField destStridesField rank
+
 
 let init_local_var (fnInfo:fn_info) (id:ID.t) =
   let impT = ID.Map.find id fnInfo.imp_types in
@@ -550,31 +552,28 @@ let init_nonlocal_var (fnInfo:fn_info) (id:ID.t) (param:Llvm.llvalue) =
   ENDIF;
   let varName = ID.to_str id in
   Llvm.set_value_name varName param;
-  let isInput = List.mem id fnInfo.input_ids in
-  let isScalar = ImpType.is_scalar impT in
-  if isInput && isScalar then (
-    let stackVal =
-      Llvm.build_alloca llvmT varName fnInfo.builder
-    in
-    let _ = Llvm.build_store param stackVal fnInfo.builder in
-    Hashtbl.add fnInfo.named_values varName stackVal
-  )
-  else
-    (* Due to the bizarre layout of GenericValues, we pass *)
-    (* in pointers as int64s and then have to cast them to their *)
-    (* actual pointer types inside the code *)
-    let ptrT = Llvm.pointer_type llvmT in
-    let pointer =
-      Llvm.build_inttoptr param ptrT (varName^"_ptr") fnInfo.builder
-    in
-    if isScalar then Hashtbl.add fnInfo.named_values varName pointer
-    else (
+  let stackVal = match List.mem id fnInfo.input_ids, ImpType.is_scalar impT with
+    (* scalar input *)
+    | true, true ->
+      let stackVal = Llvm.build_alloca llvmT varName fnInfo.builder in
+      Llvm.build_store param stackVal fnInfo.builder;
+      stackVal
+    (* scalar output *)
+    | _, true ->
+      let ptrT = Llvm.pointer_type llvmT in
+      let ptrName = varName^"_scalar_ptr" in
+      Llvm.build_inttoptr param ptrT ptrName fnInfo.builder
+    (* input or output arrays are just int64's which can be cast into*)
+    (* struct pointers. Make local copies of their metadata *)
+    | _ ->
+      let ptrT = Llvm.pointer_type llvmT in
+      let ptrName = varName^"_array_ptr" in
+      let paramPtr = Llvm.build_inttoptr param ptrT ptrName fnInfo.builder in
       let local = allocate_local_array_info fnInfo varName impT llvmT in
-      copy_array_metadata fnInfo pointer local (ImpType.rank impT);
-      Hashtbl.add fnInfo.named_values varName local
-    )
-
-
+      copy_array_metadata fnInfo paramPtr local (ImpType.rank impT);
+      local
+  in
+  Hashtbl.add fnInfo.named_values varName stackVal
 
 let init_compiled_fn (fnInfo:fn_info) =
   let get_imp_type id =  ID.Map.find id fnInfo.imp_types in
