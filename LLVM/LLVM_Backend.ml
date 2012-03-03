@@ -35,6 +35,7 @@ let optimize_module llvmModule llvmFn : unit =
 
   (* Promote allocas to registers. *)
   Llvm_scalar_opts.add_memory_to_register_promotion pm;
+  Llvm_scalar_opts.add_scalar_repl_aggregation pm;
   Llvm_scalar_opts.add_sccp pm;
   Llvm_scalar_opts.add_aggressive_dce pm;
   Llvm_scalar_opts.add_instruction_combination pm;
@@ -42,7 +43,7 @@ let optimize_module llvmModule llvmFn : unit =
   Llvm_scalar_opts.add_gvn pm;
   Llvm_scalar_opts.add_licm pm;
   Llvm_scalar_opts.add_loop_unroll pm;
-  Llvm_scalar_opts.add_scalar_repl_aggregation pm;
+  Llvm_scalar_opts.add_dead_store_elimination;
 
   ignore (PassManager.run_function llvmFn pm);
   ignore (PassManager.finalize pm);
