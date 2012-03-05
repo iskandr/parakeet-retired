@@ -1,5 +1,5 @@
 open Llvm
-open LLVM_Types
+open LlvmType
 
 module type LLVM_INTRINSICS = sig
   val m : llmodule

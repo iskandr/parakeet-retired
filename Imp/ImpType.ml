@@ -2,8 +2,9 @@
 
 type elt_t = Type.elt_t
 type t =
-  | ArrayT of elt_t * int
   | ScalarT of elt_t
+  | PtrT of elt_t * int option
+  | ArrayT of elt_t * int
   | ExplodeT of elt_t * int
   | RotateT of t
   | ShiftT of t
@@ -12,7 +13,11 @@ type t =
 
 let rec to_str = function
 	| ScalarT elt_t -> Type.elt_to_str elt_t
-	| ArrayT (elt_t, r) ->
+	| PtrT (t, len) ->
+    Printf.sprintf "ptr(%s)%s"
+      (Type.elt_to_str t)
+      (match len with Some k -> "[" ^ string_of_int k ^ "]" | None -> "")
+  | ArrayT (elt_t, r) ->
     Printf.sprintf "array%d<%s>" r (Type.elt_to_str elt_t)
 	| ShiftT t -> Printf.sprintf "shift(%s)" (to_str t)
   | VectorT (elt_t, w) ->
@@ -26,6 +31,7 @@ let rec elt_type = function
 	| ScalarT t
   | ExplodeT (t, _)
   | VectorT (t, _)
+  | PtrT (t, _)
   | ArrayT (t, _) -> t
   | RotateT nested
   | ShiftT nested -> elt_type nested
@@ -47,12 +53,11 @@ let is_float = function
   | ScalarT Type.Float64T -> true
   | _ -> false
 
-let is_array = function
-  | ArrayT _ -> true
-  | _ -> false
+let is_array t = not (is_scalar t)
 
 let rec rank = function
 	| ScalarT _ -> 0
+  | PtrT _ -> 1
   | ExplodeT (_, r)
   | VectorT (_, r)
 	| ArrayT (_, r) -> r
@@ -82,6 +87,9 @@ let rec type_of_value = function
   | Value.Scalar n -> ScalarT (ParNum.type_of n)
   | Value.Array a -> ArrayT (a.Value.elt_type, Shape.rank a.Value.array_shape)
   | Value.Shift (nested, _, _, _) -> ShiftT (type_of_value nested)
+  | Value.Explode (n, s) ->
+      ExplodeT (ParNum.type_of n, Shape.rank s)
+  | Value.Rotate (x, _, _) -> RotateT (type_of_value x)
 
 let peel ?(num_axes=1) = function
   | ArrayT (eltT, r) ->
@@ -90,6 +98,7 @@ let peel ?(num_axes=1) = function
     else if diff > 0 then ArrayT (eltT, diff)
     else failwith "[ImpType.peel] Too many axes"
   | ScalarT eltT -> ScalarT eltT
+  | PtrT (eltT,_) when num_axes = 1 -> ScalarT eltT
   | _ -> failwith "Not implemented"
 
 let type_of_copy t =

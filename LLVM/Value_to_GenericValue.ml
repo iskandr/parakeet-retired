@@ -13,11 +13,11 @@ open Value
 
 let pad_to size alignment = (size + alignment - 1) / alignment
 
-let int16 (i:int) = GenericValue.of_int LLVM_Types.int16_t i
-let int32 (i:Int32.t) = GenericValue.of_int32 LLVM_Types.int32_t i
-let int64 (i:Int64.t) = GenericValue.of_int64 LLVM_Types.int64_t i
-let float32 f = GenericValue.of_float LLVM_Types.float32_t f
-let float64 f = GenericValue.of_float LLVM_Types.float64_t f
+let int16 (i:int) = GenericValue.of_int LlvmType.int16_t i
+let int32 (i:Int32.t) = GenericValue.of_int32 LlvmType.int32_t i
+let int64 (i:Int64.t) = GenericValue.of_int64 LlvmType.int64_t i
+let float32 f = GenericValue.of_float LlvmType.float32_t f
+let float64 f = GenericValue.of_float LlvmType.float64_t f
 
 let array_cache : (Int64.t Value.t, GenericValue.t) Hashtbl.t =
   Hashtbl.create 127

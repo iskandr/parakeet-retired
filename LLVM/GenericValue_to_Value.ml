@@ -18,8 +18,8 @@ let generic_value_to_parnum (g_val:GenericValue.t) (eltT:Type.elt_t) : ParNum.t
   | Type.Int16T -> Int16 (GenericValue.as_int g_val)
   | Type.Int32T -> Int32 (GenericValue.as_int32 g_val)
   | Type.Int64T -> Int64 (GenericValue.as_int64 g_val)
-  | Type.Float32T -> Float32 (GenericValue.as_float LLVM_Types.float32_t g_val)
-  | Type.Float64T -> Float64 (GenericValue.as_float LLVM_Types.float64_t g_val)
+  | Type.Float32T -> Float32 (GenericValue.as_float LlvmType.float32_t g_val)
+  | Type.Float64T -> Float64 (GenericValue.as_float LlvmType.float64_t g_val)
   | _ -> assert false
 
 let of_generic_value ?(boxed_scalars=true) (gv:GenericValue.t) = function

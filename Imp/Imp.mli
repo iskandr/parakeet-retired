@@ -2,8 +2,9 @@ type cuda_info = ThreadIdx | BlockIdx | BlockDim | GridDim
 type coord = X | Y | Z
 
 type array_field =
-  | Shape
-  | Strides
+  | ArrayData
+  | ArrayShape
+  | ArrayStrides
   | RangeStart
   | RangeStop
   | ShiftData
@@ -13,6 +14,10 @@ type array_field =
   | RotData
   | RotDim
   | RotAmt
+
+val fields_of_type : ImpType.t -> array_field list
+val field_types : ImpType.t -> ImpType.t list
+val array_field_pos : array_field -> int
 
 type value =
   | Var of ID.t
@@ -79,6 +84,7 @@ val get_var_type : fn -> ID.t -> ImpType.t
 val get_var_storage : fn -> ID.t -> storage
 val get_var_shape : fn -> ID.t -> SymbolicShape.t
 
+val array_field_to_str : array_field -> string
 val cuda_info_to_str : cuda_info -> string
 val coord_to_str : coord -> string
 val array_storage_to_str : storage -> string

@@ -38,7 +38,10 @@ let optimize_module llvmModule llvmFn : unit =
   Llvm_target.TargetData.add (LLE.target_data execution_engine) pm;
 
   (* Promote allocas to registers. *)
+  Llvm_scalar_opts.add_verifier pm;
   Llvm_scalar_opts.add_memory_to_register_promotion pm;
+  Llvm_scalar_opts.add_scalar_repl_aggregation_ssa pm;
+  Llvm_scalar_opts.add_scalar_repl_aggregation pm;
   Llvm_scalar_opts.add_sccp pm;
   Llvm_scalar_opts.add_aggressive_dce pm;
   Llvm_scalar_opts.add_instruction_combination pm;
@@ -46,6 +49,13 @@ let optimize_module llvmModule llvmFn : unit =
   Llvm_scalar_opts.add_gvn pm;
   Llvm_scalar_opts.add_licm pm;
   Llvm_scalar_opts.add_loop_unroll pm;
+  Llvm_scalar_opts.add_ind_var_simplification pm;
+  Llvm_scalar_opts.add_memcpy_opt pm;
+  Llvm_scalar_opts.add_correlated_value_propagation pm;
+  Llvm_scalar_opts.add_loop_unswitch pm;
+  Llvm_scalar_opts.add_basic_alias_analysis pm;
+  Llvm_scalar_opts.add_dead_store_elimination;
+
 
   ignore (PassManager.run_function llvmFn pm);
   ignore (PassManager.finalize pm);
@@ -85,7 +95,7 @@ let allocate_output_arrays impFn inputShapes : Ptr.t Value.t list =
 let allocate_output_gv impT (shape:Shape.t) : GV.t  =
   match impT with
   | ImpType.ScalarT eltT ->
-    GV.of_int64 LLVM_Types.int64_t (HostMemspace.malloc (Type.sizeof eltT))
+    GV.of_int64 LlvmType.int64_t (HostMemspace.malloc (Type.sizeof eltT))
   | ImpType.ArrayT (eltT, _) ->
     Value_to_GenericValue.to_llvm (allocate_array eltT shape)
 
@@ -189,11 +199,14 @@ module CompiledFunctionCache = struct
     | None ->
       begin
         let llvmFn : Llvm.llvalue = Imp_to_LLVM.compile_fn impFn in
+        IFDEF DEBUG THEN
+          Printf.printf "Validating generated function...\n%!";
+          Llvm_analysis.assert_valid_function llvmFn;
+        ENDIF;
         optimize_module Imp_to_LLVM.global_module llvmFn;
         IFDEF DEBUG THEN
           print_endline  "[LLVM_Backend.call_imp_fn] Generated LLVM function";
           Llvm.dump_value llvmFn;
-          Llvm_analysis.assert_valid_function llvmFn;
         ENDIF;
         Hashtbl.add cache fnId llvmFn;
         llvmFn
@@ -292,7 +305,7 @@ let exec_reduce impFn inputShapes axes array_args llvmFn =
             | None -> failwith "Array expected in reduce intermediate slicing"
           in
           let ptr = HostMemspace.get_ptr_to_index data.Ptr.addr ty i in
-          GV.of_int64 LLVM_Types.int64_t ptr)
+          GV.of_int64 LlvmType.int64_t ptr)
         else
           let val_slice = Value.Slice(arg, 0, i, i + 1) in
           Value_to_GenericValue.to_llvm val_slice

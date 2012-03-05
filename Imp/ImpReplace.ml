@@ -26,7 +26,7 @@ let rec replace_value (env:Imp.value_node ID.Map.t) (valNode:Imp.value_node) =
   | Select (t, x, y, z) ->
     Select(t, replace_value env x, replace_value env y, replace_value env z)
   | Cast (t1, v) -> Cast (t1, replace_value env v)
-  | DimSize (n, e) -> DimSize (n, replace_value env e)
+  | DimSize (n, e) -> DimSize (replace_value env n, replace_value env e)
   | other -> other
   in {valNode with value = value'}
 

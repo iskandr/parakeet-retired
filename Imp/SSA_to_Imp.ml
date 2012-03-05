@@ -124,6 +124,8 @@ let rec idx_or_fixdims
     ~(dims:value_nodes)
     ~(indices:value_nodes) : value_node =
   let nIndices = List.length indices in
+  let arrT = arr.value_type in
+  let rank = ImpType.rank arrT in
   IFDEF DEBUG THEN
     let nDims = List.length dims in
     if nDims <> nIndices then
@@ -131,11 +133,18 @@ let rec idx_or_fixdims
         "[idx_or_fixdims] Mismatch between # of dims (%d) and # of indices(%d)"
         nDims
         nIndices
+    ;
+    if (nIndices > rank) && (rank > 0) then
+      failwith $ Printf.sprintf
+        "[idx_or_fixdims] Can't index into rank %d array with %d indices"
+        rank
+        nIndices
+    ;
   ENDIF;
-  let arrT = arr.value_type in
   (* for convenience, treat indexing into scalars as the identity operation *)
-  if ImpType.is_scalar arrT then arr
-  else if ImpType.rank arrT = nIndices && List.for_all is_const_int dims then
+  if rank = 0 then arr
+  else if rank = 1 then idx arr indices
+  else if rank = nIndices && (List.for_all ImpHelpers.is_const_int dims) then
     idx arr (permute (List.map get_const_int dims) indices)
   else fixdims arr dims indices
 
@@ -258,6 +267,7 @@ let declare_local_var
     let storage = ID.Map.find id storages in
     builder#declare id ~shape ~storage t
   )
+
 
 let rec translate_fn (ssaFn:TypedSSA.fn) (impInputTypes:ImpType.t list)
     : Imp.fn =
@@ -412,6 +422,22 @@ and translate_exp (builder:ImpBuilder.builder) expNode : Imp.value_node  =
       "[ssa->imp] unrecognized exp: %s"
       (TypedSSA.exp_node_to_str expNode)
 
+and inline (builder:ImpBuilder.builder) impFn inputs outputs : Imp.block =
+  let rename_local oldId =
+    let name = ID.get_original_prefix oldId in
+    let t = ID.Map.find oldId impFn.types in
+    let shape = ID.Map.find oldId impFn.shapes in
+    let storage = ID.Map.find oldId impFn.storage in
+    builder#fresh_local ~name ~storage ~shape t
+  in
+  let newLocalVars = List.map rename_local impFn.local_ids in
+  let replaceEnv =
+    ID.Map.of_lists
+      (impFn.input_ids @ impFn.output_ids @ impFn.local_ids)
+      (inputs @ outputs @ newLocalVars)
+  in
+  ImpReplace.replace_block replaceEnv impFn.body
+
 (* TODO: make this do something sane for adverbs other than Map *)
 and translate_adverb
     (builder:ImpBuilder.builder)
@@ -436,13 +462,13 @@ and translate_sequential_adverb
     (lhsVars : Imp.value_node list)
     (info : (TypedSSA.fn, Imp.value_nodes, Imp.value_nodes) Adverb.info)
     : Imp.stmt list =
-  (* To implement Map, Scan, and Reduce we loop over the specified axes *)
-  (* of the biggest array argument. *)
-  (* AllPairs is different in that we loop over the axes of the first arg *)
-  (* and nested within we loop over the same set of axes of the second arg. *)
   let slice_along_axes indexVars arr = idx_or_fixdims arr info.axes indexVars in
   (* pick any of the highest rank arrays in the input list *)
   let biggestArray : Imp.value_node = argmax_array_rank info.array_args in
+  (* To implement Map, Scan, and Reduce we loop over the specified axes *)
+  (* of the biggest array argument. AllPairs is different in that we loop *)
+  (* over the axes of the first arg and nested within we loop over the *)
+  (* same set of axes of the second arg. *)
   let initBlock, loopDescriptors, indexVars, nestedArrays, skipFirstIter =
     match info.adverb, info.init with
     | Adverb.Map, None ->
@@ -512,15 +538,10 @@ and translate_sequential_adverb
   let impFn : Imp.fn =
     translate_fn info.adverb_fn nestedInputTypes
   in
-  let replaceEnv =
-    ID.Map.of_lists
-      (impFn.input_ids @ impFn.output_ids)
-      (nestedInputs @ nestedOutputs)
-  in
-  let fnBody = ImpReplace.replace_block replaceEnv impFn.body in
+  let nestedBody = inline builder impFn nestedInputs nestedOutputs in
   let loops =
     build_loop_nests
-      ~skip_first_iter:skipFirstIter builder loopDescriptors fnBody
+      ~skip_first_iter:skipFirstIter builder loopDescriptors nestedBody
   in
   initBlock @ loops
 
@@ -591,13 +612,8 @@ and vectorize_adverb
       List.map (fun arg -> ImpHelpers.vec_slice arg vecLen vecIndexVars) lhsVars
     in
     let vecFn = Imp_to_SSE.vectorize_fn impFn vecLen in
-	  let vecReplaceEnv =
-	    ID.Map.of_lists
-	      (vecFn.input_ids @ vecFn.output_ids)
-	      (vecNestedArgs @ vecOutputs)
-	  in
-    let vecFnBody = ImpReplace.replace_block vecReplaceEnv vecFn.body in
-    let vecLoop = build_loop_nests builder [vecDescriptor] vecFnBody in
+    let vecFnBody =  inline builder vecFn vecNestedArgs vecOutputs in
+	  let vecLoop = build_loop_nests builder [vecDescriptor] vecFnBody in
 
     (* Add loop to handle straggler elements that can't be vectorized *)
     (* TODO: check whether we want to add this loop based on shape? *)

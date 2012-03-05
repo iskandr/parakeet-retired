@@ -6,21 +6,22 @@ type cpu_timer = {
   mutable running : bool;
 }
 
+(*
 type gpu_timer = {
   gpu_start : CudaEvent.CuEvent.t;
   gpu_end : CudaEvent.CuEvent.t;
   mutable gpu_time : float;
   mutable gpu_running : bool;
 }
-
+*)
 type timer =
   | CpuTimer of cpu_timer
-  | GpuTimer of gpu_timer
+  (*| GpuTimer of gpu_timer*)
 
 let timers : (string, timer) Hashtbl.t = Hashtbl.create 13
 
 let get_time () = Unix.gettimeofday ()
-
+(*
 let mk_gpu_timer name =
   let t =
     GpuTimer {
@@ -32,7 +33,7 @@ let mk_gpu_timer name =
   in
   Hashtbl.replace timers name t;
   t
-
+*)
 let mk_cpu_timer name =
   let timer =
     CpuTimer { start_time = get_time(); cpu_time = 0.0; running = false }
@@ -46,21 +47,23 @@ let clear = function
       timer.start_time <- 0.0;
       timer.cpu_time <- 0.0
     end
+(*
   | GpuTimer timer -> begin
       timer.gpu_time <- 0.0;
       timer.gpu_running <- false
     end
-
+*)
 let start = function
   | CpuTimer timer -> begin
       timer.start_time <- get_time();
       timer.running <- true
     end
+(*
   | GpuTimer timer -> begin
       CudaEvent.cuda_record_event timer.gpu_start;
       timer.gpu_running <- true
     end
-
+*)
 let stop = function
   | CpuTimer timer -> (
       if timer.running then (
@@ -69,7 +72,8 @@ let stop = function
         let extra = currTime -. timer.start_time in
         timer.cpu_time <- timer.cpu_time +. extra
       ))
-  | GpuTimer timer -> (
+(*
+   | GpuTimer timer -> (
       if timer.gpu_running then (
         let elapsedTime =
           CudaEvent.cuda_stop_event_and_get_elapsed_time
@@ -79,7 +83,7 @@ let stop = function
         timer.gpu_running <- false;
         timer.gpu_time <- timer.gpu_time +. elapsedTime
       ))
-
+*)
 let stop_all () = Hashtbl.iter (fun _ timer -> stop timer) timers
 
 let clear_all () = Hashtbl.iter (fun _ timer -> clear timer) timers
@@ -91,6 +95,7 @@ let get_total = function
     in
     timer.cpu_time +. extra
     end
+(*
   | GpuTimer timer -> begin
     let extra =
       if timer.gpu_running then
@@ -101,7 +106,7 @@ let get_total = function
     in
     (timer.gpu_time +. extra) /. 1000.0
     end
-
+*)
 let print_timers () =
   stop_all ();
   let print name timer =

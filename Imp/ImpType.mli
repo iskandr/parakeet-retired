@@ -1,8 +1,9 @@
 type elt_t = Type.elt_t
 
 type t =
-	| ArrayT of elt_t * int
   | ScalarT of elt_t
+  | PtrT of elt_t * int option
+	| ArrayT of elt_t * int
   | ExplodeT of elt_t * int
   | RotateT of t
 	| ShiftT of t

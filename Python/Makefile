@@ -24,7 +24,6 @@ PARAKEET_INCLUDES = -I $(BUILDPATH) \
 	-I $(BUILDPATH)/Runtime \
 	-I $(BUILDPATH)/Runtime/CostModel \
 	-I $(BUILDPATH)/Runtime/Memory \
-	-I $(BUILDPATH)/Runtime/ShapeInference \
 	-I $(BUILDPATH)/ShapeInference \
 	-I $(BUILDPATH)/SSA \
 	-I $(BUILDPATH)/SSA/Optimizations \

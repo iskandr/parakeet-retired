@@ -17,11 +17,11 @@ module CoreLanguage = struct
 	type adverb_info = (FnId.t, value_nodes, value_nodes) Adverb.info
 
 	type exp =
-	  | Values of value_nodes
-	  | Arr of value_nodes
-	  | Call of FnId.t * value_nodes
-	  | PrimApp of Prim.t * value_nodes
-	  | Adverb of adverb_info
+    | Values of value_nodes
+    | Arr of value_nodes
+    | Call of FnId.t * value_nodes
+    | PrimApp of Prim.t * value_nodes
+    | Adverb of adverb_info
     | Cast of Type.t * value_node
 
 	type exp_node = {

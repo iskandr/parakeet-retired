@@ -168,15 +168,15 @@ module Make(P: REWRITE_PARAMS) = struct
         let typedFn = P.specializer untypedFnVal nestedSig in
         mk_adverb_exp info.adverb typedFn
       | Adverb.Map, Some _ -> failwith "Map can't have initial args"
-      | Adverb.AllPairs, None -> 
+      | Adverb.AllPairs, None ->
         failwith "AllPairs operator must have two inputs"
       | Adverb.AllPairs, Some _ ->
         failwith "AllPairs operator can't have initial args"
       | Adverb.Reduce, None ->
-        if List.length eltTypes <> 1 then 
-          failwith "Reduce without initial args can only have 1 input"  
-        else 
-        let eltT = List.hd eltTypes in 
+        if List.length eltTypes <> 1 then
+          failwith "Reduce without initial args can only have 1 input"
+        else
+        let eltT = List.hd eltTypes in
         let inputArity = untyped_value_input_arity untypedFnVal in
         if inputArity <> 2 then
           let errMsg =
@@ -275,12 +275,19 @@ module Make(P: REWRITE_PARAMS) = struct
             (* if operation is a float, then make sure the inputs are*)
             (* at least float32 *)
             let inT =
-              if Prim.is_float_unop op then
+              if Prim.is_float_op op then
                 Type.combine_type_list (Type.float32::argTypes)
               else
                 Type.combine_type_list argTypes
             in
             let args = coerce_typed_values inT argNodes in
+            IFDEF DEBUG THEN
+              Printf.printf "PRIMAPP: %s %s=>%s for inputs %s"
+                (Prim.to_str p)
+                (Type.to_str inT)
+                (Type.to_str outT)
+                (TypedSSA.value_nodes_to_str argNodes)
+            ENDIF;
             TypedSSA.primapp p [outT] args
         end
     | UntypedSSA.Prim (Prim.ArrayOp op) ->
@@ -367,13 +374,13 @@ module Make(P: REWRITE_PARAMS) = struct
 
     | UntypedSSA.SetIdx (lhs, indices, rhs) ->
       let typedArray = annotate_value lhs in
-      let indices : TypedSSA.value_node list = 
+      let indices : TypedSSA.value_node list =
         List.map (coerce_value Type.int32) indices in
       let rhsT =
         Type.peel ~num_axes:(List.length indices) typedArray.TypedSSA.value_type
       in
       let rhs : TypedSSA.exp_node = rewrite_exp [rhsT] rhs in
-      let typedStmtNode = 
+      let typedStmtNode =
         TypedSSA.wrap_stmt ?src $ TypedSSA.SetIdx(typedArray, indices, rhs)
       in
       collect_coercions() @ [typedStmtNode]
@@ -402,14 +409,14 @@ module Make(P: REWRITE_PARAMS) = struct
       collect_coercions() @ [typedStmtNode]
 
   and rewrite_block (untypedBlock : UntypedSSA.block) : TypedSSA.block =
-    let typedBlock = Block.create () in 
+    let typedBlock = Block.create () in
     let process_stmt (untyped:UntypedSSA.stmt_node) =
-      let stmts = rewrite_stmt untyped in 
+      let stmts = rewrite_stmt untyped in
       List.iter (fun s -> Block.add typedBlock s) stmts
     in
     Block.iter_forward process_stmt untypedBlock;
     typedBlock
- 
+
   and rewrite_fn f =
     let body : TypedSSA.block= rewrite_block f.UntypedSSA.body in
     TypedSSA.mk_fn

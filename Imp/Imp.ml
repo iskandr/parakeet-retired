@@ -6,8 +6,9 @@ type cuda_info = ThreadIdx | BlockIdx | BlockDim | GridDim
 type coord = X | Y | Z
 
 type array_field =
-  | Shape
-  | Strides
+  | ArrayData
+  | ArrayShape
+  | ArrayStrides
   | RangeStart
   | RangeStop
   | ShiftData
@@ -17,6 +18,42 @@ type array_field =
   | RotData
   | RotDim
   | RotAmt
+
+
+let fields_of_type = function
+  | ImpType.ScalarT _ -> []
+  | ImpType.ArrayT _ -> [ArrayData; ArrayShape; ArrayStrides]
+  | ImpType.RangeT _ -> [RangeStart; RangeStop]
+  | ImpType.PtrT _ -> failwith "Pointers have no fields"
+  | ImpType.ExplodeT _ -> failwith "Explode not yet implemented"
+  | ImpType.RotateT _ -> failwith "Rotate not yet implemented"
+  | ImpType.ShiftT _ -> failwith "Shift not yet implemented"
+
+
+let rec field_types = function
+  | ImpType.ScalarT _ -> []
+  | ImpType.ArrayT(eltT, rank) ->
+    [
+      ImpType.PtrT (eltT, None);
+      ImpType.PtrT (Type.Int32T, Some rank);
+      ImpType.PtrT (Type.Int32T, Some rank);
+    ]
+  | _ -> failwith "Not implemented"
+
+
+let array_field_pos = function
+  | ArrayData -> 0
+  | ArrayShape -> 1
+  | ArrayStrides -> 2
+  | RangeStart -> 0
+  | RangeStop -> 1
+  | ShiftData -> 0
+  | ShiftAmt -> 1
+  | ShiftDim -> 2
+  | ShiftDefault -> 3
+  | RotData -> 0
+  | RotDim -> 1
+  | RotAmt -> 2
 
 type value =
   | Var of ID.t
@@ -121,8 +158,9 @@ let cuda_info_to_str = function
   | GridDim -> "griddim"
 
 let array_field_to_str = function
-  | Shape -> "shape"
-  | Strides -> "strides"
+  | ArrayData -> "data"
+  | ArrayShape -> "shape"
+  | ArrayStrides -> "strides"
   | RangeStart -> "range_start"
   | RangeStop -> "range_stop"
   | ShiftData -> "shift_data"
@@ -271,3 +309,4 @@ let rec always_const {value} = match value with
     always_const pred && always_const arg1 && always_const arg2
   | Op (_, _, args) -> List.for_all always_const args
   | _ -> false
+
