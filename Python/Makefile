@@ -24,7 +24,6 @@ PARAKEET_INCLUDES = -I $(BUILDPATH) \
 	-I $(BUILDPATH)/Runtime \
 	-I $(BUILDPATH)/Runtime/CostModel \
 	-I $(BUILDPATH)/Runtime/Memory \
-	-I $(BUILDPATH)/Runtime/ShapeInference \
 	-I $(BUILDPATH)/ShapeInference \
 	-I $(BUILDPATH)/SSA \
 	-I $(BUILDPATH)/SSA/Optimizations \
@@ -37,15 +36,15 @@ COMMON = `ls $(PARAKEET_PATH)/Common/*.o`
 FRONTEND = `ls $(PARAKEET_PATH)/FrontEnd/*.o`
 LLVMRUNTIME = `ls $(PARAKEET_PATH)/LLVM/*.o`
 OBJS =
-COBJS = -ccopt -L/usr/lib/nvidia-current \
-  $(PARAKEET_PATH)/GPU/stubs/parakeet_cuda.a $(COMMON) $(FRONTEND) $(LLVMRUNTIME) \
+COBJS = $(COMMON) $(FRONTEND) $(LLVMRUNTIME) \
+	-ccopt -L/usr/lib/nvidia-current \
 	-ccopt -lcuda \
 	-ccopt -L/usr/local/cuda/lib \
 	-ccopt -L/usr/local/cuda/lib64 \
 	-ccopt -lcudart \
 	-ccopt -L/usr/local/lib \
 	-ccopt -ldl -ccopt -lm -ccopt -lpthread -ccopt -lLLVMCore -ccopt -lLLVMSupport
-	
+# $(PARAKEET_PATH)/GPU/stubs/parakeet_cuda.a 
 OCAML_LIB_OBJECTS := bigarray.$(OBJ_ARCHIVE_SUFFIX) \
   extLib.$(OBJ_ARCHIVE_SUFFIX) \
   str.$(OBJ_ARCHIVE_SUFFIX) \
