@@ -44,20 +44,6 @@ module LLVM_Intrinsics =
   LLVM_Intrinsics.MkIntrinsics(struct let m = global_module end)
 
 module Indexing = struct
-  let array_field_to_idx = function
-    | ArrayData -> 0
-    | ArrayShape -> 1
-    | ArrayStrides -> 2
-    | RangeStart -> 0
-    | RangeStop -> 1
-    | ShiftData -> 0
-    | ShiftAmt -> 1
-    | ShiftDim -> 2
-    | ShiftDefault -> 3
-    | RotData -> 0
-    | RotDim -> 1
-    | RotAmt -> 2
-
 
   let get_array_field_addr (fnInfo:fn_info) (array:llvalue) field : llvalue =
     let resultName =
@@ -66,7 +52,7 @@ module Indexing = struct
     IFDEF DEBUG THEN
       Printf.printf "get_array_field_addr %s\n%!" resultName;
     ENDIF;
-    let indices = [|zero_i32; mk_int32 (array_field_to_idx field) |] in
+    let indices = [|zero_i32; mk_int32 (Imp.array_field_pos field) |] in
     Llvm.build_gep array indices resultName fnInfo.builder
 
   let get_array_field (fnInfo:fn_info) (array:llvalue) field : llvalue =
@@ -123,13 +109,13 @@ module Indexing = struct
       ?(i=0)
 	    ?(offset=zero_i32)
       (indices:llvalue list) : llvalue =
+
     match indices with
 	  | currIdx :: otherIndices ->
 	    if Llvm.is_null currIdx then
 	      compute_offset fnInfo array ~i:(i+1) ~offset otherIndices
 	    else (
 	      let strideVal : llvalue = get_array_strides_elt fnInfo array i in
-        Llvm.dump_value strideVal;
 	      let currOffset =
 	        Llvm.build_mul strideVal currIdx "offset_term" fnInfo.builder
 	      in
@@ -137,14 +123,9 @@ module Indexing = struct
 	      let newOffset =
 	        if Llvm.is_null offset then currOffset
 	        else
-            (let instr =
-               Llvm.build_add offset currOffset "offset" fnInfo.builder
-             in
-             Llvm.dump_value instr;
-             instr
-            )
+            let offsetName = "offset_" ^ (string_of_int i) ^ "_" in
+            Llvm.build_add offset currOffset offsetName fnInfo.builder
 	      in
-
 	      compute_offset fnInfo array ~i:(i+1) ~offset:newOffset otherIndices
       )
 	  | [] ->
@@ -164,13 +145,12 @@ module Indexing = struct
     ENDIF;
 	  let dataPtr = get_array_field fnInfo array ArrayData  in
     Llvm.dump_value dataPtr;
-	  let offset = compute_offset fnInfo array indices in
+ 	  let offset = compute_offset fnInfo array indices in
     Llvm.dump_value offset;
-	  let newAddr =
-      Llvm.build_gep dataPtr [|offset|] "idxAddr" fnInfo.builder
-    in
+    let addrName = Llvm.value_name array ^ "_idxAddr" in
+	  let newAddr = Llvm.build_gep dataPtr [|offset|] addrName fnInfo.builder in
     Llvm.dump_value newAddr;
-	  newAddr
+    newAddr
 
 	let compile_range_load
 	    (array:Llvm.llvalue)
@@ -331,6 +311,15 @@ let compile_math_op (t:Type.elt_t) op (vals:llvalue list) builder =
       (Prim.scalar_op_to_str op) (List.length vals)
 
 
+let compile_var ?(do_load=true) fnInfo (id:ID.t) =
+  let name = ID.to_str id in
+  match Hashtbl.find_option fnInfo.named_values name with
+    | None -> failwith $"[Imp_to_LLVM] unknown variable " ^ name
+    | Some ptr ->
+      if do_load then build_load ptr (name ^ "_value") fnInfo.builder
+      else ptr
+
+
 (* Change to function? *)
 let rec compile_value ?(do_load=true) fnInfo (impVal:Imp.value_node) =
   IFDEF DEBUG THEN
@@ -338,18 +327,7 @@ let rec compile_value ?(do_load=true) fnInfo (impVal:Imp.value_node) =
       (Imp.value_node_to_str impVal)
   ENDIF;
   match impVal.value with
-  | Imp.Var id ->
-      let name = ID.to_str id in
-      begin match Hashtbl.find_option fnInfo.named_values name with
-        | None ->
-          failwith $"[Imp_to_LLVM] unknown variable " ^ name
-        | Some ptr ->
-          if do_load then
-            let tempName = name ^ "_value" in
-            build_load ptr tempName fnInfo.builder
-          else ptr
-      end
-
+  | Imp.Var id -> compile_var ~do_load fnInfo id
   | Imp.DimSize (arr, idx) ->
     let llvmArr = compile_value ~do_load:false fnInfo arr in
     let llvmIdx = compile_value fnInfo idx in
@@ -488,25 +466,35 @@ let allocate_local_array_info
 
 
 
-let copy_array (fnInfo:fn_info) srcAddr destAddr nelts =
+let copy_array (fnInfo:fn_info) ?exclude ?apply_to_elts srcAddr destAddr nelts =
   for i = 0 to nelts - 1 do
-    let idx = mk_int64 i in
-    let src = Llvm.build_gep srcAddr [|idx|] "src" fnInfo.builder in
-    Llvm.dump_value src;
-    let eltName =
-      (Llvm.value_name srcAddr) ^ "_elt_" ^ (string_of_int i) ^ "_"
-    in
-    let elt = Llvm.build_load src eltName fnInfo.builder in
-    let dest = Llvm.build_gep destAddr [|idx|] "dest" fnInfo.builder in
-    Llvm.dump_value dest;
-    let storeInstr = Llvm.build_store elt dest fnInfo.builder in
-    Llvm.dump_value storeInstr
+    if match exclude with None -> true | Some j -> i <> j then begin
+      let idx = mk_int64 i in
+      let src = Llvm.build_gep srcAddr [|idx|] "src" fnInfo.builder in
+      Llvm.dump_value src;
+      let eltName =
+        (Llvm.value_name srcAddr) ^ "_elt_" ^ (string_of_int i) ^ "_"
+      in
+      let elt =
+        let rawElt = Llvm.build_load src eltName fnInfo.builder in
+        match apply_to_elts with
+        | None -> rawElt
+        | Some f -> f rawElt
+      in
+      let dest = Llvm.build_gep destAddr [|idx|] "dest" fnInfo.builder in
+      Llvm.dump_value dest;
+      let storeInstr = Llvm.build_store elt dest fnInfo.builder in
+      Llvm.dump_value storeInstr
+    end
   done
 
 
 (* to avoid loads from shape/stride arrays in the heart of tight loops, *)
 (* we instead load all of the metadata into stack allocated arrays and*)
 (* hope the fields get turned into SSA variables (and thus optimized) *)
+
+(* IMPORTANT: When we copy a field, we divide it by the eltsize so that*)
+(* local strides are by number of elts, not number of bytes *)
 let copy_array_metadata (fnInfo:fn_info) (src:llvalue) (dest:llvalue) rank  =
   let srcData = get_array_field fnInfo src ArrayData in
   let destDataField = get_array_field_addr fnInfo dest ArrayData in
@@ -516,9 +504,20 @@ let copy_array_metadata (fnInfo:fn_info) (src:llvalue) (dest:llvalue) rank  =
   let destShapeField = get_array_field fnInfo dest ArrayShape in
   copy_array fnInfo srcShapeField destShapeField rank;
 
-  let srcStridesField = get_array_field fnInfo src ArrayStrides in
-  let destStridesField = get_array_field fnInfo dest ArrayStrides in
-  copy_array fnInfo srcStridesField destStridesField rank
+  let srcStrides = get_array_field fnInfo src ArrayStrides in
+  let destStrides = get_array_field fnInfo dest ArrayStrides in
+  (* local strides array should be in terms of elements, not number of bytes *)
+  let div_stride (byteStride:llvalue) : llvalue =
+    let eltT : lltype = Llvm.element_type (Llvm.type_of srcData) in
+
+    (* returns elt size of array as 64-bit integer *)
+    let eltSize = Llvm.size_of eltT in
+
+    let eltSize32 = Llvm.const_intcast eltSize LlvmType.int32_t in
+    let newStrideName = Llvm.value_name byteStride ^ "_as_num_elts" in
+    Llvm.build_sdiv byteStride eltSize32 newStrideName fnInfo.builder
+  in
+  copy_array fnInfo ~apply_to_elts:div_stride srcStrides destStrides rank
 
 
 let init_local_var (fnInfo:fn_info) (id:ID.t) =
@@ -609,12 +608,18 @@ let init_compiled_fn (fnInfo:fn_info) =
   List.iter (init_local_var fnInfo) fnInfo.local_ids;
   llvmFn
 
+let store_output_metadata fnInfo outputId = ()
+
+let finalize_function fnInfo =
+  (* we implement multiple return values by passing the output addresses as *)
+  (* parameters so there's nothing left to return *)
+  List.iter (store_output_metadata fnInfo) fnInfo.output_ids;
+  Llvm.build_ret_void fnInfo.builder
+
 let compile_fn (fn : Imp.fn) : Llvm.llvalue =
   let fnInfo = create_fn_info fn in
   let llvmFn : Llvm.llvalue = init_compiled_fn fnInfo in
   let initBasicBlock : Llvm.llbasicblock = Llvm.entry_block llvmFn in
   let _ = compile_stmt_seq fnInfo initBasicBlock fn.body in
-  (* we implement multiple return values by passing the output addresses as *)
-  (* parameters so there's nothing left to return *)
-  Llvm.build_ret_void fnInfo.builder;
+  finalize_function fnInfo;
   llvmFn

@@ -38,6 +38,24 @@ let rec field_types = function
       ImpType.PtrT (Type.Int32T, Some rank);
     ]
   | _ -> failwith "Not implemented"
+
+
+let array_field_pos = function
+  | ArrayData -> 0
+  | ArrayShape -> 1
+  | ArrayStrides -> 2
+  | RangeStart -> 0
+  | RangeStop -> 1
+  | ShiftData -> 0
+  | ShiftAmt -> 1
+  | ShiftDim -> 2
+  | ShiftDefault -> 3
+  | RotData -> 0
+  | RotDim -> 1
+  | RotAmt -> 2
+
+
+
 type value =
   | Var of ID.t
   | Const of ParNum.t

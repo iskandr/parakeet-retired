@@ -18,6 +18,7 @@ type array_field =
 
 val fields_of_type : ImpType.t -> array_field list
 val field_types : ImpType.t -> ImpType.t list
+val array_field_pos : array_field -> int
 
 type value =
   | Var of ID.t
