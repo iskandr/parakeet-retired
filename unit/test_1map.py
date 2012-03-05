@@ -9,7 +9,7 @@ def implicit_map(x):
 
 def test_implicit_map():
   print "Testing implicit maps" 
-  x = np.array(range(127), dtype=np.int64)
+  x = np.array(range(100), dtype=np.int32)
   y = implicit_map(x)
   y_original = implicit_map.call_original(x)
   print "Python = %s, Parakeet = %s" % (y_original, y)

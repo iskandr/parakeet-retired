@@ -218,33 +218,42 @@ let build_cpu (node:Xml.xml) =
     cpu
   | _ -> failwith "Expected Machine node in CPU XML configuration file"
 
-let build_gpu (node:Xml.xml) =
+let dummy_gpu =
   {
     gpu_id = -1;
-	  name = "GPU0";
-	  global_mem = -1;
-	  shared_mem_per_sm = -1;
-	  regs_per_block = -1;
-	  warp_size = -1;
-	  mem_pitch = -1;
-	  max_threads_per_block = -1;
-	  max_threads_per_x = -1;
-	  max_threads_per_y = -1;
-	  max_threads_per_z = -1;
-	  max_grid_size_x = -1;
-	  max_grid_size_y = -1;
-	  gpu_clock_rate_ghz = 0.0;
-	  total_const_mem = 0;
-	  accessible_peers = Array.make 0 0;
-	  global_mem_id = 0;
-	  peak_global_bw = 0.0;
+      name = "GPU0";
+      global_mem = -1;
+      shared_mem_per_sm = -1;
+      regs_per_block = -1;
+      warp_size = -1;
+      mem_pitch = -1;
+      max_threads_per_block = -1;
+      max_threads_per_x = -1;
+      max_threads_per_y = -1;
+      max_threads_per_z = -1;
+      max_grid_size_x = -1;
+      max_grid_size_y = -1;
+      gpu_clock_rate_ghz = 0.0;
+      total_const_mem = 0;
+      accessible_peers = Array.make 0 0;
+      global_mem_id = 0;
+      peak_global_bw = 0.0;
   }
+
+let build_gpu (node:Xml.xml) = dummy_gpu
 
 let build_machine_model () =
   let homedir = Sys.getenv "HOME" in
-  let gpufile = homedir ^ "/.parakeet/parakeetgpuconf.xml" in
-  let gpuxml = Xml.parse_file gpufile in
-  let gpus = Array.make 1 (build_gpu gpuxml) in
+
+  let gpus =
+    IFDEF GPU THEN
+      let gpufile = homedir ^ "/.parakeet/parakeetgpuconf.xml" in
+      let gpuxml = Xml.parse_file gpufile in
+      Array.make 1 (build_gpu gpuxml)
+    ELSE Array.make 0 dummy_gpu
+  ENDIF;
+  in
+
   let cpufile = homedir ^ "/.parakeet/parakeetcpuconf.xml" in
   let cpuxml = Xml.parse_file cpufile in
   let cpus = Array.make 1 (build_cpu cpuxml) in
