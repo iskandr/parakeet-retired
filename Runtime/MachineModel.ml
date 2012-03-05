@@ -257,7 +257,6 @@ let build_machine_model () =
   let cpufile = homedir ^ "/.parakeet/parakeetcpuconf.xml" in
   let cpuxml = Xml.parse_file cpufile in
   let cpus = Array.make 1 (build_cpu cpuxml) in
-  IFDEF DEBUG THEN print_cpu cpus.(0); ENDIF;
   {gpus = gpus; cpus = cpus; total_ram = 16384}
 
 let machine_model = build_machine_model ()
