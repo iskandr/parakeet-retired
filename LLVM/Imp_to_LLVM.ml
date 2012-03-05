@@ -251,7 +251,7 @@ module Indexing = struct
       (imp_t:ImpType.t)
       (fnInfo:fn_info) =
     match imp_t, indices  with
-    | ImpType.VecSliceT(eltT, width), [idx] ->
+    | ImpType.VectorT(eltT, width), [idx] ->
       (* WARNING: Assume slice is through an ordinary array, not a range *)
       let dataPtr = get_array_field fnInfo array ArrayData  in
       let offsetScalarPtr =
@@ -438,11 +438,8 @@ let rec compile_value ?(do_load=true) fnInfo (impVal:Imp.value_node) =
     let llvmArray = compile_value ~do_load:false fnInfo arr in
     let llvmIndices = List.map (compile_value fnInfo) indices in
     begin match impVal.value_type with
-      | ImpType.VecSliceT (imp_elt_t, width) ->
-        let idxAddr =
-          compile_vec_slice llvmArray llvmIndices impVal.value_type fnInfo
-        in
-        Llvm.build_load idxAddr "ret" fnInfo.builder
+      | ImpType.VectorT (imp_elt_t, width) ->
+        assert false
       | _ ->
         begin match arr.value_type with
           | ImpType.RangeT imp_elt_t ->
@@ -454,6 +451,13 @@ let rec compile_value ?(do_load=true) fnInfo (impVal:Imp.value_node) =
             Llvm.build_load idxAddr "ret" fnInfo.builder
         end
     end
+  | Imp.VecSlice (arr, indices) ->
+    let llvmArray = compile_value ~do_load:false fnInfo arr in
+    let llvmIndices = List.map (compile_value fnInfo) indices in
+    let idxAddr =
+      compile_vec_slice llvmArray llvmIndices impVal.value_type fnInfo
+    in
+    Llvm.build_load idxAddr "ret" fnInfo.builder
 	| _ ->
 	  failwith $ Printf.sprintf
       "[Imp_to_LLVM] Not implemented %s"
@@ -537,15 +541,28 @@ and compile_stmt fnInfo currBB stmt =
           compile_arr_idx arrayPtr indexRegisters imp_elt_t fnInfo
         in
         Llvm.build_store rhsVal idxAddr fnInfo.builder
-      | ImpType.VecSliceT (_, _) ->
-        Printf.printf "Compiling SetIdx to VecSlice\n%!";
-        let idxAddr =
-          compile_vec_slice arrayPtr indexRegisters rhs.value_type fnInfo
-        in
-        Llvm.build_store rhsVal idxAddr fnInfo.builder
+      | ImpType.VectorT (_, _) ->
+        IFDEF DEBUG THEN Printf.printf "Compiling SetIdx to VectorT\n%!" ENDIF;
+        assert(false);
+        (* TODO: the following lines are just to get it to compile. change *)
+		    let idxAddr =
+		      compile_vec_slice arrayPtr indexRegisters rhs.value_type fnInfo
+		    in
+		    Llvm.build_store rhsVal idxAddr fnInfo.builder
       | other -> failwith $ Printf.sprintf
         "[Imp_to_LLVM] Unsuported set index for type %s" (ImpType.to_str other)
     end;
+    currBB
+
+  | Imp.SetVecSlice (arr, indices, rhs) ->
+    let arrayPtr : Llvm.llvalue = compile_value ~do_load:false fnInfo arr in
+    let indexRegisters : Llvm.llvalue list = compile_values fnInfo indices in
+    let rhsVal = compile_value fnInfo rhs in
+    IFDEF DEBUG THEN Printf.printf "Compiling SetVecSlice to LLVM\n%!" ENDIF;
+    let idxAddr =
+      compile_vec_slice arrayPtr indexRegisters rhs.value_type fnInfo
+    in
+    Llvm.build_store rhsVal idxAddr fnInfo.builder;
     currBB
 
   | other ->

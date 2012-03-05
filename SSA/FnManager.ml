@@ -3,11 +3,10 @@
 open Base
 open Printf
 
-
-(* A program is a mapping of function names to their functions.*)
+(* A program is a mapping of function names to their functions. *)
 (* These functions exist in both untyped and typed forms, as well as *)
 (* a dataflow graph representations which should be eventually eliminated. *)
-(* Functions are optimized before being inserted into the program *)
+(* Functions are optimized before being inserted into the program. *)
 
 type t = {
   untyped_functions : (FnId.t, UntypedSSA.fn) Hashtbl.t;
@@ -22,7 +21,6 @@ type t = {
 
   untyped_id_to_name : (FnId.t, string) Hashtbl.t;
 }
-
 
 let create () =
   let n = 127 in
@@ -53,7 +51,6 @@ let add_untyped_map  fnMap =
 let add_typed ?(optimize=true) fn =
   FnTable.add ~opt_queue:optimize fn state.typed_functions
 
-
 let default_typed_optimizations =
   [
     (*"function cloning", TypedFunctionCloning.function_cloning;*)
@@ -70,7 +67,6 @@ let optimize_typed_functions () =
     state.typed_functions
     default_typed_optimizations
   (*;Timing.stop Timing.typedOpt*)
-
 
 let get_untyped_name id = Hashtbl.find state.untyped_id_to_name id
 let get_untyped_id name = Hashtbl.find state.name_to_untyped_id name
@@ -141,7 +137,6 @@ let input_arity_of_untyped_fn fnId =
 let output_arity_of_untyped_fn fnId =
   UntypedSSA.FnHelpers.output_arity (get_untyped_function fnId)
 
-
 let input_arity_of_typed_fn fnId =
   TypedSSA.FnHelpers.input_arity (get_typed_function fnId)
 let output_arity_of_typed_fn fnId =
@@ -151,4 +146,3 @@ let input_types_of_typed_fn fnId =
   TypedSSA.FnHelpers.input_types (get_typed_function fnId)
 let output_types_of_typed_fn fnId =
   TypedSSA.FnHelpers.output_types (get_typed_function fnId)
-

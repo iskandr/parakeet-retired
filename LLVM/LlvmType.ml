@@ -49,7 +49,7 @@ let of_elt_type = function
 let rec of_imp_type = function
   | ImpType.ScalarT eltT -> of_elt_type eltT
   | ImpType.PtrT(eltT, _) -> Llvm.pointer_type (of_elt_type eltT)
-  | ImpType.VecSliceT (eltT, width) ->
+  | ImpType.VectorT (eltT, width) ->
     let scalarT = of_elt_type eltT in
     Llvm.vector_type scalarT width
   | compound ->

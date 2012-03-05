@@ -50,6 +50,8 @@ let rec replace_stmt (env:Imp.value_node ID.Map.t) = function
       | None -> Set(id, rhs)
       | Some {value=Imp.Var id} -> Set(id, rhs)
       | Some {value=Imp.Idx(array, indices)} -> SetIdx(array, indices, rhs)
+      | Some {value=Imp.VecSlice(array, indices)} ->
+        SetVecSlice(array, indices, rhs)
       | Some other -> failwith $ Printf.sprintf
         "Unexpected lhs replacement %s -> %s"
         (ID.to_str id)

@@ -23,7 +23,7 @@ let rec to_lltype = function
       Llvm.struct_type context [|nested; int32_t; int32_t; int32_t|]
     in
     Llvm.pointer_type structT
-  | ImpType.VecSliceT (eltT, w) ->
+  | ImpType.VectorT (eltT, w) ->
     let scalarLLType = scalar_to_lltype eltT in
     Llvm.vector_type scalarLLType w
   (* todo: implement FixDimT, SliceT *)

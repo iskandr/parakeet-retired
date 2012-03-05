@@ -8,7 +8,7 @@ type t =
   | RotateT of t
 	| ShiftT of t
   | RangeT of elt_t
-  | VecSliceT of elt_t * int
+  | VectorT of elt_t * int
 
 val to_str : t -> string
 val type_list_to_str : t list -> string

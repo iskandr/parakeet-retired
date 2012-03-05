@@ -61,6 +61,7 @@ type value =
   | VecConst of ParNum.t list
   | CudaInfo of cuda_info * coord
   | Idx of value_node * value_node list
+  | VecSlice of value_node * value_node list
   | Val of value_node
   | Op of ImpType.t * Prim.scalar_op * value_node list
   | Select of ImpType.t * value_node * value_node * value_node
@@ -81,6 +82,7 @@ type stmt =
   | While of value_node * block (* test, body *)
   | Set of ID.t * value_node
   | SetIdx of value_node * value_node list * value_node
+  | SetVecSlice of value_node * value_node list * value_node
   | SyncThreads
   | Comment of string
 and block = stmt list
@@ -180,6 +182,10 @@ let rec value_to_str = function
     sprintf "%s[%s]"
       (value_node_to_str arr)
       (value_nodes_to_str args)
+  | VecSlice (arr, args) ->
+    sprintf "vecslice(%s[%s])"
+      (value_node_to_str arr)
+      (value_nodes_to_str args)
   | Op (argT, op, args) ->
     sprintf "%s:%s (%s)"
       (Prim.scalar_op_to_str op)
@@ -254,6 +260,11 @@ let rec stmt_to_str ?(spaces="") = function
     let idxStr = value_nodes_to_str indices in
     let rhsStr = value_node_to_str rhs in
 	  sprintf "%s %s[%s] = %s" spaces lhsStr idxStr rhsStr
+  | SetVecSlice (lhs, indices, rhs) ->
+    let lhsStr = value_node_to_str lhs in
+    let idxStr = value_nodes_to_str indices in
+    let rhsStr = value_node_to_str rhs in
+    sprintf "%s vecslice(%s[%s]) = %s" spaces lhsStr idxStr rhsStr
   | SyncThreads -> spaces ^ "syncthreads"
   | Comment s -> spaces ^ "// " ^ s
   (* used to plug one function into another, shouldn't exist in final code *)

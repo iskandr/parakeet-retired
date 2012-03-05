@@ -246,7 +246,7 @@ let vec_slice arr width indices =
         numIndices
     ;
     let eltT = ImpType.elt_type arrT in
-    {value = Idx(arr, indices); value_type = ImpType.VecSliceT(eltT, width)}
+    {value = VecSlice(arr, indices); value_type = ImpType.VectorT(eltT, width)}
   end
 
 let is_const_int {value} = match value with
