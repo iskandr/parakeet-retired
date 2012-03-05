@@ -5,7 +5,7 @@ open Imp
 open ImpType
 
 let vectorize_type width = function
-  | ScalarT eltT -> VecSliceT(eltT, width)
+  | ScalarT eltT -> VectorT(eltT, width)
   | _ -> failwith "Unsupported type to vectorize"
 
 let rec vectorize_value width valNode =
@@ -14,6 +14,7 @@ let rec vectorize_value width valNode =
   | Const n ->
     VecConst((List.fill n (List.til width))), valNode.value_type
   | Op(argT, op, vs) -> Op(argT, op, vectorize_values width vs), vecType
+  | Idx(arr, indices) -> VecSlice(arr, indices), vecType
   | other -> other, vecType
   in
   {value = newValue; value_type = newType}
@@ -30,7 +31,7 @@ let rec vectorize_stmt width = function
   | SetIdx({value=Var id} as lhs, indices, rhs) ->
     let rhs = vectorize_value width rhs in
     let indices = vectorize_values width indices in
-    SetIdx(lhs, indices, rhs)
+    SetVecSlice(lhs, indices, rhs)
   | other ->
     failwith $
       Printf.sprintf "Unvectorizable statement: %s" (Imp.stmt_to_str other)

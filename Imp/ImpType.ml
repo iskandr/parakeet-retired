@@ -8,15 +8,15 @@ type t =
   | RotateT of t
   | ShiftT of t
   | RangeT of elt_t
-  | VecSliceT of elt_t * int (* type, width *)
+  | VectorT of elt_t * int (* type, width *)
 
 let rec to_str = function
 	| ScalarT elt_t -> Type.elt_to_str elt_t
 	| ArrayT (elt_t, r) ->
     Printf.sprintf "array%d<%s>" r (Type.elt_to_str elt_t)
 	| ShiftT t -> Printf.sprintf "shift(%s)" (to_str t)
-  | VecSliceT (elt_t, w) ->
-    Printf.sprintf "vecslice%d(%s)" w (Type.elt_to_str elt_t)
+  | VectorT (elt_t, w) ->
+    Printf.sprintf "vec%d(%s)" w (Type.elt_to_str elt_t)
   | _ -> failwith "Not implemented"
 
 let type_list_to_str ts = String.concat ", " (List.map to_str ts)
@@ -25,7 +25,7 @@ let rec elt_type = function
   | RangeT t
 	| ScalarT t
   | ExplodeT (t, _)
-  | VecSliceT (t, _)
+  | VectorT (t, _)
   | ArrayT (t, _) -> t
   | RotateT nested
   | ShiftT nested -> elt_type nested
@@ -54,7 +54,7 @@ let is_array = function
 let rec rank = function
 	| ScalarT _ -> 0
   | ExplodeT (_, r)
-  | VecSliceT (_, r)
+  | VectorT (_, r)
 	| ArrayT (_, r) -> r
 	| ShiftT x -> rank x
   | _ -> failwith "Not implemented"

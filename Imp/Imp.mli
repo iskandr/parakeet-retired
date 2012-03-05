@@ -20,6 +20,7 @@ type value =
   | VecConst of ParNum.t list
   | CudaInfo of cuda_info * coord
   | Idx of value_node * value_node list
+  | VecSlice of value_node * value_node list
   | Val of value_node
   | Op of ImpType.t * Prim.scalar_op * value_node list
   | Select of ImpType.t * value_node * value_node * value_node
@@ -41,6 +42,7 @@ type stmt =
   | While of value_node * block (* test, body *)
   | Set of ID.t * value_node
   | SetIdx of value_node * value_node list * value_node
+  | SetVecSlice of value_node * value_node list * value_node
   | SyncThreads
   | Comment of string
 and block = stmt list

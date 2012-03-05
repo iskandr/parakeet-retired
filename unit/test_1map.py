@@ -5,7 +5,7 @@ from parakeet import PAR
 
 @PAR 
 def implicit_map(x):
-  return x * 3
+  return x * 2
 
 def test_implicit_map():
   print "Testing implicit maps" 

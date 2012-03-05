@@ -427,8 +427,8 @@ and translate_adverb
     match TypedSSA.FnHelpers.get_single_type info.adverb_fn with
     | None -> translate_sequential_adverb builder lhsVars info
     | Some (Type.ScalarT eltT) ->
-      translate_sequential_adverb builder lhsVars info
-      (*vectorize_adverb builder lhsVars info eltT*)
+      (*translate_sequential_adverb builder lhsVars info*)
+      vectorize_adverb builder lhsVars info eltT
   else translate_sequential_adverb builder lhsVars info
 
 and translate_sequential_adverb
