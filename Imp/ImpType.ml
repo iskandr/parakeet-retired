@@ -15,7 +15,8 @@ let rec to_str = function
 	| ArrayT (elt_t, r) ->
     Printf.sprintf "array%d<%s>" r (Type.elt_to_str elt_t)
 	| ShiftT t -> Printf.sprintf "shift(%s)" (to_str t)
-  | VecSliceT (elt_t, w) -> Printf.sprintf "vecslice(%d)" w
+  | VecSliceT (elt_t, w) ->
+    Printf.sprintf "vecslice%d(%s)" w (Type.elt_to_str elt_t)
   | _ -> failwith "Not implemented"
 
 let type_list_to_str ts = String.concat ", " (List.map to_str ts)

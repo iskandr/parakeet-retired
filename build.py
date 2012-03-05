@@ -10,6 +10,9 @@ parser.add_option('-p', '--python', action='store_true', default=True,
 parser.add_option('-o', '--opt', action='store_true',
                     help='Disable debug mode')
 
+parser.add_option('-g', '--gpu', action='store_true',
+                    help='Enable GPU support')
+
 parser.add_option('-b', '--bytecode', action='store_true', 
   help = 'Compile OCaml code with ocamlc instead of ocamlopt')
   
@@ -93,17 +96,22 @@ if 'PARAKEET_PATH' in os.environ:
 build_command = ["ocamlbuild",
                  "-cflags",
                  "-I,/usr/local/lib/ocaml",
-                 "-lflags",
-                 "-ccopt," + parakeet_path + "GPU/stubs/parakeet_cuda.a," +\
-                 "-ccopt,-L/usr/local/cuda/lib," +\
-                 "-ccopt,-L/usr/local/cuda/lib64," +\
-                 "-ccopt,-L/usr/lib/nvidia-current," +\
-                 "-ccopt,-lcuda,-ccopt,-lcudart," +\
-                 "-ccopt," + parakeet_path + "/FrontEnd/parakeet.a" +\
-                 "-I,/usr/local/lib/ocaml",
-                 "-pp", "camlp4o", "-ppflag", "pa_macro.cmo",
-                 "-ocamlyacc", "menhir", 
-                 ]
+                 "-lflags"]
+if opts['gpu']:
+  build_command.extend(
+    ["-ccopt," + parakeet_path + "GPU/stubs/parakeet_cuda.a,",
+     "-ccopt,-L/usr/local/cuda/lib," +\
+     "-ccopt,-L/usr/local/cuda/lib64," +\
+     "-ccopt,-L/usr/lib/nvidia-current," +\
+     "-ccopt,-lcuda,-ccopt,-lcudart,"
+    ])
+
+build_command.extend(
+  ["-ccopt," + parakeet_path + "/FrontEnd/parakeet.a" +\
+   "-I,/usr/local/lib/ocaml",
+   "-pp", "camlp4o", "-ppflag", "pa_macro.cmo",
+   "-ocamlyacc", "menhir", 
+  ])
 
 # Handle debugging
 os.environ['dbg'] = '0'
@@ -114,7 +122,6 @@ if not opts['opt']:
   build_command.append("-g")
   make_command.append("DEBUG=-g")
   os.environ['dbg'] = '1'
-
 
 print "BUILD COMMAND =", " ".join(build_command)
 
@@ -151,12 +158,13 @@ os.chdir("..")
 
 # Build CUDA stubs 
 #print "\n\n (Cuda stubs deactivated)" 
-print "\n\n ******** Building Cuda Modules ********* "
-os.chdir("GPU/stubs")
-if subprocess.call(["make"]):
-  print "Cuda build failed"
-  sys.exit(1)
-os.chdir("../..")
+if opts['gpu']:
+  print "\n\n ******** Building Cuda Modules ********* "
+  os.chdir("GPU/stubs")
+  if subprocess.call(["make"]):
+    print "Cuda build failed"
+    sys.exit(1)
+  os.chdir("../..")
 
 # Build FrontEnd
 print "\n\n ****** Building Parakeet Front End Interface ******"
@@ -183,10 +191,11 @@ os.chdir("install")
 if subprocess.call(["make"]):
   print "Installation build failed"
   sys.exit(1)
-if subprocess.call(["./gpu_probe"]):
-  print "GPU probe failed"
-  sys.exit(1)
-shutil.move("parakeetgpuconf.xml", opts['install_dir'])
+if opts['gpu']:
+  if subprocess.call(["./gpu_probe"]):
+    print "GPU probe failed"
+    sys.exit(1)
+  shutil.move("parakeetgpuconf.xml", opts['install_dir'])
 shutil.copy("parakeetcpuconf.xml", opts['install_dir'])
 os.chdir("..")
 
