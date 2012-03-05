@@ -150,10 +150,8 @@ module Indexing = struct
 	  let dataPtr = get_array_field fnInfo array ArrayData  in
     Llvm.dump_value dataPtr;
  	  let offset = compute_offset fnInfo array indices in
-    Llvm.dump_value offset;
     let addrName = Llvm.value_name array ^ "_idxAddr" in
 	  let newAddr = Llvm.build_gep dataPtr [|offset|] addrName fnInfo.builder in
-    Llvm.dump_value newAddr;
     newAddr
 
 	let compile_range_load
@@ -246,17 +244,22 @@ module Indexing = struct
     in
     Llvm.build_load idxAddr "ret" fnInfo.builder
 
+  (* assume vector slice is through contiguous data *)
   let compile_vec_slice
       (array:Llvm.llvalue)
       (indices:Llvm.llvalue list)
       (imp_t:ImpType.t)
       (fnInfo:fn_info) =
-    match imp_t with
-    | ImpType.VecSliceT(eltT, width) ->
-      let arrIdxAddr = get_array_idx array indices fnInfo in
-      let vecPtrType = Llvm.pointer_type (LlvmType.of_imp_type imp_t) in
-      Llvm.build_inttoptr arrIdxAddr vecPtrType "idxAddr" fnInfo.builder
-    | _ -> failwith "[Imp_to_LLVM] Compiling vec slice with non-vec slice arg"
+    match imp_t, indices  with
+    | ImpType.VecSliceT(eltT, width), [idx] ->
+      (* WARNING: Assume slice is through an ordinary array, not a range *)
+      let dataPtr = get_array_field fnInfo array ArrayData  in
+      let offsetScalarPtr =
+        Llvm.build_gep dataPtr [|idx|] "vecOffset" fnInfo.builder
+      in
+      let llvmVecT = Llvm.pointer_type (LlvmType.of_imp_type imp_t) in
+      Llvm.build_pointercast offsetScalarPtr llvmVecT "vecPtr" fnInfo.builder
+    | _ -> failwith "[Imp_to_LLVM] Error compiling vec slice"
 end
 open Indexing
 
