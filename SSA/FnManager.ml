@@ -63,14 +63,13 @@ let default_typed_optimizations =
   ]
 
 let optimize_typed_functions () =
-  Timing.start Timing.typedOpt;
+  (*Timing.start Timing.typedOpt;*)
   RunOptimizations.optimize_all_fns
     ~type_check:true
     ~maxiters:100
     state.typed_functions
     default_typed_optimizations
-  ;
-  Timing.stop Timing.typedOpt
+  (*;Timing.stop Timing.typedOpt*)
 
 
 let get_untyped_name id = Hashtbl.find state.untyped_id_to_name id

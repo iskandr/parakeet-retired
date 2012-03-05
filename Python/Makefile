@@ -37,15 +37,21 @@ COMMON = `ls $(PARAKEET_PATH)/Common/*.o`
 FRONTEND = `ls $(PARAKEET_PATH)/FrontEnd/*.o`
 LLVMRUNTIME = `ls $(PARAKEET_PATH)/LLVM/*.o`
 OBJS =
-COBJS = -ccopt -L/usr/lib/nvidia-current \
-  $(PARAKEET_PATH)/GPU/stubs/parakeet_cuda.a $(COMMON) $(FRONTEND) $(LLVMRUNTIME) \
-	-ccopt -lcuda \
-	-ccopt -L/usr/local/cuda/lib \
-	-ccopt -L/usr/local/cuda/lib64 \
-	-ccopt -lcudart \
+COBJS = $(COMMON) $(FRONTEND) $(LLVMRUNTIME) \
 	-ccopt -L/usr/local/lib \
 	-ccopt -ldl -ccopt -lm -ccopt -lpthread -ccopt -lLLVMCore -ccopt -lLLVMSupport
-	
+
+ifneq ($(GPU),)
+	GPUOBJS = -ccopt -L/usr/lib/nvidia-current \
+  	$(PARAKEET_PATH)/GPU/stubs/parakeet_cuda.a \
+		-ccopt -lcuda \
+		-ccopt -L/usr/local/cuda/lib \
+		-ccopt -L/usr/local/cuda/lib64 \
+		-ccopt -lcudart
+else
+	GPUOBJS =
+endif
+
 OCAML_LIB_OBJECTS := bigarray.$(OBJ_ARCHIVE_SUFFIX) \
   extLib.$(OBJ_ARCHIVE_SUFFIX) \
   str.$(OBJ_ARCHIVE_SUFFIX) \
@@ -74,8 +80,9 @@ parakeetpy: $(OBJS)
 	echo "Building Python Parakeet library"
 	echo "OCAML OBJS: " $(OCAMLOBJS)
 	$(OCAMLCC) -linkall -ccopt -shared -ccopt -Wl,-Bsymbolic $(OBJS) \
-	$(OCAMLINCLUDES) $(COBJS) $(DEBUG) -ccopt -Wl,--start-group $(OCAMLOBJS) \
-	-ccopt -Wl,--end-group -o libparakeetpy.so -verbose -cclib -lstdc++
+	$(OCAMLINCLUDES) $(COBJS) $(GPUOBJS) $(DEBUG) -ccopt -Wl,--start-group \
+	$(OCAMLOBJS) 	-ccopt -Wl,--end-group -o libparakeetpy.so -verbose -cclib \
+	-lstdc++
 
 clean:
 	rm -f *.so *~ *.o

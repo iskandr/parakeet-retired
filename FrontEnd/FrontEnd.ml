@@ -45,9 +45,11 @@ let rec register_untyped_functions = function
   | [] -> ()
 
 let print_all_timers () =
+  (*
   Timing.print_timers();
   Printf.printf "Compiler overhead: %f\n" (Timing.get_total Timing.runTemplate);
-  Pervasives.flush_all()
+  Pervasives.flush_all()*)
+  ()
 
 type ret_val =
   | Success of Ptr.t Value.t list
