@@ -118,11 +118,9 @@ let is_float_unop = function
   | Reciprocal | Exp -> true
   | _ -> false
 
-let is_float_binop = function
-  | Div -> true
-  | _ -> false
 
-let is_float_op op = (is_float_unop op) || (is_float_binop op)
+
+let is_float_op op = (is_float_unop op)
 
 module PrimOrd = struct
   type prim = t
