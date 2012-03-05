@@ -27,13 +27,14 @@ let infer_binop (op:Prim.scalar_op) (t1:Type.t) (t2:Type.t) : Type.t  =
     raise $ TypeError(errMsg, None)
   | t3 ->
     if Prim.is_comparison op then Type.fill_elt_type t3 BoolT
-    else if Prim.is_float_binop op then
+    (*else if Prim.is_float_binop op then
         let eltResultT =
             if Type.sizeof (Type.elt_type t3) <= Type.sizeof Float32T
             then Float32T
             else Float64T
         in
         fill_elt_type  t3 eltResultT
+    *)
     else t3
 
 let infer_select predT t1 t2 =
@@ -116,6 +117,7 @@ let infer_simple_array_op op argTypes = match op, argTypes with
 let required_scalar_op_types op argtypes =
     match (op, argtypes) with
       (* division returns a float *)
+      (*
       | op, [t1; t2] when Prim.is_float_binop op ->
           let t3 = Type.common_type t1 t2 in
           let resultT =
@@ -125,7 +127,7 @@ let required_scalar_op_types op argtypes =
           in
 
           [resultT; resultT]
-
+      *)
       | op, [t1; t2] when Prim.is_binop op ->
           let t3 = Type.common_type t1 t2 in
           [t3; t3]
