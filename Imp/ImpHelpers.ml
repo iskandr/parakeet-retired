@@ -113,7 +113,18 @@ let len x = dim (int 0) x
 let max_ ?t x y = typed_op Prim.Max ?t [x;y]
 let min_ ?t x y = typed_op Prim.Min ?t [x;y]
 
-let mul ?t x y = typed_op Prim.Mult ?t [x;y]
+let mul ?t x y =
+  let xt = x.value_type in
+  let yt = y.value_type in
+  if ImpType.is_int xt && ImpType.is_int yt then
+    match x.value, y.value with
+      | Imp.Const n, _
+      | _, Imp.Const n when ParNum.is_zero n -> {zero with value_type = xt}
+      | _, Imp.Const n when ParNum.is_one n -> x
+      | Imp.Const n, _ when ParNum.is_one n -> y
+      | _ ->   typed_op Prim.Mult ?t [x;y]
+  else typed_op Prim.Mult ?t [x;y]
+
 let ( *$ ) = mul
 
 let add ?t x y = typed_op Prim.Add ?t [x; y]

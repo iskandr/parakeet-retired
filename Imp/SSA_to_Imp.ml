@@ -268,6 +268,7 @@ let declare_local_var
     builder#declare id ~shape ~storage t
   )
 
+
 let rec translate_fn (ssaFn:TypedSSA.fn) (impInputTypes:ImpType.t list)
     : Imp.fn =
   let signature = ssaFn.TypedSSA.fn_id, impInputTypes in
@@ -421,6 +422,22 @@ and translate_exp (builder:ImpBuilder.builder) expNode : Imp.value_node  =
       "[ssa->imp] unrecognized exp: %s"
       (TypedSSA.exp_node_to_str expNode)
 
+and inline (builder:ImpBuilder.builder) impFn inputs outputs : Imp.block =
+  let rename_local oldId =
+    let name = ID.get_original_prefix oldId in
+    let t = ID.Map.find oldId impFn.types in
+    let shape = ID.Map.find oldId impFn.shapes in
+    let storage = ID.Map.find oldId impFn.storage in
+    builder#fresh_local ~name ~storage ~shape t
+  in
+  let newLocalVars = List.map rename_local impFn.local_ids in
+  let replaceEnv =
+    ID.Map.of_lists
+      (impFn.input_ids @ impFn.output_ids @ impFn.local_ids)
+      (inputs @ outputs @ newLocalVars)
+  in
+  ImpReplace.replace_block replaceEnv impFn.body
+
 (* TODO: make this do something sane for adverbs other than Map *)
 and translate_adverb
     (builder:ImpBuilder.builder)
@@ -436,8 +453,8 @@ and translate_adverb
     match TypedSSA.FnHelpers.get_single_type info.adverb_fn with
     | None -> translate_sequential_adverb builder lhsVars info
     | Some (Type.ScalarT eltT) ->
-      translate_sequential_adverb builder lhsVars info
-      (*vectorize_adverb builder lhsVars info eltT*)
+      (*translate_sequential_adverb builder lhsVars info*)
+      vectorize_adverb builder lhsVars info eltT
   else translate_sequential_adverb builder lhsVars info
 
 and translate_sequential_adverb
@@ -521,15 +538,10 @@ and translate_sequential_adverb
   let impFn : Imp.fn =
     translate_fn info.adverb_fn nestedInputTypes
   in
-  let replaceEnv =
-    ID.Map.of_lists
-      (impFn.input_ids @ impFn.output_ids)
-      (nestedInputs @ nestedOutputs)
-  in
-  let fnBody = ImpReplace.replace_block replaceEnv impFn.body in
+  let nestedBody = inline builder impFn nestedInputs nestedOutputs in
   let loops =
     build_loop_nests
-      ~skip_first_iter:skipFirstIter builder loopDescriptors fnBody
+      ~skip_first_iter:skipFirstIter builder loopDescriptors nestedBody
   in
   initBlock @ loops
 
@@ -600,13 +612,8 @@ and vectorize_adverb
       List.map (fun arg -> ImpHelpers.vec_slice arg vecLen vecIndexVars) lhsVars
     in
     let vecFn = Imp_to_SSE.vectorize_fn impFn vecLen in
-	  let vecReplaceEnv =
-	    ID.Map.of_lists
-	      (vecFn.input_ids @ vecFn.output_ids)
-	      (vecNestedArgs @ vecOutputs)
-	  in
-    let vecFnBody = ImpReplace.replace_block vecReplaceEnv vecFn.body in
-    let vecLoop = build_loop_nests builder [vecDescriptor] vecFnBody in
+    let vecFnBody =  inline builder vecFn vecNestedArgs vecOutputs in
+	  let vecLoop = build_loop_nests builder [vecDescriptor] vecFnBody in
 
     (* Add loop to handle straggler elements that can't be vectorized *)
     (* TODO: check whether we want to add this loop based on shape? *)
