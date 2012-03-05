@@ -1,7 +1,8 @@
 (* pp: -parser o pa_macro.cmo *)
+
 open Base
-open TypedSSA
 open SSA_Analysis
+open TypedSSA
 
 let simple_conversion = function
   | Type.ScalarT eltT -> ImpType.ScalarT eltT
@@ -16,8 +17,8 @@ module ImpTypeAnalysis(P:IMP_TYPE_PARAMS) = struct
   let combine t1 t2 =
     if t1 = t2 then t1
     else failwith $ Printf.sprintf "[InferImpTypes] Can't combine %s and %s"
-         (ImpType.to_str t1)
-         (ImpType.to_str t2)
+      (ImpType.to_str t1)
+      (ImpType.to_str t2)
 
   let add_binding tenv id t =
     let t : ImpType.t =
@@ -87,7 +88,6 @@ module ImpTypeAnalysis(P:IMP_TYPE_PARAMS) = struct
       Some (add_bindings tenv ids (exp tenv rhs helpers))
     | _ -> helpers.eval_stmt tenv stmtNode
 end
-
 
 let infer (fn:TypedSSA.fn) (inputTypes:ImpType.t list) : ImpType.t ID.Map.t  =
   let module Param = struct let input_imp_types = inputTypes end in

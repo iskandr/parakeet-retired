@@ -39,7 +39,7 @@ module LoopHelpers = struct
     let rec aux = function
       | [] -> body
       | d::ds ->
-	      let testT : Type.elt_t = ImpType.elt_type d.loop_var.value_type in
+	      let testT = d.loop_var.value_type in
 	      let test = {
 	        value = Imp.Op(testT, d.loop_test_cmp,[d.loop_var; d.loop_test_val]);
 	        value_type = ImpType.bool_t
@@ -202,7 +202,7 @@ let translate_array_op builder (op:Prim.array_op) (args:Imp.value_node list) =
           rank
           nIndices
     ENDIF;
-    let resultT =  ImpType.elt_type arrayT in
+    let resultT = ImpType.elt_type arrayT in
     { value = Imp.Idx(array, indices);
       value_type = ImpType.ScalarT resultT
     }
@@ -251,7 +251,6 @@ let translate_false_phi_node builder phiNode =
   let exp = translate_value builder (PhiNode.right phiNode) in
   Imp.Set (PhiNode.id phiNode, exp)
 
-
 let declare_input (builder:ImpBuilder.fn_builder) typeEnv id =
   let impType = ID.Map.find id typeEnv in
   builder#declare_input id impType
@@ -261,10 +260,8 @@ let declare_output (builder:ImpBuilder.fn_builder) shapeEnv typeEnv id =
   let shape = ID.Map.find id shapeEnv in
   builder#declare_output id ~shape impType
 
-
-
 let declare_local_var
-      (builder:ImpBuilder.fn_builder) nonlocals shapes storages (id, t) =
+    (builder:ImpBuilder.fn_builder) nonlocals shapes storages (id, t) =
   if not (List.mem id nonlocals) then (
     let shape = ID.Map.find id shapes in
     let storage = ID.Map.find id storages in
@@ -396,14 +393,16 @@ and translate_exp (builder:ImpBuilder.builder) expNode : Imp.value_node  =
     let opType, returnType =
       if Prim.is_comparison op then
         let firstArg = List.hd args' in
-        ImpType.elt_type firstArg.value_type, Type.BoolT
+        firstArg.value_type, ImpType.bool_t
       else
-        let retT = Type.elt_type (List.hd expNode.TypedSSA.exp_types) in
+        let retT =
+          ImpType.ScalarT (Type.elt_type (List.hd expNode.TypedSSA.exp_types))
+        in
         retT, retT
     in
     {
       value = Op(opType, op, args');
-      value_type = ImpType.ScalarT returnType
+      value_type = returnType
     }
   | TypedSSA.PrimApp(Prim.ArrayOp op, args) ->
     let impArgs = translate_values builder args in
@@ -437,17 +436,15 @@ and translate_adverb
     match TypedSSA.FnHelpers.get_single_type info.adverb_fn with
     | None -> translate_sequential_adverb builder lhsVars info
     | Some (Type.ScalarT eltT) ->
-      translate_sequential_adverb builder lhsVars info
-      (*
+      (*translate_sequential_adverb builder lhsVars info*)
       vectorize_adverb builder lhsVars info eltT
-      *)
   else translate_sequential_adverb builder lhsVars info
 
 and translate_sequential_adverb
-      (builder:ImpBuilder.builder)
-      (lhsVars : Imp.value_node list)
-      (info : (TypedSSA.fn, Imp.value_nodes, Imp.value_nodes) Adverb.info)
-      : Imp.stmt list =
+    (builder:ImpBuilder.builder)
+    (lhsVars : Imp.value_node list)
+    (info : (TypedSSA.fn, Imp.value_nodes, Imp.value_nodes) Adverb.info)
+    : Imp.stmt list =
   let slice_along_axes indexVars arr = idx_or_fixdims arr info.axes indexVars in
   (* pick any of the highest rank arrays in the input list *)
   let biggestArray : Imp.value_node = argmax_array_rank info.array_args in
@@ -547,6 +544,7 @@ and vectorize_adverb
   let num_axes = List.length info.axes in
   let peeledArgTypes = List.map (ImpType.peel ~num_axes) argTypes in
   let fnInputTypes = fixedTypes @ peeledArgTypes in
+  let impFn = translate_fn info.adverb_fn fnInputTypes in
   match info.adverb with
   | Adverb.Map ->
     (* TODO: for now, only vectorize maps *)
@@ -564,16 +562,21 @@ and vectorize_adverb
     let lastAxis = List.hd (List.rev info.axes) in
     let [lastInit], [lastSize] = size_of_axes builder biggestArray [lastAxis] in
     let vecLen = vector_bitwidth / (8 * (Type.sizeof eltT)) in
-    let impVecLen = builder#fresh_local ~name:"vec_len" int32_t in
+    let impVecLen = ImpHelpers.int vecLen in
     let impVecLoopBound = builder#fresh_local ~name:"vec_loop_bound" int32_t in
     let vecInit = [
-      ImpHelpers.set impVecLen (ImpHelpers.int vecLen);
+      lastInit;
       ImpHelpers.set
-        impVecLoopBound (ImpHelpers.div ~t:Type.Int32T lastSize impVecLen);
+        impVecLoopBound (ImpHelpers.sub ~t:Type.Int32T lastSize impVecLen);
+      ImpHelpers.set
+        impVecLoopBound
+        (ImpHelpers.div ~t:Type.Int32T impVecLoopBound impVecLen);
       ImpHelpers.set
         impVecLoopBound
         (ImpHelpers.mul ~t:Type.Int32T impVecLoopBound impVecLen);
-      lastInit
+      ImpHelpers.set
+        impVecLoopBound
+        (ImpHelpers.add ~t:Type.Int32T impVecLoopBound ImpHelpers.one)
     ]
     in
     let vecDescriptor =
@@ -596,10 +599,7 @@ and vectorize_adverb
     let vecOutputs =
       List.map (fun arg -> ImpHelpers.vec_slice arg vecLen vecIndexVars) lhsVars
     in
-    let vecInputTypes =
-      fixedTypes @ (List.fill (VecSliceT(eltT, vecLen)) argTypes)
-    in
-    let vecFn = vectorize_fn info.adverb_fn vecInputTypes in
+    let vecFn = Imp_to_SSE.vectorize_fn impFn vecLen in
 	  let vecReplaceEnv =
 	    ID.Map.of_lists
 	      (vecFn.input_ids @ vecFn.output_ids)
@@ -610,10 +610,9 @@ and vectorize_adverb
 
     (* Add loop to handle straggler elements that can't be vectorized *)
     (* TODO: check whether we want to add this loop based on shape? *)
-    let seqFn = translate_fn info.adverb_fn fnInputTypes in
     let seqDescriptor =
       {
-        loop_var = vecDescriptor.loop_var;
+        loop_var = builder#fresh_local ~name:"seq_loop_idx" int32_t;
         loop_start = impVecLoopBound;
         loop_test_val = lastSize;
         loop_test_cmp = Prim.Lt;
@@ -631,54 +630,15 @@ and vectorize_adverb
     in
 	  let seqReplaceEnv =
 	    ID.Map.of_lists
-	      (seqFn.input_ids @ seqFn.output_ids)
+	      (impFn.input_ids @ impFn.output_ids)
 	      (seqNestedArgs @ seqNestedOutputs)
 	  in
-	  let seqFnBody = ImpReplace.replace_block seqReplaceEnv seqFn.body in
+	  let seqFnBody = ImpReplace.replace_block seqReplaceEnv impFn.body in
     let seqLoop = build_loop_nests builder [seqDescriptor] seqFnBody in
 
-    (* Build the outer loops, injected the vectorized and sequential inner *)
+    (* Build the outer loops, injecting the vectorized and sequential inner *)
     (* loops.  Then return the vectorized block. *)
 	  let vecLoops = build_loop_nests builder outerLoops (vecLoop @ seqLoop) in
 	  outerInit @ vecInit @ vecLoops
   | _ -> translate_sequential_adverb builder lhsVars info
 
-and vectorize_fn (ssaFn:TypedSSA.fn) (impInputTypes:ImpType.t list) : Imp.fn =
-  let signature = ssaFn.TypedSSA.fn_id, impInputTypes in
-  match Hashtbl.find_option vector_cache signature with
-  | Some impFn ->
-    IFDEF DEBUG THEN
-      Printf.printf
-        "[SSA_to_Imp] Got cached Imp function for %s\n%!"
-        (FnId.to_str ssaFn.TypedSSA.fn_id)
-        ;
-    ENDIF;
-    impFn
-  | None ->
-    let builder = new ImpBuilder.fn_builder in
-    let impTyEnv = InferImpTypes.infer ssaFn impInputTypes in
-    let shapeEnv : SymbolicShape.env =
-      ShapeInference.infer_normalized_shape_env
-        (FnManager.get_typed_function_table ()) ssaFn
-    in
-    (* THIS CODE IS BUSTED, SEE MODIFIED translate_fn for what to do *)
-    (* with variable declarations *)
-    (*
-    List.iter
-      (declare_local_var ssaFn shapeEnv builder) (ID.Map.to_list impTyEnv);
-    *)
-    let body =
-      translate_block (builder :> ImpBuilder.builder) ssaFn.TypedSSA.body
-    in
-    let ssa_name = FnId.to_str ssaFn.TypedSSA.fn_id in
-    let arg_strings = ImpType.type_list_to_str impInputTypes in
-    let name = ssa_name ^ "[" ^ arg_strings ^ "]" in
-    let impFn = builder#finalize_fn ~name body in
-    Hashtbl.add vector_cache signature impFn;
-    IFDEF DEBUG THEN
-      Printf.printf
-        "[SSA_to_Imp] Created Imp function: %s\n%!"
-        (Imp.fn_to_str impFn)
-      ;
-    ENDIF;
-    impFn

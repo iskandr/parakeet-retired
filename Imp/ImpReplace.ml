@@ -22,7 +22,7 @@ let rec replace_value (env:Imp.value_node ID.Map.t) (valNode:Imp.value_node) =
         )
       | {value} -> value
     end
-  | Op (op, argT, vs) -> Op (op, argT, replace_values env vs)
+  | Op (argT, op, vs) -> Op (argT, op, replace_values env vs)
   | Select (t, x, y, z) ->
     Select(t, replace_value env x, replace_value env y, replace_value env z)
   | Cast (t1, v) -> Cast (t1, replace_value env v)

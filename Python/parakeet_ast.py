@@ -82,6 +82,15 @@ BuiltinPrimitives = {
   'Slice': 'slice',
 }
 
+NumpyArrayMethods = {
+  "transpose": "transpose",
+  "flatten": "flatten",
+  "copy": "copy",
+}
+NumpyArrayAttributes = {
+##  "shape": ArrayOp Shape, #Attribute
+##  "strides": ArrayOp Strides, #Attribute
+}
 ValidObjects = {np.add: parakeet_lib.add,
                 np.subtract: parakeet_lib.sub,
                 np.multiply: parakeet_lib.mult,
@@ -104,6 +113,13 @@ def build_fn_node(src_info, python_fn):
     if parakeet_prim_name is None:
       raise RuntimeError("[Parakeet] Support for %s not implemented" %
                          python_fn)
+  elif (python_fn.__name__ in NumpyArrayMethods and
+    python_fn.__class__.__name__ == "builtin_function_or_method"):
+    parakeet_prim_name = NumpyArrayMethods[python_fn]
+    parakeet_fn = ast_prim(parakeet_prim_name)
+    if parakeet_prim_name is None:
+      raise RuntimError("[Parakeet] Support for %s not implemented" %
+                        python_fn)
   else:
     c_name = c_char_p(global_fn_name(python_fn))
     parakeet_fn = LibPar.mk_var(c_name, src_info.addr)
@@ -409,14 +425,21 @@ class ASTConverter():
       while type(nextNode).__name__ == 'Attribute':
         moduleList = [nextNode.attr] + moduleList
         nextNode = nextNode.value
-
       currModule = self.global_refs[nextNode.id]
 
       for m in moduleList:
         try:
           currModule = currModule.__dict__[m]
         except AttributeError:
-          currModule = currModule.__getattribute__(m)
+          if currModule in ValidObjects:
+            currModule = currModule.__getattribute__(m)
+          elif m in NumpyArrayMethods and m == moduleList[-1]:
+            currModule = currModule.__getattribute__(m)
+          elif m in NumpyArrayMethods:
+            raise RuntimeError("[Parakeet] %s is invalid?" %
+                               moduleList.join('.'))
+          else:
+            raise RuntimeError("[Parakeet] Invalid object %s" % currModule)
       funRef = currModule
     else:
       raise RuntimeError("[Parakeet] Call.func shouldn't be", name)
@@ -467,6 +490,12 @@ class ASTConverter():
               return self.build_call(src_info, parakeet_lib.scan, args)
             else:
               assert False
+        elif (funRef.__name__ in NumpyArrayMethods and
+          funRef.__class__.__name__ == "builtin_function_or_method"):
+          #The second condition is in case they overwrote the fn for that array
+          var = self.get_global_var_name(node)
+          var_node = self.build_var(src_info, var)
+          return self.build_call(src_info, funRef, [args])
       else:
         childContext = set(contextSet)
         if funRef == np.array:
@@ -560,19 +589,9 @@ class ASTConverter():
       LOG("assign(%s,%s,%s)" % (lhs_args, num_args, rhs_arg))
       return LibPar.mk_assign(lhs_args, num_args, rhs_arg, src_info.addr)
     elif nodeType == 'Attribute':
-      if 'lhs' in contextSet:
+      if 'lhs' in contextSet:#And not whitelisted
         raise RuntimeError("[Parakeet] Assignment to attributes not supported")
-      currNodeType = nodeType
-      currNode = node
-      var_str = ""
-      while (currNodeType != "Name"):
-        var_str = "." + currNode.attr + var_str
-        currNode = currNode.value
-        currNodeType = type(currNode).__name__
-        if currNodeType not in ('Name','Attribute'):
-          raise RuntimeError("[Parakeet] Accessing with %s not supported" %
-                             currNodeType)
-      var_str = currNode.id + var_str
+      var_str = self.get_global_var_name(node)
       if var_str in self.arg_names:
         raise ("[Parakeet] Object parameters not supported")
       self.global_variables.add(var_str)
@@ -584,12 +603,28 @@ class ASTConverter():
 
   def build_src_info(self, node):
     try:
+      print self.file_name, self.line_offset+ node.lineno, node.col_offset
       file_name = c_char_p(self.file_name)
       line = c_int(self.line_offset + node.lineno)
       col = c_int(node.col_offset)
       return _source_info_t(_c_source_info_t(file_name, line, col))
     except AttributeError:
       return _source_info_t(None)
+
+  def get_global_var_name(self, node):
+    var_str = ""
+    currNodeType = type(node).__name__
+    currNode = node
+    while (currNodeType != "Name"):
+      var_str = "." + currNode.attr + var_str
+      currNode = currNode.value
+      currNodeType = type(currNode).__name__
+      if currNodeType not in ('Name','Attribute'):
+        raise RuntimeError("[Parakeet] Accessing with %s not supported" %
+                           currNodeType)
+    var_str = currNode.id + var_str
+    return var_str
+
 
 ###############################################################################
 #  Function Registration

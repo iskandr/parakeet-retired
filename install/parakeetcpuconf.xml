@@ -1,7 +1,7 @@
 <Machine>
   <CPU>
     <Id>0</Id>
-    <VectorBitwidth>256</VectorBitwidth>
+    <VectorBitwidth>128</VectorBitwidth>
     <Core>
       <Id>0</Id>
       <Threads>

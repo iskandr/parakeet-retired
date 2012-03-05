@@ -42,4 +42,7 @@ module MkIntrinsics(I : LLVM_INTRINSICS) = struct
     declare_function "llvm.cos.f32" (function_type float32_t [|float32_t|]) I.m
   let cos64 =
     declare_function "llvm.cos.f64" (function_type float64_t [|float64_t|]) I.m
+
+  let printf =
+    declare_function "printf" (var_arg_function_type int32_t [|char_ptr_t|]) I.m
 end

@@ -4,10 +4,10 @@ open Base
 open Imp
 
 type block_info = {
-    block_ids : ID.t list;
-    block_types : ImpType.t ID.Map.t;
-    block_shapes : SymbolicShape.t ID.Map.t;
-    block_storages : Imp.storage ID.Map.t;
+  block_ids : ID.t list;
+  block_types : ImpType.t ID.Map.t;
+  block_shapes : SymbolicShape.t ID.Map.t;
+  block_storages : Imp.storage ID.Map.t;
 }
 
 class builder = object (self)
@@ -43,12 +43,12 @@ class builder = object (self)
               (ImpType.to_str ty)
               (SymbolicShape.to_str shape)
               (ID.to_str id)
-     ;
-     if ID.Set.mem id ids then
-       failwith $
-         Printf.sprintf
-           "[ImpBuilder] Identifier already declared: %s"
-           (ID.to_str id)
+      ;
+      if ID.Set.mem id ids then
+        failwith $
+          Printf.sprintf
+            "[ImpBuilder] Identifier already declared: %s"
+            (ID.to_str id)
     ENDIF;
     ids <- ID.Set.add id ids;
     types <- ID.Map.add id ty types;
@@ -84,7 +84,6 @@ class builder = object (self)
       let name = "%cast_" ^ (ImpType.to_str ty) in
       let temp : Imp.value_node = self#fresh_local ~name ty in
       temp, [ImpHelpers.set temp (ImpHelpers.cast ty v)]
-
 
   method get_shape id = ID.Map.find id shapes
   method get_type id = ID.Map.find id types

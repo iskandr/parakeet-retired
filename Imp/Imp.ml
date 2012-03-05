@@ -19,6 +19,7 @@ type array_field =
   | RotDim
   | RotAmt
 
+
 let fields_of_type = function
   | ImpType.ScalarT _ -> []
   | ImpType.ArrayT _ -> [ArrayData; ArrayShape; ArrayStrides]
@@ -54,15 +55,14 @@ let array_field_pos = function
   | RotDim -> 1
   | RotAmt -> 2
 
-
-
 type value =
   | Var of ID.t
   | Const of ParNum.t
+  | VecConst of ParNum.t list
   | CudaInfo of cuda_info * coord
   | Idx of value_node * value_node list
   | Val of value_node
-  | Op of Type.elt_t * Prim.scalar_op * value_node list
+  | Op of ImpType.t * Prim.scalar_op * value_node list
   | Select of ImpType.t * value_node * value_node * value_node
   | Cast of ImpType.t * value_node
   | DimSize of value_node * value_node
@@ -172,6 +172,8 @@ let array_field_to_str = function
 let rec value_to_str = function
   | Var id -> ID.to_str id
   | Const n -> ParNum.to_str n
+  | VecConst ns ->
+    sprintf "(%s)" (String.concat ", " (List.map ParNum.to_str ns))
   | CudaInfo(cuda_info, coord) ->
     sprintf "%s.%s" (cuda_info_to_str cuda_info) (coord_to_str coord)
   | Idx (arr, args) ->
@@ -181,7 +183,7 @@ let rec value_to_str = function
   | Op (argT, op, args) ->
     sprintf "%s:%s (%s)"
       (Prim.scalar_op_to_str op)
-      (Type.elt_to_str argT)
+      (ImpType.to_str argT)
       (value_nodes_to_str args)
   | Select (t, cond, trueVal, falseVal) ->
     sprintf "select:%s(%s, %s, %s)"
@@ -191,7 +193,7 @@ let rec value_to_str = function
       (value_node_to_str falseVal)
   | Cast (tNew, v) ->
     sprintf "cast %s->%s (%s)"
-      (ImpType.to_str  v.value_type) (ImpType.to_str tNew)
+      (ImpType.to_str v.value_type) (ImpType.to_str tNew)
       (value_node_to_str v)
   | DimSize (arr, idx) ->
     sprintf "dimsize(%s, %s)" (value_node_to_str arr) (value_node_to_str idx)
@@ -210,7 +212,6 @@ let rec value_to_str = function
      sprintf "field(%s, %s)"
        (array_field_to_str field)
        (value_node_to_str v)
-
 
 and value_node_to_str {value} = value_to_str value
 and value_nodes_to_str vNodes =
@@ -290,6 +291,7 @@ let fn_to_str fn =
 let rec always_const {value} = match value with
   | CudaInfo _
   | Const _
+  | VecConst _
   | DimSize _ -> true
   | Cast (_, arg) -> always_const arg
   | Select (_, pred, arg1, arg2) ->
