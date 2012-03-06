@@ -48,7 +48,13 @@ class WrappedFunction:
 
   def __get_value(self, var):
     var_parts = var.split('.')
-    curr_val = self.old_function.func_globals[var_parts[0]]
+    try:
+      curr_val = self.old_function.func_globals[var_parts[0]]
+    except KeyError:
+      if isinstance(__builtins__,dict):
+        curr_val = __builtins__[var_parts[0]]
+      else:
+        curr_val = getattr(__builtins__,var_parts[0])
     for i in range(1, len(var_parts)):
       curr_val = curr_val.__dict__[var_parts[i]]
     return curr_val
