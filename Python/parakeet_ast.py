@@ -82,6 +82,10 @@ BuiltinPrimitives = {
   'Slice': 'slice',
 }
 
+BuiltinStrs = [
+  "False",
+  "True"]
+
 NumpyArrayMethods = {
   "transpose": "transpose",
   "flatten": "flatten",
@@ -281,7 +285,7 @@ class ASTConverter():
             if 'lhs' in contextSet:
               raise ParakeetUnsupported(str(childNode) +
                                         " is a global variable")
-            else:
+            elif not str(childNode) in BuiltinStrs:
               self.global_variables.add(str(childNode))
         # assume last arg to build_simple_parakeet_node for literals is a string
         parakeetNodeChildren.append(str(childNode))
