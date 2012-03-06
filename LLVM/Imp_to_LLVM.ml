@@ -5,7 +5,6 @@ open Imp
 open Llvm
 open LlvmType
 
-
 let mk_int32 i = Llvm.const_int LlvmType.int32_t i
 let mk_int64 i = Llvm.const_int LlvmType.int64_t i
 
@@ -37,9 +36,7 @@ let create_fn_info (fn : Imp.fn) = {
   name = FnId.to_str fn.Imp.id;
 }
 
-
 module Intrinsics = struct
-
   let rec repeat_type (t:lltype) (n:int) =
     match n with 0 -> [] | _ -> t::(repeat_type t (n-1))
 
@@ -113,9 +110,6 @@ module Intrinsics = struct
     declare_function "printf" fnT llvm_module
 end
 
-
-
-
 let llvm_printf str vals builder =
   IFDEF DEBUG THEN
     let str = Llvm.build_global_stringptr str "printfstr" builder in
@@ -181,34 +175,32 @@ module Indexing = struct
    in
    Llvm.build_load eltPtr ("dim" ^ (string_of_int idx) ^ "_") fnInfo.builder
 
-
-	(* convert a list of indices into an address offset *)
-	let rec compute_offset
+  (* convert a list of indices into an address offset *)
+  let rec compute_offset
       (fnInfo:fn_info)
       (array:Llvm.llvalue)
       ?(i=0)
-	    ?(offset=zero_i32)
+      ?(offset=zero_i32)
       (indices:llvalue list) : llvalue =
-
     match indices with
-	  | currIdx :: otherIndices ->
-	    if Llvm.is_null currIdx then
-	      compute_offset fnInfo array ~i:(i+1) ~offset otherIndices
-	    else (
-	      let strideVal : llvalue = get_array_strides_elt fnInfo array i in
-	      let currOffset =
-	        Llvm.build_mul strideVal currIdx "offset_term" fnInfo.builder
-	      in
+    | currIdx :: otherIndices ->
+      if Llvm.is_null currIdx then
+        compute_offset fnInfo array ~i:(i+1) ~offset otherIndices
+      else (
+        let strideVal : llvalue = get_array_strides_elt fnInfo array i in
+        let currOffset =
+          Llvm.build_mul strideVal currIdx "offset_term" fnInfo.builder
+        in
         Llvm.dump_value currOffset;
-	      let newOffset =
-	        if Llvm.is_null offset then currOffset
-	        else
+        let newOffset =
+          if Llvm.is_null offset then currOffset
+          else
             let offsetName = "offset_" ^ (string_of_int i) ^ "_" in
             Llvm.build_add offset currOffset offsetName fnInfo.builder
-	      in
-	      compute_offset fnInfo array ~i:(i+1) ~offset:newOffset otherIndices
+        in
+        compute_offset fnInfo array ~i:(i+1) ~offset:newOffset otherIndices
       )
-	  | [] ->
+    | [] ->
       Printf.printf "Done with compute_offset\n%!";
       offset
 
@@ -235,22 +227,22 @@ module Indexing = struct
 	    (indices:Llvm.llvalue list)
 	    (imp_elt_t:Type.elt_t)
 	    (fnInfo:fn_info) =
-	    let startPtr =
-	      Llvm.build_gep array [|zero_i32;zero_i32|] "gep_start" fnInfo.builder
-	    in
-	    let start = Llvm.build_load startPtr "start" fnInfo.builder in
-	    let idxInt = match indices with
-	      | [arg] ->
-	        Llvm.build_add start arg "rangeAdd" fnInfo.builder
-	      | _ -> failwith $ Printf.sprintf
-	        "[Imp_to_LLVM] Calling range with multiple arguments"
-	    in
-	    let eltType = LlvmType.of_elt_type imp_elt_t in
-	    let eltPtrType = Llvm.pointer_type eltType in
-	    let idxAddr =
-	      Llvm.build_inttoptr idxInt eltPtrType "idxAddr" fnInfo.builder
-	    in
-	    Llvm.build_load idxAddr "ret" fnInfo.builder
+    let startPtr =
+      Llvm.build_gep array [|zero_i32;zero_i32|] "gep_start" fnInfo.builder
+    in
+    let start = Llvm.build_load startPtr "start" fnInfo.builder in
+    let idxInt = match indices with
+      | [arg] ->
+        Llvm.build_add start arg "rangeAdd" fnInfo.builder
+      | _ -> failwith $ Printf.sprintf
+        "[Imp_to_LLVM] Calling range with multiple arguments"
+    in
+    let eltType = LlvmType.of_elt_type imp_elt_t in
+    let eltPtrType = Llvm.pointer_type eltType in
+    let idxAddr =
+      Llvm.build_inttoptr idxInt eltPtrType "idxAddr" fnInfo.builder
+    in
+    Llvm.build_load idxAddr "ret" fnInfo.builder
 
   let get_array_data_ptr (fnInfo:fn_info) (array:llvalue) : llvalue =
     let dataFieldPtr =
@@ -266,27 +258,27 @@ module Indexing = struct
     ?(offset=zero_i32)
     (indices:llvalue list) : llvalue =
   match indices with
-    | currIdx :: otherIndices ->
-      if Llvm.is_null currIdx then
-        compute_offset fnInfo array ~i:(i+1) ~offset otherIndices
-      else begin
-        let strideVal : llvalue = get_array_strides_elt fnInfo array i in
-        let currOffset =
-          Llvm.build_mul strideVal currIdx "offset_term" fnInfo.builder
-        in
-        let newOffset =
-          if Llvm.is_null offset then currOffset
-          else Llvm.build_add offset currOffset "offset" fnInfo.builder
-        in
-        compute_offset fnInfo array ~i:(i+1) ~offset:newOffset otherIndices
-      end
-    | [] -> offset
+  | currIdx :: otherIndices ->
+    if Llvm.is_null currIdx then
+      compute_offset fnInfo array ~i:(i+1) ~offset otherIndices
+    else begin
+      let strideVal : llvalue = get_array_strides_elt fnInfo array i in
+      let currOffset =
+        Llvm.build_mul strideVal currIdx "offset_term" fnInfo.builder
+      in
+      let newOffset =
+        if Llvm.is_null offset then currOffset
+        else Llvm.build_add offset currOffset "offset" fnInfo.builder
+      in
+      compute_offset fnInfo array ~i:(i+1) ~offset:newOffset otherIndices
+    end
+  | [] -> offset
 
   let compile_arr_idx
-    (array:Llvm.llvalue)
-    (indices:Llvm.llvalue list)
-    (imp_elt_t:Type.elt_t)
-    (fnInfo:fn_info) =
+      (array:Llvm.llvalue)
+      (indices:Llvm.llvalue list)
+      (imp_elt_t:Type.elt_t)
+      (fnInfo:fn_info) =
     IFDEF DEBUG THEN
       Printf.printf "[LLVM compile_arr_idx]: %s[%s] : %s\n"
         (Llvm.value_name array)
@@ -389,27 +381,27 @@ let compile_cmp (t:ImpType.t) op (vals:llvalue list) builder =
         (List.length vals)
   in
   let cmpFn : llvalue -> llvalue -> string -> llbuilder -> llvalue =
-	  match op with
-		| Prim.Eq ->
-		  if Type.elt_is_int t then Llvm.build_icmp Llvm.Icmp.Eq
-		  else Llvm.build_fcmp Llvm.Fcmp.Oeq
-		| Prim.Neq ->
-		  if Type.elt_is_int t then Llvm.build_icmp Llvm.Icmp.Ne
-		  else Llvm.build_fcmp Llvm.Fcmp.One
-		| Prim.Lt ->
-		  if Type.elt_is_int t then Llvm.build_icmp Llvm.Icmp.Slt
-		  else Llvm.build_fcmp Llvm.Fcmp.Olt
-		| Prim.Lte ->
-		  if Type.elt_is_int t then Llvm.build_icmp Llvm.Icmp.Sle
-		  else Llvm.build_fcmp Llvm.Fcmp.Ole
-		| Prim.Gt ->
-		  if Type.elt_is_int t then Llvm.build_icmp Llvm.Icmp.Sgt
-		  else Llvm.build_fcmp Llvm.Fcmp.Ogt
-		| Prim.Gte  ->
-		  if Type.elt_is_int t then Llvm.build_icmp Llvm.Icmp.Sge
-		  else Llvm.build_fcmp Llvm.Fcmp.Oge
-		| _ ->
-		  failwith (Printf.sprintf "Unsupported cmp %s" (Prim.scalar_op_to_str op))
+    match op with
+  	| Prim.Eq ->
+  	  if Type.elt_is_int t then Llvm.build_icmp Llvm.Icmp.Eq
+  	  else Llvm.build_fcmp Llvm.Fcmp.Oeq
+  	| Prim.Neq ->
+  	  if Type.elt_is_int t then Llvm.build_icmp Llvm.Icmp.Ne
+  	  else Llvm.build_fcmp Llvm.Fcmp.One
+  	| Prim.Lt ->
+  	  if Type.elt_is_int t then Llvm.build_icmp Llvm.Icmp.Slt
+  	  else Llvm.build_fcmp Llvm.Fcmp.Olt
+  	| Prim.Lte ->
+  	  if Type.elt_is_int t then Llvm.build_icmp Llvm.Icmp.Sle
+  	  else Llvm.build_fcmp Llvm.Fcmp.Ole
+  	| Prim.Gt ->
+  	  if Type.elt_is_int t then Llvm.build_icmp Llvm.Icmp.Sgt
+  	  else Llvm.build_fcmp Llvm.Fcmp.Ogt
+  	| Prim.Gte  ->
+  	  if Type.elt_is_int t then Llvm.build_icmp Llvm.Icmp.Sge
+  	  else Llvm.build_fcmp Llvm.Fcmp.Oge
+  	| _ ->
+  	  failwith (Printf.sprintf "Unsupported cmp %s" (Prim.scalar_op_to_str op))
   in
   let cmpBit = cmpFn x y "cmptmp" builder in
   let boolRepr = LlvmType.of_elt_type Type.BoolT in
@@ -418,16 +410,16 @@ let compile_cmp (t:ImpType.t) op (vals:llvalue list) builder =
 let compile_math_op (t:ImpType.t) op (vals:llvalue list) builder =
   let eltT = ImpType.elt_type t in
   match op, vals with
-	| Prim.Add, [ x; y ] ->
+  | Prim.Add, [ x; y ] ->
     if Type.elt_is_int eltT then Llvm.build_add x y "addtmp" builder
-	  else Llvm.build_fadd x y "addftmp" builder
-	| Prim.Sub, [ x; y ] ->
+    else Llvm.build_fadd x y "addftmp" builder
+  | Prim.Sub, [ x; y ] ->
     if Type.elt_is_int eltT then Llvm.build_sub x y "subtmp" builder
     else Llvm.build_fsub x y "subftmp" builder
-	| Prim.Mult, [ x; y ] ->
-	  if Type.elt_is_int eltT then Llvm.build_mul x y "multmp" builder
-	  else Llvm.build_fmul x y "mulftmp" builder
-	| Prim.Div, [ x; y ] ->
+  | Prim.Mult, [ x; y ] ->
+    if Type.elt_is_int eltT then Llvm.build_mul x y "multmp" builder
+    else Llvm.build_fmul x y "mulftmp" builder
+  | Prim.Div, [ x; y ] ->
     if Type.elt_is_int eltT then Llvm.build_sdiv x y "sdivtmp" builder
     else Llvm.build_fdiv x y "fdivtmp" builder
   | Prim.Neg, [x] ->
@@ -453,10 +445,10 @@ let compile_math_op (t:ImpType.t) op (vals:llvalue list) builder =
 let compile_var ?(do_load=true) fnInfo (id:ID.t) =
   let name = ID.to_str id in
   match Hashtbl.find_option fnInfo.named_values name with
-    | None -> failwith $"[Imp_to_LLVM] unknown variable " ^ name
-    | Some ptr ->
-      if do_load then build_load ptr (name ^ "_value") fnInfo.builder
-      else ptr
+  | None -> failwith $"[Imp_to_LLVM] unknown variable " ^ name
+  | Some ptr ->
+    if do_load then build_load ptr (name ^ "_value") fnInfo.builder
+    else ptr
 
 (* Change to function? *)
 let rec compile_value ?(do_load=true) fnInfo (impVal:Imp.value_node) =
@@ -511,10 +503,10 @@ let rec compile_value ?(do_load=true) fnInfo (impVal:Imp.value_node) =
       compile_vec_slice llvmArray llvmIndices impVal.value_type fnInfo
     in
     Llvm.build_load idxAddr "ret" fnInfo.builder
-	| _ ->
-	  failwith $ Printf.sprintf
+  | _ ->
+    failwith $ Printf.sprintf
       "[Imp_to_LLVM] Not implemented %s"
-	    (Imp.value_node_to_str impVal)
+      (Imp.value_node_to_str impVal)
 
 and compile_values fnInfo = function
   | [] -> []
@@ -598,10 +590,10 @@ and compile_stmt fnInfo currBB stmt =
         IFDEF DEBUG THEN Printf.printf "Compiling SetIdx to VectorT\n%!" ENDIF;
         assert(false);
         (* TODO: the following lines are just to get it to compile. change *)
-		    let idxAddr =
-		      compile_vec_slice arrayPtr indexRegisters rhs.value_type fnInfo
-		    in
-		    Llvm.build_store rhsVal idxAddr fnInfo.builder
+  	    let idxAddr =
+  	      compile_vec_slice arrayPtr indexRegisters rhs.value_type fnInfo
+  	    in
+  	    Llvm.build_store rhsVal idxAddr fnInfo.builder
       | other -> failwith $ Printf.sprintf
         "[Imp_to_LLVM] Unsuported set index for type %s" (ImpType.to_str other)
     end;
@@ -623,10 +615,10 @@ and compile_stmt fnInfo currBB stmt =
     (Imp.stmt_to_str other)
 
 let allocate_local_array_info
-      (fnInfo:fn_info)
-      (name:string)
-      (impT:ImpType.t)
-      (llvmT:lltype) =
+    (fnInfo:fn_info)
+    (name:string)
+    (impT:ImpType.t)
+    (llvmT:lltype) =
   let local = Llvm.build_alloca llvmT (name^"_local") fnInfo.builder in
   let rank = mk_int32 (ImpType.rank impT) in
   Llvm.build_store
@@ -640,8 +632,6 @@ let allocate_local_array_info
     fnInfo.builder
   ;
   local
-
-
 
 let copy_array (fnInfo:fn_info) ?exclude ?apply_to_elts srcAddr destAddr nelts =
   for i = 0 to nelts - 1 do
@@ -664,7 +654,6 @@ let copy_array (fnInfo:fn_info) ?exclude ?apply_to_elts srcAddr destAddr nelts =
       Llvm.dump_value storeInstr
     end
   done
-
 
 (* to avoid loads from shape/stride arrays in the heart of tight loops, *)
 (* we instead load all of the metadata into stack allocated arrays and*)
@@ -696,7 +685,6 @@ let copy_array_metadata (fnInfo:fn_info) (src:llvalue) (dest:llvalue) rank  =
   in
   copy_array fnInfo ~apply_to_elts:div_stride srcStrides destStrides rank
 
-
 let init_local_var (fnInfo:fn_info) (id:ID.t) =
   let impT = ID.Map.find id fnInfo.imp_types in
   let llvmT = LlvmType.of_imp_type impT in
@@ -710,7 +698,6 @@ let init_local_var (fnInfo:fn_info) (id:ID.t) =
   let varName = ID.to_str id in
   let stackVal = Llvm.build_alloca llvmT varName fnInfo.builder in
   Hashtbl.add fnInfo.named_values varName stackVal
-
 
 let init_nonlocal_var (fnInfo:fn_info) (id:ID.t) (param:Llvm.llvalue) =
   let impT = ID.Map.find id fnInfo.imp_types in
@@ -800,3 +787,4 @@ let compile_fn (fn : Imp.fn) : Llvm.llvalue =
   let _ = compile_stmt_seq fnInfo initBasicBlock fn.body in
   finalize_function fnInfo;
   llvmFn
+
