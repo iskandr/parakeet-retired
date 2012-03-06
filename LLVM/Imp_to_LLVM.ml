@@ -39,7 +39,6 @@ let create_fn_info (fn : Imp.fn) = {
 
 
 module Intrinsics = struct
-
   let rec repeat_type (t:lltype) (n:int) =
     match n with 0 -> [] | _ -> t::(repeat_type t (n-1))
 
@@ -785,12 +784,7 @@ let init_compiled_fn (fnInfo:fn_info) =
   List.iter (init_local_var fnInfo) fnInfo.local_ids;
   llvmFn
 
-let store_output_metadata fnInfo outputId = ()
-
 let finalize_function fnInfo =
-  (* we implement multiple return values by passing the output addresses as *)
-  (* parameters so there's nothing left to return *)
-  List.iter (store_output_metadata fnInfo) fnInfo.output_ids;
   Llvm.build_ret_void fnInfo.builder
 
 let compile_fn (fn : Imp.fn) : Llvm.llvalue =

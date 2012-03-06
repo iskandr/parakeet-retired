@@ -38,9 +38,9 @@ let infer_adverb_axes_from_args ?axes (otherArgs:value_nodes) =
     let numAxes = max_num_axes_from_array_types argTypes in
     List.map TypedSSA.int32 (List.til numAxes)
 
-let adverb_output_types adverb numAxes nestedOutputTypes = 
+let adverb_output_types adverb numAxes nestedOutputTypes =
   match adverb with
-  | Adverb.Scan 
+  | Adverb.Scan
   | Adverb.Map ->
     List.map (Type.increase_rank numAxes) nestedOutputTypes
   | Adverb.AllPairs ->
@@ -52,7 +52,7 @@ let mk_adverb_exp_node
       (info : (FnId.t, value_nodes, value_nodes) Adverb.info) =
   let numAxes = List.length info.axes in
   let nestedOutputTypes = FnManager.output_types_of_typed_fn info.adverb_fn in
-  let outputTypes : Type.t list = 
+  let outputTypes : Type.t list =
     adverb_output_types info.adverb numAxes nestedOutputTypes
   in
   {
@@ -75,8 +75,8 @@ let mk_adverb_fn
   match Hashtbl.find_option adverb_fn_cache info with
     | Some fnId -> FnManager.get_typed_function fnId
     | None ->
-      let constructor = function
-        | inputs, outputs, [] ->
+      let constructor =  function
+       | inputs, outputs, [] ->
           let fixed, arrays =
             List.split_nth (List.length info.fixed_args) inputs
           in
@@ -86,14 +86,14 @@ let mk_adverb_fn
             array_args = arrays;
           }
           in
-          [TypedSSA.StmtHelpers.set_vals outputs (mk_adverb_exp_node valueInfo)]
+          [TypedSSA.set_vals outputs (mk_adverb_exp_node valueInfo)]
         | _ -> assert false
       in
       let nAxes = List.length info.axes in
       let nestedFnId = info.adverb_fn in
       let nestedOutputTypes = FnManager.output_types_of_typed_fn nestedFnId in
-      let outputTypes = 
-        adverb_output_types info.adverb nAxes nestedOutputTypes 
+      let outputTypes =
+        adverb_output_types info.adverb nAxes nestedOutputTypes
       in
       let newfn =
         TypedSSA.fn_builder
@@ -101,6 +101,7 @@ let mk_adverb_fn
           ~input_types:(info.fixed_args @ info.array_args)
           ~output_types:outputTypes
           constructor
+
       in
       FnManager.add_typed ~optimize:false newfn;
       Hashtbl.replace adverb_fn_cache info (TypedSSA.fn_id newfn);
