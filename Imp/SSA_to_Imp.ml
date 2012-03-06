@@ -635,13 +635,8 @@ and vectorize_adverb
     let seqNestedOutputs =
       List.map (fun arg -> ImpHelpers.idx arg seqIndexVars) lhsVars
     in
-	  let seqReplaceEnv =
-	    ID.Map.of_lists
-	      (impFn.input_ids @ impFn.output_ids)
-	      (seqNestedArgs @ seqNestedOutputs)
-	  in
-	  let seqFnBody = ImpReplace.replace_block seqReplaceEnv impFn.body in
-    let seqLoop = build_loop_nests builder [seqDescriptor] seqFnBody in
+    let seqFnBody = inline builder impFn seqNestedArgs seqNestedOutputs in
+	  let seqLoop = build_loop_nests builder [seqDescriptor] seqFnBody in
 
     (* Build the outer loops, injecting the vectorized and sequential inner *)
     (* loops.  Then return the vectorized block. *)

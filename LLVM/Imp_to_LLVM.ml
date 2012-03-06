@@ -13,7 +13,7 @@ let zero_i32 = mk_int32 0
 let zero_i64 = mk_int64 0
 
 let context = Llvm.global_context ()
-let global_module = Llvm.create_module context "parakeet_module"
+let llvm_module = Llvm.create_module context "parakeet_module"
 
 type fn_info = {
   input_ids : ID.t list;
@@ -27,24 +27,100 @@ type fn_info = {
 }
 
 let create_fn_info (fn : Imp.fn) = {
-	input_ids = fn.Imp.input_ids;
-	local_ids = fn.Imp.local_ids;
-	output_ids = fn.Imp.output_ids;
-	imp_types = fn.Imp.types;
+  input_ids = fn.Imp.input_ids;
+  local_ids = fn.Imp.local_ids;
+  output_ids = fn.Imp.output_ids;
+  imp_types = fn.Imp.types;
 
-	named_values = Hashtbl.create 13;
-	builder = Llvm.builder context;
+  named_values = Hashtbl.create 13;
+  builder = Llvm.builder context;
   name = FnId.to_str fn.Imp.id;
 }
 
-module LLVM_Intrinsics =
-  LLVM_Intrinsics.MkIntrinsics(struct let m = global_module end)
+
+module Intrinsics = struct
+
+  let rec repeat_type (t:lltype) (n:int) =
+    match n with 0 -> [] | _ -> t::(repeat_type t (n-1))
+
+  let op_type (eltT:lltype) (arity:int) =
+    Llvm.function_type eltT (Array.of_list (repeat_type eltT arity))
+
+  let unop_type (eltT:lltype) = op_type eltT 1
+  let binop_type (eltT:lltype) = op_type eltT 2
+
+  let declare_prim name fnT  = Llvm.declare_function name fnT llvm_module
+
+  let mk_prim name (primVariants: (ImpType.t * llvalue) list) (t:ImpType.t) =
+    try List.assoc t primVariants
+    with _ ->
+      failwith $ Printf.sprintf
+        "%s not implemented for %s"
+        name
+        (ImpType.to_str t)
+
+  let sqrt = mk_prim "sqrt" [
+    ImpType.float32_t, declare_prim "llvm.sqrt.f32" (op_type float32_t 1);
+    ImpType.float64_t, declare_prim "llvm.sqrt.f64" (op_type float64_t 1);
+    ImpType.VectorT(Type.Float32T, 4),
+      declare_prim "llvm.x86.sse.sqrt.ps" (unop_type vec4_float32_t);
+    ImpType.VectorT(Type.Float64T, 2),
+      declare_prim "llvm.x86.sse2.sqrt.pd" (unop_type vec2_float64_t);
+  ]
+
+  (* WILL THESE EVER GET USED? *)
+  let powi32 =
+    declare_prim "llvm.powi.f32" (function_type float32_t [|float32_t;int32_t|])
+  let powi64 =
+    declare_prim "llvm.powi.f64" (function_type float64_t [|float64_t;int32_t|])
+
+  let pow = mk_prim "pow" [
+    ImpType.float32_t, declare_prim "llvm.pow.f32" (binop_type float32_t);
+    ImpType.float64_t, declare_prim "llvm.pow.f64" (binop_type float64_t);
+  ]
+
+  let exp = mk_prim "exp" [
+    ImpType.float32_t, declare_prim "llvm.exp.f32" (op_type float32_t 1);
+    ImpType.float64_t, declare_prim "llvm.exp.f64" (op_type float64_t 1);
+    ImpType.VectorT(Type.Float32T, 4),
+      declare_prim "llvm.x86.sse.exp.ps" (unop_type vec4_float32_t);
+    ImpType.VectorT(Type.Float64T, 2),
+      declare_prim "llvm.x86.sse2.exp.pd" (unop_type vec2_float64_t);
+  ]
+
+  let log = mk_prim "log" [
+    ImpType.float32_t, declare_prim "llvm.log.f32" (op_type float32_t 1);
+    ImpType.float64_t, declare_prim "llvm.log.f64" (op_type float64_t 1);
+  ]
+  let sin = mk_prim "sin" [
+    ImpType.float32_t, declare_prim "llvm.sin.f32" (op_type float32_t 1);
+    ImpType.float64_t, declare_prim "llvm.sin.f64" (op_type float64_t 1);
+    ImpType.VectorT(Type.Float32T, 4),
+      declare_prim "llvm.x86.sse.sin.ps" (unop_type vec4_float32_t);
+    ImpType.VectorT(Type.Float64T, 2),
+      declare_prim "llvm.x86.sse2.sin.pd" (unop_type vec2_float64_t);
+  ]
+  let cos = mk_prim "cos" [
+    ImpType.float32_t, declare_prim "llvm.cos.f32" (op_type float32_t 1);
+    ImpType.float32_t,  declare_prim "llvm.cos.f64" (op_type float64_t 1);
+    ImpType.VectorT(Type.Float32T, 4),
+      declare_prim "llvm.x86.sse.cos.ps" (unop_type vec4_float32_t);
+    ImpType.VectorT(Type.Float64T, 2),
+      declare_prim "llvm.x86.sse2.cos.pd" (unop_type vec2_float64_t);
+  ]
+  let printf =
+    let fnT = Llvm.var_arg_function_type int32_t [|char_ptr_t|] in
+    declare_function "printf" fnT llvm_module
+end
+
+
+
 
 let llvm_printf str vals builder =
   IFDEF DEBUG THEN
     let str = Llvm.build_global_stringptr str "printfstr" builder in
     let args = Array.append [|str|] (Array.of_list vals) in
-    Llvm.build_call LLVM_Intrinsics.printf args "printf" builder;
+    Llvm.build_call Intrinsics.printf args "printf" builder;
   ENDIF;
   ()
 
@@ -340,59 +416,36 @@ let compile_cmp (t:ImpType.t) op (vals:llvalue list) builder =
   Llvm.build_zext cmpBit boolRepr "cmp" builder
 
 let compile_math_op (t:ImpType.t) op (vals:llvalue list) builder =
-  let t = ImpType.elt_type t in
+  let eltT = ImpType.elt_type t in
   match op, vals with
 	| Prim.Add, [ x; y ] ->
-    if Type.elt_is_int t then Llvm.build_add x y "addtmp" builder
+    if Type.elt_is_int eltT then Llvm.build_add x y "addtmp" builder
 	  else Llvm.build_fadd x y "addftmp" builder
 	| Prim.Sub, [ x; y ] ->
-    if Type.elt_is_int t then Llvm.build_sub x y "subtmp" builder
+    if Type.elt_is_int eltT then Llvm.build_sub x y "subtmp" builder
     else Llvm.build_fsub x y "subftmp" builder
 	| Prim.Mult, [ x; y ] ->
-	  if Type.elt_is_int t then Llvm.build_mul x y "multmp" builder
+	  if Type.elt_is_int eltT then Llvm.build_mul x y "multmp" builder
 	  else Llvm.build_fmul x y "mulftmp" builder
 	| Prim.Div, [ x; y ] ->
-    if Type.elt_is_int t then Llvm.build_sdiv x y "sdivtmp" builder
+    if Type.elt_is_int eltT then Llvm.build_sdiv x y "sdivtmp" builder
     else Llvm.build_fdiv x y "fdivtmp" builder
   | Prim.Neg, [x] ->
-    let llvm_type = LlvmType.of_elt_type t in
-    if Type.elt_is_int t then
+    let llvm_type = LlvmType.of_elt_type eltT in
+    if Type.elt_is_int eltT then
       let zero = Llvm.const_int llvm_type 0 in
       Llvm.build_sub zero x "negtmp" builder
     else
       let zero = Llvm.const_float llvm_type (-0.0) in
       Llvm.build_fsub zero x "negtmp" builder
   | Prim.Sqrt, [x] ->
-    let f =
-      match t with
-      | Type.Float32T -> LLVM_Intrinsics.sqrt32
-      | Type.Float64T -> LLVM_Intrinsics.sqrt64
-      | _ -> failwith "Unexpected non-float argument to sqrt"
-    in
-    Llvm.build_call f [|x|] "sqrt" builder
+    Llvm.build_call (Intrinsics.sqrt t) [|x|] "sqrt" builder
   | Prim.Exp, [x] ->
-    let f =
-      match t with
-      | Type.Float32T -> LLVM_Intrinsics.exp32
-      | Type.Float64T -> LLVM_Intrinsics.exp64
-      | _ -> failwith "Unexpected non-float argument to exp"
-    in
-    Llvm.build_call f [|x|] "exp" builder
+    Llvm.build_call (Intrinsics.exp t) [|x|] "exp" builder
   | Prim.Ln, [x] ->
-    let f = match t with
-      | Type.Float32T -> LLVM_Intrinsics.log32
-      | Type.Float64T -> LLVM_Intrinsics.log64
-      | _ -> failwith "Unexpected non-float argument to log"
-    in
-    Llvm.build_call f [|x|] "log" builder
+    Llvm.build_call (Intrinsics.log t) [|x|] "log" builder
   | Prim.Pow, [ x;y ] ->
-    let f =
-      match t with
-      | Type.Float32T -> LLVM_Intrinsics.pow32
-      | Type.Float64T -> LLVM_Intrinsics.pow64
-      | _ -> failwith "Unexpected non-float arguments to pow"
-    in
-    Llvm.build_call f [|x;y|] "pow" builder
+    Llvm.build_call (Intrinsics.pow t) [|x;y|] "pow" builder
   | _ ->
     failwith $ Printf.sprintf "Unsupported math op %s with %d args"
       (Prim.scalar_op_to_str op) (List.length vals)
@@ -716,7 +769,7 @@ let init_compiled_fn (fnInfo:fn_info) =
   (* since we have to pass output address as int64s, convert them all *)
   (* in the signature *)
   let fnT = Llvm.function_type void_t (Array.of_list paramTypes) in
-  let llvmFn = Llvm.declare_function fnInfo.name fnT global_module in
+  let llvmFn = Llvm.declare_function fnInfo.name fnT llvm_module in
   let bb = Llvm.append_block context "entry" llvmFn in
   Llvm.position_at_end bb fnInfo.builder;
   (* To avoid having to manually encode phi-nodes around the *)

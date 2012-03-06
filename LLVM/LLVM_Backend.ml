@@ -17,7 +17,7 @@ module LLE = Llvm_executionengine.ExecutionEngine
 let _ = Llvm_executionengine.initialize_native_target()
 
 (* set opt-level to 3 *)
-let execution_engine = LLE.create_jit Imp_to_LLVM.global_module 3
+let execution_engine = LLE.create_jit Imp_to_LLVM.llvm_module 3
 
 (** Multithreaded CPU Work Queue **)
 external create_work_queue : int -> Int64.t = "ocaml_create_work_queue"
@@ -54,7 +54,7 @@ let optimize_module llvmModule llvmFn : unit =
   Llvm_scalar_opts.add_correlated_value_propagation pm;
   Llvm_scalar_opts.add_loop_unswitch pm;
   Llvm_scalar_opts.add_basic_alias_analysis pm;
-  Llvm_scalar_opts.add_dead_store_elimination;
+  Llvm_scalar_opts.add_dead_store_elimination pm;
 
 
   ignore (PassManager.run_function llvmFn pm);
@@ -203,7 +203,7 @@ module CompiledFunctionCache = struct
           Printf.printf "Validating generated function...\n%!";
           Llvm_analysis.assert_valid_function llvmFn;
         ENDIF;
-        optimize_module Imp_to_LLVM.global_module llvmFn;
+        optimize_module Imp_to_LLVM.llvm_module llvmFn;
         IFDEF DEBUG THEN
           print_endline  "[LLVM_Backend.call_imp_fn] Generated LLVM function";
           Llvm.dump_value llvmFn;

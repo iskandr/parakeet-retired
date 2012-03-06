@@ -30,7 +30,6 @@ let parnum_to_generic = function
   | Int64 i -> int64 i
   | Float32 f -> float32 f
   | Float64 f -> float64 f
-  | _ -> assert false
 
 let rec to_llvm value =
   match value with

@@ -17,6 +17,12 @@ let int64_ptr_t = Llvm.pointer_type int64_t
 let float32_ptr_t = Llvm.pointer_type float32_t
 let float64_ptr_t = Llvm.pointer_type float64_t
 
+let vec4_int32_t : lltype = vector_type int32_t 4
+let vec4_float32_t : lltype = vector_type float32_t 4
+let vec2_int64_t : lltype = vector_type int64_t 2
+let vec2_float64_t : lltype = vector_type float64_t 2
+
+
 let is_scalar t =
   let kind = Llvm.classify_type t in
   (kind == Llvm.TypeKind.Float) ||

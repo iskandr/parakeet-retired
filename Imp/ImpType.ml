@@ -57,9 +57,9 @@ let is_array t = not (is_scalar t)
 
 let rec rank = function
 	| ScalarT _ -> 0
+  | VectorT (_, _)
   | PtrT _ -> 1
   | ExplodeT (_, r)
-  | VectorT (_, r)
 	| ArrayT (_, r) -> r
 	| ShiftT x -> rank x
   | _ -> failwith "Not implemented"
@@ -97,8 +97,9 @@ let peel ?(num_axes=1) = function
     if diff = 0 then ScalarT eltT
     else if diff > 0 then ArrayT (eltT, diff)
     else failwith "[ImpType.peel] Too many axes"
-  | ScalarT eltT -> ScalarT eltT
+  | VectorT (eltT, _)
   | PtrT (eltT,_) when num_axes = 1 -> ScalarT eltT
+  | ScalarT eltT -> ScalarT eltT
   | _ -> failwith "Not implemented"
 
 let type_of_copy t =

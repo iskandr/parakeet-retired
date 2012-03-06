@@ -8,12 +8,18 @@ let vectorize_type width = function
   | ScalarT eltT -> VectorT(eltT, width)
   | _ -> failwith "Unsupported type to vectorize"
 
+let vectorize_shape width = function
+  | [] -> [SymbolicShape.Const width]
+  | _ -> failwith "Can't vectorize array shape"
+
+
 let rec vectorize_value width valNode =
   let vecType = vectorize_type width valNode.value_type in
   let newValue, newType = match valNode.value with
   | Const n ->
     VecConst((List.fill n (List.til width))), valNode.value_type
-  | Op(argT, op, vs) -> Op(argT, op, vectorize_values width vs), vecType
+  | Op(argT, op, vs) ->
+    Op(vecType, op, vectorize_values width vs), vecType
   | Idx(arr, indices) -> VecSlice(arr, indices), vecType
   | other -> other, vecType
   in
@@ -42,11 +48,14 @@ and vectorize_block width = function
     let stmt = vectorize_stmt width stmt in
     stmt :: vectorize_block width rest
 
+
+
 let vectorize_fn impFn width =
   ID.Map.iter
     (fun a b -> Printf.printf "%s:%s\n%!" (ID.to_str a) (ImpType.to_str b))
     impFn.types
   ;
   let vecTypes = ID.Map.map (vectorize_type width) impFn.types in
+  let vecShapes = ID.Map.map (vectorize_shape width) impFn.shapes in
   let vecBlock = vectorize_block width impFn.body in
-  {impFn with types = vecTypes; body = vecBlock}
+  {impFn with types = vecTypes; shapes=vecShapes; body = vecBlock}
