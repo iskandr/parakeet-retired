@@ -113,8 +113,7 @@ def build_fn_node(src_info, python_fn):
     if parakeet_prim_name is None:
       raise RuntimeError("[Parakeet] Support for %s not implemented" %
                          python_fn)
-  elif (python_fn.__name__ in NumpyArrayMethods and
-    python_fn.__class__.__name__ == "builtin_function_or_method"):
+  elif (python_fn in NumpyArrayMethods):
     parakeet_prim_name = NumpyArrayMethods[python_fn]
     parakeet_fn = ast_prim(parakeet_prim_name)
     if parakeet_prim_name is None:
@@ -400,6 +399,8 @@ class ASTConverter():
     return results
 
   def register_if_function(self, node):
+    #Alex: Right now this will crash if a local variable method is an argument,
+    #because the local method won't be registered or translated
     try:
       return self.get_function_ref(node)
     except RuntimeError:
@@ -425,6 +426,7 @@ class ASTConverter():
       while type(nextNode).__name__ == 'Attribute':
         moduleList = [nextNode.attr] + moduleList
         nextNode = nextNode.value
+
       currModule = self.global_refs[nextNode.id]
 
       for m in moduleList:
@@ -453,87 +455,90 @@ class ASTConverter():
     nodeType = type(node).__name__
     src_info = self.build_src_info(node)
     if nodeType == 'Call':
-      funRef = self.get_function_ref(node.func)
-      if hasattr(funRef,'__self__') and funRef.__self__:
-        if funRef.__self__ in ValidObjects:
-          func = ValidObjects[funRef.__self__]
-          ### Should be it's own function?
-          if func in AutoTranslate:
-            func = AutoTranslate[func]
-          self.seen_functions.add(func)
-          fun_name = global_fn_name(func)
-          print "registering", fun_name
-          par_name = LibPar.mk_var(c_char_p(fun_name), src_info.addr)
-          fun_arg = par_name
-          ### End own function
-          kw_args = {'fixed': self.build_parakeet_array(src_info,[])}
-          if funRef.__name__ == "reduce" or "accumulate":
-            arr_args = self.build_arg_list([node.args[0]], contextSet)
-            kw_args['default'] = LibPar.mk_void(None)
-            if len(node.args) == 1:
-              kw_args['axis'] = LibPar.mk_int32_paranode(0, src_info.addr)
-            elif len(node.args) == 2:
-              kw_args['axis'] = self.visit(node.args[1], contextSet)
-            else:
-              print "TOO MANY ARGUMENTS FOR %s, DO NOT SUPPORT DTYPE" % (
-                      funRef.__name__)
-              assert False
-            para_arr_args = self.build_parakeet_array(src_info, arr_args)
-            args = [fun_arg]
+      node_name = self.get_global_var_name(node.func)
+      if not node_name.split('.')[0] in self.arg_names:
+        funRef = self.get_function_ref(node.func)
+        if hasattr(funRef,'__self__') and funRef.__self__:
+          if funRef.__self__ in ValidObjects:
+            func = ValidObjects[funRef.__self__]
+            ### Should be it's own function?
+            if func in AutoTranslate:
+              func = AutoTranslate[func]
+            self.seen_functions.add(func)
+            fun_name = global_fn_name(func)
+            print "registering", fun_name
+            par_name = LibPar.mk_var(c_char_p(fun_name), src_info.addr)
+            fun_arg = par_name
+            ### End own function
+            kw_args = {'fixed': self.build_parakeet_array(src_info,[])}
+            if funRef.__name__ == "reduce" or "accumulate":
+              arr_args = self.build_arg_list([node.args[0]], contextSet)
+              kw_args['default'] = LibPar.mk_void(None)
+              if len(node.args) == 1:
+                kw_args['axis'] = LibPar.mk_int32_paranode(0, src_info.addr)
+              elif len(node.args) == 2:
+                kw_args['axis'] = self.visit(node.args[1], contextSet)
+              else:
+                print "TOO MANY ARGUMENTS FOR %s, DO NOT SUPPORT DTYPE" % (
+                        funRef.__name__)
+                assert False
+              para_arr_args = self.build_parakeet_array(src_info, arr_args)
+              args = [fun_arg]
+              args.append(para_arr_args)
+              args.append(kw_args['fixed'])
+              args.append(kw_args['axis'])
+              args.append(kw_args['default'])
+              if funRef.__name__ == "reduce":
+                return self.build_call(src_info, parakeet_lib.reduce, args)
+              elif funRef.__name__ == "accumulate":
+                return self.build_call(src_info, parakeet_lib.scan, args)
+              else:
+                assert False
+        else:
+          childContext = set(contextSet)
+          if funRef == np.array:
+            childContext.add('array')
+            assert len(node.args) == 1
+            return self.visit(node.args[0], childContext)
+          elif funRef in adverbs:
+            fun_arg = self.build_arg_list([node.args[0]], childContext)
+            arr_args = self.build_arg_list(node.args[1:], childContext)
+            kw_args = {'fixed': self.build_parakeet_array(src_info,[]),
+                       'axis': LibPar.mk_void(None)
+                      }
+            if funRef == parakeet_lib.reduce:
+              kw_args['default'] = LibPar.mk_void(None)
+            childContext.add('rhs')
+            childContext.add('array')
+            for kw_arg in node.keywords:
+              kw = kw_arg.arg
+              val = kw_arg.value
+              if type(val).__name__ == 'List':
+                val_args = []
+                for v_arg in val.elts:
+                  val_args.append(self.visit(v_arg, childContext))
+                kw_args[kw] = self.build_parakeet_array(src_info,val_args)
+              else:
+                val = self.visit(kw_arg.value, childContext)
+                kw_args[kw] = self.build_parakeet_array(src_info,[val])
+            args = fun_arg
+            para_arr_args = self.build_parakeet_array(src_info,arr_args)
             args.append(para_arr_args)
             args.append(kw_args['fixed'])
             args.append(kw_args['axis'])
-            args.append(kw_args['default'])
-            if funRef.__name__ == "reduce":
-              return self.build_call(src_info, parakeet_lib.reduce, args)
-            elif funRef.__name__ == "accumulate":
-              return self.build_call(src_info, parakeet_lib.scan, args)
-            else:
-              assert False
-        elif (funRef.__name__ in NumpyArrayMethods and
-          funRef.__class__.__name__ == "builtin_function_or_method"):
-          #The second condition is in case they overwrote the fn for that array
-          var = self.get_global_var_name(node)
-          var_node = self.build_var(src_info, var)
-          return self.build_call(src_info, funRef, [args])
+            if funRef == parakeet_lib.reduce:
+              args.append(kw_args['default'])
+            return self.build_call(src_info, funRef, args)
+          else:
+            funArgs = self.build_arg_list(node.args, childContext)
+            return self.build_call(src_info, funRef, funArgs)
+      #If it's a local variable
       else:
-        childContext = set(contextSet)
-        if funRef == np.array:
-          childContext.add('array')
-          assert len(node.args) == 1
-          return self.visit(node.args[0], childContext)
-        elif funRef in adverbs:
-          fun_arg = self.build_arg_list([node.args[0]], childContext)
-          arr_args = self.build_arg_list(node.args[1:], childContext)
-          kw_args = {'fixed': self.build_parakeet_array(src_info,[]),
-                     'axis': LibPar.mk_void(None)
-                    }
-          if funRef == parakeet_lib.reduce:
-            kw_args['default'] = LibPar.mk_void(None)
-          childContext.add('rhs')
-          childContext.add('array')
-          for kw_arg in node.keywords:
-            kw = kw_arg.arg
-            val = kw_arg.value
-            if type(val).__name__ == 'List':
-              val_args = []
-              for v_arg in val.elts:
-                val_args.append(self.visit(v_arg, childContext))
-              kw_args[kw] = self.build_parakeet_array(src_info,val_args)
-            else:
-              val = self.visit(kw_arg.value, childContext)
-              kw_args[kw] = self.build_parakeet_array(src_info,[val])
-          args = fun_arg
-          para_arr_args = self.build_parakeet_array(src_info,arr_args)
-          args.append(para_arr_args)
-          args.append(kw_args['fixed'])
-          args.append(kw_args['axis'])
-          if funRef == parakeet_lib.reduce:
-            args.append(kw_args['default'])
-          return self.build_call(src_info, funRef, args)
-        else:
-          funArgs = self.build_arg_list(node.args, childContext)
-          return self.build_call(src_info, funRef, funArgs)
+        method = '.'.join(node_name.split('.')[1:])
+        if (method in NumpyArrayMethods):
+          var = node_name.split('.')[0]
+          var_node = self.build_var(src_info, var)
+          return self.build_call(src_info, method, [var_node])
     elif nodeType == 'Subscript':
       args = []
       args.append(self.visit(node.value, contextSet))
