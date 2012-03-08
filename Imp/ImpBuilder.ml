@@ -70,9 +70,10 @@ class builder (info:fn_info) = object (self)
 
 (* nested values on the RHS should be constants or variables *)
   method flatten_simple valNode =
-    Printf.printf "[ImpBuilder.flatten_simple] %s\n%!"
+    (*Printf.printf "[ImpBuilder.flatten_simple] %s\n%!"
       (Imp.value_node_to_str valNode)
     ;
+    *)
     match valNode.value with
     | Var _
     | Const _
@@ -328,7 +329,6 @@ class fn_builder (name:string) = object (self)
   val mutable output_ids : ID.t list = []
   val mutable output_types : ImpType.t list = []
   val mutable output_shapes : SymbolicShape.t list = []
-
 
   method declare_input (id:ID.t) (t:ImpType.t) : unit =
     input_ids <- input_ids @ [id];

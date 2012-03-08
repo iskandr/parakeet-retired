@@ -32,13 +32,15 @@ module ImpStorageAnalysis = struct
 
   let value tenv {value; value_type} =
     if Type.is_scalar value_type then Imp.Local
-    else match value with
+    else Imp.Alias
+    (*else match value with
     | TypedSSA.Var id ->
       if not $ ID.Map.mem id tenv then
         failwith $ "ID not found: " ^ ID.to_str id
       else
         ID.Map.find id tenv
     | _ -> assert false
+    *)
 
   let exp env {exp; exp_types} helpers : Imp.storage list =
     match exp with
