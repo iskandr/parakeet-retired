@@ -47,7 +47,6 @@ module CoreLanguage = struct
   }
   and block = stmt_node Block.t
 
-
   (* search through a block and return the first srcinfo, *)
   (* if one exists. Return None otherwise *)
   let rec get_stmt_src_info {stmt; stmt_src} =
@@ -154,7 +153,6 @@ module PrettyPrinters = struct
 end
 include PrettyPrinters
 
-
 module WrapHelpers = struct
 let wrap_value ?src ty value  =
       { value = value; value_src = src; value_type = ty }
@@ -236,11 +234,11 @@ module FnHelpers = struct
 	    fn_id = fnId
 	  }
 	let fn_builder
-	      ?name
-	      ~(input_types : Type.t list)
-	      ~(output_types : Type.t list)
-	      ?(local_types = [])
-	      (construct : value_nodes * value_nodes * value_nodes -> stmt_node list) =
+	    ?name
+	    ~(input_types : Type.t list)
+	    ~(output_types : Type.t list)
+	    ?(local_types = [])
+	    (construct : value_nodes * value_nodes * value_nodes -> stmt_node list) =
 	  IFDEF DEBUG THEN
 	    Printf.printf
 	      "[SSA_Helpers.mk_fn] name: %s, input_types = %s, output_types = %s\n%!"
@@ -276,8 +274,7 @@ module FnHelpers = struct
 	let output_types { fn_output_types } = fn_output_types
 	let fn_id { fn_id } = fn_id
 
-
-  (* if al variables in the function have the same type then return it, *)
+  (* if all variables in the function have the same type then return it, *)
   (* otherwise return None *)
   let get_single_type {tenv} =
     let aux id t = function

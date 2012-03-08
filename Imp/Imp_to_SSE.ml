@@ -12,7 +12,6 @@ let vectorize_shape width = function
   | [] -> [SymbolicShape.Const width]
   | _ -> failwith "Can't vectorize array shape"
 
-
 let rec vectorize_value width valNode =
   let vecType = vectorize_type width valNode.value_type in
   let newValue, newType = match valNode.value with
@@ -42,8 +41,6 @@ and vectorize_block width = function
   | stmt::rest ->
     let stmt = vectorize_stmt width stmt in
     stmt :: vectorize_block width rest
-
-
 
 let vectorize_fn impFn width =
   ID.Map.iter

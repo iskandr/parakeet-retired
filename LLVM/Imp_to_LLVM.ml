@@ -90,14 +90,17 @@ module Intrinsics = struct
     ImpType.float32_t, declare_prim "llvm.log.f32" (op_type float32_t 1);
     ImpType.float64_t, declare_prim "llvm.log.f64" (op_type float64_t 1);
   ]
+
   let sin = mk_prim "sin" [
     ImpType.float32_t, declare_prim "llvm.sin.f32" (op_type float32_t 1);
     ImpType.float64_t, declare_prim "llvm.sin.f64" (op_type float64_t 1);
   ]
+
   let cos = mk_prim "cos" [
     ImpType.float32_t, declare_prim "llvm.cos.f32" (op_type float32_t 1);
-    ImpType.float32_t,  declare_prim "llvm.cos.f64" (op_type float64_t 1);
+    ImpType.float64_t, declare_prim "llvm.cos.f64" (op_type float64_t 1);
   ]
+
   let printf =
     let fnT = Llvm.var_arg_function_type int32_t [|char_ptr_t|] in
     declare_function "printf" fnT llvm_module
