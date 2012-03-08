@@ -738,13 +738,14 @@ let init_local_var (fnInfo:fn_info) (id:ID.t) =
         let nelts = compile_nelts_in_shape fnInfo shape in
         let impEltT = ImpType.elt_type impT in
         let llvmEltT = LlvmType.of_elt_type impEltT in
-        let dataPtr =
+        let dataFieldPtr =
+          Indexing.get_array_field_addr fnInfo localArray ArrayData
+        in
+        let data : llvalue =
           Llvm.build_array_alloca llvmEltT nelts "local_data_ptr" fnInfo.builder
         in
-        Llvm.build_store
-          dataPtr
-          (Indexing.get_array_field_addr fnInfo localArray ArrayData)
-        ;
+        let _ = Llvm.build_store data dataFieldPtr  fnInfo.builder in
+
         localArray
       )
       else localArray
