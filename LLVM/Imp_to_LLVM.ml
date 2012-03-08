@@ -654,6 +654,7 @@ and compile_stmt fnInfo currBB stmt =
     Llvm.build_store rhsVal idxAddr fnInfo.builder;
     currBB
   | Imp.Set ({value=Var lhsId}, {value=Imp.FixDim(arr, dim, idx); value_type})->
+    let llvmIdx = compile_value fnInfo idx in
     let rank = ImpType.rank value_type in
     let destArray = compile_var ~do_load:false fnInfo lhsId in
     let srcArray = compile_value ~do_load:false fnInfo arr in
@@ -662,6 +663,20 @@ and compile_stmt fnInfo currBB stmt =
       ~convert_strides_to_num_elts:false
         fnInfo srcArray destArray ~exclude_dim rank
     ;
+    let srcData = get_array_field fnInfo srcArray Imp.ArrayData in
+    let strideNumElts = get_array_strides_elt fnInfo destArray exclude_dim in
+    let totalIdx =
+      Llvm.build_mul strideNumElts llvmIdx "sliceNumElts" fnInfo.builder
+    in
+    let offsetPtr =
+      Llvm.build_gep srcData [|totalIdx|] "fixdimPtr" fnInfo.builder
+    in
+    let _ =
+      Llvm.build_store
+        offsetPtr
+        (get_array_field_addr fnInfo destArray Imp.ArrayData)
+        fnInfo.builder
+    in
     currBB
 
   | Imp.Set ({value = Var id}, rhs) ->

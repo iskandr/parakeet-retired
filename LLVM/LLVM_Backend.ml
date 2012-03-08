@@ -43,15 +43,10 @@ let optimize_module llvmModule llvmFn : unit =
 
   Llvm_scalar_opts.add_scalar_repl_aggregation_ssa pm;
   Llvm_scalar_opts.add_scalar_repl_aggregation pm;
-
-
   Llvm_scalar_opts.add_sccp pm;
-
   Llvm_scalar_opts.add_aggressive_dce pm;
   Llvm_scalar_opts.add_cfg_simplification pm;
-
   Llvm_scalar_opts.add_instruction_combination pm;
-
   Llvm_scalar_opts.add_gvn pm;
   Llvm_scalar_opts.add_licm pm;
   Llvm_scalar_opts.add_loop_unroll pm;
