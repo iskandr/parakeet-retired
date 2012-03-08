@@ -148,20 +148,20 @@ module Indexing = struct
       ;
     ENDIF;
 
-	  let strides : llvalue  = get_array_field fnInfo array ArrayStrides in
+    let strides : llvalue  = get_array_field fnInfo array ArrayStrides in
     Llvm.dump_value strides;
-	  let stridePtr =
-	    if idx <> 0 then
-	      Llvm.build_gep strides [|mk_int32 idx|] "stride_ptr" fnInfo.builder
-	    else
+    let stridePtr =
+      if idx <> 0 then
+        Llvm.build_gep strides [|mk_int32 idx|] "stride_ptr" fnInfo.builder
+      else
         strides
-	  in
+    in
     let resultName =
       Llvm.value_name array ^ ".strides.elt" ^ string_of_int idx ^ "_"
     in
-	  Llvm.build_load stridePtr resultName fnInfo.builder
+    Llvm.build_load stridePtr resultName fnInfo.builder
 
-	let get_array_shape_elt (fnInfo:fn_info) (array:llvalue) (idx:int) =
+  let get_array_shape_elt (fnInfo:fn_info) (array:llvalue) (idx:int) =
     IFDEF DEBUG THEN
       Printf.printf "get_array_shape_elt: %d\n%!" idx;
       Llvm.dump_value array;
@@ -204,29 +204,29 @@ module Indexing = struct
       Printf.printf "Done with compute_offset\n%!";
       offset
 
-	let compile_arr_idx
-	    (array:Llvm.llvalue)
-	    (indices:Llvm.llvalue list)
-	    (imp_elt_t:Type.elt_t)
-	    (fnInfo:fn_info) =
+  let compile_arr_idx
+      (array:Llvm.llvalue)
+      (indices:Llvm.llvalue list)
+      (imp_elt_t:Type.elt_t)
+      (fnInfo:fn_info) =
     IFDEF DEBUG THEN
       Printf.printf "[LLVM compile_arr_idx]: %s[%s] : %s\n"
         (Llvm.value_name array)
         (String.concat ", " (List.map Llvm.value_name indices))
         (Type.elt_to_str imp_elt_t)
     ENDIF;
-	  let dataPtr = get_array_field fnInfo array ArrayData  in
+    let dataPtr = get_array_field fnInfo array ArrayData  in
     Llvm.dump_value dataPtr;
- 	  let offset = compute_offset fnInfo array indices in
+     let offset = compute_offset fnInfo array indices in
     let addrName = Llvm.value_name array ^ "_idxAddr" in
-	  let newAddr = Llvm.build_gep dataPtr [|offset|] addrName fnInfo.builder in
+    let newAddr = Llvm.build_gep dataPtr [|offset|] addrName fnInfo.builder in
     newAddr
 
-	let compile_range_load
-	    (array:Llvm.llvalue)
-	    (indices:Llvm.llvalue list)
-	    (imp_elt_t:Type.elt_t)
-	    (fnInfo:fn_info) =
+  let compile_range_load
+      (array:Llvm.llvalue)
+      (indices:Llvm.llvalue list)
+      (imp_elt_t:Type.elt_t)
+      (fnInfo:fn_info) =
     let startPtr =
       Llvm.build_gep array [|zero_i32;zero_i32|] "gep_start" fnInfo.builder
     in
@@ -315,17 +315,17 @@ module Indexing = struct
   (* assume vector slice is through contiguous data *)
   let compile_vec_slice
       (array:Llvm.llvalue)
-      (indices:Llvm.llvalue list)
-      (imp_t:ImpType.t)
+      (idx:Llvm.llvalue)
+      (impT:ImpType.t)
       (fnInfo:fn_info) =
-    match imp_t, indices  with
-    | ImpType.VectorT(eltT, width), [idx] ->
+    match impT with
+    | ImpType.VectorT(eltT, width) ->
       (* WARNING: Assume slice is through an ordinary array, not a range *)
       let dataPtr = get_array_field fnInfo array ArrayData  in
       let offsetScalarPtr =
         Llvm.build_gep dataPtr [|idx|] "vecOffset" fnInfo.builder
       in
-      let llvmVecT = Llvm.pointer_type (LlvmType.of_imp_type imp_t) in
+      let llvmVecT = Llvm.pointer_type (LlvmType.of_imp_type impT) in
       Llvm.build_pointercast offsetScalarPtr llvmVecT "vecPtr" fnInfo.builder
     | _ -> failwith "[Imp_to_LLVM] Error compiling vec slice"
 end
@@ -382,26 +382,26 @@ let compile_cmp (t:ImpType.t) op (vals:llvalue list) builder =
   in
   let cmpFn : llvalue -> llvalue -> string -> llbuilder -> llvalue =
     match op with
-  	| Prim.Eq ->
-  	  if Type.elt_is_int t then Llvm.build_icmp Llvm.Icmp.Eq
-  	  else Llvm.build_fcmp Llvm.Fcmp.Oeq
-  	| Prim.Neq ->
-  	  if Type.elt_is_int t then Llvm.build_icmp Llvm.Icmp.Ne
-  	  else Llvm.build_fcmp Llvm.Fcmp.One
-  	| Prim.Lt ->
-  	  if Type.elt_is_int t then Llvm.build_icmp Llvm.Icmp.Slt
-  	  else Llvm.build_fcmp Llvm.Fcmp.Olt
-  	| Prim.Lte ->
-  	  if Type.elt_is_int t then Llvm.build_icmp Llvm.Icmp.Sle
-  	  else Llvm.build_fcmp Llvm.Fcmp.Ole
-  	| Prim.Gt ->
-  	  if Type.elt_is_int t then Llvm.build_icmp Llvm.Icmp.Sgt
-  	  else Llvm.build_fcmp Llvm.Fcmp.Ogt
-  	| Prim.Gte  ->
-  	  if Type.elt_is_int t then Llvm.build_icmp Llvm.Icmp.Sge
-  	  else Llvm.build_fcmp Llvm.Fcmp.Oge
-  	| _ ->
-  	  failwith (Printf.sprintf "Unsupported cmp %s" (Prim.scalar_op_to_str op))
+    | Prim.Eq ->
+      if Type.elt_is_int t then Llvm.build_icmp Llvm.Icmp.Eq
+      else Llvm.build_fcmp Llvm.Fcmp.Oeq
+    | Prim.Neq ->
+      if Type.elt_is_int t then Llvm.build_icmp Llvm.Icmp.Ne
+      else Llvm.build_fcmp Llvm.Fcmp.One
+    | Prim.Lt ->
+      if Type.elt_is_int t then Llvm.build_icmp Llvm.Icmp.Slt
+      else Llvm.build_fcmp Llvm.Fcmp.Olt
+    | Prim.Lte ->
+      if Type.elt_is_int t then Llvm.build_icmp Llvm.Icmp.Sle
+      else Llvm.build_fcmp Llvm.Fcmp.Ole
+    | Prim.Gt ->
+      if Type.elt_is_int t then Llvm.build_icmp Llvm.Icmp.Sgt
+      else Llvm.build_fcmp Llvm.Fcmp.Ogt
+    | Prim.Gte  ->
+      if Type.elt_is_int t then Llvm.build_icmp Llvm.Icmp.Sge
+      else Llvm.build_fcmp Llvm.Fcmp.Oge
+    | _ ->
+      failwith (Printf.sprintf "Unsupported cmp %s" (Prim.scalar_op_to_str op))
   in
   let cmpBit = cmpFn x y "cmptmp" builder in
   let boolRepr = LlvmType.of_elt_type Type.BoolT in
@@ -496,11 +496,11 @@ let rec compile_value ?(do_load=true) fnInfo (impVal:Imp.value_node) =
             Llvm.build_load idxAddr "ret" fnInfo.builder
         end
     end
-  | Imp.VecSlice (arr, indices) ->
+  | Imp.VecSlice (arr, idx, width) ->
     let llvmArray = compile_value ~do_load:false fnInfo arr in
-    let llvmIndices = List.map (compile_value fnInfo) indices in
+    let llvmIdx = compile_value fnInfo idx in
     let idxAddr =
-      compile_vec_slice llvmArray llvmIndices impVal.value_type fnInfo
+      compile_vec_slice llvmArray llvmIdx impVal.value_type fnInfo
     in
     Llvm.build_load idxAddr "ret" fnInfo.builder
   | _ ->
@@ -567,7 +567,7 @@ and compile_stmt fnInfo currBB stmt =
     Llvm.position_at_end after_bb fnInfo.builder;
     after_bb
 
-  | Imp.Set (id, rhs) ->
+  | Imp.Set ({value = Var id}, rhs) ->
     let rhs : Llvm.llvalue = compile_value fnInfo rhs in
     begin match Hashtbl.find_option fnInfo.named_values (ID.to_str id) with
       | None -> failwith  ("unknown variable name " ^ (ID.to_str id))
@@ -575,8 +575,7 @@ and compile_stmt fnInfo currBB stmt =
         let instr = Llvm.build_store rhs register fnInfo.builder in
         currBB
     end
-
-  | Imp.SetIdx (arr, indices, rhs) ->
+  | Imp.Set({value=Idx(arr, indices)}, rhs) ->
     let arrayPtr : Llvm.llvalue = compile_value ~do_load:false fnInfo arr in
     let indexRegisters : Llvm.llvalue list = compile_values fnInfo indices in
     let rhsVal = compile_value fnInfo rhs in
@@ -590,22 +589,22 @@ and compile_stmt fnInfo currBB stmt =
         IFDEF DEBUG THEN Printf.printf "Compiling SetIdx to VectorT\n%!" ENDIF;
         assert(false);
         (* TODO: the following lines are just to get it to compile. change *)
-  	    let idxAddr =
-  	      compile_vec_slice arrayPtr indexRegisters rhs.value_type fnInfo
-  	    in
-  	    Llvm.build_store rhsVal idxAddr fnInfo.builder
+        let idx = List.hd indexRegisters in
+        let idxAddr =
+          compile_vec_slice arrayPtr idx rhs.value_type fnInfo
+        in
+        Llvm.build_store rhsVal idxAddr fnInfo.builder
       | other -> failwith $ Printf.sprintf
         "[Imp_to_LLVM] Unsuported set index for type %s" (ImpType.to_str other)
     end;
     currBB
-
-  | Imp.SetVecSlice (arr, indices, rhs) ->
+  | Imp.Set ({value=VecSlice(arr, idx, width)}, rhs) ->
     let arrayPtr : Llvm.llvalue = compile_value ~do_load:false fnInfo arr in
-    let indexRegisters : Llvm.llvalue list = compile_values fnInfo indices in
+    let indexRegister : Llvm.llvalue = compile_value fnInfo idx in
     let rhsVal = compile_value fnInfo rhs in
     IFDEF DEBUG THEN Printf.printf "Compiling SetVecSlice to LLVM\n%!" ENDIF;
     let idxAddr =
-      compile_vec_slice arrayPtr indexRegisters rhs.value_type fnInfo
+      compile_vec_slice arrayPtr indexRegister rhs.value_type fnInfo
     in
     Llvm.build_store rhsVal idxAddr fnInfo.builder;
     currBB

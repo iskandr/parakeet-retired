@@ -65,6 +65,8 @@ module Make(A : sig val prefix : string end) = struct
     Hashtbl.add id_to_name id !unique_name;
     id
 
+
+
   let rec gen_named_list (prefix:string) (count:int) : t list =
     if count <= 0 then []
     else
@@ -77,6 +79,9 @@ module Make(A : sig val prefix : string end) = struct
 
   let gen () = gen_named A.prefix
 
+  let gen_named_opt = function
+    | None -> gen ()
+    | Some name -> gen_named name
   type uid = t
   module Set = Set.Make(struct type t = uid let compare = compare end)
   module Map = Map.Make(struct type t = uid let compare = compare end)

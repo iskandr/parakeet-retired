@@ -31,48 +31,50 @@ module LoopHelpers = struct
     List.map (fun {loop_var} -> loop_var) loopDescriptors
 
   let build_loop_nests
-      (builder:ImpBuilder.builder)
       ?(skip_first_iter = false)
-      (descrs:loop_descr list)
-      (body:Imp.block) =
-    let beforeLoops = ref [] in
-    let rec aux = function
+      (outerBlock:ImpBuilder.builder)
+      (body: ImpBuilder.builder)
+      (descrs:loop_descr list) =
+    let rec aux currBlock = function
       | [] -> body
       | d::ds ->
-        let testT = d.loop_var.value_type in
-        let test = {
-          value = Imp.Op(testT, d.loop_test_cmp,[d.loop_var; d.loop_test_val]);
-          value_type = ImpType.bool_t
-        }
-        in
-        let next = {
-          value = Imp.Op(testT, d.loop_incr_op, [d.loop_var; d.loop_incr]);
-          value_type = d.loop_var.value_type;
-        }
-        in
-        let init =
-          (* if this is this innermost loop iteration, *)
-          (* and we're supposed to skip the first iteration, *)
-          (* then initialize to "initidx" *)
-          if ds = [] && skip_first_iter then
-            let init = builder#fresh_local ~name:"initidx" ImpType.int32_t in (
-            beforeLoops :=
-              [ImpHelpers.set init (ImpHelpers.add d.loop_start d.loop_incr)]
-            ;
-            [set d.loop_var init; set init d.loop_start]
-          )
-          else [set d.loop_var d.loop_start]
-        in
-        init @ [Imp.While (test, (aux ds) @ [set d.loop_var next])]
-    in !beforeLoops @ aux descrs
+        (* if this is this innermost loop iteration, *)
+        (* and we're supposed to skip the first iteration, *)
+        (* then initialize to "initidx" *)
+        if ds = [] && skip_first_iter then (
+          let init =
+            outerBlock#build_add "initidx" d.loop_start d.loop_incr
+          in
+          currBlock += Set(d.loop_var, init);
+          currBlock += Set(init, d.loop_start);
+        )
+        else currBlock += Set(d.loop_var, d.loop_start)
+        ;
+        let nestedBlock = new builder currBlock#info in
+        aux nestedBlock ds;
+        let loopVarT = d.loop_var.value_type in
+        let next = ImpHelpers.scalar_op d.loop_incr_op d.loop_var d.loop_incr in
+        nestedBlock += Set(d.loop_var, nest);
+        let test = ImpHelpers.cmp d.loop_test_cmp d.loop_var d.loop_test_val in
+        currBlock += While(test, to_list nestedBlock)
+    in
+    aux outerBlock descrs
+
+(* TODO: *)
+(* - Get rid of SetIdx*)
+(* - change Set to take a value_node lhs *)
+(* - Fix up mli for ImpBuilder *)
+(* - get rid of ImpHelpers and old objects *)
+(* - move inline into ImpBuilder *)
+(* - merge idx and fixdims, move them to ImpBuilder *)
 
   let mk_simple_loop_descriptor
-      (builder:ImpBuilder.builder)
+      (block : ImpBuilder.builder)
       ?(down=false)
       ?(start=ImpHelpers.zero)
       (stop:Imp.value_node) =
     {
-      loop_var = builder#fresh_local ~name:"loop_idx" int32_t;
+      loop_var = fresh_local "loop_idx" int32_t block;
       loop_start = start;
       loop_test_val = stop;
       loop_test_cmp = (if down then Prim.Gt else Prim.Lt);
@@ -85,15 +87,14 @@ module LoopHelpers = struct
   let rec size_of_axes
       (builder:ImpBuilder.builder)
       (array:Imp.value_node)
-      (axes:Imp.value_nodes) : Imp.block * Imp.value_node list =
+      (axes:Imp.value_nodes) :  Imp.value_node list =
     match axes with
-    | [] -> [], []
+    | [] ->  []
     | axis::rest ->
       let size : Imp.value_node = ImpHelpers.dim array axis in
-      let temp = builder#fresh_local ~name:"size" ImpType.int32_t in
-      let stmtNode = ImpHelpers.set temp size in
-      let restBlock, restVals = size_of_axes builder array rest in
-      stmtNode :: restBlock, temp :: restVals
+      let temp = fresh_local "size" ImpType.int32_t builder in
+      builder += Set(temp, size);
+      temp :: size_of_axes builder array rest
 
   (* given an array and a list of axes, create a list of loop descriptors *)
   (* which we can turn into nested loops over the array *)
@@ -114,10 +115,7 @@ module LoopHelpers = struct
 end
 open LoopHelpers
 
-let permute (dims:int list) indices : value_node list  =
-  let compare_pair (m,_) (n,_) = compare m n in
-  let sortedPairs = List.fast_sort compare_pair (List.combine dims indices) in
-  List.map snd sortedPairs
+
 
 let rec idx_or_fixdims
     ~(arr:value_node)
@@ -142,11 +140,11 @@ let rec idx_or_fixdims
     ;
   ENDIF;
   (* for convenience, treat indexing into scalars as the identity operation *)
-  if rank = 0 then arr
-  else if rank = 1 then idx arr indices
+  if rank = 0 then  arr
   else if rank = nIndices && (List.for_all ImpHelpers.is_const_int dims) then
-    idx arr (permute (List.map get_const_int dims) indices)
-  else fixdims arr dims indices
+    idx arr ~dims indices
+  else
+    fixdims arr dims indices
 
 let copy (builder:ImpBuilder.builder) ~from_array ~to_array =
   let toType = to_array.value_type in
@@ -164,16 +162,13 @@ let copy (builder:ImpBuilder.builder) ~from_array ~to_array =
             toRank
   ENDIF;
   let axes = ImpHelpers.ints_til toRank in
-  let initBlock, loopDescriptors =
-    axes_to_loop_descriptors builder to_array axes
-  in
+  let loopDescriptors = axes_to_loop_descriptors builder to_array axes in
   let indexVars = get_loop_vars loopDescriptors in
-  let lhs = idx_or_fixdims ~arr:to_array ~dims:axes ~indices:indexVars in
-  let rhs = idx_or_fixdims ~arr:from_array ~dims:axes ~indices:indexVars in
-  let loops =
-    build_loop_nests builder loopDescriptors [ImpHelpers.set lhs rhs]
-  in
-  initBlock @ loops
+  let lhs = idx to_array ~dims:axes indexVars in
+  let rhs = idx from_array ~dims:axes indexVars in
+  let body = new builder builder#info in
+  body += Set(lhs, rhs);
+  build_loop_nests builder loopDescriptors body
 
 let translate_value (builder:ImpBuilder.builder) valNode : Imp.value_node =
   match valNode.TypedSSA.value with
@@ -235,37 +230,35 @@ let translate_array_literal
     let lhs = builder#var lhsId in
     let impElts : Imp.value_node list = translate_values builder elts in
     let assign_elt idx rhs =
-      ImpHelpers.setidx lhs [ImpHelpers.int idx] rhs
+      builder += Imp.Set(ImpBuilder.idx lhs [int idx], rhs)
     in
-    List.mapi assign_elt impElts
+    List.iteri assign_elt impElts
 
 let mk_set_val builder (id:ID.t) (v:TypedSSA.value_node) =
-  let impVar = builder#var id in
-  set impVar $ translate_value builder v
+  Set (builder#var id, translate_value builder v)
 
 let translate_true_phi_node builder phiNode =
   let exp = translate_value builder (PhiNode.left phiNode) in
-  Imp.Set (PhiNode.id phiNode, exp)
+  Imp.Set (builder#var (PhiNode.id phiNode), exp)
 
 let translate_false_phi_node builder phiNode =
   let exp = translate_value builder (PhiNode.right phiNode) in
-  Imp.Set (PhiNode.id phiNode, exp)
+  Imp.Set (builder#var (PhiNode.id phiNode), exp)
 
-let declare_input (builder:ImpBuilder.fn_builder) typeEnv id =
+let declare_input (fnBuilder:ImpBuilder.fn_builder) typeEnv id =
   let impType = ID.Map.find id typeEnv in
-  builder#declare_input id impType
+  fnBuilder#declare_input id impType
 
-let declare_output (builder:ImpBuilder.fn_builder) shapeEnv typeEnv id =
+let declare_output (fnBuilder:ImpBuilder.fn_builder) shapeEnv typeEnv id =
   let impType = ID.Map.find id typeEnv in
   let shape = ID.Map.find id shapeEnv in
-  builder#declare_output id ~shape impType
+  fnBuilder#declare_output id ~shape impType
 
-let declare_local_var
-    (builder:ImpBuilder.fn_builder) nonlocals shapes storages (id, t) =
+let declare_local_var (builder:ImpBuilder.builder) nonlocals shapes storages (id, t) =
   if not (List.mem id nonlocals) then (
     let shape = ID.Map.find id shapes in
     let storage = ID.Map.find id storages in
-    builder#declare id ~shape ~storage t
+    declare id ~shape ~storage t builder
   )
 
 
@@ -287,7 +280,8 @@ let rec translate_fn (ssaFn:TypedSSA.fn) (impInputTypes:ImpType.t list)
         (TypedSSA.fn_to_str ssaFn)
         (ImpType.type_list_to_str impInputTypes)
     ENDIF;
-    let builder = new ImpBuilder.fn_builder in
+    let name = (FnId.to_str ssaFn.TypedSSA.fn_id) ^ "[" ^ arg_strings ^ "]" in
+    let fnBuilder = new ImpBuilder.fn_builder name in
     let impTyEnv = InferImpTypes.infer ssaFn impInputTypes in
     let shapeEnv : SymbolicShape.env =
       ShapeInference.infer_normalized_shape_env
@@ -296,20 +290,18 @@ let rec translate_fn (ssaFn:TypedSSA.fn) (impInputTypes:ImpType.t list)
     let storageEnv : Imp.storage ID.Map.t = InferImpStorage.infer ssaFn in
     let inputIds = ssaFn.TypedSSA.input_ids in
     let outputIds = ssaFn.TypedSSA.output_ids in
-    List.iter (declare_input builder impTyEnv) inputIds;
-    List.iter (declare_output builder shapeEnv impTyEnv) outputIds;
+    List.iter (declare_input fnBuilder impTyEnv) inputIds;
+    List.iter (declare_output fnBuilder shapeEnv impTyEnv) outputIds;
     let nonlocals = inputIds @ outputIds in
+    let bodyBuilder : ImpBuilder.builder = builder#body in
     let () =
       List.iter
-        (declare_local_var builder nonlocals shapeEnv storageEnv)
+        (declare_local_var bodyBuilder nonlocals shapeEnv storageEnv)
         (ID.Map.to_list impTyEnv)
     in
-    let body =
-      translate_block (builder :> ImpBuilder.builder) ssaFn.TypedSSA.body
-    in
+    translate_block bodyBuilder ssaFn.TypedSSA.body;
     let arg_strings = ImpType.type_list_to_str impInputTypes in
-    let name = (FnId.to_str ssaFn.TypedSSA.fn_id) ^ "[" ^ arg_strings ^ "]" in
-    let impFn = builder#finalize_fn ~name body in
+    let impFn = builder#finalize_fn in
     Hashtbl.add cache signature impFn;
     IFDEF DEBUG THEN
       Printf.printf
@@ -344,40 +336,42 @@ and translate_stmt (builder : ImpBuilder.builder) stmtNode : Imp.stmt list  =
         ~values:(translate_values builder)
         ~axes:(translate_values builder)
     in
-    let lhsValues = List.map builder#var ids in
+    let lhsValues = List.map (fun id -> builder#var id) ids in
     translate_adverb builder lhsValues impInfo
   (* all assignments other than those with an array literal RHS *)
   | TypedSSA.Set([id], rhs) ->
     let impRhs : Imp.value_node = translate_exp builder rhs in
     let impVar : Imp.value_node = builder#var id in
-    [set impVar impRhs]
+    builder += Set(impVar, impRhs)
   | TypedSSA.Set(ids, {TypedSSA.exp = TypedSSA.Values vs}) ->
     List.map2 (mk_set_val builder) ids vs
+
   | TypedSSA.Set _ -> failwith "multiple assignment not supported"
-  | TypedSSA.SetIdx(lhs, indices, rhs) ->
+  | TypedSSA.SetIdx(arr, indices, rhs) ->
     let indices : Imp.value_node list = translate_values builder indices in
-    let lhs : Imp.value_node = translate_value builder lhs in
+    let arr : Imp.value_node = translate_value builder lhs in
     let rhs : Imp.value_node = translate_exp builder rhs in
-    [Imp.SetIdx(lhs, indices, rhs)]
+    builder += Set(idx arr indices, rhs)
   | TypedSSA.If(cond, tBlock, fBlock, phiNodes) ->
-    let cond' : Imp.value_node = translate_value builder cond in
-    let tBlock' : Imp.block = translate_block builder tBlock in
-    let fBlock' : Imp.block = translate_block builder fBlock in
-    let trueMerge = List.map (translate_true_phi_node builder) phiNodes in
-    let falseMerge = List.map (translate_false_phi_node builder) phiNodes in
-    let tBlock' = tBlock' @ trueMerge in
-    let fBlock' = fBlock' @ falseMerge in
-    [Imp.If(cond', tBlock', fBlock')]
+    let cond' = translate_value builder cond in
+    let trueBuilder = builder#clone in
+    let falseBuilder = builder#clone in
+    translate_block trueBuilder tBlock;
+    List.iter (translate_true_phi_node trueBuilder) phiNodes;
+    translate_block falseBuilder fBlock;
+    List.iter (translate_false_phi_node falseBuilder) phiNodes;
+    builder += If(cond', trueBuilder#to_list , falseBuilder#to_list)
   | TypedSSA.WhileLoop(condBlock, condVal, body, phiNodes) ->
-    let inits : Imp.block =
-      List.map (translate_true_phi_node builder) phiNodes
-    in
-    let condBlock : Imp.block = translate_block builder condBlock in
-    let condVal : Imp.value_node = translate_value builder condVal in
-    let body : Imp.block = translate_block builder body in
-    let finals = List.map (translate_false_phi_node builder) phiNodes in
-    let fullBody = body @ finals @ condBlock in
-    inits @ condBlock @ [Imp.While(condVal, fullBody)]
+    (* initialize with true branches of phi nodes *)
+    List.iter (translate_true_phi_node builder) phiNodes;
+    (* translate code to compute condition *)
+    translate_block builder condBlock;
+    let condVal : Imp.value_node = translate_value condBuilder condVal in
+    let bodyBuilder = builder#clone in
+    translate_block bodyBuilder body;
+    List.iter (translate_false_phi_node bodyBuilder) phiNodes;
+    translate_block bodyBuilder condBlock;
+    builder += Imp.While(condVal,  bodyBuilder#to_list)
  | _ ->
    failwith $ Printf.sprintf
      "[Imp_to_SSA] Not yet implemented: %s"
@@ -430,7 +424,7 @@ and inline (builder:ImpBuilder.builder) impFn inputs outputs : Imp.block =
     let t = ID.Map.find oldId impFn.types in
     let shape = ID.Map.find oldId impFn.shapes in
     let storage = ID.Map.find oldId impFn.storage in
-    builder#fresh_local ~name ~storage ~shape t
+    builder#fresh_local name ~storage ~shape t
   in
   let newLocalVars = List.map rename_local impFn.local_ids in
   let replaceEnv =
@@ -474,76 +468,62 @@ and translate_sequential_adverb
         Imp.value_nodes_to_str
       )
   ENDIF;
-  let slice_along_axes indexVars arr = idx_or_fixdims arr info.axes indexVars in
+  let slice_one_along_axes indexVars arr =
+    builder#fixdims arr info.axes indexVars
+  in
   (* pick any of the highest rank arrays in the input list *)
   let biggestArray : Imp.value_node = argmax_array_rank info.array_args in
   (* To implement Map, Scan, and Reduce we loop over the specified axes *)
   (* of the biggest array argument. AllPairs is different in that we loop *)
   (* over the axes of the first arg and nested within we loop over the *)
   (* same set of axes of the second arg. *)
-  let initBlock, loopDescriptors, indexVars, nestedArrays, skipFirstIter =
+  let nAxes = List.length info.axes in
+  let nestedBuilder = new builder (builder#info) in
+  let loopDescriptors, nestedInputs, nestedOutputs, skipFirstIter =
     match info.adverb, info.init with
     | Adverb.Map, None ->
       (* init is a block which gets the dimensions of array we're traversing *)
-      let initBlock, loops : (Imp.stmt list) * (loop_descr list) =
-        axes_to_loop_descriptors builder biggestArray info.axes
-      in
+      let loops = axes_to_loop_descriptors builder biggestArray info.axes in
       let indexVars = get_loop_vars loops in
-      let nestedArrays =
-        List.map (slice_along_axes indexVars) info.array_args
-      in
-      initBlock, loops, indexVars, nestedArrays, false
+      let nestedArrays = slice_along_axes indexVars info.array_args in
+      let nestedInputs = info.fixed_args @ nestedArrays in
+      let nestedOutputs = slice_along_axes indexVars lhsVars in
+      loops, nestedInputs, nestedOutputs, false
     | Adverb.Reduce, None ->
-      let initBlock, loops =
-        axes_to_loop_descriptors builder biggestArray info.axes
-      in
+      let loops = axes_to_loop_descriptors builder biggestArray info.axes in
       let indexVars = get_loop_vars loops in
       let zeroIndices = List.map (fun _ -> ImpHelpers.zero) indexVars in
       (* the initial value for a reduction is the first elt of the array *)
       let initVal =
         idx_or_fixdims ~arr:biggestArray ~dims:info.axes ~indices:zeroIndices
       in
-      let copyStmts =
-        copy builder ~from_array:initVal ~to_array:(List.hd lhsVars)
-      in
+      copy builder ~from_array:initVal ~to_array:(List.hd lhsVars);
+      (* TODO: where do the fixdim statements go for nested arrays? *)
       let nestedArrays =
         List.map (slice_along_axes indexVars) info.array_args
       in
-      initBlock @ copyStmts, loops, indexVars, nestedArrays, true
+      let nestedInputs = info.fixed_args @ lhsVars @ nestedArrays in
+      loops, nestedInputs, lhsVarss, true
     | Adverb.AllPairs, None ->
       (match info.array_args with
         | [x;y] ->
-          let xInit, xLoops = axes_to_loop_descriptors builder x info.axes in
+          let xLoops = axes_to_loop_descriptors builder x info.axes in
           let xIndexVars = get_loop_vars xLoops in
-          let yInit, yLoops = axes_to_loop_descriptors builder y info.axes in
+          let yLoops = axes_to_loop_descriptors builder y info.axes in
           let yIndexVars = get_loop_vars yLoops in
           let nestedArrays =
             [slice_along_axes xIndexVars x; slice_along_axes yIndexVars y]
           in
-          xInit@yInit, xLoops@yLoops, xIndexVars@yIndexVars, nestedArrays, false
+
+          let constOutputAxes = List.til (2*List.length info.axes) in
+          let outputAxes = List.map ImpHelpers.int constOutputAxes in
+          let nestedOutputs =
+          List.map (fun arr -> idx_or_fixdims arr outputAxes indexVars) lhsVars
+          in
+          let nestedInputs = info.fixed_args @ nestedArrays in
+          xLoops@yLoops, nestedInputs, nestedOutputs, false
         | _ -> failwith "allpairs requires two args"
       )
-    | _ -> failwith "malformed adverb"
-  in
-  let nestedInputs, nestedOutputs =
-    match info.adverb, info.init with
-    | Adverb.Map, None ->
-      let nestedOutputs = List.map (slice_along_axes indexVars) lhsVars in
-      info.fixed_args @ nestedArrays, nestedOutputs
-    | Adverb.AllPairs, None ->
-      let nAxes = List.length info.axes in
-      let constOutputAxes = List.til (2*List.length info.axes) in
-      let outputAxes = List.map ImpHelpers.int constOutputAxes in
-      let nestedOutputs =
-        List.map (fun arr -> idx_or_fixdims arr outputAxes indexVars) lhsVars
-      in
-      info.fixed_args @ nestedArrays, nestedOutputs
-    | Adverb.Reduce, None ->
-      info.fixed_args @ lhsVars @ nestedArrays, lhsVars
-    | Adverb.Reduce, Some inits ->
-      failwith "reduce with inits not implemented"
-    | Adverb.Scan, None -> failwith "scan without inits not implemented"
-    | Adverb.Scan, Some inits -> failwith "scan with init not implemented"
     | _ -> failwith "malformed adverb"
   in
   let nestedInputTypes = Imp.value_types nestedInputs in
@@ -598,7 +578,7 @@ and vectorize_adverb
     let [lastInit], [lastSize] = size_of_axes builder biggestArray [lastAxis] in
     let vecLen = vector_bitwidth / (8 * (Type.sizeof eltT)) in
     let impVecLen = ImpHelpers.int vecLen in
-    let impVecLoopBound = builder#fresh_local ~name:"vec_loop_bound" int32_t in
+    let impVecLoopBound = fresh_local "vec_loop_bound" int32_t builder in
     let vecInit = [
       lastInit;
       ImpHelpers.set
@@ -616,7 +596,7 @@ and vectorize_adverb
     in
     let vecDescriptor =
       {
-        loop_var = builder#fresh_local ~name:"vec_loop_idx" int32_t;
+        loop_var = fresh_local "vec_loop_idx" int32_t builder;
         loop_start = ImpHelpers.zero;
         loop_test_val = impVecLoopBound;
         loop_test_cmp = Prim.Lt;
@@ -642,7 +622,7 @@ and vectorize_adverb
     (* TODO: check whether we want to add this loop based on shape? *)
     let seqDescriptor =
       {
-        loop_var = builder#fresh_local ~name:"seq_loop_idx" int32_t;
+        loop_var = fresh_local "seq_loop_idx" int32_t builder;
         loop_start = impVecLoopBound;
         loop_test_val = lastSize;
         loop_test_cmp = Prim.Lt;

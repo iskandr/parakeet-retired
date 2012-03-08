@@ -61,8 +61,7 @@ type value =
   | VecConst of ParNum.t list
   | CudaInfo of cuda_info * coord
   | Idx of value_node * value_node list
-  | VecSlice of value_node * value_node list
-  | Val of value_node
+  | VecSlice of value_node * value_node * int
   | Op of ImpType.t * Prim.scalar_op * value_node list
   | Select of ImpType.t * value_node * value_node * value_node
   | Cast of ImpType.t * value_node
@@ -77,12 +76,34 @@ and value_node = {
 
 type value_nodes = value_node list
 
+let rec recursively_apply f valNode =
+  let r = recursively_apply f in
+  let rs = List.map r in
+  match valNode.value with
+  | Idx (lhs, indices) ->
+    f {valNode with value = Idx(r lhs, rs indices)}
+  | VecSlice (lhs, idx, nelts) ->
+    f {valNode with value = VecSlice(r lhs, r idx, nelts)}
+  | Op (t, op, args) -> f {valNode with value = Op(t, op,  rs args) }
+  | Select (t, cond, left, right) ->
+    f {valNode with value = Select(t, r cond, r left, r right)}
+  | Cast (t, arg) -> f {valNode with value = Cast(t, r arg)}
+  | DimSize (arr, dim) ->
+    f {valNode with value = DimSize(r arr, r dim)}
+  | FixDim (arr, dim, idx) ->
+    f { valNode with value = FixDim(r arr, r dim, r idx)}
+  | Slice (arr, dim, start, stop) ->
+    f { valNode with value = Slice(r arr, r dim, r start, r stop)}
+  | ArrayField (field, arr) ->
+    f { valNode with value = ArrayField(field, r arr)}
+  | _ -> f valNode
+
+
+
 type stmt =
   | If of value_node * block * block
-  | While of value_node * block (* test, body *)
-  | Set of ID.t * value_node
-  | SetIdx of value_node * value_node list * value_node
-  | SetVecSlice of value_node * value_node list * value_node
+  | While of value_node * block
+  | Set of value_node * value_node
   | SyncThreads
   | Comment of string
 and block = stmt list
@@ -152,7 +173,7 @@ let coord_to_str = function
   | X -> "x" | Y -> "y" | Z -> "z"
 
 let cuda_info_to_str = function
-	| ThreadIdx -> "threadidx"
+  | ThreadIdx -> "threadidx"
   | BlockIdx -> "blockidx"
   | BlockDim -> "blockdim"
   | GridDim -> "griddim"
@@ -182,10 +203,11 @@ let rec value_to_str = function
     sprintf "%s[%s]"
       (value_node_to_str arr)
       (value_nodes_to_str args)
-  | VecSlice (arr, args) ->
-    sprintf "vecslice(%s[%s])"
+  | VecSlice (arr, idx, nelts) ->
+    sprintf "vecslice%d(%s[%s])"
+      nelts
       (value_node_to_str arr)
-      (value_nodes_to_str args)
+      (value_node_to_str idx)
   | Op (argT, op, args) ->
     sprintf "%s:%s (%s)"
       (Prim.scalar_op_to_str op)
@@ -219,33 +241,36 @@ let rec value_to_str = function
        (array_field_to_str field)
        (value_node_to_str v)
 
+
 and value_node_to_str {value} = value_to_str value
 and value_nodes_to_str vNodes =
   String.concat ", " (List.map value_node_to_str vNodes)
 
+
+
 let rec stmt_to_str ?(spaces="") = function
   | If (cond, tBlock, fBlock) ->
-	  let tStr =
-	    if List.length tBlock > 1 then
-	      Printf.sprintf " then {\n%s\n%s }\n%s"
-	        (block_to_str ~spaces:(spaces ^ "  ") tBlock)
-	        spaces
-	        spaces
-	    else Printf.sprintf " then { %s } " (block_to_str tBlock)
-	  in
-	  let fStr =
-	    if List.length fBlock > 1 then
-	      Printf.sprintf "\n%selse {\n%s\n%s }"
-	        spaces
-	        (block_to_str ~spaces:(spaces ^ "  ") fBlock)
-	        spaces
-	    else Printf.sprintf " else { %s }" (block_to_str fBlock)
-	  in
-	  sprintf "%s if (%s)%s%s "
-	    spaces
-	    (value_node_to_str cond)
-	    tStr
-	    fStr
+    let tStr =
+      if List.length tBlock > 1 then
+        Printf.sprintf " then {\n%s\n%s }\n%s"
+          (block_to_str ~spaces:(spaces ^ "  ") tBlock)
+          spaces
+          spaces
+      else Printf.sprintf " then { %s } " (block_to_str tBlock)
+    in
+    let fStr =
+      if List.length fBlock > 1 then
+        Printf.sprintf "\n%selse {\n%s\n%s }"
+          spaces
+          (block_to_str ~spaces:(spaces ^ "  ") fBlock)
+          spaces
+      else Printf.sprintf " else { %s }" (block_to_str fBlock)
+    in
+    sprintf "%s if (%s)%s%s "
+      spaces
+      (value_node_to_str cond)
+      tStr
+      fStr
   | While (cond, body) ->
     let bodyStr =
       if body <> [] then "\n" ^ (block_to_str ~spaces:(spaces ^ "  ") body)
@@ -253,18 +278,8 @@ let rec stmt_to_str ?(spaces="") = function
     in
     let condStr = (value_node_to_str cond) in
     sprintf "%s while(%s) { %s }" spaces condStr bodyStr
-  | Set (id, rhs) ->
-    sprintf "%s %s = %s" spaces (ID.to_str id) (value_node_to_str rhs)
-  | SetIdx (lhs, indices, rhs) ->
-    let lhsStr = value_node_to_str lhs in
-    let idxStr = value_nodes_to_str indices in
-    let rhsStr = value_node_to_str rhs in
-	  sprintf "%s %s[%s] = %s" spaces lhsStr idxStr rhsStr
-  | SetVecSlice (lhs, indices, rhs) ->
-    let lhsStr = value_node_to_str lhs in
-    let idxStr = value_nodes_to_str indices in
-    let rhsStr = value_node_to_str rhs in
-    sprintf "%s vecslice(%s[%s]) = %s" spaces lhsStr idxStr rhsStr
+  | Set (lhs, rhs) ->
+    sprintf "%s %s = %s" spaces (value_node_to_str lhs) (value_node_to_str rhs)
   | SyncThreads -> spaces ^ "syncthreads"
   | Comment s -> spaces ^ "// " ^ s
   (* used to plug one function into another, shouldn't exist in final code *)
