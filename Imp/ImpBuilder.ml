@@ -252,19 +252,34 @@ class builder (info:fn_info) = object (self)
     )
 
   method inline (impFn:Imp.fn) (inputs:value_nodes) (outputs:value_nodes) =
+    let nonlocalEnv =
+      ID.Map.of_lists
+        (impFn.input_ids @ impFn.output_ids)
+        (inputs @ outputs)
+    in
+    let rec rewrite_dim = function
+      | SymbolicShape.Dim(id, axis) ->
+        (* assume shapes can only refer to input variables *)
+        let newVal = ID.Map.find id nonlocalEnv in
+        List.nth (self#value_shape newVal) axis
+      | SymbolicShape.Op(op, x, y) ->
+        SymbolicShape.Op(op, rewrite_dim x, rewrite_dim y)
+      | SymbolicShape.Const n -> SymbolicShape.const n
+
+    in
+    let rewrite_shape shape = List.map rewrite_dim shape in
+    let newShapeEnv = ID.Map.map rewrite_shape impFn.Imp.shapes in
     let rename_local oldId =
       let name = ID.get_original_prefix oldId in
       let t = ID.Map.find oldId impFn.Imp.types in
-      let shape = ID.Map.find oldId impFn.Imp.shapes in
+      let shape = ID.Map.find oldId newShapeEnv in
       let storage = ID.Map.find oldId impFn.Imp.storage in
 
       self#fresh_local name ~storage ~shape t
     in
     let newLocalVars = List.map rename_local impFn.local_ids in
     let replaceEnv =
-      ID.Map.of_lists
-        (impFn.input_ids @ impFn.output_ids @ impFn.local_ids)
-        (inputs @ outputs @ newLocalVars)
+      ID.Map.extend nonlocalEnv impFn.local_ids newLocalVars
     in
     let newBody = ImpReplace.replace_block replaceEnv impFn.body in
     self#concat_list newBody

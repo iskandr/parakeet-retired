@@ -318,7 +318,16 @@ let array_storage_to_str = function
 
 let fn_to_str fn =
   let id_to_str id =
-    ID.to_str id ^ " : " ^ (ImpType.to_str (get_var_type fn id))
+    let shape = get_var_shape fn id in
+    let storage = get_var_storage fn id in
+    Printf.sprintf
+      "%s : %s%s%s"
+      (ID.to_str id)
+      (ImpType.to_str (get_var_type fn id))
+      (if SymbolicShape.is_scalar shape then ""
+       else "; shape = " ^ (SymbolicShape.to_str shape))
+      (if SymbolicShape.is_scalar shape then ""
+       else "; storage = " ^ (array_storage_to_str storage))
   in
   let inputs = List.map id_to_str fn.input_ids  in
   let outputs = List.map id_to_str  fn.output_ids in

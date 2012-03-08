@@ -20,6 +20,9 @@ type fn_info = {
   output_ids : ID.t list;
 
   imp_types : ImpType.t ID.Map.t;
+  imp_shapes : SymbolicShape.t ID.Map.t;
+  imp_storage : Imp.storage ID.Map.t;
+
   named_values : (string, Llvm.llvalue) Hashtbl.t;
   builder : Llvm.llbuilder;
   name : string;
@@ -30,6 +33,8 @@ let create_fn_info (fn : Imp.fn) = {
   local_ids = fn.Imp.local_ids;
   output_ids = fn.Imp.output_ids;
   imp_types = fn.Imp.types;
+  imp_shapes = fn.Imp.shapes;
+  imp_storage = fn.Imp.storage;
 
   named_values = Hashtbl.create 13;
   builder = Llvm.builder context;
@@ -704,20 +709,65 @@ let allocate_local_array_info
   ;
   local
 
+let rec compile_nelts_in_dim fnInfo = function
+  | SymbolicShape.Const i -> mk_int32 i
+  | SymbolicShape.Op (dim_op, x, y) ->
+    let x' = compile_nelts_in_dim fnInfo x in
+    let y' = compile_nelts_in_dim fnInfo y in
+    (match dim_op with
+      | SymbolicShape.Mult ->
+        Llvm.build_mul x' y' "dim_mul" fnInfo.builder
+      | SymbolicShape.Add ->
+        Llvm.build_add x' y' "dim_add" fnInfo.builder
+      | SymbolicShape.Max -> assert false
+    )
+  | SymbolicShape.Dim (id, axis) ->
+    let arr = compile_var ~do_load:false fnInfo id in
+    get_array_shape_elt fnInfo arr axis
 
+let rec compile_nelts_in_shape fnInfo = function
+  | [d] -> compile_nelts_in_dim fnInfo d
+  | d :: ds ->
+    let llvmDim = compile_nelts_in_dim fnInfo d in
+    let llvmRest = compile_nelts_in_shape fnInfo ds in
+    Llvm.build_mul llvmDim llvmRest "partial_nelts" fnInfo.builder
+  | [] -> mk_int32 1
 
 let init_local_var (fnInfo:fn_info) (id:ID.t) =
   let impT = ID.Map.find id fnInfo.imp_types in
+  let shape = ID.Map.find id fnInfo.imp_shapes in
   let llvmT = LlvmType.of_imp_type impT in
   IFDEF DEBUG THEN
-    Printf.printf "Initializing local %s : %s to have lltype %s\n%!"
+    Printf.printf "Initializing local %s : %s%s to have lltype %s\n%!"
       (ID.to_str id)
       (ImpType.to_str impT)
+      (if SymbolicShape.is_scalar shape then ""
+       else "(shape=" ^ SymbolicShape.to_str shape ^ ")")
       (Llvm.string_of_lltype llvmT)
     ;
   ENDIF;
   let varName = ID.to_str id in
-  let stackVal = Llvm.build_alloca llvmT varName fnInfo.builder in
+  let stackVal : llvalue =
+    if ImpType.is_scalar impT || ImpType.is_vector impT then
+    Llvm.build_alloca llvmT varName fnInfo.builder
+    else begin
+      let localArray : llvalue =
+        allocate_local_array_info fnInfo varName impT llvmT
+      in
+      let size = compile_nelts_in_shape fnInfo shape in
+      let impEltT = ImpType.elt_type impT in
+      let ptrT = Llvm.pointer_type (LlvmType.of_elt_type impEltT) in
+      if ID.Map.find id fnInfo.imp_storage = Imp.Local then (
+        let dataPtr = Llvm.build_alloca ptrT "local_data_ptr" fnInfo.builder in
+        Llvm.build_store
+          dataPtr
+          (Indexing.get_array_field_addr fnInfo localArray ArrayData)
+        ;
+        localArray
+      )
+      else localArray
+    end
+  in
   Hashtbl.add fnInfo.named_values varName stackVal
 
 let init_nonlocal_var (fnInfo:fn_info) (id:ID.t) (param:Llvm.llvalue) =
@@ -732,7 +782,8 @@ let init_nonlocal_var (fnInfo:fn_info) (id:ID.t) (param:Llvm.llvalue) =
   ENDIF;
   let varName = ID.to_str id in
   Llvm.set_value_name varName param;
-  let stackVal = match List.mem id fnInfo.input_ids, ImpType.is_scalar impT with
+  let stackVal =
+    match List.mem id fnInfo.input_ids, ImpType.is_scalar impT with
     (* scalar input *)
     | true, true ->
       let stackVal = Llvm.build_alloca llvmT varName fnInfo.builder in
