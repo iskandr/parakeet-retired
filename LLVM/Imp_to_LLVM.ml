@@ -79,32 +79,23 @@ module Intrinsics = struct
   let exp = mk_prim "exp" [
     ImpType.float32_t, declare_prim "llvm.exp.f32" (op_type float32_t 1);
     ImpType.float64_t, declare_prim "llvm.exp.f64" (op_type float64_t 1);
-    ImpType.VectorT(Type.Float32T, 4),
-      declare_prim "llvm.x86.sse.exp.ps" (unop_type vec4_float32_t);
-    ImpType.VectorT(Type.Float64T, 2),
-      declare_prim "llvm.x86.sse2.exp.pd" (unop_type vec2_float64_t);
   ]
 
   let log = mk_prim "log" [
     ImpType.float32_t, declare_prim "llvm.log.f32" (op_type float32_t 1);
     ImpType.float64_t, declare_prim "llvm.log.f64" (op_type float64_t 1);
   ]
+
   let sin = mk_prim "sin" [
     ImpType.float32_t, declare_prim "llvm.sin.f32" (op_type float32_t 1);
     ImpType.float64_t, declare_prim "llvm.sin.f64" (op_type float64_t 1);
-    ImpType.VectorT(Type.Float32T, 4),
-      declare_prim "llvm.x86.sse.sin.ps" (unop_type vec4_float32_t);
-    ImpType.VectorT(Type.Float64T, 2),
-      declare_prim "llvm.x86.sse2.sin.pd" (unop_type vec2_float64_t);
   ]
+
   let cos = mk_prim "cos" [
     ImpType.float32_t, declare_prim "llvm.cos.f32" (op_type float32_t 1);
-    ImpType.float32_t,  declare_prim "llvm.cos.f64" (op_type float64_t 1);
-    ImpType.VectorT(Type.Float32T, 4),
-      declare_prim "llvm.x86.sse.cos.ps" (unop_type vec4_float32_t);
-    ImpType.VectorT(Type.Float64T, 2),
-      declare_prim "llvm.x86.sse2.cos.pd" (unop_type vec2_float64_t);
+    ImpType.float64_t, declare_prim "llvm.cos.f64" (op_type float64_t 1);
   ]
+
   let printf =
     let fnT = Llvm.var_arg_function_type int32_t [|char_ptr_t|] in
     declare_function "printf" fnT llvm_module

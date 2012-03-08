@@ -268,7 +268,6 @@ let declare_local_var
     builder#declare id ~shape ~storage t
   )
 
-
 let rec translate_fn (ssaFn:TypedSSA.fn) (impInputTypes:ImpType.t list)
     : Imp.fn =
   let signature = ssaFn.TypedSSA.fn_id, impInputTypes in
@@ -378,10 +377,10 @@ and translate_stmt (builder : ImpBuilder.builder) stmtNode : Imp.stmt list  =
     let finals = List.map (translate_false_phi_node builder) phiNodes in
     let fullBody = body @ finals @ condBlock in
     inits @ condBlock @ [Imp.While(condVal, fullBody)]
- | _ ->
-   failwith $ Printf.sprintf
-     "[Imp_to_SSA] Not yet implemented: %s"
-     (TypedSSA.stmt_node_to_str stmtNode)
+  | _ ->
+    failwith $ Printf.sprintf
+      "[Imp_to_SSA] Not yet implemented: %s"
+      (TypedSSA.stmt_node_to_str stmtNode)
 
 and translate_exp (builder:ImpBuilder.builder) expNode : Imp.value_node  =
   IFDEF DEBUG THEN
@@ -451,8 +450,8 @@ and translate_adverb
     List.fold_left (fun acc t -> max acc (ImpType.rank t)) 0 argTypes
   in
   if maxArgRank = 1 &&
-     TypedSSA.ScalarHelpers.is_scalar_fn info.adverb_fn &&
-     info.adverb = Adverb.Map
+    TypedSSA.ScalarHelpers.is_scalar_fn info.adverb_fn &&
+    info.adverb = Adverb.Map
   then match TypedSSA.FnHelpers.get_single_type info.adverb_fn with
     | None -> translate_sequential_adverb builder lhsVars info
     | Some (Type.ScalarT eltT) ->
