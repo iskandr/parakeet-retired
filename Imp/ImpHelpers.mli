@@ -1,14 +1,6 @@
 open Imp
 
-(* IMP STATEMENTS *)
-val syncthreads : stmt
-val if_ : value_node -> block -> block -> stmt
-val ifTrue : value_node -> block -> stmt
-val while_ : value_node -> block -> stmt
-val comment : string -> stmt
 
-val set : value_node -> value_node -> stmt
-val setidx : value_node -> value_node list -> value_node -> stmt
 
 (* HELPER FUNCTIONS FOR IMP EXPRESSIONS *)
 val wrap_bool : value -> value_node
@@ -19,11 +11,6 @@ val wrap_int64 : value -> value_node
 val wrap_float32 : value -> value_node
 val wrap_float64 : value -> value_node
 
-(* CAST AN EXPRESSION TO A NEW TYPE
-   (or leave it alone if it's already that type
-*)
-
-val cast : ImpType.t -> value_node -> value_node
 
 val common_type : ?t:Type.elt_t -> value_node list -> ImpType.t
 
@@ -58,25 +45,24 @@ val double : float -> value_node
 val bool : bool -> value_node
 
 val select : value_node -> value_node -> value_node -> value_node
-val idx : value_node -> value_node list -> value_node
+
 val dim : value_node -> value_node -> value_node
 val len : value_node -> value_node
-val vec_slice : value_node -> int -> value_node list -> value_node
+val vec_slice : value_node -> int -> value_node ->  value_node
 
-val max_ : ?t:Type.elt_t -> value_node -> value_node -> value_node
-val min_ : ?t:Type.elt_t -> value_node -> value_node -> value_node
+val max_no_simplify : ?t:Type.elt_t -> value_node -> value_node -> value_node
+val min_no_simplify : ?t:Type.elt_t -> value_node -> value_node -> value_node
 
-val mul : ?t:Type.elt_t -> value_node -> value_node -> value_node
-val ( *$ ) :  ?t:Type.elt_t -> value_node -> value_node -> value_node
+val mul : value_node -> value_node -> value_node
+val add : value_node -> value_node -> value_node
+val div : value_node -> value_node -> value_node
+val sub : value_node -> value_node -> value_node
 
-val add : ?t:Type.elt_t -> value_node -> value_node -> value_node
-val ( +$ ): ?t:Type.elt_t -> value_node -> value_node -> value_node
 
-val div : ?t:Type.elt_t -> value_node -> value_node -> value_node
-val ( /$ ) : ?t:Type.elt_t -> value_node -> value_node -> value_node
-
-val sub : ?t:Type.elt_t -> value_node -> value_node -> value_node
-val ( -$ ) : ?t:Type.elt_t -> value_node -> value_node -> value_node
+val ( *$ ) : value_node -> value_node -> value_node
+val ( +$ ):  value_node -> value_node -> value_node
+val ( /$ ) : value_node -> value_node -> value_node
+val ( -$ ) : value_node -> value_node -> value_node
 
 val mod_ : ?t:Type.elt_t -> value_node -> value_node -> value_node
 val ( %$ ) : ?t:Type.elt_t -> value_node -> value_node -> value_node
@@ -123,9 +109,11 @@ val var : ty:ImpType.t -> ID.t -> value_node
 val is_const_int : value_node -> bool
 val get_const_int : value_node -> int
 
+val cmp : Prim.scalar_op -> value_node -> value_node -> value_node
+val scalar_op : Prim.scalar_op -> value_node -> value_node -> value_node
+
 val fixdim : arr:value_node -> dim:value_node -> idx:value_node -> value_node
-val fixdims :
-  arr:value_node -> dims:value_nodes -> indices:value_nodes -> value_node
+val idx : value_node -> ?dims:value_node list -> value_node list -> value_node
 
 val slice :
   arr:value_node -> dim:value_node -> start:value_node -> stop:value_node ->

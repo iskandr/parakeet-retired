@@ -12,14 +12,14 @@ type t =
   | VectorT of elt_t * int (* type, width *)
 
 let rec to_str = function
-	| ScalarT elt_t -> Type.elt_to_str elt_t
-	| PtrT (t, len) ->
+  | ScalarT elt_t -> Type.elt_to_str elt_t
+  | PtrT (t, len) ->
     Printf.sprintf "ptr(%s)%s"
       (Type.elt_to_str t)
       (match len with Some k -> "[" ^ string_of_int k ^ "]" | None -> "")
   | ArrayT (elt_t, r) ->
     Printf.sprintf "array%d<%s>" r (Type.elt_to_str elt_t)
-	| ShiftT t -> Printf.sprintf "shift(%s)" (to_str t)
+  | ShiftT t -> Printf.sprintf "shift(%s)" (to_str t)
   | VectorT (elt_t, w) ->
     Printf.sprintf "vec%d(%s)" w (Type.elt_to_str elt_t)
   | _ -> failwith "Not implemented"
@@ -28,7 +28,7 @@ let type_list_to_str ts = String.concat ", " (List.map to_str ts)
 
 let rec elt_type = function
   | RangeT t
-	| ScalarT t
+  | ScalarT t
   | ExplodeT (t, _)
   | VectorT (t, _)
   | PtrT (t, _)
@@ -37,8 +37,8 @@ let rec elt_type = function
   | ShiftT nested -> elt_type nested
 
 let is_scalar = function
-	| ScalarT _ -> true
-	| _ -> false
+  | ScalarT _ -> true
+  | _ -> false
 
 let is_int = function
   | ScalarT Type.BoolT
@@ -53,15 +53,20 @@ let is_float = function
   | ScalarT Type.Float64T -> true
   | _ -> false
 
+let is_vector = function
+  | VectorT _ -> true
+  | _ -> false
+
+
 let is_array t = not (is_scalar t)
 
 let rec rank = function
-	| ScalarT _ -> 0
+  | ScalarT _ -> 0
   | VectorT (_, _)
   | PtrT _ -> 1
   | ExplodeT (_, r)
-	| ArrayT (_, r) -> r
-	| ShiftT x -> rank x
+  | ArrayT (_, r) -> r
+  | ShiftT x -> rank x
   | _ -> failwith "Not implemented"
 
 let bool_t = ScalarT Type.BoolT

@@ -1,18 +1,6 @@
 open Base
 open Imp
 
-(* IMP STATEMENTS *)
-let syncthreads = SyncThreads
-let if_ cond t f  = If(cond, t, f)
-let ifTrue cond t = if_ cond t []
-let while_ cond code = While(cond, code)
-let comment str = Comment str
-
-let set v rhs = match v.value with
-  | Var id -> Set(id,rhs)
-  | other -> failwith $ "[ImpHelpers] Can't set " ^ (Imp.value_to_str other)
-
-let rec setidx arr indices rhs = SetIdx(arr, indices, rhs)
 
 (* HELPER FUNCTIONS FOR IMP EXPRESSIONS *)
 let wrap_bool (v : value) : value_node =
@@ -31,32 +19,6 @@ let wrap_float64 (v : value) : value_node =
   {value=v; value_type = ImpType.float64_t}
 
 let wrap (v:value) (ty:ImpType.t) = {value = v; value_type = ty}
-
-(* CAST AN EXPRESSION TO A NEW TYPE
-   (or leave it alone if it's already that type)
-*)
-
-let cast (t:ImpType.t) (valNode:value_node) : value_node =
-  let old_t = valNode.value_type in
-  if old_t = t then valNode
-  else (
-    assert (ImpType.is_scalar old_t);
-    let elt_t : Type.elt_t = ImpType.elt_type t in
-    let old_elt_t : Type.elt_t = ImpType.elt_type old_t in
-    match valNode.value with
-    | Const n ->
-      let n' = ParNum.coerce n elt_t in
-      { value = Const n'; value_type = t}
-    | _ ->
-      let sameSize = Type.sizeof old_elt_t = Type.sizeof elt_t in
-      if sameSize || Type.is_scalar_subtype old_elt_t elt_t then
-        {value_type = t; value = Cast(t, valNode)}
-      else failwith $
-        Printf.sprintf "[imp->cast] cannot create cast from %s to %s : %s"
-          (ImpType.to_str old_t)
-          (ImpType.to_str t)
-          (value_node_to_str valNode)
-   )
 
 let common_type ?t (args : value_node list) =
  match t with
@@ -110,10 +72,10 @@ let dim (arr:value_node) (idx:value_node) = wrap_int32 $ (DimSize(arr, idx))
 
 let len x = dim (int 0) x
 
-let max_ ?t x y = typed_op Prim.Max ?t [x;y]
-let min_ ?t x y = typed_op Prim.Min ?t [x;y]
+let max_no_simplify ?t x y = typed_op Prim.Max ?t [x;y]
+let min_no_simplify ?t x y = typed_op Prim.Min ?t [x;y]
 
-let mul ?t x y =
+let mul_no_simplify ?t x y =
   let xt = x.value_type in
   let yt = y.value_type in
   if ImpType.is_int xt && ImpType.is_int yt then
@@ -125,15 +87,47 @@ let mul ?t x y =
       | _ ->   typed_op Prim.Mult ?t [x;y]
   else typed_op Prim.Mult ?t [x;y]
 
+let max (d1:value_node) (d2:value_node) : value_node =
+  if d1.value = d2.value then d1 else max_no_simplify d1 d2
+
+let mul (d1:value_node) (d2:value_node) =
+  match d1.value, d2.value with
+  | Const n1, _ when ParNum.is_zero n1 -> zero
+  | _, Const n2 when ParNum.is_zero n2 -> zero
+  | Const n1, _ when ParNum.is_one n1 -> d2
+  | _, Const n2 when ParNum.is_one n2 -> d1
+  | Const (ParNum.Int16 x), Const (ParNum.Int16 y) ->
+    {d1  with value =  Const (ParNum.Int16 (x * y)) }
+  | Const (ParNum.Int32 x), (Const ParNum.Int32 y) ->
+    {d1  with value =  Const (ParNum.Int32 (Int32.mul x y)) }
+  | Const (ParNum.Float32 x), (Const ParNum.Float32 y) ->
+    {d1  with value =  Const (ParNum.Float32 (x *. y)) }
+  | Const (ParNum.Float64 x), (Const ParNum.Float64 y) ->
+    {d1  with value =  Const (ParNum.Float64 (x *. y)) }
+  | _ -> mul_no_simplify d1 d2
+
+let add_no_simplify ?t x y = typed_op Prim.Add ?t [x; y]
+
+let add (d1:value_node) (d2:value_node) : value_node =
+  match d1.value, d2.value with
+  | Const n1, _ when ParNum.is_zero n1 -> d2
+  | _, Const n2 when ParNum.is_zero n2 -> d1
+  | Const (ParNum.Int16 x), Const (ParNum.Int16 y) ->
+    {d1  with value = Const (ParNum.Int16 (x + y)) }
+  | Const (ParNum.Int32 x), (Const ParNum.Int32 y) ->
+    {d1  with value =  Const (ParNum.Int32 (Int32.add x y)) }
+  | Const (ParNum.Float32 x), (Const ParNum.Float32 y) ->
+    {d1  with value = Const (ParNum.Float32 (x +. y)) }
+  | Const (ParNum.Float64 x), (Const ParNum.Float64 y) ->
+    {d1 with value = Const (ParNum.Float64 (x +. y)) }
+  | _ -> add_no_simplify d1 d2
+
+let div x y = typed_op Prim.Div [x; y]
+let sub x y = typed_op Prim.Sub [x; y]
+
 let ( *$ ) = mul
-
-let add ?t x y = typed_op Prim.Add ?t [x; y]
 let ( +$ ) = add
-
-let div ?t x y = typed_op Prim.Div ?t [x; y]
 let ( /$ ) = div
-
-let sub ?t x y = typed_op Prim.Sub ?t [x; y]
 let ( -$ ) = sub
 
 let mod_ ?t x y = typed_op Prim.Mod ?t [x; y]
@@ -180,74 +174,40 @@ let id_of_value valNode = match valNode.value with
 
 let var ~ty id = {value = Var id; value_type = ty}
 
-let max_simplify (d1:value_node) (d2:value_node) : value_node =
-  if d1.value = d2.value then d1 else max_ d1 d2
 
-let mul_simplify (d1:value_node) (d2:value_node) =
-  match d1.value, d2.value with
-  | Const n1, _ when ParNum.is_zero n1 -> zero
-  | _, Const n2 when ParNum.is_zero n2 -> zero
-  | Const n1, _ when ParNum.is_one n1 -> d2
-  | _, Const n2 when ParNum.is_one n2 -> d1
-  | Const (ParNum.Int16 x), Const (ParNum.Int16 y) ->
-    {d1  with value =  Const (ParNum.Int16 (x * y)) }
-  | Const (ParNum.Int32 x), (Const ParNum.Int32 y) ->
-    {d1  with value =  Const (ParNum.Int32 (Int32.mul x y)) }
-  | Const (ParNum.Float32 x), (Const ParNum.Float32 y) ->
-    {d1  with value =  Const (ParNum.Float32 (x *. y)) }
-  | Const (ParNum.Float64 x), (Const ParNum.Float64 y) ->
-    {d1  with value =  Const (ParNum.Float64 (x *. y)) }
-  | _ -> mul d1 d2
-
-let add_simplify (d1:value_node) (d2:value_node) : value_node =
-  match d1.value, d2.value with
-  | Const n1, _ when ParNum.is_zero n1 -> d2
-  | _, Const n2 when ParNum.is_zero n2 -> d1
-  | Const (ParNum.Int16 x), Const (ParNum.Int16 y) ->
-    {d1  with value = Const (ParNum.Int16 (x + y)) }
-  | Const (ParNum.Int32 x), (Const ParNum.Int32 y) ->
-    {d1  with value =  Const (ParNum.Int32 (Int32.add x y)) }
-  | Const (ParNum.Float32 x), (Const ParNum.Float32 y) ->
-    {d1  with value = Const (ParNum.Float32 (x +. y)) }
-  | Const (ParNum.Float64 x), (Const ParNum.Float64 y) ->
-    {d1 with value = Const (ParNum.Float64 (x +. y)) }
-  | _ -> add d1 d2
-
-(* assume indices are into sequential dims *)
-let idx arr indices =
-  let arrT = arr.value_type in
-  (* for convenience, treat indexing into scalars as the identity operation *)
-  if ImpType.is_scalar arrT then arr
-  else begin
-    assert (ImpType.is_array arrT);
-    let numIndices = List.length indices in
-    let rank = ImpType.rank arrT in
-    if numIndices <> rank then
-      failwith $ Printf.sprintf
-        "[ImpHelpers] Expected %d indices, got %d"
-        rank
-        numIndices
-    ;
-    let eltT = ImpType.elt_type arrT in
-    {value = Idx(arr, indices); value_type = ImpType.ScalarT eltT}
-  end
-
-let vec_slice arr width indices =
+let vec_slice arr width idx =
   let arrT = arr.value_type in
   if ImpType.is_scalar arrT then failwith "Can't VecSlice into a scalar"
   else begin
     assert (ImpType.is_array arrT);
-    let numIndices = List.length indices in
     let rank = ImpType.rank arrT in
-    if numIndices <> rank then
+    if rank <> 1 then
       failwith $ Printf.sprintf
-        "[ImpHelpers] Expected %d indices, got %d"
+        "[ImpHelpers] VecSlice expected rank 1 array, got %d"
         rank
-        numIndices
     ;
     let eltT = ImpType.elt_type arrT in
-    {value = VecSlice(arr, indices); value_type = ImpType.VectorT(eltT, width)}
+    {
+      value = VecSlice(arr, idx, width);
+      value_type = ImpType.VectorT(eltT, width)
+    }
   end
+
+let cmp cmpOp x y =
+  assert (x.value_type = y.value_type);
+  {
+    value = Imp.Op(x.value_type, cmpOp,[x;y]);
+    value_type = ImpType.bool_t
+  }
+
+let scalar_op op x y =
+  assert (x.value_type = y.value_type);
+  {
+    value = Imp.Op(x.value_type, op, [x;y]);
+    value_type = x.value_type
+  }
+
+
 
 let is_const_int {value} = match value with
   | Const n -> ParNum.is_int n
@@ -263,16 +223,39 @@ let fixdim ~arr ~dim ~idx : value_node  =
     value_type = ImpType.peel ~num_axes:1 arr.value_type
   }
 
-(* recursively build fixdim nodes for a list of indices *)
-let rec fixdims ~arr ~dims ~indices : value_node =
-  match dims, indices with
-    | [], [] -> arr
-    | [_], [i] when ImpType.rank arr.value_type = 1 ->
-      idx arr [i]
-    | d::ds, i::is -> fixdims ~arr:(fixdim arr d i ) ~dims:ds ~indices:is
-    | _ -> failwith "Expected dims and indices to be of same length"
+let permute (dims:int list) indices : value_node list  =
+  let compare_pair (m,_) (n,_) = compare m n in
+  let sortedPairs = List.fast_sort compare_pair (List.combine dims indices) in
+  List.map snd sortedPairs
+
+
+(* assume indices are into sequential dims *)
+let idx arr ?dims indices =
+  let arrT = arr.value_type in
+  let rank = ImpType.rank arrT in
+  (* for convenience, treat indexing into scalars as the identity operation *)
+  if rank = 0 then arr
+  else begin
+    let numIndices = List.length indices in
+    if numIndices <> rank then
+      failwith $ Printf.sprintf
+        "[ImpHelpers] Expected %d indices, got %d"
+        rank
+        numIndices
+    ;
+    let eltT = ImpType.elt_type arrT in
+    (* assume dims are constant or implicitly 0..n-1 *)
+    let indices' = match dims with
+      | Some dims ->  permute (List.map get_const_int dims) indices
+      | None -> indices
+    in
+    {value = Idx(arr, indices); value_type = ImpType.ScalarT eltT }
+  end
+
 
 let slice ~arr ~dim ~start ~stop =
   { value = Slice(arr, dim, start, stop);
     value_type = arr.value_type
   }
+
+

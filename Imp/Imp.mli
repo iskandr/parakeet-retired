@@ -25,8 +25,7 @@ type value =
   | VecConst of ParNum.t list
   | CudaInfo of cuda_info * coord
   | Idx of value_node * value_node list
-  | VecSlice of value_node * value_node list
-  | Val of value_node
+  | VecSlice of value_node * value_node * int
   | Op of ImpType.t * Prim.scalar_op * value_node list
   | Select of ImpType.t * value_node * value_node * value_node
   | Cast of ImpType.t * value_node
@@ -42,15 +41,20 @@ and value_node = {
 
 type value_nodes = value_node list
 
+val recursively_apply :
+  ?delay_level:int -> (value_node -> value_node) -> value_node -> value_node
+
 type stmt =
   | If of value_node * block * block
   | While of value_node * block (* test, body *)
-  | Set of ID.t * value_node
-  | SetIdx of value_node * value_node list * value_node
-  | SetVecSlice of value_node * value_node list * value_node
+  | Set of value_node * value_node
   | SyncThreads
   | Comment of string
 and block = stmt list
+
+val recursively_apply_to_stmt :
+  lhs:(value_node -> value_node) -> rhs:(value_node -> value_node) ->
+    stmt -> stmt
 
 type storage =
   | Global

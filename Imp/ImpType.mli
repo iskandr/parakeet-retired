@@ -3,10 +3,10 @@ type elt_t = Type.elt_t
 type t =
   | ScalarT of elt_t
   | PtrT of elt_t * int option
-	| ArrayT of elt_t * int
+  | ArrayT of elt_t * int
   | ExplodeT of elt_t * int
   | RotateT of t
-	| ShiftT of t
+  | ShiftT of t
   | RangeT of elt_t
   | VectorT of elt_t * int
 
@@ -17,6 +17,7 @@ val elt_type : t -> elt_t
 val is_scalar : t -> bool
 val is_int : t -> bool
 val is_float : t -> bool
+val is_vector : t -> bool
 val is_array : t -> bool
 val rank : t -> int
 
