@@ -48,9 +48,10 @@ let optimize_module llvmModule llvmFn : unit =
   Llvm_scalar_opts.add_sccp pm;
 
   Llvm_scalar_opts.add_aggressive_dce pm;
-  (*
-  Llvm_scalar_opts.add_instruction_combination pm;
   Llvm_scalar_opts.add_cfg_simplification pm;
+
+  Llvm_scalar_opts.add_instruction_combination pm;
+
   Llvm_scalar_opts.add_gvn pm;
   Llvm_scalar_opts.add_licm pm;
   Llvm_scalar_opts.add_loop_unroll pm;
@@ -60,7 +61,7 @@ let optimize_module llvmModule llvmFn : unit =
   Llvm_scalar_opts.add_loop_unswitch pm;
   Llvm_scalar_opts.add_basic_alias_analysis pm;
   Llvm_scalar_opts.add_dead_store_elimination pm;
-  *)
+
   ignore (PassManager.run_function llvmFn pm);
   ignore (PassManager.finalize pm);
   PassManager.dispose pm
@@ -382,7 +383,10 @@ let adverb (info:(TypedSSA.fn, Ptr.t Value.t list, int list) Adverb.info) =
   let outputs = match info.adverb with
   | Map -> exec_map impFn inputShapes info.axes info.array_args llvmFn
   | Reduce -> exec_reduce impFn inputShapes info.axes info.array_args llvmFn
-  | AllPairs -> exec_map impFn inputShapes info.axes info.array_args llvmFn
+  | AllPairs ->
+    call_imp_fn impFn (info.fixed_args @ info.array_args)
+
+    (*exec_map impFn inputShapes info.axes info.array_args llvmFn*)
   | Scan -> failwith "Adverb exec function not implemented yet.\n%!"
   in
   IFDEF DEBUG THEN

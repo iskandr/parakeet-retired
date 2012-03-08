@@ -7,7 +7,7 @@ def f(x):
   return parakeet.allpairs(np.add, x, x)
 
 def test_f():
-  x = np.arange(50)
+  x = np.arange(16)
   y = f(x)
   z = np.add.outer(x,x)
   print "Parakeet shape = %s, value = %s" % (y.shape, y)  

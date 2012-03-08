@@ -533,8 +533,10 @@ let copy_array
 
 (* IMPORTANT: When we copy a field, we divide it by the eltsize so that*)
 (* local strides are by number of elts, not number of bytes *)
+(* TODO: What about fixdim which are already divided? *)
 let copy_array_metadata
   (fnInfo:fn_info)
+  ?(convert_strides_to_num_elts=true)
   (src:llvalue)
   (dest:llvalue)
   ?exclude_dim
@@ -560,7 +562,10 @@ let copy_array_metadata
     let newStrideName = Llvm.value_name byteStride ^ "_as_num_elts" in
     Llvm.build_sdiv byteStride eltSize32 newStrideName fnInfo.builder
   in
-  copy_array fnInfo ~apply_to_elts:div_stride srcStrides destStrides rank
+  if convert_strides_to_num_elts then
+    copy_array fnInfo ~apply_to_elts:div_stride srcStrides destStrides rank
+  else
+    copy_array fnInfo srcStrides destStrides rank
 
 let rec compile_stmt_seq fnInfo currBB = function
   | [] -> currBB
@@ -653,7 +658,10 @@ and compile_stmt fnInfo currBB stmt =
     let destArray = compile_var ~do_load:false fnInfo lhsId in
     let srcArray = compile_value ~do_load:false fnInfo arr in
     let exclude_dim = ImpHelpers.get_const_int dim in
-    copy_array_metadata fnInfo srcArray destArray ~exclude_dim rank;
+    copy_array_metadata
+      ~convert_strides_to_num_elts:false
+        fnInfo srcArray destArray ~exclude_dim rank
+    ;
     currBB
 
   | Imp.Set ({value = Var id}, rhs) ->
@@ -773,7 +781,7 @@ let init_nonlocal_var (fnInfo:fn_info) (id:ID.t) (param:Llvm.llvalue) =
       Llvm.build_store param stackVal fnInfo.builder;
       stackVal
     (* scalar output *)
-    | _, true ->
+    | false, true ->
       let ptrT = Llvm.pointer_type llvmT in
       let ptrName = varName^"_scalar_ptr" in
       Llvm.build_inttoptr param ptrT ptrName fnInfo.builder
