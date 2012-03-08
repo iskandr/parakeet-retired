@@ -41,7 +41,8 @@ and value_node = {
 
 type value_nodes = value_node list
 
-val recursively_apply : (value_node -> value_node) -> value_node -> value_node
+val recursively_apply :
+  ?delay_level:int -> (value_node -> value_node) -> value_node -> value_node
 
 type stmt =
   | If of value_node * block * block
@@ -50,6 +51,10 @@ type stmt =
   | SyncThreads
   | Comment of string
 and block = stmt list
+
+val recursively_apply_to_stmt :
+  lhs:(value_node -> value_node) -> rhs:(value_node -> value_node) ->
+    stmt -> stmt
 
 type storage =
   | Global

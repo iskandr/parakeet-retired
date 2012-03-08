@@ -21,11 +21,17 @@ class builder : fn_info -> object
   method get_storage :ID.t -> Imp.storage
   method value_shape : value_node -> SymbolicShape.t
 
-  method prepend : stmt -> unit
   method append : stmt -> unit
   method concat_list : stmt list -> unit
   method concat : builder -> unit
-  method flatten : stmt -> stmt list
+
+
+
+  method mk_temp : value_node -> value_node
+  method flatten_simple : value_node -> value_node
+  method flatten_lhs : value_node -> value_node
+  method flatten_rhs : value_node -> value_node
+  method flatten : stmt -> stmt
 
   method declare :
     ID.t -> ?storage:Imp.storage -> ?shape:SymbolicShape.t -> ImpType.t -> unit

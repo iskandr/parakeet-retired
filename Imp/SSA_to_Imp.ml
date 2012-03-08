@@ -426,9 +426,10 @@ and translate_sequential_adverb
         Imp.value_nodes_to_str
       )
   ENDIF;
+  let nestedBuilder = builder#clone in
   (* helper function for creating input/output array slices *)
   let slice_along_axes idxVars arr =
-    builder#idx_or_fixdims arr info.axes idxVars
+    nestedBuilder#idx_or_fixdims arr info.axes idxVars
   in
   (* pick any of the highest rank arrays in the input list *)
   let biggestArray : Imp.value_node = argmax_array_rank info.array_args in
@@ -437,8 +438,8 @@ and translate_sequential_adverb
   (* over the axes of the first arg and nested within we loop over the *)
   (* same set of axes of the second arg. *)
   let nAxes = List.length info.axes in
-  let nestedBuilder = new builder (builder#info) in
-  let loopDescrs, nestedInputs, nestedOutputs, skipFirstIter =
+
+  let loops, nestedInputs, nestedOutputs, skipFirstIter =
     match info.adverb, info.init with
     | Adverb.Map, None ->
       (* init is a block which gets the dimensions of array we're traversing *)
@@ -482,7 +483,7 @@ and translate_sequential_adverb
           let indexVars = xIndexVars @ yIndexVars in
           let nestedOutputs =
           List.map
-            (fun arr -> builder#idx_or_fixdims arr outputAxes indexVars)
+            (fun arr -> nestedBuilder#idx_or_fixdims arr outputAxes indexVars)
             lhsVars
           in
           let nestedInputs = info.fixed_args @ nestedArrays in
@@ -493,9 +494,8 @@ and translate_sequential_adverb
   in
   let nestedInputTypes = Imp.value_types nestedInputs in
   let impFn : Imp.fn = translate_fn info.adverb_fn nestedInputTypes in
-  let nestedBody = builder#clone in
-  nestedBody#inline impFn nestedInputs nestedOutputs;
-  build_loop_nests ~skip_first_iter:skipFirstIter builder nestedBody loopDescrs
+  nestedBuilder#inline impFn nestedInputs nestedOutputs;
+  build_loop_nests ~skip_first_iter:skipFirstIter builder nestedBuilder loops
 
 
 
@@ -521,9 +521,9 @@ and vectorize_adverb
   let num_axes = List.length info.axes in
   let peeledArgTypes = List.map (ImpType.peel ~num_axes) argTypes in
   let fnInputTypes = fixedTypes @ peeledArgTypes in
-  let impFn = translate_fn info.adverb_fn fnInputTypes in
   match info.adverb with
   | Adverb.Map ->
+    let impFn = translate_fn info.adverb_fn fnInputTypes in
     (* TODO: for now, only vectorize maps *)
     (* Get the biggest array, and then create outer loops for all but the *)
     (* innermost axis.  That axis is treated differently so as to be *)
@@ -561,24 +561,29 @@ and vectorize_adverb
         loop_incr_op = Prim.Add;
       }
     in
+    let innerBuilder = builder#clone in
     (* slice out all but the last axis from array args *)
     let fixedDimArgs =
       List.map
-        (fun arr -> builder#idx_or_fixdims arr outerAxes outerIndexVars)
+        (fun arr -> innerBuilder#idx_or_fixdims arr outerAxes outerIndexVars)
         info.array_args
     in
+    Printf.printf "\n\n\nFixed Dim Args: %s \n%!"
+      (Imp.value_nodes_to_str fixedDimArgs)
+    ;
     let vecIdxArg = vecDescriptor.loop_var in
+    (* innerBuilder contains both the vectorized and final scalar loops *)
+
     let vecSliceArgs =
       List.map
         (fun arg -> ImpHelpers.vec_slice arg vecLen vecIdxArg)
-        info.array_args
+        fixedDimArgs
     in
     let vecNestedArgs = info.fixed_args @ vecSliceArgs in
     let vecOutputs =
       List.map (fun arg -> ImpHelpers.vec_slice arg vecLen vecIdxArg) lhsVars
     in
-    (* innerBuilder contains both the vectorized and final scalar loops *)
-    let innerBuilder = builder#clone in
+
     let vecFn = Imp_to_SSE.vectorize_fn impFn vecLen in
     let vecBody = builder#clone in
     vecBody#inline vecFn vecNestedArgs vecOutputs;

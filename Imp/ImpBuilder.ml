@@ -41,22 +41,60 @@ class builder (info:fn_info) = object (self)
   method get_storage id = ID.Map.find id info.storages
   method has_id (id:ID.t) = ID.Set.mem id info.ids
 
+  method value_shape {value} = match value with
+    | Var id -> self#get_shape id
+    | FixDim(arr, dim, idx) ->
+      let arrShape = self#value_shape arr in
+      remove_pos_from_list (ImpHelpers.get_const_int dim) arrShape
+    | VecConst ns -> [SymbolicShape.Const (List.length ns)]
+    | VecSlice (_, _, nelts) -> [SymbolicShape.Const nelts]
+    | _ -> SymbolicShape.scalar
 
-  (* TODO: actually implement this *)
-  method flatten stmt = [stmt]
 
-  method prepend stmt =
-    let rec aux i = function
-      | [] -> ()
-      | x::xs ->
-        DynArray.insert stmts i x;
-        aux (i+1) xs
-    in
-    aux 0 (self#flatten stmt)
+  method mk_temp valNode =
+    let shape = self#value_shape valNode in
+    let temp = self#fresh_local "temp" ~shape valNode.value_type in
+    self#append $ Set(temp, valNode);
+    temp
 
+(* nested values on the RHS should be constants or variables *)
+  method flatten_simple valNode =
+    match valNode.value with
+    | Var _
+    | Const _
+    | CudaInfo _ -> valNode
+    | _ -> self#mk_temp valNode
+
+
+  (* LHS of assignment should be either variable, vecslice, or idx *)
+  method flatten_lhs valNode =
+    match valNode.value with
+    | Var _ -> valNode
+    | Idx (arr, indices) ->
+      let arr' = self#flatten_simple arr in
+      let indices' = List.map self#flatten_simple indices in
+      {valNode with value = Idx(arr', indices')}
+
+    | VecSlice (arr, idx, len) ->
+      let arr' = self#flatten_simple arr in
+      let idx' = self#flatten_simple idx in
+      {valNode with value = VecSlice(arr', idx', len)}
+    | _ -> self#mk_temp valNode
+
+  (* RHS of an assignment *)
+  method flatten_rhs valNode =
+    Imp.recursively_apply ~delay_level:1 self#flatten_simple valNode
+
+
+
+  method flatten stmt : stmt =
+    Imp.recursively_apply_to_stmt
+      ~lhs:self#flatten_lhs
+      ~rhs:self#flatten_rhs
+      stmt
 
   method append stmt : unit =
-    List.iter (DynArray.add stmts) (self#flatten stmt)
+    DynArray.add stmts (self#flatten stmt)
 
   method concat_list stmts = List.iter self#append stmts
   method concat (other:builder) = self#concat_list other#to_list
@@ -108,7 +146,8 @@ class builder (info:fn_info) = object (self)
 
   method fresh_local name ?storage ?shape (ty:ImpType.t)  : value_node =
     let id = ID.gen_named name in
-    self#declare  id ?storage ?shape ty;
+    let storage = match storage with Some s -> s | None -> Imp.Alias in
+    self#declare  id ~storage ?shape ty;
     { value = Var id; Imp.value_type = ty }
 
   method cast name (v:value_node) (ty:ImpType.t)  =
@@ -126,14 +165,6 @@ class builder (info:fn_info) = object (self)
     let ty = self#get_type id in
     { value = Imp.Var id; value_type = ty }
 
-  method value_shape {value} = match value with
-    | Var id -> self#get_shape id
-    | FixDim(arr, dim, idx) ->
-      let arrShape = self#value_shape arr in
-      remove_pos_from_list (ImpHelpers.get_const_int dim) arrShape
-    | VecConst ns -> [SymbolicShape.Const (List.length ns)]
-    | VecSlice (_, _, nelts) -> [SymbolicShape.Const nelts]
-    | _ -> SymbolicShape.scalar
 
   (* recursively build fixdim nodes for a list of indices *)
   method fixdims ~arr ~dims ~indices  : value_node =
@@ -145,7 +176,8 @@ class builder (info:fn_info) = object (self)
         let rhsShape = self#value_shape rhs in
         let rhsType = ImpType.peel arr.value_type in
         let lhs =
-          self#fresh_local  "fixdim" ~storage:Imp.Alias ~shape:rhsShape rhsType
+          self#fresh_local
+            "fixed_slice" ~storage:Imp.Alias ~shape:rhsShape rhsType
         in
         self#append $ Imp.Set(lhs, rhs);
         self#fixdims ~arr:lhs ~dims:ds ~indices:is
@@ -175,8 +207,16 @@ class builder (info:fn_info) = object (self)
     ENDIF;
     (* for convenience, treat indexing into scalars as the identity operation *)
     if rank = 0 then  arr
-    else if rank = nIndices && (List.for_all ImpHelpers.is_const_int dims) then
+    else if rank = nIndices then begin
+      IFDEF DEBUG THEN
+        if not (List.for_all ImpHelpers.is_const_int dims) then
+          failwith $
+            Printf.sprintf
+              "Expected dims to be constant: %s"
+              (Imp.value_nodes_to_str dims)
+      ENDIF;
       ImpHelpers.idx arr ~dims indices
+    end
     else self#fixdims arr dims indices
 
   method build_add  (name:string) (x:value_node) (y:value_node) : value_node =
