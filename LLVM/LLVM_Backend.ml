@@ -40,8 +40,9 @@ let optimize_module llvmModule llvmFn : unit =
   (* Promote allocas to registers. *)
   Llvm_scalar_opts.add_verifier pm;
   Llvm_scalar_opts.add_memory_to_register_promotion pm;
-  (*Llvm_scalar_opts.add_scalar_repl_aggregation_ssa pm;
+  Llvm_scalar_opts.add_scalar_repl_aggregation_ssa pm;
   Llvm_scalar_opts.add_scalar_repl_aggregation pm;
+  (*
   Llvm_scalar_opts.add_sccp pm;
   Llvm_scalar_opts.add_aggressive_dce pm;
   Llvm_scalar_opts.add_instruction_combination pm;
@@ -56,7 +57,6 @@ let optimize_module llvmModule llvmFn : unit =
   Llvm_scalar_opts.add_basic_alias_analysis pm;
   Llvm_scalar_opts.add_dead_store_elimination pm;
   *)
-
   ignore (PassManager.run_function llvmFn pm);
   ignore (PassManager.finalize pm);
   PassManager.dispose pm
@@ -200,12 +200,16 @@ module CompiledFunctionCache = struct
       begin
         let llvmFn : Llvm.llvalue = Imp_to_LLVM.compile_fn impFn in
         IFDEF DEBUG THEN
+          print_endline  "[LLVM_Backend.call_imp_fn] Generated LLVM function";
+          Llvm.dump_value llvmFn;
+        ENDIF;
+        IFDEF DEBUG THEN
           Printf.printf "Validating generated function...\n%!";
           Llvm_analysis.assert_valid_function llvmFn;
         ENDIF;
         optimize_module Imp_to_LLVM.llvm_module llvmFn;
         IFDEF DEBUG THEN
-          print_endline  "[LLVM_Backend.call_imp_fn] Generated LLVM function";
+          print_endline  "[LLVM_Backend.call_imp_fn] Optimized LLVM function";
           Llvm.dump_value llvmFn;
         ENDIF;
         Hashtbl.add cache fnId llvmFn;

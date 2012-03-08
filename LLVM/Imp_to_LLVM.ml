@@ -112,14 +112,11 @@ let llvm_printf str vals builder =
   ()
 
 module Indexing = struct
+
   let get_array_field_addr (fnInfo:fn_info) (array:llvalue) field : llvalue =
     let resultName =
-      (Llvm.value_name array) ^ "."  ^(Imp.array_field_to_str field) ^ ".addr"
+      (Llvm.value_name array) ^ "."^(Imp.array_field_to_str field)^".addr"
     in
-    (*IFDEF DEBUG THEN
-      Printf.printf "get_array_field_addr %s\n%!" resultName;
-    ENDIF;
-    *)
     let indices = [|zero_i32; mk_int32 (Imp.array_field_pos field) |] in
     Llvm.build_gep array indices resultName fnInfo.builder
 
@@ -127,24 +124,11 @@ module Indexing = struct
     let resultName =
       Llvm.value_name array ^ "."^ Imp.array_field_to_str field
     in
-    (*IFDEF DEBUG THEN
-      Printf.printf "get_array_field %s\n%!" resultName;
-    ENDIF;
-    *)
     let addr = get_array_field_addr fnInfo array field in
-    Llvm.dump_value addr;
     Llvm.build_load addr resultName fnInfo.builder
 
   let get_array_strides_elt (fnInfo:fn_info) (array:llvalue) (idx:int) =
-    (*IFDEF DEBUG THEN
-      Printf.printf "get_array_strides_elt: %s.strides[%d]\n%!"
-       (Llvm.value_name array)
-       idx
-      ;
-    ENDIF;
-    *)
     let strides : llvalue  = get_array_field fnInfo array ArrayStrides in
-    Llvm.dump_value strides;
     let stridePtr =
       if idx <> 0 then
         Llvm.build_gep strides [|mk_int32 idx|] "stride_ptr" fnInfo.builder
@@ -157,11 +141,6 @@ module Indexing = struct
     Llvm.build_load stridePtr resultName fnInfo.builder
 
   let get_array_shape_elt (fnInfo:fn_info) (array:llvalue) (idx:int) =
-    (*IFDEF DEBUG THEN
-      Printf.printf "get_array_shape_elt: %d\n%!" idx;
-      Llvm.dump_value array;
-    ENDIF;
-    *)
    let shape : llvalue  = get_array_field fnInfo array ArrayShape in
    let eltPtr : llvalue =
      if idx <> 0 then
@@ -754,11 +733,14 @@ let init_local_var (fnInfo:fn_info) (id:ID.t) =
       let localArray : llvalue =
         allocate_local_array_info fnInfo varName impT llvmT
       in
-      let size = compile_nelts_in_shape fnInfo shape in
-      let impEltT = ImpType.elt_type impT in
-      let ptrT = Llvm.pointer_type (LlvmType.of_elt_type impEltT) in
+
       if ID.Map.find id fnInfo.imp_storage = Imp.Local then (
-        let dataPtr = Llvm.build_alloca ptrT "local_data_ptr" fnInfo.builder in
+        let nelts = compile_nelts_in_shape fnInfo shape in
+        let impEltT = ImpType.elt_type impT in
+        let llvmEltT = LlvmType.of_elt_type impEltT in
+        let dataPtr =
+          Llvm.build_array_alloca llvmEltT nelts "local_data_ptr" fnInfo.builder
+        in
         Llvm.build_store
           dataPtr
           (Indexing.get_array_field_addr fnInfo localArray ArrayData)

@@ -72,10 +72,10 @@ let dim (arr:value_node) (idx:value_node) = wrap_int32 $ (DimSize(arr, idx))
 
 let len x = dim (int 0) x
 
-let max_ ?t x y = typed_op Prim.Max ?t [x;y]
-let min_ ?t x y = typed_op Prim.Min ?t [x;y]
+let max_no_simplify ?t x y = typed_op Prim.Max ?t [x;y]
+let min_no_simplify ?t x y = typed_op Prim.Min ?t [x;y]
 
-let mul ?t x y =
+let mul_no_simplify ?t x y =
   let xt = x.value_type in
   let yt = y.value_type in
   if ImpType.is_int xt && ImpType.is_int yt then
@@ -87,15 +87,47 @@ let mul ?t x y =
       | _ ->   typed_op Prim.Mult ?t [x;y]
   else typed_op Prim.Mult ?t [x;y]
 
+let max (d1:value_node) (d2:value_node) : value_node =
+  if d1.value = d2.value then d1 else max_no_simplify d1 d2
+
+let mul (d1:value_node) (d2:value_node) =
+  match d1.value, d2.value with
+  | Const n1, _ when ParNum.is_zero n1 -> zero
+  | _, Const n2 when ParNum.is_zero n2 -> zero
+  | Const n1, _ when ParNum.is_one n1 -> d2
+  | _, Const n2 when ParNum.is_one n2 -> d1
+  | Const (ParNum.Int16 x), Const (ParNum.Int16 y) ->
+    {d1  with value =  Const (ParNum.Int16 (x * y)) }
+  | Const (ParNum.Int32 x), (Const ParNum.Int32 y) ->
+    {d1  with value =  Const (ParNum.Int32 (Int32.mul x y)) }
+  | Const (ParNum.Float32 x), (Const ParNum.Float32 y) ->
+    {d1  with value =  Const (ParNum.Float32 (x *. y)) }
+  | Const (ParNum.Float64 x), (Const ParNum.Float64 y) ->
+    {d1  with value =  Const (ParNum.Float64 (x *. y)) }
+  | _ -> mul_no_simplify d1 d2
+
+let add_no_simplify ?t x y = typed_op Prim.Add ?t [x; y]
+
+let add (d1:value_node) (d2:value_node) : value_node =
+  match d1.value, d2.value with
+  | Const n1, _ when ParNum.is_zero n1 -> d2
+  | _, Const n2 when ParNum.is_zero n2 -> d1
+  | Const (ParNum.Int16 x), Const (ParNum.Int16 y) ->
+    {d1  with value = Const (ParNum.Int16 (x + y)) }
+  | Const (ParNum.Int32 x), (Const ParNum.Int32 y) ->
+    {d1  with value =  Const (ParNum.Int32 (Int32.add x y)) }
+  | Const (ParNum.Float32 x), (Const ParNum.Float32 y) ->
+    {d1  with value = Const (ParNum.Float32 (x +. y)) }
+  | Const (ParNum.Float64 x), (Const ParNum.Float64 y) ->
+    {d1 with value = Const (ParNum.Float64 (x +. y)) }
+  | _ -> add_no_simplify d1 d2
+
+let div x y = typed_op Prim.Div [x; y]
+let sub x y = typed_op Prim.Sub [x; y]
+
 let ( *$ ) = mul
-
-let add ?t x y = typed_op Prim.Add ?t [x; y]
 let ( +$ ) = add
-
-let div ?t x y = typed_op Prim.Div ?t [x; y]
 let ( /$ ) = div
-
-let sub ?t x y = typed_op Prim.Sub ?t [x; y]
 let ( -$ ) = sub
 
 let mod_ ?t x y = typed_op Prim.Mod ?t [x; y]
@@ -142,38 +174,6 @@ let id_of_value valNode = match valNode.value with
 
 let var ~ty id = {value = Var id; value_type = ty}
 
-let max_simplify (d1:value_node) (d2:value_node) : value_node =
-  if d1.value = d2.value then d1 else max_ d1 d2
-
-let mul_simplify (d1:value_node) (d2:value_node) =
-  match d1.value, d2.value with
-  | Const n1, _ when ParNum.is_zero n1 -> zero
-  | _, Const n2 when ParNum.is_zero n2 -> zero
-  | Const n1, _ when ParNum.is_one n1 -> d2
-  | _, Const n2 when ParNum.is_one n2 -> d1
-  | Const (ParNum.Int16 x), Const (ParNum.Int16 y) ->
-    {d1  with value =  Const (ParNum.Int16 (x * y)) }
-  | Const (ParNum.Int32 x), (Const ParNum.Int32 y) ->
-    {d1  with value =  Const (ParNum.Int32 (Int32.mul x y)) }
-  | Const (ParNum.Float32 x), (Const ParNum.Float32 y) ->
-    {d1  with value =  Const (ParNum.Float32 (x *. y)) }
-  | Const (ParNum.Float64 x), (Const ParNum.Float64 y) ->
-    {d1  with value =  Const (ParNum.Float64 (x *. y)) }
-  | _ -> mul d1 d2
-
-let add_simplify (d1:value_node) (d2:value_node) : value_node =
-  match d1.value, d2.value with
-  | Const n1, _ when ParNum.is_zero n1 -> d2
-  | _, Const n2 when ParNum.is_zero n2 -> d1
-  | Const (ParNum.Int16 x), Const (ParNum.Int16 y) ->
-    {d1  with value = Const (ParNum.Int16 (x + y)) }
-  | Const (ParNum.Int32 x), (Const ParNum.Int32 y) ->
-    {d1  with value =  Const (ParNum.Int32 (Int32.add x y)) }
-  | Const (ParNum.Float32 x), (Const ParNum.Float32 y) ->
-    {d1  with value = Const (ParNum.Float32 (x +. y)) }
-  | Const (ParNum.Float64 x), (Const ParNum.Float64 y) ->
-    {d1 with value = Const (ParNum.Float64 (x +. y)) }
-  | _ -> add d1 d2
 
 let vec_slice arr width idx =
   let arrT = arr.value_type in

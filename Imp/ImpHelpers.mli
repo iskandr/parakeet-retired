@@ -50,20 +50,19 @@ val dim : value_node -> value_node -> value_node
 val len : value_node -> value_node
 val vec_slice : value_node -> int -> value_node ->  value_node
 
-val max_ : ?t:Type.elt_t -> value_node -> value_node -> value_node
-val min_ : ?t:Type.elt_t -> value_node -> value_node -> value_node
+val max_no_simplify : ?t:Type.elt_t -> value_node -> value_node -> value_node
+val min_no_simplify : ?t:Type.elt_t -> value_node -> value_node -> value_node
 
-val mul : ?t:Type.elt_t -> value_node -> value_node -> value_node
-val ( *$ ) :  ?t:Type.elt_t -> value_node -> value_node -> value_node
+val mul : value_node -> value_node -> value_node
+val add : value_node -> value_node -> value_node
+val div : value_node -> value_node -> value_node
+val sub : value_node -> value_node -> value_node
 
-val add : ?t:Type.elt_t -> value_node -> value_node -> value_node
-val ( +$ ): ?t:Type.elt_t -> value_node -> value_node -> value_node
 
-val div : ?t:Type.elt_t -> value_node -> value_node -> value_node
-val ( /$ ) : ?t:Type.elt_t -> value_node -> value_node -> value_node
-
-val sub : ?t:Type.elt_t -> value_node -> value_node -> value_node
-val ( -$ ) : ?t:Type.elt_t -> value_node -> value_node -> value_node
+val ( *$ ) : value_node -> value_node -> value_node
+val ( +$ ):  value_node -> value_node -> value_node
+val ( /$ ) : value_node -> value_node -> value_node
+val ( -$ ) : value_node -> value_node -> value_node
 
 val mod_ : ?t:Type.elt_t -> value_node -> value_node -> value_node
 val ( %$ ) : ?t:Type.elt_t -> value_node -> value_node -> value_node

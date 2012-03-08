@@ -402,12 +402,12 @@ and translate_adverb
   let maxArgRank =
     List.fold_left (fun acc t -> max acc (ImpType.rank t)) 0 argTypes
   in
-  if maxArgRank = 1 &&
+  if false && maxArgRank = 1 &&
      TypedSSA.ScalarHelpers.is_scalar_fn info.adverb_fn &&
      info.adverb = Adverb.Map
   then match TypedSSA.FnHelpers.get_single_type info.adverb_fn with
     | None -> translate_sequential_adverb builder lhsVars info
-    | Some (Type.ScalarT eltT) ->
+    | Some (Type.ScalarT eltT)  ->
       (* only vectorize function which use one type in their body *)
       vectorize_adverb builder lhsVars info eltT
   else translate_sequential_adverb builder lhsVars info
@@ -542,14 +542,13 @@ and vectorize_adverb
     let impVecLen = ImpHelpers.int vecLen in
     let vecLoopBound = builder#fresh_local "vec_loop_bound" int32_t in
     builder +=
-      Set(vecLoopBound, ImpHelpers.sub ~t:Type.Int32T lastSize impVecLen);
+      Set(vecLoopBound, ImpHelpers.sub lastSize impVecLen);
     builder +=
-      Set(vecLoopBound, ImpHelpers.div ~t:Type.Int32T vecLoopBound impVecLen);
+      Set(vecLoopBound, ImpHelpers.div vecLoopBound impVecLen);
     builder +=
-      Set(vecLoopBound, ImpHelpers.mul ~t:Type.Int32T vecLoopBound impVecLen);
+      Set(vecLoopBound, ImpHelpers.mul vecLoopBound impVecLen);
     builder +=
-      Set(vecLoopBound,
-        ImpHelpers.add ~t:Type.Int32T vecLoopBound ImpHelpers.one)
+      Set(vecLoopBound, ImpHelpers.add vecLoopBound ImpHelpers.one)
     ;
     let vecDescriptor =
       {
