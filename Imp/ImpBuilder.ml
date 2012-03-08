@@ -54,9 +54,12 @@ class builder (info:fn_info) = object (self)
     in
     aux 0 (self#flatten stmt)
 
-  method append stmt  =
+
+  method append stmt : unit =
     List.iter (DynArray.add stmts) (self#flatten stmt)
 
+  method concat_list stmts = List.iter self#append stmts
+  method concat (other:builder) = self#concat_list other#to_list
 
   method declare (id:ID.t) ?storage ?shape (ty:ImpType.t) =
     let storage = match storage with
@@ -144,8 +147,53 @@ class builder (info:fn_info) = object (self)
         self#fixdims ~arr:lhs ~dims:ds ~indices:is
       | _ -> failwith "Expected dims and indices to be of same length"
 
+  method idx_or_fixdims
+    ~(arr:value_node)
+    ~(dims:value_nodes)
+    ~(indices:value_nodes) =
+    let nIndices = List.length indices in
+    let arrT = arr.value_type in
+    let rank = ImpType.rank arrT in
+    IFDEF DEBUG THEN
+      let nDims = List.length dims in
+      if nDims <> nIndices then
+        failwith $ Printf.sprintf
+          "[idx_or_fixdims] # of dims (%d) =/=  # of indices (%d)"
+          nDims
+          nIndices
+      ;
+      if (nIndices > rank) && (rank > 0) then
+        failwith $ Printf.sprintf
+          "[idx_or_fixdims] Can't index into rank %d array with %d indices"
+          rank
+          nIndices
+      ;
+    ENDIF;
+    (* for convenience, treat indexing into scalars as the identity operation *)
+    if rank = 0 then  arr
+    else if rank = nIndices && (List.for_all ImpHelpers.is_const_int dims) then
+      ImpHelpers.idx arr ~dims indices
+    else self#fixdims arr dims indices
+
   method build_add  (name:string) (x:value_node) (y:value_node) : value_node =
     assert false
+
+  method inline (impFn:Imp.fn) (inputs:value_nodes) (outputs:value_nodes) =
+    let rename_local oldId =
+      let name = ID.get_original_prefix oldId in
+      let t = ID.Map.find oldId impFn.Imp.types in
+      let shape = ID.Map.find oldId impFn.Imp.shapes in
+      let storage = ID.Map.find oldId impFn.Imp.storage in
+      self#fresh_local name ~storage ~shape t
+    in
+    let newLocalVars = List.map rename_local impFn.local_ids in
+    let replaceEnv =
+      ID.Map.of_lists
+        (impFn.input_ids @ impFn.output_ids @ impFn.local_ids)
+        (inputs @ outputs @ newLocalVars)
+    in
+    let newBody = ImpReplace.replace_block replaceEnv impFn.body in
+    self#concat_list newBody
 end
 
 

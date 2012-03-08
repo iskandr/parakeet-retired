@@ -14,16 +14,17 @@ val id_of : value_node -> ID.t
 class builder : fn_info -> object
   method info : fn_info
   method clone : builder
-  method  to_list : stmt list
-  method  has_id : ID.t -> bool
-  method  get_type : ID.t -> ImpType.t
-  method  get_shape : ID.t -> SymbolicShape.t
-  method  get_storage :ID.t -> Imp.storage
+  method to_list : stmt list
+  method has_id : ID.t -> bool
+  method get_type : ID.t -> ImpType.t
+  method get_shape : ID.t -> SymbolicShape.t
+  method get_storage :ID.t -> Imp.storage
   method value_shape : value_node -> SymbolicShape.t
 
   method prepend : stmt -> unit
   method append : stmt -> unit
-
+  method concat_list : stmt list -> unit
+  method concat : builder -> unit
   method flatten : stmt -> stmt list
 
   method declare :
@@ -37,7 +38,13 @@ class builder : fn_info -> object
   method var :    ID.t -> value_node
   method fixdims :
     arr:value_node -> dims:value_nodes -> indices:value_nodes -> value_node
+  method idx_or_fixdims :
+    arr:value_node -> dims:value_nodes -> indices:value_nodes -> value_node
+
   method build_add : string -> value_node -> value_node -> value_node
+
+  method inline : Imp.fn -> value_nodes -> value_nodes -> unit
+
 end
 
 val (+=) : builder -> stmt -> unit
