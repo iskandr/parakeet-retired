@@ -402,7 +402,7 @@ and translate_adverb
   let maxArgRank =
     List.fold_left (fun acc t -> max acc (ImpType.rank t)) 0 argTypes
   in
-  if maxArgRank = 1 &&
+  if false && maxArgRank = 1 &&
      TypedSSA.ScalarHelpers.is_scalar_fn info.adverb_fn &&
      info.adverb = Adverb.Map
   then match TypedSSA.FnHelpers.get_single_type info.adverb_fn with
