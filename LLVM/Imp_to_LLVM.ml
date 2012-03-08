@@ -111,9 +111,10 @@ module Indexing = struct
     let resultName =
       (Llvm.value_name array) ^ "."  ^(Imp.array_field_to_str field) ^ ".addr"
     in
-    IFDEF DEBUG THEN
+    (*IFDEF DEBUG THEN
       Printf.printf "get_array_field_addr %s\n%!" resultName;
     ENDIF;
+    *)
     let indices = [|zero_i32; mk_int32 (Imp.array_field_pos field) |] in
     Llvm.build_gep array indices resultName fnInfo.builder
 
@@ -121,21 +122,22 @@ module Indexing = struct
     let resultName =
       Llvm.value_name array ^ "."^ Imp.array_field_to_str field
     in
-    IFDEF DEBUG THEN
+    (*IFDEF DEBUG THEN
       Printf.printf "get_array_field %s\n%!" resultName;
     ENDIF;
+    *)
     let addr = get_array_field_addr fnInfo array field in
     Llvm.dump_value addr;
     Llvm.build_load addr resultName fnInfo.builder
 
   let get_array_strides_elt (fnInfo:fn_info) (array:llvalue) (idx:int) =
-    IFDEF DEBUG THEN
+    (*IFDEF DEBUG THEN
       Printf.printf "get_array_strides_elt: %s.strides[%d]\n%!"
        (Llvm.value_name array)
        idx
       ;
     ENDIF;
-
+    *)
     let strides : llvalue  = get_array_field fnInfo array ArrayStrides in
     Llvm.dump_value strides;
     let stridePtr =
@@ -150,10 +152,11 @@ module Indexing = struct
     Llvm.build_load stridePtr resultName fnInfo.builder
 
   let get_array_shape_elt (fnInfo:fn_info) (array:llvalue) (idx:int) =
-    IFDEF DEBUG THEN
+    (*IFDEF DEBUG THEN
       Printf.printf "get_array_shape_elt: %d\n%!" idx;
       Llvm.dump_value array;
     ENDIF;
+    *)
    let shape : llvalue  = get_array_field fnInfo array ArrayShape in
    let eltPtr : llvalue =
      if idx <> 0 then
@@ -321,6 +324,7 @@ open Indexing
 
 let compile_const (t:ImpType.t) (n:ParNum.t) =
   let t' : lltype = LlvmType.of_imp_type t in
+  Printf.printf "Compile const: type = %s\n%!" (Llvm.string_of_lltype t');
   match n with
   | ParNum.Bool b -> const_int t' (if b then 1 else 0)
   | ParNum.Char c -> const_int t' (Char.code c)
@@ -456,8 +460,12 @@ let rec compile_value ?(do_load=true) fnInfo (impVal:Imp.value_node) =
   | Imp.VecConst vals ->
     Printf.printf "Compile vec constant to llvm with type %s\n%!"
       (ImpType.to_str impVal.Imp.value_type);
-    let vals = List.map (compile_const impVal.Imp.value_type) vals in
-    const_vector (Array.of_list vals)
+    let eltT = ImpType.peel impVal.Imp.value_type in
+    let vals = List.map (compile_const eltT) vals in
+    let llvmVec = const_vector (Array.of_list vals) in
+    Llvm.dump_value llvmVec;
+    llvmVec
+
   | Imp.Op (t, op, vals) ->
     let vals' =  List.map (compile_value fnInfo) vals in
     if Prim.is_comparison op then

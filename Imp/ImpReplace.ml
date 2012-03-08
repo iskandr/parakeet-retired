@@ -21,20 +21,11 @@ let replace_values
   List.map (replace_value env) valNodes
 
 (* FIND/REPLACE identifiers in Imp statement *)
-let rec replace_stmt (env:Imp.value_node ID.Map.t) = function
-  | If (cond, tBlock, fBlock) ->
-    let tBlock : Imp.stmt list = replace_block env tBlock in
-    let fBlock : Imp.stmt list = replace_block env fBlock in
-    let cond : Imp.value_node = replace_value env cond in
-    If(cond, tBlock, fBlock)
-  | While (cond, body) ->
-    While(replace_value env cond, replace_block env body)
-  | Set (lhs, rhs) ->
-    Set(replace_value env lhs, replace_value env rhs)
-  | other ->
-    failwith $ Printf.sprintf
-      "Unsupported statement: %s"
-      (Imp.stmt_to_str other)
+let rec replace_stmt (env:Imp.value_node ID.Map.t) stmt  =
+  let f valNode = replace_value env valNode in
+  Imp.recursively_apply_to_stmt ~lhs:f ~rhs:f stmt
+
+
 and replace_block (env:Imp.value_node ID.Map.t) = function
   | [] -> []
   | stmt::rest ->

@@ -52,6 +52,9 @@ class builder (info:fn_info) = object (self)
 
 
   method mk_temp valNode =
+    Printf.printf "[ImpBuilder.mk_simple] %s\n%!"
+      (Imp.value_node_to_str valNode)
+    ;
     let shape = self#value_shape valNode in
     let temp = self#fresh_local "temp" ~shape valNode.value_type in
     self#append $ Set(temp, valNode);
@@ -59,22 +62,31 @@ class builder (info:fn_info) = object (self)
 
 (* nested values on the RHS should be constants or variables *)
   method flatten_simple valNode =
+    Printf.printf "[ImpBuilder.flatten_simple] %s\n%!"
+      (Imp.value_node_to_str valNode)
+    ;
     match valNode.value with
     | Var _
     | Const _
+    | VecConst _
     | CudaInfo _ -> valNode
     | _ -> self#mk_temp valNode
 
 
   (* LHS of assignment should be either variable, vecslice, or idx *)
   method flatten_lhs valNode =
+    Printf.printf "[ImpBuilder.flatten_lhs] %s\n%!"
+      (Imp.value_node_to_str valNode)
+    ;
     match valNode.value with
+    | CudaInfo _
+    | Const _
+    | VecConst _ -> failwith "Constants not allowed on LHS of assignment"
     | Var _ -> valNode
     | Idx (arr, indices) ->
       let arr' = self#flatten_simple arr in
       let indices' = List.map self#flatten_simple indices in
       {valNode with value = Idx(arr', indices')}
-
     | VecSlice (arr, idx, len) ->
       let arr' = self#flatten_simple arr in
       let idx' = self#flatten_simple idx in
@@ -83,6 +95,9 @@ class builder (info:fn_info) = object (self)
 
   (* RHS of an assignment *)
   method flatten_rhs valNode =
+    Printf.printf "[ImpBuilder.flatten_rhs] %s\n%!"
+      (Imp.value_node_to_str valNode)
+    ;
     Imp.recursively_apply ~delay_level:1 self#flatten_simple valNode
 
 
@@ -94,6 +109,9 @@ class builder (info:fn_info) = object (self)
       stmt
 
   method append stmt : unit =
+    Printf.printf "[ImpBuilder.append] Adding %s\n%!"
+      (Imp.stmt_to_str stmt)
+    ;
     DynArray.add stmts (self#flatten stmt)
 
   method concat_list stmts = List.iter self#append stmts
@@ -126,10 +144,10 @@ class builder (info:fn_info) = object (self)
       if ImpType.rank ty <> SymbolicShape.rank shape then
         failwith $
           Printf.sprintf
-            "[ImpBuilder] Mismatch between rank of type %s and shape %s for %s"
+            "[ImpBuilder] Mismatch for %s: type %s incompatible with shape %s"
+              (ID.to_str id)
               (ImpType.to_str ty)
               (SymbolicShape.to_str shape)
-              (ID.to_str id)
       ;
     ENDIF;
     IFDEF DEBUG THEN
@@ -233,13 +251,13 @@ class builder (info:fn_info) = object (self)
       result
     )
 
-
   method inline (impFn:Imp.fn) (inputs:value_nodes) (outputs:value_nodes) =
     let rename_local oldId =
       let name = ID.get_original_prefix oldId in
       let t = ID.Map.find oldId impFn.Imp.types in
       let shape = ID.Map.find oldId impFn.Imp.shapes in
       let storage = ID.Map.find oldId impFn.Imp.storage in
+
       self#fresh_local name ~storage ~shape t
     in
     let newLocalVars = List.map rename_local impFn.local_ids in

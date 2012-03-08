@@ -523,7 +523,7 @@ and vectorize_adverb
   let fnInputTypes = fixedTypes @ peeledArgTypes in
   match info.adverb with
   | Adverb.Map ->
-    let impFn = translate_fn info.adverb_fn fnInputTypes in
+
     (* TODO: for now, only vectorize maps *)
     (* Get the biggest array, and then create outer loops for all but the *)
     (* innermost axis.  That axis is treated differently so as to be *)
@@ -583,7 +583,7 @@ and vectorize_adverb
     let vecOutputs =
       List.map (fun arg -> ImpHelpers.vec_slice arg vecLen vecIdxArg) lhsVars
     in
-
+    let impFn = translate_fn info.adverb_fn fnInputTypes in
     let vecFn = Imp_to_SSE.vectorize_fn impFn vecLen in
     let vecBody = builder#clone in
     vecBody#inline vecFn vecNestedArgs vecOutputs;

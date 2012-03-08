@@ -298,7 +298,11 @@ let rec stmt_to_str ?(spaces="") = function
     let condStr = (value_node_to_str cond) in
     sprintf "%s while(%s) { %s }" spaces condStr bodyStr
   | Set (lhs, rhs) ->
-    sprintf "%s %s = %s" spaces (value_node_to_str lhs) (value_node_to_str rhs)
+    sprintf "%s %s : %s = %s"
+      spaces
+      (value_node_to_str lhs)
+      (ImpType.to_str lhs.value_type)
+      (value_node_to_str rhs)
   | SyncThreads -> spaces ^ "syncthreads"
   | Comment s -> spaces ^ "// " ^ s
   (* used to plug one function into another, shouldn't exist in final code *)
