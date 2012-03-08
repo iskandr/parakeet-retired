@@ -522,8 +522,6 @@ and vectorize_adverb
   let peeledArgTypes = List.map (ImpType.peel ~num_axes) argTypes in
   let fnInputTypes = fixedTypes @ peeledArgTypes in
   let impFn = translate_fn info.adverb_fn fnInputTypes in
-  assert false
-(*
   match info.adverb with
   | Adverb.Map ->
     (* TODO: for now, only vectorize maps *)
@@ -532,15 +530,14 @@ and vectorize_adverb
     (* vectorized. *)
     let biggestArray : Imp.value_node = argmax_array_rank info.array_args in
     let num_axes = List.length info.axes in
-    let lastAxisList = List.take (num_axes - 1) info.axes in
+    let outerAxes = List.take (num_axes - 1) info.axes in
     let outerLoops : loop_descr list =
-      axes_to_loop_descriptors builder biggestArray lastAxisList
+      axes_to_loop_descriptors builder biggestArray outerAxes
     in
     let outerIndexVars = get_loop_vars outerLoops in
     (* Vectorize the innermost axis. *)
-    let [lastInit], [lastSize] =
-      size_of_axes builder biggestArray lastAxisList
-    in
+    let innerAxis = List.drop (num_axes - 1) info.axes in
+    let [lastSize] = size_of_axes builder biggestArray innerAxis in
     let vecLen = vector_bitwidth / (8 * (Type.sizeof eltT)) in
     let impVecLen = ImpHelpers.int vecLen in
     let vecLoopBound = builder#fresh_local "vec_loop_bound" int32_t in
@@ -554,10 +551,9 @@ and vectorize_adverb
       Set(vecLoopBound,
         ImpHelpers.add ~t:Type.Int32T vecLoopBound ImpHelpers.one)
     ;
-
     let vecDescriptor =
       {
-        loop_var = fresh_local "vec_loop_idx" int32_t builder;
+        loop_var = builder#fresh_local "vec_loop_idx" int32_t;
         loop_start = ImpHelpers.zero;
         loop_test_val = vecLoopBound;
         loop_test_cmp = Prim.Lt;
@@ -565,26 +561,35 @@ and vectorize_adverb
         loop_incr_op = Prim.Add;
       }
     in
-    let vecIndexVars = outerIndexVars @ [vecDescriptor.loop_var] in
+    (* slice out all but the last axis from array args *)
+    let fixedDimArgs =
+      List.map
+        (fun arr -> builder#idx_or_fixdims arr outerAxes outerIndexVars)
+        info.array_args
+    in
+    let vecIdxArg = vecDescriptor.loop_var in
     let vecSliceArgs =
       List.map
-        (fun arg -> ImpHelpers.vec_slice arg vecLen vecIndexVars)
+        (fun arg -> ImpHelpers.vec_slice arg vecLen vecIdxArg)
         info.array_args
     in
     let vecNestedArgs = info.fixed_args @ vecSliceArgs in
     let vecOutputs =
-      List.map (fun arg -> ImpHelpers.vec_slice arg vecLen vecIndexVars) lhsVars
+      List.map (fun arg -> ImpHelpers.vec_slice arg vecLen vecIdxArg) lhsVars
     in
+    (* innerBuilder contains both the vectorized and final scalar loops *)
+    let innerBuilder = builder#clone in
     let vecFn = Imp_to_SSE.vectorize_fn impFn vecLen in
-    let vecFnBody =  inline builder vecFn vecNestedArgs vecOutputs in
-    let vecLoop = build_loop_nests builder [vecDescriptor] vecFnBody in
+    let vecBody = builder#clone in
+    vecBody#inline vecFn vecNestedArgs vecOutputs;
+    build_loop_nests innerBuilder vecBody [vecDescriptor];
 
     (* Add loop to handle straggler elements that can't be vectorized *)
     (* TODO: check whether we want to add this loop based on shape? *)
     let seqDescriptor =
       {
-        loop_var = fresh_local "seq_loop_idx" int32_t builder;
-        loop_start = impVecLoopBound;
+        loop_var = builder#fresh_local "seq_loop_idx" int32_t;
+        loop_start = vecLoopBound;
         loop_test_val = lastSize;
         loop_test_cmp = Prim.Lt;
         loop_incr = ImpHelpers.one;
@@ -593,18 +598,18 @@ and vectorize_adverb
     in
     let seqIndexVars = outerIndexVars @ [seqDescriptor.loop_var] in
     let seqArrayArgs =
-      List.map (fun arg -> ImpHelpers.idx arg seqIndexVars) info.array_args
+      List.map
+        (fun arg -> innerBuilder#idx_or_fixdims arg info.axes seqIndexVars)
+        info.array_args
     in
     let seqNestedArgs = info.fixed_args @ seqArrayArgs in
     let seqNestedOutputs =
-      List.map (fun arg -> ImpHelpers.idx arg seqIndexVars) lhsVars
+      List.map
+        (fun arg -> innerBuilder#idx_or_fixdims arg info.axes seqIndexVars)
+        lhsVars
     in
-    let seqFnBody = inline builder impFn seqNestedArgs seqNestedOutputs in
-    let seqLoop = build_loop_nests builder [seqDescriptor] seqFnBody in
-
-    (* Build the outer loops, injecting the vectorized and sequential inner *)
-    (* loops.  Then return the vectorized block. *)
-    build_loop_nests builder outerLoops (vecLoop @ seqLoop) in
-
+    let seqBuilder = builder#clone in
+    seqBuilder#inline impFn seqNestedArgs seqNestedOutputs;
+    build_loop_nests innerBuilder seqBuilder [seqDescriptor];
+    build_loop_nests builder innerBuilder outerLoops
   | _ -> translate_sequential_adverb builder lhsVars info
-*)
