@@ -12,10 +12,7 @@ module ImpStorageAnalysis = struct
        (Imp.array_storage_to_str s2)
 
   let add_binding env id s =
-    let s : Imp.storage =
-      if ID.Map.mem id env then combine s (ID.Map.find id env) else s
-    in
-    ID.Map.add id s env
+    ID.Map.add id (if ID.Map.mem id env then ID.Map.find id env else s) env
 
   let add_bindings env ids storages =
     List.fold_left2 add_binding env ids storages
@@ -29,7 +26,7 @@ module ImpStorageAnalysis = struct
 
   let init fn =
     List.fold_left
-      (fun acc id -> ID.Map.add id Imp.Alias acc)
+      (fun acc id -> ID.Map.add id Imp.Global acc)
       ID.Map.empty
       fn.input_ids
 
@@ -50,7 +47,7 @@ module ImpStorageAnalysis = struct
     | PrimApp (Prim.ScalarOp _, _) -> [Imp.Local]
     | PrimApp (Prim.ArrayOp _, _)
     | Adverb _
-    | Arr _ -> List.map (fun _ -> Imp.Global) exp_types
+    | Arr _ -> List.map (fun _ -> Imp.Local) exp_types
 
     | Call (fnId, args) ->
       failwith "[InferImpTypes] Typed function calls not implemented"

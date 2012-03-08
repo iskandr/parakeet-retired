@@ -20,7 +20,7 @@ class builder : fn_info -> object
   method get_shape : ID.t -> SymbolicShape.t
   method get_storage :ID.t -> Imp.storage
   method value_shape : value_node -> SymbolicShape.t
-
+  method value_storage : value_node -> Imp.storage
   method append : stmt -> unit
   method concat_list : stmt list -> unit
   method concat : builder -> unit
