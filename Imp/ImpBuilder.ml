@@ -67,18 +67,22 @@ class builder (info:fn_info) = object (self)
       | None ->
         if ImpType.is_scalar ty then Imp.Local
         else failwith $ Printf.sprintf
-          "Variable %s : %s cannot be declared without storage"
+          "[ImpBuilder] Variable %s : %s cannot be declared without storage"
           (ID.to_str id)
           (ImpType.to_str ty)
     in
     let shape = match shape with
       | Some shape -> shape
       | None ->
-        if ImpType.is_scalar ty then SymbolicShape.scalar
-        else failwith $ Printf.sprintf
-          "Variable %s : %s cannot be declared without shape"
-          (ID.to_str id)
-          (ImpType.to_str ty)
+        (match ty with
+          | ImpType.ScalarT _ -> SymbolicShape.scalar
+          | ImpType.VectorT(_, nelts) -> [SymbolicShape.Const nelts]
+          | _ ->
+            failwith $ Printf.sprintf
+              "[ImpBuilder] Variable %s : %s cannot be declared without shape"
+              (ID.to_str id)
+              (ImpType.to_str ty)
+        )
     in
     IFDEF DEBUG THEN
       if ImpType.rank ty <> SymbolicShape.rank shape then
@@ -176,7 +180,19 @@ class builder (info:fn_info) = object (self)
     else self#fixdims arr dims indices
 
   method build_add  (name:string) (x:value_node) (y:value_node) : value_node =
-    assert false
+    let tx = x.value_type in
+    let ty = y.value_type in
+    if tx <> ty then
+      failwith $ Printf.sprintf
+        "[ImpBuilder] Expected arguments to add to have same types (%s != %s)"
+        (ImpType.to_str tx)
+        (ImpType.to_str ty)
+    else (
+      let result = self#fresh_local "addtmp" tx in
+      self#append $ Set(result, ImpHelpers.add x y);
+      result
+    )
+
 
   method inline (impFn:Imp.fn) (inputs:value_nodes) (outputs:value_nodes) =
     let rename_local oldId =
