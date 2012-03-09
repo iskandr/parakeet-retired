@@ -21,7 +21,7 @@ def map_add(x):
 
 def test_map_add_1d():
   print "Testing user-defined map of add operator over 1D data" 
-  x = np.random.randint(100, size=2000)
+  x = np.random.randint(100, size=1000)
   y = map_add(x)
   y_original = map_add.call_original(x)
   print "Python = %s, Parakeet = %s" % (y_original, y)
@@ -29,7 +29,7 @@ def test_map_add_1d():
 
 def test_map_add_2d():
   print "Testing user-defined map of add operator over 2D data"
-  x = np.random.randint(100, size=(1000, 100))
+  x = np.random.randint(100, size=(500, 100))
   y = map_add(x)
   y_original = map_add.call_original(x)
   print "Python = %s, Parakeet = %s" % (y_original, y)
@@ -51,7 +51,7 @@ def map_mult_rows(mat, row):
   return parakeet.map(parakeet.mult, mat, row, axis=[0])
 
 def test_mult_rows():
-  x = np.random.randn(10000, 100)
+  x = np.random.randn(1000, 100)
   y = np.random.randn(100)
   z = map_mult_rows(x,y)
   z_o = map_mult_rows.call_original(x,y)

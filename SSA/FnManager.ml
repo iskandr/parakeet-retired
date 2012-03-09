@@ -66,6 +66,11 @@ let optimize_typed_functions () =
     ~maxiters:100
     state.typed_functions
     default_typed_optimizations
+  ;
+  IFDEF DEBUG THEN
+    Printf.printf "*** Optimized all typed functions ***\n%!";
+  ENDIF;
+  ()
   (*;Timing.stop Timing.typedOpt*)
 
 let get_untyped_name id = Hashtbl.find state.untyped_id_to_name id

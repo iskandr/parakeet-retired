@@ -29,8 +29,8 @@ module rec Scheduler : SCHEDULER = struct
     let hasAdverb = AdverbHelpers.fn_has_adverb fn in
     let shapely = ShapeInference.typed_fn_is_shapely fn in
     IFDEF DEBUG THEN
-      Printf.printf
-        "[Scheduler] Calling %s with args %s (has_adverb = %b, shapely=%b)\n"
+     Printf.printf
+        "[Scheduler] Calling %s with args %s (has_adverb = %b, shapely=%b)\n%!"
         (FnId.to_str fn.TypedSSA.fn_id)
         (String.concat ", " (List.map Value.to_str args))
         hasAdverb

@@ -248,30 +248,50 @@ let rec translate_fn (ssaFn:TypedSSA.fn) (impInputTypes:ImpType.t list)
     impFn
   | None ->
     IFDEF DEBUG THEN
-      Printf.printf "[SSA_to_Imp] Translating \n%s\n with args: %s\n"
+      Printf.printf "[SSA_to_Imp] Translating \n%s\n with args: %s\n%!"
         (TypedSSA.fn_to_str ssaFn)
         (ImpType.type_list_to_str impInputTypes)
     ENDIF;
     let argStrings = ImpType.type_list_to_str impInputTypes in
     let name = (FnId.to_str ssaFn.TypedSSA.fn_id) ^ "[" ^ argStrings ^ "]" in
     let fnBuilder = new ImpBuilder.fn_builder name in
+    IFDEF DEBUG THEN
+      Printf.printf "[SSA_to_Imp] Inferring types\n%!";
+    ENDIF;
     let impTyEnv = InferImpTypes.infer ssaFn impInputTypes in
+    IFDEF DEBUG THEN
+      Printf.printf "[SSA_to_Imp] Inferring shapes\n%!";
+    ENDIF;
     let shapeEnv : SymbolicShape.env =
       ShapeInference.infer_normalized_shape_env
         (FnManager.get_typed_function_table ()) ssaFn
     in
+    IFDEF DEBUG THEN
+      Printf.printf "[SSA_to_Imp] Inferring storage\n%!";
+    ENDIF;
     let storageEnv : Imp.storage ID.Map.t = InferImpStorage.infer ssaFn in
     let inputIds = ssaFn.TypedSSA.input_ids in
     let outputIds = ssaFn.TypedSSA.output_ids in
+    IFDEF DEBUG THEN
+      Printf.printf "[SSA_to_Imp] Declaring inputs\n%!";
+    ENDIF;
     List.iter (declare_input fnBuilder impTyEnv) inputIds;
+    IFDEF DEBUG THEN
+      Printf.printf "[SSA_to_Imp] Declaring outputs\n%!";
+    ENDIF;
     List.iter (declare_output fnBuilder shapeEnv impTyEnv) outputIds;
     let nonlocals = inputIds @ outputIds in
     let bodyBuilder : ImpBuilder.builder = fnBuilder#body in
-    let () =
-      List.iter
-        (declare_local_var bodyBuilder nonlocals shapeEnv storageEnv)
-        (ID.Map.to_list impTyEnv)
-    in
+    IFDEF DEBUG THEN
+      Printf.printf "[SSA_to_Imp] Declaring locals\n%!";
+    ENDIF;
+    List.iter
+      (declare_local_var bodyBuilder nonlocals shapeEnv storageEnv)
+      (ID.Map.to_list impTyEnv)
+    ;
+    IFDEF DEBUG THEN
+      Printf.printf "[SSA_to_Imp] Translating body\n%!";
+    ENDIF;
     translate_block bodyBuilder ssaFn.TypedSSA.body;
 
     let impFn = fnBuilder#finalize_fn in
@@ -288,7 +308,7 @@ and translate_block (builder : ImpBuilder.builder) block : unit =
   Block.iter_forward (translate_stmt builder) block
 and translate_stmt (builder : ImpBuilder.builder) stmtNode : unit  =
   IFDEF DEBUG THEN
-    Printf.printf "[SSA_to_Imp.translate_stmt] %s\n"
+    Printf.printf "[SSA_to_Imp.translate_stmt] %s\n%!"
       (TypedSSA.stmt_node_to_str stmtNode)
   ENDIF;
   match stmtNode.TypedSSA.stmt with

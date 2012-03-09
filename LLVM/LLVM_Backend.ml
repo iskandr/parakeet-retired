@@ -224,14 +224,15 @@ end
 
 let call_imp_fn (impFn:Imp.fn) (args:Ptr.t Value.t list) : Ptr.t Value.t list =
   IFDEF DEBUG THEN
-    Printf.printf "[LLVM_Backend.call_imp_fn] Calling %s with inputs %s\n"
+    Printf.printf "[LLVM_Backend.call_imp_fn] Calling %s with inputs %s\n%!"
       (FnId.to_str impFn.Imp.id)
       (String.concat ", " (List.map Value.to_str args));
   ENDIF;
   let llvmFn = CompiledFunctionCache.compile impFn in
   let llvmInputs : GV.t list = List.map Value_to_GenericValue.to_llvm args in
   IFDEF DEBUG THEN
-    Printf.printf "input_types: %s\n" (ImpType.type_list_to_str (Imp.input_types impFn));
+    Printf.printf "input_types: %s\n%!"
+      (ImpType.type_list_to_str (Imp.input_types impFn));
     let convert_gv : GV.t -> ImpType.t -> Ptr.t Value.t  =
       GenericValue_to_Value.of_generic_value ~boxed_scalars:false
     in
@@ -265,7 +266,7 @@ let call_imp_fn (impFn:Imp.fn) (args:Ptr.t Value.t list) : Ptr.t Value.t list =
   ENDIF;
   outputs
 
-let call (fn:TypedSSA.fn) args =
+let call (fn:TypedSSA.fn) (args:Ptr.t Value.t list) =
   let inputTypes = List.map ImpType.type_of_value args in
   let impFn : Imp.fn = SSA_to_Imp.translate_fn fn inputTypes in
   call_imp_fn impFn args
@@ -382,7 +383,9 @@ let adverb (info:(TypedSSA.fn, Ptr.t Value.t list, int list) Adverb.info) =
   let inputShapes : Shape.t list = List.map Value.get_shape allArgValues in
   let outputs = match info.adverb with
   | Map -> exec_map impFn inputShapes info.axes info.array_args llvmFn
-  | Reduce -> exec_reduce impFn inputShapes info.axes info.array_args llvmFn
+  | Reduce ->
+     call_imp_fn impFn (info.fixed_args @ info.array_args)
+    (*exec_reduce impFn inputShapes info.axes info.array_args llvmFn*)
   | AllPairs ->
     call_imp_fn impFn (info.fixed_args @ info.array_args)
 

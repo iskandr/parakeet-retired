@@ -59,21 +59,22 @@ class builder (info:fn_info) = object (self)
 
 
   method mk_temp valNode =
-    (*Printf.printf "[ImpBuilder.mk_simple] %s\n%!"
+    Printf.printf "[ImpBuilder.mk_temp] %s\n%!"
       (Imp.value_node_to_str valNode)
     ;
-    *)
+
     let shape = self#value_shape valNode in
     let temp = self#fresh_local "temp" ~shape valNode.value_type in
-    self#append $ Set(temp, valNode);
+    let rhs = self#flatten_rhs valNode in
+    DynArray.add stmts $ Set(temp, rhs);
     temp
 
 (* nested values on the RHS should be constants or variables *)
   method flatten_simple valNode =
-    (*Printf.printf "[ImpBuilder.flatten_simple] %s\n%!"
+    Printf.printf "[ImpBuilder.flatten_simple] %s\n%!"
       (Imp.value_node_to_str valNode)
     ;
-    *)
+
     match valNode.value with
     | Var _
     | Const _
@@ -84,10 +85,10 @@ class builder (info:fn_info) = object (self)
 
   (* LHS of assignment should be either variable, vecslice, or idx *)
   method flatten_lhs valNode =
-    (*Printf.printf "[ImpBuilder.flatten_lhs] %s\n%!"
+    Printf.printf "[ImpBuilder.flatten_lhs] %s\n%!"
       (Imp.value_node_to_str valNode)
     ;
-    *)
+
     match valNode.value with
     | CudaInfo _
     | Const _
@@ -105,10 +106,9 @@ class builder (info:fn_info) = object (self)
 
   (* RHS of an assignment *)
   method flatten_rhs valNode =
-    (*Printf.printf "[ImpBuilder.flatten_rhs] %s\n%!"
+    Printf.printf "[ImpBuilder.flatten_rhs] %s\n%!"
       (Imp.value_node_to_str valNode)
     ;
-    *)
     Imp.recursively_apply ~delay_level:1 self#flatten_simple valNode
 
 
@@ -120,10 +120,9 @@ class builder (info:fn_info) = object (self)
       stmt
 
   method append stmt : unit =
-    (*Printf.printf "[ImpBuilder.append] Adding %s\n%!"
+    Printf.printf "[ImpBuilder.append] Adding %s\n%!"
       (Imp.stmt_to_str stmt)
     ;
-    *)
     DynArray.add stmts (self#flatten stmt)
 
   method concat_list stmts = List.iter self#append stmts

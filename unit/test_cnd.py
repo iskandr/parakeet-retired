@@ -24,7 +24,7 @@ def map_cnd(x):
 
 def test_cnd(): 
   print "RUNNING CND"
-  x = np.arange(1000000, dtype='float32')
+  x = np.arange(10000, dtype='float32')
   y = map_cnd(x)
   z = np.array([CND.call_original(xi) for xi in x])
   print "Parakeet: ", y

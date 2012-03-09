@@ -76,30 +76,6 @@ and value_node = {
 
 type value_nodes = value_node list
 
-let rec recursively_apply ?(delay_level=0) f valNode =
-  let nextDelay = if delay_level > 0 then delay_level - 1 else 0 in
-  let r = recursively_apply ~delay_level:nextDelay f in
-  let rs = List.map r in
-  let valNode' = match valNode.value with
-    | Idx (lhs, indices) ->
-      {valNode with value = Idx(r lhs, rs indices)}
-    | VecSlice (lhs, idx, nelts) ->
-      {valNode with value = VecSlice(r lhs, r idx, nelts)}
-    | Op (t, op, args) -> {valNode with value = Op(t, op,  rs args) }
-    | Select (t, cond, left, right) ->
-      {valNode with value = Select(t, r cond, r left, r right)}
-    | Cast (t, arg) -> f {valNode with value = Cast(t, r arg)}
-    | DimSize (arr, dim) ->
-      {valNode with value = DimSize(r arr, r dim)}
-    | FixDim (arr, dim, idx) ->
-      { valNode with value = FixDim(r arr, r dim, r idx)}
-    | Slice (arr, dim, start, stop) ->
-      { valNode with value = Slice(r arr, r dim, r start, r stop)}
-    | ArrayField (field, arr) ->
-      { valNode with value = ArrayField(field, r arr)}
-    | _ -> valNode
-  in
-  if delay_level == 0 then f valNode' else valNode'
 
 
 
@@ -111,21 +87,6 @@ type stmt =
   | Comment of string
 and block = stmt list
 
-let rec recursively_apply_to_stmt ~lhs ~rhs = function
-  | If (cond, tBlock, fBlock) ->
-    let tBlock' = recursively_apply_to_block ~lhs ~rhs tBlock in
-    let fBlock' = recursively_apply_to_block ~lhs ~rhs fBlock in
-    If (rhs cond, tBlock', fBlock')
-  | While(cond, body) ->
-    let body' = recursively_apply_to_block lhs rhs body in
-    While(rhs cond, body')
-  | Set(lhsVal, rhsVal) -> Set(lhs lhsVal, rhs rhsVal)
-  | other -> other
-and recursively_apply_to_block ~lhs ~rhs = function
-  | [] -> []
-  | stmt::rest ->
-    let stmt' = recursively_apply_to_stmt ~lhs ~rhs stmt in
-    stmt' :: (recursively_apply_to_block ~lhs ~rhs rest)
 
 type storage =
   | Global
@@ -345,6 +306,53 @@ let fn_to_str fn =
     (if String.length localDeclStr > 0 then localDeclStr ^ "\n" else "")
     (if String.length outputShapeStr > 0 then outputShapeStr ^"\n\n" else "")
     (block_to_str fn.body)
+
+let rec recursively_apply ?(delay_level=0) f valNode =
+  Printf.printf "[rec] %d : %s\n%!"
+    delay_level
+    (value_node_to_str valNode)
+  ;
+  let nextDelay = if delay_level > 0 then delay_level - 1 else 0 in
+  let r = recursively_apply ~delay_level:nextDelay f in
+  let rs = List.map r in
+  let valNode' = match valNode.value with
+    | Idx (lhs, indices) ->
+      {valNode with value = Idx(r lhs, rs indices)}
+    | VecSlice (lhs, idx, nelts) ->
+      {valNode with value = VecSlice(r lhs, r idx, nelts)}
+    | Op (t, op, args) -> {valNode with value = Op(t, op,  rs args) }
+    | Select (t, cond, left, right) ->
+      {valNode with value = Select(t, r cond, r left, r right)}
+    | Cast (t, arg) -> {valNode with value = Cast(t, r arg)}
+    | DimSize (arr, dim) ->
+      {valNode with value = DimSize(r arr, r dim)}
+    | FixDim (arr, dim, idx) ->
+      { valNode with value = FixDim(r arr, r dim, r idx)}
+    | Slice (arr, dim, start, stop) ->
+      { valNode with value = Slice(r arr, r dim, r start, r stop)}
+    | ArrayField (field, arr) ->
+      { valNode with value = ArrayField(field, r arr)}
+    | _ -> valNode
+  in
+  if delay_level == 0 then f valNode' else valNode'
+
+
+let rec recursively_apply_to_stmt ~lhs ~rhs = function
+  | If (cond, tBlock, fBlock) ->
+    let tBlock' = recursively_apply_to_block ~lhs ~rhs tBlock in
+    let fBlock' = recursively_apply_to_block ~lhs ~rhs fBlock in
+    If (rhs cond, tBlock', fBlock')
+  | While(cond, body) ->
+    let body' = recursively_apply_to_block lhs rhs body in
+    While(rhs cond, body')
+  | Set(lhsVal, rhsVal) -> Set(lhs lhsVal, rhs rhsVal)
+  | other -> other
+and recursively_apply_to_block ~lhs ~rhs = function
+  | [] -> []
+  | stmt::rest ->
+    let stmt' = recursively_apply_to_stmt ~lhs ~rhs stmt in
+    stmt' :: (recursively_apply_to_block ~lhs ~rhs rest)
+
 
 let rec always_const {value} = match value with
   | CudaInfo _
