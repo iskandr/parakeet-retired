@@ -55,6 +55,7 @@ class WrappedFunction:
         curr_val = __builtins__[var_parts[0]]
       else:
         curr_val = getattr(__builtins__,var_parts[0])
+        print "Should %s be evaluated?" % var_parts[0]
     for i in range(1, len(var_parts)):
       curr_val = curr_val.__dict__[var_parts[i]]
     return curr_val

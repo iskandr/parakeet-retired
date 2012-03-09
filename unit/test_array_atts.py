@@ -4,6 +4,17 @@ from parakeet import PAR
 import numpy as np
 
 @PAR
+def shape(x):
+  return x.shape
+
+def test_shape():
+  x = np.array([[1,2,3],[4,5,6]])
+  e_out = (2,3)
+  out = shape(x)
+  print "Expected ", e_out, " got: ", out
+  assert out == e_out
+
+@PAR
 def transpose(x):
   return x.transpose()
 
@@ -15,4 +26,5 @@ def test_transpose():
   assert np.all(out == e_out)
 
 if __name__ == '__main__':
+  test_shape()
   test_transpose()

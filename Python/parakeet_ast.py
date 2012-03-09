@@ -92,8 +92,8 @@ NumpyArrayMethods = {
   "copy": "copy",
 }
 NumpyArrayAttributes = {
-##  "shape": ArrayOp Shape, #Attribute
-##  "strides": ArrayOp Strides, #Attribute
+  "shape": "shape",
+  "strides": "strides",
 }
 ValidObjects = {np.add: parakeet_lib.add,
                 np.subtract: parakeet_lib.sub,
@@ -117,8 +117,14 @@ def build_fn_node(src_info, python_fn):
     if parakeet_prim_name is None:
       raise RuntimeError("[Parakeet] Support for %s not implemented" %
                          python_fn)
-  elif (python_fn in NumpyArrayMethods):
+  elif python_fn in NumpyArrayMethods:
     parakeet_prim_name = NumpyArrayMethods[python_fn]
+    parakeet_fn = ast_prim(parakeet_prim_name)
+    if parakeet_prim_name is None:
+      raise RuntimError("[Parakeet] Support for %s not implemented" %
+                        python_fn)
+  elif python_fn in NumpyArrayAttributes:
+    parakeet_prim_name = NumpyArrayAttributes[python_fn]
     parakeet_fn = ast_prim(parakeet_prim_name)
     if parakeet_prim_name is None:
       raise RuntimError("[Parakeet] Support for %s not implemented" %
@@ -155,8 +161,8 @@ def function_info(function_obj):
   lineNo = 1
   #Keeps track of size of tab
   sizeTab = 0
-  #Tabs can be spaces or \t
   tabChar = ' '
+  #Tabs can be spaces or \t
   #Will only contain code from inside the function
   outString = ""
   #Keeps track of blank/comment lines/space between decorator and function
@@ -406,6 +412,10 @@ class ASTConverter():
     #Alex: Right now this will crash if a local variable method is an argument,
     #because the local method won't be registered or translated
     try:
+      node_name = self.get_global_var_name(node)
+      if node_name.split('.')[0] in self.arg_names and (
+        len(node_name.split('.')) > 1):
+        raise "[Parakeet] %s is not a valid function argument" % node_name
       return self.get_function_ref(node)
     except RuntimeError:
       return None
@@ -598,14 +608,22 @@ class ASTConverter():
       LOG("assign(%s,%s,%s)" % (lhs_args, num_args, rhs_arg))
       return LibPar.mk_assign(lhs_args, num_args, rhs_arg, src_info.addr)
     elif nodeType == 'Attribute':
-      if 'lhs' in contextSet:#And not whitelisted
+      if 'lhs' in contextSet:
         raise RuntimeError("[Parakeet] Assignment to attributes not supported")
       var_str = self.get_global_var_name(node)
-      if var_str in self.arg_names:
-        raise ("[Parakeet] Object parameters not supported")
-      self.global_variables.add(var_str)
-      c_name = c_char_p(var_str)
-      return LibPar.mk_var(c_name, src_info.addr)
+      var_parts = var_str.split('.')
+      if var_parts[0] in self.arg_names:
+        method = '.'.join(var_parts[1:])
+        if method in NumpyArrayAttributes:
+          var_node = self.build_var(src_info, var_parts[0])
+          return self.build_call(src_info, method, [var_node])
+        else:
+          raise ("[Parakeet] Unsupported local attribute %s" % (
+                   '.'.join(var_parts[1:])))
+      else:
+        self.global_variables.add(var_str)
+        c_name = c_char_p(var_str)
+        return LibPar.mk_var(c_name, src_info.addr)
     else:
       raise RuntimerError("[Parakeet] %s not supported in build_complex_" +
                           "parakeet_node" % nodeType)
@@ -623,6 +641,9 @@ class ASTConverter():
   def get_global_var_name(self, node):
     var_str = ""
     currNodeType = type(node).__name__
+    if not currNodeType in ('Name','Attribute'):
+      raise RuntimeError("[Parakeet] %s name fetching not supported" %
+                         currNodeType)
     currNode = node
     while (currNodeType != "Name"):
       var_str = "." + currNode.attr + var_str
