@@ -231,7 +231,7 @@ module Indexing = struct
     let idxAddr =
       Llvm.build_inttoptr idxInt eltPtrType "idxAddr" fnInfo.builder
     in
-    Llvm.build_load idxAddr "ret" fnInfo.builder
+    Llvm.build_load idxAddr "range_index_result" fnInfo.builder
 
   let get_array_data_ptr (fnInfo:fn_info) (array:llvalue) : llvalue =
     let dataFieldPtr =
@@ -299,7 +299,7 @@ module Indexing = struct
     let idxAddr =
       Llvm.build_inttoptr idxInt eltPtrType "idxAddr" fnInfo.builder
     in
-    Llvm.build_load idxAddr "ret" fnInfo.builder
+    Llvm.build_load idxAddr "range_load_result" fnInfo.builder
 
   (* assume vector slice is through contiguous data *)
   let compile_vec_slice
@@ -344,8 +344,6 @@ module Indexing = struct
       );
       local
 
-
-
   let copy_array
     (fnInfo:fn_info)
     ?exclude_dim
@@ -356,8 +354,9 @@ module Indexing = struct
     let destIdx = ref 0 in
     for srcIdx = 0 to nelts - 1 do
       if match exclude_dim with None -> true | Some j -> srcIdx <> j then begin
+        let srcName = Llvm.value_name srcAddr ^ "_src" in
         let src =
-          Llvm.build_gep srcAddr [|mk_int64 srcIdx|] "src" fnInfo.builder
+          Llvm.build_gep srcAddr [|mk_int64 srcIdx|] srcName fnInfo.builder
         in
         (*Llvm.dump_value src;*)
         let eltName =
@@ -369,8 +368,9 @@ module Indexing = struct
           | None -> rawElt
           | Some f -> f rawElt
         in
+        let destName = Llvm.value_name destAddr ^ "_dest" in
         let dest =
-          Llvm.build_gep destAddr [|mk_int64 !destIdx|] "dest" fnInfo.builder
+          Llvm.build_gep destAddr [|mk_int64 !destIdx|] destName fnInfo.builder
         in
         (*Llvm.dump_value dest;*)
         destIdx := !destIdx + 1;
@@ -389,37 +389,38 @@ module Indexing = struct
   (* local strides are by number of elts, not number of bytes *)
   (* TODO: What about fixdim which are already divided? *)
   let copy_array_metadata
-    (fnInfo:fn_info)
-    ?(convert_strides_to_num_elts=true)
-    (src:llvalue)
-    (dest:llvalue)
-    ?exclude_dim
-    rank =
+      (fnInfo:fn_info)
+      ?(copy_data_field = true)
+      ?(convert_strides_to_num_elts=true)
+      ?exclude_dim
+      (src:llvalue)
+      (dest:llvalue)
+      rank =
     let srcData = get_array_field fnInfo src ArrayData in
-    let destDataField = get_array_field_addr fnInfo dest ArrayData in
-    let _ = Llvm.build_store srcData destDataField fnInfo.builder in
-
+    let eltT : lltype = Llvm.element_type (Llvm.type_of srcData) in
+    if copy_data_field then (
+      let destDataField = get_array_field_addr fnInfo dest ArrayData in
+      ignore (Llvm.build_store srcData destDataField fnInfo.builder)
+    );
     let srcShapeField = get_array_field fnInfo src ArrayShape in
     let destShapeField = get_array_field fnInfo dest ArrayShape in
-    copy_array fnInfo srcShapeField destShapeField rank;
+    copy_array fnInfo ?exclude_dim srcShapeField destShapeField rank;
 
     let srcStrides = get_array_field fnInfo src ArrayStrides in
     let destStrides = get_array_field fnInfo dest ArrayStrides in
     (* local strides array should be in terms of elements, not number of bytes *)
     let div_stride (byteStride:llvalue) : llvalue =
-      let eltT : lltype = Llvm.element_type (Llvm.type_of srcData) in
-
       (* returns elt size of array as 64-bit integer *)
       let eltSize = Llvm.size_of eltT in
-
       let eltSize32 = Llvm.const_intcast eltSize LlvmType.int32_t in
       let newStrideName = Llvm.value_name byteStride ^ "_as_num_elts" in
       Llvm.build_sdiv byteStride eltSize32 newStrideName fnInfo.builder
     in
     if convert_strides_to_num_elts then
-      copy_array fnInfo ~apply_to_elts:div_stride srcStrides destStrides rank
+      copy_array fnInfo
+        ?exclude_dim ~apply_to_elts:div_stride srcStrides destStrides rank
     else
-      copy_array fnInfo srcStrides destStrides rank
+      copy_array fnInfo ?exclude_dim srcStrides destStrides rank
 
 
 end
@@ -595,7 +596,7 @@ let rec compile_value ?(do_load=true) fnInfo (impVal:Imp.value_node) =
             let idxAddr =
               compile_arr_idx llvmArray llvmIndices imp_elt_t fnInfo
             in
-            Llvm.build_load idxAddr "ret" fnInfo.builder
+            Llvm.build_load idxAddr "index_result" fnInfo.builder
         end
     end
   | Imp.VecSlice (arr, idx, width) ->
@@ -604,7 +605,7 @@ let rec compile_value ?(do_load=true) fnInfo (impVal:Imp.value_node) =
     let idxAddr =
       compile_vec_slice llvmArray llvmIdx impVal.value_type fnInfo
     in
-    Llvm.build_load idxAddr "ret" fnInfo.builder
+    Llvm.build_load idxAddr "vec_index_result" fnInfo.builder
   | _ ->
     failwith $ Printf.sprintf
       "[Imp_to_LLVM] Value not implemented %s"
@@ -707,28 +708,26 @@ and compile_stmt fnInfo currBB stmt =
     currBB
   | Imp.Set ({value=Var lhsId}, {value=Imp.FixDim(arr, dim, idx); value_type})->
     let llvmIdx = compile_value fnInfo idx in
-    let rank = ImpType.rank value_type in
+    let rank = ImpType.rank value_type + 1 in
     let srcArray = compile_value ~do_load:false fnInfo arr in
     let destArray = compile_var ~do_load:false fnInfo lhsId in
     let exclude_dim = ImpHelpers.get_const_int dim in
     copy_array_metadata
+      ~copy_data_field:false
       ~convert_strides_to_num_elts:false
-        fnInfo srcArray destArray ~exclude_dim rank
+      ~exclude_dim
+      fnInfo srcArray destArray rank
     ;
-    let strideNumElts = get_array_strides_elt fnInfo srcArray exclude_dim in
+    let excludedStride = get_array_strides_elt fnInfo srcArray exclude_dim in
     let srcData = get_array_field fnInfo srcArray Imp.ArrayData in
     let totalIdx =
-      Llvm.build_mul strideNumElts llvmIdx "sliceNumElts" fnInfo.builder
+      Llvm.build_mul excludedStride llvmIdx "sliceNumElts" fnInfo.builder
     in
     let offsetPtr =
       Llvm.build_gep srcData [|totalIdx|] "fixdimPtr" fnInfo.builder
     in
-    let destDataField =
-      get_array_field_addr fnInfo destArray Imp.ArrayData
-    in
-    let _ =
-      Llvm.build_store offsetPtr destDataField fnInfo.builder
-    in
+    let destDataField = get_array_field_addr fnInfo destArray Imp.ArrayData in
+    let _ : llvalue = Llvm.build_store offsetPtr destDataField fnInfo.builder in
     currBB
 
   | Imp.Set ({value = Var id}, rhs) ->
@@ -798,11 +797,12 @@ let init_local_var (fnInfo:fn_info) (id:ID.t) =
         let dataFieldPtr =
           Indexing.get_array_field_addr fnInfo localArray ArrayData
         in
+        Hashtbl.add array_field_addr_cache (localArray, ArrayData) dataFieldPtr;
         let data : llvalue =
           Llvm.build_array_alloca llvmEltT nelts "local_data_ptr" fnInfo.builder
         in
-        let _ = Llvm.build_store data dataFieldPtr  fnInfo.builder in
-
+        Llvm.build_store data dataFieldPtr fnInfo.builder;
+        Hashtbl.add array_field_cache (localArray, ArrayData) data;
         localArray
       )
       else localArray
