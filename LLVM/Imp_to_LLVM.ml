@@ -390,18 +390,20 @@ module Indexing = struct
   (* TODO: What about fixdim which are already divided? *)
   let copy_array_metadata
       (fnInfo:fn_info)
-      ?(copy_data_field = true)
+      ?data_ptr
       ?(convert_strides_to_num_elts=true)
       ?exclude_dim
       (src:llvalue)
-      (dest:llvalue)
-      rank =
-    let srcData = get_array_field fnInfo src ArrayData in
-    let eltT : lltype = Llvm.element_type (Llvm.type_of srcData) in
-    if copy_data_field then (
-      let destDataField = get_array_field_addr fnInfo dest ArrayData in
-      ignore (Llvm.build_store srcData destDataField fnInfo.builder)
-    );
+      srcT
+      (dest:llvalue) =
+    let rank = ImpType.rank srcT in
+    let eltT = LlvmType.of_elt_type $ ImpType.elt_type srcT in
+    let destDataField = get_array_field_addr fnInfo dest ArrayData in
+    let destData = match data_ptr with
+      | None -> get_array_field fnInfo src ArrayData
+      | Some ptr -> ptr
+    in
+    ignore (Llvm.build_store destData destDataField fnInfo.builder);
     let srcShapeField = get_array_field fnInfo src ArrayShape in
     let destShapeField = get_array_field fnInfo dest ArrayShape in
     copy_array fnInfo ?exclude_dim srcShapeField destShapeField rank;
@@ -708,16 +710,9 @@ and compile_stmt fnInfo currBB stmt =
     currBB
   | Imp.Set ({value=Var lhsId}, {value=Imp.FixDim(arr, dim, idx); value_type})->
     let llvmIdx = compile_value fnInfo idx in
-    let rank = ImpType.rank value_type + 1 in
     let srcArray = compile_value ~do_load:false fnInfo arr in
     let destArray = compile_var ~do_load:false fnInfo lhsId in
     let exclude_dim = ImpHelpers.get_const_int dim in
-    copy_array_metadata
-      ~copy_data_field:false
-      ~convert_strides_to_num_elts:false
-      ~exclude_dim
-      fnInfo srcArray destArray rank
-    ;
     let excludedStride = get_array_strides_elt fnInfo srcArray exclude_dim in
     let srcData = get_array_field fnInfo srcArray Imp.ArrayData in
     let totalIdx =
@@ -726,8 +721,15 @@ and compile_stmt fnInfo currBB stmt =
     let offsetPtr =
       Llvm.build_gep srcData [|totalIdx|] "fixdimPtr" fnInfo.builder
     in
-    let destDataField = get_array_field_addr fnInfo destArray Imp.ArrayData in
-    let _ : llvalue = Llvm.build_store offsetPtr destDataField fnInfo.builder in
+    copy_array_metadata
+      fnInfo
+      ~data_ptr:offsetPtr
+      ~convert_strides_to_num_elts:false
+      ~exclude_dim
+      srcArray
+      arr.value_type
+      destArray
+    ;
     currBB
 
   | Imp.Set ({value = Var id}, rhs) ->
@@ -843,7 +845,7 @@ let init_nonlocal_var (fnInfo:fn_info) (id:ID.t) (param:Llvm.llvalue) =
       let local =
         allocate_local_array_info fnInfo varName impT llvmT
       in
-      copy_array_metadata fnInfo paramPtr local (ImpType.rank impT);
+      copy_array_metadata fnInfo paramPtr impT local;
       local
   in
   Hashtbl.add fnInfo.named_values varName stackVal

@@ -112,8 +112,8 @@ val get_const_int : value_node -> int
 val cmp : Prim.scalar_op -> value_node -> value_node -> value_node
 val scalar_op : Prim.scalar_op -> value_node -> value_node -> value_node
 
-val fixdim : arr:value_node -> dim:value_node -> idx:value_node -> value_node
-val idx : value_node -> ?dims:value_node list -> value_node list -> value_node
+val fixdim : arr:value_node -> dim:int -> idx:value_node -> value_node
+val idx : value_node -> ?dims:int list -> value_node list -> value_node
 
 val slice :
   arr:value_node -> dim:value_node -> start:value_node -> stop:value_node ->

@@ -43,7 +43,7 @@ class builder : fn_info -> object
 
   method var :    ID.t -> value_node
   method fixdims :
-    arr:value_node -> dims:value_nodes -> indices:value_nodes -> value_node
+    arr:value_node -> dims:int list -> indices:value_nodes -> value_node
   method idx_or_fixdims :
     arr:value_node -> dims:value_nodes -> indices:value_nodes -> value_node
 

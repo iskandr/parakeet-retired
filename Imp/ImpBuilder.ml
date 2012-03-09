@@ -198,10 +198,11 @@ class builder (info:fn_info) = object (self)
 
   (* recursively build fixdim nodes for a list of indices *)
   method fixdims ~arr ~dims ~indices  : value_node =
-    match dims, indices with
+    let rec helper ?(counter=0) arr dims indices =
+      match dims, indices with
       | [], [] -> arr
       | [_], [i] when ImpType.rank arr.value_type = 1 -> ImpHelpers.idx arr [i]
-      | d::ds, i::is ->
+      | d::ds, i :: is ->
         let rhs = ImpHelpers.fixdim arr d i in
         let rhsShape = self#value_shape rhs in
         let rhsType = ImpType.peel arr.value_type in
@@ -210,8 +211,18 @@ class builder (info:fn_info) = object (self)
             "fixed_slice" ~storage:Imp.Alias ~shape:rhsShape rhsType
         in
         self#append $ Imp.Set(lhs, rhs);
-        self#fixdims ~arr:lhs ~dims:ds ~indices:is
-      | _ -> failwith "Expected dims and indices to be of same length"
+        (* adjust dims in case in order. *)
+        (* For example, if we say fixdims x [0,1] [100,200] *)
+        (* we want this to become fixdim(fixdim(x,0,100),0,200) *)
+        let ds' =
+          if d <= counter then List.map (fun d -> d - 1) ds
+          else  ds
+        in
+        helper lhs ~counter:(counter+1) ds' is
+
+        | _ -> failwith "Expected dims and indices to be of same length"
+    in
+    helper arr dims indices
 
   method idx_or_fixdims
     ~(arr:value_node)
@@ -220,6 +231,14 @@ class builder (info:fn_info) = object (self)
     let nIndices = List.length indices in
     let arrT = arr.value_type in
     let rank = ImpType.rank arrT in
+    IFDEF DEBUG THEN
+      if not (List.for_all ImpHelpers.is_const_int dims) then
+        failwith $
+          Printf.sprintf
+            "Expected dims to be constant: %s"
+            (Imp.value_nodes_to_str dims)
+    ENDIF;
+    let dims = List.map ImpHelpers.get_const_int dims in
     IFDEF DEBUG THEN
       let nDims = List.length dims in
       if nDims <> nIndices then
@@ -237,16 +256,7 @@ class builder (info:fn_info) = object (self)
     ENDIF;
     (* for convenience, treat indexing into scalars as the identity operation *)
     if rank = 0 then  arr
-    else if rank = nIndices then begin
-      IFDEF DEBUG THEN
-        if not (List.for_all ImpHelpers.is_const_int dims) then
-          failwith $
-            Printf.sprintf
-              "Expected dims to be constant: %s"
-              (Imp.value_nodes_to_str dims)
-      ENDIF;
-      ImpHelpers.idx arr ~dims indices
-    end
+    else if rank = nIndices then ImpHelpers.idx arr ~dims  indices
     else self#fixdims arr dims indices
 
   method build_add  (name:string) (x:value_node) (y:value_node) : value_node =

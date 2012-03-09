@@ -219,7 +219,7 @@ let get_const_int {value} = match value with
 
 let fixdim ~arr ~dim ~idx : value_node  =
   {
-    value = FixDim(arr, dim, idx);
+    value = FixDim(arr, int dim, idx);
     value_type = ImpType.peel ~num_axes:1 arr.value_type
   }
 
@@ -246,7 +246,7 @@ let idx arr ?dims indices =
     let eltT = ImpType.elt_type arrT in
     (* assume dims are constant or implicitly 0..n-1 *)
     let indices' = match dims with
-      | Some dims ->  permute (List.map get_const_int dims) indices
+      | Some dims ->  permute dims indices
       | None -> indices
     in
     {value = Idx(arr, indices); value_type = ImpType.ScalarT eltT }

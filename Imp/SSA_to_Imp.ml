@@ -134,11 +134,12 @@ let copy (builder:ImpBuilder.builder) ~from_array ~to_array : unit =
             (ImpType.to_str toType)
             toRank
   ENDIF;
-  let axes = ImpHelpers.ints_til toRank in
-  let loopDescriptors = axes_to_loop_descriptors builder to_array axes in
+  let intAxes = List.til toRank in
+  let impAxes = List.map ImpHelpers.int intAxes in
+  let loopDescriptors = axes_to_loop_descriptors builder to_array impAxes in
   let indexVars = get_loop_vars loopDescriptors in
-  let lhs = idx to_array ~dims:axes indexVars in
-  let rhs = idx from_array ~dims:axes indexVars in
+  let lhs = idx to_array ~dims:intAxes indexVars in
+  let rhs = idx from_array ~dims:intAxes indexVars in
   let body = builder#clone in
   body += Set(lhs, rhs);
   build_loop_nests builder body loopDescriptors
