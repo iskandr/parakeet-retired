@@ -45,6 +45,11 @@ let rec to_str ?(array_to_str=(fun _ -> "<array>")) = function
 let list_to_str ?(array_to_str=(fun _ -> "<array>")) vals =
   String.concat ", " (List.map (to_str ~array_to_str) vals)
 
+let generic_array_to_str {elt_type; array_shape} : string =
+  Printf.sprintf "<array> : %s (shape=%s)"
+    (Type.elt_to_str elt_type)
+    (Shape.to_str array_shape)
+
 let rec map (f: 'a -> 'b) (x : 'a t) : 'b t = match x with
   | Array array_info -> Array {array_info with data = f array_info.data}
   (*| Nested elts -> Nested (Array.map (map f) elts)*)
@@ -128,17 +133,17 @@ let mk_array (data:'a) (elt_t:Type.elt_t) (shape:Shape.t) (strides:int array) =
 let is_scalar x = Type.is_scalar (type_of x)
 
 let rec extract = function
-	| Rotate (x, _, _)
-	| Shift (x, _, _, _)
+  | Rotate (x, _, _)
+  | Shift (x, _, _, _)
   | FixDim (x, _ , _)
   | Slice (x, _, _, _) -> extract x
   | Array {data} -> Some data
-	| Scalar _
+  | Scalar _
   | Explode _
   | Range _ -> None
 
 let rec collect_list = function
-	| [] -> []
-	| x::xs ->
-			let rest = collect_list xs in
-			(match extract x with None -> rest | Some d -> d :: rest)
+  | [] -> []
+  | x::xs ->
+      let rest = collect_list xs in
+      (match extract x with None -> rest | Some d -> d :: rest)

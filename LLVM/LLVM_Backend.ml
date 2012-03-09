@@ -261,7 +261,7 @@ let call_imp_fn (impFn:Imp.fn) (args:Ptr.t Value.t list) : Ptr.t Value.t list =
   IFDEF DEBUG THEN
     Printf.printf
       "[LLVM_Backend.call_imp_fn] Got function results: %s\n%!"
-      (Value.list_to_str outputs)
+      (Value.list_to_str ~array_to_str:Value.generic_array_to_str outputs)
     ;
   ENDIF;
   outputs
@@ -395,7 +395,7 @@ let adverb (info:(TypedSSA.fn, Ptr.t Value.t list, int list) Adverb.info) =
   IFDEF DEBUG THEN
     Printf.printf
       "[LLVM_Backend.call_imp_fn] Got function results: %s\n%!"
-      (Value.list_to_str outputs)
+      (Value.list_to_str ~array_to_str:Value.generic_array_to_str outputs)
     ;
   ENDIF;
   outputs

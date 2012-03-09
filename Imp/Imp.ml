@@ -308,10 +308,6 @@ let fn_to_str fn =
     (block_to_str fn.body)
 
 let rec recursively_apply ?(delay_level=0) f valNode =
-  Printf.printf "[rec] %d : %s\n%!"
-    delay_level
-    (value_node_to_str valNode)
-  ;
   let nextDelay = if delay_level > 0 then delay_level - 1 else 0 in
   let r = recursively_apply ~delay_level:nextDelay f in
   let rs = List.map r in

@@ -259,14 +259,15 @@ let rec translate_stmt
         (* FIX: I don't think this properly handles SSA gates for variables
            modified in the cond block
         *)
+
       let bodyBlock : UntypedSSA.block = Block.create () in
       (* update the body block and generate a loop gate *)
       let header, exitEnv = translate_loop_body env bodyBlock retIds body  in
-      let condBlock : UntypedSSA.block = Block.create () in
+         let condBlock : UntypedSSA.block = Block.create () in
       let condVal = exp_as_value exitEnv condBlock "cond" cond in
       Block.add block
         (mk_stmt $ WhileLoop(condBlock, condVal, bodyBlock, header));
-      env
+      exitEnv
 
   | AST.CountLoop(upper,body) ->
     (* store the upper loop limit in a fresh ID *)
