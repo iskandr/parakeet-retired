@@ -200,10 +200,6 @@ module CompiledFunctionCache = struct
       begin
         let llvmFn : Llvm.llvalue = Imp_to_LLVM.compile_fn impFn in
         IFDEF DEBUG THEN
-          print_endline  "[LLVM_Backend.call_imp_fn] Generated LLVM function";
-          Llvm.dump_value llvmFn;
-        ENDIF;
-        IFDEF DEBUG THEN
           Printf.printf "Validating generated function...\n%!";
           Llvm_analysis.assert_valid_function llvmFn;
         ENDIF;
