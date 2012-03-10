@@ -1,6 +1,5 @@
 #!/usr/bin/python
 import numpy as np
-from unit import parakeet
 import parakeet
 
 @parakeet.PAR

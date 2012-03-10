@@ -134,6 +134,16 @@ let get_arg_alignment arg =
     if q * el_size = byte_alignment then q
     else q * byte_alignment
 
+(* TODO: All this scheduling logic is really messy. As in terrible. *)
+let do_parallel info =
+  let arg = List.hd info.array_args in
+  match arg with
+  | Scalar _ -> true
+  | Array {array_shape} ->
+    let min_elts = (get_arg_alignment arg) * num_threads in
+    Printf.printf "min_elts: %d\n%!" min_elts;
+    (Shape.get array_shape 0) >= min_elts
+
 let split_argument axes num_items alignment arg =
   match arg with
   | Scalar n ->
@@ -156,20 +166,25 @@ let split_argument axes num_items alignment arg =
     (*       want to do something slightly more sophisticated so as to evenly *)
     (*       divide the work amongst the threads. *)
     let els_per_item = (!len / num_items / alignment) * alignment in
+    Printf.printf "els_per_item: %d\n%!" els_per_item;
     let mul x y = x * y in
-    let starts = List.map (mul els_per_item) (List.til num_items) in
-    let stops =
-      (List.map (mul els_per_item) (List.range 1 (num_items - 1))) @ [!len]
+    let starts, stops =
+      if els_per_item > 0 then
+        let starts = List.map (mul els_per_item) (List.til num_items) in
+        let stops =
+          (List.map (mul els_per_item) (List.range 1 (num_items - 1))) @ [!len]
+        in
+        starts, stops
+      else
+        let starts = [0] @ (List.fill !len (List.til (num_items - 1))) in
+        let stops = List.fill !len (List.til num_items) in
+        starts, stops
     in
     let make_slice start stop = Value.Slice(arg, !longest_axis, start, stop) in
     let slices = List.map2 make_slice starts stops in
     List.map Value_to_GenericValue.to_llvm slices
   | _ -> failwith "Unsupported argument type for splitting."
 
-(* TODO: 1. We can easily share the LLVM descriptors amongst the chunks.
-            To make things easier to get running, I'll split the Values rather
-            that the LLVM GVs, and thus duplicate these structs.
-*)
 let build_work_items axes num_items args =
   let alignments = List.map get_arg_alignment args in
   let alignment =
@@ -381,16 +396,17 @@ let adverb (info:(TypedSSA.fn, Ptr.t Value.t list, int list) Adverb.info) =
   let impFn : Imp.fn = SSA_to_Imp.translate_fn adverbFn impTypes in
   let llvmFn = CompiledFunctionCache.compile impFn in
   let inputShapes : Shape.t list = List.map Value.get_shape allArgValues in
-  let outputs = match info.adverb with
-  | Map -> exec_map impFn inputShapes info.axes info.array_args llvmFn
-  | Reduce ->
-     call_imp_fn impFn (info.fixed_args @ info.array_args)
-    (*exec_reduce impFn inputShapes info.axes info.array_args llvmFn*)
-  | AllPairs ->
-    call_imp_fn impFn (info.fixed_args @ info.array_args)
-
-    (*exec_map impFn inputShapes info.axes info.array_args llvmFn*)
-  | Scan -> failwith "Adverb exec function not implemented yet.\n%!"
+  let outputs =
+    if do_parallel info then
+      match info.adverb with
+      | Map -> exec_map impFn inputShapes info.axes info.array_args llvmFn
+      | Reduce ->
+        exec_reduce impFn inputShapes info.axes info.array_args llvmFn
+      | AllPairs ->
+        call_imp_fn impFn (info.fixed_args @ info.array_args)
+      | Scan -> failwith "Adverb exec function not implemented yet.\n%!"
+    else
+      call_imp_fn impFn (info.fixed_args @ info.array_args)
   in
   IFDEF DEBUG THEN
     Printf.printf

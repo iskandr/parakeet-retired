@@ -1,6 +1,6 @@
+#!/usr/bin/python
 import numpy as np 
 import parakeet
-
 
 @parakeet.PAR
 def allpairs_add(x):

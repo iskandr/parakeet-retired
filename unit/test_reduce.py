@@ -8,14 +8,14 @@ def sum_all_elts(x):
   return parakeet.reduce(np.add, x)
 
 def test_1d_sum():
-  x = np.arange(1000)
+  x = np.arange(1300)
   psum = sum_all_elts(x)
   npsum = np.sum(x)
   print "Python: %d, Parakeet: %d" % (npsum, psum)
   assert npsum == psum
 
 def test_2d_sum():
-  x = np.random.randint(0, 100, (14,50))
+  x = np.random.randint(0, 100, (130,50))
   parakeet_sum = sum_all_elts(x)
   np_sum = np.sum(x)
   print "Python: %s, Parakeet: %s" % (np_sum, parakeet_sum)
