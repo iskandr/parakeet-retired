@@ -5,7 +5,7 @@ from parakeet import PAR
 import numpy as np
 
 def sqr_dist(x,y):
-  return np.sum((x-y) * (x-y))
+  return np.sum((x-y) * (x-y), 0)
 
 #@PAR
 def minidx(C,x):

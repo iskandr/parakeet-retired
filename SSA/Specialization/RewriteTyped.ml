@@ -165,6 +165,8 @@ module Make(P: REWRITE_PARAMS) = struct
       | Adverb.AllPairs, None
       | Adverb.Map, None  ->
         let nestedSig = Signature.from_input_types (fixedTypes @ eltTypes) in
+        Printf.printf "Specializing map for argument types %s\n%!"
+          (Signature.to_str nestedSig);
         let typedFn = P.specializer untypedFnVal nestedSig in
         mk_adverb_exp info.adverb typedFn
       | Adverb.Map, Some _ -> failwith "Map can't have initial args"
@@ -334,6 +336,9 @@ module Make(P: REWRITE_PARAMS) = struct
         (* WARNING: You're ignoring the expected return types here *)
       | Adverb adverbInfo, _ -> rewrite_adverb ?src adverbInfo
       | App ({value = Prim (Prim.Adverb adverb)}, fn::args), _ ->
+        IFDEF DEBUG THEN
+          Printf.printf "[RewriteTyped] Converting simple adverb\n%!";
+        ENDIF;
         let untypedInfo = {
           Adverb.adverb = adverb; adverb_fn = fn;
           axes = None; init = None; fixed_args = [];

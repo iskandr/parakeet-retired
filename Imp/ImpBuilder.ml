@@ -270,7 +270,7 @@ class builder (info:fn_info) = object (self)
         (ImpType.to_str tx)
         (ImpType.to_str ty)
     else (
-      let result = self#fresh_local "addtmp" tx in
+      let result = self#fresh_local name tx in
       self#append $ Set(result, ImpHelpers.add x y);
       result
     )

@@ -36,6 +36,7 @@ module LoopHelpers = struct
       (outerBlock:ImpBuilder.builder)
       (body: ImpBuilder.builder)
       (descrs:loop_descr list) : unit =
+
     let rec fill_block (currBlock:ImpBuilder.builder) = function
       | [] -> currBlock#concat body
       | d::ds ->
@@ -47,7 +48,9 @@ module LoopHelpers = struct
             outerBlock#build_add "initidx" d.loop_start d.loop_incr
           in
           currBlock += Set(d.loop_var, init);
-          currBlock += Set(init, d.loop_start)
+          (* if only generating one loop then outerBlock = currBlock *)
+          if List.length descrs >  1 then
+            currBlock += Set(init, d.loop_start)
         )
         else (
           currBlock += Set(d.loop_var, d.loop_start)
@@ -122,9 +125,10 @@ open LoopHelpers
 let copy (builder:ImpBuilder.builder) ~from_array ~to_array : unit =
   let toType = to_array.value_type in
   let toRank = ImpType.rank toType in
+  let fromType = from_array.value_type in
+  let fromRank = ImpType.rank fromType in
+
   IFDEF DEBUG THEN
-    let fromType = from_array.value_type in
-    let fromRank = ImpType.rank fromType in
     (* allow from_array to be a scalar *)
     if fromRank > 0 && toRank <> fromRank then
       failwith $ Printf.sprintf
@@ -134,16 +138,21 @@ let copy (builder:ImpBuilder.builder) ~from_array ~to_array : unit =
             (ImpType.to_str toType)
             toRank
   ENDIF;
-  let intAxes = List.til toRank in
-  let impAxes = List.map ImpHelpers.int intAxes in
-  let loopDescriptors = axes_to_loop_descriptors builder to_array impAxes in
-  let indexVars = get_loop_vars loopDescriptors in
-  let lhs = idx to_array ~dims:intAxes indexVars in
-  let rhs = idx from_array ~dims:intAxes indexVars in
-  let body = builder#clone in
-  body += Set(lhs, rhs);
-  build_loop_nests builder body loopDescriptors
-
+  if toRank = 0 then
+    (* "copying" a scalar is just assignment *)
+    builder += Set(to_array, from_array)
+  else begin
+    (* we're actually copying an array, so make a loop *)
+    let intAxes = List.til toRank in
+    let impAxes = List.map ImpHelpers.int intAxes in
+    let loopDescriptors = axes_to_loop_descriptors builder to_array impAxes in
+    let indexVars = get_loop_vars loopDescriptors in
+    let lhs = idx to_array ~dims:intAxes indexVars in
+    let rhs = idx from_array ~dims:intAxes indexVars in
+    let body = builder#clone in
+    body += Set(lhs, rhs);
+    build_loop_nests builder body loopDescriptors
+  end
 let translate_value (builder:ImpBuilder.builder) valNode : Imp.value_node =
   match valNode.TypedSSA.value with
   | TypedSSA.Var id -> builder#var id
@@ -272,26 +281,14 @@ let rec translate_fn (ssaFn:TypedSSA.fn) (impInputTypes:ImpType.t list)
     let storageEnv : Imp.storage ID.Map.t = InferImpStorage.infer ssaFn in
     let inputIds = ssaFn.TypedSSA.input_ids in
     let outputIds = ssaFn.TypedSSA.output_ids in
-    IFDEF DEBUG THEN
-      Printf.printf "[SSA_to_Imp] Declaring inputs\n%!";
-    ENDIF;
     List.iter (declare_input fnBuilder impTyEnv) inputIds;
-    IFDEF DEBUG THEN
-      Printf.printf "[SSA_to_Imp] Declaring outputs\n%!";
-    ENDIF;
     List.iter (declare_output fnBuilder shapeEnv impTyEnv) outputIds;
     let nonlocals = inputIds @ outputIds in
     let bodyBuilder : ImpBuilder.builder = fnBuilder#body in
-    IFDEF DEBUG THEN
-      Printf.printf "[SSA_to_Imp] Declaring locals\n%!";
-    ENDIF;
     List.iter
       (declare_local_var bodyBuilder nonlocals shapeEnv storageEnv)
       (ID.Map.to_list impTyEnv)
     ;
-    IFDEF DEBUG THEN
-      Printf.printf "[SSA_to_Imp] Translating body\n%!";
-    ENDIF;
     translate_block bodyBuilder ssaFn.TypedSSA.body;
 
     let impFn = fnBuilder#finalize_fn in
@@ -480,7 +477,6 @@ and translate_sequential_adverb
           ~arr:biggestArray ~dims:info.axes ~indices:zeroIndices
       in
       copy builder ~from_array:initVal ~to_array:(List.hd lhsVars);
-      (* TODO: where do the fixdim statements go for nested arrays? *)
       let nestedArrays =
         List.map (slice_along_axes indexVars) info.array_args
       in

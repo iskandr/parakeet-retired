@@ -303,7 +303,7 @@ module Make (P : TYPE_ANALYSIS_PARAMS) = struct
     let fnVal : UntypedSSA.value = info.adverb_fn in
     match info.adverb, info.init with
     | Adverb.Map, None ->
-      let eltResultTypes = infer_app fnVal eltTypes in
+      let eltResultTypes = infer_app fnVal (info.fixed_args @ eltTypes) in
       Type.increase_ranks numAxes eltResultTypes
     (* if not given initial values then we assume operator is binary and*)
     (* used first two elements of the array *)
@@ -313,7 +313,7 @@ module Make (P : TYPE_ANALYSIS_PARAMS) = struct
           TypeError("Reduce without intial args must have one input array", src)
       ;
       let eltT = List.hd eltTypes in
-      let accTypes = infer_app fnVal [eltT;eltT] in
+      let accTypes = infer_app fnVal (info.fixed_args @ [eltT;eltT]) in
       if List.length accTypes <> 1 then
         raise $
           TypeError("Reduce without inital args must return one value", src)
@@ -324,7 +324,7 @@ module Make (P : TYPE_ANALYSIS_PARAMS) = struct
         raise $
           TypeError("AllPairs must have two arguments", src)
       else
-        let eltResultTypes = infer_app fnVal eltTypes in
+        let eltResultTypes = infer_app fnVal (info.fixed_args @ eltTypes) in
         Type.increase_ranks (2*numAxes) eltResultTypes
     | Adverb.AllPairs, Some _ ->
       raise $

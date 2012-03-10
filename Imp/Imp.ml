@@ -278,21 +278,22 @@ let array_storage_to_str = function
   | CudaShared -> "shared"
 
 let fn_to_str fn =
-  let id_to_str id =
+  let id_to_str ?(local=false) id =
     let shape = get_var_shape fn id in
     let storage = get_var_storage fn id in
-    Printf.sprintf
-      "%s : %s%s%s"
-      (ID.to_str id)
-      (ImpType.to_str (get_var_type fn id))
-      (if SymbolicShape.is_scalar shape then ""
-       else "; shape = " ^ (SymbolicShape.to_str shape))
-      (if SymbolicShape.is_scalar shape then ""
-       else "; storage = " ^ (array_storage_to_str storage))
+    let str =
+      (ID.to_str id) ^ " : " ^  (ImpType.to_str (get_var_type fn id))
+    in
+    if not local || SymbolicShape.is_scalar shape then str
+    else
+      str ^ Printf.sprintf
+        "; storage = %s; shape = %s"
+        (array_storage_to_str storage)
+        (SymbolicShape.to_str shape)
   in
   let inputs = List.map id_to_str fn.input_ids  in
   let outputs = List.map id_to_str  fn.output_ids in
-  let decl_str localId =  " local " ^ (id_to_str localId) in
+  let decl_str localId =  " local " ^ (id_to_str ~local:true localId) in
   let localDeclStr = String.concat "\n" (List.map decl_str fn.local_ids) in
   let shape_str outputId =
     Printf.sprintf " shape(%s) = %s"

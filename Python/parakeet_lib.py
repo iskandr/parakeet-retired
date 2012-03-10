@@ -32,11 +32,11 @@ def mult(x,y):
 def div(x,y):
   return x/y
 
-def sum(x, axis=None):
-  return reduce(add, x, axis=axis, default=0)
+def sum(x, axis):
+  return reduce(add, x, axis=axis)
 
-def mean(x, axis=None):
-  total = sum(x, axis=axis)
+def mean(x, axis):
+  total = sum(x, axis)
   return total*1. / len(x)
 
 def dot(x,y):
