@@ -144,6 +144,9 @@ module ShapeAnalysis (P: PARAMS) =  struct
         raise (ShapeInferenceFailure msg)
       | Prim.DimSize, [_; _]
       | Prim.Find, [_; _] -> SymbolicShape.scalar
+      | Prim.Shape, [arrShape] ->
+        [SymbolicShape.const (SymbolicShape.rank arrShape)]
+      | Prim.Transpose, [arrShape] -> List.rev arrShape
       | _ ->
         failwith "Unsupported array operator %s with args %s"
 

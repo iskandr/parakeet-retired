@@ -103,12 +103,18 @@ let infer_simple_array_op op argTypes = match op, argTypes with
   | Prim.Index, [t; _] when Type.is_scalar t ->
     raise $ TypeError ("can't index into a scalar", None)
   | Prim.DimSize, _ -> Type.ScalarT Int32T
-  | Prim.Find,  [Type.ArrayT(elt_t1, 1); ScalarT elt_t2] ->
+  | Prim.Find, [Type.ArrayT(elt_t1, 1); ScalarT elt_t2] ->
     assert (elt_t1 = elt_t2);
     Type.ScalarT elt_t1
+  | Prim.Shape, [_] ->
+    (* shape operator always returns a 1D shape vector *)
+    Type.ArrayT(Type.Int32T, 1)
+  | Prim.Transpose, [t] -> t
   | _ ->
     let errMsg =
-      Printf.sprintf "Could not infer type for %s" (Prim.array_op_to_str op)
+      Printf.sprintf
+        "Could not infer type for array op %s"
+        (Prim.array_op_to_str op)
     in
     raise $ TypeError(errMsg, None)
 
