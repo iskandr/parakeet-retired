@@ -17,6 +17,9 @@ let vector_cache : (signature, Imp.fn) Hashtbl.t = Hashtbl.create 127
 (* For now, we are assuming only 1 CPU *)
 let vector_bitwidth = machine_model.cpus.(0).vector_bitwidth
 
+let vectorize = ref true
+let set_vectorize v = vectorize := v
+
 module LoopHelpers = struct
   type loop_descr = {
     loop_var : value_node;
@@ -121,7 +124,6 @@ module LoopHelpers = struct
 end
 open LoopHelpers
 
-
 let copy (builder:ImpBuilder.builder) ~from_array ~to_array : unit =
   let toType = to_array.value_type in
   let toRank = ImpType.rank toType in
@@ -153,6 +155,7 @@ let copy (builder:ImpBuilder.builder) ~from_array ~to_array : unit =
     body += Set(lhs, rhs);
     build_loop_nests builder body loopDescriptors
   end
+
 let translate_value (builder:ImpBuilder.builder) valNode : Imp.value_node =
   match valNode.TypedSSA.value with
   | TypedSSA.Var id -> builder#var id
@@ -216,7 +219,6 @@ let translate_array_literal
       builder += Imp.Set(ImpHelpers.idx lhs [int idx], rhs)
     in
     List.iteri assign_elt impElts
-
 
 let translate_true_phi_node builder phiNode : unit =
   let exp = translate_value builder (PhiNode.left phiNode) in
@@ -418,12 +420,12 @@ and translate_adverb
   let maxArgRank =
     List.fold_left (fun acc t -> max acc (ImpType.rank t)) 0 argTypes
   in
-  if false && maxArgRank = 1 &&
+  if !vectorize && maxArgRank = 1 &&
     TypedSSA.ScalarHelpers.is_scalar_fn info.adverb_fn &&
     info.adverb = Adverb.Map
   then match TypedSSA.FnHelpers.get_single_type info.adverb_fn with
     | None -> translate_sequential_adverb builder lhsVars info
-    | Some (Type.ScalarT eltT)  ->
+    | Some (Type.ScalarT eltT) ->
       (* only vectorize function which use one type in their body *)
       vectorize_adverb builder lhsVars info eltT
   else translate_sequential_adverb builder lhsVars info
@@ -511,8 +513,6 @@ and translate_sequential_adverb
   let impFn : Imp.fn = translate_fn info.adverb_fn nestedInputTypes in
   nestedBuilder#inline impFn nestedInputs nestedOutputs;
   build_loop_nests ~skip_first_iter:skipFirstIter builder nestedBuilder loops
-
-
 
 (* We assume that the function is a scalar function at this point *)
 and vectorize_adverb

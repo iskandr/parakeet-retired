@@ -127,7 +127,6 @@ let debug str builder =
   ()
 
 module Indexing = struct
-
   let array_field_addr_cache : (llvalue * Imp.array_field, llvalue) Hashtbl.t =
     Hashtbl.create 127
 
@@ -143,6 +142,7 @@ module Indexing = struct
 
   let array_field_cache : (llvalue * Imp.array_field, llvalue) Hashtbl.t =
     Hashtbl.create 127
+
   let get_array_field (fnInfo:fn_info) (array:llvalue) field : llvalue =
     match Hashtbl.find_option array_field_cache (array, field) with
       | None ->
@@ -173,8 +173,8 @@ module Indexing = struct
       if idx <> 0 then
         Llvm.build_gep shape [|mk_int32 idx|] "shape_ptr" fnInfo.builder
       else shape
-   in
-   Llvm.build_load eltPtr ("dim" ^ (string_of_int idx) ^ "_") fnInfo.builder
+  in
+  Llvm.build_load eltPtr ("dim" ^ (string_of_int idx) ^ "_") fnInfo.builder
 
   (* convert a list of indices into an address offset *)
   let rec compute_offset
@@ -258,7 +258,6 @@ module Indexing = struct
     end
   | [] -> offset
 
-
   let compile_arr_idx
       (array:Llvm.llvalue)
       (indices:Llvm.llvalue list)
@@ -277,9 +276,6 @@ module Indexing = struct
     let newAddr = Llvm.build_gep dataPtr [|offset|] addrName fnInfo.builder in
     newAddr
 
-
-
-
   (* assume vector slice is through contiguous data *)
   let compile_vec_slice
       (array:Llvm.llvalue)
@@ -297,15 +293,13 @@ module Indexing = struct
       Llvm.build_pointercast offsetScalarPtr llvmVecT "vecPtr" fnInfo.builder
     | _ -> failwith "[Imp_to_LLVM] Error compiling vec slice"
 
-
-
   let copy_array
-    (fnInfo:fn_info)
-    ?exclude_dim
-    ?apply_to_elts
-    srcAddr
-    destAddr
-    nelts =
+      (fnInfo:fn_info)
+      ?exclude_dim
+      ?apply_to_elts
+      srcAddr
+      destAddr
+      nelts =
     let destIdx = ref 0 in
     for srcIdx = 0 to nelts - 1 do
       if match exclude_dim with None -> true | Some j -> srcIdx <> j then begin
@@ -340,8 +334,6 @@ module Indexing = struct
         (*Llvm.dump_value storeInstr*)
       end
     done
-
-
 
   (* to avoid loads from shape/stride arrays in the heart of tight loops, *)
   (* we instead load all of the metadata into stack allocated arrays and*)
@@ -403,8 +395,6 @@ module Indexing = struct
         rank
     else
       copy_array fnInfo ?exclude_dim srcStrides destStrides rank
-
-
 end
 open Indexing
 
@@ -528,7 +518,6 @@ let compile_var ?(do_load=true) fnInfo (id:ID.t) =
     if do_load then build_load ptr (name ^ "_value") fnInfo.builder
     else ptr
 
-
 (* Change to function? *)
 let rec compile_value ?(do_load=true) fnInfo (impVal:Imp.value_node) =
   (*
@@ -551,7 +540,6 @@ let rec compile_value ?(do_load=true) fnInfo (impVal:Imp.value_node) =
     let llvmVec = const_vector (Array.of_list vals) in
     (*Llvm.dump_value llvmVec;*)
     llvmVec
-
   | Imp.Op (t, op, vals) ->
     let vals' =  List.map (compile_value fnInfo) vals in
     if Prim.is_comparison op then
@@ -613,7 +601,6 @@ and compile_values fnInfo = function
     let llvmVal = compile_value fnInfo vNode in
     llvmVal :: (compile_values fnInfo vNodes)
 
-
 and compile_dimsize fnInfo (arr:Imp.value_node) (idx:Imp.value_node) =
   let llvmArr = compile_value ~do_load:false fnInfo arr in
   let shape = get_array_field fnInfo llvmArr ArrayShape in
@@ -625,7 +612,6 @@ and compile_dimsize fnInfo (arr:Imp.value_node) (idx:Imp.value_node) =
      let llvmIdx = compile_value fnInfo idx in
      let dimPtr = Llvm.build_gep shape [|llvmIdx|] "dim_ptr" fnInfo.builder in
      Llvm.build_load dimPtr "dim" fnInfo.builder
-
 
 let rec compile_stmt_seq fnInfo currBB = function
   | [] -> currBB
@@ -684,7 +670,6 @@ and compile_stmt fnInfo currBB stmt =
     after_bb
 
   | Imp.Set({value=Idx(arr, indices)}, rhs) ->
-
     let arrayPtr : Llvm.llvalue = compile_value ~do_load:false fnInfo arr in
     let indexRegisters : Llvm.llvalue list = compile_values fnInfo indices in
     let rhsVal = compile_value fnInfo rhs in
@@ -728,12 +713,10 @@ and compile_stmt fnInfo currBB stmt =
     ;
     *)
     let excludedStride = get_array_strides_elt fnInfo srcArray exclude_dim in
-
     let srcData = get_array_field fnInfo srcArray Imp.ArrayData in
     let totalIdx =
       Llvm.build_mul excludedStride llvmIdx "sliceNumElts" fnInfo.builder
     in
-
     let offsetPtr =
       Llvm.build_gep srcData [|totalIdx|] "fixdimPtr" fnInfo.builder
     in
@@ -781,32 +764,31 @@ module Init = struct
       let arr = compile_var ~do_load:false fnInfo id in
       get_array_shape_elt fnInfo arr axis
 
-
-    let allocate_local_array_info
-        ?(add_to_cache=true)
-        (fnInfo:fn_info)
-        (name:string)
-        (impT:ImpType.t)
-        (llvmT:lltype) =
-        let local = Llvm.build_alloca llvmT (name^"_local") fnInfo.builder in
-        let rank = mk_int32 (ImpType.rank impT) in
-        let shape =
-          Llvm.build_array_alloca int32_t rank (name^"_shape") fnInfo.builder
-        in
-        let shapeField = get_array_field_addr fnInfo local ArrayShape in
-        let _ = Llvm.build_store shape shapeField fnInfo.builder  in
-        let strides =
-          Llvm.build_array_alloca int32_t rank (name^"_strides") fnInfo.builder
-        in
-        let stridesField = get_array_field_addr fnInfo local ArrayStrides in
-        let _ = Llvm.build_store strides stridesField  fnInfo.builder in
-        if add_to_cache then (
-          Hashtbl.add array_field_addr_cache (local, ArrayShape) shapeField;
-          Hashtbl.add array_field_cache (local, ArrayShape) shape;
-          Hashtbl.add array_field_addr_cache (local, ArrayStrides) stridesField;
-          Hashtbl.add array_field_cache (local, ArrayStrides) strides
-        );
-        local
+  let allocate_local_array_info
+      ?(add_to_cache=true)
+      (fnInfo:fn_info)
+      (name:string)
+      (impT:ImpType.t)
+      (llvmT:lltype) =
+    let local = Llvm.build_alloca llvmT (name^"_local") fnInfo.builder in
+    let rank = mk_int32 (ImpType.rank impT) in
+    let shape =
+      Llvm.build_array_alloca int32_t rank (name^"_shape") fnInfo.builder
+    in
+    let shapeField = get_array_field_addr fnInfo local ArrayShape in
+    let _ = Llvm.build_store shape shapeField fnInfo.builder  in
+    let strides =
+      Llvm.build_array_alloca int32_t rank (name^"_strides") fnInfo.builder
+    in
+    let stridesField = get_array_field_addr fnInfo local ArrayStrides in
+    let _ = Llvm.build_store strides stridesField  fnInfo.builder in
+    if add_to_cache then (
+      Hashtbl.add array_field_addr_cache (local, ArrayShape) shapeField;
+      Hashtbl.add array_field_cache (local, ArrayShape) shape;
+      Hashtbl.add array_field_addr_cache (local, ArrayStrides) stridesField;
+      Hashtbl.add array_field_cache (local, ArrayStrides) strides
+    );
+    local
 
   let allocate_local_array fnInfo (arr:llvalue) impT (shape:SymbolicShape.t) =
     let arrName = Llvm.value_name arr in
@@ -817,7 +799,6 @@ module Init = struct
     ;
 
     let rank = ImpType.rank impT in
-
     let shapePtr = Indexing.get_array_field fnInfo arr ArrayShape in
     let shapeElts = Array.of_list $ List.map (compile_dim fnInfo) shape in
     (* fill llvm shape array *)
@@ -857,7 +838,6 @@ module Init = struct
     in
     Llvm.build_store data dataFieldPtr fnInfo.builder;
     Hashtbl.add array_field_cache (arr, ArrayData) data
-
 
   let init_local_var (fnInfo:fn_info) (id:ID.t) =
     let impT = ID.Map.find id fnInfo.imp_types in
@@ -976,4 +956,3 @@ let compile_fn (fn : Imp.fn) : Llvm.llvalue =
   let _ = compile_stmt_seq fnInfo initBasicBlock fn.body in
   finalize_function fnInfo;
   llvmFn
-

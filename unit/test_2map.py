@@ -3,6 +3,8 @@ import numpy as np
 import parakeet, sys
 from parakeet import PAR
 
+parakeet.set_vectorize(False)
+
 @PAR 
 def implicit_map(x):
   return x * 3
@@ -17,8 +19,8 @@ def test_implicit_map():
                 [1,2,3,4,1,2,3,4],
                 [4,5,6,7,8,8,8,1],
                 [1,43,1,4,2,2,2,2]], dtype=np.int32)
-  y = implicit_map(x)
-  y_original = implicit_map.call_original(x)
+  y = implicit_map(x.T)
+  y_original = implicit_map.call_original(x.T)
   print "Python = %s, Parakeet = %s" % (y_original, y)
   assert np.all(y_original == y)
 

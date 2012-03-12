@@ -58,6 +58,7 @@ typedef struct return_val {
 /** Initialization function - call before using any other functions **/
 void front_end_init(void);
 
+/** Execution interface **/
 int register_untyped_function(char *name, char **globals, int num_globals,
                               char **args, int num_args, paranode ast);
 
@@ -65,5 +66,8 @@ return_val_t run_function(int id, host_val *globals, int num_globals,
                           host_val *args, int num_args);
 
 void free_return_val(return_val_t ret_val);
+
+/** Parakeet parameter configuration **/
+void set_vectorize(int val);
 
 #endif

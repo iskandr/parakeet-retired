@@ -24,6 +24,7 @@
 /** Private members **/
 value *ocaml_register_untyped_function = NULL;
 value *ocaml_run_function              = NULL;
+value *ocaml_set_vectorize             = NULL;
 int fe_inited = 0;
 
 static CAMLprim value build_str_list(char **strs, int num_strs);
@@ -40,6 +41,7 @@ void front_end_init(void) {
   ocaml_register_untyped_function =
     caml_named_value("register_untyped_function");
   ocaml_run_function = caml_named_value("run_function");
+  ocaml_set_vectorize = caml_named_value("set_vectorize");
 }
 
 int register_untyped_function(char *name, char **globals, int num_globals,
@@ -181,6 +183,17 @@ void free_return_val(return_val_t ret_val) {
     // Free the error msg
     free(ret_val.error_msg);
   }
+
+  CAMLreturn0;
+}
+
+/** Parakeet parameter configuration **/
+void set_vectorize(int val) {
+  CAMLparam0();
+  CAMLlocal1(ocaml_bool);
+
+  ocaml_bool = Val_bool(val);
+  caml_callback(*ocaml_set_vectorize, ocaml_bool);
 
   CAMLreturn0;
 }

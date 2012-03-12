@@ -14,8 +14,10 @@ def mm(X,Y):
 def test_mm():
   X = np.random.randn(1000, 1000)
   Y = np.random.randn(1000, 1000)
-  parakeet_result = mm(X,Y)
-  np_result = np.dot(X,y)
+  parakeet_result = mm(X,Y.T)
+  print parakeet_result
+  np_result = np.dot(X,Y)
+  print np_result
   assert np.sum( (parakeet_result - np_result) ** 2) <= 0.0001
 
 if __name__ == '__main__':
