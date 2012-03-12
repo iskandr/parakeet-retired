@@ -142,7 +142,6 @@ let do_parallel info =
   | Scalar _ -> true
   | Array {array_shape} ->
     let min_elts = (get_arg_alignment arg) * num_threads in
-    Printf.printf "min_elts: %d\n%!" min_elts;
     (Shape.get array_shape 0) >= min_elts
 
 let split_argument axes num_items alignment arg =
@@ -167,7 +166,6 @@ let split_argument axes num_items alignment arg =
     (*       want to do something slightly more sophisticated so as to evenly *)
     (*       divide the work amongst the threads. *)
     let els_per_item = (!len / num_items / alignment) * alignment in
-    Printf.printf "els_per_item: %d\n%!" els_per_item;
     let mul x y = x * y in
     let starts, stops =
       if els_per_item > 0 then

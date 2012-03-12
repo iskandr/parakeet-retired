@@ -7,40 +7,28 @@ from parakeet_common import LibPar, LOG, list_to_ctypes_array
 ###############################################################################
 
 numpy_to_c_types = {
-  np.bool_ : c_bool,
-  np.int8 : c_char, 
   np.int32: c_int32,
   np.int64: c_int64,
   np.float32: c_float,
   np.float64: c_double,
+  np.bool_: c_bool,
 }
 
 numpy_to_parakeet_types = {
-  np.bool_: LibPar.bool_t, 
-  np.char: LibPar.char_t, 
   np.int32: LibPar.int32_t,
   np.int64: LibPar.int64_t,
   np.float32: LibPar.float32_t,
   np.float64: LibPar.float64_t,
-
+  np.bool_: LibPar.bool_t
 }
 
 parakeet_to_c_types = {
-  LibPar.bool_t: c_int,
-  LibPar.char_t: c_char,
   LibPar.int32_t: c_int32,
   LibPar.int64_t: c_int64,
   LibPar.float32_t: c_float,
   LibPar.float64_t: c_double,
-}
-
-parakeet_to_dtype = { 
-  LibPar.bool_t: np.int,
-  LibPar.char_t: np.int8, 
-  LibPar.int32_t : np.int32,
-  LibPar.int64_t : np.int64, 
-  LibPar.float32_t: np.float32,
-  LibPar.float64_t: np.float64,
+  LibPar.bool_t: c_int,
+  LibPar.char_t: c_char
 }
 
 ###############################################################################
@@ -107,30 +95,24 @@ def parakeet_value_to_python(val):
       raise RuntimeError("Return type not supported by Parakeet: " %
                          str(c_type))
     return result
-  else:    
+  else:
     rank = val.data.array.shape_len
 
     SHAPE_TYPE = c_int * rank
     c_shape = SHAPE_TYPE.from_address(val.data.array.shape)
-    shape = tuple(c_shape)
+    shape = list(c_shape)
 
     STRIDES_TYPE = c_int * val.data.array.strides_len
     c_strides = STRIDES_TYPE.from_address(val.data.array.strides)
-    strides = tuple(c_strides)
+    strides = list(c_strides)
 
     parakeet_elt_type = LibPar.get_array_element_type(val.data.array.ret_type)
-    dtype = parakeet_to_dtype[parakeet_elt_type] 
-    
-    addr = val.data.array.data 
+    c_elt_type = parakeet_to_c_types[parakeet_elt_type]
+    nelts = reduce(lambda x,y: x * y, shape)
+    ARRAY_TYPE = c_elt_type * nelts
+    result_array = ARRAY_TYPE.from_address(val.data.array.data)
 
-    buffer_from_memory = pythonapi.PyBuffer_FromMemory
-    buffer_from_memory.restype = py_object
-    buf = buffer_from_memory(addr)
-    # TODO: 
-    # - Figure out who owns the data
-    # - It currently is either leaking or risks getting prematurely deleted 
-    np_result = np.ndarray(tuple(shape), dtype=dtype, buffer=buf)
+    np_result = np.ctypeslib.as_array(result_array)
+    np_result.shape = shape
     np_result.strides = strides
-
     return np_result
-

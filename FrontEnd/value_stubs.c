@@ -177,12 +177,14 @@ host_val mk_host_array(char *data, elt_type t, int *shape, int shape_len,
   ocaml_shape = caml_alloc(shape_len, 0);
   int i;
   for(i = 0; i < shape_len; i++) {
+    printf("shape[%d] = %d\n", i, shape[i]);
     Store_field(ocaml_shape, i, Val_int(shape[i]));
   }
   
   // Create an OCaml strides array
   ocaml_strides = caml_alloc(strides_len, 0);
   for (i = 0; i < strides_len; ++i) {
+    printf("strides[%d] = %d\n", i, strides[i]);
     Store_field(ocaml_strides, i, Val_int(strides[i]));
   }
 

@@ -77,3 +77,6 @@ let _ = Callback.register "mk_host_ptr" HostMemspace.mk_host_ptr
 
 (*** DataManager ***)
 let _ = Callback.register "register_ptr" DataManager.register_ptr
+
+(*** SSA ***)
+let _ = Callback.register "set_vectorize" SSA_to_Imp.set_vectorize
