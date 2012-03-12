@@ -187,6 +187,16 @@ let translate_array_op builder (op:Prim.array_op) (args:Imp.value_node list) =
     { value = Imp.Idx(array, indices);
       value_type = ImpType.ScalarT resultT
     }
+  | Prim.Shape, [array] ->
+    begin match array.value_type with
+      | ImpType.ArrayT (_, rank) ->
+        {
+          value = Imp.ArrayField (Imp.ArrayShape, array);
+          value_type = ImpType.ArrayT(Type.Int32T, 1);
+        }
+      | ImpType.PtrT _ -> failwith "Shape of raw pointer not yet implemented"
+      | _ -> failwith "shape for this array type not yet implemented"
+    end
   | other, _ -> failwith $
     Printf.sprintf
       "[SSA_to_Imp] Unsupported array op: %s"

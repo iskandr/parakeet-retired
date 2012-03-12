@@ -4,7 +4,7 @@ import re
 from parakeet_ast import register_function, VisitedFunctions, \
                          list_to_ctypes_array
 from parakeet_common import LibPar, LOG
-#from parakeet_configuration import *
+from parakeet_configuration import *
 from parakeet_values import python_value_to_parakeet, parakeet_value_to_python
 
 class WrappedFunction:

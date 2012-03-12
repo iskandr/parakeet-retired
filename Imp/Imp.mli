@@ -5,6 +5,8 @@ type array_field =
   | ArrayData
   | ArrayShape
   | ArrayStrides
+  | PtrData
+  | PtrLen
   | RangeStart
   | RangeStop
   | ShiftData

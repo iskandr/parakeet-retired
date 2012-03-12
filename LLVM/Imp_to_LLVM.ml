@@ -409,7 +409,6 @@ let compile_const (t:ImpType.t) (n:ParNum.t) =
   | ParNum.Int64 i64 -> const_of_int64 t' i64 true
   | ParNum.Float32 f -> const_float t' f
   | ParNum.Float64 f -> const_float t' f
-  | _ -> failwith "Not a constant"
 
 let compile_cast (fnInfo:fn_info) original (srcT:ImpType.t) (destT:ImpType.t) =
   if srcT = destT then original
@@ -520,25 +519,21 @@ let compile_var ?(do_load=true) fnInfo (id:ID.t) =
 
 (* Change to function? *)
 let rec compile_value ?(do_load=true) fnInfo (impVal:Imp.value_node) =
-  (*
+
   IFDEF DEBUG THEN
     Printf.printf "[Imp_to_LLVM.compile_value] %s\n%!"
       (Imp.value_node_to_str impVal)
   ENDIF;
-  *)
+
   match impVal.value with
   | Imp.Var id -> compile_var ~do_load fnInfo id
   (* optimize shape lookups to use symbolic shape information *)
   | Imp.DimSize (arr, idx) -> compile_dimsize fnInfo arr idx
   | Imp.Const const -> compile_const impVal.Imp.value_type const
   | Imp.VecConst vals ->
-    (*Printf.printf "Compile vec constant to llvm with type %s\n%!"
-      (ImpType.to_str impVal.Imp.value_type);
-    *)
     let eltT = ImpType.peel impVal.Imp.value_type in
     let vals = List.map (compile_const eltT) vals in
     let llvmVec = const_vector (Array.of_list vals) in
-    (*Llvm.dump_value llvmVec;*)
     llvmVec
   | Imp.Op (t, op, vals) ->
     let vals' =  List.map (compile_value fnInfo) vals in
@@ -550,11 +545,11 @@ let rec compile_value ?(do_load=true) fnInfo (impVal:Imp.value_node) =
     let original = compile_value fnInfo v in
     compile_cast fnInfo original v.Imp.value_type t
   | Imp.Idx (arr, indices) ->
-    (*debug "getting array" fnInfo.builder;*)
+    debug "getting array" fnInfo.builder;
     let llvmArray = compile_value ~do_load:false fnInfo arr in
-    (*llvm_printf "\t array = %p\n" [llvmArray] fnInfo.builder;
+    llvm_printf "\t array = %p\n" [llvmArray] fnInfo.builder;
     debug "getting indices" fnInfo.builder;
-    *)
+
     let llvmIndices = List.map (compile_value fnInfo) indices in
     begin match impVal.value_type with
       | ImpType.VectorT (imp_elt_t, width) ->
@@ -572,15 +567,7 @@ let rec compile_value ?(do_load=true) fnInfo (impVal:Imp.value_node) =
             let idxAddr =
               compile_arr_idx llvmArray llvmIndices imp_elt_t fnInfo
             in
-            (*
-            llvm_printf
-              ("\t %p[" ^ idxFmt ^ "] = %p\n")
-              (llvmArray::llvmIndices @ [idxAddr])
-              fnInfo.builder;
-            *)
-            let res = Llvm.build_load idxAddr "index_result" fnInfo.builder in
-            (*debug "done loading" fnInfo.builder;*)
-            res
+            Llvm.build_load idxAddr "index_result" fnInfo.builder
         end
     end
   | Imp.VecSlice (arr, idx, width) ->
@@ -613,6 +600,75 @@ and compile_dimsize fnInfo (arr:Imp.value_node) (idx:Imp.value_node) =
      let dimPtr = Llvm.build_gep shape [|llvmIdx|] "dim_ptr" fnInfo.builder in
      Llvm.build_load dimPtr "dim" fnInfo.builder
 
+
+let compile_set fnInfo lhs rhs =
+  match lhs, rhs with
+    | {value=Idx(arr, indices)}, _ ->
+      let arrayPtr : Llvm.llvalue = compile_value ~do_load:false fnInfo arr in
+      let indexRegisters : Llvm.llvalue list = compile_values fnInfo indices in
+      let rhsVal = compile_value fnInfo rhs in
+      begin match rhs.value_type with
+        | ImpType.ScalarT imp_elt_t ->
+          let idxAddr =
+            compile_arr_idx arrayPtr indexRegisters imp_elt_t fnInfo
+          in
+          ignore (Llvm.build_store rhsVal idxAddr fnInfo.builder)
+        | ImpType.VectorT (_, _) ->
+          IFDEF DEBUG THEN Printf.printf "Compiling SetIdx to VectorT\n%!" ENDIF;
+          assert(false);
+          (* TODO: the following lines are just to get it to compile. change *)
+          let idx = List.hd indexRegisters in
+          let idxAddr = compile_vec_slice arrayPtr idx rhs.value_type fnInfo in
+          ignore (Llvm.build_store rhsVal idxAddr fnInfo.builder)
+        | other ->
+          failwith $
+            Printf.sprintf
+              "[Imp_to_LLVM] Unsuported SetIndex for type %s"
+              (ImpType.to_str other)
+    end
+
+  | {value=VecSlice(arr, idx, width)}, _ ->
+    let arrayPtr : Llvm.llvalue = compile_value ~do_load:false fnInfo arr in
+    let indexRegister : Llvm.llvalue = compile_value fnInfo idx in
+    let rhsVal = compile_value fnInfo rhs in
+    let idxAddr =
+      compile_vec_slice arrayPtr indexRegister rhs.value_type fnInfo
+    in
+    ignore (Llvm.build_store rhsVal idxAddr fnInfo.builder)
+
+  | {value=Var lhsId}, {value=Imp.FixDim(arr, dim, idx); value_type} ->
+    let srcArray = compile_value ~do_load:false fnInfo arr in
+    let llvmIdx = compile_value fnInfo idx in
+    let destArray = compile_var ~do_load:false fnInfo lhsId in
+    let exclude_dim = ImpHelpers.get_const_int dim in
+    let excludedStride = get_array_strides_elt fnInfo srcArray exclude_dim in
+    let srcData = get_array_field fnInfo srcArray Imp.ArrayData in
+    let totalIdx =
+      Llvm.build_mul excludedStride llvmIdx "sliceNumElts" fnInfo.builder
+    in
+    copy_array_metadata
+      fnInfo
+      ~data_ptr:(Llvm.build_gep srcData [|totalIdx|] "fixdimPtr" fnInfo.builder)
+      ~convert_strides_to_num_elts:false
+      ~exclude_dim
+      srcArray
+      arr.value_type
+      destArray
+
+  | {value = Var lhsId}, {value=Imp.ArrayField(Imp.ArrayShape, arr)} ->
+    let destArray = compile_var ~do_load:false fnInfo lhsId in
+    failwith "Shape not implemented"
+
+  | {value = Var id}, _  ->
+    begin match Hashtbl.find_option fnInfo.named_values (ID.to_str id) with
+      | None -> failwith  ("unknown variable name " ^ (ID.to_str id))
+      | Some register ->
+        let llvmRhs = compile_value fnInfo rhs in
+        ignore (Llvm.build_store llvmRhs register fnInfo.builder)
+    end
+  | _ -> failwith "[Imp_to_LLVM] Assignment  not implemented"
+
+
 let rec compile_stmt_seq fnInfo currBB = function
   | [] -> currBB
   | head :: tail ->
@@ -620,13 +676,9 @@ let rec compile_stmt_seq fnInfo currBB = function
     compile_stmt_seq fnInfo newBB tail
 
 and compile_stmt fnInfo currBB stmt =
-  (*
-  IFDEF DEBUG THEN
-    Printf.printf "[Imp_to_LLVM.compile_stmt] %s\n%!"
-
-  ENDIF;
-  *)
-  (*llvm_printf (">> " ^ Imp.stmt_to_str stmt ^ "\n") [] fnInfo.builder;*)
+  let () =
+    llvm_printf (">> " ^ Imp.stmt_to_str stmt ^ "\n") [] fnInfo.builder
+  in
   match stmt with
   | Imp.If (cond, then_, else_) ->
     let llCond = compile_value fnInfo cond in
@@ -668,84 +720,7 @@ and compile_stmt fnInfo currBB stmt =
     let _ = Llvm.build_br cond_bb fnInfo.builder in
     Llvm.position_at_end after_bb fnInfo.builder;
     after_bb
-
-  | Imp.Set({value=Idx(arr, indices)}, rhs) ->
-    let arrayPtr : Llvm.llvalue = compile_value ~do_load:false fnInfo arr in
-    let indexRegisters : Llvm.llvalue list = compile_values fnInfo indices in
-    let rhsVal = compile_value fnInfo rhs in
-    begin match rhs.value_type with
-      | ImpType.ScalarT imp_elt_t ->
-        let idxAddr =
-          compile_arr_idx arrayPtr indexRegisters imp_elt_t fnInfo
-        in
-        Llvm.build_store rhsVal idxAddr fnInfo.builder
-      | ImpType.VectorT (_, _) ->
-        IFDEF DEBUG THEN Printf.printf "Compiling SetIdx to VectorT\n%!" ENDIF;
-        assert(false);
-        (* TODO: the following lines are just to get it to compile. change *)
-        let idx = List.hd indexRegisters in
-        let idxAddr =
-          compile_vec_slice arrayPtr idx rhs.value_type fnInfo
-        in
-        Llvm.build_store rhsVal idxAddr fnInfo.builder
-      | other -> failwith $ Printf.sprintf
-        "[Imp_to_LLVM] Unsuported set index for type %s" (ImpType.to_str other)
-    end;
-    currBB
-  | Imp.Set ({value=VecSlice(arr, idx, width)}, rhs) ->
-    let arrayPtr : Llvm.llvalue = compile_value ~do_load:false fnInfo arr in
-    let indexRegister : Llvm.llvalue = compile_value fnInfo idx in
-    let rhsVal = compile_value fnInfo rhs in
-    IFDEF DEBUG THEN Printf.printf "Compiling SetVecSlice to LLVM\n%!" ENDIF;
-    let idxAddr =
-      compile_vec_slice arrayPtr indexRegister rhs.value_type fnInfo
-    in
-    let _ = Llvm.build_store rhsVal idxAddr fnInfo.builder in
-    currBB
-  | Imp.Set ({value=Var lhsId}, {value=Imp.FixDim(arr, dim, idx); value_type})->
-    let llvmIdx = compile_value fnInfo idx in
-    let srcArray = compile_value ~do_load:false fnInfo arr in
-    let destArray = compile_var ~do_load:false fnInfo lhsId in
-    let exclude_dim = ImpHelpers.get_const_int dim in
-    (*llvm_printf "!!! excluding dim %d\n"
-      [mk_int32 exclude_dim]
-      fnInfo.builder
-    ;
-    *)
-    let excludedStride = get_array_strides_elt fnInfo srcArray exclude_dim in
-    let srcData = get_array_field fnInfo srcArray Imp.ArrayData in
-    let totalIdx =
-      Llvm.build_mul excludedStride llvmIdx "sliceNumElts" fnInfo.builder
-    in
-    let offsetPtr =
-      Llvm.build_gep srcData [|totalIdx|] "fixdimPtr" fnInfo.builder
-    in
-    (*llvm_printf "\t !!! old data pointer: %p, offset idx: %d, new pointer %p\n"
-      [srcData; totalIdx; offsetPtr] fnInfo.builder;
-    *)
-    copy_array_metadata
-      fnInfo
-      ~data_ptr:offsetPtr
-      ~convert_strides_to_num_elts:false
-      ~exclude_dim
-      srcArray
-      arr.value_type
-      destArray
-    ;
-    currBB
-
-  | Imp.Set ({value = Var id}, rhs) ->
-    let rhs : Llvm.llvalue = compile_value fnInfo rhs in
-    begin match Hashtbl.find_option fnInfo.named_values (ID.to_str id) with
-      | None -> failwith  ("unknown variable name " ^ (ID.to_str id))
-      | Some register ->
-        let instr = Llvm.build_store rhs register fnInfo.builder in
-        currBB
-    end
-
-  | other ->
-    failwith $ Printf.sprintf "[Imp_to_LLVM] Unsupported statement %s"
-    (Imp.stmt_to_str other)
+  | Imp.Set(lhs, rhs) -> compile_set fnInfo lhs rhs; currBB
 
 module Init = struct
   let rec compile_dim fnInfo = function
@@ -882,28 +857,43 @@ module Init = struct
     let varName = ID.to_str id in
     Llvm.set_value_name varName param;
     let stackVal =
-      match List.mem id fnInfo.input_ids, ImpType.is_scalar impT with
-      (* scalar input *)
-      | true, true ->
-        let stackVal = Llvm.build_alloca llvmT varName fnInfo.builder in
-        Llvm.build_store param stackVal fnInfo.builder;
-        stackVal
-      (* scalar output *)
-      | false, true ->
-        let ptrT = Llvm.pointer_type llvmT in
-        let ptrName = varName^"_scalar_ptr" in
-        Llvm.build_inttoptr param ptrT ptrName fnInfo.builder
-      (* input or output arrays are just int64's which can be cast into*)
-      (* struct pointers. Make local copies of their metadata *)
+      match impT with
+      | ImpType.VectorT _
+      | ImpType.ScalarT _ ->
+        if List.mem id fnInfo.input_ids then (
+          (* scalar input *)
+          let stackVal = Llvm.build_alloca llvmT varName fnInfo.builder in
+          Llvm.build_store param stackVal fnInfo.builder;
+          stackVal
+        )
+        else
+          (* scalar output *)
+          let ptrT = Llvm.pointer_type llvmT in
+          let ptrName = varName^"_scalar_ptr" in
+          Llvm.build_inttoptr param ptrT ptrName fnInfo.builder
       | _ ->
+        (* some sort of array *)
         let ptrT = Llvm.pointer_type llvmT in
         let ptrName = varName^"_ptr" in
         let paramPtr = Llvm.build_inttoptr param ptrT ptrName fnInfo.builder in
-        let local =
-          allocate_local_array_info fnInfo varName impT llvmT
-        in
-        copy_array_metadata fnInfo paramPtr impT local;
-        local
+
+        begin match impT with
+        | ImpType.ArrayT _ ->
+          (* input or output arrays are just int64's which can be cast into*)
+          (* struct pointers. Make local copies of their metadata *)
+          let local = allocate_local_array_info fnInfo varName impT llvmT in
+          copy_array_metadata fnInfo paramPtr impT local;
+          local
+        | ImpType.PtrT(eltT, Some len) ->
+          Hashtbl.add array_field_cache (paramPtr, Imp.PtrData) paramPtr;
+          Hashtbl.add array_field_cache (paramPtr, Imp.PtrLen) (mk_int32 len);
+          paramPtr
+        | _ ->
+          failwith $
+            Printf.sprintf
+              "[Imp_to_LLVM] Initialization for %s not implemented"
+              (ImpType.to_str impT)
+       end
     in
     Hashtbl.add fnInfo.named_values varName stackVal
 
