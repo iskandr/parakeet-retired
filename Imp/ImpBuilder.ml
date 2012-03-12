@@ -30,6 +30,12 @@ let rec remove_pos_from_list  ?(curr=0) pos = function
     if curr = pos then xs
     else x :: (remove_pos_from_list ~curr:(curr+1) pos xs)
 
+let is_simple {value} = match value with
+  | Var _
+  | Const _
+  | VecConst _
+  | CudaInfo _ -> true
+  | _ -> false
 
 class builder (info:fn_info) = object (self)
   val stmts : stmt DynArray.t = DynArray.create ()
@@ -71,16 +77,8 @@ class builder (info:fn_info) = object (self)
 
 (* nested values on the RHS should be constants or variables *)
   method flatten_simple valNode =
-    (* Printf.printf "[ImpBuilder.flatten_simple] %s\n%!"
-      (Imp.value_node_to_str valNode)
-    ;
-    *)
-    match valNode.value with
-    | Var _
-    | Const _
-    | VecConst _
-    | CudaInfo _ -> valNode
-    | _ -> self#mk_temp valNode
+    if is_simple valNode then valNode
+    else self#mk_temp valNode
 
 
   (* LHS of assignment should be either variable, vecslice, or idx *)
@@ -276,10 +274,12 @@ class builder (info:fn_info) = object (self)
     )
 
   method inline (impFn:Imp.fn) (inputs:value_nodes) (outputs:value_nodes) =
+    let simpleInputs =  List.map self#flatten_simple inputs in
+    let simpleOutputs = List.map self#flatten_simple outputs in
     let nonlocalEnv =
       ID.Map.of_lists
         (impFn.input_ids @ impFn.output_ids)
-        (inputs @ outputs)
+        (simpleInputs @ simpleOutputs)
     in
     let rec rewrite_dim = function
       | SymbolicShape.Dim(id, axis) ->
@@ -312,7 +312,15 @@ class builder (info:fn_info) = object (self)
       ID.Map.extend nonlocalEnv impFn.local_ids newLocalVars
     in
     let newBody = ImpReplace.replace_block replaceEnv impFn.body in
-    self#concat_list newBody
+    self#concat_list newBody;
+    List.iter2
+      (fun originalOutput simpleOutputVar ->
+         if not (is_simple originalOutput) then
+          self#append $ Set(originalOutput, simpleOutputVar)
+      )
+      outputs
+      simpleOutputs
+
 end
 
 

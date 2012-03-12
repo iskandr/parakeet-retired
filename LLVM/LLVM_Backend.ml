@@ -39,7 +39,8 @@ let optimize_module llvmModule llvmFn : unit =
   (* Promote allocas to registers. *)
   Llvm_scalar_opts.add_verifier pm;
   (* memory to register *)
-  Llvm_scalar_opts.add_memory_to_register_promotion pm;
+
+    Llvm_scalar_opts.add_memory_to_register_promotion pm;
   Llvm_scalar_opts.add_scalar_repl_aggregation_ssa pm;
   Llvm_scalar_opts.add_scalar_repl_aggregation pm;
 
