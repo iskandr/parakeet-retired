@@ -150,30 +150,6 @@ let required_scalar_op_types op argtypes =
             (Type.type_list_to_str argtypes)
         in
         raise (TypeError(errMsg, None))
-(*
-let infer_typed_adverb_result
-      ?src
-      (info : (TypedSSA.fn, Type.t list, int) Adverb.info) : Type.t list =
-  let eltTypes = TypedSSA.FnHelpers.input_types info.adverb_fn in
-  let eltResultTypes = TypedSSA.FnHelpers.output_types info.adverb_fn in
-  match info.adverb, info.init  with
-  | Adverb.Map, None -> Type.increase_ranks info.axes eltResultTypes
-  | Adverb.Reduce, None ->
-    if List.length eltResultTypes <> 1 then
-      raise $
-        TypeError("Reduce without inital args must return one value", src)
-    else if List.length eltTypes - List.length adverb.fixed_args <> 2 then
-      raise $
-        TypeError("Reduce without initial args requires binary operator", src)
-    else eltResultTypes
-  | Adverb.Reduce, Some inits -> failwith "Reduce with inits not implemented"
-  | Adverb.Map, Some _ ->
-    raise $ TypeError("Map can't have initial values", src)
-  | Adverb.AllPairs, Some _ ->
-    raise $ TypeError("AllPairs can't take initial arguments", src)
-*)
-
-
 
 (* Eek, a mutable type environment! Ain't it the devil? *)
 module TypeEnv : sig
@@ -428,25 +404,30 @@ module Make (P : TYPE_ANALYSIS_PARAMS) = struct
       ENDIF;
       List.iter2 TypeEnv.merge_type ids types
     | If(_, tBlock, fBlock, phiNodes) ->
-        analyze_block tBlock;
-        analyze_block fBlock;
-        analyze_phi_nodes phiNodes
+      analyze_block tBlock;
+      analyze_block fBlock;
+      analyze_phi_nodes phiNodes
     | WhileLoop(condBlock, _, body, phiNodes) ->
-       let old_type_env_version = ref (TypeEnv.version()) in
-       init_phi_nodes phiNodes;
-       let maxIters = 100 in
-       let iter = ref 0 in
-       while !old_type_env_version <> TypeEnv.version() do
-         old_type_env_version := TypeEnv.version ();
-         iter := !iter + 1;
-         if !iter > maxIters then
-           raise $ TypeError("loop analysis failed to terminate", src)
-         else (
-            analyze_block condBlock;
-            analyze_block body;
-            analyze_phi_nodes phiNodes
+      let old_type_env_version = ref (TypeEnv.version()) in
+      init_phi_nodes phiNodes;
+      let maxIters = 100 in
+      let iter = ref 0 in
+      while !old_type_env_version <> TypeEnv.version() do
+        old_type_env_version := TypeEnv.version ();
+        iter := !iter + 1;
+        if !iter > maxIters then
+          raise $ TypeError("loop analysis failed to terminate", src)
+        else (
+           analyze_block condBlock;
+           analyze_block body;
+           analyze_phi_nodes phiNodes
         )
       done
+    | SetIdx (arr, indices, rhs) ->
+      (* assume everything else about arr, indices, rhs will be figured out*)
+      (* elsewhere *)
+      ()
+
   and analyze_block (block:UntypedSSA.block) : unit =
     Block.iter_forward analyze_stmt block
 
