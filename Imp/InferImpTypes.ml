@@ -61,8 +61,14 @@ module ImpTypeAnalysis(P:IMP_TYPE_PARAMS) = struct
         "[ImpInferTypes] invalid value: " ^ (TypedSSA.value_to_str other)
 
   let infer_array_prim arrayOp args retTypes =
-    (* for now just assume every array operator creates a fresh array *)
     List.map simple_conversion retTypes
+    (*match arrayOp, args with
+      | Prim.Shape, [array] ->
+        [ImpType.PtrT(Type.Int32T, Some (Type.rank array.value_type))]
+      | Prim.Shape, _ -> assert false
+      | _ ->
+       (* for now just assume every array operator creates a fresh array *)
+     *)
 
   let exp tenv {exp; exp_types} helpers : ImpType.t list =
     match exp with
