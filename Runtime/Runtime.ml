@@ -23,7 +23,7 @@ module rec Scheduler : SCHEDULER = struct
   let machine_model = MachineModel.machine_model
   let value_to_host v = DataManager.to_memspace HostMemspace.id v
 
-  let call (fn : TypedSSA.fn) (args:values) =
+  let call (fn:TypedSSA.fn) (args:values) =
     (* for now, if we schedule a function which contains an adverb, *)
     (* never compile it but instead run the body in the interpreter *)
     let hasAdverb = AdverbHelpers.fn_has_adverb fn in
@@ -43,7 +43,7 @@ module rec Scheduler : SCHEDULER = struct
       List.map DataManager.from_memspace results
     else Interp.eval_call fn args
 
-  let adverb (info: (TypedSSA.fn, values, values) Adverb.info) =
+  let adverb (info:(TypedSSA.fn, values, values) Adverb.info) =
     let results : Ptr.t Value.t list =
       LLVM_Backend.adverb $
         Adverb.apply_to_fields
@@ -54,10 +54,10 @@ module rec Scheduler : SCHEDULER = struct
     in
     List.map DataManager.from_memspace results
 
-  let array_op (op : Prim.array_op) (args : value list) = assert false
+  let array_op (op:Prim.array_op) (args:value list) = assert false
 end
 and Interp : INTERP = struct
-  let eval_value (valNode : TypedSSA.value_node) : value =
+  let eval_value (valNode:TypedSSA.value_node) : value =
     match valNode.value with
     | Var id -> Env.lookup id
     | Num n -> Value.Scalar n
@@ -65,7 +65,7 @@ and Interp : INTERP = struct
       let valStr = TypedSSA.value_to_str valNode.value in
       failwith ("[eval_value] values of this type not implemented: " ^ valStr)
 
-  let eval_values (valNodes : TypedSSA.value_nodes) : value list =
+  let eval_values (valNodes:TypedSSA.value_nodes) : value list =
     List.map eval_value valNodes
 
   let eval_phi_node cond phiNode : unit =
@@ -77,7 +77,7 @@ and Interp : INTERP = struct
   let eval_phi_nodes cond phiNodes = List.iter (eval_phi_node cond) phiNodes
 
   let rec eval_block block = Block.iter_forward eval_stmt block
-  and eval_stmt (stmtNode : TypedSSA.stmt_node) : unit =
+  and eval_stmt (stmtNode:TypedSSA.stmt_node) : unit =
     match stmtNode.stmt with
     | Set (ids, expNode) -> Env.set_bindings ids (eval_exp expNode)
     | SetIdx (id, indices, rhs) -> assert false
@@ -98,7 +98,7 @@ and Interp : INTERP = struct
         cond := eval_value testVal
       done
 
-  and eval_exp (expNode : TypedSSA.exp_node) : value list =
+  and eval_exp (expNode:TypedSSA.exp_node) : value list =
     match expNode.exp with
     | Values valNodes -> eval_values valNodes
     | Arr elts ->
@@ -141,7 +141,7 @@ and Interp : INTERP = struct
     Env.pop_env ();
     outputs
 
-  and eval_scalar_op (op : Prim.scalar_op) (args : value list) =
+  and eval_scalar_op (op:Prim.scalar_op) (args:value list) =
     (* whether the scalar is a GpuVal, a HostVal or an interpreter scalar, put *)
     (* them all into hostvals*)
     let nums = List.map Value.to_num args in
@@ -158,7 +158,7 @@ and Interp : INTERP = struct
     | op, _ -> Value.Scalar (MathEval.eval_pqnum_op op nums)
 end
 
-let call (fn:TypedSSA.fn) (hostData: Ptr.t Value.t list) : Ptr.t Value.t list =
+let call (fn:TypedSSA.fn) (hostData:Ptr.t Value.t list) : Ptr.t Value.t list =
   Env.push_env ();
   let inputs : values = List.map DataManager.from_memspace hostData in
   let outputVals : values = Scheduler.call fn inputs in

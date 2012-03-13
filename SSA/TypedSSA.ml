@@ -25,7 +25,7 @@ module CoreLanguage = struct
     | Cast of Type.t * value_node
 
 	type exp_node = {
-	  exp: exp;
+	  exp : exp;
 	  exp_src : SrcInfo.t option;
 	  exp_types : Type.t list
 	}
@@ -41,8 +41,8 @@ module CoreLanguage = struct
     | WhileLoop of block * value_node * block *  phi_nodes
 
   and stmt_node = {
-    stmt: stmt;
-    stmt_src: SrcInfo.t option;
+    stmt : stmt;
+    stmt_src : SrcInfo.t option;
     stmt_id : StmtId.t;
   }
   and block = stmt_node Block.t
@@ -52,23 +52,23 @@ module CoreLanguage = struct
   let rec get_stmt_src_info {stmt; stmt_src} =
     if stmt_src <> None then stmt_src
     else match stmt with
-    | If(_, tBlock, fBlock, _) ->
-      let tSrc = get_block_src_info tBlock in
-      if tSrc = None then get_block_src_info fBlock
-      else tSrc
-    | WhileLoop(condBlock, _, body, _) ->
-      let condSrc = get_block_src_info condBlock in
-      if condSrc = None then get_block_src_info body
-      else condSrc
-    | _ -> None
+      | If(_, tBlock, fBlock, _) ->
+        let tSrc = get_block_src_info tBlock in
+        if tSrc = None then get_block_src_info fBlock
+        else tSrc
+      | WhileLoop(condBlock, _, body, _) ->
+        let condSrc = get_block_src_info condBlock in
+        if condSrc = None then get_block_src_info body
+        else condSrc
+      | _ -> None
   and get_block_src_info block = Block.find_first get_stmt_src_info block
 
   type tenv = Type.t ID.Map.t
   type fn = {
-    body: block;
+    body : block;
     tenv : tenv;
-    input_ids: ID.t list;
-    output_ids: ID.t list;
+    input_ids : ID.t list;
+    output_ids : ID.t list;
     fn_input_types : Type.t list;
     fn_output_types : Type.t list;
     fn_id : FnId.t;
@@ -154,12 +154,12 @@ end
 include PrettyPrinters
 
 module WrapHelpers = struct
-let wrap_value ?src ty value  =
-      { value = value; value_src = src; value_type = ty }
-let wrap_exp valNode =
-    { exp = Values [valNode]; exp_src = None; exp_types = [valNode.value_type]}
-let wrap_stmt ?src stmt =
-    { stmt = stmt; stmt_src = src; stmt_id = StmtId.gen() }
+  let wrap_value ?src ty value  =
+    {value = value; value_src = src; value_type = ty}
+  let wrap_exp valNode =
+    {exp = Values [valNode]; exp_src = None; exp_types = [valNode.value_type]}
+  let wrap_stmt ?src stmt =
+    {stmt = stmt; stmt_src = src; stmt_id = StmtId.gen()}
 end
 include WrapHelpers
 
@@ -173,8 +173,8 @@ module EmptyHelpers = struct
   let is_empty_exp = function Values [] -> true | _ -> false
   let is_empty_exp_node {exp} = is_empty_exp exp
   let is_empty_stmt {stmt} = match stmt with
-  | Set([], expNode)-> is_empty_exp_node expNode
-  | _ -> false
+    | Set([], expNode)-> is_empty_exp_node expNode
+    | _ -> false
 end
 include EmptyHelpers
 
@@ -189,11 +189,11 @@ module ValueHelpers = struct
   let get_ids valNodes = List.map get_id valNodes
 
   let var ?src ty (id:ID.t) : value_node =
-    { value = Var id; value_src = src; value_type = ty }
+    {value = Var id; value_src = src; value_type = ty}
 
   let num ?src n =
     let ty = Type.ScalarT (ParNum.type_of n) in
-    { value = Num n; value_type = ty; value_src = src }
+    {value = Num n; value_type = ty; value_src = src}
 
   let bool ?src b = num ?src (ParNum.Bool b)
   let int32 ?src i = num ?src (ParNum.coerce_int i Type.Int32T)
@@ -235,10 +235,10 @@ module FnHelpers = struct
 	  }
 	let fn_builder
 	    ?name
-	    ~(input_types : Type.t list)
-	    ~(output_types : Type.t list)
+	    ~(input_types:Type.t list)
+	    ~(output_types:Type.t list)
 	    ?(local_types = [])
-	    (construct : value_nodes * value_nodes * value_nodes -> stmt_node list) =
+	    (construct:value_nodes * value_nodes * value_nodes -> stmt_node list) =
 	  IFDEF DEBUG THEN
 	    Printf.printf
 	      "[SSA_Helpers.mk_fn] name: %s, input_types = %s, output_types = %s\n%!"
@@ -287,7 +287,7 @@ include FnHelpers
 
 module ExpHelpers = struct
   let primapp ?src prim ~output_types args =
-    { exp = PrimApp (prim, args); exp_src = src; exp_types = output_types}
+    {exp = PrimApp (prim, args); exp_src = src; exp_types = output_types}
 
   let arr ?src argTypes elts =
     let resultT = match argTypes with
@@ -298,21 +298,21 @@ module ExpHelpers = struct
         "Invalid array element types: %s"
         (Type.type_list_to_str others)
     in
-    { exp=Arr elts; exp_src=src; exp_types = [resultT] }
+    {exp=Arr elts; exp_src=src; exp_types = [resultT]}
 
-  let val_exp ?src ty (v: value) =
-    { exp=Values [wrap_value ?src ty v]; exp_src=src; exp_types = [ty] }
+  let val_exp ?src ty (v:value) =
+    {exp=Values [wrap_value ?src ty v]; exp_src=src; exp_types = [ty]}
 
-  let vals_exp ?src types ( vs : value list) =
-  let valNodes = List.map2 (fun v ty -> wrap_value ?src ty v) vs types in
-  { exp = Values valNodes; exp_src = src; exp_types=types }
+  let vals_exp ?src types (vs:value list) =
+    let valNodes = List.map2 (fun v ty -> wrap_value ?src ty v) vs types in
+    {exp = Values valNodes; exp_src = src; exp_types=types}
 
-  let cast ?src t v = { exp = Cast(t, v); exp_types = [t]; exp_src = src }
+  let cast ?src t v = {exp = Cast(t, v); exp_types = [t]; exp_src = src}
 
-  let exp ?src types exp = { exp= exp; exp_types = types; exp_src = src}
+  let exp ?src types exp = {exp= exp; exp_types = types; exp_src = src}
 
   let call ?src fnId outTypes args  =
-    { exp = Call(fnId, args); exp_types = outTypes; exp_src=src}
+    {exp = Call(fnId, args); exp_types = outTypes; exp_src=src}
 end
 include ExpHelpers
 
