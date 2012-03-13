@@ -132,26 +132,26 @@ module Indexing = struct
 
   let get_array_field_addr (fnInfo:fn_info) (array:llvalue) field : llvalue =
     match Hashtbl.find_option array_field_addr_cache (array, field) with
-      | None ->
-        let resultName =
-          (Llvm.value_name array) ^ "."^(Imp.array_field_to_str field)^".addr"
-        in
-        let indices = [|zero_i32; mk_int32 (Imp.array_field_pos field) |] in
-        Llvm.build_gep array indices resultName fnInfo.builder
-      | Some ptr -> ptr
+    | None ->
+      let resultName =
+        (Llvm.value_name array) ^ "."^(Imp.array_field_to_str field)^".addr"
+      in
+      let indices = [|zero_i32; mk_int32 (Imp.array_field_pos field) |] in
+      Llvm.build_gep array indices resultName fnInfo.builder
+    | Some ptr -> ptr
 
   let array_field_cache : (llvalue * Imp.array_field, llvalue) Hashtbl.t =
     Hashtbl.create 127
 
   let get_array_field (fnInfo:fn_info) (array:llvalue) field : llvalue =
     match Hashtbl.find_option array_field_cache (array, field) with
-      | None ->
-        let resultName =
-          Llvm.value_name array ^ "."^ Imp.array_field_to_str field
-        in
-        let addr = get_array_field_addr fnInfo array field in
-        Llvm.build_load addr resultName fnInfo.builder
-      | Some fieldPtr -> fieldPtr
+    | None ->
+      let resultName =
+        Llvm.value_name array ^ "."^ Imp.array_field_to_str field
+      in
+      let addr = get_array_field_addr fnInfo array field in
+      Llvm.build_load addr resultName fnInfo.builder
+    | Some fieldPtr -> fieldPtr
 
   let get_array_strides_elt (fnInfo:fn_info) (array:llvalue) (idx:int) =
     let strides : llvalue  = get_array_field fnInfo array ArrayStrides in
@@ -167,14 +167,13 @@ module Indexing = struct
     Llvm.build_load stridePtr resultName fnInfo.builder
 
   let get_array_shape_elt (fnInfo:fn_info) (array:llvalue) (idx:int) =
-
     let shape : llvalue  = get_array_field fnInfo array ArrayShape in
     let eltPtr : llvalue =
       if idx <> 0 then
         Llvm.build_gep shape [|mk_int32 idx|] "shape_ptr" fnInfo.builder
       else shape
-  in
-  Llvm.build_load eltPtr ("dim" ^ (string_of_int idx) ^ "_") fnInfo.builder
+    in
+    Llvm.build_load eltPtr ("dim" ^ (string_of_int idx) ^ "_") fnInfo.builder
 
   (* convert a list of indices into an address offset *)
   let rec compute_offset
@@ -519,7 +518,6 @@ let compile_var ?(do_load=true) fnInfo (id:ID.t) =
 
 (* Change to function? *)
 let rec compile_value ?(do_load=true) fnInfo (impVal:Imp.value_node) =
-
   IFDEF DEBUG THEN
     Printf.printf "[Imp_to_LLVM.compile_value] %s\n%!"
       (Imp.value_node_to_str impVal)
@@ -549,7 +547,6 @@ let rec compile_value ?(do_load=true) fnInfo (impVal:Imp.value_node) =
     let llvmArray = compile_value ~do_load:false fnInfo arr in
     (*llvm_printf "\t array = %p\n" [llvmArray] fnInfo.builder;*)
     (*debug "getting indices" fnInfo.builder;*)
-
     let llvmIndices = List.map (compile_value fnInfo) indices in
     begin match impVal.value_type with
       | ImpType.VectorT (imp_elt_t, width) ->
@@ -563,7 +560,6 @@ let rec compile_value ?(do_load=true) fnInfo (impVal:Imp.value_node) =
               String.concat ", " $ List.map (fun _ -> "%d") llvmIndices
             in
             (*debug "computing addr" fnInfo.builder;*)
-
             let idxAddr =
               compile_arr_idx llvmArray llvmIndices imp_elt_t fnInfo
             in
@@ -595,14 +591,13 @@ and compile_dimsize fnInfo (arr:Imp.value_node) (idx:Imp.value_node) =
   let llvmArr = compile_value ~do_load:false fnInfo arr in
   let shape = get_array_field fnInfo llvmArr ArrayShape in
   match idx.Imp.value with
-    | Imp.Const n ->
-      get_array_shape_elt fnInfo llvmArr ( ParNum.to_int n)
-    | _ ->
-     (* if index isn't constant, compile it  *)
-     let llvmIdx = compile_value fnInfo idx in
-     let dimPtr = Llvm.build_gep shape [|llvmIdx|] "dim_ptr" fnInfo.builder in
-     Llvm.build_load dimPtr "dim" fnInfo.builder
-
+  | Imp.Const n ->
+    get_array_shape_elt fnInfo llvmArr ( ParNum.to_int n)
+  | _ ->
+    (* if index isn't constant, compile it  *)
+    let llvmIdx = compile_value fnInfo idx in
+    let dimPtr = Llvm.build_gep shape [|llvmIdx|] "dim_ptr" fnInfo.builder in
+    Llvm.build_load dimPtr "dim" fnInfo.builder
 
 let compile_set fnInfo lhs rhs =
   let lhsImpT = lhs.Imp.value_type in
