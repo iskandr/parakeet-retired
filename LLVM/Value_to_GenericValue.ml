@@ -171,7 +171,7 @@ let rec delete_llvm_ptr ptr = function
     let data = HostMemspace.get_int64 ptr 0 in
     (*delete_llvm_ptr data*)
     HostMemspace.free ptr;
-    failwith "Don't know how to clean up slice memory"
+    failwith "Don't know how to clean up shift memory"
   | ImpType.RangeT _ -> HostMemspace.free ptr
 
 (* Note: this doesn't delete the data, only the gv struct *)

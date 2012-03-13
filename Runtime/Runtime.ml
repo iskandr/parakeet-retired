@@ -29,7 +29,7 @@ module rec Scheduler : SCHEDULER = struct
     let hasAdverb = AdverbHelpers.fn_has_adverb fn in
     let shapely = ShapeInference.typed_fn_is_shapely fn in
     IFDEF DEBUG THEN
-     Printf.printf
+      Printf.printf
         "[Scheduler] Calling %s with args %s (has_adverb = %b, shapely=%b)\n%!"
         (FnId.to_str fn.TypedSSA.fn_id)
         (String.concat ", " (List.map Value.to_str args))
@@ -113,10 +113,9 @@ and Interp : INTERP = struct
         | _ -> failwith "[eval] expected scalar"
       )
     | Cast (t, valNode) -> failwith "[eval] cast only implemented for scalars"
-
     (* first order array operators only *)
     | PrimApp (Prim.ArrayOp op, args) ->
-       Scheduler.array_op op (eval_values args)
+      Scheduler.array_op op (eval_values args)
     | PrimApp (Prim.ScalarOp op, args) ->
       [eval_scalar_op op (eval_values args)]
     | Call (fnId, args) ->
@@ -129,14 +128,13 @@ and Interp : INTERP = struct
           ~fn:FnManager.get_typed_function
           ~values:eval_values
           ~axes:eval_values
-
-  | _ ->
+    | _ ->
       failwith $ Printf.sprintf
         "[eval_exp] no implementation for: %s\n"
         (TypedSSA.exp_node_to_str expNode)
 
   and eval_call (fn:TypedSSA.fn) (args:values) =
-    Env.push_env();
+    Env.push_env ();
     Env.set_bindings fn.input_ids args;
     eval_block fn.body;
     let outputs = List.map Env.lookup fn.output_ids in

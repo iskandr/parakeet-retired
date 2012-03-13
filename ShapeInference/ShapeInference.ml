@@ -58,7 +58,7 @@ module ShapeAnalysis (P: PARAMS) =  struct
       phi_set env id leftShape
 
     let infer_adverb
-          {Adverb.adverb; adverb_fn; fixed_args; axes; init; array_args } =
+        {Adverb.adverb; adverb_fn; fixed_args; axes; init; array_args} =
       let maxShape, maxRank = SymbolicShape.argmax_rank array_args in
       (* split dims into those that are part of the adverb and *)
       (* those that are held constant *)
@@ -75,7 +75,7 @@ module ShapeAnalysis (P: PARAMS) =  struct
         let callResultShapes = P.output_shapes adverb_fn inputShapes in
         List.map (fun shape -> loopDims @ shape) callResultShapes
       | Adverb.Map, Some _, _ ->
-        raise  (ShapeInferenceFailure "Unexpected init arg to Map")
+        raise (ShapeInferenceFailure "Unexpected init arg to Map")
       | Adverb.AllPairs, None, [_; _] ->
         let inputShapes = fixed_args @ eltShapes in
         let callResultShapes = P.output_shapes adverb_fn inputShapes in
@@ -93,7 +93,7 @@ module ShapeAnalysis (P: PARAMS) =  struct
                 "Reduction operator must return same rank as initial value")
             else [result]
           | _ ->
-           raise (ShapeInferenceFailure "Reduce operator must return 1 result")
+            raise (ShapeInferenceFailure "Reduce operator must return 1 result")
         end
       | Adverb.Reduce, None, _ ->
         let errMsg = "Too many inputs for Reduce without init" in
@@ -148,8 +148,8 @@ module ShapeAnalysis (P: PARAMS) =  struct
         failwith "Unsupported array operator %s with args %s"
 
     let infer_primapp
-          (op:Prim.t)
-          (args : SymbolicShape.t list) : SymbolicShape.t list =
+        (op:Prim.t)
+        (args : SymbolicShape.t list) : SymbolicShape.t list =
       match op, args with
       | Prim.ArrayOp arrayOp, _ -> [infer_array_op arrayOp args]
       | Prim.ScalarOp _, args
@@ -196,26 +196,26 @@ module ShapeAnalysis (P: PARAMS) =  struct
           in
           raise (ShapeInferenceFailure errMsg)
 
-      let stmt env stmtNode helpers = match stmtNode.stmt with
+    let stmt env stmtNode helpers = match stmtNode.stmt with
       | Set(ids, rhs) ->
-          let newShapes = exp env rhs helpers in
-          IFDEF DEBUG THEN
-            if List.length ids <> List.length newShapes then
-              let errMsg =
-                "Shape inference error in stmt '" ^
-                (TypedSSA.stmt_node_to_str stmtNode) ^
-                "': number of IDs must match number of rhs shapes"
-              in
-              raise (ShapeInferenceFailure errMsg)
-          ENDIF;
-          let prevDefined = List.for_all (fun id ->ID.Map.mem id env) ids in
-          let changed =
-            not prevDefined ||
-            let oldShapes = List.map (fun id -> ID.Map.find id env) ids in
-            List.exists2 (<>) oldShapes newShapes
-          in
-          if not changed then None
-          else
+        let newShapes = exp env rhs helpers in
+        IFDEF DEBUG THEN
+          if List.length ids <> List.length newShapes then
+            let errMsg =
+              "Shape inference error in stmt '" ^
+              (TypedSSA.stmt_node_to_str stmtNode) ^
+              "': number of IDs must match number of rhs shapes"
+            in
+            raise (ShapeInferenceFailure errMsg)
+        ENDIF;
+        let prevDefined = List.for_all (fun id ->ID.Map.mem id env) ids in
+        let changed =
+          not prevDefined ||
+          let oldShapes = List.map (fun id -> ID.Map.find id env) ids in
+          List.exists2 (<>) oldShapes newShapes
+        in
+        if not changed then None
+        else
           let env' =
             List.fold_left2
               (fun env id shape -> ID.Map.add id shape env)
@@ -223,7 +223,6 @@ module ShapeAnalysis (P: PARAMS) =  struct
           in
           Some env'
       | _ -> helpers.eval_stmt env stmtNode
-
 end
 
 (* given a dim expression (one elt of a shape) which may reference
@@ -231,9 +230,9 @@ end
 *)
 
 let rec normalize_dim
-          (inputSet: ID.Set.t)
-          (rawShapeEnv: SymbolicShape.t ID.Map.t)
-          (normalizedEnv: SymbolicShape.t ID.Map.t)  = function
+    (inputSet: ID.Set.t)
+    (rawShapeEnv: SymbolicShape.t ID.Map.t)
+    (normalizedEnv: SymbolicShape.t ID.Map.t) = function
   | Dim (id, idx) when not (ID.Set.mem id inputSet) ->
     if ID.Map.mem id normalizedEnv then
       let shape = ID.Map.find id normalizedEnv in
@@ -264,20 +263,19 @@ and normalize_shape inputSet rawShapeEnv normalizedEnv shape
     in
     currDim' :: revDims, normalizedEnv'
   in
-
   let revShape, env' = List.fold_left foldFn ([], normalizedEnv) shape in
   List.rev revShape, env'
 
 let rec normalize_shape_list inputSet rawShapeEnv normalizedEnv = function
   | [] -> [], normalizedEnv
   | shape::rest ->
-      let rest', normalizedEnv' =
-        normalize_shape_list inputSet rawShapeEnv normalizedEnv rest
-      in
-      let shape', normalizedEnv'' =
-        normalize_shape inputSet rawShapeEnv normalizedEnv shape
-      in
-      shape'::rest', normalizedEnv''
+    let rest', normalizedEnv' =
+      normalize_shape_list inputSet rawShapeEnv normalizedEnv rest
+    in
+    let shape', normalizedEnv'' =
+      normalize_shape inputSet rawShapeEnv normalizedEnv shape
+    in
+    shape'::rest', normalizedEnv''
 
 (* cache the normalized output shape expressions of each function. "normalized"
    means the expressions refer to input IDs, which need to be replaced by some
@@ -296,22 +294,22 @@ let normalizedShapeEnvCache : (FnId.t, SymbolicShape.env) Hashtbl.t =
 let rec infer_shape_env (fnTable:FnTable.t) (fundef : TypedSSA.fn) =
   let fnId = fundef.TypedSSA.fn_id in
   match Hashtbl.find_option shapeEnvCache fnId with
-    | Some shapeEnv -> shapeEnv
-    | None  ->
-      begin
-        let module Params : PARAMS = struct
-          let output_shapes fnId argShapes =
-            let fundef = FnTable.find fnId fnTable in
-            infer_call_result_shapes fnTable fundef argShapes
-        end
-        in
-        let module ShapeEval =
-          SSA_Analysis.MkEvaluator(ShapeAnalysis(Params))
-        in
-        let shapeEnv = ShapeEval.eval_fn fundef in
-        Hashtbl.add shapeEnvCache fnId shapeEnv;
-        shapeEnv
+  | Some shapeEnv -> shapeEnv
+  | None  ->
+    begin
+      let module Params : PARAMS = struct
+        let output_shapes fnId argShapes =
+          let fundef = FnTable.find fnId fnTable in
+          infer_call_result_shapes fnTable fundef argShapes
       end
+      in
+      let module ShapeEval =
+        SSA_Analysis.MkEvaluator(ShapeAnalysis(Params))
+      in
+      let shapeEnv = ShapeEval.eval_fn fundef in
+      Hashtbl.add shapeEnvCache fnId shapeEnv;
+      shapeEnv
+    end
 
 and infer_normalized_shape_env (fnTable : FnTable.t) (fundef : TypedSSA.fn) =
   let fnId = fundef.TypedSSA.fn_id in
@@ -384,4 +382,4 @@ let typed_fn_is_shapely fn =
   try
     let _ = infer_shape_env fnTable fn in true
   with
-    | ShapeInferenceFailure _ -> false
+  | ShapeInferenceFailure _ -> false

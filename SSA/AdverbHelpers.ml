@@ -1,8 +1,8 @@
 (* pp: -parser o pa_macro.cmo *)
-open Base
-open Adverb
-open TypedSSA
 
+open Adverb
+open Base
+open TypedSSA
 
 let const_axes valNodes =
   if List.for_all TypedSSA.is_const_int valNodes then
@@ -49,7 +49,7 @@ let adverb_output_types adverb numAxes nestedOutputTypes =
 
 let mk_adverb_exp_node
       ?(src:SrcInfo.t option)
-      (info : (FnId.t, value_nodes, value_nodes) Adverb.info) =
+      (info:(FnId.t, value_nodes, value_nodes) Adverb.info) =
   let numAxes = List.length info.axes in
   let nestedOutputTypes = FnManager.output_types_of_typed_fn info.adverb_fn in
   let outputTypes : Type.t list =
@@ -73,40 +73,38 @@ let mk_adverb_fn
     : TypedSSA.fn =
   assert (info.init  = None);
   match Hashtbl.find_option adverb_fn_cache info with
-    | Some fnId -> FnManager.get_typed_function fnId
-    | None ->
-      let constructor =  function
-       | inputs, outputs, [] ->
-          let fixed, arrays =
-            List.split_nth (List.length info.fixed_args) inputs
-          in
-          let valueInfo = { info with
-            fixed_args = fixed;
-            init = None;
-            array_args = arrays;
-          }
-          in
-          [TypedSSA.set_vals outputs (mk_adverb_exp_node valueInfo)]
-        | _ -> assert false
-      in
-      let nAxes = List.length info.axes in
-      let nestedFnId = info.adverb_fn in
-      let nestedOutputTypes = FnManager.output_types_of_typed_fn nestedFnId in
-      let outputTypes =
-        adverb_output_types info.adverb nAxes nestedOutputTypes
-      in
-      let newfn =
-        TypedSSA.fn_builder
-          ~name:(Adverb.to_str info.adverb ^ "_wrapper")
-          ~input_types:(info.fixed_args @ info.array_args)
-          ~output_types:outputTypes
-          constructor
-
-      in
-      FnManager.add_typed ~optimize:false newfn;
-      Hashtbl.replace adverb_fn_cache info (TypedSSA.fn_id newfn);
-      newfn
-
+  | Some fnId -> FnManager.get_typed_function fnId
+  | None ->
+    let constructor =  function
+      | inputs, outputs, [] ->
+        let fixed, arrays =
+          List.split_nth (List.length info.fixed_args) inputs
+        in
+        let valueInfo = { info with
+          fixed_args = fixed;
+          init = None;
+          array_args = arrays;
+        }
+        in
+        [TypedSSA.set_vals outputs (mk_adverb_exp_node valueInfo)]
+      | _ -> assert false
+    in
+    let nAxes = List.length info.axes in
+    let nestedFnId = info.adverb_fn in
+    let nestedOutputTypes = FnManager.output_types_of_typed_fn nestedFnId in
+    let outputTypes =
+      adverb_output_types info.adverb nAxes nestedOutputTypes
+    in
+    let newfn =
+      TypedSSA.fn_builder
+        ~name:(Adverb.to_str info.adverb ^ "_wrapper")
+        ~input_types:(info.fixed_args @ info.array_args)
+        ~output_types:outputTypes
+        constructor
+    in
+    FnManager.add_typed ~optimize:false newfn;
+    Hashtbl.replace adverb_fn_cache info (TypedSSA.fn_id newfn);
+    newfn
 
 let rec block_has_adverb block = Block.exists stmt_has_adverb block
 and stmt_has_adverb {stmt} = match stmt with

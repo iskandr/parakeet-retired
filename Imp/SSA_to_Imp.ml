@@ -129,16 +129,15 @@ let copy (builder:ImpBuilder.builder) ~from_array ~to_array : unit =
   let toRank = ImpType.rank toType in
   let fromType = from_array.value_type in
   let fromRank = ImpType.rank fromType in
-
   IFDEF DEBUG THEN
     (* allow from_array to be a scalar *)
     if fromRank > 0 && toRank <> fromRank then
       failwith $ Printf.sprintf
-            "[SSA_to_Imp] Can't copy from %s (rank=%d) to %s (rank=%d)"
-            (ImpType.to_str fromType)
-            fromRank
-            (ImpType.to_str toType)
-            toRank
+          "[SSA_to_Imp] Can't copy from %s (rank=%d) to %s (rank=%d)"
+          (ImpType.to_str fromType)
+          fromRank
+          (ImpType.to_str toType)
+          toRank
   ENDIF;
   if toRank = 0 then
     (* "copying" a scalar is just assignment *)
@@ -334,10 +333,9 @@ and translate_stmt (builder : ImpBuilder.builder) stmtNode : unit  =
     builder += Set(impVar, impRhs)
   | TypedSSA.Set(ids, {TypedSSA.exp = TypedSSA.Values vs}) ->
     let set_val id v =
-      builder += Set (builder#var id, translate_value builder v)
+      builder += Set(builder#var id, translate_value builder v)
     in
     List.iter2 set_val ids vs
-
   | TypedSSA.Set _ -> failwith "multiple assignment not supported"
   | TypedSSA.SetIdx(arr, indices, rhs) ->
     let indices : Imp.value_node list = translate_values builder indices in
@@ -385,7 +383,7 @@ and translate_exp (builder:ImpBuilder.builder) expNode : Imp.value_node  =
         firstArg.value_type, ImpType.bool_t
       else
         let retT =
-          ImpType.ScalarT (Type.elt_type (List.hd expNode.TypedSSA.exp_types))
+          ImpType.ScalarT(Type.elt_type (List.hd expNode.TypedSSA.exp_types))
         in
         retT, retT
     in
@@ -412,8 +410,8 @@ and translate_exp (builder:ImpBuilder.builder) expNode : Imp.value_node  =
 
 (* TODO: make this do something sane for adverbs other than Map *)
 and translate_adverb
-    (builder:ImpBuilder.builder)
-    (lhsVars: Imp.value_node list)
+    (builder : ImpBuilder.builder)
+    (lhsVars : Imp.value_node list)
     (info : (TypedSSA.fn, Imp.value_nodes, Imp.value_nodes) Adverb.info)
     : unit  =
   let argTypes = List.map Imp.value_type info.array_args in
@@ -456,7 +454,6 @@ and translate_sequential_adverb
   (* over the axes of the first arg and nested within we loop over the *)
   (* same set of axes of the second arg. *)
   let nAxes = List.length info.axes in
-
   let loops, nestedInputs, nestedOutputs, skipFirstIter =
     match info.adverb, info.init with
     | Adverb.Map, None ->
