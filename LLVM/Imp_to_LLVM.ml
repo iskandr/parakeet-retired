@@ -545,10 +545,10 @@ let rec compile_value ?(do_load=true) fnInfo (impVal:Imp.value_node) =
     let original = compile_value fnInfo v in
     compile_cast fnInfo original v.Imp.value_type t
   | Imp.Idx (arr, indices) ->
-    debug "getting array" fnInfo.builder;
+    (*debug "getting array" fnInfo.builder;*)
     let llvmArray = compile_value ~do_load:false fnInfo arr in
-    llvm_printf "\t array = %p\n" [llvmArray] fnInfo.builder;
-    debug "getting indices" fnInfo.builder;
+    (*llvm_printf "\t array = %p\n" [llvmArray] fnInfo.builder;*)
+    (*debug "getting indices" fnInfo.builder;*)
 
     let llvmIndices = List.map (compile_value fnInfo) indices in
     begin match impVal.value_type with
@@ -577,6 +577,9 @@ let rec compile_value ?(do_load=true) fnInfo (impVal:Imp.value_node) =
       compile_vec_slice llvmArray llvmIdx impVal.value_type fnInfo
     in
     Llvm.build_load idxAddr "vec_index_result" fnInfo.builder
+  | Imp.ArrayField (field, arr) ->
+    let llvmArray = compile_value ~do_load:false fnInfo arr in
+    get_array_field fnInfo llvmArray field
   | _ ->
     failwith $ Printf.sprintf
       "[Imp_to_LLVM] Value not implemented %s"
@@ -602,12 +605,14 @@ and compile_dimsize fnInfo (arr:Imp.value_node) (idx:Imp.value_node) =
 
 
 let compile_set fnInfo lhs rhs =
+  let lhsImpT = lhs.Imp.value_type in
+  let rhsImpT = rhs.Imp.value_type in
   match lhs, rhs with
     | {value=Idx(arr, indices)}, _ ->
       let arrayPtr : Llvm.llvalue = compile_value ~do_load:false fnInfo arr in
       let indexRegisters : Llvm.llvalue list = compile_values fnInfo indices in
       let rhsVal = compile_value fnInfo rhs in
-      begin match rhs.value_type with
+      begin match rhsImpT with
         | ImpType.ScalarT imp_elt_t ->
           let idxAddr =
             compile_arr_idx arrayPtr indexRegisters imp_elt_t fnInfo
@@ -618,7 +623,7 @@ let compile_set fnInfo lhs rhs =
           assert(false);
           (* TODO: the following lines are just to get it to compile. change *)
           let idx = List.hd indexRegisters in
-          let idxAddr = compile_vec_slice arrayPtr idx rhs.value_type fnInfo in
+          let idxAddr = compile_vec_slice arrayPtr idx rhsImpT fnInfo in
           ignore (Llvm.build_store rhsVal idxAddr fnInfo.builder)
         | other ->
           failwith $
@@ -631,9 +636,7 @@ let compile_set fnInfo lhs rhs =
     let arrayPtr : Llvm.llvalue = compile_value ~do_load:false fnInfo arr in
     let indexRegister : Llvm.llvalue = compile_value fnInfo idx in
     let rhsVal = compile_value fnInfo rhs in
-    let idxAddr =
-      compile_vec_slice arrayPtr indexRegister rhs.value_type fnInfo
-    in
+    let idxAddr = compile_vec_slice arrayPtr indexRegister rhsImpT fnInfo in
     ignore (Llvm.build_store rhsVal idxAddr fnInfo.builder)
 
   | {value=Var lhsId}, {value=Imp.FixDim(arr, dim, idx); value_type} ->
@@ -655,18 +658,28 @@ let compile_set fnInfo lhs rhs =
       arr.value_type
       destArray
 
-  | {value = Var lhsId}, {value=Imp.ArrayField(Imp.ArrayShape, arr)} ->
-    let destArray = compile_var ~do_load:false fnInfo lhsId in
-    failwith "Shape not implemented"
-
   | {value = Var id}, _  ->
     begin match Hashtbl.find_option fnInfo.named_values (ID.to_str id) with
       | None -> failwith  ("unknown variable name " ^ (ID.to_str id))
-      | Some register ->
+      | Some llvmLhs ->
         let llvmRhs = compile_value fnInfo rhs in
-        ignore (Llvm.build_store llvmRhs register fnInfo.builder)
+        (match lhsImpT, rhsImpT with
+          | ImpType.ArrayT _, ImpType.PtrT(_, Some nelts) ->
+            let dataField = get_array_field_addr fnInfo llvmLhs Imp.ArrayData in
+            ignore $ Llvm.build_store llvmRhs dataField fnInfo.builder;
+            let strides =  get_array_field fnInfo llvmLhs Imp.ArrayStrides in
+            ignore $ Llvm.build_store (mk_int32 1) strides fnInfo.builder;
+            let shape = get_array_field fnInfo llvmLhs Imp.ArrayShape in
+            ignore $ Llvm.build_store (mk_int32 nelts) shape fnInfo.builder
+
+
+          | ImpType.ArrayT _, ImpType.PtrT (_, None) ->
+            failwith "Assignment from unbounded pointer to array not supported"
+          | _ ->
+          ignore (Llvm.build_store llvmRhs llvmLhs fnInfo.builder)
+        )
     end
-  | _ -> failwith "[Imp_to_LLVM] Assignment  not implemented"
+  | _ -> failwith "[Imp_to_LLVM] Assignment not implemented"
 
 
 let rec compile_stmt_seq fnInfo currBB = function
@@ -676,9 +689,9 @@ let rec compile_stmt_seq fnInfo currBB = function
     compile_stmt_seq fnInfo newBB tail
 
 and compile_stmt fnInfo currBB stmt =
-  let () =
+  (*let () =
     llvm_printf (">> " ^ Imp.stmt_to_str stmt ^ "\n") [] fnInfo.builder
-  in
+  in*)
   match stmt with
   | Imp.If (cond, then_, else_) ->
     let llCond = compile_value fnInfo cond in

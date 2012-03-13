@@ -192,7 +192,7 @@ let translate_array_op builder (op:Prim.array_op) (args:Imp.value_node list) =
       | ImpType.ArrayT (_, rank) ->
         {
           value = Imp.ArrayField (Imp.ArrayShape, array);
-          value_type = ImpType.ArrayT(Type.Int32T, 1);
+          value_type = ImpType.PtrT(Type.Int32T, Some rank);
         }
       | ImpType.PtrT _ -> failwith "Shape of raw pointer not yet implemented"
       | _ -> failwith "shape for this array type not yet implemented"
