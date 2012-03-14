@@ -640,13 +640,21 @@ let compile_set fnInfo lhs rhs =
     let destArray = compile_var ~do_load:false fnInfo lhsId in
     let exclude_dim = ImpHelpers.get_const_int dim in
     let excludedStride = get_array_strides_elt fnInfo srcArray exclude_dim in
+    let sliceSize =
+      Llvm.build_mul excludedStride llvmIdx "sliceSize" fnInfo.builder
+    in
+    let eltT = ImpType.elt_type arr.Imp.value_type in 
+    let eltSize = mk_int32 $ Type.sizeof eltT in 
+    let sliceNumElts = 
+      Llvm.build_sdiv sliceSize eltSize "sliceNumElts" fnInfo.builder 
+    in  
     let srcData = get_array_field fnInfo srcArray Imp.ArrayData in
-    let totalIdx =
-      Llvm.build_mul excludedStride llvmIdx "sliceNumElts" fnInfo.builder
+    let newPtr = 
+      Llvm.build_gep srcData [|sliceNumElts|] "fixdimPtr" fnInfo.builder
     in
     copy_array_metadata
       fnInfo
-      ~data_ptr:(Llvm.build_gep srcData [|totalIdx|] "fixdimPtr" fnInfo.builder)
+      ~data_ptr:newPtr
       ~convert_strides_to_num_elts:false
       ~exclude_dim
       srcArray
