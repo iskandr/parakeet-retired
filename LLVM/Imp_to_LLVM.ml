@@ -549,7 +549,11 @@ let rec compile_value ?(do_load=true) fnInfo (impVal:Imp.value_node) =
             compile_range_load llvmArray llvmIndices eltT fnInfo
           | ImpType.ArrayT (eltT, imp_int) ->
             let idxAddr = compile_arr_idx llvmArray llvmIndices eltT fnInfo in
-            Llvm.build_load idxAddr "index_result" fnInfo.builder
+            let result =
+              Llvm.build_load idxAddr "index_result" fnInfo.builder
+            in
+            llvm_printf "~~~~ IDX: *%p = %d\n" [idxAddr; result] fnInfo.builder;
+            result
           | _ -> failwith "Indexing not implemented for this array type"
         end
     end
@@ -589,6 +593,16 @@ and compile_dimsize fnInfo (arr:Imp.value_node) (idx:Imp.value_node) =
 let compile_set fnInfo lhs rhs =
   let lhsImpT = lhs.Imp.value_type in
   let rhsImpT = rhs.Imp.value_type in
+  IFDEF DEBUG THEN
+    let stmtStr =
+      Printf.sprintf
+        "%s = %s"
+        (Imp.value_node_to_str lhs)
+        (Imp.value_node_to_str rhs)
+    in
+    Printf.printf "[Imp_to_LLVM] Compiling statement %s\n" stmtStr;
+    debug (">> " ^ stmtStr) fnInfo.builder;
+  ENDIF;
   match lhs, rhs with
     | {value=Idx(arr, indices)}, _ ->
       let arrayPtr : Llvm.llvalue = compile_value ~do_load:false fnInfo arr in
@@ -682,11 +696,7 @@ let rec compile_stmt_seq fnInfo currBB = function
     compile_stmt_seq fnInfo newBB tail
 
 and compile_stmt fnInfo currBB stmt =
-  IFDEF DEBUG THEN
-    let stmtStr = Imp.stmt_to_str stmt in
-    Printf.printf "[Imp_to_LLVM] Compiling statement %s\n" stmtStr;
-    debug (">> " ^ stmtStr) fnInfo.builder;
-  ENDIF;
+
   match stmt with
   | Imp.Comment _ -> currBB
   | Imp.SyncThreads _ ->
