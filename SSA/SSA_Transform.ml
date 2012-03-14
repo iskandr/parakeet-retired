@@ -65,13 +65,13 @@ module BlockState = struct
     | NoChange -> xDefault
     | Update xNew -> incr_changes blockState; xNew
     | UpdateWithStmts (xNew, stmts) ->
-        incr_changes blockState;
-        add_stmt_list blockState stmts;
-        xNew
+      incr_changes blockState;
+      add_stmt_list blockState stmts;
+      xNew
     | UpdateWithBlock (xNew, block) ->
-        incr_changes blockState;
-        add_block blockState block;
-        xNew
+      incr_changes blockState;
+      add_block blockState block;
+      xNew
 
   let process_stmt_update blockState stmtNode update =
     add_stmt blockState (process_update blockState stmtNode update)
@@ -89,8 +89,6 @@ let stmt_update_to_str = function
   | Update e -> "Update: " ^ (TypedSSA.stmt_node_to_str e)
   | UpdateWithStmts (e, _)-> "UpdateStmts: " ^ (TypedSSA.stmt_node_to_str e)
   | UpdateWithBlock (e, _) -> "UpdateBlock: " ^ (TypedSSA.stmt_node_to_str e)
-
-
 
 module Mk(R: SIMPLE_TRANSFORM_RULES) = struct
   let dir = R.dir
@@ -123,7 +121,7 @@ module Mk(R: SIMPLE_TRANSFORM_RULES) = struct
     let right' = transform_value blockState cxt phiNode.phi_right in
     let phiNode' =
       if blockState.changes <> version then
-        {phiNode with phi_left = left'; phi_right = right' }
+        {phiNode with phi_left = left'; phi_right = right'}
       else phiNode
     in
     process_update blockState phiNode' (R.phi cxt phiNode')
@@ -160,12 +158,12 @@ module Mk(R: SIMPLE_TRANSFORM_RULES) = struct
       else expNode
 
     | Adverb adverbInfo ->
-      let adverbInfo' = 
+      let adverbInfo' =
         Adverb.apply_to_fields adverbInfo
           ~fn:Base.id
           ~values:(transform_values blockState cxt)
           ~axes:(transform_values blockState cxt)
-      in 
+      in
       if changed() then
         { expNode with exp = Adverb adverbInfo' }
       else expNode
@@ -179,11 +177,10 @@ module Mk(R: SIMPLE_TRANSFORM_RULES) = struct
       BlockState.process_stmt_update blockState stmtNode stmtUpdate
     in
     (match R.dir with
-      | Forward -> Block.iter_forward folder block
-      | Backward -> Block.iter_backward folder block
+     | Forward -> Block.iter_forward folder block
+     | Backward -> Block.iter_backward folder block
     );
     BlockState.finalize blockState
-
 
   and stmt cxt blockState stmtNode =
     let oldV = blockState.changes in
@@ -233,8 +230,8 @@ module Mk(R: SIMPLE_TRANSFORM_RULES) = struct
       else stmtNode
     in
     match R.stmt cxt stmtNode' with
-      | NoChange when changed() -> Update stmtNode'
-      | update -> update
+    | NoChange when changed() -> Update stmtNode'
+    | update -> update
 
   (* these exist so we can access the transform env from outside functions, *)
   (* in case it contains useful information *)
@@ -254,11 +251,10 @@ module Mk(R: SIMPLE_TRANSFORM_RULES) = struct
     let body', changed = transform_block cxt fn.body in
     let fn' = { fn with body = body'} in
     match R.finalize cxt fn' with
-      | NoChange -> fn', changed
-      | Update fn'' -> fn'', true
-      | UpdateWithStmts (fn'', stmts) ->
-        { fn'' with body = Block.append (Block.of_list stmts) body'}, true
-      | UpdateWithBlock (fn'', block) ->
-        { fn'' with body = Block.append block body' }, true
+    | NoChange -> fn', changed
+    | Update fn'' -> fn'', true
+    | UpdateWithStmts (fn'', stmts) ->
+      { fn'' with body = Block.append (Block.of_list stmts) body'}, true
+    | UpdateWithBlock (fn'', block) ->
+      { fn'' with body = Block.append block body' }, true
 end
-
