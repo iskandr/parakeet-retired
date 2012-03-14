@@ -2,6 +2,8 @@
 import numpy as np
 import parakeet
 
+parakeet.set_vectorize(False)
+
 @parakeet.PAR
 def dot(x,y):
   return parakeet.reduce(parakeet.add, x*y)
