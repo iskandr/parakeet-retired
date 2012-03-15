@@ -1,15 +1,32 @@
 (* pp: -parser o pa_macro.cmo *)
 
 open Base
+open SSA_Analysis
 open TypedSSA
 
-type work_node = {
-  adverb : adverb_info;
-  input_shapes : Shape.t list;
-  num_seq_stmts : int
+type t = {
+  adverb : adverb_info option;
+  nested_adverbs : t list;
+  num_scalar_ops : int
 }
 
-type t = Node of work_node * work_node list (* node, children *)
+module WorkTreeBuilder = SSA_Analysis.MkEvaluator(struct
+  type env = t
+  type value_info = unit
+  type exp_info = unit
 
-let build_work_tree (fn:TypedSSA.fn) (args:values) =
-  fn
+  let dir = Forward
+  let iterative = false
+
+  let init fn = {adverb=None; nested_adverbs=[]; num_scalar_ops=0}
+
+  let value _ _ = ()
+  let exp _ _ _ = ()
+
+  let phi_set _ _ _ = None
+  let phi_merge set id _ _ = None
+
+  let stmt set stmtNode helpers = None
+end)
+
+let build_work_tree fn = WorkTreeBuilder.eval_fn fn

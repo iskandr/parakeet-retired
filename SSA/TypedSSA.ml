@@ -38,7 +38,7 @@ module CoreLanguage = struct
     | SetIdx of value_node * value_node list * exp_node
     | If of value_node * block * block * phi_nodes
     (* testBlock, testVal, body, loop header, loop exit *)
-    | WhileLoop of block * value_node * block *  phi_nodes
+    | WhileLoop of block * value_node * block * phi_nodes
 
   and stmt_node = {
     stmt : stmt;
@@ -318,28 +318,27 @@ include ExpHelpers
 
 module StmtHelpers = struct
   let stmt ?src ?(id=StmtId.gen()) stmt =
-  {
-    stmt = stmt; stmt_src = src; stmt_id = id
-  }
+    {
+      stmt = stmt; stmt_src = src; stmt_id = id
+    }
 
   let set ?src ids rhs =
-  {
-    stmt = Set(ids, rhs);
-    stmt_src = src;
-    stmt_id = StmtId.gen()
-  }
+    {
+      stmt = Set(ids, rhs);
+      stmt_src = src;
+      stmt_id = StmtId.gen()
+    }
 
   let set_vals ?src xs y = set ?src (get_ids xs) y
 
   let setidx ?src lhs indices rhs =
-  {
-    stmt = SetIdx(lhs, indices, rhs);
-    stmt_src = src;
-    stmt_id = StmtId.gen()
-  }
+    {
+      stmt = SetIdx(lhs, indices, rhs);
+      stmt_src = src;
+      stmt_id = StmtId.gen()
+    }
 end
 include StmtHelpers
-
 
 module ScalarHelpers = struct
   let is_scalar_exp = function

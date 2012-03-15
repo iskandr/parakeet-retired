@@ -1,11 +1,9 @@
 (* pp: -parser o pa_macro.cmo *)
 
 open Base
-
-open TypedSSA
 open Printf
 open SSA_Analysis
-
+open TypedSSA
 
 module ConstEval = SSA_Analysis.MkEvaluator(struct
   type value_info = value ConstantLattice.t
@@ -17,27 +15,24 @@ module ConstEval = SSA_Analysis.MkEvaluator(struct
 
   let init fundef =
     List.fold_left
-      (fun accEnv id  -> ID.Map.add id ConstantLattice.ManyValues accEnv)
+      (fun accEnv id -> ID.Map.add id ConstantLattice.ManyValues accEnv)
       ID.Map.empty
       fundef.input_ids
 
   let value env valNode = match valNode.value with
-
     | Num _ -> ConstantLattice.Const valNode.value
-    | Var id ->
-        (try ID.Map.find id env
-         with _ ->
-          failwith $
-            Printf.sprintf "unbound %s in constant analysis" (ID.to_str id)
-        )
+    | Var id -> (
+      try ID.Map.find id env
+      with _ ->
+        failwith $
+          Printf.sprintf "unbound %s in constant analysis" (ID.to_str id)
+      )
 
-
-  let exp  env expNode helpers  = match expNode.exp with
+  let exp env expNode helpers = match expNode.exp with
     | Values vs -> helpers.eval_values env vs
     | _ -> List.map (fun _ -> ConstantLattice.top) expNode.exp_types
 
   let phi_set env id const =
-
     if ID.Map.mem id env then
       let oldVal = ID.Map.find id env in
       if oldVal <> const then
@@ -49,7 +44,7 @@ module ConstEval = SSA_Analysis.MkEvaluator(struct
   let phi_merge env id leftConst rightConst =
     phi_set env id (ConstantLattice.join leftConst rightConst)
 
-  let stmt env stmtNode helpers  = match stmtNode.stmt with
+  let stmt env stmtNode helpers = match stmtNode.stmt with
     | Set(ids, rhs) ->
       let rhsVals = exp env rhs helpers in
       let oldVals =
@@ -61,7 +56,7 @@ module ConstEval = SSA_Analysis.MkEvaluator(struct
       if List.eq_elts oldVals combined then None
       else (
         IFDEF DEBUG THEN
-            assert (List.length ids = List.length combined);
+          assert (List.length ids = List.length combined);
         ENDIF;
         let env' =
           List.fold_left2 (fun acc id v -> ID.Map.add id v acc) env ids combined
