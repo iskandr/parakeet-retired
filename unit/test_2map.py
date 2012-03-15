@@ -23,7 +23,7 @@ def test_implicit_map():
                 range(90,100)], dtype=np.int32)
   y = implicit_map(x.T)
   y_original = implicit_map.call_original(x.T)
-  print "Python = %s, Parakeet = %s" % (y_original, y)
+  print "Python = %s\n Parakeet = %s" % (y_original, y)
   assert np.all(y_original == y)
 
 if __name__ == '__main__':

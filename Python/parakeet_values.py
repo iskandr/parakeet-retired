@@ -41,11 +41,6 @@ def python_value_to_parakeet(arg):
     rank = len(arg.shape)
     inputShape = arg.ctypes.shape_as(c_int32)
     inputStrides = arg.ctypes.strides_as(c_int32)
-    if rank > 1 and not arg.flags['C_CONTIGUOUS']:
-      # until we have a proper interface for telling parakeet this data is
-      # column-major, we have to manually transpose it
-      # TODO: wouldn't strides be enough to handle this?
-      arg = np.transpose(arg).copy()
     npType = arg.dtype.type
     if ((npType not in numpy_to_c_types) or
         (npType not in numpy_to_parakeet_types)):

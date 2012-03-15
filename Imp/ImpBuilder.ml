@@ -101,10 +101,6 @@ class builder (info:fn_info) = object (self)
 
   (* RHS of an assignment *)
   method flatten_rhs valNode =
-    (*Printf.printf "[ImpBuilder.flatten_rhs] %s\n%!"
-      (Imp.value_node_to_str valNode)
-    ;
-    *)
     Imp.recursively_apply ~delay_level:1 self#flatten_simple valNode
 
   method flatten stmt : stmt =
@@ -114,10 +110,6 @@ class builder (info:fn_info) = object (self)
       stmt
 
   method append stmt : unit =
-    (*Printf.printf "[ImpBuilder.append] Adding %s\n%!"
-      (Imp.stmt_to_str stmt)
-    ;
-    *)
     DynArray.add stmts (self#flatten stmt)
 
   method concat_list stmts = List.iter self#append stmts
@@ -267,12 +259,15 @@ class builder (info:fn_info) = object (self)
     )
 
   method inline (impFn:Imp.fn) (inputs:value_nodes) (outputs:value_nodes) =
+
     let simpleInputs =  List.map self#flatten_simple inputs in
-    let simpleOutputs = List.map self#flatten_simple outputs in
+
+    (*let simpleOutputs = List.map self#flatten_simple outputs in*)
     let nonlocalEnv =
       ID.Map.of_lists
         (impFn.input_ids @ impFn.output_ids)
-        (simpleInputs @ simpleOutputs)
+        (*(simpleInputs @ simpleOutputs)*)
+        (simpleInputs @ outputs)
     in
     let rec rewrite_dim = function
       | SymbolicShape.Dim(id, axis) ->
@@ -303,14 +298,15 @@ class builder (info:fn_info) = object (self)
       ID.Map.extend nonlocalEnv impFn.local_ids newLocalVars
     in
     let newBody = ImpReplace.replace_block replaceEnv impFn.body in
-    self#concat_list newBody;
-    List.iter2
+    self#concat_list newBody
+    (*List.iter2
       (fun originalOutput simpleOutputVar ->
          if not (is_simple originalOutput) then
           self#append $ Set(originalOutput, simpleOutputVar)
       )
       outputs
       simpleOutputs
+    *)
 end
 
 let (+=) builder stmt = builder#append stmt
