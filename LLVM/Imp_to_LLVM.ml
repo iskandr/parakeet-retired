@@ -280,8 +280,9 @@ module Indexing = struct
         if Llvm.is_null offset then currOffset
         else Llvm.build_add offset currOffset "offset" fnInfo.builder
       in
-      llvm_printf "~~~~ i=%d, idx=%d, stride=%d, offset=%d\n"
+      (*llvm_printf "~~~~ i=%d, idx=%d, stride=%d, offset=%d\n"
         [mk_int32 i; currIdx; strideVal; newOffset] fnInfo.builder;
+      *)
       compute_offset fnInfo array ~i:(i+1) ~offset:newOffset otherIndices
     end
   | [] -> offset
@@ -347,9 +348,7 @@ module Indexing = struct
       nelts =
     let destIdx = ref 0 in
     for srcIdx = 0 to nelts - 1 do
-      debug ("copy iter " ^ string_of_int srcIdx) fnInfo.builder;
       if match exclude_dim with None -> true | Some j -> srcIdx <> j then begin
-        debug ("destIdx = "^ string_of_int !destIdx) fnInfo.builder;
         let srcName = Llvm.value_name srcAddr ^ "_src" in
         let src =
           Llvm.build_gep srcAddr [|mk_int64 srcIdx|] srcName fnInfo.builder
@@ -552,7 +551,9 @@ let rec compile_value ?(do_load=true) fnInfo (impVal:Imp.value_node) =
             let result =
               Llvm.build_load idxAddr "index_result" fnInfo.builder
             in
+            (*
             llvm_printf "~~~~ IDX: *%p = %d\n" [idxAddr; result] fnInfo.builder;
+            *)
             result
           | _ -> failwith "Indexing not implemented for this array type"
         end
@@ -614,8 +615,9 @@ let compile_set fnInfo lhs rhs =
           let idxAddr =
             compile_arr_idx arrayPtr indexRegisters imp_elt_t fnInfo
           in
-          llvm_printf
+          (*llvm_printf
             "~~~~ Storing %d at address %p\n" [rhsVal; idxAddr] fnInfo.builder;
+          *)
           ignore (Llvm.build_store rhsVal idxAddr fnInfo.builder)
         | ImpType.VectorT (_, _) ->
           assert(false);
@@ -879,7 +881,8 @@ module Init = struct
            else "(shape=" ^ SymbolicShape.to_str shape ^ ")")
           (Llvm.string_of_lltype llvmT)
       in
-      debug  initStr fnInfo.builder
+      (*debug  initStr fnInfo.builder*)
+      ()
     ENDIF;
     let varName = ID.to_str id in
     let stackVal : llvalue =
@@ -929,7 +932,8 @@ module Init = struct
           (ImpType.to_str impT)
           (Llvm.string_of_lltype llvmT)
       in
-      debug initStr fnInfo.builder
+      (*debug initStr fnInfo.builder*)
+      ()
     ENDIF;
     let varName = ID.to_str id in
     Llvm.set_value_name varName param;
