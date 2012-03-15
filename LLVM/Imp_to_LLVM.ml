@@ -345,9 +345,7 @@ module Indexing = struct
       nelts =
     let destIdx = ref 0 in
     for srcIdx = 0 to nelts - 1 do
-      debug ("copy iter " ^ string_of_int srcIdx) fnInfo.builder;
       if match exclude_dim with None -> true | Some j -> srcIdx <> j then begin
-        debug ("destIdx = "^ string_of_int !destIdx) fnInfo.builder;
         let srcName = Llvm.value_name srcAddr ^ "_src" in
         let src =
           Llvm.build_gep srcAddr [|mk_int64 srcIdx|] srcName fnInfo.builder
@@ -550,6 +548,9 @@ let rec compile_value ?(do_load=true) fnInfo (impVal:Imp.value_node) =
             let result =
               Llvm.build_load idxAddr "index_result" fnInfo.builder
             in
+            (*
+            llvm_printf "~~~~ IDX: *%p = %d\n" [idxAddr; result] fnInfo.builder;
+            *)
             result
           | _ -> failwith "Indexing not implemented for this array type"
         end
@@ -858,6 +859,19 @@ module Init = struct
     let impT = ID.Map.find id fnInfo.imp_types in
     let shape = ID.Map.find id fnInfo.imp_shapes in
     let llvmT = LlvmType.of_imp_type impT in
+    IFDEF DEBUG THEN
+      let initStr =
+        Printf.sprintf
+          "Initializing local %s : %s%s to have lltype %s\n%!"
+          (ID.to_str id)
+          (ImpType.to_str impT)
+          (if SymbolicShape.is_scalar shape then ""
+           else "(shape=" ^ SymbolicShape.to_str shape ^ ")")
+          (Llvm.string_of_lltype llvmT)
+      in
+      (*debug  initStr fnInfo.builder*)
+      ()
+    ENDIF;
     let varName = ID.to_str id in
     let stackVal : llvalue =
       if ImpType.is_scalar impT || ImpType.is_vector impT then
@@ -898,6 +912,16 @@ module Init = struct
   let init_nonlocal_var (fnInfo:fn_info) (id:ID.t) (param:Llvm.llvalue) =
     let impT = ID.Map.find id fnInfo.imp_types in
     let llvmT = LlvmType.of_imp_type impT in
+    IFDEF DEBUG THEN
+      let initStr =
+        Printf.sprintf "Initializing nonlocal %s : %s to have lltype %s\n%!"
+          (ID.to_str id)
+          (ImpType.to_str impT)
+          (Llvm.string_of_lltype llvmT)
+      in
+      (*debug initStr fnInfo.builder*)
+      ()
+    ENDIF;
     let varName = ID.to_str id in
     Llvm.set_value_name varName param;
     let stackVal =
