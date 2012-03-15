@@ -80,7 +80,7 @@ module MkEvaluator(A : ANALYSIS) = struct
       (* evaluate rhs for possible side effects *)
       let _  = A.exp env rhs helpers in
       None
-    | If(cond, tBlock, fBlock,  merge) ->
+    | If(cond, tBlock, fBlock, merge) ->
       ignore (A.value env cond);
       let tEnv, tChanged = eval_block env tBlock in
       let fEnv, fChanged = eval_block tEnv fBlock in

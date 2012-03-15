@@ -280,8 +280,6 @@ module Indexing = struct
         if Llvm.is_null offset then currOffset
         else Llvm.build_add offset currOffset "offset" fnInfo.builder
       in
-      llvm_printf "~~~~ i=%d, idx=%d, stride=%d, offset=%d\n"
-        [mk_int32 i; currIdx; strideVal; newOffset] fnInfo.builder;
       compute_offset fnInfo array ~i:(i+1) ~offset:newOffset otherIndices
     end
   | [] -> offset
@@ -552,7 +550,6 @@ let rec compile_value ?(do_load=true) fnInfo (impVal:Imp.value_node) =
             let result =
               Llvm.build_load idxAddr "index_result" fnInfo.builder
             in
-            llvm_printf "~~~~ IDX: *%p = %d\n" [idxAddr; result] fnInfo.builder;
             result
           | _ -> failwith "Indexing not implemented for this array type"
         end
@@ -601,33 +598,29 @@ let compile_set fnInfo lhs rhs =
         (Imp.value_node_to_str rhs)
     in
     Printf.printf "[Imp_to_LLVM] Compiling statement %s\n" stmtStr;
-    debug (">> " ^ stmtStr) fnInfo.builder;
   ENDIF;
   match lhs, rhs with
-    | {value=Idx(arr, indices)}, _ ->
-      let arrayPtr : Llvm.llvalue = compile_value ~do_load:false fnInfo arr in
-      let indexRegisters : Llvm.llvalue list = compile_values fnInfo indices in
-      let rhsVal = compile_value fnInfo rhs in
-
-      begin match rhsImpT with
-        | ImpType.ScalarT imp_elt_t ->
-          let idxAddr =
-            compile_arr_idx arrayPtr indexRegisters imp_elt_t fnInfo
-          in
-          llvm_printf
-            "~~~~ Storing %d at address %p\n" [rhsVal; idxAddr] fnInfo.builder;
-          ignore (Llvm.build_store rhsVal idxAddr fnInfo.builder)
-        | ImpType.VectorT (_, _) ->
-          assert(false);
-          (* TODO: the following lines are just to get it to compile. change *)
-          let idx = List.hd indexRegisters in
-          let idxAddr = compile_vec_slice arrayPtr idx rhsImpT fnInfo in
-          ignore (Llvm.build_store rhsVal idxAddr fnInfo.builder)
-        | other ->
-          failwith $
-            Printf.sprintf
-              "[Imp_to_LLVM] Unsuported SetIndex for type %s"
-              (ImpType.to_str other)
+  | {value=Idx(arr, indices)}, _ ->
+    let arrayPtr : Llvm.llvalue = compile_value ~do_load:false fnInfo arr in
+    let indexRegisters : Llvm.llvalue list = compile_values fnInfo indices in
+    let rhsVal = compile_value fnInfo rhs in
+    begin match rhsImpT with
+      | ImpType.ScalarT imp_elt_t ->
+        let idxAddr =
+          compile_arr_idx arrayPtr indexRegisters imp_elt_t fnInfo
+        in
+        ignore (Llvm.build_store rhsVal idxAddr fnInfo.builder)
+      | ImpType.VectorT (_, _) ->
+        assert(false);
+        (* TODO: the following lines are just to get it to compile. change *)
+        let idx = List.hd indexRegisters in
+        let idxAddr = compile_vec_slice arrayPtr idx rhsImpT fnInfo in
+        ignore (Llvm.build_store rhsVal idxAddr fnInfo.builder)
+      | other ->
+        failwith $
+          Printf.sprintf
+            "[Imp_to_LLVM] Unsuported SetIndex for type %s"
+            (ImpType.to_str other)
     end
 
   | {value=VecSlice(arr, idx, width)}, _ ->
@@ -688,7 +681,6 @@ let compile_set fnInfo lhs rhs =
     end
   | _ -> failwith "[Imp_to_LLVM] Assignment not implemented"
 
-
 let rec compile_stmt_seq fnInfo currBB = function
   | [] -> currBB
   | head :: tail ->
@@ -696,7 +688,6 @@ let rec compile_stmt_seq fnInfo currBB = function
     compile_stmt_seq fnInfo newBB tail
 
 and compile_stmt fnInfo currBB stmt =
-
   match stmt with
   | Imp.Comment _ -> currBB
   | Imp.SyncThreads _ ->
@@ -760,7 +751,6 @@ module Init = struct
       let arr = compile_var ~do_load:false fnInfo id in
       get_array_shape_elt fnInfo arr axis
 
-
   (* allocate fields without creating a struct to combine them *)
   let allocate_local_shape_and_strides fnInfo name impT =
     let rank = mk_int32 (ImpType.rank impT) in
@@ -806,7 +796,6 @@ module Init = struct
       (ImpType.to_str impT)
       (SymbolicShape.to_str shape)
     ;
-
     let rank = ImpType.rank impT in
     let shapePtr =
       Indexing.get_array_field ~add_to_cache:true fnInfo arr ArrayShape
@@ -869,18 +858,6 @@ module Init = struct
     let impT = ID.Map.find id fnInfo.imp_types in
     let shape = ID.Map.find id fnInfo.imp_shapes in
     let llvmT = LlvmType.of_imp_type impT in
-    IFDEF DEBUG THEN
-      let initStr =
-        Printf.sprintf
-          "Initializing local %s : %s%s to have lltype %s\n%!"
-          (ID.to_str id)
-          (ImpType.to_str impT)
-          (if SymbolicShape.is_scalar shape then ""
-           else "(shape=" ^ SymbolicShape.to_str shape ^ ")")
-          (Llvm.string_of_lltype llvmT)
-      in
-      debug  initStr fnInfo.builder
-    ENDIF;
     let varName = ID.to_str id in
     let stackVal : llvalue =
       if ImpType.is_scalar impT || ImpType.is_vector impT then
@@ -897,7 +874,6 @@ module Init = struct
       )
     in
     Hashtbl.add fnInfo.named_values varName stackVal
-
 
   let preload_array_metadata fnInfo (input:llvalue) (impT:ImpType.t) =
     match impT with
@@ -922,15 +898,6 @@ module Init = struct
   let init_nonlocal_var (fnInfo:fn_info) (id:ID.t) (param:Llvm.llvalue) =
     let impT = ID.Map.find id fnInfo.imp_types in
     let llvmT = LlvmType.of_imp_type impT in
-    IFDEF DEBUG THEN
-      let initStr =
-        Printf.sprintf "Initializing nonlocal %s : %s to have lltype %s\n%!"
-          (ID.to_str id)
-          (ImpType.to_str impT)
-          (Llvm.string_of_lltype llvmT)
-      in
-      debug initStr fnInfo.builder
-    ENDIF;
     let varName = ID.to_str id in
     Llvm.set_value_name varName param;
     let stackVal =
@@ -950,8 +917,6 @@ module Init = struct
         ptr
     in
     Hashtbl.add fnInfo.named_values varName stackVal
-
-
 
   let init_compiled_fn (fnInfo:fn_info) =
     let get_imp_type id =  ID.Map.find id fnInfo.imp_types in
