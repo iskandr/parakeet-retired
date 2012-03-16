@@ -262,12 +262,12 @@ class builder (info:fn_info) = object (self)
 
     let simpleInputs =  List.map self#flatten_simple inputs in
 
-    (*let simpleOutputs = List.map self#flatten_simple outputs in*)
+    let simpleOutputs = List.map self#flatten_simple outputs in
     let nonlocalEnv =
       ID.Map.of_lists
         (impFn.input_ids @ impFn.output_ids)
-        (*(simpleInputs @ simpleOutputs)*)
-        (simpleInputs @ outputs)
+        (simpleInputs @ simpleOutputs)
+        (*(simpleInputs @ outputs)*)
     in
     let rec rewrite_dim = function
       | SymbolicShape.Dim(id, axis) ->
@@ -299,14 +299,15 @@ class builder (info:fn_info) = object (self)
     in
     let newBody = ImpReplace.replace_block replaceEnv impFn.body in
     self#concat_list newBody
-    (*List.iter2
+    ;
+    List.iter2
       (fun originalOutput simpleOutputVar ->
          if not (is_simple originalOutput) then
           self#append $ Set(originalOutput, simpleOutputVar)
       )
       outputs
       simpleOutputs
-    *)
+    
 end
 
 let (+=) builder stmt = builder#append stmt

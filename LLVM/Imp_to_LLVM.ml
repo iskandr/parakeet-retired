@@ -110,7 +110,7 @@ module Intrinsics = struct
     declare_function "fflush" fnT llvm_module
 end
 
-let debug_in_generated_code = true
+let debug_in_generated_code = false (*true*)
 
 let llvm_printf str vals builder =
   IFDEF DEBUG THEN

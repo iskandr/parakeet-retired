@@ -3,6 +3,8 @@ import numpy as np
 import math, parakeet
 from parakeet import PAR 
 
+parakeet.set_vectorize(False)
+
 @PAR
 def CND(x):
   a1 = 0.31938153
