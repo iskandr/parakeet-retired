@@ -227,11 +227,3 @@ let maximal_type types =
       else aux highestRank currT ts
   in aux 0 BottomT types
 
-(* only peel types of maximal depth *)
-let rec peel_maximal types =
-  let ranks = List.map rank types in
-  let maxDepth = List.fold_left max 0 ranks in
-  List.map2
-    (fun t depth -> if depth = maxDepth then peel t else t)
-    types
-    ranks

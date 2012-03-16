@@ -7,7 +7,12 @@ let replace_var (env:Imp.value_node ID.Map.t) (valNode:Imp.value_node) =
     | Var id ->
       if ID.Map.mem id env then
         let replaceNode = ID.Map.find id env in
-        assert (replaceNode.value_type = valNode.value_type);
+        if replaceNode.value_type <>  valNode.value_type then 
+          failwith $ Printf.sprintf 
+            "Type mismatch: old type = %s, new type = %s"
+              (ImpType.to_str valNode.value_type)
+              (ImpType.to_str replaceNode.value_type)
+        ;
         replaceNode
       else valNode
     | _ -> valNode
