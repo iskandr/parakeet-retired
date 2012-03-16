@@ -87,6 +87,7 @@ let infer_indexing_result eltT rank indexTypes =
       in
       raise (TypeError(errMsg, None))
 
+
 let infer_simple_array_op op argTypes = match op, argTypes with
   | Prim.Range, [t] when Type.is_scalar t  ->
       if Type.common_type t Type.int32  <> AnyT then Type.ArrayT(Int32T, 1)
@@ -122,40 +123,76 @@ let infer_simple_array_op op argTypes = match op, argTypes with
 (* args must be converted for the operator to work properly *)
 let required_scalar_op_types op argtypes =
     match (op, argtypes) with
-      (* division returns a float *)
-      (*
-      | op, [t1; t2] when Prim.is_float_binop op ->
-          let t3 = Type.common_type t1 t2 in
-          let resultT =
-            if Type.sizeof (Type.elt_type t3) <= Type.sizeof Float32T
-            then Type.float32
-            else Type.float64
-          in
+    | op, [t1; t2] when Prim.is_binop op ->
+      let t3 = Type.common_type t1 t2 in
+      [t3; t3]
+    | Prim.Select, [predT; t1; t2] ->
+      let t3 = Type.common_type t1 t2 in
+      let predT' = Type.common_type predT Type.bool in
+      [predT'; t3; t3]
+    (* upconvert non-float arguments to appropriate float size *)
+    | op, [t]  when Prim.is_float_unop op &&
+      Type.sizeof (Type.elt_type t) <= Type.sizeof Float32T-> [Type.float32]
+    (* if type doesn't fit in float32 but is scalar use float64 *)
+    | op, [t] when Prim.is_float_unop op && Type.is_scalar t -> [Type.float64]
+    (* if not a floating unop, just keep type the same *)
+    | op, [t] when Prim.is_unop op -> [t]
+    | _ ->
+      let errMsg =
+        Printf.sprintf
+          "no valid coercions for operator %s with input types %s"
+          (Prim.scalar_op_to_str op)
+          (Type.type_list_to_str argtypes)
+      in
+      raise (TypeError(errMsg, None))
 
-          [resultT; resultT]
-      *)
-      | op, [t1; t2] when Prim.is_binop op ->
-          let t3 = Type.common_type t1 t2 in
-          [t3; t3]
-      | Prim.Select, [predT; t1; t2] ->
-          let t3 = Type.common_type t1 t2 in
-          let predT' = Type.common_type predT Type.bool in
-          [predT'; t3; t3]
-      (* upconvert non-float arguments to appropriate float size *)
-      | op, [t]  when Prim.is_float_unop op &&
-          Type.sizeof (Type.elt_type t) <= Type.sizeof Float32T-> [Type.float32]
-      (* if type doesn't fit in float32 but is scalar use float64 *)
-      | op, [t] when Prim.is_float_unop op && Type.is_scalar t -> [Type.float64]
-      (* if not a floating unop, just keep type the same *)
-      | op, [t] when Prim.is_unop op -> [t]
-      | _ ->
-        let errMsg =
+
+ let infer_num_axes ?src ?axes arrayTypes : int =
+    let maxPossibleAxes =
+      AdverbHelpers.max_num_axes_from_array_types arrayTypes
+    in
+   match axes with
+    | None -> maxPossibleAxes
+    | Some axes ->
+      let n = List.length axes in
+      if n <= maxPossibleAxes then n
+      else
+        let msg =
           Printf.sprintf
-            "no valid coercions for operator %s with input types %s"
-            (Prim.scalar_op_to_str op)
-            (Type.type_list_to_str argtypes)
+            "Can't have %d axes, max allowed = %d" n maxPossibleAxes
         in
-        raise (TypeError(errMsg, None))
+        raise (TypeError(msg, src))
+
+(* factored out all the error conditions on adverbs *)
+let check_adverb_error ?src adverb init eltTypes : unit =
+  match adverb, init, eltTypes with
+  | Adverb.Reduce, None, eltTypes ->
+    if List.length eltTypes <> 1 then
+      raise $
+        TypeError("Reduce without intial args must have one input array", src)
+  | Adverb.AllPairs, None, eltTypes ->
+    if List.length eltTypes <> 2 then
+      raise $
+        TypeError("AllPairs must have two arguments", src)
+
+  | Adverb.AllPairs, Some _, _ ->
+    raise $
+        TypeError("AllPairs can't have initial arguments", src)
+  | Adverb.Map, Some _, _ ->
+    raise (TypeError("Map can't have initial values", src))
+  | Adverb.Reduce, Some inits, _  ->
+    failwith "Reduce with inits not implemented"
+  | Adverb.Scan, _, _ -> failwith "Scan not implemented"
+  | _ -> failwith "[TypeAnalysis] Invalid adverb"
+
+(* the output of an adverb depends only on the output type of its *)
+(* parameterizing function and the number of axes *)
+let infer_adverb_result_types  ~adverb ~elt_result_types ~num_axes =
+  match adverb with
+    | Adverb.Scan
+    | Adverb.Map -> Type.increase_ranks num_axes elt_result_types
+    | Adverb.AllPairs -> Type.increase_ranks (2*num_axes) elt_result_types
+    | Adverb.Reduce -> elt_result_types
 
 (* Eek, a mutable type environment! Ain't it the devil? *)
 module TypeEnv : sig
@@ -253,71 +290,38 @@ module Make (P : TYPE_ANALYSIS_PARAMS) = struct
             (UntypedSSA.value_to_str fnVal)
 
 
+
   let infer_adverb
         ?(src:SrcInfo.t option)
-        (info:
-          (UntypedSSA.value, Type.t list, UntypedSSA.value_node list option)
-          Adverb.info
-        ) : Type.t list =
+        (info: (UntypedSSA.value, Type.t list, int) Adverb.info)
+        : Type.t list =
     if List.for_all Type.is_scalar info.array_args then
       raise (
         TypeError("Adverbs must have at least one non-scalar argument", src))
     ;
-    let maxPossibleAxes =
-      AdverbHelpers.max_num_axes_from_array_types info.array_args
-    in
-    let numAxes = match info.axes with
-      | None -> maxPossibleAxes
-      | Some axes ->
-        let n = List.length axes in
-        if n <= maxPossibleAxes then n
-        else
-        let msg =
-          Printf.sprintf
-            "Can't have %d axes for adverb %s, max allowed = %d"
-            n
-            (Adverb.to_str $ info.adverb)
-            maxPossibleAxes
-        in
-        raise (TypeError(msg, src))
-    in
+    let numAxes = info.axes in
     let eltTypes = List.map (Type.peel ~num_axes:numAxes) info.array_args in
     let fnVal : UntypedSSA.value = info.adverb_fn in
-    match info.adverb, info.init with
-    | Adverb.Map, None ->
-      let eltResultTypes = infer_app fnVal (info.fixed_args @ eltTypes) in
-      Type.increase_ranks numAxes eltResultTypes
-    (* if not given initial values then we assume operator is binary and*)
-    (* used first two elements of the array *)
-    | Adverb.Reduce, None  ->
-      if List.length eltTypes <> 1 then
-        raise $
-          TypeError("Reduce without intial args must have one input array", src)
-      ;
-      let eltT = List.hd eltTypes in
-      let accTypes = infer_app fnVal (info.fixed_args @ [eltT;eltT]) in
-      if List.length accTypes <> 1 then
-        raise $
-          TypeError("Reduce without inital args must return one value", src)
-      else accTypes
+    let eltResultTypes =
+      match info.adverb, info.init, eltTypes with
+      | Adverb.Map, None, _  ->
+        infer_app fnVal (info.fixed_args @ eltTypes)
 
-    | Adverb.AllPairs, None ->
-      if List.length eltTypes <> 2 then
-        raise $
-          TypeError("AllPairs must have two arguments", src)
-      else
-        let eltResultTypes = infer_app fnVal (info.fixed_args @ eltTypes) in
-        Type.increase_ranks (2*numAxes) eltResultTypes
-    | Adverb.AllPairs, Some _ ->
-      raise $
-        TypeError("AllPairs can't have initial arguments", src)
-    | Adverb.Map, Some _ ->
-      raise (TypeError("Map can't have initial values", src))
-    | Adverb.Reduce, Some inits  ->
-      failwith "Reduce with inits not implemented"
-    | Adverb.Scan, _ -> failwith "Scan not implemented"
+      (* if not given initial values then we assume operator is binary and*)
+      (* used first two elements of the array *)
+      | Adverb.Reduce, None, [eltT]  ->
+        let accTypes = infer_app fnVal (info.fixed_args @ [eltT;eltT]) in
+        if List.length accTypes <> 1 then
+          raise $
+            TypeError("Reduce without inital args must return one value", src)
+        else accTypes
+      | Adverb.AllPairs, None, [tx; ty] ->
+        infer_app fnVal (info.fixed_args @ eltTypes)
+      | _ -> check_adverb_error ?src info.adverb info.init eltTypes; []
+    in
+    infer_adverb_result_types info.adverb eltResultTypes numAxes
 
-  let infer_exp expNode =
+  let infer_exp expNode : Type.t list =
     let src = expNode.exp_src in
     match expNode.exp with
     | App({value=UntypedSSA.Prim (Prim.Adverb adverb)}, args) ->
@@ -325,22 +329,24 @@ module Make (P : TYPE_ANALYSIS_PARAMS) = struct
         | fn::rest -> fn, rest
         | _ -> raise (TypeError("too few arguments for adverb", src))
       in
+      let arrayTypes = infer_value_nodes arrayArgs in
       infer_adverb ?src {
         adverb = adverb;
         adverb_fn = fn.value;
-        array_args = (infer_value_nodes arrayArgs);
+        array_args = arrayTypes;
         init = None;
-        axes = None;
+        axes = infer_num_axes ?src ?axes:None arrayTypes;
         fixed_args = [];
       }
     | UntypedSSA.Adverb info ->
+      let arrayTypes = infer_value_nodes info.array_args in
       let resultTypes =
         infer_adverb ?src $
           Adverb.apply_to_fields
             info
             ~fn:(fun valNode -> valNode.value)
             ~values:infer_value_nodes
-            ~axes:Base.id
+            ~axes:(fun axes -> infer_num_axes ?src ?axes arrayTypes)
       in
       IFDEF DEBUG THEN
         Printf.printf
@@ -351,29 +357,29 @@ module Make (P : TYPE_ANALYSIS_PARAMS) = struct
       ENDIF;
       resultTypes
     | App(lhs, args) ->
-        let lhsT = infer_value_node lhs in
-        let argTypes = infer_value_nodes args in
-        IFDEF DEBUG THEN
-          Printf.printf "[TypeAnalysis.exp] Node: %s Types:%s\n"
-            (UntypedSSA.exp_node_to_str expNode)
-            (Type.type_list_to_str argTypes);
-        ENDIF;
-        if Type.is_array lhsT
-        then [infer_simple_array_op Prim.Index (lhsT::argTypes)]
-        else infer_app lhs.value argTypes
+      let lhsT = infer_value_node lhs in
+      let argTypes = infer_value_nodes args in
+      IFDEF DEBUG THEN
+        Printf.printf "[TypeAnalysis.exp] Node: %s Types:%s\n"
+          (UntypedSSA.exp_node_to_str expNode)
+          (Type.type_list_to_str argTypes);
+      ENDIF;
+      if Type.is_array lhsT
+      then [infer_simple_array_op Prim.Index (lhsT::argTypes)]
+      else infer_app lhs.value argTypes
     | Arr elts ->
-        let commonT = Type.combine_type_list (infer_value_nodes elts) in
-        if Type.is_scalar commonT then [Type.increase_rank 1 commonT]
-        else if commonT = Type.AnyT then
-          let errMsg = "Couldn't find unifying type for elements of array" in
-          raise  (TypeError (errMsg, expNode.exp_src))
-        else
-          let errMsg =
-            Printf.sprintf
-              "Expected array elements to be scalars, got type '%s'"
-              (Type.to_str commonT)
-          in
-          raise (TypeError(errMsg, expNode.exp_src))
+      let commonT = Type.combine_type_list (infer_value_nodes elts) in
+      if Type.is_scalar commonT then [Type.increase_rank 1 commonT]
+      else if commonT = Type.AnyT then
+        let errMsg = "Couldn't find unifying type for elements of array" in
+        raise  (TypeError (errMsg, expNode.exp_src))
+      else
+        let errMsg =
+          Printf.sprintf
+            "Expected array elements to be scalars, got type '%s'"
+            (Type.to_str commonT)
+        in
+        raise (TypeError(errMsg, expNode.exp_src))
     | Values vs -> infer_value_nodes vs
     | _ -> failwith $ Printf.sprintf
             "Type analysis not implemented for expression: %s"

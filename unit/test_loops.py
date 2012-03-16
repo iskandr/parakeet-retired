@@ -1,4 +1,5 @@
 #!/usr/bin/python
+import numpy as np
 import parakeet, sys
 from parakeet import PAR 
 
@@ -33,7 +34,23 @@ def test_sum_to_x():
   print "Expected %d, got %d" % (y, x)
   assert 15 == x
 
+@PAR
+def array_pow(x, b, n):
+  z = x
+  i = 0
+  while i < n:
+    z = z * b
+  return z
+
+def test_array_pow():
+  x = np.array(range(100), dtype=np.int32)
+  y = array_pow(x, 3, 5)
+  z = array_pow.call_original(x, 3, 5)
+  assert np.all(z == y)
+  print "Array pow OK"
+
 if __name__ == '__main__':
   test_count_x()
   test_sum_to_x()
+  test_array_pow()
 

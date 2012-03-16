@@ -49,7 +49,8 @@ class builder : fn_info -> object
 
   method build_add : string -> value_node -> value_node -> value_node
 
-  method inline : Imp.fn -> value_nodes -> value_nodes -> unit
+  method inline :
+    ?call_by_copy:bool -> Imp.fn -> value_nodes -> value_nodes -> unit
 
 end
 

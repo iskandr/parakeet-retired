@@ -32,7 +32,8 @@ let is_simple {value} = match value with
   | Var _
   | Const _
   | VecConst _
-  | CudaInfo _ -> true
+  | CudaInfo _
+  | VecSlice _ -> true
   | _ -> false
 
 class builder (info:fn_info) = object (self)
@@ -258,16 +259,19 @@ class builder (info:fn_info) = object (self)
       result
     )
 
-  method inline (impFn:Imp.fn) (inputs:value_nodes) (outputs:value_nodes) =
-
-    let simpleInputs =  List.map self#flatten_simple inputs in
-
-    let simpleOutputs = List.map self#flatten_simple outputs in
+  method inline
+    ?(call_by_copy=true) impFn (inputs:value_nodes) (outputs:value_nodes) =
+    let copyInputs =
+      if call_by_copy then List.map self#flatten_simple inputs
+      else inputs
+    in
+    let copyOutputs =
+      if call_by_copy then List.map self#flatten_simple outputs
+      else outputs
+    in
+    let nonlocals = copyInputs @ copyOutputs in
     let nonlocalEnv =
-      ID.Map.of_lists
-        (impFn.input_ids @ impFn.output_ids)
-        (simpleInputs @ simpleOutputs)
-        (*(simpleInputs @ outputs)*)
+      ID.Map.of_lists (impFn.input_ids @ impFn.output_ids) nonlocals
     in
     let rec rewrite_dim = function
       | SymbolicShape.Dim(id, axis) ->
@@ -298,16 +302,15 @@ class builder (info:fn_info) = object (self)
       ID.Map.extend nonlocalEnv impFn.local_ids newLocalVars
     in
     let newBody = ImpReplace.replace_block replaceEnv impFn.body in
-    self#concat_list newBody
-    ;
-    List.iter2
-      (fun originalOutput simpleOutputVar ->
-         if not (is_simple originalOutput) then
-          self#append $ Set(originalOutput, simpleOutputVar)
-      )
-      outputs
-      simpleOutputs
-    
+    self#concat_list newBody;
+    if call_by_copy then
+      List.iter2
+        (fun originalOutput simpleOutputVar ->
+           if not (is_simple originalOutput) then
+            self#append $ Set(originalOutput, simpleOutputVar)
+        )
+        outputs
+        copyOutputs
 end
 
 let (+=) builder stmt = builder#append stmt

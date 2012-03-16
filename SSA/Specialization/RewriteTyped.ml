@@ -133,47 +133,21 @@ module Make(P: REWRITE_PARAMS) = struct
         "Can't get arity of %s, it's not a function"
         (UntypedSSA.value_to_str other)
 
-  let rewrite_adverb
+  let rewrite_adverb_for_typed_args
         ?(src:SrcInfo.t option)
-        (info : UntypedSSA.adverb_info) : TypedSSA.exp_node =
-    (* make typed version of all the adverbinfo fields *)
-    let arrayArgs : TypedSSA.value_nodes = annotate_values info.array_args in
-    let arrayTypes = TypedSSA.types_of_value_nodes arrayArgs in
-    let fixed : TypedSSA.value_nodes = annotate_values info.fixed_args in
-    let fixedTypes = TypedSSA.types_of_value_nodes fixed in
-    let init = Option.map annotate_values info.init in
-    let axes : TypedSSA.value_nodes = match info.axes with
-      | Some axes -> annotate_values axes
-      | None -> AdverbHelpers.infer_adverb_axes_from_types arrayTypes
-    in
-    let numAxes = List.length axes in
+        (info :
+           (UntypedSSA.value_node, TypedSSA.value_nodes, TypedSSA.value_nodes)
+           Adverb.info) : TypedSSA.exp_node =
+    let arrayTypes = TypedSSA.types_of_value_nodes info.array_args in
+    let fixedTypes = TypedSSA.types_of_value_nodes info.fixed_args in
+    let numAxes = List.length info.axes in
     let eltTypes = List.map (Type.peel ~num_axes:numAxes) arrayTypes in
-    (* cut down on code repetition since so many fields are shared below *)
-    let mk_adverb_exp (adverb:Adverb.t) (typedFn:TypedSSA.fn) =
-      AdverbHelpers.mk_adverb_exp_node ?src
-        {
-          Adverb.adverb= adverb;
-          adverb_fn = typedFn.TypedSSA.fn_id;
-          fixed_args = fixed;
-          init = init;
-          axes = axes;
-          array_args = arrayArgs;
-        }
-    in
-    let untypedFnVal = info.adverb_fn.UntypedSSA.value in
-    match info.adverb, init with
+    let untypedFnVal = info.adverb_fn.UntypedSSA.value  in
+    let nestedSig =
+      match info.adverb, info.init with
       | Adverb.AllPairs, None
       | Adverb.Map, None  ->
-        let nestedSig = Signature.from_input_types (fixedTypes @ eltTypes) in
-        Printf.printf "Specializing map for argument types %s\n%!"
-          (Signature.to_str nestedSig);
-        let typedFn = P.specializer untypedFnVal nestedSig in
-        mk_adverb_exp info.adverb typedFn
-      | Adverb.Map, Some _ -> failwith "Map can't have initial args"
-      | Adverb.AllPairs, None ->
-        failwith "AllPairs operator must have two inputs"
-      | Adverb.AllPairs, Some _ ->
-        failwith "AllPairs operator can't have initial args"
+        Signature.from_input_types (fixedTypes @ eltTypes)
       | Adverb.Reduce, None ->
         if List.length eltTypes <> 1 then
           failwith "Reduce without initial args can only have 1 input"
@@ -190,35 +164,95 @@ module Make(P: REWRITE_PARAMS) = struct
           raise $ RewriteFailed(errMsg, src)
         else
         (* assume that the accumulator is the same as the array element type *)
-        let nestedSig =
-          Signature.from_input_types (fixedTypes @ [eltT; eltT])
-        in
-        let typedFn = P.specializer untypedFnVal nestedSig in
-        mk_adverb_exp Adverb.Reduce typedFn
+        Signature.from_input_types (fixedTypes @ [eltT; eltT])
+      | Adverb.Map, Some _ -> failwith "Map can't have initial args"
+      | Adverb.AllPairs, None ->
+        failwith "AllPairs operator must have two inputs"
+      | Adverb.AllPairs, Some _ ->
+        failwith "AllPairs operator can't have initial args"
       | _ -> failwith "Malformed adverb"
+    in
+    let typedFn = P.specializer untypedFnVal nestedSig in
+    let typedInfo = {info with adverb_fn = TypedSSA.FnHelpers.fn_id typedFn } in
+    let outTypes =
+      TypeAnalysis.infer_adverb_result_types
+        ~adverb:info.adverb
+        ~elt_result_types:(typedFn.TypedSSA.fn_output_types)
+        ~num_axes:(List.length info.axes)
+    in
+    { TypedSSA.exp = TypedSSA.Adverb typedInfo;
+      exp_types = outTypes;
+      exp_src = None;
+    }
+
+  let rewrite_adverb
+        ?(src:SrcInfo.t option)
+        (info : UntypedSSA.adverb_info) : TypedSSA.exp_node =
+    (* make typed version of all the adverbinfo fields *)
+    let arrayArgs : TypedSSA.value_nodes = annotate_values info.array_args in
+    let arrayTypes = TypedSSA.types_of_value_nodes arrayArgs in
+    let axes : TypedSSA.value_nodes = match info.axes with
+      | Some axes -> annotate_values axes
+      | None -> AdverbHelpers.infer_adverb_axes_from_types arrayTypes
+    in
+    let partiallyTypedInfo = {
+      info with
+        fixed_args = annotate_values info.fixed_args;
+        array_args = arrayArgs;
+        axes = axes;
+        init = Option.map annotate_values info.init;
+    }
+    in
+    rewrite_adverb_for_typed_args ?src partiallyTypedInfo
+
 
 
   let rewrite_array_op
         (src: SrcInfo.t option)
         (op:Prim.array_op)
         (args:TypedSSA.value_nodes)
-        (types:Type.t list) = match op, args, types with
+        (types:Type.t list) : TypedSSA.exp_node =
+    match op, args, types with
     | Prim.Index, [array; index], [arrayType; indexType]
         when Type.elt_type indexType = Type.BoolT ->
-        IFDEF DEBUG THEN
-            if Type.rank indexType <> 1 then
-              failwith "Expected boolean index vector to be 1D"
-        ENDIF;
-        let whereT = Type.ArrayT(Type.Int32T, 1) in
-        let whereOp =  Prim.ArrayOp Prim.Where in
-        let whereExp =
-          TypedSSA.primapp ?src whereOp ~output_types:[whereT] [index]
-        in
-        let whereResult = add_coercion ?src whereExp in
-        let args' = array :: [whereResult] in
-        let resultType = Type.ArrayT (Type.elt_type arrayType, 1) in
-        let indexOp = Prim.ArrayOp Prim.Index in
-        TypedSSA.primapp ?src indexOp ~output_types:[resultType] args'
+      IFDEF DEBUG THEN
+          if Type.rank indexType <> 1 then
+            failwith "Expected boolean index vector to be 1D"
+      ENDIF;
+      let whereT = Type.ArrayT(Type.Int32T, 1) in
+      let whereOp =  Prim.ArrayOp Prim.Where in
+      let whereExp =
+        TypedSSA.primapp ?src whereOp ~output_types:[whereT] [index]
+      in
+      let whereResult = add_coercion ?src whereExp in
+      let args' = array :: [whereResult] in
+      let resultType = Type.ArrayT (Type.elt_type arrayType, 1) in
+      let indexOp = Prim.ArrayOp Prim.Index in
+      TypedSSA.primapp ?src indexOp ~output_types:[resultType] args'
+
+    | Prim.Index, array::indices, arrayT::indexTypes
+        when List.exists Type.is_array indexTypes ->
+      let untypedIndex = UntypedSSA.Prim (Prim.ArrayOp Prim.Index) in
+      let untypedIndexNode = {
+         UntypedSSA.value = untypedIndex;
+         value_src = None;
+      }
+      in
+      (* get a function which does the element-by-element indexing *)
+      let adverbInfo =
+      {
+        Adverb.adverb = Adverb.Map;
+        adverb_fn = untypedIndexNode;
+        fixed_args = [array];
+        init = None;
+        axes = List.map TypedSSA.int32 $ List.til (List.length indices);
+        array_args = indices;
+      }
+      in
+      rewrite_adverb_for_typed_args ?src adverbInfo
+
+
+
     | _ ->
         let outT = TypeAnalysis.infer_simple_array_op op types in
         TypedSSA.primapp ?src (Prim.ArrayOp op) ~output_types:[outT] args
