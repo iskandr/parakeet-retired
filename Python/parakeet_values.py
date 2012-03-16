@@ -31,13 +31,19 @@ parakeet_to_c_types = {
   LibPar.char_t: c_char
 }
 
+def is_array(arg):
+ return isinstance(arg, np.ndarray) and np.rank(arg) > 0 
+
+def is_zero_rank_array(arg):
+  return isinstance(arg, np.ndarray) and np.rank(arg) == 0
+
 ###############################################################################
 #   Value conversion between parakeet and python
 ###############################################################################
 
 # given a numpy array or a scalar, construct the equivalent parakeet value
 def python_value_to_parakeet(arg):
-  if isinstance(arg, np.ndarray):
+  if is_array(arg):
     rank = len(arg.shape)
     inputShape = arg.ctypes.shape_as(c_int32)
     inputStrides = arg.ctypes.strides_as(c_int32)
@@ -51,14 +57,19 @@ def python_value_to_parakeet(arg):
     parakeetVal = LibPar.mk_host_array(dataPtr, parakeetType, inputShape, rank,
                                        inputStrides, rank, arg.nbytes)
     return c_void_p(parakeetVal)
-  elif np.isscalar(arg):
-    if type(arg) == int:
+  elif np.isscalar(arg) or is_zero_rank_array(arg):
+    # unpack zero rank arrays into scalars 
+    if is_zero_rank_array(arg):
+      arg = arg[()] 
+    if type(arg) in [int, np.int32]:
       return LibPar.mk_int32(arg)
-    elif type(arg) == float or type(arg) == np.float64:
+    elif type(arg) ==  np.int64:
+      return LibPar.mk_int64(arg)
+    elif type(arg)in [float, np.float64]:
       return LibPar.mk_float64(c_double(arg))
     elif type(arg) == np.float32:
       return LibPar.mk_float32(c_float(arg))
-    elif type(arg) == bool:
+    elif type(arg)in [bool, np.bool_]:
       return LibPar.mk_bool(c_bool(arg))
     else:
       raise Exception ("Unknown type: " + str(type(arg)))

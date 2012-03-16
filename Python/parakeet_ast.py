@@ -46,7 +46,8 @@ AutoTranslate = {
   np.argmin:parakeet_lib.argmin,
   np.mean:parakeet_lib.mean,
   np.all:parakeet_lib.all,
-  len:parakeet_lib._len
+  len:parakeet_lib._len,
+  abs:parakeet_lib.abs,
 }
 
 BuiltinPrimitives = {

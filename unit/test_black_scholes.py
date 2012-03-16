@@ -10,12 +10,12 @@ def CND(x):
   a3 = 1.781477937
   a4 = -1.821255978
   a5 = 1.330274429
-  L = parakeet.abs(x)
+  L = abs(x)
   K = 1.0 / (1.0 + 0.2316419 * L)
-  w = 1.0 - 1.0/math.sqrt(2*3.141592653589793)*math.exp(-1*L*L/2.) * (a1*K +
-      a2*K*K + a3*math.pow(K,3) + a4*math.pow(K,4) + a5*math.pow(K,5))
-  #if x<0:
-  #  w = 1.0-w
+  w = 1.0 - 1.0/math.sqrt(2*3.141592653589793)* math.exp(-1*L*L/2.) * (a1*K +
+      a2*K*K + a3*K*K*K + a4*K*K*K*K + a5*K*K*K*K*K)
+  if x<0:
+    w = 1.0-w
   return w
 
 def test_cnd(): 
@@ -35,12 +35,13 @@ def scalar_black_scholes(CallFlag,S,X,T,r,v):
   if CallFlag:
     return S*CND(d1)-X*math.exp(-r*T)*CND(d2)
   else:
-    return X*math.exp(-r*T)*CND(-d2)-S*CND(-d1)
+    return 3333 #X#X * CND(-d2) - S * CND(-d1)#X* math.exp(-r*T)*CND(-d2)-S*CND(-d1)
 
 def test_scalar_black_scholes(): 
-  x = scalar_black_scholes(True, 2.0, 2.0, 2.0, 2.0, 2.0)
-  y = scalar_black_scholes.call_original(True, 2.0, 2.0, 2.0, 2.0, 2.0)
+  x = scalar_black_scholes(False, 10.0, 10.0, 2.0, 2.0, 2.0)
+  y = scalar_black_scholes.call_original(False, 10.0, 10.0, 2.0, 2.0, 2.0)
   diff = x - y 
+  print "Test scalar black scholes, Parakeet: %s, Python: %s" % (x, y)
   same = abs(diff) < 0.00001 
   print "[test_cnd] %f == %f: %s (diff = %f)" % (x, y, same, diff)
   assert same 
@@ -54,7 +55,9 @@ def test_black_scholes():
   A = np.array([2.0, 1.0, 2.0, 1.0])
   x = black_scholes(CallFlags, A, A, A, A, A)
   y = black_scholes.call_original(CallFlags, A, A, A, A, A)
+  print "BLACK SCHOLES RESULTS Parakeet = %s\n Python = %s" % (x,y)
   all_same = np.all(np.abs(x -  y) < 0.00001)
+  
   assert all_same  
 
 if __name__ == '__main__':

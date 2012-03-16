@@ -69,15 +69,17 @@ let get_specialized_function untypedId signature =
 
 let run_function untypedId ~globals ~args : ret_val =
   IFDEF DEBUG THEN
-    printf "[FrontEnd.run_function] Running %s (id=%d)\n%!"
+    printf "[FrontEnd.run_function] Running %s (id=%d) with args = %s\n%!"
       (FnId.to_str untypedId)
       untypedId
+      (Value.list_to_str args)
     ;
   ENDIF;
   (*Timing.clear Timing.runTemplate;
   Timing.clear Timing.typedOpt;
   Timing.start Timing.runTemplate;*)
   let args = globals @ args in
+  
   let argTypes = List.map Value.type_of args in
   let untypedFn = FnManager.get_untyped_function untypedId in
   let nargs = List.length args in

@@ -87,6 +87,7 @@ def splitArrays(*args, **kwargs):
   return results
 
 def map(function, *args, **kwargs):
+  print "Calling reference map" 
   arrays = args[:]
   try:
     axes = kwargs['axis']
