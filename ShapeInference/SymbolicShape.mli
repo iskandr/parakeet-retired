@@ -4,7 +4,13 @@ type dim =
   | Dim of ID.t * int
   | Op of dim_op * dim * dim
 
+val dim_eq : dim -> dim -> bool
+
 type t = dim list
+
+val eq : t -> t -> bool
+val neq : t -> t -> bool 
+
 type env = t ID.Map.t
 
 val dim_to_str : dim -> string

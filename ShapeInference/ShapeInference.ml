@@ -42,19 +42,35 @@ module ShapeAnalysis (P: PARAMS) =  struct
 
   let value env valNode = match valNode.value with
     | TypedSSA.Var id ->
-      SymbolicShape.all_dims id (Type.rank valNode.TypedSSA.value_type)
+      if ID.Map.mem id env then ID.Map.find id env 
+      else 
+        failwith $ 
+          Printf.sprintf 
+            "Couldn't find %s in shape environmnent"
+            (ID.to_str id)
+      (*SymbolicShape.all_dims id (Type.rank valNode.TypedSSA.value_type)*)
     | _ -> [] (* empty list indicates a scalar *)
+
+  (* TODO: Sometimes dimensions need to be 'unified' (recorded as being equal) *)
+  (* For now, just assume any shapes being merged must be literally the same *)
+  let assert_same s1 s2 = 
+    if SymbolicShape.neq s1 s2 then 
+      failwith $ 
+        Printf.sprintf 
+          "Shape mismatch: %s and %s"
+          (SymbolicShape.to_str s1)
+          (SymbolicShape.to_str s2)
 
   let phi_set env id shape =
     if ID.Map.mem id env then (
       let oldShape = ID.Map.find id env in
-      if shape <> oldShape then failwith "Shape error"
-      else None
+      assert_same oldShape shape; 
+      None
     )
     else Some (ID.Map.add id shape env)
 
     let phi_merge env id leftShape rightShape =
-      if leftShape <> rightShape then failwith "Shape error";
+      assert_same leftShape rightShape; 
       phi_set env id leftShape
 
     let infer_adverb
