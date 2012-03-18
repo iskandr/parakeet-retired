@@ -17,7 +17,7 @@ let infer_adverb_axes_from_rank rank =
 (* given a list of input array types, infer the largest number *)
 (* of axes feasible to map over them-- min of all ranks except 0 *)
 let rec max_num_axes_from_array_types = function
-  | [] -> 0
+  | []  -> 0
   | [t] -> Type.rank t
   | t::ts ->
     begin match Type.rank t, max_num_axes_from_array_types ts with
@@ -63,7 +63,7 @@ let mk_adverb_exp_node
 
 (* to keep stable FnId's for repeatedly generated adverbs of the same function*)
 (* we cache our results*)
-type fn_cache_key =(FnId.t, Type.t list, TypedSSA.value_nodes) Adverb.info
+type fn_cache_key = (FnId.t, Type.t list, TypedSSA.value_nodes) Adverb.info
 
 let adverb_fn_cache : (fn_cache_key, FnId.t) Hashtbl.t = Hashtbl.create 127
 

@@ -282,6 +282,7 @@ module FnHelpers = struct
       | Some oldT -> if oldT = t then Some t else None
     in
     ID.Map.fold aux tenv (Some (snd $ ID.Map.choose tenv))
+
 end
 include FnHelpers
 

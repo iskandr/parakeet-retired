@@ -16,9 +16,7 @@ type t = {
   (* functions are either ID or Prim which gets specialized on either *)
   (* types or values (see Signature.ml)   *)
   specializations : (UntypedSSA.value * Signature.t, FnId.t) Hashtbl.t;
-
   name_to_untyped_id : (string, FnId.t) Hashtbl.t;
-
   untyped_id_to_name : (FnId.t, string) Hashtbl.t;
 }
 
@@ -50,28 +48,6 @@ let add_untyped_map  fnMap =
 
 let add_typed ?(optimize=true) fn =
   FnTable.add ~opt_queue:optimize fn state.typed_functions
-
-let default_typed_optimizations =
-  [
-    (*"function cloning", TypedFunctionCloning.function_cloning;*)
-    "simplify", Simplify.simplify_fn;
-    "cse", CSE.cse;
-    "inlining", Inline.run_fn_inliner;
-  ]
-
-let optimize_typed_functions () =
-  (*Timing.start Timing.typedOpt;*)
-  RunOptimizations.optimize_all_fns
-    ~type_check:true
-    ~maxiters:100
-    state.typed_functions
-    default_typed_optimizations
-  ;
-  IFDEF DEBUG THEN
-    Printf.printf "*** Optimized all typed functions ***\n%!";
-  ENDIF;
-  ()
-  (*;Timing.stop Timing.typedOpt*)
 
 let get_untyped_name id = Hashtbl.find state.untyped_id_to_name id
 let get_untyped_id name = Hashtbl.find state.name_to_untyped_id name
@@ -151,3 +127,35 @@ let input_types_of_typed_fn fnId =
   TypedSSA.FnHelpers.input_types (get_typed_function fnId)
 let output_types_of_typed_fn fnId =
   TypedSSA.FnHelpers.output_types (get_typed_function fnId)
+
+let default_typed_optimizations =
+   [
+    (*"function cloning", TypedFunctionCloning.function_cloning;*)
+    "simplify", Simplify.simplify_fn;
+    "cse", CSE.cse;
+    "fusion" , AdverbFusion.optimize_fn;
+    "inlining", Inline.run_fn_inliner;
+  ]
+
+let optimize_typed_functions () =
+  (*Timing.start Timing.typedOpt;*)
+  RunOptimizations.optimize_all_fns
+    ~type_check:true
+    ~maxiters:100
+    state.typed_functions
+    default_typed_optimizations
+  ;
+  IFDEF DEBUG THEN
+    Printf.printf "*** Optimized all typed functions ***\n%!";
+  ENDIF;
+(* because of a circular dependency *)
+  let fusion_is_default (opt_name, func) = if "fuison" == opt_name then true
+                                             else false in
+    if List.exists fusion_is_default default_typed_optimizations 
+      then let _ = AdverbFusion.init_get_typed_fn get_typed_function in 
+           AdverbFusion.init_add_typed_fn add_typed
+      else () 
+  (*;Timing.stop Timing.typedOpt*)
+
+
+	
