@@ -48,8 +48,9 @@ module BlockState = struct
 
   (* add statement to block unless it's a no-op *)
   let add_stmt blockState stmtNode =
-    if not (TypedSSA.is_empty_stmt stmtNode) then
-      blockState.stmts := stmtNode :: !(blockState.stmts)
+    if not (TypedSSA.is_empty_stmt stmtNode) then 
+      blockState.stmts := stmtNode :: !(blockState.stmts) 
+      else   IFDEF DEBUG THEN Printf.printf "EMPTY stmt...\n%! "; ENDIF; ()
 
   let add_stmt_list blockState stmts =
     List.iter (add_stmt blockState) stmts
@@ -65,9 +66,11 @@ module BlockState = struct
     | NoChange -> xDefault
     | Update xNew -> incr_changes blockState; xNew
     | UpdateWithStmts (xNew, stmts) ->
-        incr_changes blockState;
-        add_stmt_list blockState stmts;
-        xNew
+	    if List.length stmts <> 0 then
+            begin incr_changes blockState;
+              add_stmt_list blockState stmts;
+              xNew end
+          else xNew 
     | UpdateWithBlock (xNew, block) ->
         incr_changes blockState;
         add_block blockState block;

@@ -131,10 +131,10 @@ let output_types_of_typed_fn fnId =
 let default_typed_optimizations =
    [
     (*"function cloning", TypedFunctionCloning.function_cloning;*)
-    "simplify", Simplify.simplify_fn;
-    "cse", CSE.cse;
+   (* "simplify", Simplify.simplify_fn; *)
+   (* "cse", CSE.cse; *)
     "fusion" , AdverbFusion.optimize_fn;
-    "inlining", Inline.run_fn_inliner;
+   (* "inlining", Inline.run_fn_inliner;*)
   ]
 
 let optimize_typed_functions () =

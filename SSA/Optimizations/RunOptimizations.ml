@@ -9,9 +9,9 @@ let rec fold_optimizations ?(type_check=false) fnTable fn lastChanged =
   function
   | (name, opt)::rest ->
       (*Timing.start_timer ("opt::"^name);*)
-      (*
+      
       IFDEF DEBUG THEN Printf.printf "Running %s...\n%! " name; ENDIF;
-      *)
+      
       let optimized, changed = opt fnTable fn in
       IFDEF DEBUG THEN
         if type_check then
@@ -59,11 +59,9 @@ let optimize_all_fns
   while FnTable.have_unoptimized fnTable do
     let fn = FnTable.get_unoptimized fnTable in
     IFDEF DEBUG THEN
-      (*
       Printf.printf "[RunOptimizations] Starting to optimize: %s\n"
         (TypedSSA.fn_to_str fn)
       ;
-      *)
       if type_check then  (
         let errorLog = TypeCheck.check_fn fn in
         if not $ Queue.is_empty errorLog then (

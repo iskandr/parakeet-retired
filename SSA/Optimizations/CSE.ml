@@ -32,11 +32,11 @@ module CSE_Rules = struct
         in
         Update (TypedSSA.set [id] expNode')
       )
-      else (Hashtbl.add env expNode.exp (Var id); NoChange)
+      else (Hashtbl.add env (expNode.exp (Var id)); NoChange)
     | _ -> NoChange
   (* TODO: propagate expressions through phi nodes *)
-  let phi env phiNode = NoChange
-  let exp env envNode = NoChange
+  let phi   env phiNode = NoChange
+  let exp   env envNode = NoChange
   let value env valNode = NoChange
 end
 

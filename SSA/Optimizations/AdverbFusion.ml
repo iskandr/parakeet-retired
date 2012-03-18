@@ -42,7 +42,7 @@ module Fusion_Rules = struct
       new_fn
 
 (* redefined adverb_out_type in AdverbHelpers because of cyclic dependancy *)	
-  let adverb_out_types adverb numAxes nestedOutTypes =
+  let adverb_return_types adverb numAxes nestedOutTypes =
     match adverb with 
     | Scan 
     | Map  ->
@@ -61,7 +61,7 @@ module Fusion_Rules = struct
   let stmt env stmtNode = match stmtNode.stmt with
     (* handlig only an single assignment *)
     | Set([id],{exp=Adverb{adverb=Map;adverb_fn=adverb_fn1;fixed_args=fixed_args1;axes=axes1;array_args=array_args1}}) -> begin match !preImmStmt with
-      | None -> let _ =  preImmStmt := Some stmtNode in Update empty_stmt
+      | None -> let _ =  preImmStmt := Some stmtNode in IFDEF DEBUG THEN Printf.printf "SKIPP...\n%! " ; ENDIF; UpdateWithStmts (empty_stmt,[])
       | Some s_node -> begin match s_node.stmt with
         | Set([id2],{exp=Adverb{adverb=Map;adverb_fn=adverb_fn2;fixed_args=fixed_args2}}) ->(* check the rule, map ( g, map(f,array) ) = map (compose(f,g), array) *)			      					
           if adverb_fn1 = id then 
@@ -77,7 +77,7 @@ module Fusion_Rules = struct
               let new_adverb_fn = 
                { 
                  exp = Adverb adverb_info;
-                 exp_types = adverb_out_types adverb_info.adverb (List.length axes1) (FnHelpers.output_types new_fn);
+                 exp_types = adverb_return_types adverb_info.adverb (List.length axes1) (FnHelpers.output_types new_fn);
                  exp_src = None;
                } in 
               let new_set = set [id2] new_adverb_fn in 	           
@@ -87,7 +87,7 @@ module Fusion_Rules = struct
       end (* End of Set([id],{exp=Adverb...}) *) 
     | _ -> begin match !preImmStmt with 
       | None -> NoChange 
-	  | Some s_node -> UpdateWithStmts (stmtNode,[s_node]) end (* End of !preImmStmt *)
+	  | Some s_node -> IFDEF DEBUG THEN Printf.printf "UPdate stmtNodUpdate ...\n%! "; ENDIF; preImmStmt := None; UpdateWithStmts (stmtNode,[s_node]) end (* End of !preImmStmt *)
 	
 		
   let phi   env phiNode = NoChange
