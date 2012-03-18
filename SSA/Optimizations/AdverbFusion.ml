@@ -21,25 +21,25 @@ module Fusion_Rules = struct
   (* argument and return var nodes *)
     let args      = List.map (fun ty -> var ty (ID.gen ()) ) fn1.fn_input_types in
     let ret_args  = List.map (fun ty -> var ty (ID.gen ()) ) fn1.fn_output_types in
-	let ret_args2 = List.map (fun ty -> var ty (ID.gen ()) ) fn2.fn_output_types in
-	(* call expressions *)
-	let call_expr1 = call fid1 fn1.fn_output_types args in
-	let call_expr2 = call fid2 fn2.fn_output_types ret_args in 
-	(* argument ids, return ids *)
-	let args_ids  = get_ids args in
-	let ret_ids   = get_ids ret_args in
-	let ret_ids2  = get_ids ret_args2 in
-	(* statements *)
+    let ret_args2 = List.map (fun ty -> var ty (ID.gen ()) ) fn2.fn_output_types in
+    (* call expressions *)
+    let call_expr1 = call fid1 fn1.fn_output_types args in
+    let call_expr2 = call fid2 fn2.fn_output_types ret_args in 
+    (* argument ids, return ids *)
+    let args_ids  = get_ids args in
+    let ret_ids   = get_ids ret_args in
+    let ret_ids2  = get_ids ret_args2 in
+    (* statements *)
     let stmt1 = set args_ids call_expr1 in
-	let stmt2 = set ret_ids call_expr2 in 
-	(* create a function's body *)
+    let stmt2 = set ret_ids call_expr2 in 
+    (* create a function's body *)
     let body = Block.singleton stmt1 in 
-	let _ = Block.add body stmt2 in
-	(* create a new function *)
-	let new_fn = TypedSSA.mk_fn ?name:None ~tenv:fn1.tenv ~input_ids:args_ids ~output_ids:ret_ids2 ~body:body in
-	     (* register the new global function to FnTable and return it *)
-	let _ = !add_typed_fn new_fn in 
-	  new_fn
+    let _ = Block.add body stmt2 in
+    (* create a new function *)
+    let new_fn = TypedSSA.mk_fn ?name:None ~tenv:fn1.tenv ~input_ids:args_ids ~output_ids:ret_ids2 ~body:body in
+    (* register the new global function to FnTable and return it *)
+    let _ = !add_typed_fn new_fn in 
+      new_fn
 
 (* redefined adverb_out_type in AdverbHelpers because of cyclic dependancy *)	
   let adverb_out_types adverb numAxes nestedOutTypes =
