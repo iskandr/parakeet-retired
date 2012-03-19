@@ -79,7 +79,6 @@ let run_function untypedId ~globals ~args : ret_val =
   Timing.clear Timing.typedOpt;
   Timing.start Timing.runTemplate;*)
   let args = globals @ args in
-  
   let argTypes = List.map Value.type_of args in
   let untypedFn = FnManager.get_untyped_function untypedId in
   let nargs = List.length args in

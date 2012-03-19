@@ -26,6 +26,8 @@ module rec Scheduler : SCHEDULER = struct
   let call (fn:TypedSSA.fn) (args:values) =
     (* for now, if we schedule a function which contains an adverb, *)
     (* never compile it but instead run the body in the interpreter *)
+    let workTree = WorkTree.build_work_tree fn args in
+    WorkTree.to_str workTree;
     let hasAdverb = AdverbHelpers.fn_has_adverb fn in
     let shapely = ShapeInference.typed_fn_is_shapely fn in
     IFDEF DEBUG THEN
@@ -163,5 +165,5 @@ let call (fn:TypedSSA.fn) (hostData:Ptr.t Value.t list) : Ptr.t Value.t list =
   let inputs : values = List.map DataManager.from_memspace hostData in
   let outputVals : values = Scheduler.call fn inputs in
   let results = List.map (DataManager.to_memspace HostMemspace.id) outputVals in
-  Env.pop_env();
+  Env.pop_env ();
   results

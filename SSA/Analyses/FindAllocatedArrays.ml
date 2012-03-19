@@ -1,8 +1,8 @@
-
 (* pp: -parser o pa_macro.cmo *)
+
 open Base
-open TypedSSA
 open SSA_Analysis
+open TypedSSA
 
 (* identify which variables need to be malloc'd and which *)
 (* are either scalars or aliases *)
@@ -43,6 +43,5 @@ module Eval = SSA_Analysis.MkEvaluator(struct
         rhsBools)
     | _ -> helpers.eval_stmt tenv stmtNode
 end)
-
 
 let find_allocated_arrays : TypedSSA.fn -> ID.Set.t = Eval.eval_fn
