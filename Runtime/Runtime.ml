@@ -99,8 +99,7 @@ and Interp : INTERP = struct
         eval_block body;
         eval_phi_nodes Right header;
         eval_block testBlock;
-        cond := eval_value testVal;
-        Printf.printf "Loop %d : %b\n " !niters (Value.to_bool !cond);
+        cond := eval_value testVal
       done
 
   and eval_exp (expNode:TypedSSA.exp_node) : value list =
