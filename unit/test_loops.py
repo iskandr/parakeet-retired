@@ -3,6 +3,8 @@ import numpy as np
 import parakeet, sys
 from parakeet import PAR 
 
+parakeet.set_vectorize(False)
+
 @PAR
 def count_x(x):
   y = 0
