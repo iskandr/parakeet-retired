@@ -40,7 +40,7 @@ let rec optimize_fn
   let fn', changed =
     fold_optimizations ~type_check fnTable fn false optimizations
   in
-  if changed && iter < 2 then
+  if changed && iter < maxiters then
     optimize_fn
       ~type_check
       ~iter:(iter+1)

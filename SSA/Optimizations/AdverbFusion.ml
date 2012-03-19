@@ -36,7 +36,7 @@ module Fusion_Rules = struct
     let body = Block.singleton stmt1 in 
     let _ = Block.add body stmt2 in
     (* create a new function *)
-    let tenv' = ID.Map.of_lists ( arg_ids @ ret_ids @ local_ids ) (fn1.fn_input_types @ fn2.fn_output_types @ fn1.fn_output_types) in
+    let tenv' = ID.Map.of_lists (arg_ids @ ret_ids @ local_ids) (fn1.fn_input_types @ fn2.fn_output_types @ fn1.fn_output_types) in
     let new_fn = TypedSSA.mk_fn ?name:None ~tenv:tenv' ~input_ids:arg_ids ~output_ids:ret_ids ~body:body in
     (* register the new global function to FnTable and return it *)
     let _ = !add_typed_fn new_fn in 
@@ -52,10 +52,10 @@ module Fusion_Rules = struct
       List.map (Type.increase_rank (numAxes * 2)) nestedOutTypes 
     | Reduce -> nestedOutTypes
 
+  type context = (stmt_node option) 
   (* context always has a previous immediate adverb function *)
-  type context = (stmt_node option) ref 
   let preImmStmt = ref None
-  let init _ = ref None
+  let init _ = None
   let finalize _ _ = NoChange
   let dir = Forward
 
@@ -63,7 +63,7 @@ module Fusion_Rules = struct
     (* handlig only an single assignment *)
     (* Map with length(array_args) = 1 *)
     | Set(ids1,{exp=Adverb{adverb=Map;adverb_fn=adverb_fn1;fixed_args=fixed_args1;init=_;axes=_; array_args=[array_arg1]}}) -> begin match !preImmStmt with
-      | None -> let _ =  preImmStmt := Some stmtNode in IFDEF DEBUG THEN Printf.printf "SKIPP...\n%! " ; ENDIF; UpdateWithStmts (empty_stmt,[])
+      | None -> let _ =  preImmStmt := Some stmtNode in IFDEF DEBUG THEN Printf.printf "SKIPP...\n%! " ; ENDIF; ReplaceWithStmts (empty_stmt,[])
       | Some s_node -> begin match s_node.stmt with
         | Set([id2],{exp=Adverb{adverb=Map;adverb_fn=adverb_fn2;fixed_args=fixed_args2;axes=axes2;array_args=array_args2}}) ->
           if (value_to_str array_arg1.value) = (ID.to_str id2) then (* Apply the Map Rule *)
@@ -86,15 +86,15 @@ module Fusion_Rules = struct
               let new_set = set ids1 new_adverb_fn in 	           
                 preImmStmt := None;Update new_set
             else ( Printf.printf "NOT MATACH1..%s = %s\n" (value_to_str array_arg1.value) (ID.to_str id2); preImmStmt := None; UpdateWithStmts(stmtNode,[s_node]))
-   	    | _ -> ( IFDEF DEBUG THEN Printf.printf "NOT MATACH2...\n" ; ENDIF; preImmStmt := None ; UpdateWithStmts(stmtNode,[s_node]) ) end (* End of Some s_node *)
+   	    | _ -> ( IFDEF DEBUG THEN Printf.printf "NOT MATACH2...\n" ; ENDIF; preImmStmt := None ; ReplaceWithStmts(stmtNode,[s_node]) ) end (* End of Some s_node *)
       end (* End of Set([id],{exp=Adverb...}) *) 
     (* other Maps matching *)
     | Set(ids1,{exp=Adverb{adverb=Map;adverb_fn=adverb_fn1;fixed_args=fixed_args1;init=_;axes=_; array_args=array_args1}}) -> begin match !preImmStmt with
-      | None ->  let _ =  preImmStmt := Some stmtNode in IFDEF DEBUG THEN Printf.printf "SKIPP2...\n%! " ; ENDIF; UpdateWithStmts (empty_stmt,[])
+      | None ->  let _ =  preImmStmt := Some stmtNode in IFDEF DEBUG THEN Printf.printf "SKIPP2...\n%! " ; ENDIF; ReplaceWithStmts (empty_stmt,[])
       | Some s_node -> (preImmStmt := None; UpdateWithStmts (stmtNode,[s_node])) end
     | _ -> begin match !preImmStmt with 
       | None -> (IFDEF DEBUG THEN Printf.printf "NOT MATACH3...\n" ; ENDIF; NoChange) 
-	  | Some s_node -> IFDEF DEBUG THEN Printf.printf "UPdate stmtNodUpdate ...\n%! "; ENDIF; preImmStmt := None; UpdateWithStmts (stmtNode,[s_node]) end (* End of !preImmStmt *)
+	  | Some s_node -> IFDEF DEBUG THEN Printf.printf "UPdate stmtNodUpdate ...\n%! "; ENDIF; preImmStmt := None; ReplaceWithStmts (stmtNode,[s_node]) end (* End of !preImmStmt *)
 			
   let phi   env phiNode = NoChange
   let exp   env expNode = NoChange

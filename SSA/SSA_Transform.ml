@@ -7,6 +7,7 @@ type direction = Forward | Backward
 type 'a update =
   | NoChange
   | Update of 'a
+  | ReplaceWithStmts of 'a * (stmt_node list)
   | UpdateWithStmts of 'a * (stmt_node list)
   | UpdateWithBlock of 'a * block
 
@@ -66,11 +67,12 @@ module BlockState = struct
     | NoChange -> xDefault
     | Update xNew -> incr_changes blockState; xNew
     | UpdateWithStmts (xNew, stmts) ->
-	    if List.length stmts <> 0 then
-            begin incr_changes blockState;
-              add_stmt_list blockState stmts;
-              xNew end
-          else xNew 
+	   incr_changes blockState;
+       add_stmt_list blockState stmts;
+       xNew
+    | ReplaceWithStmts (xNew, stmts) ->
+	  add_stmt_list blockState stmts;
+	  xNew
     | UpdateWithBlock (xNew, block) ->
         incr_changes blockState;
         add_block blockState block;
@@ -83,13 +85,15 @@ open BlockState
 
 let exp_update_to_str = function
   | NoChange -> "NoChange"
-  | Update e -> "Update: " ^ (TypedSSA.exp_to_str e)
+  | Update e -> "Update: " ^ (TypedSSA.exp_to_str e)  
+  | ReplaceWithStmts (e, _)-> "ReplaceStmts: " ^ (TypedSSA.exp_to_str e)
   | UpdateWithStmts (e, _)-> "UpdateStmts: " ^ (TypedSSA.exp_to_str e)
   | UpdateWithBlock (e, _) -> "UpdateBlock: " ^ (TypedSSA.exp_to_str e)
 
 let stmt_update_to_str = function
   | NoChange -> "NoChange"
   | Update e -> "Update: " ^ (TypedSSA.stmt_node_to_str e)
+  | ReplaceWithStmts (e, _)-> "ReplaceStmts:" ^ (TypedSSA.stmt_node_to_str e)
   | UpdateWithStmts (e, _)-> "UpdateStmts: " ^ (TypedSSA.stmt_node_to_str e)
   | UpdateWithBlock (e, _) -> "UpdateBlock: " ^ (TypedSSA.stmt_node_to_str e)
 
@@ -259,6 +263,8 @@ module Mk(R: SIMPLE_TRANSFORM_RULES) = struct
     match R.finalize cxt fn' with
       | NoChange -> fn', changed
       | Update fn'' -> fn'', true
+      | ReplaceWithStmts (fn'',stmts) ->
+        { fn'' with body = Block.append (Block.of_list stmts) body'}, true	 
       | UpdateWithStmts (fn'', stmts) ->
         { fn'' with body = Block.append (Block.of_list stmts) body'}, true
       | UpdateWithBlock (fn'', block) ->
