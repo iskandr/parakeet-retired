@@ -7,9 +7,16 @@ open TypedSSA
 type t = {
   adverb : adverb_info option;
   stmt_id : StmtId.t option;
+  shapes : Shape.t list option;
   nested_adverbs : t list;
   num_scalar_ops : int
 }
+
+type value = DataId.t Value.t
+type values = value list
+
+let fn_args : values ref = ref ([]:values)
+let set_fn_args args = fn_args := args
 
 module WorkTreeBuilder = SSA_Analysis.MkEvaluator(struct
   type env = t
@@ -19,7 +26,13 @@ module WorkTreeBuilder = SSA_Analysis.MkEvaluator(struct
   let dir = Forward
   let iterative = false
 
-  let init fn = {adverb=None; stmt_id=None; nested_adverbs=[]; num_scalar_ops=0}
+  let init fn = {
+    adverb=None;
+    stmt_id=None;
+    shapes=None;
+    nested_adverbs=[];
+    num_scalar_ops=0
+  }
 
   let value _ _ = ()
   let exp _ _ _ = ()
@@ -32,34 +45,44 @@ module WorkTreeBuilder = SSA_Analysis.MkEvaluator(struct
     | Set(_, expNode)
     | SetIdx(_, _, expNode) ->
       begin match expNode.exp with
-        | Adverb adverb_info ->
-          let child_node =
-            {adverb=adverb_info; stmt_id=stmtNode.stmt_id;
+        | Adverb info ->
+          let id = stmtNode.TypedSSA.stmt_id in
+          let child_node_empty =
+            {adverb=Some info; stmt_id=Some id; shapes=None;
              nested_adverbs=[]; num_scalar_ops=0}
           in
-          let child = helpers.iter_exp_children child_node exp in
-          let nested_adverbs = tree.nested_adverbs @ [child] in
-          {tree with nested_adverbs=nested_adverbs}
+          let nestedFn = FnManager.get_typed_function info.Adverb.adverb_fn in
+          let (child_node, _) =
+            helpers.eval_block child_node_empty nestedFn.body
+          in
+          let nested_adverbs = tree.nested_adverbs @ [child_node] in
+          Some {tree with nested_adverbs=nested_adverbs}
         | _ ->
           let num_scalar_ops = tree.num_scalar_ops + 1 in
-          {tree with num_scalar_ops=num_scalar_ops}
+          Some {tree with num_scalar_ops=num_scalar_ops}
       end
     | If(_, _, _, _)
     | WhileLoop(_, _, _, _) ->
-      helpers.eval_stmt tree stmtNode helpers
+      helpers.eval_stmt tree stmtNode
 end)
 
-let build_work_tree fn = WorkTreeBuilder.eval_fn fn
+let build_work_tree fn args =
+  set_fn_args args;
+  WorkTreeBuilder.eval_fn fn
 
 let rec aux_to_str num_spaces tree =
   match tree.adverb with
   | Some adverb_info ->
-    Printf.printf "%s(%d)\n%!"
-      (Adverb.to_str adverb_info.adverb)
+    Printf.printf "%*s%s(%d)\n%!"
+      num_spaces
+      ""
+      (Adverb.to_str adverb_info.Adverb.adverb)
       tree.num_scalar_ops
     ;
     List.iter (aux_to_str (num_spaces + 2)) tree.nested_adverbs
-  | None -> Printf.printf "Root(%d)\n%!" tree.num_scalar_ops
+  | None ->
+    Printf.printf "WorkTreeRoot(%d)\n%!" tree.num_scalar_ops;
+    List.iter (aux_to_str (num_spaces + 2)) tree.nested_adverbs
 
 let to_str tree =
   aux_to_str 0 tree

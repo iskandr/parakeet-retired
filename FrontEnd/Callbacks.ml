@@ -80,3 +80,6 @@ let _ = Callback.register "register_ptr" DataManager.register_ptr
 
 (*** SSA ***)
 let _ = Callback.register "set_vectorize" SSA_to_Imp.set_vectorize
+
+(*** LLVM ***)
+let _ = Callback.register "set_multithreading" LLVM_Backend.set_multithreading

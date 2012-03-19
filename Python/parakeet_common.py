@@ -80,6 +80,7 @@ def init_parakeet_lib():
 
   # Set up Parakeet configuration interface
   LibPar.set_vectorize.restype = c_void_p
+  LibPar.set_multithreading.restype = c_void_p
 
   # Get global values for parakeet types
   LibPar.bool_t = c_int.in_dll(LibPar, "parakeet_bool_elt_t").value

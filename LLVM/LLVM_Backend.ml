@@ -19,6 +19,8 @@ let _ = Llvm_executionengine.initialize_native_target()
 let execution_engine = LLE.create_jit Imp_to_LLVM.llvm_module 3
 
 (** Multithreaded CPU Work Queue **)
+let use_multithreading = ref true
+let set_multithreading b = use_multithreading := b
 external create_work_queue : int -> Int64.t = "ocaml_create_work_queue"
 external destroy_work_queue : Int64.t -> unit = "ocaml_destroy_work_queue"
 external do_work : Int64.t -> LLE.t -> llvalue -> GV.t list list -> unit =
@@ -137,12 +139,14 @@ let get_arg_alignment arg =
 
 (* TODO: All this scheduling logic is really messy. As in terrible. *)
 let do_parallel info =
-  let arg = List.hd info.array_args in
-  match arg with
-  | Scalar _ -> true
-  | Array {array_shape} ->
-    let min_elts = (get_arg_alignment arg) * num_threads in
-    (Shape.get array_shape 0) >= min_elts
+  if not !use_multithreading then false
+  else
+    let arg = List.hd info.array_args in
+    match arg with
+    | Scalar _ -> true
+    | Array {array_shape} ->
+      let min_elts = (get_arg_alignment arg) * num_threads in
+      (Shape.get array_shape 0) >= min_elts
 
 let split_argument axes num_items alignment arg =
   match arg with

@@ -301,7 +301,6 @@ let rec translate_fn (ssaFn:TypedSSA.fn) (impInputTypes:ImpType.t list)
       (ID.Map.to_list impTyEnv)
     ;
     translate_block bodyBuilder ssaFn.TypedSSA.body;
-
     let impFn = fnBuilder#finalize_fn in
     Hashtbl.add cache signature impFn;
     IFDEF DEBUG THEN

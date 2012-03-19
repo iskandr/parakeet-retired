@@ -19,7 +19,7 @@ type ('a,'b,'c) info = {
   array_args : 'b;
 }
 
-let apply_to_fields info ~(fn:'a->'d) ~(values:'b -> 'e) ~(axes:'c -> 'f) =
+let apply_to_fields info ~(fn:'a -> 'd) ~(values:'b -> 'e) ~(axes:'c -> 'f) =
   {
     adverb = info.adverb;
     adverb_fn = fn info.adverb_fn;
