@@ -12,13 +12,10 @@ type t = {
   num_scalar_ops : int
 }
 
-type value = DataId.t Value.t
-type values = value list
-
-let fn_args : values ref = ref ([]:values)
-let set_fn_args args = fn_args := args
-
-module WorkTreeBuilder = SSA_Analysis.MkEvaluator(struct
+module type WORKTREE_PARAMS = sig
+  val fnArgs : DataId.t Value.t list
+end
+module WorkTreeArgs(P: WORKTREE_PARAMS) = struct
   type env = t
   type value_info = unit
   type exp_info = unit
@@ -64,10 +61,11 @@ module WorkTreeBuilder = SSA_Analysis.MkEvaluator(struct
     | If(_, _, _, _)
     | WhileLoop(_, _, _, _) ->
       helpers.eval_stmt tree stmtNode
-end)
+end
 
 let build_work_tree fn args =
-  set_fn_args args;
+  let module Params = struct let fnArgs = args end in
+  let module WorkTreeBuilder = SSA_Analysis.MkEvaluator(WorkTreeArgs(Params)) in
   WorkTreeBuilder.eval_fn fn
 
 let rec aux_to_str num_spaces tree =

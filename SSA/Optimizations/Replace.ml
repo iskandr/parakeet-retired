@@ -2,9 +2,8 @@
 
 open Base
 open PhiNode
+open SSA_Transform
 open TypedSSA
-open  SSA_Transform
-
 
 (* doesn't update the type environment, which still refers to the old *)
 (* identifiers! *)
@@ -13,7 +12,6 @@ module type REPLACE_PARAMS = sig
   val idMap : ID.t ID.Map.t
 end
 module Replace_Rules(P: REPLACE_PARAMS) = struct
-
   let rec replace_id_list idMap ids = match ids with
   | [] -> []
   | id::rest ->
