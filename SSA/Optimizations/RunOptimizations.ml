@@ -40,7 +40,7 @@ let rec optimize_fn
   let fn', changed =
     fold_optimizations ~type_check fnTable fn false optimizations
   in
-  if changed && iter < maxiters then
+  if changed && iter < 2 then
     optimize_fn
       ~type_check
       ~iter:(iter+1)
@@ -56,6 +56,7 @@ let optimize_all_fns
       ?(maxiters=100)
       (fnTable : FnTable.t)
       (optimizations : (string * optimization) list) =
+
   while FnTable.have_unoptimized fnTable do
     let fn = FnTable.get_unoptimized fnTable in
     IFDEF DEBUG THEN

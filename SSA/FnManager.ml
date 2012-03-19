@@ -139,6 +139,17 @@ let default_typed_optimizations =
 
 let optimize_typed_functions () =
   (*Timing.start Timing.typedOpt;*)
+  IFDEF DEBUG THEN
+    Printf.printf "*** Started Opt all typed functions ***\n%!";
+  ENDIF;
+
+  let fusion_is_default (opt_name, func) =
+    if "fusion" = opt_name then true else false in
+  let _ = if List.exists fusion_is_default default_typed_optimizations 
+    then (Printf.printf "*** Setting!! Opt.. ***\n%!"; 
+         AdverbFusion.init_get_typed_fn get_typed_function;  
+	     AdverbFusion.init_add_typed_fn add_typed) 
+	else Printf.printf "*** No Setting!! Opt.. ***\n%!" in
   RunOptimizations.optimize_all_fns
     ~type_check:true
     ~maxiters:100
@@ -148,13 +159,7 @@ let optimize_typed_functions () =
   IFDEF DEBUG THEN
     Printf.printf "*** Optimized all typed functions ***\n%!";
   ENDIF;
-(* because of a circular dependency *)
-  let fusion_is_default (opt_name, func) = if "fuison" == opt_name then true
-                                             else false in
-    if List.exists fusion_is_default default_typed_optimizations 
-      then let _ = AdverbFusion.init_get_typed_fn get_typed_function in 
-           AdverbFusion.init_add_typed_fn add_typed
-      else () 
+  ()
   (*;Timing.stop Timing.typedOpt*)
 
 
