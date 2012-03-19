@@ -70,13 +70,15 @@ and Interp : INTERP = struct
   let eval_values (valNodes:TypedSSA.value_nodes) : value list =
     List.map eval_value valNodes
 
-  let eval_phi_node cond phiNode : unit =
+  type dir = Left | Right
+
+  let eval_phi_node dir phiNode : unit =
     let id = phiNode.phi_id in
-    let rhs = if cond then phiNode.phi_left else phiNode.phi_right in
+    let rhs = if dir = Left then phiNode.phi_left else phiNode.phi_right in
     let rhsVal = eval_value rhs in
     Env.set_binding id rhsVal
 
-  let eval_phi_nodes cond phiNodes = List.iter (eval_phi_node cond) phiNodes
+  let eval_phi_nodes dir phiNodes = List.iter (eval_phi_node dir) phiNodes
 
   let rec eval_block block = Block.iter_forward eval_stmt block
   and eval_stmt (stmtNode:TypedSSA.stmt_node) : unit =
@@ -86,18 +88,19 @@ and Interp : INTERP = struct
     | If (boolVal, tBlock, fBlock, phiNodes) ->
       let cond = Value.to_bool (eval_value boolVal) in
       eval_block (if cond then tBlock else fBlock);
-      eval_phi_nodes cond phiNodes
+      eval_phi_nodes (if cond then Left else Right) phiNodes
     | WhileLoop (testBlock, testVal, body, header) ->
-      eval_phi_nodes true header;
+      eval_phi_nodes Left header;
       eval_block testBlock;
       let cond = ref (eval_value testVal) in
       let niters = ref 0 in
       while Value.to_bool !cond do
         niters := !niters + 1;
         eval_block body;
-        eval_phi_nodes false header;
+        eval_phi_nodes Right header;
         eval_block testBlock;
-        cond := eval_value testVal
+        cond := eval_value testVal;
+        Printf.printf "Loop %d : %b\n " !niters (Value.to_bool !cond);
       done
 
   and eval_exp (expNode:TypedSSA.exp_node) : value list =
@@ -150,7 +153,7 @@ and Interp : INTERP = struct
     match op, nums with
     | Prim.Eq, [x;y] -> Value.of_bool (x = y)
     | Prim.Neq, [x;y] -> Value.of_bool (x <> y)
-    | Prim.Lt, [x;y] -> Value.of_bool (ParNum.to_float x <= ParNum.to_float y)
+    | Prim.Lt, [x;y] -> Value.of_bool (ParNum.to_float x < ParNum.to_float y)
     | Prim.Lte, [x;y] -> Value.of_bool (ParNum.to_float x <= ParNum.to_float y)
     | Prim.Gt, [x;y] -> Value.of_bool (ParNum.to_float x > ParNum.to_float y)
     | Prim.Gte, [x;y] -> Value.of_bool (ParNum.to_float x >= ParNum.to_float y)

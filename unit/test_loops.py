@@ -4,7 +4,7 @@ import parakeet, sys
 from parakeet import PAR 
 
 parakeet.set_vectorize(False)
-
+parakeet.set_multithreading(False)
 @PAR
 def count_x(x):
   y = 0
@@ -38,16 +38,17 @@ def test_sum_to_x():
 
 @PAR
 def array_pow(x, b, n):
-  z = x
   i = 0
   while i < n:
-    z = z * b
-  return z
+    x = x * b
+    i = i + 1
+  return x
 
 def test_array_pow():
   x = np.array(range(100), dtype=np.int32)
-  y = array_pow(x, 3, 5)
-  z = array_pow.call_original(x, 3, 5)
+  y = array_pow(x, 2, 1)
+  z = array_pow.call_original(x, 2, 1)
+  print "Python: %s\n Parakeet: %s" % (z,y)
   assert np.all(z == y)
   print "Array pow OK"
 
