@@ -8,7 +8,7 @@ open TypedSSA
 type t = {
   adverb : adverb_info option;
   stmt_id : StmtId.t option;
-  arg_shapes : Shape.t list option;
+  arg_shapes : Shape.t list;
   nested_adverbs : t list;
   num_scalar_ops : int
 }
@@ -44,7 +44,7 @@ module WorkTreeArgs(P: WORKTREE_PARAMS) = struct
           let axes = List.map get_const_int info.axes in
           let nestedFn = FnManager.get_typed_function info.adverb_fn in
           let child_node_empty =
-            {adverb=Some info; stmt_id=Some id; arg_shapes=Some P.shapes;
+            {adverb=Some info; stmt_id=Some id; arg_shapes=P.shapes;
              nested_adverbs=[]; num_scalar_ops=0}
           in
           let newShapes = List.map (Shape.peel ~axes) P.shapes in
@@ -77,7 +77,7 @@ let build_work_tree fn args =
   let curTree = {
     adverb=None;
     stmt_id=None;
-    arg_shapes=None;
+    arg_shapes=[];
     nested_adverbs=[];
     num_scalar_ops=0
   }
@@ -87,13 +87,12 @@ let build_work_tree fn args =
 let rec aux_to_str num_spaces tree =
   match tree.adverb with
   | Some adverb_info ->
-    let shapes = match tree.arg_shapes with Some ss -> ss | _ -> [] in
     Printf.printf "%*s%s(%d) : %s\n%!"
       num_spaces
       ""
       (Adverb.to_str adverb_info.Adverb.adverb)
       tree.num_scalar_ops
-      (Shape.shape_list_to_str shapes)
+      (Shape.shape_list_to_str tree.arg_shapes)
     ;
     List.iter (aux_to_str (num_spaces + 2)) tree.nested_adverbs
   | None ->
