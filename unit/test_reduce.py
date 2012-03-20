@@ -3,6 +3,8 @@ import numpy as np
 import parakeet
 from parakeet import PAR 
 
+parakeet.set_vectorize(False)
+
 @PAR
 def sum_all_elts(x):
   return parakeet.reduce(np.add, x)
@@ -26,7 +28,7 @@ def sum_rows(x):
   return parakeet.reduce(parakeet.add, x, axis=[0])
 
 def test_sum_rows():
-  x = np.random.randn(10,1000)
+  x = np.random.randn(10,10)
   parakeet_sum_rows = sum_rows(x)
   np_sum_rows = np.sum(x,axis=0)
   print "Python: %s\n, Parakeet: %s\n" % (np_sum_rows, parakeet_sum_rows)
@@ -35,5 +37,5 @@ def test_sum_rows():
 if __name__ == '__main__':
   test_1d_sum()
   test_2d_sum()
-  #test_sum_rows()
+  test_sum_rows()
 
