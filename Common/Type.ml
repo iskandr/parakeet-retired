@@ -226,4 +226,3 @@ let maximal_type types =
       if r >= highestRank then aux r t ts
       else aux highestRank currT ts
   in aux 0 BottomT types
-

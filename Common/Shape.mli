@@ -11,6 +11,8 @@ val set : t -> int -> int -> unit
 
 val to_str : t -> string
 
+val shape_list_to_str : t list -> string
+
 val scalar_shape : t
 
 val of_list : int list -> t

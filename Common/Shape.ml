@@ -99,7 +99,7 @@ let peel ?(axes=[0]) shape =
   let diff = n - num_axes in
   if diff <= 0 then scalar_shape
   else
-    let all_axes =  List.til n in
+    let all_axes = List.til n in
     let kept_axes = List.filter (fun x -> not $ List.mem x axes) all_axes in
     let shape' = create diff in
     let idx = ref 0 in
