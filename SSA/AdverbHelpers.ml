@@ -95,9 +95,14 @@ let mk_adverb_fn
     let outputTypes =
       adverb_output_types info.adverb nAxes nestedOutputTypes
     in
+    let name =
+        Printf.sprintf "%s.%s_wrapper"
+          (FnId.to_str nestedFnId)
+          (Adverb.to_str info.adverb)
+    in
     let newfn =
       TypedSSA.fn_builder
-        ~name:(Adverb.to_str info.adverb ^ "_wrapper")
+        ~name
         ~input_types:(info.fixed_args @ info.array_args)
         ~output_types:outputTypes
         constructor

@@ -54,25 +54,8 @@ def test_true():
   print "Python = %s, Parakeet = %s" % (y_original, y)
   assert np.all(y_original == y)
 
-@PAR
-def if_return(b):
-  x = -1 
-  if b:
-    return 1
-  return x 
-    
-
-def test_if_return():
-  a = if_return(True)
-  print "Python = 1, Parakeet = ", a
-  assert a == 1
-  b = if_return(False)
-  print "Python = -1, Parakeet = ", b
-  assert b == -1
-
 
 if __name__ == '__main__':
   test_array_if()
   test_with_bool()
   test_true()
-  test_if_return()

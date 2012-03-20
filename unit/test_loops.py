@@ -4,7 +4,8 @@ import parakeet, sys
 from parakeet import PAR 
 
 parakeet.set_vectorize(False)
-#parakeet.set_multithreading(True)
+parakeet.set_multithreading(False)
+
 @PAR
 def count_x(x):
   y = 0
