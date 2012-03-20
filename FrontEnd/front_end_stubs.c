@@ -101,13 +101,15 @@ return_val_t run_function(int id, host_val *globals, int num_globals,
     for (i = 0; i < ret.results_len; ++i) {
       host_val v = (host_val)Field(ocaml_cur, 0);
       ocaml_cur = Field(ocaml_cur, 1);
-
+      //printf("Returning arg %d, is_scalar=%d\n", i, value_is_scalar(v)); 
       // returning a scalar
       if (value_is_scalar(v)) {
+         
         ret.results[i].is_scalar = 1;
         ocaml_type = (scalar_type)value_type_of(v);
         ret.results[i].data.scalar.ret_type =
             get_scalar_element_type(ocaml_type);
+        //printf("elt_t=%d\n",  get_scalar_element_type(ocaml_type)); 
 
         // WARNING:
         // Tiny Memory Leak Ahead

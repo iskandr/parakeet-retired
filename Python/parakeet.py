@@ -46,7 +46,7 @@ class WrappedFunction:
       elif n == 1:
         return parakeet_value_to_python(ret.results[0])
       else:
-        return tuple([parakeet_value_to_python(x) for x in ret.results])
+        return tuple([parakeet_value_to_python(ret.results[i]) for i in xrange(n)])
 
   def call_original(self, *args, **kwds):
     return self.old_function(*args, **kwds)

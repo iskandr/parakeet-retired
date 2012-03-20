@@ -85,6 +85,8 @@ def array_from_memory(pointer, shape, dtype):
 
 def parakeet_value_to_python(val):
   if val.is_scalar:
+    print val.data.scalar
+    print val.data.scalar.ret_type
     c_type = parakeet_to_c_types[val.data.scalar.ret_type]
     result = 0
     if c_type == c_bool:
