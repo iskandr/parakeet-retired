@@ -15,10 +15,10 @@ module Replace_Rules(P: REPLACE_PARAMS) = struct
   let rec replace_id_list idMap ids = match ids with
   | [] -> []
   | id::rest ->
-      let rest' = replace_id_list idMap rest in
-      if ID.Map.mem id idMap then (ID.Map.find id idMap)::rest'
-      (* use memory equality to check if anything has changed *)
-      else if rest == rest' then ids else id::rest'
+    let rest' = replace_id_list idMap rest in
+    if ID.Map.mem id idMap then (ID.Map.find id idMap)::rest'
+    (* use memory equality to check if anything has changed *)
+    else if rest == rest' then ids else id::rest'
 
   type context = ID.t ID.Map.t
   let init _ = P.idMap
@@ -30,14 +30,12 @@ module Replace_Rules(P: REPLACE_PARAMS) = struct
 
   let dir = Forward
 
-
   let value idMap valNode = match valNode.value with
     | Var id ->
       if ID.Map.mem id idMap then
         Update { valNode with value= Var (ID.Map.find id idMap) }
       else NoChange
     | _ -> NoChange
-
 
   let phi idMap phiNode  =
     let id = phiNode.phi_id in

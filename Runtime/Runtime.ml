@@ -27,7 +27,7 @@ module rec Scheduler : SCHEDULER = struct
     (* for now, if we schedule a function which contains an adverb, *)
     (* never compile it but instead run the body in the interpreter *)
     let workTree = WorkTree.build_work_tree fn args in
-    WorkTree.to_str workTree;
+    IFDEF DEBUG THEN WorkTree.to_str workTree; ENDIF;
     let hasAdverb = AdverbHelpers.fn_has_adverb fn in
     let shapely = ShapeInference.typed_fn_is_shapely fn in
     IFDEF DEBUG THEN
