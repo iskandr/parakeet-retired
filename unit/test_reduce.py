@@ -28,7 +28,7 @@ def sum_rows(x):
 def test_sum_rows():
   x = np.random.randn(10,1000)
   parakeet_sum_rows = sum_rows(x)
-  np_sum_rows = sum(x,axis=0)
+  np_sum_rows = np.sum(x,axis=0)
   print "Python: %s\n, Parakeet: %s\n" % (np_sum_rows, parakeet_sum_rows)
   assert np.sum( (parakeet_sum_rows - np_sum_rows)**2) <= 0.001
 

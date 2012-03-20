@@ -40,10 +40,13 @@ class WrappedFunction:
       raise RuntimeError("[Parakeet] Execution failed: %s" % ret.error_msg)
     else:
       print "Got %d results" % ret.results_len
-      if ret.results_len > 0:
+      n = ret.results_len
+      if n == 0:
+        return
+      elif n == 1:
         return parakeet_value_to_python(ret.results[0])
       else:
-        return
+        return tuple([parakeet_value_to_python(x) for x in ret.results])
 
   def call_original(self, *args, **kwds):
     return self.old_function(*args, **kwds)
