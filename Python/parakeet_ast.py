@@ -677,10 +677,6 @@ def register_function(f):
     body_ast = ast.fix_missing_locations(body_ast)
     AST = ASTConverter(global_refs, arg_names, file_name, line_offset)
     parakeet_syntax = AST.visit(body_ast)
-    print "\n\n\n\n"
-    print "PRINTING OUT THE NODE"
-    LibPar.print_ast_node(parakeet_syntax)
-    print "\n\n\n\n"
     #Med fix: right now, I assume there aren't any globals
     global_vars = list(AST.global_variables)
     n_globals = len(global_vars)
