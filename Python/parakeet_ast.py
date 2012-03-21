@@ -454,11 +454,10 @@ class ASTConverter():
       funRef = currModule
     else:
       raise RuntimeError("[Parakeet] Call.func shouldn't be", name)
-    try:
-      if funRef in AutoTranslate:
-        funRef = AutoTranslate[funRef]
-    except TypeError:
-      raise RuntimeError("[Parakeet] %s is not hashable" % funRef)
+    if not hasattr(funRef, '__call__'):
+      return None
+    if funRef in AutoTranslate:
+      funRef = AutoTranslate[funRef]
     if not hasattr(funRef,'__self__') or not funRef.__self__:
       self.seen_functions.add(funRef)
     return funRef
@@ -469,6 +468,9 @@ class ASTConverter():
       node_name = self.get_global_var_name(node.func)
       if not node_name.split('.')[0] in self.arg_names:
         funRef = self.get_function_ref(node.func)
+        if funRef is None:
+          raise RuntimeError("[Parakeet] Expected %s to be a function" %
+                             node.func)
         if hasattr(funRef,'__self__') and funRef.__self__:
           if funRef.__self__ in ValidObjects:
             func = ValidObjects[funRef.__self__]
