@@ -16,7 +16,7 @@ def test_reduce_all():
   print "Expected ", e_out, " got: ", out
   assert np.all(out == e_out)
 
-@PAR
+#@PAR
 def addReduceAxis(x):
   return np.add.reduce(x,1)
 

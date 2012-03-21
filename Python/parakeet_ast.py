@@ -356,15 +356,15 @@ class ASTConverter():
     elif isinstance(node, ast.BinOp):
       return self.build_prim_call(src_info, name_of_ast_node(node.op), args[0],
                                   args[2])
-    elif isinstance(node, ast.BoolOp): 
+    elif isinstance(node, ast.BoolOp):
       if len(args[1]) != 2:
         raise RuntimeError("[Parakeet] Unexpected number of args for:" +
                            node.op)
       return self.build_prim_call(src_info, name_of_ast_node(node.op),
                                   args[1][0], args[1][1])
-    elif isinstance(node, ast.UnaryOp): 
+    elif isinstance(node, ast.UnaryOp):
       return self.build_prim_call(src_info, name_of_ast_node(node.op), args[1])
-    elif isinstance(node, ast.Compare): 
+    elif isinstance(node, ast.Compare):
       #Not sure when there are multiple ops or multiple comparators?
       return self.build_prim_call(src_info, name_of_ast_node(node.ops[0]),
                                   args[0], args[2][0])
@@ -454,8 +454,11 @@ class ASTConverter():
       funRef = currModule
     else:
       raise RuntimeError("[Parakeet] Call.func shouldn't be", name)
-    if funRef in AutoTranslate:
-      funRef = AutoTranslate[funRef]
+    try:
+      if funRef in AutoTranslate:
+        funRef = AutoTranslate[funRef]
+    except TypeError:
+      raise RuntimeError("[Parakeet] %s is not hashable" % funRef)
     if not hasattr(funRef,'__self__') or not funRef.__self__:
       self.seen_functions.add(funRef)
     return funRef
