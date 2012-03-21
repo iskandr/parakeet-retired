@@ -19,14 +19,15 @@ def calc_centroid(X, a, i):
   return np.mean(X[a == i], 0)
 
 @PAR
-def calc_centroids(X, assign, k):
-  return parakeet.map(calc_centroid, np.arange(k), fixed=[X, assign])
+def calc_centroids(X, assign, a):
+  return parakeet.map(calc_centroid, a, fixed=[X, assign])
 
 def test_ccs():
   X = np.random.random(size=(1000, 100))
   assign = np.random.randint(2, size=1000)
   k = 2
-  C = calc_centroids(X, assign, k)
+  a = np.array(range(k))
+  C = calc_centroids(X, assign, a)
   new_assign = calc_assigns(X, C)
   new_C = calc_centroids(X, new_assign, k)
 
