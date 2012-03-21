@@ -1,4 +1,5 @@
 (* pp: -parser o pa_macro.cmo *)
+open Base
 
 type elt_t = Type.elt_t
 type t =
@@ -88,13 +89,6 @@ let rec combine_type_list = function
   | [t] -> t
   | t::ts -> common_type t (combine_type_list ts)
 
-let rec type_of_value = function
-  | Value.Scalar n -> ScalarT (ParNum.type_of n)
-  | Value.Array a -> ArrayT (a.Value.elt_type, Shape.rank a.Value.array_shape)
-  | Value.Shift (nested, _, _, _) -> ShiftT (type_of_value nested)
-  | Value.Explode (n, s) ->
-      ExplodeT (ParNum.type_of n, Shape.rank s)
-  | Value.Rotate (x, _, _) -> RotateT (type_of_value x)
 
 let peel ?(num_axes=1) = function
   | ArrayT (eltT, r) ->
@@ -106,6 +100,20 @@ let peel ?(num_axes=1) = function
   | PtrT (eltT,_) when num_axes = 1 -> ScalarT eltT
   | ScalarT eltT -> ScalarT eltT
   | _ -> failwith "Not implemented"
+
+
+let rec type_of_value = function
+  | Value.Scalar n -> ScalarT (ParNum.type_of n)
+  | Value.Array a -> ArrayT (a.Value.elt_type, Shape.rank a.Value.array_shape)
+  | Value.Shift (nested, _, _, _) -> ShiftT (type_of_value nested)
+  | Value.Explode (n, s) ->
+      ExplodeT (ParNum.type_of n, Shape.rank s)
+  | Value.Rotate (x, _, _) -> RotateT (type_of_value x)
+  | Value.FixDim(a, _, _) -> peel (type_of_value a)
+  | other ->
+    failwith $
+      Printf.sprintf "[ImpType] Not implemented for %s"
+      (Value.to_str other)
 
 let type_of_copy t =
   if is_scalar t then t
