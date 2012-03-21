@@ -85,7 +85,6 @@ let build_work_tree fn args =
   build_work_tree_from_shapes curTree fn argShapes
 
 let rec aux_to_str num_spaces tree =
-  (*Printf.printf "------------ %d \n%!" num_spaces;*)
   match tree.adverb with
   | Some adverb_info ->
     Printf.printf "%*s%s(%d) : %s\n%!"
