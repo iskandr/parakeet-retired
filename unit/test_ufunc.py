@@ -3,7 +3,9 @@ import parakeet
 from parakeet import PAR
 import numpy as np
 
-x = np.array(([1,2,3],[4,5,6]))
+parakeet.set_vectorize(False)
+parakeet.set_multithreading(False)
+
 
 @PAR
 def addReduce(x):
@@ -11,6 +13,7 @@ def addReduce(x):
 
 
 def test_reduce_all():
+  x = np.array(([1,2,3],[4,5,6]))
   out = addReduce(x)
   e_out = np.array(([5,7,9]))
   print "Expected ", e_out, " got: ", out
@@ -21,6 +24,7 @@ def addReduceAxis(x):
   return np.add.reduce(x,1)
 
 def test_reduce_axis():
+  x = np.array(([1,2,3],[4,5,6]))
   out = addReduceAxis(x)
   e_out = np.array(([6,15]))
   print "Expected ", e_out, " got: ", out
