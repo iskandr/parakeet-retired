@@ -26,13 +26,13 @@ def test_reduce_axis():
   print "Expected ", e_out, " got: ", out
   assert np.all(out == e_out)
 
-@PAR
-def addAccumulate(x):
-  return np.add.accumulate(x)
+#@PAR
+#def addAccumulate(x):
+#  return np.add.accumulate(x)
 
-@PAR
-def addAccumulateAxis(x):
-  return np.add.accumulate(x,1)
+#@PAR
+#def addAccumulateAxis(x):
+#  return np.add.accumulate(x,1)
 """
 def test_reduce():
   x = np.array(([1,2,3],[4,5,6]))

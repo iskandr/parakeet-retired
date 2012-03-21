@@ -83,9 +83,9 @@ module Make(P: REWRITE_PARAMS) = struct
    *)
   let coercions = ref []
 
-  let add_coercion ?src expNode =
+  let add_coercion ?src ?(name="coerce") expNode =
     let t = List.hd expNode.TypedSSA.exp_types in
-    let id = fresh_id ~name:"coerce" t in
+    let id = fresh_id ~name t in
     let stmtNode = TypedSSA.set [id] expNode in
     coercions := stmtNode :: !coercions;
     TypedSSA.var ?src t id
@@ -207,6 +207,24 @@ module Make(P: REWRITE_PARAMS) = struct
 
 
 
+
+  (* map a function which does element-by-element indexing over an *)
+  (* array of indices *)
+  let map_index_operator ?src array indices =
+    let untypedIndexNode = {
+      UntypedSSA.value = UntypedSSA.Prim (Prim.ArrayOp Prim.Index);
+      value_src = src;
+    }
+    in
+    rewrite_adverb_for_typed_args ?src {
+      Adverb.adverb = Adverb.Map;
+      adverb_fn = untypedIndexNode;
+      fixed_args = [array];
+      init = None;
+      axes = List.map TypedSSA.int32 $ List.til (List.length indices);
+      array_args = indices;
+    }
+
   let rewrite_array_op
         (src: SrcInfo.t option)
         (op:Prim.array_op)
@@ -224,35 +242,11 @@ module Make(P: REWRITE_PARAMS) = struct
       let whereExp =
         TypedSSA.primapp ?src whereOp ~output_types:[whereT] [index]
       in
-      let whereResult = add_coercion ?src whereExp in
-      let args' = array :: [whereResult] in
-      let resultType = Type.ArrayT (Type.elt_type arrayType, 1) in
-      let indexOp = Prim.ArrayOp Prim.Index in
-      TypedSSA.primapp ?src indexOp ~output_types:[resultType] args'
-
+      let whereResult = add_coercion ?src ~name:"where_result" whereExp in
+      map_index_operator array [whereResult]
     | Prim.Index, array::indices, arrayT::indexTypes
         when List.exists Type.is_array indexTypes ->
-      let untypedIndex = UntypedSSA.Prim (Prim.ArrayOp Prim.Index) in
-      let untypedIndexNode = {
-         UntypedSSA.value = untypedIndex;
-         value_src = None;
-      }
-      in
-      (* get a function which does the element-by-element indexing *)
-      let adverbInfo =
-      {
-        Adverb.adverb = Adverb.Map;
-        adverb_fn = untypedIndexNode;
-        fixed_args = [array];
-        init = None;
-        axes = List.map TypedSSA.int32 $ List.til (List.length indices);
-        array_args = indices;
-      }
-      in
-      rewrite_adverb_for_typed_args ?src adverbInfo
-
-
-
+      map_index_operator ?src array indices
     | _ ->
         let outT = TypeAnalysis.infer_simple_array_op op types in
         TypedSSA.primapp ?src (Prim.ArrayOp op) ~output_types:[outT] args

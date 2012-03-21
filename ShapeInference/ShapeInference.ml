@@ -42,10 +42,10 @@ module ShapeAnalysis (P: PARAMS) =  struct
 
   let value env valNode = match valNode.value with
     | TypedSSA.Var id ->
-      if ID.Map.mem id env then ID.Map.find id env 
-      else 
-        failwith $ 
-          Printf.sprintf 
+      if ID.Map.mem id env then ID.Map.find id env
+      else
+        failwith $
+          Printf.sprintf
             "Couldn't find %s in shape environmnent"
             (ID.to_str id)
       (*SymbolicShape.all_dims id (Type.rank valNode.TypedSSA.value_type)*)
@@ -53,10 +53,10 @@ module ShapeAnalysis (P: PARAMS) =  struct
 
   (* TODO: Sometimes dimensions need to be 'unified' (recorded as being equal) *)
   (* For now, just assume any shapes being merged must be literally the same *)
-  let assert_same s1 s2 = 
-    if SymbolicShape.neq s1 s2 then 
-      failwith $ 
-        Printf.sprintf 
+  let assert_same s1 s2 =
+    if SymbolicShape.neq s1 s2 then
+      failwith $
+        Printf.sprintf
           "Shape mismatch: %s and %s"
           (SymbolicShape.to_str s1)
           (SymbolicShape.to_str s2)
@@ -64,13 +64,13 @@ module ShapeAnalysis (P: PARAMS) =  struct
   let phi_set env id shape =
     if ID.Map.mem id env then (
       let oldShape = ID.Map.find id env in
-      assert_same oldShape shape; 
+      assert_same oldShape shape;
       None
     )
     else Some (ID.Map.add id shape env)
 
     let phi_merge env id leftShape rightShape =
-      assert_same leftShape rightShape; 
+      assert_same leftShape rightShape;
       phi_set env id leftShape
 
     let infer_adverb
@@ -121,38 +121,42 @@ module ShapeAnalysis (P: PARAMS) =  struct
       | Adverb.Scan, _, _->
         raise (ShapeInferenceFailure "Scan not implemented")
 
+    let infer_index arrayShape indexShapes =
+      let nIndices = List.length indexShapes in
+      if List.for_all SymbolicShape.is_scalar indexShapes then (
+      (* for now assume slicing can only happen along the
+         outermost dimensions and only by scalar indices
+       *)
+        IFDEF DEBUG THEN
+          let rank =  SymbolicShape.rank arrayShape in
+          if rank < nIndices then
+            failwith $ Printf.sprintf
+              "[ShapeInference] %d indices can't index into rank %d array"
+              rank
+              nIndices
+        ENDIF;
+        List.drop nIndices arrayShape
+      )
+      (* for now we're also allowing index vectors, though this really
+         ought to become a map
+       *)
+      else (
+        IFDEF DEBUG THEN
+          if nIndices <> 1 then
+            failwith
+              "[ShapeInference] Indexing by multiple arrays not supported"
+        ENDIF;
+        let idxShape = List.hd indexShapes  in
+        SymbolicShape.concat idxShape (SymbolicShape.peel arrayShape)
+      )
+
     let infer_array_op
         (op:Prim.array_op)
         (args:SymbolicShape.t list) : SymbolicShape.t =
       match op, args with
       | Prim.Index, (arrayShape::indexShapes) ->
-        let nIndices = List.length indexShapes in
-        if List.for_all SymbolicShape.is_scalar indexShapes then (
-        (* for now assume slicing can only happen along the
-           outermost dimensions and only by scalar indices
-         *)
-          IFDEF DEBUG THEN
-            let rank =  SymbolicShape.rank arrayShape in
-            if rank < nIndices then
-              failwith $ Printf.sprintf
-                "[ShapeInference] %d indices can't index into rank %d array"
-                rank
-                nIndices
-          ENDIF;
-          List.drop nIndices arrayShape
-        )
-        (* for now we're also allowing index vectors, though this really
-           ought to become a map
-         *)
-        else (
-          IFDEF DEBUG THEN
-            if nIndices <> 1 then
-              failwith
-                "[ShapeInference] Indexing by multiple arrays not supported"
-          ENDIF;
-          let idxShape = List.hd indexShapes  in
-          SymbolicShape.concat idxShape (SymbolicShape.peel arrayShape)
-        )
+        infer_index arrayShape indexShapes
+
       | Prim.Where, _ ->
         let msg =
           "Shape of 'where' operator cannot be statically determined"
@@ -164,7 +168,10 @@ module ShapeAnalysis (P: PARAMS) =  struct
         [SymbolicShape.const (SymbolicShape.rank arrShape)]
       | Prim.Transpose, [arrShape] -> List.rev arrShape
       | _ ->
-        failwith "Unsupported array operator %s with args %s"
+        failwith $ Printf.sprintf "Unsupported array operator %s with args %s"
+          (Prim.array_op_to_str op)
+          (SymbolicShape.shapes_to_str args)
+
 
     let infer_primapp
         (op:Prim.t)
