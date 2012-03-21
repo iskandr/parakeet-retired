@@ -57,6 +57,8 @@ module rec Scheduler : SCHEDULER = struct
     List.map DataManager.from_memspace results
 
   let array_op (op:Prim.array_op) (args:value list) = assert false
+    (*match op with
+    | *)
 end
 and Interp : INTERP = struct
   let eval_value (valNode:TypedSSA.value_node) : value =

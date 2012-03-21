@@ -157,16 +157,20 @@ module ShapeAnalysis (P: PARAMS) =  struct
       | Prim.Index, (arrayShape::indexShapes) ->
         infer_index arrayShape indexShapes
 
-      | Prim.Where, _ ->
-        let msg =
-          "Shape of 'where' operator cannot be statically determined"
-        in
-        raise (ShapeInferenceFailure msg)
       | Prim.DimSize, [_; _]
       | Prim.Find, [_; _] -> SymbolicShape.scalar
       | Prim.Shape, [arrShape] ->
         [SymbolicShape.const (SymbolicShape.rank arrShape)]
       | Prim.Transpose, [arrShape] -> List.rev arrShape
+
+      | Prim.Range, _
+      | Prim.Where, _ ->
+        let msg =
+          Printf.sprintf
+            "Shape of %s operator cannot be statically determined"
+            (Prim.array_op_to_str op)
+        in
+        raise (ShapeInferenceFailure msg)
       | _ ->
         failwith $ Printf.sprintf "Unsupported array operator %s with args %s"
           (Prim.array_op_to_str op)
