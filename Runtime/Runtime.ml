@@ -28,11 +28,8 @@ module rec Scheduler : SCHEDULER = struct
     (* never compile it but instead run the body in the interpreter *)
     let workTree = WorkTree.build_work_tree fn args in
     IFDEF DEBUG THEN WorkTree.to_str workTree; ENDIF;
-    (*Printf.printf "A\n%!";*)
     let hasAdverb = AdverbHelpers.fn_has_adverb fn in
-    (*Printf.printf "B\n%!";*)
     let shapely = ShapeInference.typed_fn_is_shapely fn in
-    (*Printf.printf "C\n%!";*)
     IFDEF DEBUG THEN
       Printf.printf
         "[Scheduler] Calling %s with args %s (has_adverb = %b, shapely=%b)\n%!"
