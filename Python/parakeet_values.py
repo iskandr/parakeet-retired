@@ -9,18 +9,11 @@ from parakeet_common import LibPar, LOG, list_to_ctypes_array
 
 numpy_to_c_types = {
   np.bool_: c_bool,
+  np.int8 : c_char, 
   np.int32: c_int32,
   np.int64: c_int64,
   np.float32: c_float,
   np.float64: c_double,
-}
-
-numpy_to_parakeet_types = {
-  np.bool_: LibPar.bool_t,
-  np.int32: LibPar.int32_t,
-  np.int64: LibPar.int64_t,
-  np.float32: LibPar.float32_t,
-  np.float64: LibPar.float64_t,
 }
 
 parakeet_to_c_types = {
@@ -31,6 +24,16 @@ parakeet_to_c_types = {
   LibPar.float32_t: c_float,
   LibPar.float64_t: c_double,
 }
+
+numpy_to_parakeet_types = {
+  np.bool_: LibPar.bool_t,
+  np.int8 : LibPar.char_t, 
+  np.int32: LibPar.int32_t,
+  np.int64: LibPar.int64_t,
+  np.float32: LibPar.float32_t,
+  np.float64: LibPar.float64_t,
+}
+
 
 parakeet_to_dtype = { 
   LibPar.bool_t: np.bool_,
