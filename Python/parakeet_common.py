@@ -78,7 +78,11 @@ def init_parakeet_lib():
   LibPar.mk_return.restype = c_void_p
   LibPar.print_ast_node.restype = c_void_p
 
-  #get global values for parakeet types
+  # Set up Parakeet configuration interface
+  LibPar.set_vectorize.restype = c_void_p
+  LibPar.set_multithreading.restype = c_void_p
+
+  # Get global values for parakeet types
   LibPar.bool_t = c_int.in_dll(LibPar, "parakeet_bool_elt_t").value
   LibPar.char_t = c_int.in_dll(LibPar, "parakeet_char_elt_t").value
   LibPar.int32_t = c_int.in_dll(LibPar, "parakeet_int32_elt_t").value
@@ -87,7 +91,7 @@ def init_parakeet_lib():
   LibPar.float64_t = c_int.in_dll(LibPar, "parakeet_float64_elt_t").value
   return LibPar
 
-#Load libraries, basic initialization
+# Load libraries, basic initialization
 LibPar = init_parakeet_lib()
 
 def list_to_ctypes_array(input_list, t):
@@ -99,4 +103,3 @@ def list_to_ctypes_array(input_list, t):
     arr[i] = input_list[i]
   print "[list_to_ctypes_array] output:", arr
   return arr
-

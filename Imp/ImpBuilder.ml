@@ -10,7 +10,6 @@ type fn_info = {
   mutable storages : Imp.storage ID.Map.t;
 }
 
-
 let create_fn_info () =
   {
     ids = ID.Set.empty;
@@ -19,17 +18,23 @@ let create_fn_info () =
     storages = ID.Map.empty
   }
 
-
 let id_of valNode = match valNode.value with
   | Var id ->  id
   | other -> failwith $ "Can't set " ^ (Imp.value_to_str other)
 
-let rec remove_pos_from_list  ?(curr=0) pos = function
+let rec remove_pos_from_list ?(curr=0) pos = function
   | [] -> []
   | x::xs ->
     if curr = pos then xs
     else x :: (remove_pos_from_list ~curr:(curr+1) pos xs)
 
+let is_simple {value} = match value with
+  | Var _
+  | Const _
+  | VecConst _
+  | CudaInfo _
+  | VecSlice _ -> true
+  | _ -> false
 
 class builder (info:fn_info) = object (self)
   val stmts : stmt DynArray.t = DynArray.create ()
@@ -57,7 +62,6 @@ class builder (info:fn_info) = object (self)
     | Slice _ -> Imp.Alias
     | _ -> Imp.Local
 
-
   method mk_temp valNode =
     (*Printf.printf "[ImpBuilder.mk_temp] %s\n%!"
       (Imp.value_node_to_str valNode)
@@ -71,17 +75,8 @@ class builder (info:fn_info) = object (self)
 
 (* nested values on the RHS should be constants or variables *)
   method flatten_simple valNode =
-    (* Printf.printf "[ImpBuilder.flatten_simple] %s\n%!"
-      (Imp.value_node_to_str valNode)
-    ;
-    *)
-    match valNode.value with
-    | Var _
-    | Const _
-    | VecConst _
-    | CudaInfo _ -> valNode
-    | _ -> self#mk_temp valNode
-
+    if is_simple valNode then valNode
+    else self#mk_temp valNode
 
   (* LHS of assignment should be either variable, vecslice, or idx *)
   method flatten_lhs valNode =
@@ -107,13 +102,7 @@ class builder (info:fn_info) = object (self)
 
   (* RHS of an assignment *)
   method flatten_rhs valNode =
-    (*Printf.printf "[ImpBuilder.flatten_rhs] %s\n%!"
-      (Imp.value_node_to_str valNode)
-    ;
-    *)
     Imp.recursively_apply ~delay_level:1 self#flatten_simple valNode
-
-
 
   method flatten stmt : stmt =
     Imp.recursively_apply_to_stmt
@@ -122,10 +111,6 @@ class builder (info:fn_info) = object (self)
       stmt
 
   method append stmt : unit =
-    (*Printf.printf "[ImpBuilder.append] Adding %s\n%!"
-      (Imp.stmt_to_str stmt)
-    ;
-    *)
     DynArray.add stmts (self#flatten stmt)
 
   method concat_list stmts = List.iter self#append stmts
@@ -176,13 +161,13 @@ class builder (info:fn_info) = object (self)
     info.shapes <- ID.Map.add id shape info.shapes;
     info.storages <- ID.Map.add id storage info.storages
 
-  method fresh_local name ?storage ?shape (ty:ImpType.t)  : value_node =
+  method fresh_local name ?storage ?shape (ty:ImpType.t) : value_node =
     let id = ID.gen_named name in
     let storage = match storage with Some s -> s | None -> Imp.Alias in
     self#declare  id ~storage ?shape ty;
     { value = Var id; Imp.value_type = ty }
 
-  method cast name (v:value_node) (ty:ImpType.t)  =
+  method cast name (v:value_node) (ty:ImpType.t) =
     if v.value_type <> ty then v
     else (
       let temp : Imp.value_node = self#fresh_local name ty in
@@ -190,16 +175,15 @@ class builder (info:fn_info) = object (self)
       temp
     )
 
-  method var (id:ID.t)  : value_node =
+  method var (id:ID.t) : value_node =
     if not $ self#has_id id
     then failwith $ "[ImpBuilder] ID not found: " ^ ID.to_str id
     else
     let ty = self#get_type id in
     { value = Imp.Var id; value_type = ty }
 
-
   (* recursively build fixdim nodes for a list of indices *)
-  method fixdims ~arr ~dims ~indices  : value_node =
+  method fixdims ~arr ~dims ~indices : value_node =
     let rec helper ?(counter=0) arr dims indices =
       match dims, indices with
       | [], [] -> arr
@@ -227,9 +211,9 @@ class builder (info:fn_info) = object (self)
     helper arr dims indices
 
   method idx_or_fixdims
-    ~(arr:value_node)
-    ~(dims:value_nodes)
-    ~(indices:value_nodes) =
+      ~(arr:value_node)
+      ~(dims:value_nodes)
+      ~(indices:value_nodes) =
     let nIndices = List.length indices in
     let arrT = arr.value_type in
     let rank = ImpType.rank arrT in
@@ -261,7 +245,7 @@ class builder (info:fn_info) = object (self)
     else if rank = nIndices then ImpHelpers.idx arr ~dims  indices
     else self#fixdims arr dims indices
 
-  method build_add  (name:string) (x:value_node) (y:value_node) : value_node =
+  method build_add (name:string) (x:value_node) (y:value_node) : value_node =
     let tx = x.value_type in
     let ty = y.value_type in
     if tx <> ty then
@@ -270,16 +254,24 @@ class builder (info:fn_info) = object (self)
         (ImpType.to_str tx)
         (ImpType.to_str ty)
     else (
-      let result = self#fresh_local "addtmp" tx in
+      let result = self#fresh_local name tx in
       self#append $ Set(result, ImpHelpers.add x y);
       result
     )
 
-  method inline (impFn:Imp.fn) (inputs:value_nodes) (outputs:value_nodes) =
+  method inline
+    ?(call_by_copy=true) impFn (inputs:value_nodes) (outputs:value_nodes) =
+    let copyInputs =
+      if call_by_copy then List.map self#flatten_simple inputs
+      else inputs
+    in
+    let copyOutputs =
+      if call_by_copy then List.map self#flatten_simple outputs
+      else outputs
+    in
+    let nonlocals = copyInputs @ copyOutputs in
     let nonlocalEnv =
-      ID.Map.of_lists
-        (impFn.input_ids @ impFn.output_ids)
-        (inputs @ outputs)
+      ID.Map.of_lists (impFn.input_ids @ impFn.output_ids) nonlocals
     in
     let rec rewrite_dim = function
       | SymbolicShape.Dim(id, axis) ->
@@ -289,7 +281,6 @@ class builder (info:fn_info) = object (self)
       | SymbolicShape.Op(op, x, y) ->
         SymbolicShape.Op(op, rewrite_dim x, rewrite_dim y)
       | SymbolicShape.Const n -> SymbolicShape.const n
-
     in
     let rewrite_shape shape = List.map rewrite_dim shape in
     let newShapeEnv = ID.Map.map rewrite_shape impFn.Imp.shapes in
@@ -304,7 +295,6 @@ class builder (info:fn_info) = object (self)
       let t = ID.Map.find oldId impFn.Imp.types in
       let shape = ID.Map.find oldId newShapeEnv in
       let storage = ID.Map.find oldId newStorageEnv in
-
       self#fresh_local name ~storage ~shape t
     in
     let newLocalVars = List.map rename_local impFn.local_ids in
@@ -312,12 +302,18 @@ class builder (info:fn_info) = object (self)
       ID.Map.extend nonlocalEnv impFn.local_ids newLocalVars
     in
     let newBody = ImpReplace.replace_block replaceEnv impFn.body in
-    self#concat_list newBody
+    self#concat_list newBody;
+    if call_by_copy then
+      List.iter2
+        (fun originalOutput simpleOutputVar ->
+           if not (is_simple originalOutput) then
+            self#append $ Set(originalOutput, simpleOutputVar)
+        )
+        outputs
+        copyOutputs
 end
 
-
 let (+=) builder stmt = builder#append stmt
-
 
 class fn_builder (name:string) = object (self)
   val fn_id = FnId.gen_named name
@@ -366,7 +362,6 @@ class fn_builder (name:string) = object (self)
     let id = ID.gen_named "output" in
     self#declare_output id ~shape t;
     ImpHelpers.var t id
-
 
   method finalize_fn =
     let nonlocals = input_ids @ output_ids in

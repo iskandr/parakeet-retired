@@ -7,41 +7,35 @@ from parakeet_common import LibPar, LOG, list_to_ctypes_array
 ###############################################################################
 
 numpy_to_c_types = {
-  np.bool_ : c_bool,
-  np.int8 : c_char, 
   np.int32: c_int32,
   np.int64: c_int64,
   np.float32: c_float,
   np.float64: c_double,
+  np.bool_: c_bool,
 }
 
 numpy_to_parakeet_types = {
-  np.bool_: LibPar.bool_t, 
-  np.char: LibPar.char_t, 
   np.int32: LibPar.int32_t,
   np.int64: LibPar.int64_t,
   np.float32: LibPar.float32_t,
   np.float64: LibPar.float64_t,
-
+  np.bool_: LibPar.bool_t
 }
 
 parakeet_to_c_types = {
-  LibPar.bool_t: c_int,
-  LibPar.char_t: c_char,
   LibPar.int32_t: c_int32,
   LibPar.int64_t: c_int64,
   LibPar.float32_t: c_float,
   LibPar.float64_t: c_double,
+  LibPar.bool_t: c_int,
+  LibPar.char_t: c_char
 }
 
-parakeet_to_dtype = { 
-  LibPar.bool_t: np.int,
-  LibPar.char_t: np.int8, 
-  LibPar.int32_t : np.int32,
-  LibPar.int64_t : np.int64, 
-  LibPar.float32_t: np.float32,
-  LibPar.float64_t: np.float64,
-}
+def is_array(arg):
+ return isinstance(arg, np.ndarray) and np.rank(arg) > 0 
+
+def is_zero_rank_array(arg):
+  return isinstance(arg, np.ndarray) and np.rank(arg) == 0
 
 ###############################################################################
 #   Value conversion between parakeet and python
@@ -49,15 +43,10 @@ parakeet_to_dtype = {
 
 # given a numpy array or a scalar, construct the equivalent parakeet value
 def python_value_to_parakeet(arg):
-  if isinstance(arg, np.ndarray):
+  if is_array(arg):
     rank = len(arg.shape)
     inputShape = arg.ctypes.shape_as(c_int32)
     inputStrides = arg.ctypes.strides_as(c_int32)
-    if rank > 1 and not arg.flags['C_CONTIGUOUS']:
-      # until we have a proper interface for telling parakeet this data is
-      # column-major, we have to manually transpose it
-      # TODO: wouldn't strides be enough to handle this?
-      arg = np.transpose(arg).copy()
     npType = arg.dtype.type
     if ((npType not in numpy_to_c_types) or
         (npType not in numpy_to_parakeet_types)):
@@ -68,14 +57,19 @@ def python_value_to_parakeet(arg):
     parakeetVal = LibPar.mk_host_array(dataPtr, parakeetType, inputShape, rank,
                                        inputStrides, rank, arg.nbytes)
     return c_void_p(parakeetVal)
-  elif np.isscalar(arg):
-    if type(arg) == int:
+  elif np.isscalar(arg) or is_zero_rank_array(arg):
+    # unpack zero rank arrays into scalars 
+    if is_zero_rank_array(arg):
+      arg = arg[()] 
+    if type(arg) in [int, np.int32]:
       return LibPar.mk_int32(arg)
-    elif type(arg) == float or type(arg) == np.float64:
+    elif type(arg) ==  np.int64:
+      return LibPar.mk_int64(arg)
+    elif type(arg)in [float, np.float64]:
       return LibPar.mk_float64(c_double(arg))
     elif type(arg) == np.float32:
       return LibPar.mk_float32(c_float(arg))
-    elif type(arg) == bool:
+    elif type(arg)in [bool, np.bool_]:
       return LibPar.mk_bool(c_bool(arg))
     else:
       raise Exception ("Unknown type: " + str(type(arg)))
@@ -91,6 +85,8 @@ def array_from_memory(pointer, shape, dtype):
 
 def parakeet_value_to_python(val):
   if val.is_scalar:
+    print val.data.scalar
+    print val.data.scalar.ret_type
     c_type = parakeet_to_c_types[val.data.scalar.ret_type]
     result = 0
     if c_type == c_bool:
@@ -107,30 +103,24 @@ def parakeet_value_to_python(val):
       raise RuntimeError("Return type not supported by Parakeet: " %
                          str(c_type))
     return result
-  else:    
+  else:
     rank = val.data.array.shape_len
 
     SHAPE_TYPE = c_int * rank
     c_shape = SHAPE_TYPE.from_address(val.data.array.shape)
-    shape = tuple(c_shape)
+    shape = list(c_shape)
 
     STRIDES_TYPE = c_int * val.data.array.strides_len
     c_strides = STRIDES_TYPE.from_address(val.data.array.strides)
-    strides = tuple(c_strides)
+    strides = list(c_strides)
 
     parakeet_elt_type = LibPar.get_array_element_type(val.data.array.ret_type)
-    dtype = parakeet_to_dtype[parakeet_elt_type] 
-    
-    addr = val.data.array.data 
+    c_elt_type = parakeet_to_c_types[parakeet_elt_type]
+    nelts = reduce(lambda x,y: x * y, shape)
+    ARRAY_TYPE = c_elt_type * nelts
+    result_array = ARRAY_TYPE.from_address(val.data.array.data)
 
-    buffer_from_memory = pythonapi.PyBuffer_FromMemory
-    buffer_from_memory.restype = py_object
-    buf = buffer_from_memory(addr)
-    # TODO: 
-    # - Figure out who owns the data
-    # - It currently is either leaking or risks getting prematurely deleted 
-    np_result = np.ndarray(tuple(shape), dtype=dtype, buffer=buf)
+    np_result = np.ctypeslib.as_array(result_array)
+    np_result.shape = shape
     np_result.strides = strides
-
     return np_result
-

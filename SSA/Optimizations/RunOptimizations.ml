@@ -5,6 +5,23 @@ open TypedSSA
 
 type optimization = FnTable.t -> TypedSSA.fn -> TypedSSA.fn * bool
 
+let assert_valid fn rel optName  =
+  let errorLog = TypeCheck.check_fn fn in
+  if not $ Queue.is_empty errorLog then (
+      let msg =
+        Printf.sprintf "Errors found in %s %s %s"
+          (FnId.to_str fn.TypedSSA.fn_id)
+          rel
+          optName
+      in
+
+      Printf.printf "--- %s ---\n%!" msg;
+      Printf.printf "Source: %s\n%!" (TypedSSA.PrettyPrinters.fn_to_str fn);
+      Printf.printf "\n\n";
+      TypeCheck.print_all_errors errorLog;
+      failwith msg
+  )
+
 let rec fold_optimizations ?(type_check=false) fnTable fn lastChanged =
   function
   | (name, opt)::rest ->
@@ -12,20 +29,14 @@ let rec fold_optimizations ?(type_check=false) fnTable fn lastChanged =
       (*
       IFDEF DEBUG THEN Printf.printf "Running %s...\n%! " name; ENDIF;
       *)
+      IFDEF DEBUG THEN
+        if type_check then assert_valid fn "before" name
+      ENDIF;
       let optimized, changed = opt fnTable fn in
       IFDEF DEBUG THEN
-        if type_check then
-          let errorLog = TypeCheck.check_fn optimized in
-          if not $ Queue.is_empty errorLog then (
-          Printf.printf
-            "--- Errors found in %s after %s ---\n%!"
-            (FnId.to_str fn.TypedSSA.fn_id)
-            name
-          ;
-          TypeCheck.print_all_errors errorLog; exit 1
-
-        );
+        if type_check then assert_valid optimized "after" name
       ENDIF;
+
       (*Timing.stop_timer ("opt::"^name);*)
       fold_optimizations fnTable optimized (changed || lastChanged)  rest
   | [] -> fn, lastChanged

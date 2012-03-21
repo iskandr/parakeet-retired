@@ -57,10 +57,12 @@ let rec check_stmt
           let lhsCount = List.length ids in
           let rhsCount = List.length rhs.exp_types in
           err $ sprintf
-            "type error in assignment: %s type %s, but rhs %s type %s %s"
-            (if lhsCount > 1 then "identifiers have" else  "identifier has")
+            "type error in assignment: %s %s type %s, but rhs %s %s type %s %s"
+            (ID.list_to_str ids)
+            (if lhsCount > 1 then "have" else "has")
             (Type.type_list_to_str lhsTypes)
-            (if rhsCount > 1 then  "values have" else "value has")
+            (TypedSSA.PrettyPrinters.exp_to_str rhs.exp)
+            (if rhsCount > 1 then  "have" else "has")
             (Type.type_list_to_str rhsTypes)
             (if lhsCount <> rhsCount then "(arity mismatch)" else "")
          )

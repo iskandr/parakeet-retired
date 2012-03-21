@@ -18,20 +18,26 @@ type 'a t =
   | FixDim of 'a t * int * int              (* array, dim, idx *)
   | Slice of 'a t * int * int * int         (* array, dim, start, end *)
   | Range of int * int * int                (* start, stop, step *)
+  | Null
+  | Nested of 'a t array
 
-val map : ('a -> 'b) -> 'a t -> 'b t
 
 val to_str : ?array_to_str:('a array_info -> string) -> 'a t -> string
 val list_to_str : ?array_to_str:('a array_info -> string) -> 'a t list -> string
 val generic_array_to_str : 'a array_info -> string
 
+val get_underlying_array : 'a t -> 'a array_info
+val map : ('a -> 'b) -> 'a t -> 'b t
+
+val elt_type : 'a t -> Type.elt_t
 val type_of : 'a t -> Type.t
 val type_of_list : 'a t list -> Type.t list
 val shape_of : 'a t -> Shape.t
 
 val get_shape : 'a t -> Shape.t
 val get_strides : 'a t -> int array
-val get_underlying_array : 'a t -> 'a array_info
+
+val fixdim : int -> int -> 'a t -> 'a t
 
 val to_num : 'a t -> ParNum.t
 val to_bool : 'a t -> bool

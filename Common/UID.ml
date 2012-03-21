@@ -82,6 +82,8 @@ module Make(A : sig val prefix : string end) = struct
   let gen_named_opt = function
     | None -> gen ()
     | Some name -> gen_named name
+
+
   type uid = t
   module Set = Set.Make(struct type t = uid let compare = compare end)
   module Map = Map.Make(struct type t = uid let compare = compare end)
@@ -108,4 +110,5 @@ module Make(A : sig val prefix : string end) = struct
   let gen_fresh_array count = Array.of_list $ gen_fresh_list count
 
   let of_int x = x
+  let to_int x = x
 end

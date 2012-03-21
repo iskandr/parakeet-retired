@@ -1,5 +1,4 @@
 #!/usr/bin/python
-import unit
 import parakeet
 from parakeet import PAR
 

@@ -1,4 +1,5 @@
 #!/usr/bin/python
+import numpy as np 
 from numpy import *
 import parakeet, sys
 from parakeet import PAR
@@ -29,14 +30,14 @@ def test_scalar_id():
 
 def test_array_id():
   multi_test = reshape(arange(12, dtype=int64), (3,4))
+  res = identity(multi_test)
   print "Input:", multi_test
   print "Input Shape:", shape(multi_test)
   print "Input Type:", multi_test.dtype
-  res = identity(multi_test)
   print "Output: ", res
   print "Output Shape:", shape(res)
   print "Output Type:", res.dtype
-  assert ndarray.__eq__(res, multi_test).all()
+  assert np.all(res == multi_test)
 
 if __name__ == '__main__':
   test_const()

@@ -8,7 +8,18 @@ type dim =
   | Dim of ID.t * int
   | Op of dim_op * dim * dim
 
+let dim_eq x y = 
+  match x, y with 
+  | Const m, Const n -> m = n 
+  | Dim (xvar, i), Dim(yvar, j) -> (xvar = yvar) && (i = j)
+  | Op (op1, a, b), Op(op2, c, d) -> (op1 = op2) && (a == c) && (b == d)  
+
 type t = dim list
+
+let eq s1 s2 = 
+  List.length s1 = List.length s2 && List.for_all2 dim_eq s1 s2
+
+let neq s1 s2 = not (eq s1 s2)
 
 type env = t ID.Map.t
 
@@ -18,6 +29,7 @@ let rec dim_to_str = function
   | Op(Mult, d1, d2) -> (dim_to_str d1) ^ " * " ^ (dim_to_str d2)
   | Op(Add, d1, d2) -> (dim_to_str d1) ^ " + " ^ (dim_to_str d2)
   | Op(Max, d1, d2) -> "max(" ^ (dim_to_str d1) ^ ", " ^ (dim_to_str d2) ^ ")"
+
 
 let dim_list_to_str dims = String.concat ", " (List.map dim_to_str dims)
 

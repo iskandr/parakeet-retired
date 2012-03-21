@@ -1,6 +1,8 @@
+#!/usr/bin/python
 import numpy as np 
 import parakeet
 
+parakeet.set_vectorize(False)
 
 @parakeet.PAR
 def allpairs_add(x):

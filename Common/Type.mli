@@ -76,4 +76,3 @@ val combine_type_list : t list -> t
 val replace_elt_type : t -> elt_t -> t
 
 val maximal_type : t list -> t
-val peel_maximal : t list -> t list

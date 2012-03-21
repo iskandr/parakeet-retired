@@ -12,7 +12,7 @@ def test_shape():
   e_out = (2,3)
   out = shape(x)
   print "Expected ", e_out, " got: ", out
-  assert out == e_out
+  assert np.all(out == e_out)
 
 @PAR
 def transpose(x):

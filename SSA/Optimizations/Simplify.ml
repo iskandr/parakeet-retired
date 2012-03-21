@@ -69,13 +69,15 @@ module SimplifyRules = struct
       let get_type id = ID.Map.find id cxt.types in
       begin match condVal.value with
         | Num (ParNum.Bool b) ->
-            let ids, valNodes = PhiNode.collect_phi_values b merge in
-            let types = List.map get_type ids in
-            let src = stmtNode.stmt_src in
-            let expNode =
-              TypedSSA.exp ?src types (TypedSSA.Values valNodes)
-            in
-            Update (TypedSSA.set ?src:stmtNode.stmt_src ids expNode)
+          let branch = if b then tBlock else fBlock in
+          let ids, valNodes = PhiNode.collect_phi_values b merge in
+          let types = List.map get_type ids in
+          let src = stmtNode.stmt_src in
+          let expNode =
+            TypedSSA.exp ?src types (TypedSSA.Values valNodes)
+          in
+          let setNode = TypedSSA.set ?src:stmtNode.stmt_src ids expNode in
+          UpdateWithBlock(setNode, branch)
         | _ -> NoChange
       end
     | WhileLoop (testBlock, testVal, body, header) -> NoChange

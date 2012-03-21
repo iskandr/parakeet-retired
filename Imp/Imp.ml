@@ -9,6 +9,8 @@ type array_field =
   | ArrayData
   | ArrayShape
   | ArrayStrides
+  | PtrData
+  | PtrLen
   | RangeStart
   | RangeStop
   | ShiftData
@@ -21,30 +23,32 @@ type array_field =
 
 
 let fields_of_type = function
+  | ImpType.PtrT _
   | ImpType.ScalarT _ -> []
   | ImpType.ArrayT _ -> [ArrayData; ArrayShape; ArrayStrides]
   | ImpType.RangeT _ -> [RangeStart; RangeStop]
-  | ImpType.PtrT _ -> failwith "Pointers have no fields"
-  | ImpType.ExplodeT _ -> failwith "Explode not yet implemented"
-  | ImpType.RotateT _ -> failwith "Rotate not yet implemented"
-  | ImpType.ShiftT _ -> failwith "Shift not yet implemented"
+
+  | _ -> failwith "Array type not yet implemented"
 
 
 let rec field_types = function
-  | ImpType.ScalarT _ -> []
+  | ImpType.ScalarT _ | ImpType.PtrT _ -> []
   | ImpType.ArrayT(eltT, rank) ->
     [
       ImpType.PtrT (eltT, None);
       ImpType.PtrT (Type.Int32T, Some rank);
       ImpType.PtrT (Type.Int32T, Some rank);
     ]
-  | _ -> failwith "Not implemented"
+
+  | _ -> failwith "Field_types not implemented"
 
 
 let array_field_pos = function
   | ArrayData -> 0
   | ArrayShape -> 1
   | ArrayStrides -> 2
+  | PtrData -> 0
+  | PtrLen -> 1
   | RangeStart -> 0
   | RangeStop -> 1
   | ShiftData -> 0
@@ -75,9 +79,6 @@ and value_node = {
 }
 
 type value_nodes = value_node list
-
-
-
 
 type stmt =
   | If of value_node * block * block
@@ -162,6 +163,8 @@ let array_field_to_str = function
   | ArrayData -> "data"
   | ArrayShape -> "shape"
   | ArrayStrides -> "strides"
+  | PtrData -> "ptr_data"
+  | PtrLen -> "ptr_len"
   | RangeStart -> "range_start"
   | RangeStop -> "range_stop"
   | ShiftData -> "shift_data"
@@ -220,13 +223,9 @@ let rec value_to_str = function
      sprintf "field(%s, %s)"
        (array_field_to_str field)
        (value_node_to_str v)
-
-
 and value_node_to_str {value} = value_to_str value
 and value_nodes_to_str vNodes =
   String.concat ", " (List.map value_node_to_str vNodes)
-
-
 
 let rec stmt_to_str ?(spaces="") = function
   | If (cond, tBlock, fBlock) ->
@@ -278,21 +277,22 @@ let array_storage_to_str = function
   | CudaShared -> "shared"
 
 let fn_to_str fn =
-  let id_to_str id =
+  let id_to_str ?(local=false) id =
     let shape = get_var_shape fn id in
     let storage = get_var_storage fn id in
-    Printf.sprintf
-      "%s : %s%s%s"
-      (ID.to_str id)
-      (ImpType.to_str (get_var_type fn id))
-      (if SymbolicShape.is_scalar shape then ""
-       else "; shape = " ^ (SymbolicShape.to_str shape))
-      (if SymbolicShape.is_scalar shape then ""
-       else "; storage = " ^ (array_storage_to_str storage))
+    let str =
+      (ID.to_str id) ^ " : " ^  (ImpType.to_str (get_var_type fn id))
+    in
+    if not local || SymbolicShape.is_scalar shape then str
+    else
+      str ^ Printf.sprintf
+        "; storage = %s; shape = %s"
+        (array_storage_to_str storage)
+        (SymbolicShape.to_str shape)
   in
   let inputs = List.map id_to_str fn.input_ids  in
   let outputs = List.map id_to_str  fn.output_ids in
-  let decl_str localId =  " local " ^ (id_to_str localId) in
+  let decl_str localId =  " local " ^ (id_to_str ~local:true localId) in
   let localDeclStr = String.concat "\n" (List.map decl_str fn.local_ids) in
   let shape_str outputId =
     Printf.sprintf " shape(%s) = %s"

@@ -1,6 +1,6 @@
 open Base
-open TypedSSA
 open SSA_Analysis
+open TypedSSA
 
 module BindingSetEval = SSA_Analysis.MkEvaluator(struct
   type env = ID.t MutableSet.t
@@ -17,7 +17,6 @@ module BindingSetEval = SSA_Analysis.MkEvaluator(struct
 
   let value _ _ = ()
   let exp _ _ _ = ()
-
 
   let phi_set _ _ _ = None
   let phi_merge set id _ _ = MutableSet.add set id; None

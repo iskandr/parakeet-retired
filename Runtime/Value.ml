@@ -17,6 +17,8 @@ type 'a t =
   | FixDim of 'a t * int * int            (* array, dim, idx *)
   | Slice of 'a t * int * int * int       (* array, dim, start, end *)
   | Range of int * int * int              (* start, stop, step *)
+  | Null
+  | Nested of 'a t array
 
 (* since array data is polymorphic it's by default printed as the *)
 (* totally uninformative string '<array>'. If you want something more*)
@@ -41,6 +43,8 @@ let rec to_str ?(array_to_str=(fun _ -> "<array>")) = function
       (to_str ~array_to_str a)  dim start stop
   | Range (start, stop, step) ->
     Printf.sprintf "range(from=%d, to=%d, step=%d)" start stop step
+  | Null -> "none"
+  | Nested elts -> "nested array"
 
 let list_to_str ?(array_to_str=(fun _ -> "<array>")) vals =
   String.concat ", " (List.map (to_str ~array_to_str) vals)
@@ -57,9 +61,63 @@ let rec map (f: 'a -> 'b) (x : 'a t) : 'b t = match x with
   | Shift (a, dim, offset, default) -> Shift (map f a, dim, offset, default)
   | FixDim (a, dim, idx) -> FixDim (map f a, dim,  idx)
   | Slice (a, dim, start, stop) -> Slice (map f a, dim, start, stop)
-  | Scalar n -> Scalar n
   | Range (start, stop, step) -> Range (start, stop, step)
   | Explode (n, s) -> Explode (n, s)
+  | Scalar n -> Scalar n
+  | Null -> Null
+  | Nested elts -> Nested (Array.map (map f) elts)
+
+
+let rec get_underlying_array = function
+  | Array a -> a
+  | Shift (a, _, _, _)
+  | FixDim(a, _, _)
+  | Slice (a, _, _, _)
+  | Rotate (a, _, _) -> get_underlying_array a
+  | Scalar n -> failwith "Unable to get underlying array for scalar."
+  | Explode (n, s) -> failwith "Don't know how to handle explodes yet."
+  | Range _ -> failwith "Don't know how to handle ranges yet."
+  | Nested _
+  | Null -> assert false
+
+
+let rec elt_type = function
+  | Explode (n, _)
+  | Scalar n -> ParNum.type_of n
+  | Range _ -> Type.Int32T
+  | Null -> failwith  "[Value] Null has no element type"
+  | Nested  _ ->
+    failwith
+      "[Value] Nested array not guaranteed to have a single element type"
+  | other -> Type.elt_type $ (get_underlying_array other).array_type
+
+let rec shape_of = function
+  | Array {array_shape} -> array_shape
+  | Scalar n -> Shape.scalar_shape
+  | Rotate (x, _, _)
+  | Shift (x, _, _, _) -> shape_of x
+  | FixDim(x, dim, idx) ->
+    let originalShape = shape_of x in
+    Shape.slice_shape originalShape [dim]
+  | Slice (x, dim, start, stop) ->
+    let dims = Shape.to_array (shape_of x) in
+    dims.(dim) <- stop - start + 1;
+    Shape.of_array dims
+  | Range (start, stop, step) -> Shape.of_list [(stop - start + 1)/step]
+  | Explode _
+  | Null -> failwith "Value has no shape"
+  | Nested elts ->
+    let nelts = Array.length elts in
+    if nelts = 0 then Shape.scalar_shape else
+      let shapes = Array.map shape_of elts in
+      let firstShape = shapes.(0) in
+      Shape.append_dim nelts firstShape
+
+let rank v = Shape.rank  (shape_of v)
+
+let fixdim dim idx v =
+  if rank v = 0 then v
+  else FixDim(v, dim, idx)
 
 let rec type_of = function
   | Array {array_type} -> array_type
@@ -75,23 +133,10 @@ let rec type_of = function
   | Slice (x, _, _, _)
   | Rotate (x, _, _) -> type_of x
   | Range _ -> Type.ArrayT(Type.Int32T, 1)
+  | Nested _
+  | Null -> Type.AnyT
 
 let type_of_list vals = List.map type_of vals
-
-let rec get_underlying_array = function
-  | Array a -> a
-  | Scalar n -> failwith "Unable to get underlying array for scalar."
-  | Explode (n, s) -> failwith "Don't know how to handle explodes yet."
-  | Shift (a, _, _, _)
-  | FixDim(a, _, _)
-  | Slice (a, _, _, _)
-  | Rotate (a, _, _) -> get_underlying_array a
-  | Range _ -> failwith "Don't know how to handle ranges yet."
-
-let rec shape_of = function
-  | Array {array_shape} -> array_shape
-  | Scalar _ -> Shape.scalar_shape
-  | _ -> failwith "[Value.shape_of] Not yet implemented"
 
 let get_shape = shape_of
 let get_strides = function
@@ -138,6 +183,8 @@ let rec extract = function
   | FixDim (x, _ , _)
   | Slice (x, _, _, _) -> extract x
   | Array {data} -> Some data
+  | Null
+  | Nested _
   | Scalar _
   | Explode _
   | Range _ -> None
@@ -145,5 +192,5 @@ let rec extract = function
 let rec collect_list = function
   | [] -> []
   | x::xs ->
-      let rest = collect_list xs in
-      (match extract x with None -> rest | Some d -> d :: rest)
+    let rest = collect_list xs in
+    (match extract x with None -> rest | Some d -> d :: rest)

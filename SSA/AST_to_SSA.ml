@@ -235,7 +235,7 @@ let rec translate_stmt
       let fNames : string PSet.t = AST.defs falseNode in
       let mergeNames = PSet.to_list $ PSet.union tNames fNames in
       (* for now always include retIds in case we have to return *)
-      let mergeIds = retIds @ ID.gen_fresh_list (List.length mergeNames) in
+      let mergeIds = List.map ID.gen_named mergeNames in
       let trueBlock : UntypedSSA.block = Block.create() in
       let falseBlock : UntypedSSA.block = Block.create () in
       (* if we need to return a particular value, we track the returned

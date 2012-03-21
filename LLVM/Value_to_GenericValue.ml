@@ -43,51 +43,54 @@ let rec to_llvm value =
         let ptr = HostMemspace.malloc (8 + 8 + 8) in
         let cshape = Array.to_c_int_array (Shape.to_array a.array_shape) in
         let cstrides = Array.to_c_int_array a.array_strides in
-        HostMemspace.set_int64 ptr 0 a.data.addr;
-        HostMemspace.set_int64 ptr 1 cshape;
-        HostMemspace.set_int64 ptr 2 cstrides;
+        let dataPos = Imp.array_field_pos Imp.ArrayData in
+        HostMemspace.set_int64 ptr dataPos a.data.addr;
+        let shapePos = Imp.array_field_pos Imp.ArrayShape in
+        HostMemspace.set_int64 ptr shapePos cshape;
+        let stridesPos = Imp.array_field_pos Imp.ArrayStrides in
+        HostMemspace.set_int64 ptr stridesPos cstrides;
         let gv_ptr = int64 ptr in
         Hashtbl.add array_cache addr_value gv_ptr;
         gv_ptr)
   | Value.Explode (scalar, shape) ->
-	  let ptr = HostMemspace.malloc (8 + 8) in
-	  let cshape = Array.to_c_int_array (Shape.to_array shape) in
-	  (match ParNum.type_of scalar with
-	    | Int32T -> HostMemspace.set_int32 ptr 0 (ParNum.to_int32 scalar)
-	    | Int64T -> HostMemspace.set_int64 ptr 0 (ParNum.to_int64 scalar)
-	    | Float32T -> HostMemspace.set_float32 ptr 0 (ParNum.to_float scalar)
-	    | Float64T -> HostMemspace.set_float64 ptr 0 (ParNum.to_float scalar)
-	    | _ -> failwith "Unsupported scalar type"
-	  );
-	  HostMemspace.set_int64 ptr 1 cshape;
-	  int64 ptr
+    let ptr = HostMemspace.malloc (8 + 8) in
+    let cshape = Array.to_c_int_array (Shape.to_array shape) in
+    (match ParNum.type_of scalar with
+      | Int32T -> HostMemspace.set_int32 ptr 0 (ParNum.to_int32 scalar)
+      | Int64T -> HostMemspace.set_int64 ptr 0 (ParNum.to_int64 scalar)
+      | Float32T -> HostMemspace.set_float32 ptr 0 (ParNum.to_float scalar)
+      | Float64T -> HostMemspace.set_float64 ptr 0 (ParNum.to_float scalar)
+      | _ -> failwith "Unsupported scalar type"
+    );
+    HostMemspace.set_int64 ptr 1 cshape;
+    int64 ptr
   | Value.Rotate (v, dim, offset) ->
-	  let ptr : Int64.t = HostMemspace.malloc (8 + 4 + 4) in
-	  let a : GenericValue.t = to_llvm v in
-	  HostMemspace.set_int64 ptr 0 (GenericValue.as_int64 a);
-	  HostMemspace.set_int32 ptr 2 (Int32.of_int dim);
-	  HostMemspace.set_int32 ptr 3 (Int32.of_int offset);
-	  int64 ptr
+    let ptr : Int64.t = HostMemspace.malloc (8 + 4 + 4) in
+    let a : GenericValue.t = to_llvm v in
+    HostMemspace.set_int64 ptr 0 (GenericValue.as_int64 a);
+    HostMemspace.set_int32 ptr 2 (Int32.of_int dim);
+    HostMemspace.set_int32 ptr 3 (Int32.of_int offset);
+    int64 ptr
   | Value.Shift (v, dim, offset, default) ->
-	  let el_t = ParNum.type_of default in
-	  let el_size = Type.sizeof el_t in
-	  let mem_size = pad_to (8 + 4 + 4 + el_size) 8 in
-	  let ptr = HostMemspace.malloc mem_size in
-	  let a = to_llvm v in
-	  (* As above, we treat int32s as "half-int64s", etc., in order to get *)
-	  (* the 64-bit C functions to work.  I'm uncertain that our 32-bit float *)
-	  (* support works, as it seems we use a 64-bit OCaml float to store our *)
-	  (* 32-bit C floats, and I don't see how we ever make that fit. *)
-	  HostMemspace.set_int64 ptr 0 (GenericValue.as_int64 a);
-	  HostMemspace.set_int32 ptr 2 (Int32.of_int dim);
-	  HostMemspace.set_int32 ptr 3 (Int32.of_int offset);
-	  (match el_t with
-	    | Int32T -> HostMemspace.set_int32 ptr 4 (ParNum.to_int32 default)
-	    | Int64T -> HostMemspace.set_int64 ptr 2 (ParNum.to_int64 default)
-	    | Float32T -> HostMemspace.set_float32 ptr 4 (ParNum.to_float default)
-	    | Float64T -> HostMemspace.set_float64 ptr 2 (ParNum.to_float default)
-	    | _ -> failwith "Unsupported array element type for LLVM conversion");
-	  int64 ptr
+    let el_t = ParNum.type_of default in
+    let el_size = Type.sizeof el_t in
+    let mem_size = pad_to (8 + 4 + 4 + el_size) 8 in
+    let ptr = HostMemspace.malloc mem_size in
+    let a = to_llvm v in
+    (* As above, we treat int32s as "half-int64s", etc., in order to get *)
+    (* the 64-bit C functions to work.  I'm uncertain that our 32-bit float *)
+    (* support works, as it seems we use a 64-bit OCaml float to store our *)
+    (* 32-bit C floats, and I don't see how we ever make that fit. *)
+    HostMemspace.set_int64 ptr 0 (GenericValue.as_int64 a);
+    HostMemspace.set_int32 ptr 2 (Int32.of_int dim);
+    HostMemspace.set_int32 ptr 3 (Int32.of_int offset);
+    (match el_t with
+      | Int32T -> HostMemspace.set_int32 ptr 4 (ParNum.to_int32 default)
+      | Int64T -> HostMemspace.set_int64 ptr 2 (ParNum.to_int64 default)
+      | Float32T -> HostMemspace.set_float32 ptr 4 (ParNum.to_float default)
+      | Float64T -> HostMemspace.set_float64 ptr 2 (ParNum.to_float default)
+      | _ -> failwith "Unsupported array element type for LLVM conversion");
+    int64 ptr
   | Value.FixDim (v, dim, idx) ->
     (* TODO: This is wasteful.  It's unnecessary to actually malloc new *)
     (*       shapes.  In addition, if we have multiple slices into the same *)
@@ -119,12 +122,12 @@ let rec to_llvm value =
     HostMemspace.set_int64 ptr 2 ll_strides;
     int64 ptr
   | Value.Slice (v, dim, start, stop) ->
-	  (* TODO: This is wasteful.  It's unnecessary to actually malloc new *)
+    (* TODO: This is wasteful.  It's unnecessary to actually malloc new *)
     (*       shapes.  In addition, if we have multiple slices into the same *)
     (*       base array, we generate multiple structs for that array in *)
     (*       addition to the waste for the slice itself. Should really clean *)
     (*       up later. *)
-	  let ptr = HostMemspace.malloc (8 + 8 + 8) in
+    let ptr = HostMemspace.malloc (8 + 8 + 8) in
     let a = to_llvm v in
     let a_ll_ptr = GenericValue.as_int64 a in
     let a_ll_data = HostMemspace.get_int64 a_ll_ptr 0 in
@@ -136,16 +139,16 @@ let rec to_llvm value =
     let addr = Int64.add a_ll_data (Int64.of_int (start * dim_stride)) in
     let slice_shape = Array.copy (Shape.to_array ashape) in
     Array.set slice_shape dim (stop - start);
-	  HostMemspace.set_int64 ptr 0 addr;
-	  HostMemspace.set_int64 ptr 1 (Array.to_c_int_array slice_shape);
-	  HostMemspace.set_int64 ptr 2 a_ll_strides;
-	  int64 ptr
+    HostMemspace.set_int64 ptr 0 addr;
+    HostMemspace.set_int64 ptr 1 (Array.to_c_int_array slice_shape);
+    HostMemspace.set_int64 ptr 2 a_ll_strides;
+    int64 ptr
   | Value.Range (start, stop, step) ->
-	  let ptr = HostMemspace.malloc (pad_to (4 + 4 + 4) 8) in
-	  HostMemspace.set_int32 ptr 0 (Int32.of_int start);
-	  HostMemspace.set_int32 ptr 1 (Int32.of_int stop);
-	  HostMemspace.set_int32 ptr 2 (Int32.of_int step);
-	  int64 ptr
+    let ptr = HostMemspace.malloc (pad_to (4 + 4 + 4) 8) in
+    HostMemspace.set_int32 ptr 0 (Int32.of_int start);
+    HostMemspace.set_int32 ptr 1 (Int32.of_int stop);
+    HostMemspace.set_int32 ptr 2 (Int32.of_int step);
+    int64 ptr
 
 (* acts like to_llvm but maps scalars to their addresses *)
 let to_llvm_pointer = function
@@ -171,7 +174,7 @@ let rec delete_llvm_ptr ptr = function
     let data = HostMemspace.get_int64 ptr 0 in
     (*delete_llvm_ptr data*)
     HostMemspace.free ptr;
-    failwith "Don't know how to clean up slice memory"
+    failwith "Don't know how to clean up shift memory"
   | ImpType.RangeT _ -> HostMemspace.free ptr
 
 (* Note: this doesn't delete the data, only the gv struct *)

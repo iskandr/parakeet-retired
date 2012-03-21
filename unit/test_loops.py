@@ -1,6 +1,10 @@
 #!/usr/bin/python
+import numpy as np
 import parakeet, sys
 from parakeet import PAR 
+
+parakeet.set_vectorize(False)
+parakeet.set_multithreading(False)
 
 @PAR
 def count_x(x):
@@ -33,7 +37,24 @@ def test_sum_to_x():
   print "Expected %d, got %d" % (y, x)
   assert 15 == x
 
+@PAR
+def array_pow(x, b, n):
+  i = 0
+  while i < n:
+    x = x * b
+    i = i + 1
+  return x
+
+def test_array_pow():
+  x = np.array(range(100), dtype=np.int32)
+  y = array_pow(x, 2, 10)
+  z = array_pow.call_original(x, 2, 10)
+  print "Python: %s\n Parakeet: %s" % (z,y)
+  assert np.all(z == y)
+  print "Array pow OK"
+
 if __name__ == '__main__':
   test_count_x()
   test_sum_to_x()
+  test_array_pow()
 

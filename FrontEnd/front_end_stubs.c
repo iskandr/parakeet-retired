@@ -24,6 +24,8 @@
 /** Private members **/
 value *ocaml_register_untyped_function = NULL;
 value *ocaml_run_function              = NULL;
+value *ocaml_set_vectorize             = NULL;
+value *ocaml_set_multithreading        = NULL;
 int fe_inited = 0;
 
 static CAMLprim value build_str_list(char **strs, int num_strs);
@@ -40,6 +42,8 @@ void front_end_init(void) {
   ocaml_register_untyped_function =
     caml_named_value("register_untyped_function");
   ocaml_run_function = caml_named_value("run_function");
+  ocaml_set_vectorize = caml_named_value("set_vectorize");
+  ocaml_set_multithreading = caml_named_value("set_multithreading");
 }
 
 int register_untyped_function(char *name, char **globals, int num_globals,
@@ -97,9 +101,9 @@ return_val_t run_function(int id, host_val *globals, int num_globals,
     for (i = 0; i < ret.results_len; ++i) {
       host_val v = (host_val)Field(ocaml_cur, 0);
       ocaml_cur = Field(ocaml_cur, 1);
-
       // returning a scalar
       if (value_is_scalar(v)) {
+         
         ret.results[i].is_scalar = 1;
         ocaml_type = (scalar_type)value_type_of(v);
         ret.results[i].data.scalar.ret_type =
@@ -181,6 +185,27 @@ void free_return_val(return_val_t ret_val) {
     // Free the error msg
     free(ret_val.error_msg);
   }
+
+  CAMLreturn0;
+}
+
+/** Parakeet parameter configuration **/
+void set_vectorize(int val) {
+  CAMLparam0();
+  CAMLlocal1(ocaml_bool);
+
+  ocaml_bool = Val_bool(val);
+  caml_callback(*ocaml_set_vectorize, ocaml_bool);
+
+  CAMLreturn0;
+}
+
+void set_multithreading(int val) {
+  CAMLparam0();
+  CAMLlocal1(ocaml_bool);
+
+  ocaml_bool = Val_bool(val);
+  caml_callback(*ocaml_set_multithreading, ocaml_bool);
 
   CAMLreturn0;
 }

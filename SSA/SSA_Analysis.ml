@@ -18,7 +18,7 @@ type ('a, 'b) helpers = {
   iter_values : 'a -> value_node list -> unit;
 }
 
-module type ANALYSIS =  sig
+module type ANALYSIS = sig
   type env
   type exp_info
   type value_info
@@ -80,7 +80,7 @@ module MkEvaluator(A : ANALYSIS) = struct
       (* evaluate rhs for possible side effects *)
       let _  = A.exp env rhs helpers in
       None
-    | If(cond, tBlock, fBlock,  merge) ->
+    | If(cond, tBlock, fBlock, merge) ->
       ignore (A.value env cond);
       let tEnv, tChanged = eval_block env tBlock in
       let fEnv, fChanged = eval_block tEnv fBlock in
@@ -147,11 +147,11 @@ module MkEvaluator(A : ANALYSIS) = struct
   and eval_values env = function
     | [] -> [] | v::vs -> (A.value env v) :: (eval_values env vs)
   and helpers = {
-      eval_block = eval_block;
-      eval_stmt = default_stmt;
-      eval_values = eval_values;
-      iter_values = iter_values;
-      iter_exp_children = iter_exp_children;
+    eval_block = eval_block;
+    eval_stmt = default_stmt;
+    eval_values = eval_values;
+    iter_values = iter_values;
+    iter_exp_children = iter_exp_children;
   }
 
   let eval_fn fn =

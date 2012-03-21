@@ -84,5 +84,5 @@ parakeetpy: $(OBJS)
 	-lstdc++
 
 clean:
-	rm -f *.so *~ *.o
+	rm -f *.so *~ *.o *.pyc
 

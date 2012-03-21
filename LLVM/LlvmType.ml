@@ -36,7 +36,7 @@ let is_pointer ptrTy =
 let replace_pointer_with_int64 ty =
   if is_pointer ty then
     int64_t
- 	else
+   else
     ty
 
 let replace_pointers tyList =
@@ -54,6 +54,8 @@ let of_elt_type = function
 
 let rec of_imp_type = function
   | ImpType.ScalarT eltT -> of_elt_type eltT
+  (* pointers of fixed length get reduced to just a naked pointer without*)
+  (* metadata *)
   | ImpType.PtrT(eltT, _) -> Llvm.pointer_type (of_elt_type eltT)
   | ImpType.VectorT (eltT, width) ->
     let scalarT = of_elt_type eltT in
@@ -69,10 +71,3 @@ let input_type (t:ImpType.t) =
   else Llvm.pointer_type llvmT
 
 let output_type (t:ImpType.t) = Llvm.pointer_type (of_imp_type t)
-(*
-let adjust_output_pointer outTy =
-  if is_pointer outTy then
-    outTy
-  else
-    Llvm.pointer_type outTy
-*)

@@ -1,10 +1,11 @@
 from ctypes import c_void_p
 import re
 
-from parakeet_ast import register_function, VisitedFunctions, list_to_ctypes_array
+from parakeet_ast import register_function, VisitedFunctions, \
+                         list_to_ctypes_array
 from parakeet_common import LibPar, LOG
+from parakeet_configuration import *
 from parakeet_values import python_value_to_parakeet, parakeet_value_to_python
-
 
 class WrappedFunction:
   def __init__(self, old_function):
@@ -33,15 +34,19 @@ class WrappedFunction:
       val = self.__get_value(self.global_vars[i])
       print "ARGVAL:    ", val
       globals[i] = python_value_to_parakeet(val)
-    ret = LibPar.run_function(self.parakeet_untyped_id, globals, n_glob_args, inputs, n_args)
+    ret = LibPar.run_function(
+        self.parakeet_untyped_id, globals, n_glob_args, inputs, n_args)
     if ret.return_code != 0:
       raise RuntimeError("[Parakeet] Execution failed: %s" % ret.error_msg)
     else:
       print "Got %d results" % ret.results_len
-      if ret.results_len > 0:
+      n = ret.results_len
+      if n == 0:
+        return
+      elif n == 1:
         return parakeet_value_to_python(ret.results[0])
       else:
-        return
+        return tuple([parakeet_value_to_python(ret.results[i]) for i in xrange(n)])
 
   def call_original(self, *args, **kwds):
     return self.old_function(*args, **kwds)
