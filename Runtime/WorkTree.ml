@@ -10,7 +10,8 @@ type t = {
   stmt_id : StmtId.t option;
   arg_shapes : Shape.t list;
   nested_adverbs : t list;
-  num_scalar_ops : int
+  num_scalar_ops : int;
+  seq_cost : int (* to be filled in by Scheduler *)
 }
 
 module type WORKTREE_PARAMS = sig
@@ -45,7 +46,7 @@ module WorkTreeArgs(P: WORKTREE_PARAMS) = struct
           let nestedFn = FnManager.get_typed_function info.adverb_fn in
           let child_node_empty =
             {adverb=Some info; stmt_id=Some id; arg_shapes=P.shapes;
-             nested_adverbs=[]; num_scalar_ops=0}
+             nested_adverbs=[]; num_scalar_ops=0; seq_cost=0}
           in
           let newShapes = List.map (Shape.peel ~axes) P.shapes in
           let child_node =
@@ -61,6 +62,37 @@ module WorkTreeArgs(P: WORKTREE_PARAMS) = struct
     | WhileLoop(_, _, _, _) ->
       helpers.eval_stmt tree stmtNode
 end
+
+let rec fill_in_seq_costs workTree =
+  match workTree.nested_adverbs with
+  | [] ->
+    let nelts = List.map Shape.nelts workTree.arg_shapes in
+    let cost =
+      List.fold_left (fun a b -> a * b) 1 ([workTree.num_scalar_ops] @ nelts)
+    in
+    let newTree = {workTree with seq_cost=cost} in
+    newTree, cost
+  | _ :: _ ->
+    let newChildren, costs =
+      List.map fill_in_seq_costs workTree.nested_adverbs
+    in
+    let axes = match workTree.adverb with
+      | Some a -> a.Adverb.axes
+      | None -> failwith "WorkTree node with None for its Adverb"
+    in
+    let nelts =
+      List.map
+        (fun a -> Shape.nelts (Shape.slice_shape a axes))
+        workTree.arg_shapes
+    in
+    let local_cost =
+      List.fold_left (fun a b -> a * b) 1 ([workTree.num_scalar_ops] @ nelts)
+    in
+    let cost =
+      List.fold_left (fun a b -> a + b) 0 ([local_cost] @ costs)
+    in
+    let newTree = {workTree with seq_cost=cost; nested_adverbs=newChildren} in
+    newTree, cost
 
 let rec build_work_tree_from_shapes curTree fn shapes =
   let module Params = struct
@@ -79,10 +111,11 @@ let build_work_tree fn args =
     stmt_id=None;
     arg_shapes=[];
     nested_adverbs=[];
-    num_scalar_ops=0
+    num_scalar_ops=0;
+    seq_cost=0
   }
   in
-  build_work_tree_from_shapes curTree fn argShapes
+  fill_in_seq_costs (build_work_tree_from_shapes curTree fn argShapes)
 
 let rec aux_to_str num_spaces tree =
   match tree.adverb with

@@ -4,6 +4,7 @@ open Base
 open PhiNode
 open TypedSSA
 open Value
+open WorkTree
 
 type value = DataId.t Value.t
 type values = value list
@@ -20,13 +21,16 @@ module type INTERP = sig
 end
 
 module rec Scheduler : SCHEDULER = struct
+  type execution_mode = Interpreter | LLVM (* | GPU? *)
+  type plan_t = StmtId.t execution_mode Hashtbl.t
+
   let machine_model = MachineModel.machine_model
   let value_to_host v = DataManager.to_memspace HostMemspace.id v
 
-  let call (fn:TypedSSA.fn) (args:values) =
+  let rec schedule_function fn args =
     (* for now, if we schedule a function which contains an adverb, *)
     (* never compile it but instead run the body in the interpreter *)
-    let workTree = WorkTree.build_work_tree fn args in
+    let workTree = build_work_tree fn args in
     IFDEF DEBUG THEN WorkTree.to_str workTree; ENDIF;
     let hasAdverb = AdverbHelpers.fn_has_adverb fn in
     let shapely = ShapeInference.typed_fn_is_shapely fn in
@@ -44,6 +48,9 @@ module rec Scheduler : SCHEDULER = struct
       let results = LLVM_Backend.call fn (List.map value_to_host args) in
       List.map DataManager.from_memspace results
     else Interp.eval_call fn args
+
+  let call (fn:TypedSSA.fn) (args:values) =
+    schedule_function fn args
 
   let adverb (info:(TypedSSA.fn, values, values) Adverb.info) =
     let results : Ptr.t Value.t list =
