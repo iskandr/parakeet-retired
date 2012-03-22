@@ -156,13 +156,11 @@ module ShapeAnalysis (P: PARAMS) =  struct
       match op, args with
       | Prim.Index, (arrayShape::indexShapes) ->
         infer_index arrayShape indexShapes
-
       | Prim.DimSize, [_; _]
       | Prim.Find, [_; _] -> SymbolicShape.scalar
       | Prim.Shape, [arrShape] ->
         [SymbolicShape.const (SymbolicShape.rank arrShape)]
       | Prim.Transpose, [arrShape] -> List.rev arrShape
-
       | Prim.Range, _
       | Prim.Where, _ ->
         let msg =
@@ -175,7 +173,6 @@ module ShapeAnalysis (P: PARAMS) =  struct
         failwith $ Printf.sprintf "Unsupported array operator %s with args %s"
           (Prim.array_op_to_str op)
           (SymbolicShape.shapes_to_str args)
-
 
     let infer_primapp
         (op:Prim.t)

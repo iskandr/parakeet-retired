@@ -356,15 +356,15 @@ class ASTConverter():
     elif isinstance(node, ast.BinOp):
       return self.build_prim_call(src_info, name_of_ast_node(node.op), args[0],
                                   args[2])
-    elif isinstance(node, ast.BoolOp): 
+    elif isinstance(node, ast.BoolOp):
       if len(args[1]) != 2:
         raise RuntimeError("[Parakeet] Unexpected number of args for:" +
                            node.op)
       return self.build_prim_call(src_info, name_of_ast_node(node.op),
                                   args[1][0], args[1][1])
-    elif isinstance(node, ast.UnaryOp): 
+    elif isinstance(node, ast.UnaryOp):
       return self.build_prim_call(src_info, name_of_ast_node(node.op), args[1])
-    elif isinstance(node, ast.Compare): 
+    elif isinstance(node, ast.Compare):
       #Not sure when there are multiple ops or multiple comparators?
       return self.build_prim_call(src_info, name_of_ast_node(node.ops[0]),
                                   args[0], args[2][0])
@@ -454,6 +454,8 @@ class ASTConverter():
       funRef = currModule
     else:
       raise RuntimeError("[Parakeet] Call.func shouldn't be", name)
+    if not hasattr(funRef, '__call__'):
+      return None
     if funRef in AutoTranslate:
       funRef = AutoTranslate[funRef]
     if not hasattr(funRef,'__self__') or not funRef.__self__:
@@ -466,6 +468,9 @@ class ASTConverter():
       node_name = self.get_global_var_name(node.func)
       if not node_name.split('.')[0] in self.arg_names:
         funRef = self.get_function_ref(node.func)
+        if funRef is None:
+          raise RuntimeError("[Parakeet] Expected %s to be a function" %
+                             node.func)
         if hasattr(funRef,'__self__') and funRef.__self__:
           if funRef.__self__ in ValidObjects:
             func = ValidObjects[funRef.__self__]
@@ -672,10 +677,6 @@ def register_function(f):
     body_ast = ast.fix_missing_locations(body_ast)
     AST = ASTConverter(global_refs, arg_names, file_name, line_offset)
     parakeet_syntax = AST.visit(body_ast)
-    print "\n\n\n\n"
-    print "PRINTING OUT THE NODE"
-    LibPar.print_ast_node(parakeet_syntax)
-    print "\n\n\n\n"
     #Med fix: right now, I assume there aren't any globals
     global_vars = list(AST.global_variables)
     n_globals = len(global_vars)

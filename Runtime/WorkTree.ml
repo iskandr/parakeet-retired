@@ -74,22 +74,28 @@ let rec fill_in_seq_costs workTree =
     newTree, cost
   | _ :: _ ->
     let newChildren, costs =
-      List.map fill_in_seq_costs workTree.nested_adverbs
+      let tmp = List.map fill_in_seq_costs workTree.nested_adverbs in
+      (List.map (fun (a,b) -> a) tmp), (List.map (fun (a,b) -> b) tmp)
     in
-    let axes = match workTree.adverb with
-      | Some a -> a.Adverb.axes
-      | None -> failwith "WorkTree node with None for its Adverb"
-    in
-    let nelts =
-      List.map
-        (fun a -> Shape.nelts (Shape.slice_shape a axes))
-        workTree.arg_shapes
-    in
-    let local_cost =
-      List.fold_left (fun a b -> a * b) 1 ([workTree.num_scalar_ops] @ nelts)
-    in
-    let cost =
-      List.fold_left (fun a b -> a + b) 0 ([local_cost] @ costs)
+    let cost = match workTree.adverb with
+      | Some a ->
+        let axes = List.map get_const_int a.Adverb.axes in
+		    let max_shape =
+		      List.fold_left
+		        (fun a b -> if Shape.rank a >= List.length axes then a else b)
+		        Shape.scalar_shape workTree.arg_shapes
+		    in
+		    let nelts =
+          List.fold_left
+            (fun acc axis -> acc * (Shape.get max_shape axis)) 1 axes
+        in
+        Printf.printf "nelts: %d\n" nelts;
+		    let seq =
+          List.fold_left (fun a b -> a + b) workTree.num_scalar_ops costs
+        in
+        seq * nelts
+      | None ->
+        List.fold_left (fun a b -> a + b) workTree.num_scalar_ops costs
     in
     let newTree = {workTree with seq_cost=cost; nested_adverbs=newChildren} in
     newTree, cost
@@ -120,12 +126,13 @@ let build_work_tree fn args =
 let rec aux_to_str num_spaces tree =
   match tree.adverb with
   | Some adverb_info ->
-    Printf.printf "%*s%s(%d) : %s\n%!"
+    Printf.printf "%*s%s(%d) : %s : %d\n%!"
       num_spaces
       ""
       (Adverb.to_str adverb_info.Adverb.adverb)
       tree.num_scalar_ops
       (Shape.shape_list_to_str tree.arg_shapes)
+      tree.seq_cost
     ;
     List.iter (aux_to_str (num_spaces + 2)) tree.nested_adverbs
   | None ->
