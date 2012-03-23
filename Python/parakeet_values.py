@@ -89,11 +89,18 @@ def python_value_to_parakeet(arg):
   else:
     raise Exception ("Input not supported by Parakeet: " + str(arg))
 
-def array_from_memory(pointer, shape, dtype):
-  from_memory = ctypes.pythonapi.PyBuffer_FromReadWriteMemory
-  from_memory.restype = ctypes.py_object
-  arr = np.empty(shape=shape,dtype=dtype)
-  arr.data = from_memory(pointer,arr.nbytes)
+buffer_from_memory = ctypes.pythonapi.PyBuffer_FromReadWriteMemory
+buffer_from_memory.restype = ctypes.py_object
+buffer_from_memory.argtypes = [ctypes.c_void_p, ctypes.c_int] 
+
+def array_from_memory(pointer, shape, strides, dtype):
+  arr = np.empty(shape=shape, dtype=dtype)
+  arr.strides = strides
+  #print "Updated strides"
+  #print "about to call buffer_from_memory"
+  arr.data = buffer_from_memory(pointer, arr.nbytes)
+  #print "Called!"
+  #print "arr[0]", arr[0]
   return arr
 
 def parakeet_value_to_python(val):
@@ -129,7 +136,9 @@ def parakeet_value_to_python(val):
     dtype = parakeet_to_dtype[parakeet_elt_type]
     addr = val.data.array.data 
     shape = tuple(c_shape)
-    ndarray = array_from_memory(addr, shape, dtype)
     strides = tuple(c_strides)
-    ndarray.strides = strides
+    #print "Addr: %s, shape: %s, strides: %s" % (addr, shape, strides)
+    ndarray = array_from_memory(addr, shape, strides, dtype)
+    #print "About to print array"
+    #print "Made array:", ndarray
     return ndarray

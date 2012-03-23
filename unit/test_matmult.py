@@ -15,7 +15,7 @@ def mm(X,Y):
   return parakeet.allpairs(dot, X, Y, axis=[0])
 
 def test_mm():
-  X = np.random.randn(500, 500)
+  X = np.random.randn(1000, 1000)
   #X = np.array([[1,2,3,4,5], [6,7,8,9,10]], dtype='int32')
   #X = np.random.randn(10, 10)
   #Y = np.random.randn(10, 10)
