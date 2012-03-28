@@ -3,7 +3,6 @@ import numpy as np
 import math, parakeet
 from parakeet import PAR 
 
-@PAR
 def CND(x):
   a1 = 0.31938153
   a2 = -0.356563782
@@ -20,45 +19,47 @@ def CND(x):
 
 def test_cnd(): 
   print "RUNNING CND"
+  fast_cnd = PAR(CND)
   for i in range(10):
-    x = CND(i)
-    y = CND.call_original(i)
+    x = fast_cnd(i)
+    y = CND(i)
     diff= x-y
     same = abs(diff) < 0.00001
     print "[test_cnd] %f == %f: %s (diff = %f)" % (x,y,same, diff)
     assert same
 
-@PAR
+
 def scalar_black_scholes(CallFlag,S,X,T,r,v):
   d1 = (math.log(S/X)+(r+v*v/2.)*T)/(v*math.sqrt(T))
   d2 = d1-v*math.sqrt(T)
   if CallFlag:
     return S*CND(d1)-X*math.exp(-r*T)*CND(d2)
   else:
-    return 3333 #X#X * CND(-d2) - S * CND(-d1)#X* math.exp(-r*T)*CND(-d2)-S*CND(-d1)
+    return 0#X* math.exp(-r*T)*CND(-d2)-S*CND(-d1)
 
 def test_scalar_black_scholes(): 
-  x = scalar_black_scholes(False, 10.0, 10.0, 2.0, 2.0, 2.0)
-  y = scalar_black_scholes.call_original(False, 10.0, 10.0, 2.0, 2.0, 2.0)
+  inputs = (False, 10.0, 10.0, 2.0, 2.0, 2.0)
+  fast_scalar_black_scholes = PAR(scalar_black_scholes)
+  x = fast_scalar_black_scholes(*inputs)
+  y = scalar_black_scholes(*inputs)
   diff = x - y 
   print "Test scalar black scholes, Parakeet: %s, Python: %s" % (x, y)
   same = abs(diff) < 0.00001 
   print "[test_cnd] %f == %f: %s (diff = %f)" % (x, y, same, diff)
   assert same 
 
-@PAR
 def black_scholes(CallFlags, S, X, T, r, v):
   return parakeet.map(scalar_black_scholes, CallFlags, S, X, T, r, v)
 
 def test_black_scholes():
   CallFlags = np.array([True, False, True, False])
   A = np.array([2.0, 1.0, 2.0, 1.0])
-  x = black_scholes(CallFlags, A, A, A, A, A)
-  y = black_scholes.call_original(CallFlags, A, A, A, A, A)
+  fast_black_scholes = PAR(black_scholes)
+  inputs = (CallFlags, A, A, A, A, A)
+  x = fast_black_scholes(*inputs)
+  y = black_scholes(*inputs)
   print "BLACK SCHOLES RESULTS Parakeet = %s\n Python = %s" % (x,y)
-  all_same = np.all(np.abs(x -  y) < 0.00001)
-  
-  assert all_same  
+  assert np.all(np.abs(x -  y) < 0.00001)
 
 if __name__ == '__main__':
   test_cnd()

@@ -3,7 +3,7 @@ import numpy as np
 import parakeet, sys
 from parakeet import PAR
 
-
+parakeet.set_vectorize(False)
 
 @PAR 
 def implicit_map(x):
