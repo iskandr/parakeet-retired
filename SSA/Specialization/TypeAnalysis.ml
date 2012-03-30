@@ -398,22 +398,22 @@ module Make (P : TYPE_ANALYSIS_PARAMS) = struct
   let analyze_phi_nodes phiNodes = List.iter analyze_phi_node phiNodes
 
   let rec analyze_stmt (stmtNode:UntypedSSA.stmt_node) : unit =
-    IFDEF DEBUG THEN
+    (*IFDEF DEBUG THEN
       Printf.printf "[TypeAnalysis.infer_stmt] %s\n%!"
         (UntypedSSA.PrettyPrinters.stmt_node_to_str stmtNode)
-    ENDIF;
+    ENDIF;*)
     let src = stmtNode.stmt_src in
     match stmtNode.stmt with
     | Set(ids, rhs) ->
       let types : Type.t list = infer_exp rhs in
-      IFDEF DEBUG THEN
+      (*IFDEF DEBUG THEN
         Printf.printf "  RHS types: %s\n%!" (Type.type_list_to_str types);
         if List.length ids <> List.length types then
           failwith $ sprintf
             "malformed SET statement: %d ids for %d rhs values \n"
             (List.length ids)
             (List.length types)
-      ENDIF;
+      ENDIF;*)
       List.iter2 TypeEnv.merge_type ids types
     | If(_, tBlock, fBlock, phiNodes) ->
       analyze_block tBlock;

@@ -18,12 +18,16 @@ let check_value (errorLog:errors)(tenv:tenv) (defined : ID.Set.t) vNode : unit =
       err $ sprintf "type not found for %s" (ID.to_str id)
     else
       let t = ID.Map.find id tenv in (
-      if t <> vNode.value_type then
-        err $ sprintf
-          "type annotation %s for variable %s does not match its type %s"
-          (Type.to_str vNode.value_type)
-          (ID.to_str id)
-          (Type.to_str t)
+        if t <> vNode.value_type then
+          err $ sprintf
+            "type annotation %s for variable %s does not match its type %s"
+            (Type.to_str vNode.value_type)
+            (ID.to_str id)
+            (Type.to_str t)
+        ;
+        if t = Type.AnyT then  err $ sprintf "%s has type Any" (ID.to_str id);
+        if t = Type.BottomT then
+          err $ sprintf "%s has type Bottom" (ID.to_str id);
       )
   | Num _ ->
     if not $ Type.is_number vNode.value_type then

@@ -591,7 +591,7 @@ and compile_dimsize fnInfo (arr:Imp.value_node) (idx:Imp.value_node) =
 let compile_set fnInfo lhs rhs =
   let lhsImpT = lhs.Imp.value_type in
   let rhsImpT = rhs.Imp.value_type in
-  IFDEF DEBUG THEN
+  (*IFDEF DEBUG THEN
     let stmtStr =
       Printf.sprintf
         "%s = %s"
@@ -599,7 +599,7 @@ let compile_set fnInfo lhs rhs =
         (Imp.value_node_to_str rhs)
     in
     Printf.printf "[Imp_to_LLVM] Compiling statement %s\n" stmtStr;
-  ENDIF;
+  ENDIF;*)
   match lhs, rhs with
   | {value=Idx(arr, indices)}, _ ->
     let arrayPtr : Llvm.llvalue = compile_value ~do_load:false fnInfo arr in

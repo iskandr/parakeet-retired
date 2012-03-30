@@ -357,7 +357,7 @@ and infer_normalized_shape_env (fnTable : FnTable.t) (fundef : TypedSSA.fn) =
       in
       let normalizedEnv = ID.Map.fold normalizer rawShapeEnv ID.Map.empty in
       Hashtbl.add normalizedShapeEnvCache fnId normalizedEnv;
-      IFDEF DEBUG THEN
+      (*IFDEF DEBUG THEN
         Printf.printf "\nInferred shapes for %s:\n"
           (TypedSSA.PrettyPrinters.fn_id_to_str fundef)
         ;
@@ -365,7 +365,7 @@ and infer_normalized_shape_env (fnTable : FnTable.t) (fundef : TypedSSA.fn) =
           Printf.printf "  -- %s : %s\n" (ID.to_str k) (SymbolicShape.to_str v)
         in
         ID.Map.iter print_shape normalizedEnv
-      ENDIF;
+      ENDIF;*)
       normalizedEnv
     end
 

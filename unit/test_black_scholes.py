@@ -3,6 +3,8 @@ import numpy as np
 import math, parakeet
 from parakeet import PAR 
 
+parakeet.set_vectorize(False)
+parakeet.set_multithreading(False)
 def CND(x):
   a1 = 0.31938153
   a2 = -0.356563782
@@ -25,28 +27,39 @@ def test_cnd():
     y = CND(i)
     diff= x-y
     same = abs(diff) < 0.00001
-    print "[test_cnd] %f == %f: %s (diff = %f)" % (x,y,same, diff)
+    print "[test_cnd] %d) %f == %f: %s (diff = %f)" % (i, x,y,same, diff)
     assert same
 
 
 def scalar_black_scholes(CallFlag,S,X,T,r,v):
   d1 = (math.log(S/X)+(r+v*v/2.)*T)/(v*math.sqrt(T))
   d2 = d1-v*math.sqrt(T)
+  z = math.exp(-r*T) * X
   if CallFlag:
-    return S*CND(d1)-X*math.exp(-r*T)*CND(d2)
+    return S*CND(d1) - z*CND(d2)
   else:
-    return 0#X* math.exp(-r*T)*CND(-d2)-S*CND(-d1)
+    return z*CND(-d2) - S*CND(-d1)
 
 def test_scalar_black_scholes(): 
-  inputs = (False, 10.0, 10.0, 2.0, 2.0, 2.0)
+  x1 = (False, 10.0, 10.0, 2.0, 2.0, 2.0)
+  x2 = (True, 10.0, 10.0, 2.0, 2.0, 2.0)
   fast_scalar_black_scholes = PAR(scalar_black_scholes)
-  x = fast_scalar_black_scholes(*inputs)
-  y = scalar_black_scholes(*inputs)
-  diff = x - y 
-  print "Test scalar black scholes, Parakeet: %s, Python: %s" % (x, y)
-  same = abs(diff) < 0.00001 
-  print "[test_cnd] %f == %f: %s (diff = %f)" % (x, y, same, diff)
-  assert same 
+  y1 = fast_scalar_black_scholes(*x1)
+  y2 = fast_scalar_black_scholes(*x2)
+  z1 = scalar_black_scholes(*x1)
+  z2 = scalar_black_scholes(*x2)
+  print "Test scalar black scholes"
+  print "[False] Parakeet: %s, Python: %s" % (y1, z1)
+  print "[True] Parakeet: %s, Python: %s" % (y2, z2) 
+  d1 = y1 - z1
+  same1 = abs(d1) < 0.00001 
+  print "[test_scalar_black_scholes] \
+     %f == %f: %s (diff = %f)" % (y1, z1, same1, d1)
+  assert same1 
+  d2 = y2 - z2 
+  same2 = abs(d2) < 0.00001
+  print "%f == %f : %s (diff = %f)" % (y2, z2, same2, d2)
+  assert same2
 
 def black_scholes(CallFlags, S, X, T, r, v):
   return parakeet.map(scalar_black_scholes, CallFlags, S, X, T, r, v)

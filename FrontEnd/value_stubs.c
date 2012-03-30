@@ -83,7 +83,11 @@ void value_init() {
 */ 
 int value_is_scalar(host_val v) {
   CAMLparam1(v);
-  CAMLreturnT(int, Int_val(caml_callback(*value_callback_is_scalar, v)));
+  assert(value_callback_is_scalar != NULL); 
+  printf("[value_is_scalar in C]\n"); 
+  int b = Int_val(caml_callback(*value_callback_is_scalar, v)); 
+  printf("[value_is_scalar in C] is_scalar? %d\n", b); 
+  CAMLreturnT(int, b);
 }
 
 array_type array_type_of(host_val v) {
@@ -94,6 +98,7 @@ array_type array_type_of(host_val v) {
 }
 
 value value_type_of(host_val v) {
+  printf("\n\nC value_type_of\n"); 
   CAMLparam1(v);
   assert(value_callback_type_of != NULL); 
   CAMLreturn(caml_callback(*value_callback_type_of, v));

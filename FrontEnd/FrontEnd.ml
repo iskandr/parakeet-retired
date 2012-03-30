@@ -92,42 +92,37 @@ let run_function untypedId ~globals ~args : ret_val =
         nargs
     in
     Error errorMsg
-  else begin
-    let signature = Signature.from_input_types argTypes in
-    IFDEF DEBUG THEN
-      printf
-        "[FrontEnd.run_function] calling specializer for argument types: %s\n"
-        (Type.type_list_to_str argTypes);
-    ENDIF;
-    let result =
-      try
-        let typedFundef = get_specialized_function untypedId signature in
-        let outputs = Runtime.call typedFundef args in
-        Success outputs
-      with exn -> (
-        let errorMsg =
-          match exn with
-          | TypeAnalysis.TypeError(txt, srcOpt) ->
-            let srcStr =
-              Option.map_default
-                (fun srcInfo -> "at " ^ (SrcInfo.to_str srcInfo))
-                "(no source info)"
-                srcOpt
-            in
-            Printf.sprintf "Type Error: %s %s" txt srcStr
-          | ShapeInference.ShapeInferenceFailure txt ->
-            Printf.sprintf "Shape Error: %s" txt
-          | _ ->  Printexc.to_string exn
-        in
-        Printf.printf "\nParakeet failed with the following error:\n";
-        Printf.printf "- %s\n\n" errorMsg;
-        Printf.printf "OCaml Backtrace:\n";
-        Printexc.print_backtrace Pervasives.stdout;
-        Printf.printf "\n%!";
-        Error errorMsg
-      )
-    in
-    (*print_all_timers();
-    Timing.clear Timing.untypedOpt;*)
-    result
-  end
+  else
+    try
+      let signature = Signature.from_input_types argTypes in
+      IFDEF DEBUG THEN
+        printf
+          "[FrontEnd.run_function] calling specializer for argument types: %s\n"
+          (Type.type_list_to_str argTypes);
+      ENDIF;
+      let typedFundef = get_specialized_function untypedId signature in
+       (*Printf.printf "%s\n%!"
+        (String.concat ", " (List.map (fun v -> Type.elt_to_str (Value.elt_type v)) outputs));*)
+      Success (Runtime.call typedFundef args)
+    with exn -> begin
+      let errorMsg =
+        match exn with
+        | TypeAnalysis.TypeError(txt, srcOpt) ->
+          let srcStr =
+            Option.map_default
+              (fun srcInfo -> "at " ^ (SrcInfo.to_str srcInfo))
+              "(no source info)"
+              srcOpt
+          in
+          Printf.sprintf "Type Error: %s %s" txt srcStr
+        | ShapeInference.ShapeInferenceFailure txt ->
+          Printf.sprintf "Shape Error: %s" txt
+        | _ ->  Printexc.to_string exn
+      in
+      Printf.printf "\nParakeet failed with the following error:\n";
+      Printf.printf "- %s\n\n" errorMsg;
+      Printf.printf "OCaml Backtrace:\n";
+      Printexc.print_backtrace Pervasives.stdout;
+      Printf.printf "\n%!";
+      Error errorMsg
+    end

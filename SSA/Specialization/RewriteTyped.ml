@@ -254,12 +254,12 @@ module Make(P: REWRITE_PARAMS) = struct
   let rewrite_app src
         (fn:UntypedSSA.value_node)
         (argNodes:TypedSSA.value_nodes) : TypedSSA.exp_node =
-    IFDEF DEBUG THEN
+    (*IFDEF DEBUG THEN
       Printf.printf "[RewriteTyped.rewrite_app] %s(%s)\n"
         (UntypedSSA.value_node_to_str fn)
         (TypedSSA.value_nodes_to_str argNodes)
       ;
-    ENDIF;
+    ENDIF;*)
     let argTypes = List.map (fun v -> v.TypedSSA.value_type) argNodes in
     let fnVal = fn.UntypedSSA.value in
     let fnSrc = fn.UntypedSSA.value_src in
@@ -347,11 +347,11 @@ module Make(P: REWRITE_PARAMS) = struct
       raise (RewriteFailed(errMsg, fnSrc))
 
   let rewrite_exp types expNode =
-    IFDEF DEBUG THEN
+    (*IFDEF DEBUG THEN
       Printf.printf "[RewriteTyped.exp] %s :: %s\n%!"
         (UntypedSSA.PrettyPrinters.exp_node_to_str expNode)
         (Type.type_list_to_str types)
-    ENDIF;
+    ENDIF;*)
     UntypedSSA.(
       let src = expNode.exp_src in
       match expNode.exp, types with
@@ -393,10 +393,10 @@ module Make(P: REWRITE_PARAMS) = struct
   let rewrite_phi_nodes phiNodes = List.map rewrite_phi phiNodes
 
   let rec rewrite_stmt (stmtNode:UntypedSSA.stmt_node) : TypedSSA.stmt_node list =
-    IFDEF DEBUG THEN
+    (*IFDEF DEBUG THEN
       Printf.printf "[RewriteTyped.stmt] %s\n%!"
         (UntypedSSA.PrettyPrinters.stmt_node_to_str stmtNode)
-    ENDIF;
+    ENDIF;*)
     let src = stmtNode.UntypedSSA.stmt_src in
     match stmtNode.UntypedSSA.stmt with
     | UntypedSSA.Set(ids, rhs) ->

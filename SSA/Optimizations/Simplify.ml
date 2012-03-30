@@ -83,7 +83,11 @@ module SimplifyRules = struct
     | WhileLoop (testBlock, testVal, body, header) -> NoChange
     | _ -> NoChange
 
-  let exp cxt expNode = NoChange
+  let exp cxt expNode = match expNode.exp with
+    | Cast(t, {value=Num n}) ->
+      let n' = ParNum.coerce n (Type.elt_type t) in
+      Update (TypedSSA.ExpHelpers.val_exp ?src:expNode.exp_src t (Num n'))
+    | _ -> NoChange
 
   let phi cxt phiNode = NoChange
 

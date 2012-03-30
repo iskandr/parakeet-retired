@@ -117,6 +117,7 @@ let mk_array_type elt_t rank =
   if rank <> 0 then ArrayT(elt_t, rank)
   else ScalarT elt_t
 
+
 let elt_type = function
   | ArrayT (t, _) -> t
   | ScalarT t -> t
@@ -179,7 +180,7 @@ let rec common_elt_type_list = function
   | t::ts -> common_elt_type t (common_elt_type_list ts)
 
 let common_type t1 t2  =
-	if t1 = t2 then t1
+  if t1 = t2 then t1
   else match t1, t2 with
     | ScalarT s1, ScalarT s2 ->
       if is_scalar_subtype s1 s2 then t2

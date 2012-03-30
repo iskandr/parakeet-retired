@@ -13,6 +13,7 @@ open Value
 
 let pad_to size alignment = (size + alignment - 1) / alignment
 
+let int8 (i:int) = GenericValue.of_int LlvmType.char_t i
 let int16 (i:int) = GenericValue.of_int LlvmType.int16_t i
 let int32 (i:Int32.t) = GenericValue.of_int32 LlvmType.int32_t i
 let int64 (i:Int64.t) = GenericValue.of_int64 LlvmType.int64_t i
@@ -23,8 +24,8 @@ let array_cache : (Int64.t Value.t, GenericValue.t) Hashtbl.t =
   Hashtbl.create 127
 
 let parnum_to_generic = function
-  | Bool b -> if b then int16 1 else int16 0
-  | Char c -> int16 (Char.code c)
+  | Bool b -> if b then int8 1 else int8 0
+  | Char c -> int8 (Char.code c)
   | Int16 i -> int16 i
   | Int32 i -> int32 i
   | Int64 i -> int64 i
@@ -37,8 +38,7 @@ let rec to_llvm value =
   | Value.Array a ->
     let addr_value = Value.map Ptr.addr value in
     (match Hashtbl.find_option array_cache addr_value with
-      | Some gv_ptr ->
-        gv_ptr
+      | Some gv_ptr -> gv_ptr
       | None ->
         let ptr = HostMemspace.malloc (8 + 8 + 8) in
         let cshape = Array.to_c_int_array (Shape.to_array a.array_shape) in

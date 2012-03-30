@@ -314,10 +314,10 @@ let rec translate_fn (ssaFn:TypedSSA.fn) (impInputTypes:ImpType.t list)
 and translate_block (builder : ImpBuilder.builder) block : unit =
   Block.iter_forward (translate_stmt builder) block
 and translate_stmt (builder : ImpBuilder.builder) stmtNode : unit  =
-  IFDEF DEBUG THEN
+  (*IFDEF DEBUG THEN
     Printf.printf "[SSA_to_Imp.translate_stmt] %s\n%!"
       (TypedSSA.stmt_node_to_str stmtNode)
-  ENDIF;
+  ENDIF;*)
   match stmtNode.TypedSSA.stmt with
   (* array literals get treated differently from other expressions since *)
   (* they require a block of code rather than simply translating from *)
@@ -377,10 +377,10 @@ and translate_stmt (builder : ImpBuilder.builder) stmtNode : unit  =
      (TypedSSA.stmt_node_to_str stmtNode)
 
 and translate_exp (builder:ImpBuilder.builder) expNode : Imp.value_node  =
-  IFDEF DEBUG THEN
+  (*IFDEF DEBUG THEN
     Printf.printf "[SSA_to_Imp.translate_exp] %s\n"
       (TypedSSA.exp_node_to_str expNode)
-  ENDIF;
+  ENDIF;*)
   match expNode.TypedSSA.exp with
   | TypedSSA.Values [v] -> translate_value builder v
   | TypedSSA.Values _ -> failwith "multiple value expressions not supported"
@@ -526,7 +526,7 @@ and vectorize_adverb
     (lhsVars : Imp.value_node list)
     (info : (TypedSSA.fn, Imp.value_nodes, Imp.value_nodes) Adverb.info)
     (eltT : ImpType.elt_t) : unit =
-  IFDEF DEBUG THEN
+  (*IFDEF DEBUG THEN
     Printf.printf "[SSA_to_Imp.vectorize_adverb] %s with elt_t = %s\n"
       (Adverb.info_to_str
         info
@@ -536,7 +536,7 @@ and vectorize_adverb
       )
       (Type.elt_to_str eltT)
     ;
-  ENDIF;
+  ENDIF;*)
   let fixedTypes = List.map Imp.value_type info.fixed_args in
   let argTypes = List.map Imp.value_type info.array_args in
   let num_axes = List.length info.axes in

@@ -119,7 +119,10 @@ let fixdim dim idx v =
   if rank v = 0 then v
   else FixDim(v, dim, idx)
 
-let rec type_of = function
+
+let rec type_of v =
+  Printf.printf "[ocaml value.type_of] %s \n%!" (to_str v);
+  let t = match v with
   | Array {array_type} -> array_type
   (*| Nested _ -> failwith "nested arrays not supported"*)
   | Scalar n -> Type.ScalarT (ParNum.type_of n)
@@ -135,6 +138,9 @@ let rec type_of = function
   | Range _ -> Type.ArrayT(Type.Int32T, 1)
   | Nested _
   | Null -> Type.AnyT
+  in
+  Printf.printf "[ocaml value.type_of result] %s\n%!" (Type.to_str t);
+  t
 
 let type_of_list vals = List.map type_of vals
 
@@ -175,7 +181,11 @@ let mk_array (data:'a) (elt_t:Type.elt_t) (shape:Shape.t) (strides:int array) =
     array_strides = strides;
   }
 
-let is_scalar x = Type.is_scalar (type_of x)
+let is_scalar x =
+  Printf.printf "[ocaml is_scalar] Getting type...\n%!";
+  let t = type_of x in
+  Printf.printf "[ocaml is_scalar] Checking whether is scalar...\n%!";
+  Type.is_scalar t
 
 let rec extract = function
   | Rotate (x, _, _)

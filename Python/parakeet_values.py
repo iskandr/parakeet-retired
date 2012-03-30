@@ -60,12 +60,12 @@ def python_value_to_parakeet(arg):
     rank = len(arg.shape)
     inputShape = arg.ctypes.shape_as(c_int32)
     inputStrides = arg.ctypes.strides_as(c_int32)
-    npType = arg.dtype.type
-    if ((npType not in numpy_to_c_types) or
-        (npType not in numpy_to_parakeet_types)):
+    npEltType = arg.dtype.type
+    if ((npEltType not in numpy_to_c_types) or
+        (npEltType not in numpy_to_parakeet_types)):
       raise Exception("Numpy element type unsupported: " + str(npType))
-    ctype = numpy_to_c_types[npType]
-    parakeetType = numpy_to_parakeet_types[npType]
+    ctype = numpy_to_c_types[npEltType]
+    parakeetType = numpy_to_parakeet_types[npEltType]
     dataPtr = arg.ctypes.data_as(POINTER(ctype))
     parakeetVal = LibPar.mk_host_array(dataPtr, parakeetType, inputShape, rank,
                                        inputStrides, rank, arg.nbytes)
@@ -83,6 +83,16 @@ def python_value_to_parakeet(arg):
     elif type(arg) == np.float32:
       return LibPar.mk_float32(c_float(arg))
     elif type(arg)in [bool, np.bool_]:
+      print
+      print
+      print
+      print
+      print c_bool(arg)
+      print LibPar.mk_bool(c_bool(arg))
+      print
+      print
+      print
+      print
       return LibPar.mk_bool(c_bool(arg))
     else:
       raise Exception ("Unknown type: " + str(type(arg)))

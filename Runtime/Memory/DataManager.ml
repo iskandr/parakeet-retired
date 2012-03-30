@@ -32,8 +32,7 @@ let id_to_ptr dataId memId =
   let table = get_memspace_table memId in
   Hashtbl.find table dataId
 
-let from_memspace (v : Ptr.t Value.t) =
-  Value.map register_ptr v
+let from_memspace (v : Ptr.t Value.t) = Value.map register_ptr v
 
 let to_memspace memId v =
   let table = get_memspace_table memId in

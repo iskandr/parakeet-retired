@@ -44,14 +44,17 @@ module rec Scheduler : SCHEDULER = struct
         shapely
       ;
     ENDIF;
-    if (not hasAdverb) && shapely then
+    if (not hasAdverb) && shapely then (
       (* compile the function *)
       let results = LLVM_Backend.call fn (List.map value_to_host args) in
       List.map DataManager.from_memspace results
+
+    )
     else Interp.eval_call fn args
 
   let call (fn:TypedSSA.fn) (args:values) =
-    schedule_function fn args
+    let results = schedule_function fn args in
+    results
 
   let adverb (info:(TypedSSA.fn, values, int list) Adverb.info) =
     if ShapeInference.typed_fn_is_shapely info.adverb_fn then

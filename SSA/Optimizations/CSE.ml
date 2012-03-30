@@ -10,9 +10,6 @@ let is_safe_exp expNode = match expNode.exp with
   | PrimApp _ | Arr _  | Values _ -> true
   | _ -> false (* assume function calls unsafe by default *)
 
-(* this is a really weak form of CSE. To start handling control flow*)
-(* splits I need to split this into an initial CSE_Analysis which iteratively*)
-(* fills an environment, followed by a rewrite *)
 
 module CSE_Rules = struct
   type context = (exp, value) Hashtbl.t
@@ -33,7 +30,8 @@ module CSE_Rules = struct
         Update (TypedSSA.set [id] expNode')
       )
       else (Hashtbl.add env expNode.exp (Var id); NoChange)
-    | _ -> NoChange
+    | Set _ -> NoChange
+    | _ -> Hashtbl.clear env;  NoChange
   (* TODO: propagate expressions through phi nodes *)
   let phi env phiNode = NoChange
   let exp env envNode = NoChange

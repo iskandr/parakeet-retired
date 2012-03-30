@@ -72,6 +72,7 @@ return_val_t run_function(int id, host_val *globals, int num_globals,
   CAMLparam0();
   CAMLlocal5(ocaml_rslt, ocaml_id, ocaml_globals, ocaml_args, ocaml_ret_type);
   CAMLlocal5(ocaml_shape, ocaml_strides, ocaml_data, ocaml_cur, ocaml_type);
+  CAMLlocal1(v); 
 
   ocaml_id      = Val_int(id);
   ocaml_globals = build_host_val_list(globals, num_globals);
@@ -79,6 +80,8 @@ return_val_t run_function(int id, host_val *globals, int num_globals,
 
   ocaml_rslt = caml_callback3(*ocaml_run_function, ocaml_id,
                               ocaml_globals, ocaml_args);
+  
+  printf("Got something, I hope\n"); 
 
   ocaml_cur = Field(ocaml_rslt, 0);
   return_val_t ret;
@@ -99,15 +102,20 @@ return_val_t run_function(int id, host_val *globals, int num_globals,
     ret.results = (ret_t*)malloc(sizeof(ret_t) * ret.results_len);
     int i, j;
     for (i = 0; i < ret.results_len; ++i) {
-      host_val v = (host_val)Field(ocaml_cur, 0);
+      v = Field(ocaml_cur, 0);
       ocaml_cur = Field(ocaml_cur, 1);
       // returning a scalar
+      printf("Is %p a scalar? %d of %d\n", v, i+1, ret.results_len); 
       if (value_is_scalar(v)) {
          
         ret.results[i].is_scalar = 1;
+        printf("getting type of value %p\n", v); 
         ocaml_type = (scalar_type)value_type_of(v);
+        printf("getting element type\n"); 
         ret.results[i].data.scalar.ret_type =
             get_scalar_element_type(ocaml_type);
+
+        printf("and made progress!"); 
 
         // WARNING:
         // Tiny Memory Leak Ahead
@@ -115,6 +123,7 @@ return_val_t run_function(int id, host_val *globals, int num_globals,
         // When scalar data is returned to the host language
         // on the heap, it should be manually deleted by the
         // host frontend
+        
         if (type_is_bool(ocaml_type)) {
           ret.results[i].data.scalar.ret_scalar_value.boolean = get_bool(v);
         } else if (type_is_int32(ocaml_type)) {
@@ -129,6 +138,7 @@ return_val_t run_function(int id, host_val *globals, int num_globals,
           caml_failwith("Unable to return scalar of this type\n");
         }
       } else {
+        printf("not a scalar..."); 
         // Pass the type
         ret.results[i].is_scalar = 0;
         ret.results[i].data.array.ret_type = array_type_of(v);
@@ -161,6 +171,7 @@ return_val_t run_function(int id, host_val *globals, int num_globals,
       }
     }
   }
+  printf("Done!\n"); 
   CAMLreturnT(return_val_t, ret);
 }
 

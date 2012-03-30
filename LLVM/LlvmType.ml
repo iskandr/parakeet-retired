@@ -45,7 +45,7 @@ let replace_pointers tyList =
 
 let of_elt_type = function
   | Type.BoolT
-  | Type.CharT
+  | Type.CharT -> char_t
   | Type.Int16T -> int16_t
   | Type.Int32T -> int32_t
   | Type.Int64T -> int64_t
