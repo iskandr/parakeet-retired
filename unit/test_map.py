@@ -53,13 +53,13 @@ def array_eq(x,y):
   np.all(np.abs(x - y) < 0.000001)
 
 @PAR 
-def map_mult_rows(mat, row):
-  return parakeet.map(parakeet.mult, mat, row, axis=[0])
+def map_mult_cols(mat, col):
+  return parakeet.map(parakeet.mult, mat, col, axis=0)
 
-def test_mult_rows():
+def test_mult_cols():
   x = np.random.randn(1000, 100)
   y = np.random.randn(100)
-  z = map_mult_rows(x,y)
+  z = map_mult_cols(x,y)
   z_o = x * y 
   print "Python %s\nParakeet: %s" % (z_o, z)
   assert array_eq(z, z_o)
@@ -69,5 +69,5 @@ if __name__ == '__main__':
   test_map_add_1d()
   test_map_add_2d()
   test_mult_vec_scalar()
-  test_mult_rows()
+  test_mult_cols()
 

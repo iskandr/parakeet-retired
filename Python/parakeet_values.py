@@ -83,16 +83,6 @@ def python_value_to_parakeet(arg):
     elif type(arg) == np.float32:
       return LibPar.mk_float32(c_float(arg))
     elif type(arg)in [bool, np.bool_]:
-      print
-      print
-      print
-      print
-      print c_bool(arg)
-      print LibPar.mk_bool(c_bool(arg))
-      print
-      print
-      print
-      print
       return LibPar.mk_bool(c_bool(arg))
     else:
       raise Exception ("Unknown type: " + str(type(arg)))
@@ -115,8 +105,6 @@ def array_from_memory(pointer, shape, strides, dtype):
 
 def parakeet_value_to_python(val):
   if val.is_scalar:
-    print val.data.scalar
-    print val.data.scalar.ret_type
     c_type = parakeet_to_c_types[val.data.scalar.ret_type]
     result = 0
     if c_type == c_bool:

@@ -80,8 +80,6 @@ return_val_t run_function(int id, host_val *globals, int num_globals,
 
   ocaml_rslt = caml_callback3(*ocaml_run_function, ocaml_id,
                               ocaml_globals, ocaml_args);
-  
-  printf("Got something, I hope\n"); 
 
   ocaml_cur = Field(ocaml_rslt, 0);
   return_val_t ret;
@@ -105,17 +103,12 @@ return_val_t run_function(int id, host_val *globals, int num_globals,
       v = Field(ocaml_cur, 0);
       ocaml_cur = Field(ocaml_cur, 1);
       // returning a scalar
-      printf("Is %p a scalar? %d of %d\n", v, i+1, ret.results_len); 
       if (value_is_scalar(v)) {
          
         ret.results[i].is_scalar = 1;
-        printf("getting type of value %p\n", v); 
         ocaml_type = (scalar_type)value_type_of(v);
-        printf("getting element type\n"); 
         ret.results[i].data.scalar.ret_type =
             get_scalar_element_type(ocaml_type);
-
-        printf("and made progress!"); 
 
         // WARNING:
         // Tiny Memory Leak Ahead
@@ -138,7 +131,6 @@ return_val_t run_function(int id, host_val *globals, int num_globals,
           caml_failwith("Unable to return scalar of this type\n");
         }
       } else {
-        printf("not a scalar..."); 
         // Pass the type
         ret.results[i].is_scalar = 0;
         ret.results[i].data.array.ret_type = array_type_of(v);

@@ -84,9 +84,7 @@ void value_init() {
 int value_is_scalar(host_val v) {
   CAMLparam1(v);
   assert(value_callback_is_scalar != NULL); 
-  printf("[value_is_scalar in C]\n"); 
   int b = Int_val(caml_callback(*value_callback_is_scalar, v)); 
-  printf("[value_is_scalar in C] is_scalar? %d\n", b); 
   CAMLreturnT(int, b);
 }
 
@@ -98,7 +96,6 @@ array_type array_type_of(host_val v) {
 }
 
 value value_type_of(host_val v) {
-  printf("\n\nC value_type_of\n"); 
   CAMLparam1(v);
   assert(value_callback_type_of != NULL); 
   CAMLreturn(caml_callback(*value_callback_type_of, v));
@@ -182,14 +179,12 @@ host_val mk_host_array(char *data, elt_type t, int *shape, int shape_len,
   ocaml_shape = caml_alloc(shape_len, 0);
   int i;
   for(i = 0; i < shape_len; i++) {
-    printf("shape[%d] = %d\n", i, shape[i]);
     Store_field(ocaml_shape, i, Val_int(shape[i]));
   }
   
   // Create an OCaml strides array
   ocaml_strides = caml_alloc(strides_len, 0);
   for (i = 0; i < strides_len; ++i) {
-    printf("strides[%d] = %d\n", i, strides[i]);
     Store_field(ocaml_strides, i, Val_int(strides[i]));
   }
 
