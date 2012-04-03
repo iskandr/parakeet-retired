@@ -2,35 +2,50 @@ open Base
 open Prim
 open Printf
 
+(*
+  let min_elt set = fold min set (choose set)
+  let max_elt set = fold max set (choose set)
+
+  type set_comparison = Disjoint | Overlap | Same
+
+  let compare_sets (set1 : 'a t) (set2 : 'a t) =
+    let set3 = inter set1 set2 in
+    if is_empty set3 then Disjoint
+    else if (cardinal set3) = (cardinal set1) then Same
+    else Overlap
+
+*)
+module StrSet = Set.Make(String)
+
 type ast_info = {
-	mutable defs_local : string PSet.t;
-	mutable defs_global : string PSet.t;
+  mutable defs_local : StrSet.t;
+  mutable defs_global : StrSet.t;
 
-	mutable reads_local : string PSet.t;
-	mutable reads_global : string PSet.t;
+  mutable reads_local : StrSet.t;
+  mutable reads_global : StrSet.t;
 
-	mutable writes_local : string PSet.t;
-	mutable writes_global : string PSet.t;
+  mutable writes_local : StrSet.t;
+  mutable writes_global : StrSet.t;
 
-	(* write to disk, print to screen, read from internet, etc... *)
-	mutable io : bool;
+  (* write to disk, print to screen, read from internet, etc... *)
+  mutable io : bool;
 
-	mutable nested_functions : bool;
-	mutable is_function : bool;
-	mutable return_arity : int option;
+  mutable nested_functions : bool;
+  mutable is_function : bool;
+  mutable return_arity : int option;
 }
 
 let mk_ast_info () = {
-	defs_local = PSet.empty;
-	defs_global = PSet.empty;
-	reads_local = PSet.empty;
-	reads_global = PSet.empty;
-	writes_local = PSet.empty;
-	writes_global = PSet.empty;
-	io = false;
-	nested_functions = false;
-	is_function = false;
-	return_arity = None;
+  defs_local = StrSet.empty;
+  defs_global = StrSet.empty;
+  reads_local = StrSet.empty;
+  reads_global = StrSet.empty;
+  writes_local = StrSet.empty;
+  writes_global = StrSet.empty;
+  io = false;
+  nested_functions = false;
+  is_function = false;
+  return_arity = None;
 }
 
 let combine_return_arity r1 r2 =
@@ -42,26 +57,26 @@ let combine_return_arity r1 r2 =
       if x = y then Some x else failwith "Return arity mismatch"
 
 let combine_ast_info info1 info2 = {
-	defs_local = PSet.union info1.defs_local info2.defs_local;
-	defs_global = PSet.union info1.defs_global info2.defs_global;
+  defs_local = StrSet.union info1.defs_local info2.defs_local;
+  defs_global = StrSet.union info1.defs_global info2.defs_global;
 
-	reads_local = PSet.union info1.reads_local info2.reads_local;
-	reads_global = PSet.union info1.reads_global info2.reads_global;
+  reads_local = StrSet.union info1.reads_local info2.reads_local;
+  reads_global = StrSet.union info1.reads_global info2.reads_global;
 
-	writes_local = PSet.union info1.writes_local info2.writes_local;
-	writes_global = PSet.union info1.writes_global info2.writes_global;
+  writes_local = StrSet.union info1.writes_local info2.writes_local;
+  writes_global = StrSet.union info1.writes_global info2.writes_global;
 
-	io = info1.io || info2.io;
-	nested_functions = info1.nested_functions || info2.nested_functions;
-	is_function = info1.is_function || info2.is_function;
-	return_arity = combine_return_arity info1.return_arity info2.return_arity;
+  io = info1.io || info2.io;
+  nested_functions = info1.nested_functions || info2.nested_functions;
+  is_function = info1.is_function || info2.is_function;
+  return_arity = combine_return_arity info1.return_arity info2.return_arity;
 }
 
 let str_set_to_str set =
-  "(" ^ (String.concat ", " (PSet.elements set)) ^ ")"
+  "(" ^ (String.concat ", " (StrSet.elements set)) ^ ")"
 
 let info_to_str info =
-	sprintf
+  sprintf
       "{reads_global: %s; writes_global: %s; io: %s; is_fn: %s; writes_local: %s}"
       (str_set_to_str info.reads_global)
       (str_set_to_str info.writes_global)
@@ -71,32 +86,32 @@ let info_to_str info =
 
 (* core lambda language + random junk for side effects *)
 type exp =
-	| Lam of (string list) * node
-	| Var of string
-	| Prim of Prim.t
-	| Num of ParNum.t
-	| Str of string
-	| App of node * node list
-	| Arr of node list
-	| If of node * node * node
-	| Assign of node list * node
-	| Block of node list
-	| WhileLoop of node * node
-	| CountLoop of node * node
-	| Return of node list
-	| Void
+  | Lam of (string list) * node
+  | Var of string
+  | Prim of Prim.t
+  | Num of ParNum.t
+  | Str of string
+  | App of node * node list
+  | Arr of node list
+  | If of node * node * node
+  | Assign of node list * node
+  | Block of node list
+  | WhileLoop of node * node
+  | CountLoop of node * node
+  | Return of node list
+  | Void
 
 and node = {
-	data:exp;
-	src:SrcInfo.t;
-	mutable ast_info : ast_info;
+  data:exp;
+  src:SrcInfo.t;
+  mutable ast_info : ast_info;
 }
 
 (* FIX: use a better AST_Info without all this local/global nonsense *)
 let defs node =
-  PSet.union node.ast_info.defs_local node.ast_info.defs_global
+  StrSet.union node.ast_info.defs_local node.ast_info.defs_global
 let uses node =
-  PSet.union node.ast_info.reads_local node.ast_info.reads_global
+  StrSet.union node.ast_info.reads_local node.ast_info.reads_global
 
 let rec to_str ast = match ast.data with
   | Lam (ids, body) ->

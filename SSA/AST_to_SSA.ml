@@ -4,6 +4,8 @@ open AST
 open Base
 open UntypedSSA
 
+module StrSet = Set.Make(String)
+
 (* environment mapping strings to SSA IDs or global function IDs *)
 module Env = struct
   (* Assume all functions have been moved to global scope via lambda lifting.
@@ -231,9 +233,9 @@ let rec translate_stmt
 
   | AST.If(cond, trueNode, falseNode) ->
       let condVal = exp_as_value env block "cond" cond  in
-      let tNames : string PSet.t =  AST.defs trueNode in
-      let fNames : string PSet.t = AST.defs falseNode in
-      let mergeNames = PSet.to_list $ PSet.union tNames fNames in
+      let tNames =  AST.defs trueNode in
+      let fNames = AST.defs falseNode in
+      let mergeNames = StrSet.to_list $ StrSet.union tNames fNames in
       (* for now always include retIds in case we have to return *)
       let mergeIds = List.map ID.gen_named mergeNames in
       let trueBlock : UntypedSSA.block = Block.create() in
@@ -320,14 +322,14 @@ let rec translate_stmt
 
 and translate_loop_body envBefore block retIds  body : phi_nodes * Env.t =
   (* FIX: use a better AST_Info without all this local/global junk *)
-  let bodyDefs : string PSet.t = AST.defs body in
-  let bodyUses : string PSet.t = AST.uses body in
+  let bodyDefs = AST.defs body in
+  let bodyUses = AST.uses body in
 
   (* At the end of the loop,
      what are the IDs of variables which are both read and written to?
   *)
-  let overlap : string PSet.t  = PSet.inter bodyDefs bodyUses in
-  let overlapList : string list = PSet.to_list overlap in
+  let overlap  = StrSet.inter bodyDefs bodyUses in
+  let overlapList : string list = StrSet.to_list overlap in
   IFDEF DEBUG THEN
         Printf.printf "[AST->SSA] Loop vars: %s\n"
             (String.concat ", " overlapList)
