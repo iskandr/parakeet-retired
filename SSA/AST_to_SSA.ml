@@ -73,7 +73,7 @@ end
 
 let rec flatten_indexing (astNode:AST.node) : AST.node list =
   match astNode.data with
-  | AST.App({AST.data = AST.Prim (Prim.ArrayOp Prim.Index)}, [lhs;rhs]) ->
+  | AST.Call({AST.data = AST.Prim (Prim.ArrayOp Prim.Index)}, [lhs;rhs]) ->
     (flatten_indexing lhs) @ [rhs]
   | _ -> [astNode]
 
@@ -101,11 +101,13 @@ let rec translate_exp
   | AST.Var name -> value $ Env.lookup env name
   | AST.Prim p -> value (UntypedSSA.Prim p)
   | AST.Num n -> value (UntypedSSA.Num n)
-  | AST.Void -> value UntypedSSA.Void
-  | AST.App (fn, args) -> translate_app env block fn args node.src
+  | AST.NoneVal -> value UntypedSSA.Void
+  | AST.Type _ -> failwith "Types as values not implemented"
+  | AST.Tuple elts -> failwith "tuples not implemented"
+  | AST.Call (fn, args) -> translate_app env block fn args node.src
   (* TODO: lambda lift here *)
-  | AST.Lam (vars, body) -> failwith "lambda lifting not implemented"
-  | AST.Arr args ->
+  | AST.Lambda (vars, body) -> failwith "lambda lifting not implemented"
+  | AST.Array args ->
     {
       UntypedSSA.exp = UntypedSSA.Arr (translate_values env block args);
       exp_src = Some node.src;
@@ -131,16 +133,18 @@ and translate_values env block nodes =
   List.map (translate_value env block) nodes
 
 and translate_axes env block astNode = match astNode.data with
-  | AST.Arr axes -> Some (translate_values env block axes)
+  | AST.Array axes -> Some (translate_values env block axes)
   | AST.Num n -> Some ([UntypedSSA.ValueHelpers.num ~src:astNode.src n])
-  | AST.Void -> None
+  | AST.NoneVal -> None
   | other ->
     failwith $ Printf.sprintf "Unrecognized axes arg: %s" (AST.to_str astNode)
 
 and translate_adverb env block adverb args (src:SrcInfo.t) =
   match args with
   (* TODO: support initial arguments *)
-  | fn::{data=AST.Arr arrayArgs}::{data=AST.Arr fixedArgs}::axes::_ ->
+  | fn::
+    {data=AST.Array arrayArgs}::
+    {data=AST.Arary fixedArgs}::axes::_ ->
     let adverbInfo = {
       Adverb.adverb = adverb;
       adverb_fn = translate_value env block fn;
@@ -191,7 +195,8 @@ let translate_assignment env block (lhs:AST.node list) rhs : Env.t =
     let rhsExp = translate_exp env block rhs in
     Block.add block (UntypedSSA.stmt $ Set(ids, rhsExp));
     Env.add_list env names ids
-  | [{AST.data=AST.App({data=AST.Prim (Prim.ArrayOp Prim.Index)}, _)} as lhs] ->
+  | [{AST.data=AST.Call(
+        {data=AST.Prim (Prim.ArrayOp Prim.Index)}, _)} as lhs] ->
     let rhs = translate_exp env block rhs in
     let allIndices : AST.node list  = flatten_indexing lhs in
     let lhsList = translate_values env block allIndices in

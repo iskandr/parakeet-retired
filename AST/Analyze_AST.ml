@@ -37,7 +37,7 @@ let emptyScopeInfo = {
 let rec get_assignment_name node = match node.data with
   | Var name -> Some name
   | Prim (Prim.ArrayOp Prim.Index) -> None
-  | App (lhs, _ ) -> get_assignment_name lhs
+  | Call (lhs, _ ) -> get_assignment_name lhs
   | _ -> failwith $ Printf.sprintf
         "Unexpected AST node on LHS of assignment: %s"
         (AST.to_str node)
@@ -64,25 +64,60 @@ and analyze_block ~inFunction scopeInfo nodes =
 
 and analyze_node ~inFunction scopeInfo node =
   match node.data with
-  | Lam (ids, body) ->
+  | Type _ 
+  | Str _
+  | Num _
+  | NoneVal -> scopeInfo
+  | Var name ->
+    let isLocal = StrSet.mem name scopeInfo.locals in
+    if inFunction &&  isLocal then
+      node.ast_info.reads_local <- StrSet.add name node.ast_info.reads_local
+    else
+      node.ast_info.reads_global <- StrSet.add name node.ast_info.reads_global
+    ;
+    scopeInfo
+  | Prim op ->
+    if not $ is_pure_op op then node.ast_info.io <- true; scopeInfo
+  | Tuple nodes 
+  | Array nodes
+  | Block nodes ->
+    let scopeInfo', astInfo' = analyze_block ~inFunction scopeInfo nodes in
+    node.ast_info <- astInfo';
+    scopeInfo'
+  | Lambda (formals, body) ->
+    let names = Args.all_formal_names formals in 
     node.ast_info.is_function <- true;
-    node.ast_info.defs_local <- StrSet.of_list ids;
+    let nameSet = StrSet.of_list names in 
+    node.ast_info.defs_local <- nameSet;
     if inFunction then node.ast_info.nested_functions <- true;
-    let initScopeInfo = {emptyScopeInfo with locals = StrSet.of_list ids} in
-    let bodyScopeInfo = analyze_node initScopeInfo ~inFunction:true body in
+    let initScopeInfo = {
+      emptyScopeInfo with locals = nameSet
+    } in
+    let bodyScopeInfo = 
+      analyze_node initScopeInfo ~inFunction:true body 
+    in
     node.ast_info <- combine_ast_info node.ast_info body.ast_info;
     let bodyVolatile = bodyScopeInfo.volatile_global in
     { scopeInfo with
       volatile_global = StrSet.union scopeInfo.volatile_global bodyVolatile
     }
+  | Call (fn, actuals) ->
+    let emptyArgsInfo = mk_ast_info () in
+    let args = Args.all_actual_values actuals in 
+    let scopeInfo', argsInfo =
+      fold_block ~inFunction scopeInfo emptyArgsInfo (List.rev args)
+    in
+    let scopeInfo'' = analyze_node ~inFunction scopeInfo' fn in
+    node.ast_info <- combine_ast_info fn.ast_info argsInfo;
+    (*
+      IMPORTANT!!!
+      now assume function calls don't produce functions
+    *)
+    node.ast_info.is_function <- false;
+    scopeInfo''
   | CountLoop (a,b)
   | WhileLoop (a,b) ->
     let scopeInfo', astInfo' =  analyze_block ~inFunction scopeInfo [a;b] in
-    node.ast_info <- astInfo';
-    scopeInfo'
-  | Arr nodes
-  | Block nodes ->
-    let scopeInfo', astInfo' = analyze_block ~inFunction scopeInfo nodes in
     node.ast_info <- astInfo';
     scopeInfo'
   | If(test, tNode, fNode) ->
@@ -99,27 +134,6 @@ and analyze_node ~inFunction scopeInfo node =
         StrSet.union tScopeInfo.volatile_global fScopeInfo.volatile_global;
       locals = StrSet.inter tScopeInfo.locals fScopeInfo.locals;
     }
-  | App (fn,args) ->
-    let emptyArgsInfo = mk_ast_info () in
-    let scopeInfo', argsInfo =
-      fold_block ~inFunction scopeInfo emptyArgsInfo (List.rev args)
-    in
-    let scopeInfo'' = analyze_node ~inFunction scopeInfo' fn in
-    node.ast_info <- combine_ast_info fn.ast_info argsInfo;
-    (*
-      IMPORTANT!!!
-      for now assume function calls don't produce functions
-    *)
-    node.ast_info.is_function <- false;
-    scopeInfo''
-  | Var name ->
-    let isLocal = StrSet.mem name scopeInfo.locals in
-    if inFunction &&  isLocal then
-      node.ast_info.reads_local <- StrSet.add name node.ast_info.reads_local
-    else
-      node.ast_info.reads_global <- StrSet.add name node.ast_info.reads_global
-    ;
-    scopeInfo
   | Assign (lhsList, rhs) ->
     let scopeInfo = analyze_node ~inFunction scopeInfo rhs in
     let scopeInfo, lhsAstInfo =
@@ -149,17 +163,12 @@ and analyze_node ~inFunction scopeInfo node =
         List.fold_left add_to_locals scopeInfo names
     end
   | Return args ->
-    let scopeInfo, astInfo =  analyze_block ~inFunction scopeInfo args in
+    let scopeInfo, astInfo = analyze_block ~inFunction scopeInfo args in
     node.ast_info <- astInfo;
     astInfo.return_arity <-
       combine_return_arity astInfo.return_arity (Some (List.length args))
     ;
     scopeInfo
-  | Prim op ->
-    if not $ is_pure_op op then node.ast_info.io <- true; scopeInfo
-  | Str _
-  | Num _
-  | Void -> scopeInfo
 
 (* annotates ast_info fields of all ast nodes, and returns a *)
 (* set of volatile var names from the outermost scope *)

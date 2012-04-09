@@ -84,22 +84,23 @@ let info_to_str info =
       (Bool.to_string info.is_function)
       (str_set_to_str info.writes_local)
 
-(* core lambda language + random junk for side effects *)
 type exp =
-  | Lam of (string list) * node
   | Var of string
   | Prim of Prim.t
   | Num of ParNum.t
   | Str of string
-  | App of node * node list
-  | Arr of node list
-  | If of node * node * node
+  | Type of Type.t 
+  | NoneVal
+  | Array of node list
+  | Tuple of node list
+  | Call of node * node Args.actual_args 
+  | Lambda of node Args.formal_args * node
   | Assign of node list * node
   | Block of node list
+  | Return of node list
+  | If of node * node * node
   | WhileLoop of node * node
   | CountLoop of node * node
-  | Return of node list
-  | Void
 
 and node = {
   data:exp;
@@ -113,30 +114,42 @@ let defs node =
 let uses node =
   StrSet.union node.ast_info.reads_local node.ast_info.reads_global
 
-let rec to_str ast = match ast.data with
-  | Lam (ids, body) ->
-        sprintf "fn(%s) {%s}" (String.concat "; " ids) (to_str body)
+let rec to_str node = match node.data with
   | Var name -> name
   | Prim p -> Prim.to_str p
   | Num (ParNum.Char c ) -> "'" ^ (Char.to_string c) ^ "'"
   | Num n -> ParNum.to_str n
   | Str str -> "\"" ^ (String.escaped str) ^ "\""
-  | App (fn, args) ->
+  | Type t -> "type(" ^ Type.to_str t ^ ")" 
+  | NoneVal -> "None" 
+  | Array elts -> "array([" ^ (args_to_str ~delim:", " elts) ^ "])"
+  | Tuple elts -> "tuple(" ^ (args_to_str ~delim:", " elts) ^ ")" 
+  | Lambda (formals, body) ->
+    Base.indent_newlines $ 
+      sprintf "lambda %s:\n%s" 
+        (Args.formal_args_to_str ~value_to_str:to_str formals)
+        (to_str body)
+  | Call (fn, args) ->
     sprintf "%s(%s)" (to_str fn) (args_to_str ~delim:", " args)
-  | Arr elts -> "[" ^ (args_to_str ~delim:", " elts) ^ "]"
   | Assign (lhsList, rhs) ->
-    (args_to_str ~delim:", " lhsList) ^ " := " ^ (to_str rhs)
-  | Block nodes -> sprintf "{ %s }" (args_to_str nodes)
+    (args_to_str ~delim:", " lhsList) ^ " = " ^ (to_str rhs)
+  | Block nodes -> 
+    Base.indent_newlines $ 
+      sprintf "\n%s" (args_to_str ~delim:"\n" nodes)
   | If(test, tNode, fNode) ->
-    sprintf "if %s then %s else %s" (to_str test) (to_str tNode) (to_str fNode)
-  | Void -> "void"
+    sprintf "if %s:\n%s\nelse:\n%s" (to_str test) 
+    (Base.indent_newlines $ to_str tNode) 
+    (Base.indent_newlines $ to_str fNode)
   | WhileLoop (test,body) ->
-    sprintf "while %s do %s" (to_str test)  (to_str body)
+    sprintf "while %s:\n%s" 
+      (to_str test)  
+      (Base.indent_newlines (to_str body))
   | CountLoop (count, body) ->
-    sprintf "repeat %s do %s" (to_str count) (to_str body)
+    sprintf "repeat %s: %s" (to_str count) 
+      (Base.indent_newlines (to_str body))
   | Return nodes -> sprintf "return %s" (args_to_str nodes)
 
-and args_to_str ?(delim="; ") (args:node list) =
+and args_to_str ?(delim=", ") (args:node list) =
   String.concat delim (List.map to_str  args)
 
 let print_ast_node n =

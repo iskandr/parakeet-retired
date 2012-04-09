@@ -29,20 +29,22 @@ val str_set_to_str : StrSet.t -> string
 val info_to_str : ast_info -> string
 
 type exp =
-  | Lam of (string list) * node
   | Var of string
   | Prim of Prim.t
   | Num of ParNum.t
   | Str of string
-  | App of node * node list
-  | Arr of node list
-  | If of node * node * node
+  | Type of Type.elt_t 
+  | NoneVal
+  | Array of node list
+  | Tuple of node list
+  | Lambda of node Args.formal_args * node
+  | Call of node * node Args.actual_args 
   | Assign of node list * node
   | Block of node list
+  | Return of node list
+  | If of node * node * node
   | WhileLoop of node * node
   | CountLoop of node * node
-  | Return of node list
-  | Void
 
 and node = {
   data:exp;
