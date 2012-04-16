@@ -80,46 +80,42 @@ end
 let empty_plan : plan_t = Hashtbl.create 1
 let rec get_tree_cost ?plan:(p=empty_plan) workTree =
   let seq_cost =
-    if workTree.seq_cost = -1 then
-      let child_costs =
-        match workTree.nested_adverbs with
-        | [] -> []
-        | h::t ->
-          List.map
-            (fun child -> get_tree_cost ~plan:p child)
-            workTree.nested_adverbs
-      in
-      let scalar_cost =
-        workTree.num_scalar_ops +
-          (List.fold_left (fun a b -> a + b) 0 child_costs)
-      in
-      match workTree.adverb with
-      | Some a -> (
-        match a.Adverb.adverb with
-        | Adverb.Map
-        | Adverb.Reduce
-        | Adverb.Scan ->
-          let axes = List.map get_const_int a.Adverb.axes in
-            let max_shape =
-              List.fold_left
-                (fun a b -> if Shape.rank a >= List.length axes then a else b)
-                Shape.scalar_shape workTree.arg_shapes
-            in
-            let nelts =
-              List.fold_left
-                (fun acc axis -> acc * (Shape.get max_shape axis)) 1 axes
-          in
-          scalar_cost * nelts
-        | Adverb.AllPairs ->
-          assert(List.length a.Adverb.axes = 1);
-          let axis = get_const_int (List.hd a.Adverb.axes) in
-          List.fold_left
-            (fun acc s -> acc * (Shape.get s axis))
-            scalar_cost workTree.arg_shapes
-      )
-      | None -> scalar_cost
-    else
-      workTree.seq_cost
+	  let child_costs =
+	    match workTree.nested_adverbs with
+	    | [] -> []
+	    | h::t ->
+	      List.map
+	        (fun child -> get_tree_cost ~plan:p child)
+	        workTree.nested_adverbs
+	  in
+	  let scalar_cost =
+	    List.fold_left (fun a b -> a + b) workTree.num_scalar_ops child_costs
+	  in
+	  match workTree.adverb with
+	  | Some a -> (
+	    match a.Adverb.adverb with
+	    | Adverb.Map
+	    | Adverb.Reduce
+	    | Adverb.Scan ->
+	      let axes = List.map get_const_int a.Adverb.axes in
+	      let max_shape =
+	        List.fold_left
+	          (fun a b -> if Shape.rank a >= List.length axes then a else b)
+	          Shape.scalar_shape workTree.arg_shapes
+	      in
+	      let nelts =
+	        List.fold_left
+	          (fun acc axis -> acc * (Shape.get max_shape axis)) 1 axes
+	      in
+	      scalar_cost * nelts
+	    | Adverb.AllPairs ->
+	      assert(List.length a.Adverb.axes = 1);
+	      let axis = get_const_int (List.hd a.Adverb.axes) in
+	      List.fold_left
+	        (fun acc s -> acc * (Shape.get s axis))
+	        scalar_cost workTree.arg_shapes
+	  )
+	  | None -> scalar_cost
   in
   match workTree.stmt_id with
   | Some stmtId ->
@@ -305,14 +301,14 @@ let plan_to_str plan tree =
 
 let best_plan workTree =
   let plans = build_plans workTree in
-  let (plan, cost) = List.fold_left
-    (fun (cur_plan, cur_cost) new_plan ->
+  let (plan, cost) = List.fold_right
+    (fun new_plan (cur_plan, cur_cost) ->
       let new_cost = get_tree_cost ~plan:new_plan workTree in
       if new_cost < cur_cost then
         (new_plan, new_cost)
       else
         (cur_plan, cur_cost))
-    (empty_plan, max_int) plans
+    plans (empty_plan, max_int)
   in
   plan_to_str plan workTree;
   plan
