@@ -500,7 +500,6 @@ and translate_sequential_adverb
           let nestedArrays =
             [slice_along_axes xIndexVars x; slice_along_axes yIndexVars y]
           in
-
           let constOutputAxes = List.til (2*List.length info.axes) in
           let outputAxes = List.map ImpHelpers.int constOutputAxes in
           let indexVars = xIndexVars @ yIndexVars in

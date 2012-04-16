@@ -223,7 +223,7 @@ module CompiledFunctionCache = struct
       begin
         let llvmFn : Llvm.llvalue = Imp_to_LLVM.compile_fn impFn in
          IFDEF DEBUG THEN
-          print_endline  "[LLVM_Backend.call_imp_fn] Generated LLVM function";
+          print_endline "[LLVM_Backend.call_imp_fn] Generated LLVM function";
           (*Llvm.dump_value llvmFn;*)
         ENDIF;
         IFDEF DEBUG THEN
@@ -384,6 +384,9 @@ let exec_reduce impFn inputShapes axes array_args llvmFn =
   free_scalar_outputs outTypes llvmOutputs;
   (* Not freeing intermediates because GC will take care of them *)
   outputs
+
+let exec_allpairs impFn inputShapes axes array_args llvmFn =
+  ()
 
 let adverb (info:(TypedSSA.fn, Ptr.t Value.t list, int list) Adverb.info) =
   assert (info.init = None);

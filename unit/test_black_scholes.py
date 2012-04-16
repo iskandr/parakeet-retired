@@ -30,7 +30,6 @@ def test_cnd():
     print "[test_cnd] %d) %f == %f: %s (diff = %f)" % (i, x,y,same, diff)
     assert same
 
-
 def scalar_black_scholes(CallFlag,S,X,T,r,v):
   d1 = (math.log(S/X)+(r+v*v/2.)*T)/(v*math.sqrt(T))
   d2 = d1-v*math.sqrt(T)
@@ -78,3 +77,4 @@ if __name__ == '__main__':
   test_cnd()
   test_scalar_black_scholes()
   test_black_scholes()
+
