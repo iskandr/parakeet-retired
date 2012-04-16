@@ -16,109 +16,21 @@ module type SCHEDULER = sig
 end
 
 module type INTERP = sig
-  val eval_adverb :(TypedSSA.fn, values, int list) Adverb.info -> values
+  val eval_adverb : (TypedSSA.fn, values, int list) Adverb.info -> values
   val eval_call : TypedSSA.fn -> value list -> value list
   val eval_exp : TypedSSA.exp_node -> value list
 end
 
 module rec Scheduler : SCHEDULER = struct
-  type annotation = Multicore | SSE | Tiling of int * int * int
-  type plan_t = (StmtId.t, (annotation list)) Hashtbl.t
-
   let machine_model = MachineModel.machine_model
   let value_to_host v = DataManager.to_memspace HostMemspace.id v
-
-  module AnnSet =
-    Set.Make(struct type t = annotation let compare = compare end)
-  let prune_plan_forest forest workTree =
-    let rec is_valid_aux plan ancestor_anns cur_node =
-      let stmtId = match cur_node.WorkTree.stmt_id with
-        | Some id -> id
-        | None -> failwith "Can't annotate root node of WorkTree"
-      in
-      let cur_anns =
-        let empty_set = AnnSet.empty in
-        let anns = Hashtbl.find plan stmtId in
-        List.fold_left (fun s ann -> AnnSet.add ann s) empty_set anns
-      in
-      if not $ AnnSet.is_empty (AnnSet.inter ancestor_anns cur_anns) then
-        false
-      else
-        let new_anns = (AnnSet.union ancestor_anns cur_anns) in
-        let rec recurse = function
-          | [] -> true
-          | h::t ->
-            if not (is_valid_aux plan new_anns h) then
-              false
-            else
-              recurse t
-        in
-        recurse cur_node.WorkTree.nested_adverbs
-    in
-    let is_valid plan =
-      let empty_set = AnnSet.empty in
-      let rec recurse = function
-        | [] -> true
-        | h::t ->
-          if not (is_valid_aux plan empty_set h) then
-            false
-          else
-            recurse t
-      in
-      recurse workTree.WorkTree.nested_adverbs
-    in
-    List.filter is_valid forest
-
-  let mc = Multicore
-  let sse = SSE
-  let tiling = Tiling(0,0,0)
-  let all_annotations = [mc;sse;tiling]
-
-  let rec powerset = function
-    | [] -> [[]]
-    | h::t -> List.fold_left (fun xs t -> (h::t)::t::xs) [] (powerset t)
-
-  let annotations_powerset = powerset all_annotations
-
-  let rec build_plans_aux cur_plans cur_tree =
-    let stmtId = match cur_tree.WorkTree.stmt_id with
-      | Some id -> id
-      | None -> failwith "Can't annotate root of workTree"
-    in
-    let sub_plans = match cur_tree.WorkTree.nested_adverbs with
-      | [] ->
-        cur_plans
-      | h::t ->
-        List.fold_left build_plans_aux cur_plans cur_tree.WorkTree.nested_adverbs
-    in
-    let get_new_plan sub_plan annotations =
-      let new_plan : plan_t = Hashtbl.copy sub_plan in
-      Hashtbl.add new_plan stmtId annotations;
-      new_plan
-    in
-    let get_new_plans sub_plan =
-      List.map (get_new_plan sub_plan) annotations_powerset
-    in
-    List.flatten $ List.map get_new_plans sub_plans
-
-  let build_plans workTree =
-    let plan : plan_t = Hashtbl.create 127 in
-    let all_plans = match workTree.WorkTree.nested_adverbs with
-      | [] -> [plan]
-      | h::t ->
-        List.fold_left build_plans_aux [plan] workTree.WorkTree.nested_adverbs
-    in
-    Printf.printf "Number of plans generated: %d\n%!" (List.length all_plans);
-    prune_plan_forest all_plans workTree
 
   let rec schedule_function fn args =
     (* for now, if we schedule a function which contains an adverb, *)
     (* never compile it but instead run the body in the interpreter *)
-    let workTree, cost = WorkTree.build_work_tree fn args in
+    let workTree = WorkTree.build_work_tree fn args in
     IFDEF DEBUG THEN WorkTree.to_str workTree; ENDIF;
-    let parallel = WorkTree.best_parallel workTree in
-    let plans = build_plans workTree in
-    Printf.printf "Number of plans found: %d\n%!" (List.length plans);
+    let plan = WorkTree.best_plan workTree in
     let hasAdverb = AdverbHelpers.fn_has_adverb fn in
     let shapely = ShapeInference.typed_fn_is_shapely fn in
     IFDEF DEBUG THEN
