@@ -83,7 +83,7 @@ let rec get_tree_cost ?plan:(p=empty_plan) workTree =
 	  let child_costs =
 	    match workTree.nested_adverbs with
 	    | [] -> []
-	    | h::t ->
+	    | _ :: _ ->
 	      List.map
 	        (fun child -> get_tree_cost ~plan:p child)
 	        workTree.nested_adverbs
@@ -132,10 +132,7 @@ let rec get_tree_cost ?plan:(p=empty_plan) workTree =
 let rec fill_in_seq_costs workTree =
   match workTree.nested_adverbs with
   | [] ->
-    let nelts = List.map Shape.nelts workTree.arg_shapes in
-    let cost =
-      List.fold_left (fun a b -> a * b) 1 ([workTree.num_scalar_ops] @ nelts)
-    in
+    let cost = get_tree_cost workTree in
     {workTree with seq_cost=cost}
   | _ :: _ ->
     let newChildren = List.map fill_in_seq_costs workTree.nested_adverbs in
