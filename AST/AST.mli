@@ -33,15 +33,15 @@ type exp =
   | Prim of Prim.t
   | Num of ParNum.t
   | Str of string
-  | Type of Type.elt_t 
+  | Type of Type.t 
   | NoneVal
   | Array of node list
   | Tuple of node list
-  | Lambda of node Args.formal_args * node
-  | Call of node * node Args.actual_args 
+  | Call of node * (string, node) Args.actual_args 
+  | Lambda of (string, node) Args.formal_args * node
   | Assign of node list * node
-  | Block of node list
   | Return of node list
+  | Block of node list
   | If of node * node * node
   | WhileLoop of node * node
   | CountLoop of node * node
@@ -56,6 +56,6 @@ val defs : node -> StrSet.t
 val uses : node -> StrSet.t
 
 val to_str : node -> string
-val args_to_str : ?delim:string -> node list -> string
+val nodes_to_str : ?delim:string -> node list -> string
 
 val print_ast_node : node -> unit

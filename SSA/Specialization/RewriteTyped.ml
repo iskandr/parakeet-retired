@@ -251,11 +251,11 @@ module Make(P: REWRITE_PARAMS) = struct
         let outT = TypeAnalysis.infer_simple_array_op op types in
         TypedSSA.primapp ?src (Prim.ArrayOp op) ~output_types:[outT] args
 
-  let rewrite_app src
+  let rewrite_call src
         (fn:UntypedSSA.value_node)
         (argNodes:TypedSSA.value_nodes) : TypedSSA.exp_node =
     (*IFDEF DEBUG THEN
-      Printf.printf "[RewriteTyped.rewrite_app] %s(%s)\n"
+      Printf.printf "[RewriteTyped.rewrite_call] %s(%s)\n"
         (UntypedSSA.value_node_to_str fn)
         (TypedSSA.value_nodes_to_str argNodes)
       ;
@@ -355,7 +355,7 @@ module Make(P: REWRITE_PARAMS) = struct
     UntypedSSA.(
       let src = expNode.exp_src in
       match expNode.exp, types with
-      | Arr elts, [Type.ArrayT(eltT, _)] ->
+      | Array elts, [Type.ArrayT(eltT, _)] ->
         let elts' = coerce_values (Type.ScalarT eltT) elts in
         { TypedSSA.exp = TypedSSA.Arr elts'; exp_types = types; exp_src = src}
       | Values vs, _ ->
@@ -363,7 +363,9 @@ module Make(P: REWRITE_PARAMS) = struct
         { TypedSSA.exp = TypedSSA.Values vs'; exp_types = types; exp_src = src }
         (* WARNING: You're ignoring the expected return types here *)
       | Adverb adverbInfo, _ -> rewrite_adverb ?src adverbInfo
-      | App ({value = Prim (Prim.Adverb adverb)}, fn::args), _ ->
+      | Call (
+          {value = Prim (Prim.Adverb adverb)}, fn::args), 
+        _ ->
         IFDEF DEBUG THEN
           Printf.printf "[RewriteTyped] Converting simple adverb\n%!";
         ENDIF;
@@ -374,7 +376,7 @@ module Make(P: REWRITE_PARAMS) = struct
         }
         in
         rewrite_adverb ?src untypedInfo
-      | App (fn, args), _ -> rewrite_app src fn (annotate_values args)
+      | Call (fn, args), _ -> rewrite_call src fn (annotate_values args)
       | _ ->
         let errMsg =
           Printf.sprintf

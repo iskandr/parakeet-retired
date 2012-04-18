@@ -42,7 +42,7 @@ paranode mk_double_paranode(double d, source_info_t *src_info);
 paranode mk_str(char *str, source_info_t *src_info);
 
 /** Accepts an array of args **/
-paranode mk_app(paranode fun, paranode *args, int num_args,
+paranode mk_call(paranode fun, paranode *args, int num_args,
                 source_info_t *src_info);
 
 paranode mk_return(paranode* args, int num_args, source_info_t *src_info);
@@ -61,7 +61,7 @@ paranode mk_whileloop(paranode test, paranode body, source_info_t *src_info);
 
 paranode mk_countloop(paranode count, paranode body, source_info_t *src_info);
 
-paranode mk_void(source_info_t *src_info);
+paranode mk_none(source_info_t *src_info);
 
 paranode get_prim(char* prim_name);
 

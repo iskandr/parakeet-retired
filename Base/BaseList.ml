@@ -109,3 +109,6 @@ include ExtList.List
   let rec shorter_than xs n = match xs with
     | [] -> n > 0
     | _::xs' -> if n > 0 then (shorter_than xs' (n-1)) else false
+  
+  let assoc_option key pairs = 
+    try Some (List.assoc key pairs) with _ -> None 

@@ -1,69 +1,77 @@
 open Base
 
-type 'a formal_args = {
-  pos_names : string list;
-  defaults : (string * 'a) list; 
+type ('a, 'b) formal_args = {
+  names : 'a list;
+  defaults : ('a * 'b) list; 
 }
 
-type 'a actual_args = {
-  pos_values : 'a list;
-  keyword_values : (string * 'a) list;
+type ('a, 'b) actual_args = {
+  values : 'b list;
+  keywords : ('a * 'b) list;
 }
 
-let formal_args_to_str 
-  ?(value_to_str = fun _ -> "<default>")
-  {pos_names; defaults} = 
+let of_names names = { names = names; defaults = [] } 
+let of_values values = { values = values; keywords = [] } 
+
+
+let apply_to_formal_values f formals =
+  { 
+    names = formals.names; 
+    defaults = List.map (fun (k,v) -> (k, f v)) formals.defaults;
+  } 
+ 
+let apply_to_actual_values f actuals = 
+  { 
+    values = List.map f actuals.values; 
+    keywords = List.map (fun (k,v) -> (k, f v)) actuals.keywords;
+  }
+let formal_args_to_str ~value_to_str {names; defaults} =
   let defStrings = 
-    List.map (fun (k,v) -> k ^ "=" ^ (value_to_str v)) defaults
+    List.map 
+      (fun (k,v) -> 
+        k ^ "=" ^ (value_to_str v)) 
+    defaults
   in 
-  String.concat ", " (pos_names @ defStrings)
+  String.concat ", " (List.map name_to_str names @ defStrings)
 
-let actual_args_to_str 
-  ?(value_to_str = fun _ -> "<value>")
-  {pos_values; keyword_values} = 
-  let posStrings = List.map value_to_str pos_values in 
+let actual_args_to_str ~value_to_str {values; keywords} =
+  let posStrings = List.map value_to_str values in 
   let kwdStrings = 
     List.map 
       (fun (k,v) -> k ^ "=" ^ (value_to_str v)) 
-      keyword_values
+      keywords
   in 
-  String.concat ", " (posStrings @ kwdStrings)
+  String.concat ", " (List.map value_to_str values @ kwdStrings)
 
-let all_formal_names { pos_names; defaults } = 
-  pos_names @ (List.map fst defaults)
+let all_formal_names { names; defaults } = 
+  names @ (List.map fst defaults)
 
-let all_actual_values  { pos_values; keyword_values } = 
-  pos_values @ (List.map snd keyword_values) 
+let all_actual_values  { values; keywords } = 
+  values @ (List.map snd keywords) 
   
 
 let rec combine_positional env xs ys = 
   match xs, ys with 
    | [], [] -> env
-   | x::xs', y::ys' -> 
-     let env' = String.Map.add x y env in 
-     combine_positional env' xs' ys'
+   | x::xs', y::ys' -> combine_positional ((x,y)::env) xs' ys'
    | [], _ -> failwith "Too many arguments" 
    | _, [] -> failwith "Too few arguments" 
 
-let rec bind ?(env=String.Map.empty) formals actuals = 
-  match actuals.keyword_values with 
+let rec bind ?(env=[]) formals actuals = 
+  match actuals.keywords with 
   | [] -> 
-    let env' = 
-      List.fold_left 
-        (fun acc (k, v) -> String.Map.add k v acc) env formals.defaults 
-    in
-    combine_positional env' formals.pos_names actuals.pos_values
+    let env' =  
+      List.fold_left (fun lst pair -> pair::lst) env formals.defaults     in
+    combine_positional env' formals.names actuals.values
   | (k,v)::rest -> 
-    let env' = String.Map.add k v env in 
+    let env' = (k,v)::env in  
     (* slightly inefficient but for clarity and avoiding edge cases, 
        remove name from both the positional args *)
-    let pos' = List.filter ((<>) k) formals.pos_names in 
-    let defaults' = List.remove_assoc k formals.defaults in 
     let formals' = {
-      pos_names = List.filter ((<>) k) formals.pos_names; 
+      names = List.filter ((<>) k) formals.names; 
       defaults = List.remove_assoc k formals.defaults
     }
     in 
-    bind ~env:env' formals' rest 
+    bind ~env:env' formals' { actuals with keywords = rest } 
     
     

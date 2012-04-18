@@ -16,17 +16,17 @@ let mk_block_node ?(info=mk_ast_info()) ?(src=SrcInfo.empty) nodes =
 
 let update_block_node ast nodes = { ast with data = Block nodes }
 
-(* Arr *)
-let mk_arr_node ?(info=mk_ast_info()) ?(src=SrcInfo.empty) nodes =
-  mk_node ~info ~src (Arr nodes)
+(* Array *)
+let mk_array_node ?(info=mk_ast_info()) ?(src=SrcInfo.empty) nodes =
+  mk_node ~info ~src (Array nodes)
 
-let update_arr_node ast nodes = { ast with data = Arr nodes }
+let update_array_node ast nodes = { ast with data = Array nodes }
 
-(* App *)
-let mk_app_node ?(info=mk_ast_info()) ?(src=SrcInfo.empty) fnNode args =
-  mk_node ~info ~src (App (fnNode, args))
+(* Call *)
+let mk_call_node ?(info=mk_ast_info()) ?(src=SrcInfo.empty) fnNode args =
+  mk_node ~info ~src (Call (fnNode, args))
 
-let update_app_node ast fnNode args = { ast with data = App(fnNode, args)}
+let update_call_node ast fnNode args = { ast with data = Call(fnNode, args)}
 
 (* Prim *)
 let mk_prim_node ?(info=mk_ast_info()) ?(src=SrcInfo.empty) p =
@@ -50,11 +50,11 @@ let mk_assign_node
 let update_assign_node ast (lhs:AST.node list) rhs =
   { ast with data = Assign(lhs, rhs) }
 
-(* Lam *)
-let mk_lam_node ?(info=mk_ast_info()) ?(src=SrcInfo.empty) args body =
-  mk_node ~info  ~src  (Lam (args, body))
+(* Lambda *)
+let mk_lambda_node ?(info=mk_ast_info()) ?(src=SrcInfo.empty) args body =
+  mk_node ~info  ~src  (Lambda (args, body))
 
-let update_lam_node ast args body = { ast with data = Lam(args, body) }
+let update_lambda_node ast args body = { ast with data = Lambda(args, body) }
 
 (* If *)
 let mk_if_node ?(info=mk_ast_info()) ?(src=SrcInfo.empty)
@@ -64,12 +64,12 @@ let mk_if_node ?(info=mk_ast_info()) ?(src=SrcInfo.empty)
 let update_if_node ast condNode tNode fNode =
   {ast with data=If(condNode,tNode,fNode)}
 
-let mk_void_node ?(info=mk_ast_info()) ?(src=SrcInfo.empty) () =
-  mk_node ~info ~src Void
+let mk_none_node ?(info=mk_ast_info()) ?(src=SrcInfo.empty) () =
+  mk_node ~info ~src NoneVal
 
 let mk_iftrue_node ?(info=mk_ast_info()) ?(src=SrcInfo.empty)
    condNode trueNodes =
-  let voidNode = mk_void_node() in
+  let voidNode = mk_none_node() in
   let blockNode = mk_block_node trueNodes in
   mk_node ~info ~src (If(condNode, blockNode, voidNode))
 
@@ -80,28 +80,26 @@ let mk_int_node ?(info=mk_ast_info()) ?(src=SrcInfo.empty) x =
 let update_int_node ast x =
   { ast with data = Num (ParNum.coerce_int x Type.Int32T) }
 
-let mk_void_node ?(info=mk_ast_info()) ?(src=SrcInfo.empty) () =
-  mk_node ~info ~src Void
 
-(* Array indexing -- special case of App *)
+(* Arrayay indexing -- special case of Call *)
 let mk_idx_node ?(info=mk_ast_info()) ?(src=SrcInfo.empty) arrNode idx =
-  mk_app_node ~info ~src arrNode [mk_int_node idx]
+  mk_call_node ~info ~src arrNode $ Args.of_values [mk_int_node idx]
 
 let mk_eq_node ?(info=mk_ast_info()) ?(src=SrcInfo.empty) lhsNode rhsNode =
   let eqOp = mk_node $ Prim (Prim.ScalarOp Prim.Eq) in
-  mk_app_node ~info ~src eqOp [lhsNode; rhsNode]
+  mk_call_node ~info ~src eqOp $ Args.of_values [lhsNode; rhsNode]
 (*
 let mk_concat_node ?(info=mk_ast_info()) ?(src=SrcInfo.empty) lhs rhs =
-  mk_app_node (mk_prim_node (Prim.ArrayOp Prim.Concat))  [lhs; rhs]
+  mk_call_node (mk_prim_node (Prim.ArrayayOp Prim.Concat))  [lhs; rhs]
 *)
 (* given an AST lambda node, return the names of its arguments *)
-let get_lam_args ast = match ast.data with
-  | Lam(args, _ ) -> args
+let get_lambda_args ast = match ast.data with
+  | Lambda(args, _ ) -> args
   | _ -> failwith "[get_lam_args] expected lambda node"
 
 (* given an AST lambda node, return its body *)
-let get_lam_body ast = match ast.data with
-  | Lam(_, body) -> body
+let get_lambda_body ast = match ast.data with
+  | Lambda(_, body) -> body
   | _ -> failwith "[get_lam_body] expected lambda node"
 
 
@@ -121,7 +119,7 @@ let rec flatten_block ast = match ast.data with
   | _ -> ast
 
 let rec is_void_recursive astNode = match astNode.data with
-  | Void
+  | NoneVal
   | Block [] -> true
   | Block nodes -> List.for_all is_void_recursive nodes
   | _ -> false

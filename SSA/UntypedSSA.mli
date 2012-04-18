@@ -1,10 +1,11 @@
+open Base 
 module CoreLanguage : sig
   type value =
     | Var of ID.t
     | Num of ParNum.t
     | Prim of Prim.t
     | GlobalFn of FnId.t
-    | Void
+    | NoneVal
 
   type value_node = { value : value; value_src : SrcInfo.t option }
   type value_nodes = value_node list
@@ -13,8 +14,9 @@ module CoreLanguage : sig
 
   type exp =
     | Values of value_nodes
-    | Arr of value_nodes
-    | App of value_node * value_nodes
+    | Tuple of value_nodes
+    | Array of value_nodes
+    | Call of value_node * (ID.t, value_node) Args.actual_args
     | Adverb of adverb_info
   type exp_node = { exp : exp; exp_src : SrcInfo.t option }
 
@@ -36,7 +38,8 @@ module CoreLanguage : sig
   type fn =
     {
       body : block;
-      input_ids : ID.t list;
+      inputs : (ID.t, value_node) Args.formal_args; 
+      input_names_to_ids : ID.t String.Map.t; 
       output_ids : ID.t list;
       fn_id : FnId.t
     }
@@ -97,7 +100,7 @@ end
 include module type of ValueHelpers
 
 module ExpHelpers : sig
-  val app : value_node -> value_node list -> exp_node
+  val call : value_node -> (ID.t, value_node) Args.actual_args -> exp_node
 end
 include module type of ExpHelpers
 

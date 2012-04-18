@@ -14,19 +14,22 @@ enum ast_exp_no_data {
   Exp_Void = 0
 };
 enum ast_exp_data {
-  Exp_Lam = 0,
   Exp_Var,
   Exp_Prim,
   Exp_Num,
   Exp_Str,
-  Exp_App,
-  Exp_Arr,
-  Exp_If,
+  Exp_Type,
+  Exp_None, 
+  Exp_Array,
+  Exp_Tuple,
+  Exp_Lambda,
+  Exp_Call,
   Exp_Assign,
+  Exp_Return
   Exp_Block,
+  Exp_If,
   Exp_WhileLoop,
   Exp_CountLoop, 
-  Exp_Return
 };
 
 #endif

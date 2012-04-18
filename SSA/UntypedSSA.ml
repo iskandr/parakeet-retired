@@ -7,7 +7,7 @@ module CoreLanguage = struct
     | Num of ParNum.t
     | Prim of Prim.t
     | GlobalFn of FnId.t
-    | Void
+    | NoneVal
 
   type value_node = { value : value; value_src : SrcInfo.t option; }
   type value_nodes = value_node list
@@ -16,8 +16,9 @@ module CoreLanguage = struct
 
   type exp =
     | Values of value_nodes
-    | Arr of value_nodes
-    | App of value_node * value_nodes
+    | Tuple of value_nodes
+    | Array of value_nodes
+    | Call of value_node * (ID.t, value_node) Args.actual_args
     | Adverb of adverb_info
 
   type exp_node = { exp : exp; exp_src : SrcInfo.t option }
@@ -39,7 +40,8 @@ module CoreLanguage = struct
 
   type fn = {
     body: block;
-    input_ids: ID.t list;
+    inputs : (ID.t, value_node) Args.formal_args; 
+    input_names_to_ids : ID.t String.Map.t; 
     output_ids: ID.t list;
     fn_id : FnId.t;
   }
@@ -52,7 +54,7 @@ module PrettyPrinters = struct
     | Num n -> ParNum.to_str n
     | Prim p -> "prim(" ^ Prim.to_str p ^ ")"
     | GlobalFn fnId -> FnId.to_str fnId
-    | Void -> "void"
+    | NoneVal -> "none"
 
   let value_node_to_str valNode = value_to_str valNode.value
 
@@ -63,12 +65,15 @@ module PrettyPrinters = struct
     let opt_to_str = Option.map_default value_nodes_to_str "none" in
     Adverb.info_to_str info value_node_to_str value_nodes_to_str opt_to_str
 
+  let args_to_str args = 
+    value_nodes_to_str (Args.all_actual_values args)
   let exp_to_str = function
     | Values [v] -> value_node_to_str v
     | Values vs -> sprintf "values(%s)" (value_nodes_to_str vs)
-    | Arr elts -> sprintf "array(%s)" (value_nodes_to_str elts)
-    | App (f, args) ->
-      sprintf "%s(%s)" (value_node_to_str f) (value_nodes_to_str args)
+    | Tuple vs -> sprintf "tuple(%s)" (value_nodes_to_str vs)
+    | Array elts -> sprintf "array(%s)" (value_nodes_to_str elts)
+    | Call (f, args) ->
+      sprintf "%s(%s)" (value_node_to_str f) (args_to_str args)
     | Adverb info -> adverb_info_to_str info
   let exp_node_to_str expNode = exp_to_str expNode.exp
 
@@ -107,7 +112,9 @@ module PrettyPrinters = struct
 
   let fn_to_str (fundef:fn) =
     let name = fn_id_to_str fundef in
-    let inputs = ID.list_to_str fundef.input_ids in
+    let inputs = 
+      ID.list_to_str (Args.all_formal_names fundef.inputs) 
+    in
     let outputs = ID.list_to_str fundef.output_ids in
     let body = block_to_str fundef.body in
     (sprintf "def %s(%s)=>(%s):%s" name inputs outputs body)
@@ -170,8 +177,8 @@ include ValueHelpers
 
 
 module ExpHelpers = struct
-  let app lhs args =
-    { exp = App(lhs, args);
+  let call lhs args =
+    { exp = Call(lhs, args);
       exp_src = None;
     }
 end
@@ -208,12 +215,13 @@ module FnHelpers = struct
     in
     {
       body = body;
-      input_ids = input_ids;
+      inputs = Args.of_names input_ids;
+      input_names_to_ids = String.Map.empty;
       output_ids = output_ids;
       fn_id = fnId;
     }
 
-  let input_arity {input_ids} = List.length input_ids
+  let input_arity {inputs} = List.length inputs.Args.names
   let output_arity {output_ids} = List.length output_ids
   let fn_id {fn_id} = fn_id
 end
@@ -221,7 +229,7 @@ include FnHelpers
 
 module ScalarHelpers = struct
   let is_scalar_exp = function
-    | App({value=Prim (Prim.ScalarOp _)}, _ )
+    | Call({value=Prim (Prim.ScalarOp _)}, _ )
     | Values _ -> true
     | _ -> false
 

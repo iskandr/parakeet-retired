@@ -269,19 +269,19 @@ module Make (P : TYPE_ANALYSIS_PARAMS) = struct
 
   let infer_value_nodes vNodes = List.map infer_value_node vNodes
 
-  let rec infer_app fnVal (argTypes:Type.t list) =
-    IFDEF DEBUG THEN
-      Printf.printf "[TypeAnalysis.infer_app] %s(%s)\n"
-        (UntypedSSA.value_to_str fnVal)
-        (Type.type_list_to_str argTypes)
-    ENDIF;
+  let rec infer_call 
+    fnVal 
+    (argTypes: (ID.t, Type.t) Args.actual_args) =
+    (* for calls to prims, ignore any keyword arguments *) 
     match fnVal with
     | Prim (Prim.ArrayOp arrayOp) ->
-      [infer_simple_array_op arrayOp argTypes]
+      assert (argTypes.Args.keywords = []); 
+      [infer_simple_array_op arrayOp argTypes.Args.values]
     | Prim (Prim.ScalarOp scalarOp) ->
-      [infer_scalar_op scalarOp argTypes]
+      assert (argTypes.Args.keywords = []); 
+      [infer_scalar_op scalarOp argTypes.Args.values]
     | GlobalFn _ ->
-      let signature = Signature.from_input_types argTypes in
+      let signature = Signature.from_args argTypes in
       P.infer_output_types fnVal signature
     | _ ->
        failwith $
@@ -324,7 +324,9 @@ module Make (P : TYPE_ANALYSIS_PARAMS) = struct
   let infer_exp expNode : Type.t list =
     let src = expNode.exp_src in
     match expNode.exp with
-    | App({value=UntypedSSA.Prim (Prim.Adverb adverb)}, args) ->
+    | Call(
+        {value=UntypedSSA.Prim (Prim.Adverb adverb)}, 
+        args) ->
       let fn, arrayArgs = match args with
         | fn::rest -> fn, rest
         | _ -> raise (TypeError("too few arguments for adverb", src))
@@ -356,7 +358,7 @@ module Make (P : TYPE_ANALYSIS_PARAMS) = struct
         ;
       ENDIF;
       resultTypes
-    | App(lhs, args) ->
+    | Call(lhs, args) ->
       let lhsT = infer_value_node lhs in
       let argTypes = infer_value_nodes args in
       IFDEF DEBUG THEN
@@ -367,7 +369,7 @@ module Make (P : TYPE_ANALYSIS_PARAMS) = struct
       if Type.is_array lhsT
       then [infer_simple_array_op Prim.Index (lhsT::argTypes)]
       else infer_app lhs.value argTypes
-    | Arr elts ->
+    | Array elts ->
       let commonT = Type.combine_type_list (infer_value_nodes elts) in
       if Type.is_scalar commonT then [Type.increase_rank 1 commonT]
       else if commonT = Type.AnyT then

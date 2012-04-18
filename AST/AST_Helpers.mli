@@ -8,12 +8,13 @@ val update_str_node : node -> string -> node
 val mk_block_node : ?info:ast_info -> ?src:SrcInfo.t -> node list -> node
 val update_block_node : node -> node list -> node
 
-val mk_arr_node : ?info:ast_info -> ?src:SrcInfo.t -> node list -> node
-val update_arr_node : node -> node list -> node
+val mk_array_node : ?info:ast_info -> ?src:SrcInfo.t -> node list -> node
+val update_array_node : node -> node list -> node
 
-val mk_app_node : ?info:ast_info -> ?src:SrcInfo.t -> node -> node list -> node
+val mk_call_node : 
+  ?info:ast_info -> ?src:SrcInfo.t -> node -> (string, node) Args.actual_args -> node
 
-val update_app_node : node -> node -> node list -> node
+val update_call_node : node -> node -> (string, node) Args.actual_args -> node
 
 val mk_prim_node : ?info:ast_info -> ?src:SrcInfo.t -> Prim.t -> node
 val update_prim_node : node -> Prim.t -> node
@@ -26,16 +27,16 @@ val mk_assign_node :
 val update_assign_node :
       node -> node list -> node -> node
 
-val mk_lam_node :
-    ?info:ast_info -> ?src:SrcInfo.t -> string list -> node -> node
+val mk_lambda_node :
+    ?info:ast_info -> ?src:SrcInfo.t -> (string, node) Args.formal_args -> node -> node
 
-val update_lam_node : node -> string list -> node -> node
+val update_lambda_node : node -> (string, node) Args.formal_args -> node -> node
 
 val mk_if_node : ?info:ast_info -> ?src:SrcInfo.t -> node -> node -> node -> node
 
 val update_if_node : node -> node -> node -> node -> node
 
-val mk_void_node : ?info:ast_info -> ?src:SrcInfo.t -> unit -> node
+val mk_none_node : ?info:ast_info -> ?src:SrcInfo.t -> unit -> node
 
 val mk_iftrue_node : ?info:ast_info -> ?src:SrcInfo.t -> node -> node list -> node
 
@@ -50,8 +51,8 @@ val mk_eq_node : ?info:ast_info -> ?src:SrcInfo.t -> node -> node -> node
 (*val mk_concat_node : ?info:ast_info -> ?src:SrcInfo.t -> node -> node -> node*)
 
 
-val get_lam_args : node -> string list
-val get_lam_body : node -> node
+val get_lambda_args : node -> (string, node) Args.formal_args 
+val get_lambda_body : node -> node
 
 (* get ride of nested blocks *)
 val flatten_block  : node -> node

@@ -44,7 +44,7 @@ void ast_init(void) {
   ocaml_get_prim       = caml_named_value("get_prim");
 }
 
-paranode mk_lam(char **args, int num_args, paranode body,
+paranode mk_lambda(char **args, int num_args, paranode body,
                 source_info_t *src_info) {
   CAMLparam0();
   CAMLlocal5(lam, ocaml_str, arg1, arg2, node);
@@ -79,7 +79,7 @@ paranode mk_lam(char **args, int num_args, paranode body,
   }
 
   // Build the lambda expression
-  lam = caml_alloc(2, Exp_Lam);
+  lam = caml_alloc(2, Exp_Lambda);
   Store_field(lam, 0, arg1);
   Store_field(lam, 1, val_body);
 
@@ -164,13 +164,13 @@ paranode mk_str(char *str, source_info_t *src_info) {
   CAMLreturnT(paranode, mk_node(exp_str, src_info));
 }
 
-paranode mk_app(paranode fun, paranode *args, int num_args,
+paranode mk_call(paranode fun, paranode *args, int num_args,
                 source_info_t *src_info) {
   CAMLparam0();
   CAMLlocal3(val_fun, app, val_args);
   val_args = mk_val_list(args, num_args);
   val_fun = get_value_and_remove_root(fun);
-  app = caml_alloc(2, Exp_App);
+  app = caml_alloc(2, Exp_Call);
   Store_field(app, 0, val_fun);
   Store_field(app, 1, val_args);
 
@@ -190,7 +190,7 @@ paranode mk_array(paranode *elts, int num_elts, source_info_t *src_info) {
   CAMLparam0();
   CAMLlocal2(arr, elt_list);
   elt_list = mk_val_list(elts, num_elts); 
-  arr = caml_alloc(1, Exp_Arr);
+  arr = caml_alloc(1, Exp_Array);
   Store_field(arr, 0, elt_list);
   CAMLreturnT(paranode, mk_node(arr, src_info));
 }
@@ -266,10 +266,10 @@ paranode mk_countloop(paranode count, paranode body, source_info_t *src_info) {
   CAMLreturnT(paranode, mk_node(loop, src_info));
 }
 
-paranode mk_void(source_info_t *src_info) {
+paranode mk_none(source_info_t *src_info) {
   CAMLparam0();
   CAMLlocal1(v);
-  v = Val_int(Exp_Void);
+  v = Val_int(Exp_None);
   CAMLreturnT(paranode, mk_node(v, src_info));
 }
 

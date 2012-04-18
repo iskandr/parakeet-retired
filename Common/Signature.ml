@@ -1,13 +1,21 @@
-type t = { inputs: Type.t list; outputs: Type.t list option } 
+type t = { 
+  inputs: Type.t Args.formal_args; 
+  outputs: Type.t list option 
+} 
 
-let input_types s = s.inputs
+let inputs s = s.inputs
 
 (* create a signature where we know only the input types *)  
-let from_input_types types = 
-  { inputs = types; outputs = None } 
+let from_input_types ts = { 
+  inputs = {Args.values = ts; keywords = []};
+  outputs = None; 
+}
 
-let from_types inTypes outTypes = 
-  { inputs = inTypes; outputs = Some outTypes } 
+let from_args args = 
+  { inputs = args; outputs = None } 
+
+let with_outputs args outTypes = 
+  { inputs = args; outputs = Some outTypes } 
 
 let has_output_types s = s.outputs <> None 
                 
@@ -18,10 +26,10 @@ let output_types s = match s.outputs with
 let output_types_option s = s.outputs 
 
 let to_str signature =
-  let inputStr = Type.type_list_to_str signature.inputs in 
+  let inputStr = 
+    Args.to_str ~value_to_str:Type.to_str signature.inputs
+  in 
   match signature.outputs with 
       | None -> inputStr
       | Some outputs -> inputStr ^ " -> " ^ (Type.type_list_to_str outputs)
 
-let append_input_types s ts = { inputs = s.inputs @ ts; outputs = s.outputs } 
-let prepend_input_types  ts s = { inputs =ts @ s.inputs; outputs = s.outputs } 

@@ -73,7 +73,10 @@ end
 
 let rec flatten_indexing (astNode:AST.node) : AST.node list =
   match astNode.data with
-  | AST.Call({AST.data = AST.Prim (Prim.ArrayOp Prim.Index)}, [lhs;rhs]) ->
+  | AST.Call(
+      {AST.data = AST.Prim (Prim.ArrayOp Prim.Index)}, 
+      {Args.values = [lhs;rhs]; keywords}) -> 
+    assert (keywords = []);
     (flatten_indexing lhs) @ [rhs]
   | _ -> [astNode]
 
@@ -101,15 +104,15 @@ let rec translate_exp
   | AST.Var name -> value $ Env.lookup env name
   | AST.Prim p -> value (UntypedSSA.Prim p)
   | AST.Num n -> value (UntypedSSA.Num n)
-  | AST.NoneVal -> value UntypedSSA.Void
+  | AST.NoneVal -> value UntypedSSA.NoneVal
   | AST.Type _ -> failwith "Types as values not implemented"
   | AST.Tuple elts -> failwith "tuples not implemented"
   | AST.Call (fn, args) -> translate_app env block fn args node.src
   (* TODO: lambda lift here *)
-  | AST.Lambda (vars, body) -> failwith "lambda lifting not implemented"
+  | AST.Lambda (args, body) -> failwith "lambda lifting not implemented"
   | AST.Array args ->
     {
-      UntypedSSA.exp = UntypedSSA.Arr (translate_values env block args);
+      UntypedSSA.exp = UntypedSSA.Array (translate_values env block args);
       exp_src = Some node.src;
     }
   | AST.If _  -> failwith "unexpected If while converting to SSA"
@@ -124,7 +127,7 @@ and translate_value env block node : UntypedSSA.value_node =
   | AST.Var name -> UntypedSSA.wrap_value (Env.lookup env name)
   | AST.Prim p -> UntypedSSA.wrap_value (UntypedSSA.Prim p)
   | AST.Num n -> UntypedSSA.wrap_value (UntypedSSA.Num n)
-  | AST.Void -> UntypedSSA.wrap_value UntypedSSA.Void
+  | AST.NoneVal -> UntypedSSA.wrap_value UntypedSSA.NoneVal
   (* anything not an immediate value must be evaluated in its own statement
      and then named
   *)
@@ -133,22 +136,31 @@ and translate_values env block nodes =
   List.map (translate_value env block) nodes
 
 and translate_axes env block astNode = match astNode.data with
+  | AST.Tuple axes 
   | AST.Array axes -> Some (translate_values env block axes)
   | AST.Num n -> Some ([UntypedSSA.ValueHelpers.num ~src:astNode.src n])
   | AST.NoneVal -> None
   | other ->
     failwith $ Printf.sprintf "Unrecognized axes arg: %s" (AST.to_str astNode)
 
-and translate_adverb env block adverb args (src:SrcInfo.t) =
+and translate_adverb env block adverb 
+  (args : (string, AST.node) Args.actual_args) (src:SrcInfo.t) =
   match args with
-  (* TODO: support initial arguments *)
-  | fn::
-    {data=AST.Array arrayArgs}::
-    {data=AST.Arary fixedArgs}::axes::_ ->
+  | {Args.values=fn::{data=AST.Tuple arrayArgs}::_; keywords} -> 
+    let fixedArgs = 
+      match List.assoc_option "fixed" keywords with 
+      | Some {data = AST.Tuple fixedArgs} -> fixedArgs
+      | None -> []
+    in 
+    let optAxes = 
+      match List.assoc_option "axis" keywords with 
+      | Some axes -> translate_axes env block axes
+      | None -> None
+    in 
     let adverbInfo = {
       Adverb.adverb = adverb;
       adverb_fn = translate_value env block fn;
-      axes = translate_axes env block axes;
+      axes = optAxes;
       array_args = translate_values env block arrayArgs;
       fixed_args = translate_values env block fixedArgs;
       init = None;
@@ -160,14 +172,17 @@ and translate_adverb env block adverb args (src:SrcInfo.t) =
     }
   | _ -> failwith "Malformed adverb args"
 
-and translate_app env block fn args (src:SrcInfo.t) = match fn.data with
-  | AST.Prim (Prim.Adverb adverb) ->
-    translate_adverb env block adverb args src
+and translate_app env block fn 
+  (args: (string, AST.node) Args.actual_args) (src:SrcInfo.t) = 
+  match fn.data with
+  | AST.Prim (Prim.Adverb adverb) -> translate_adverb env block adverb args src
   | _ ->
     let ssaFn : UntypedSSA.value_node = translate_value env block fn in
-    let ssaArgs : UntypedSSA.value_node list = translate_values env block args in
+    let ssaArgs : (string, UntypedSSA.value_node) Args.actual_args = 
+      Args.apply_to_actual_values (translate_values env block) args 
+    in
     {
-      exp= App(ssaFn, ssaArgs);
+      exp= Call(ssaFn, ssaArgs);
       exp_src=Some src;
     }
 (* recursively flatten subexpressions and return last expression *)
