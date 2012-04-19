@@ -51,7 +51,7 @@
 
 \bibitem{Chak11}
 {\sc Chakravarty, M.~M., Keller, G., Lee, S., McDonnel, T.~L., and Grover, V.}
-\newblock Accelerating haskell array codes with multicore gpus.
+\newblock Accelerating {H}askell array codes with multicore {GPU}s.
 \newblock In {\em Proceedings of the Sixth Workshop on Declarative Aspects of
   Multicore Programming\/} (2011), pp.~3--14.
 
@@ -109,7 +109,7 @@
 
 \bibitem{Main10}
 {\sc Mainland, G., and Morrisett, G.}
-\newblock Nikola: Embedding compiled {GPU} functions in haskell.
+\newblock Nikola: Embedding compiled {GPU} functions in {H}askell.
 \newblock In {\em Proceedings of the 2010 Haskell Workshop\/} (September 2010).
 
 \bibitem{Moler80}
@@ -165,8 +165,8 @@
 
 \bibitem{Tolmach98}
 {\sc Tolmach, A., and Oliva, D.~P.}
-\newblock From ml to ada: Strongly-typed language interoperability via source
-  translation.
+\newblock From {ML} to {A}da: Strongly-typed language interoperability via
+  source translation.
 \newblock {\em J. Funct. Program. 8\/} (July 1998), 367--412.
 
 \end{thebibliography}

@@ -167,7 +167,7 @@ Several systems similar to Parakeet \cite{Cata11,Chaf11} generate GPU programs b
 \section{Evaluation}
 \label{Evaluation}
 
-We evaluate Parakeet on two benchmarks: Black-Scholes option pricing, and K-Means Clustering.  We compare Parakeet against hand-tuned CPU and GPU implementations.  Due to space constraints, and since at the time of writing our CPU backend only supports single-threaded execution, we only present GPU results for Parakeet.  For Black-Scholes, the CPU reference implementation is taken from the PARSEC \cite{Bien08} benchmark suite, and the GPU implementation is taken from the CUDA SDK \cite{NvidSD}.  For K-Means Clustering both the CPU and GPU reference versions come from the Rodinia benchmark suite~\cite{Che09}.
+We evaluate Parakeet on two benchmarks: Black-Scholes option pricing, and K-Means Clustering.  We compare Parakeet against hand-tuned CPU and GPU implementations.  Due to space constraints, and since at the time of writing our CPU backend only supports single-threaded execution, we only present GPU results for Parakeet.  For Black-Scholes, the CPU reference implementation is taken from the PARSEC \cite{Bien08} benchmark suite, and the GPU implementation is taken from the CUDA SDK \cite{NvidSD}.  For K-Means Clustering both the CPU and GPU reference versions come from the Rodinia benchmark suite~\cite{Che09}.  For both benchmarks, we ported the reference implementations as directly as possible from their source languages to Parakeet.
 
 We ran all of our benchmarks on a machine running 64-bit Linux with an Intel Core i7 3.2GHz 960 4-core CPU  and 16GB of RAM.  The GPU used in our system was an NVIDIA Tesla C1060 with 240 vector lanes, a clock speed of 1.296 GHz, and 4GB of memory.
 
@@ -183,6 +183,14 @@ Black-Scholes option pricing \cite{Blac73} is a standard algorithm used for data
 \end{figure}
 
 In Figure \ref{BSCPU}, we see the total execution times of the various versions. These times include the time it takes to transfer data to and from the GPU in the GPU benchmarks.  As expected, Black Scholes performs very well on the GPU as compared with the CPU.  We see that Parakeet performs very similarly to the hand-written CUDA version, with overheads decreasing as a percentage of the run time as the data sizes grow since most of them are fixed costs related to dynamic compilation.
+
+\begin{figure}[h!]
+\includegraphics[scale=0.4]{BSNOCPU.pdf}
+\caption{Black Scholes GPU Execution Times}
+\label{BSGPU}
+\end{figure}
+
+In Figure \ref{BSGPU}, we break down Parakeet's performance as compared with the hand-written CUDA version.  The Parakeet run times range from 24\% to 2.4X slower than those of CUDA, with Parakeet performing better as the data size increases.  We can see that transferring data to and from the GPU's memory is expensive and dominates the runtime of this benchmark.  The GPU programs that Parakeet generates are slightly less efficient than those of the CUDA version, with approximately 50\% higher run time on average.  Most of this slowdown is due to compilation overheads.
 
 \subsection{K-Means Clustering}
 \label{results-k-means}
