@@ -176,7 +176,7 @@ We ran all of our benchmarks on a machine running 64-bit Linux with an Intel Cor
 
 Black-Scholes option pricing \cite{Blac73} is a standard algorithm used for data parallel benchmarking.  We compare Parakeet against the multithreaded OpenMP CPU implementation from the PARSEC \cite{Bien08} suite with both 1 and 8 threads and the GPU version in the CUDA SDK \cite{NvidSD}.  We modified the benchmarks to all use the input data from the PARSEC implementation so as to have a direct comparison of the computation alone.  We also modified the CUDA version to calculate only one of the call or put price per option so as to match the behavior in PARSEC.
 
-\begin{figure}[h!]
+\begin{figure}
 \includegraphics[scale=0.4]{BSWCPU.pdf}
 \caption{Black Scholes Total Times}
 \label{BSCPU}
@@ -184,7 +184,7 @@ Black-Scholes option pricing \cite{Blac73} is a standard algorithm used for data
 
 In Figure \ref{BSCPU}, we see the total execution times of the various versions. These times include the time it takes to transfer data to and from the GPU in the GPU benchmarks.  As expected, Black Scholes performs very well on the GPU as compared with the CPU.  We see that Parakeet performs very similarly to the hand-written CUDA version, with overheads decreasing as a percentage of the run time as the data sizes grow since most of them are fixed costs related to dynamic compilation.
 
-\begin{figure}[h!]
+\begin{figure}
 \includegraphics[scale=0.4]{BSNOCPU.pdf}
 \caption{Black Scholes GPU Execution Times}
 \label{BSGPU}
@@ -195,17 +195,53 @@ In Figure \ref{BSGPU}, we break down Parakeet's performance as compared with the
 \subsection{K-Means Clustering}
 \label{results-k-means}
 
-\begin{figure}
+\begin{figure}[h!]
 \includegraphics[scale=0.4]{KMCPUK3.pdf}
 \caption{K-Means Total Times with 30 Features, K = 3}
 \label{KMCPU3}
 \end{figure}
 
-We also tested Parakeet on K-Means clustering, a commonly used unsupervised learning algorithm.  We chose K-Means since it includes both loops and nested array operators, and thus illustrates Parakeet's support for both.
+We also tested Parakeet on K-Means clustering, a commonly used unsupervised learning algorithm.  We chose K-Means since it includes both loops and nested array operators, and thus illustrates Parakeet's support for both.  The Parakeet code we used to run our benchmarks can be seen in Listing \ref{K-Means-Code}.
 
 In Figure \ref{KMCPU3}, we see the total run times of K-Means for the CPU and GPU versions with K = 3 clusters and 30 features on varying numbers of data points.  Here, the distinction between the GPU and the CPU is far less stark.  In fact, for up to 64K data points the 8-thread CPU version outperforms the GPU.  Further, we see that for more than 64K data points, Parakeet actually performs better than both the CPU and GPU versions.
 
+\begin{figure}[h!]
+\includegraphics[scale=0.4]{KMCPUK30.pdf}
+\caption{K-Means Total Times with 30 Features, K = 30}
+\label{KMCPU30}
+\end{figure}
+
 The reason Parakeet is able to perform so well with respect to the CUDA version is due to the difference in how they compute the new average centroid for the new clusters in each iteration.  The CUDA version brings the GPU-computed assignment vectors back to the CPU in order to perform this reduction, as it involves many unaligned memory accesses and so has the potential to perform poorly on the GPU.  Parakeet chooses to execute this code on the GPU instead, prefering to avoid the data transfer penalty.  For such a small number of clusters, the Parakeet method ends up performing far better.  However, for larger numbers of clusters (roughly 30 and above), the fixed overhead of launching an individual kernel to average each cluster's points overwhelms the performance advantage of the GPU and Parakeet ends up performing worse than the CUDA version.  We are currently implementing better code placement heuristics based on dynamic information in order to use the GPU only when it would actually be advantageous, in which case Parakeet should perform well for all numbers of clusters.
+
+\begin{lstlisting}[language=Python,frame=single, label=K-Means-Code, caption={K-Means Parakeet Code}]
+def calc_centroid(X, a, i):
+  return parakeet.avg(X[a == i])
+
+def dist(x, y):
+  return numpy.sqrt(
+    parakeet.sum((x-y)*(x-y)))
+
+def minidx(C, x):
+  return numpy.argmin(
+    parakeet.map(dist, C, fixed=[x]))
+
+@PAR
+def kmeans(X, k, a):
+  C = parakeet.map(calc_centroid,
+                   np.arange(k),
+                   fixed=[X, a])
+  converged = False
+  while not converged:
+    lastAssignment = a
+    a = parakeet.map(minidx, X, fixed=[C])
+    C = parakeet.map(calc_centroid,
+                     np.arange(k),
+                     fixed=[X, a])
+    converged = np.all(lastAssignment == a)
+  return C
+\end{lstlisting}
+
+In Figure \ref{KMCPU30}, we present the run times of K-Means for 30 features and K = 30 clusters.  In this case, the hand-written CUDA version performs best in all cases, though its advantage over the CPU increases and its advantage over Parakeet decreases with increasing data size.  As discussed, the Parakeet implementation suffers from the poorly performing averaging computation that it executes on the GPU, with a best case of an approximate 2X slowdown over the CUDA version.  However, Parakeet exhibits the best scaling of any of the implementations, and would likely close the gap even further at larger data sizes.
 
 \begin{figure}
 \includegraphics[scale=0.4]{KMGPU.pdf}
