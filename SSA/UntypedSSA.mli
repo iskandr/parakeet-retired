@@ -16,7 +16,7 @@ module CoreLanguage : sig
     | Values of value_nodes
     | Tuple of value_nodes
     | Array of value_nodes
-    | Call of value_node * (ID.t, value_node) Args.actual_args
+    | Call of value_node * (value_node Args.actual_args)
     | Adverb of adverb_info
   type exp_node = { exp : exp; exp_src : SrcInfo.t option }
 
@@ -38,7 +38,7 @@ module CoreLanguage : sig
   type fn =
     {
       body : block;
-      inputs : (ID.t, value_node) Args.formal_args; 
+      inputs : value_node Args.formal_args; 
       input_names_to_ids : ID.t String.Map.t; 
       output_ids : ID.t list;
       fn_id : FnId.t
@@ -100,7 +100,7 @@ end
 include module type of ValueHelpers
 
 module ExpHelpers : sig
-  val call : value_node -> (ID.t, value_node) Args.actual_args -> exp_node
+  val call : value_node -> value_node Args.actual_args -> exp_node
 end
 include module type of ExpHelpers
 
@@ -115,8 +115,12 @@ include module type of StmtHelpers
 
 module FnHelpers : sig
   val mk_fn :
-    ?name: string -> input_ids: (ID.t list) -> output_ids: (ID.t list) ->
-      body: block -> fn
+    ?name: string -> 
+      inputs : value_node Args.formal_args -> 
+        input_names_to_ids : ID.t String.Map.t -> 
+          output_ids: (ID.t list) ->
+            body: block -> 
+              fn
   val input_arity : fn -> int
   val output_arity : fn -> int
   val fn_id : fn -> FnId.t

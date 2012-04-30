@@ -12,9 +12,9 @@ val mk_array_node : ?info:ast_info -> ?src:SrcInfo.t -> node list -> node
 val update_array_node : node -> node list -> node
 
 val mk_call_node : 
-  ?info:ast_info -> ?src:SrcInfo.t -> node -> (string, node) Args.actual_args -> node
+  ?info:ast_info -> ?src:SrcInfo.t -> node -> node Args.actual_args -> node
 
-val update_call_node : node -> node -> (string, node) Args.actual_args -> node
+val update_call_node : node -> node -> node Args.actual_args -> node
 
 val mk_prim_node : ?info:ast_info -> ?src:SrcInfo.t -> Prim.t -> node
 val update_prim_node : node -> Prim.t -> node
@@ -28,9 +28,9 @@ val update_assign_node :
       node -> node list -> node -> node
 
 val mk_lambda_node :
-    ?info:ast_info -> ?src:SrcInfo.t -> (string, node) Args.formal_args -> node -> node
+    ?info:ast_info -> ?src:SrcInfo.t -> node Args.formal_args -> node -> node
 
-val update_lambda_node : node -> (string, node) Args.formal_args -> node -> node
+val update_lambda_node : node -> node Args.formal_args -> node -> node
 
 val mk_if_node : ?info:ast_info -> ?src:SrcInfo.t -> node -> node -> node -> node
 
@@ -51,7 +51,7 @@ val mk_eq_node : ?info:ast_info -> ?src:SrcInfo.t -> node -> node -> node
 (*val mk_concat_node : ?info:ast_info -> ?src:SrcInfo.t -> node -> node -> node*)
 
 
-val get_lambda_args : node -> (string, node) Args.formal_args 
+val get_lambda_args : node -> node Args.formal_args 
 val get_lambda_body : node -> node
 
 (* get ride of nested blocks *)

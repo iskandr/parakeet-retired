@@ -383,14 +383,20 @@ and translate_block env block retIds = function
     translate_block nodeEnv block retIds nodes
 
 (* given the arg names and AST body of function, generate its SSA fundef *)
-and translate_fn ?name parentEnv argNames (body:AST.node) : UntypedSSA.fn =
+and translate_fn 
+    ?name 
+    parentEnv 
+    (args:AST.node Args.formal_args) 
+    (body:AST.node) : UntypedSSA.fn =
   (* if no return statements in function, assume it returns nothing *)
   let returnArity = match body.ast_info.return_arity with
     | Some x -> x
     | None -> 0
   in
   let retIds = ID.gen_named_list "ret" returnArity in
-  let argIds = List.map ID.gen_named argNames in
+  let argNames = Args.all_formal_names args in 
+  let argIds =  List.map ID.gen_named argNames in
+  let argNamesToIds = String.Map.of_lists argNames argIds in 
   (* map string names to their SSA identifiers --
      assume globalMap contains only functions
   *)
@@ -398,8 +404,8 @@ and translate_fn ?name parentEnv argNames (body:AST.node) : UntypedSSA.fn =
   let typedBlock : UntypedSSA.block = Block.create () in
   let _ = translate_stmt initEnv typedBlock retIds body in
   UntypedSSA.mk_fn
-    ?name
     ~body:typedBlock
-    ~input_ids:argIds
-    ~output_ids:retIds
+    ~inputs
+    ~input_names_to_ids:argNamesToIds
+    ~output_ids
 

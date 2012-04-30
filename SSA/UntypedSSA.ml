@@ -18,7 +18,7 @@ module CoreLanguage = struct
     | Values of value_nodes
     | Tuple of value_nodes
     | Array of value_nodes
-    | Call of value_node * (ID.t, value_node) Args.actual_args
+    | Call of value_node * value_node Args.actual_args
     | Adverb of adverb_info
 
   type exp_node = { exp : exp; exp_src : SrcInfo.t option }
@@ -40,7 +40,7 @@ module CoreLanguage = struct
 
   type fn = {
     body: block;
-    inputs : (ID.t, value_node) Args.formal_args; 
+    inputs : value_node Args.formal_args; 
     input_names_to_ids : ID.t String.Map.t; 
     output_ids: ID.t list;
     fn_id : FnId.t;
@@ -113,7 +113,10 @@ module PrettyPrinters = struct
   let fn_to_str (fundef:fn) =
     let name = fn_id_to_str fundef in
     let inputs = 
-      ID.list_to_str (Args.all_formal_names fundef.inputs) 
+      String.concat ", " $ 
+      List.map 
+        (fun s -> ID.to_str $ String.Map.find s fundef.input_names_to_ids)
+        (Args.all_formal_names fundef.inputs)
     in
     let outputs = ID.list_to_str fundef.output_ids in
     let body = block_to_str fundef.body in
@@ -209,14 +212,16 @@ include StmtHelpers
 
 
 module FnHelpers = struct
-  let mk_fn ?name ~input_ids ~output_ids ~body : fn =
+  let mk_fn ?name ~inputs ~input_names_to_ids ~output_ids ~body : fn =
     let fnId =
-      match name with | Some name -> FnId.gen_named name | None -> FnId.gen()
+      match name with 
+        | Some name -> FnId.gen_named name 
+        | None -> FnId.gen()
     in
     {
       body = body;
-      inputs = Args.of_names input_ids;
-      input_names_to_ids = String.Map.empty;
+      inputs = inputs;
+      input_names_to_ids = input_names_to_ids; 
       output_ids = output_ids;
       fn_id = fnId;
     }

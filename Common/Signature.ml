@@ -1,5 +1,5 @@
 type t = { 
-  inputs: Type.t Args.formal_args; 
+  inputs: Type.t Args.actual_args; 
   outputs: Type.t list option 
 } 
 
@@ -27,7 +27,7 @@ let output_types_option s = s.outputs
 
 let to_str signature =
   let inputStr = 
-    Args.to_str ~value_to_str:Type.to_str signature.inputs
+    Args.actual_args_to_str ~value_to_str:Type.to_str signature.inputs
   in 
   match signature.outputs with 
       | None -> inputStr

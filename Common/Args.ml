@@ -1,16 +1,16 @@
 open Base
 
-type ('a, 'b) formal_args = {
-  names : 'a list;
-  defaults : ('a * 'b) list; 
+type 'a formal_args = {
+  names : string list;
+  defaults : (string * 'a) list; 
 }
 
-type ('a, 'b) actual_args = {
-  values : 'b list;
-  keywords : ('a * 'b) list;
+type 'a actual_args = {
+  values : 'a list;
+  keywords : (string * 'a) list;
 }
 
-let of_names names = { names = names; defaults = [] } 
+let of_names names : 'a formal_args = { names = names; defaults = [] } 
 let of_values values = { values = values; keywords = [] } 
 
 
@@ -32,7 +32,7 @@ let formal_args_to_str ~value_to_str {names; defaults} =
         k ^ "=" ^ (value_to_str v)) 
     defaults
   in 
-  String.concat ", " (List.map name_to_str names @ defStrings)
+  String.concat ", " (names @ defStrings)
 
 let actual_args_to_str ~value_to_str {values; keywords} =
   let posStrings = List.map value_to_str values in 

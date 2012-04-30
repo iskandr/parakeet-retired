@@ -37,8 +37,8 @@ type exp =
   | NoneVal
   | Array of node list
   | Tuple of node list
-  | Call of node * (string, node) Args.actual_args 
-  | Lambda of (string, node) Args.formal_args * node
+  | Call of node * ( node Args.actual_args)
+  | Lambda of  node Args.formal_args * node
   | Assign of node list * node
   | Return of node list
   | Block of node list

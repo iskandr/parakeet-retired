@@ -93,8 +93,8 @@ type exp =
   | NoneVal
   | Array of node list
   | Tuple of node list
-  | Call of node * (string, node) Args.actual_args 
-  | Lambda of (string, node) Args.formal_args * node
+  | Call of node * node Args.actual_args 
+  | Lambda of node Args.formal_args * node
   | Assign of node list * node
   | Return of node list
   | Block of node list
@@ -130,7 +130,6 @@ let rec to_str node = match node.data with
     Base.indent_newlines $ 
       sprintf "lambda %s:\n%s" 
         (Args.formal_args_to_str 
-           ~name_to_str:id
            ~value_to_str:to_str 
            formals)
         (to_str body)
@@ -138,7 +137,6 @@ let rec to_str node = match node.data with
     sprintf "%s(%s)" 
       (to_str fn) 
       (Args.actual_args_to_str 
-         ~name_to_str:id
          ~value_to_str:to_str 
          args)
   | Assign (lhsList, rhs) ->

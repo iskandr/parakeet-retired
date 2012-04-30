@@ -269,9 +269,16 @@ module Make (P : TYPE_ANALYSIS_PARAMS) = struct
 
   let infer_value_nodes vNodes = List.map infer_value_node vNodes
 
+  let infer_args {Args.values; keywords} = 
+    { Args.values = infer_value_nodes values; 
+      keywords = 
+        List.map 
+          (fun (name,v) -> (name, infer_value_node v))
+        keywords
+    }
   let rec infer_call 
-    fnVal 
-    (argTypes: (ID.t, Type.t) Args.actual_args) =
+    (fnVal : UntypedSSA.value)
+    (argTypes: Type.t Args.actual_args) =
     (* for calls to prims, ignore any keyword arguments *) 
     match fnVal with
     | Prim (Prim.ArrayOp arrayOp) ->
@@ -305,19 +312,22 @@ module Make (P : TYPE_ANALYSIS_PARAMS) = struct
     let eltResultTypes =
       match info.adverb, info.init, eltTypes with
       | Adverb.Map, None, _  ->
-        infer_app fnVal (info.fixed_args @ eltTypes)
-
+        infer_call fnVal (Args.of_values $ info.fixed_args @ eltTypes)
       (* if not given initial values then we assume operator is binary and*)
       (* used first two elements of the array *)
       | Adverb.Reduce, None, [eltT]  ->
-        let accTypes = infer_app fnVal (info.fixed_args @ [eltT;eltT]) in
+        let accTypes = 
+          infer_call fnVal 
+            (Args.of_values $ info.fixed_args @ [eltT;eltT]) 
+        in
         if List.length accTypes <> 1 then
           raise $
             TypeError("Reduce without inital args must return one value", src)
         else accTypes
       | Adverb.AllPairs, None, [tx; ty] ->
-        infer_app fnVal (info.fixed_args @ eltTypes)
-      | _ -> check_adverb_error ?src info.adverb info.init eltTypes; []
+        infer_call fnVal (Args.of_values $ info.fixed_args @ eltTypes)
+      | _ -> 
+        check_adverb_error ?src info.adverb info.init eltTypes; []
     in
     infer_adverb_result_types info.adverb eltResultTypes numAxes
 
@@ -327,7 +337,8 @@ module Make (P : TYPE_ANALYSIS_PARAMS) = struct
     | Call(
         {value=UntypedSSA.Prim (Prim.Adverb adverb)}, 
         args) ->
-      let fn, arrayArgs = match args with
+      let fn, arrayArgs = 
+        match args.Args.values with
         | fn::rest -> fn, rest
         | _ -> raise (TypeError("too few arguments for adverb", src))
       in
@@ -360,15 +371,18 @@ module Make (P : TYPE_ANALYSIS_PARAMS) = struct
       resultTypes
     | Call(lhs, args) ->
       let lhsT = infer_value_node lhs in
-      let argTypes = infer_value_nodes args in
+      let argTypes : Type.t Args.actual_args = infer_args args in
       IFDEF DEBUG THEN
         Printf.printf "[TypeAnalysis.exp] Node: %s Types:%s\n"
           (UntypedSSA.exp_node_to_str expNode)
-          (Type.type_list_to_str argTypes);
+          (Args.actual_args_to_str 
+             ~value_to_str:Type.to_str argTypes);
       ENDIF;
       if Type.is_array lhsT
-      then [infer_simple_array_op Prim.Index (lhsT::argTypes)]
-      else infer_app lhs.value argTypes
+      then [
+        infer_simple_array_op Prim.Index (lhsT::argTypes.Args.values)
+      ]
+      else infer_call lhs.value argTypes
     | Array elts ->
       let commonT = Type.combine_type_list (infer_value_nodes elts) in
       if Type.is_scalar commonT then [Type.increase_rank 1 commonT]
@@ -447,19 +461,17 @@ module Make (P : TYPE_ANALYSIS_PARAMS) = struct
 
   let analyze_fn fundef signature =
     TypeEnv.push();
-    let inputIds = fundef.input_ids in
-    let inputTypes = Signature.input_types signature in
-    IFDEF DEBUG THEN
-      if List.length inputIds <> List.length inputTypes then
-        let errorMsg = Printf.sprintf
-          "mismatching number of input IDs (%s) and types (%s) in %s"
-          (ID.list_to_str inputIds)
-          (Type.type_list_to_str inputTypes)
-          (FnId.to_str fundef.fn_id)
-        in
-        raise (TypeError(errorMsg, None))
-    ENDIF;
-    let () = List.iter2 TypeEnv.add_type inputIds inputTypes in
+    let argPairs = 
+      Args.bind fundef.inputs (Signature.inputs signature)
+    in
+    let () = 
+      List.iter 
+        (fun (name,t) ->
+          let id = String.Map.find name fundef.input_names_to_ids in
+          TypeEnv.add_type id t
+        )
+        argPairs
+    in
     if Signature.has_output_types signature then begin
       let outputIds = fundef.output_ids in
       let outputTypes = Signature.output_types signature in

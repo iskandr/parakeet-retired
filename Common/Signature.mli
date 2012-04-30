@@ -4,7 +4,7 @@ val inputs : t -> Type.t Args.actual_args
 
 (* create a signature where we know only the input types *)
 val from_input_types : Type.t list -> t 
-val from_args : ('a, Type.t) Args.formal_args ->  t 
+val from_args :  Type.t Args.actual_args ->  t 
 
 val with_outputs : Type.t Args.actual_args -> Type.t list -> t 
  
