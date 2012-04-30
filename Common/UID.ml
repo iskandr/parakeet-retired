@@ -65,8 +65,6 @@ module Make(A : sig val prefix : string end) = struct
     Hashtbl.add id_to_name id !unique_name;
     id
 
-
-
   let rec gen_named_list (prefix:string) (count:int) : t list =
     if count <= 0 then []
     else
