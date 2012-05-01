@@ -12,7 +12,8 @@ OCAMLCFLAGS = -ccopt -fPIC
 LIB_INCLUDES = -I /usr/local/lib/ocaml -I /usr/local/lib/ocaml/extlib \
                -I /usr/local/lib/ocaml/site-lib/extlib \
                -I /usr/lib/ocaml -I /usr/lib/ocaml/extlib \
-               -I /usr/lib/ocaml/site-lib/extlib
+               -I /usr/lib/ocaml/site-lib/extlib \
+               -I /usr/lib/ocaml/llvm-3.0
 PARAKEET_INCLUDES = -I $(BUILDPATH) \
 	-I $(BUILDPATH)/AST   \
 	-I $(BUILDPATH)/Base \
@@ -57,10 +58,10 @@ OCAML_LIB_OBJECTS := bigarray.$(OBJ_ARCHIVE_SUFFIX) \
   unix.$(OBJ_ARCHIVE_SUFFIX) \
   xml-light.$(OBJ_ARCHIVE_SUFFIX) \
   llvm.$(OBJ_ARCHIVE_SUFFIX) \
-	llvm_analysis.$(OBJ_ARCHIVE_SUFFIX) \
-	llvm_executionengine.$(OBJ_ARCHIVE_SUFFIX) \
-	llvm_scalar_opts.$(OBJ_ARCHIVE_SUFFIX) \
-	llvm_target.$(OBJ_ARCHIVE_SUFFIX)
+  llvm_analysis.$(OBJ_ARCHIVE_SUFFIX) \
+  llvm_executionengine.$(OBJ_ARCHIVE_SUFFIX) \
+  llvm_scalar_opts.$(OBJ_ARCHIVE_SUFFIX) \
+  llvm_target.$(OBJ_ARCHIVE_SUFFIX)
 
 $(shell ocamlopt unix.cmxa ../FrontEnd/depsort.ml -o ../FrontEnd/depsort)
 #$(echo Determining OCaml module dependencies)

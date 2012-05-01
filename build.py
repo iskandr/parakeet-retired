@@ -95,7 +95,7 @@ if 'PARAKEET_PATH' in os.environ:
   parakeet_path = os.environ['PARAKEET_PATH']
 build_command = ["ocamlbuild",
                  "-cflags",
-                 "-I,/usr/local/lib/ocaml",
+                 "-I,/usr/local/lib/ocaml,-I,/usr/lib/ocaml/llvm-3.0,-I,/usr/lib/ocaml/xml-light",
                  "-lflags"]
 if opts['gpu']:
   build_command.extend(

@@ -212,36 +212,37 @@ In Figure \ref{KMCPU3}, we see the total run times of K-Means for the CPU and GP
 \label{KMCPU30}
 \end{figure}
 
-The reason Parakeet is able to perform so well with respect to the CUDA version is due to the difference in how they compute the new average centroid for the new clusters in each iteration.  The CUDA version brings the GPU-computed assignment vectors back to the CPU in order to perform this reduction, as it involves many unaligned memory accesses and so has the potential to perform poorly on the GPU.  Parakeet's scheduler chooses to execute this code on the GPU instead, prefering to avoid the data transfer penalty.  For such a small number of clusters, the Parakeet method ends up performing far better.  However, for larger numbers of clusters (roughly 30 and above), the fixed overhead of launching an individual kernel to average each cluster's points overwhelms the performance advantage of the GPU and Parakeet ends up performing worse than the CUDA version.  We are currently implementing better code placement heuristics based on dynamic information, in order to use the GPU only when it would actually be advantageous.
+The reason Parakeet is able to perform so well with respect to the CUDA version is due to the difference in how they compute the new average centroid for the new clusters in each iteration.  The CUDA version brings the GPU-computed assignment vectors back to the CPU in order to perform this reduction, as it involves many unaligned memory accesses and so has the potential to perform poorly on the GPU.  Parakeet's scheduler chooses to execute this code on the GPU instead, prefering to avoid the data transfer penalty.  For such a small number of clusters, the Parakeet method ends up performing far better.  However, for larger numbers of clusters (roughly 30 and above), the fixed overhead of launching an individual kernel to average each cluster's points overwhelms the performance advantage of the GPU and Parakeet ends up performing worse than the CUDA version.  We are currently implementing better code placement heuristics based on dynamic information, in order to use the GPU only when it would actually be 
+advantageous.
 \\
 \\
 \begin{lstlisting}[language=Python,frame=single, label=K-Means-Code, caption={K-Means Parakeet Code}, belowskip=0.5em]
 import parakeet as par
-from parakeet import map, PAR
+from parakeet import PAR
 
 def sqr_dist(x, y):
   sqr_diff = (x-y)*(x-y)
   return par.sum(sqr_diff)
 
 def minidx(C, x):
-  dists = map(sqr_dist, C, fixed=[x])
+  dists = par.map(sqr_dist, C, fixed=[x])
   return par.argmin(dists)
 
 def calc_centroid(X, a, cluster_id):
   return par.mean(X[a == cluster_id])
 
-@par.PAR
+@PAR
 def kmeans(X, assignments):
   k = par.max(assignments)
   cluster_ids = par.arange(k)
-  C = map(calc_centroid, cluster_ids, 
-    fixed=[X, a])
+  C = par.map(calc_centroid, cluster_ids, 
+      fixed=[X, a])
   converged = False
   while not converged:
     last = assignments
-    a = map(minidx, X, fixed=[C])
-    C = map(calc_centroid, cluster_ids, 
-      fixed=[X, a])
+    a = par.map(minidx, X, fixed=[C])
+    C = par.map(calc_centroid, 
+	    cluster_ids, fixed=[X, a])
     converged = par.all(last == assignments)
   return C
 \end{lstlisting}
@@ -262,15 +263,11 @@ The earliest attempts to accelerate array-oriented programs were sequential comp
 
 More recently, a variety of compilers have been created for the Matab programming language~\cite{Moler80}. FALCON~\cite{DeRose95} performs source-to-source translation from Matlab to Fortran 90 and achieves parallelization by adding dependence annotations into its generated code. MaJIC~\cite{Alma02} accelerates Matlab by pairing a lightweight dynamic compiler with a static translator in the same spirit as FALCON. Both FALCON and MaJIC infer simultaneous type and shape information for local variables by dataflow analysis.
 
-The use of graphics hardware for non-graphical computation has a long history~\cite{Leng90}. The Brook language extended C with ``kernels'' and ``streams'', exposing a programming model similar to what is now found in CUDA and OpenCL~\cite{Buck04}.  Over the past decade, there have been several attempts to use an embedded DSL to simplify the arduous task of GPGPU programming. Microsoft's Accelerator~\cite{Tard06} was the first project to use high level (collection-oriented) language constructs as a basis for GPU execution. Accelerator's programming model does not support function abstractions (only expression trees) and its only underlying parallelism construct is limited to the production of $\MAP$-like kernels.  Accelerate~\cite{Chak11} is a first-order array-oriented language embedded in Haskell which attains good performance on preliminary benchmarks but is unable to describe nested computations and requires user annotations to move data onto the GPU. A more sophisticated runtime has been developed for the Delite project~\cite{Brown11}, which is able to schedule complex computations expressed in Scala across multiple backends. 
+The use of graphics hardware for non-graphical computation has a long history~\cite{Leng90}. The Brook language extended C with ``kernels'' and ``streams'', exposing a programming model similar to what is now found in CUDA and OpenCL~\cite{Buck04}.  Over the past decade, there have been several attempts to use an embedded DSL to simplify the arduous task of GPGPU programming. Microsoft's Accelerator~\cite{Tard06} was the first project to use high level (collection-oriented) language constructs as a basis for GPU execution. Accelerator's programming model does not support function abstractions (only expression trees) and its only underlying parallelism construct is limited to the production of $\MAP$-like kernels.  Accelerate~\cite{Chak11} is a first-order array-oriented language embedded in Haskell which attains good performance on preliminary benchmarks but is unable to describe nested computations and requires user annotations to move data onto the GPU. A more sophisticated runtime has been developed for 
+the Delite project~\cite{Brown11}, which is able to schedule complex computations expressed in Scala across multiple backends. 
 
-Parakeet and Copperhead~\cite{Cata11} both attempt to parallelize a numerical subset of Python using runtime compilation structured around higher-order array primitives. Like Parakeet, Copperhead supports nested array computations and is able to compile code for both GPUs and CPUs. The primary differences between Parakeet and Copperhead are:
-\begin{itemize}
- \item Copperhead uses a purely functional intermediate language, which disallows all Python constructs involving control flow and mutability. By contrast, Parakeet allows mutation of local variables and control flow. 
- \item Copperhead infers a single type for each function using an extension of the Hindley-Milner~\cite{Damas82} type inference algorithm. This disallows both polymorphism between Python scalars and ``array broadcasting''~\cite{Oliphant07}. Parakeet, on the other hand, is able to support polymorphic language constructs by specializing a function's body for distinct set of argument types and inserting coercions during specialization.
- \item Copperhead does not use dynamic information when making scheduling decisions and thus must rely on user annotations. Parakeet, on the other hand, dynamically chooses which level of a nested computation to parallelize. 
- \item Copperhead implements its array operators using C++ templates, which allows for easy integration with the Thrust GPGPU library~\cite{Hobe10} but incurs long compilation times. Parakeet, on the other hand, aims for faster runtime compilation by directly targeting PTX and LLVM. 
-\end{itemize}
+Parakeet and Copperhead~\cite{Cata11} both attempt to parallelize a numerical subset of Python using runtime compilation structured around higher-order array primitives. Parakeet and Copperhead both support nested array computations and are able to target either GPUs or CPUs. Since Copperhead uses a purely functional intermediate language, its subset of Python is more restrictive than the one which Parakeet aims to accelerate. Unlike Copperhead, Parakeet allows loops and  modification of local variables. Copperhead infers a single type for each function using an extension of the Hindley-Milner~\cite{Damas82} inference algorithm. This simplifies compilation to C++ templates but disallows both polymorphism between Python scalars and ``array broadcasting''~\cite{Oliphant07}. Parakeet, on the other hand, is able to support polymorphic language constructs by specializing a function's body for each distinct set of argument types and inserting coercions during specialization. Copperhead does not use dynamic information when making scheduling decisions and thus must rely on user annotations. Parakeet's scheduler dynamically chooses which level of a nested computation to parallelize. 
+
 %These differences do not all speak in Parakeet's favor. The boundaries of Copperhead's simpler Python subset might be easier for a programmer to learn than Parakeet's. Also, Copperhead's choice to leverage more third-party tools greatly simplifies the compiler's internals. 
 
 \section{Conclusion}
