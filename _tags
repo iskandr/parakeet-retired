@@ -1,4 +1,6 @@
 <**/*.native> or <**/*.ml> or <**/*.mli> or <**/*.cmx> : use_unix, use_str, use_bigarray, pkg_extlib
+"/usr/local/lib/ocaml" : include
+"/usr/local/lib/ocaml/llvm-3.0" : include
 "AST" : include
 "Base" : include
 "Common" : include
@@ -19,4 +21,3 @@
 "SSA/Specialization" : include
 "stubs" : include
 "Tests" : include
-"/usr/local/lib/ocaml" : include

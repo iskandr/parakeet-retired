@@ -62,9 +62,9 @@ Dennis Shasha \\
 \maketitle
 
 \begin{abstract}
-High level productivity languages such as Python or Matlab enable the use of computational resources by non-expert programmers.  However, these languages sacrifice program speed for ease of use, with this trade-off especially stark for modern parallel processors such as multicore CPUs and manycore GPUs.
+High level productivity languages such as Python or Matlab enable the use of computational resources by non-expert programmers.  However, these languages often sacrifice program speed for ease of use.
 
-In this paper, we discuss Parakeet, a library which provides a just-in-time (JIT) parallel accelerator for Python.  Parakeet bridges the gap between the usability of Python and the speed of code written in efficiency languages such as C++ or CUDA.  Parakeet accelerates data-parallel sections of Python that use the standard NumPy scientific computing library.  Parakeet JIT compiles efficient versions of Python functions and automatically manages their execution on both GPUs and CPUs.  We assess Parakeet on a pair of benchmarks and achieve significant speedups.  While Parakeet is a work in progress, our current results clearly demonstrate its promise.
+This paper proposes Parakeet, a library which provides a just-in-time (JIT) parallel accelerator for Python.  Parakeet bridges the gap between the usability of Python and the speed of code written in efficiency languages such as C++ or CUDA.  Parakeet accelerates data-parallel sections of Python that use the standard NumPy scientific computing library.  Parakeet JIT compiles efficient versions of Python functions and automatically manages their execution on both GPUs and CPUs.  We assess Parakeet on a pair of benchmarks and achieve significant speedups. 
 \end{abstract}
 
 \section{Introduction}
@@ -77,28 +77,27 @@ In this paper, we present Parakeet, a library that provides a JIT parallel accel
 
 The Parakeet library intercepts programmer-marked functions and uses high-level operations on NumPy arrays (e.g.~mapping a function over the array's elements) as sources of parallelism. These functions are just-in-time compiled to either x86 machine code using LLVM~\cite{Latt02}, or GPU code that can be executed on NVIDIA GPUs via the CUDA framework~\cite{NvidCU}. These native versions of the functions are then automatically executed on the appropriate hardware. Parakeet allows complete interoperability with all of the standard Python tools and libraries.
 
-Parakeet currently supports JIT compilation to parallel GPU programs and single-threaded CPU programs.  While Parakeet is a work in progress, our current results clearly demonstrate its promise.  In the near future, Parakeet's CPU support will be extended to use of multiple CPU cores.  We are also working on adding support for splitting computations across CPUs and GPUs simultaneously -- keeping all processors in a system busy at once -- and on-the-fly tuning of resource usage.
+Parakeet currently supports JIT compilation to parallel GPU programs and single-threaded CPU programs.  While Parakeet is a work in progress, our current results clearly demonstrate its promise.  
 
 \section{Overview}
 \label{overview}
 
-Parakeet is an accelerator library for numerical Python algorithms written using the NumPy array extensions~\cite{Oliphant07}. Parakeet does not replace the standard Python runtime but rather selectively augments it. To run a function within Parakeet a user must wrap it with the decorator \lstinline{@PAR}. For example, consider the following NumPy code for computing the entropy of a discrete probability distribution: 
+Parakeet is an accelerator library for numerical Python algorithms written using the NumPy array extensions~\cite{Oliphant07}. Parakeet does not replace the standard Python runtime but rather selectively augments it. To run a function within Parakeet a user must wrap it with the decorator \lstinline{@PAR}. For example, consider the following NumPy code for averaging the value of two arrays: 
 \begin{lstlisting}
   @PAR
-  def entropy(p):
-    return -sum(p * log2(p))
+  def avg(x,y):
+    return (x+y) / 2.0
 \end{lstlisting}
-If the decorator \lstinline{@PAR} were removed, then \lstinline{entropy} would run as ordinary Python code. Since NumPy's \lstinline{log2} and array multiplication operators are statically compiled they always allocate result arrays (even when the arrays are immediately consumed). By contrast, Parakeet specializes \lstinline{entropy} for any distinct input type, optimizes its body into a singled fused reduction (avoiding unnecessary allocation) and executes it as parallel native code.
+If the decorator \lstinline{@PAR} were removed, then \lstinline{avg} would run as ordinary Python code. Since NumPy's library functions are compiled separately they always allocate result arrays (even when the arrays are immediately consumed). By contrast, Parakeet specializes \lstinline{avg} for any distinct input type, optimizes its body into a singled fused map (avoiding unnecessary allocation) and executes it as parallel native code.
 
 Parakeet is not meant as a general-purpose accelerator for all Python programs.  Rather, it is designed to execute array-oriented numerical algorithms such as those found in machine learning, financial computing, and scientific simulation. In particular, the sections of code that Parakeet accelerates must obey the following constraints:
 
 \begin{itemize}
- \item Due to the difficulty of implementing efficient non-uniform data structures on the GPU, we require all values within Parakeet to be either scalars or NumPy arrays. No dictionaries, sets, or user-defined objects are allowed. 
- \item To compile Python into native code we must assign types to each expression. We are still able to retain some of Python's polymorphism by specializing different typed versions of a function for each distinct set of argument types. However, expressions whose types depend on dynamic values are disallowed (e.g.~\lstinline{43 if bool_val else "sausage"}).
- \item Only functions which don't modify global state or perform I/O can be executed in parallel. Local mutabable variables are  always allowed.
+\item Due to the difficulty of implementing efficient non-uniform data structures on the GPU, we require all values within Parakeet to be either scalars or NumPy arrays. No dictionaries, sets, or user-defined objects are allowed. 
+\item To compile Python into native code we must assign types to each expression. We are still able to retain some of Python's polymorphism by specializing different typed versions of a function for each distinct set of argument types. However, expressions whose types depend on dynamic values are disallowed (e.g.~\lstinline{43 if bool_val else "sausage"}).
+\item Only functions which don't modify global state or perform I/O can be executed in parallel. Local mutabable variables are always allowed.
 \end{itemize}
-
-These restrictions would be onerous if applied to an entire program, but it's important to remember that Parakeet only sees the computational core of an algorithm. All other code is executed as usual by the Python interpreter. Furthermore, the style of programming required for Parakeet closely matches the idiomatic conventions of array programming. In practice, if an algorithm makes heavy use of NumPy operators for its computations then it will run under Parakeet with only minor modifications.
+A Parakeet function cannot call any other function which violates these restrictions or one which is not implemented in Python. To enable the use of NumPy library functions Parakeet must provide equivalent functions written in Python. In general, these restrictions would be onerous if applied to an entire program but Parakeet is only intended to accelerate the computational core of an algorithm. All other code is executed as usual by the Python interpreter. 
 
 Though Parakeet supports loops, it does not parallelize them in any way. Parallelism is instead achieved through the use of the following data parallel operators:
 
@@ -117,7 +116,8 @@ Though Parakeet supports loops, it does not parallelize them in any way. Paralle
   Examples of scans are the NumPy functions \lstinline{cumsum} and \lstinline{cumprod}. 
 \end{itemize}
 
-For each occurrence of a data parallel operator in a program, Parakeet may choose to synthesize parallel code which implements that operator combined with its function argument.  It is not always necessary, however, to explicitly use one of these operators in order to achieve parallelization. Parakeet implements NumPy's array broadcasting semantics by implicitly inserting calls to $\MAP$ into a user's code. Furthermore, Parakeet reimplements a subset of the NumPy library functions (\lstinline{sum}, \lstinline{argmax}, etc.) in order to expose opportunities for parallelism.
+For each occurrence of a data parallel operator in a program, Parakeet may choose to synthesize parallel code which implements that operator combined with its function argument.  It is not always necessary, however, to explicitly use one of these operators in order to achieve parallelization. Parakeet implements NumPy's array broadcasting semantics by implicitly inserting calls to $\MAP$ into a user's code. 
+Furthermore, NumPy library functions are reimplemented in Parakeet using the above data parallel operators and thus expose opportunities for parallelism.
 
 \begin{figure*}[t!bh]
 \begin{center}
@@ -129,40 +129,41 @@ For each occurrence of a data parallel operator in a program, Parakeet may choos
 \end{figure*}
 
 \section{Parakeet Runtime and Internals}
-We will refer to the following code example (taken from our K-Means clustering benchmark) to help illustrate the process by which Parakeet transforms and executes code. The function \lstinline{minidx} takes as input a matrix \lstinline{C} and a vector \lstinline{x} and then computes the index of the row in \lstinline{C} whose distance from \lstinline{x} is smallest.
+We will refer to the following code example to help illustrate the process by which Parakeet transforms and executes code. 
+\begin{lstlisting}[language=Python,frame=single, label=Norm, caption={Vector Norm in Parakeet},  belowskip=0.5em]
+def add(x,y):
+  return x + y
 
-\begin{lstlisting}[language=Python,frame=single, label=MinIdx]
-def sqr_dist(x,y):
-  return sum((x-y) * (x-y))
+def sum(x):
+  return parakeet.reduce(add, x)
 
 @PAR
-def minidx(C,x):
-  sqr_dists = map(sqr_dist,C,fixed=[x])
-  return argmin(sqr_dists)
+def norm(x):
+  return math.sqrt(sum(x*x))
 \end{lstlisting}
 
-When the Python interpreter reaches the definition of \lstinline{minidx}, it invokes the \lstinline{@PAR} decorator which translates the syntax tree of \lstinline{minidx} into Parakeet's untyped internal representation.  This internal representation is then converted to Static Single Assignment form \cite{Cytr91}. 
+When the Python interpreter reaches the definition of \lstinline{norm}, it invokes the \lstinline{@PAR} decorator which parses the function's source and translates it into Parakeet's untyped internal representation. There is a fixed set of primitive functions from NumPy and the Python standard library, such as \lstinline{math.sqrt}, which are translated directly into Parakeet syntax nodes. The helper functions \lstinline{add} and \lstinline{sum} would normally be in the Parakeet module but they are defined here for clarity. These functions are non-primitive, so they themselves get recursively parsed and translated.  In general, the \lstinline{@PAR} decorator will raise an exception if it encounters a call to a non-primitive function which either can't be parsed or violates Parakeet's semantic restrictions. Lastly, before returning execution to Python, Parakeet converts its internal representation to Static Single Assignment form \cite{Cytr91}. 
 
 \subsection{Type Specialization}
-Parakeet intercepts calls to \lstinline{minidx} and uses the argument types to synthesize a typed version of the function. All functions called by \lstinline{minidx} are also recursively specialized. In our code example, if \lstinline{minidx} were called with a 2D \lstinline{float} array and a 1D \lstinline{float} array then \lstinline{sqr_dist} would be specialized for two 1D \lstinline{float} arrays.
+Parakeet intercepts calls to \lstinline{norm} and uses the argument types to synthesize a typed version of the function. During specialization, all functions called by \lstinline{entropy} are themselves specialized for particular argument types. In our code example, if \lstinline{norm} were called with a 1D \lstinline{float} array then sum would also be specialized for the same input type, whereas \lstinline{add} would be specialized for pairs of scalar \lstinline{float}s.
 
-In Parakeet's typed representation, every function must have unambiguous input and output types. To eliminate polymorphism Parakeet inserts casts and $\MAP$ operators where necessary. When \lstinline{sqr_dist} is specialized for vector arguments, its math operators are rewritten into 1D $\MAP$s of those same operators.
+In Parakeet's typed representation, every function must have unambiguous input and output types. To eliminate polymorphism Parakeet inserts casts and $\MAP$ operators where necessary. When \lstinline{norm} is specialized for vector arguments, its use of the multiplication operator is rewritten into a 1D $\MAP$s of a scalar multiply.
 
-The actual process of type specialization is implemented by interleaving an abstract interpreter which propagates input types to infer local types and a rewrite engine which inserts coercions where necessary.
+The actual process of type specialization is implemented by interleaving an abstract interpreter, which propagates input types to infer local types, and a rewrite engine which inserts coercions where necessary.
 
 \subsection{Optimization}
-In addition to standard compiler optimizations (such as constant folding, function inlining, and common sub-expression elimination), we employ fusion rules~\cite{Jones01} to combine array operators. Fusion enables us increase the computational density of generated code and to avoid the creation of unnecessary array temporaries.
+In addition to standard compiler optimizations (such as constant folding, function inlining, and common sub-expression elimination), we employ fusion rules~\cite{AbuSufah79, Kennedy93, Jones01} to combine array operators. Fusion enables us increase the computational density of generated code and to avoid the creation of unnecessary array temporaries.
 
 \subsection{Execution}
 We have implemented three backends for Parakeet thus far: CPU and GPU backends for JIT compiling native code, as well as an interpreter for handling functions that cannot themselves be parallelized but may contain nested parallelizable operators.
 
-Once a function has been type specialized and optimized, it is handed off to Parakeet's scheduler which is responsibile for choosing among these three backends.  For each array operator, the scheduler employs a simple cost-based heuristic which considers nested array operators, data sizes, and memory transfer costs to decide where to execute it.
+Once a function has been type specialized and optimized, it is handed off to Parakeet's scheduler which is responsibile for choosing among these three backends.  For each array operator, the scheduler employs a cost-based heuristic which considers nested array operators, data sizes, and memory transfer costs to decide where to execute it.
 
-Accurate prediction of array shapes is necessary both for the allocation of intermediate values on the GPU as well as for the above cost model determining placement of computations. We employ a simple abstract interpreter which propagates shape information through a function using the obvious shape semantics for each operator. For example, a $\REDUCE$ operation collapses the outermost dimension of its argument whereas a $\MAP$ preserves a shape's outermost dimension.
+Accurate prediction of array shapes is necessary both for the allocation of intermediate values on the GPU as well as for the above cost model determining placement of computations. We use an abstract interpreter which propagates shape information through a function using the obvious shape semantics for each operator. For example, a $\REDUCE$ operation collapses the outermost dimension of its argument whereas a $\MAP$ preserves a shape's outermost dimension.
 
 When the scheduler encounters a nested array operator -- e.g.~a $\MAP$ whose payload function is itself a $\REDUCE$ -- it needs to choose which operator, if any, will be parallelized.  If an array operator is deemed a good candidate for native hardware execution, the function argument to the operator is then inlined into a program skeleton that implements the operator. Parakeet flattens all nested array computations within the function argument into sequential loops.
 
-Several systems similar to Parakeet \cite{Cata11,Chaf11} generate GPU programs by emitting CUDA code which is then compiled by NVIDIA's CUDA nvcc toolchain. Instead, Parakeet emits GPU assembly code directly since the compile times are dramatically shorter. To generate CPU code we use the LLVM compiler framework~\cite{Latt02}.
+Several systems similar to Parakeet \cite{Cata11,Chaf11} generate GPU programs by emitting CUDA code which is then compiled by NVIDIA's CUDA nvcc toolchain. Instead, Parakeet emits PTX (a GPU pseudo-assembly) directly, since the compile times are dramatically shorter. To generate CPU code we use the LLVM compiler framework~\cite{Latt02}.
 
 \section{Evaluation}
 \label{Evaluation}
@@ -211,37 +212,42 @@ In Figure \ref{KMCPU3}, we see the total run times of K-Means for the CPU and GP
 \label{KMCPU30}
 \end{figure}
 
-The reason Parakeet is able to perform so well with respect to the CUDA version is due to the difference in how they compute the new average centroid for the new clusters in each iteration.  The CUDA version brings the GPU-computed assignment vectors back to the CPU in order to perform this reduction, as it involves many unaligned memory accesses and so has the potential to perform poorly on the GPU.  Parakeet chooses to execute this code on the GPU instead, prefering to avoid the data transfer penalty.  For such a small number of clusters, the Parakeet method ends up performing far better.  However, for larger numbers of clusters (roughly 30 and above), the fixed overhead of launching an individual kernel to average each cluster's points overwhelms the performance advantage of the GPU and Parakeet ends up performing worse than the CUDA version.  We are currently implementing better code placement heuristics based on dynamic information in order to use the GPU only when it would actually be advantageous, in which case Parakeet should perform well for all numbers of clusters.
+The reason Parakeet is able to perform so well with respect to the CUDA version is due to the difference in how they compute the new average centroid for the new clusters in each iteration.  The CUDA version brings the GPU-computed assignment vectors back to the CPU in order to perform this reduction, as it involves many unaligned memory accesses and so has the potential to perform poorly on the GPU.  Parakeet's scheduler chooses to execute this code on the GPU instead, prefering to avoid the data transfer penalty.  For such a small number of clusters, the Parakeet method ends up performing far better.  However, for larger numbers of clusters (roughly 30 and above), the fixed overhead of launching an individual kernel to average each cluster's points overwhelms the performance advantage of the GPU and Parakeet ends up performing worse than the CUDA version.  We are currently implementing better code placement heuristics based on dynamic information, in order to use the GPU only when it would actually be 
+advantageous.
+\\
+\\
+\begin{lstlisting}[language=Python,frame=single, label=K-Means-Code, caption={K-Means Parakeet Code}, belowskip=0.5em]
+import parakeet as par
+from parakeet import PAR
 
-\begin{lstlisting}[language=Python,frame=single, label=K-Means-Code, caption={K-Means Parakeet Code}]
-def calc_centroid(X, a, i):
-  return parakeet.avg(X[a == i])
-
-def dist(x, y):
-  return numpy.sqrt(
-    parakeet.sum((x-y)*(x-y)))
+def sqr_dist(x, y):
+  sqr_diff = (x-y)*(x-y)
+  return par.sum(sqr_diff)
 
 def minidx(C, x):
-  return numpy.argmin(
-    parakeet.map(dist, C, fixed=[x]))
+  dists = par.map(sqr_dist, C, fixed=[x])
+  return par.argmin(dists)
+
+def calc_centroid(X, a, cluster_id):
+  return par.mean(X[a == cluster_id])
 
 @PAR
-def kmeans(X, k, a):
-  C = parakeet.map(calc_centroid,
-                   np.arange(k),
-                   fixed=[X, a])
+def kmeans(X, assignments):
+  k = par.max(assignments)
+  cluster_ids = par.arange(k)
+  C = par.map(calc_centroid, cluster_ids, 
+      fixed=[X, a])
   converged = False
   while not converged:
-    lastAssignment = a
-    a = parakeet.map(minidx, X, fixed=[C])
-    C = parakeet.map(calc_centroid,
-                     np.arange(k),
-                     fixed=[X, a])
-    converged = np.all(lastAssignment == a)
+    last = assignments
+    a = par.map(minidx, X, fixed=[C])
+    C = par.map(calc_centroid, 
+	    cluster_ids, fixed=[X, a])
+    converged = par.all(last == assignments)
   return C
 \end{lstlisting}
 
-In Figure \ref{KMCPU30}, we present the run times of K-Means for 30 features and K = 30 clusters.  In this case, the hand-written CUDA version performs best in all cases, though its advantage over the CPU increases and its advantage over Parakeet decreases with increasing data size.  As discussed, the Parakeet implementation suffers from the poorly performing averaging computation that it executes on the GPU, with a best case of an approximate 2X slowdown over the CUDA version.  However, Parakeet exhibits the best scaling of any of the implementations, and would likely close the gap even further at larger data sizes.
+In Figure \ref{KMCPU30}, we present the run times of K-Means for 30 features and K = 30 clusters.  In this case, the hand-written CUDA version performs best in all cases, though its advantage over the CPU increases and its advantage over Parakeet decreases with increasing data size.  As discussed, the Parakeet implementation suffers from the poorly performing averaging computation that it executes on the GPU, with a best case of an approximate 2X slowdown over the CUDA version. 
 
 \begin{figure}
 \includegraphics[scale=0.4]{KMGPU.pdf}
@@ -253,18 +259,23 @@ Figure \ref{KMGPU} shows a breakdown of the different factors that contribute to
 
 \section{Related Work}
 \label{RelatedWork}
-There have been several projects that use just-in-time compilation to accelerate Python programs on CPUs, but to our knowledge none attempt to generate parallel code.  The PyPy project is an alternative implementation of Python that uses a meta-tracing JIT to achieve an average 5.3X speedup across 20 benchmarks~\cite{Rigo06}. Psyco was a previous Python JIT compiler that achieved significant speedups~\cite{Rigo04}.  A number of recent projects enable the use of embedded DSLs in productivity languages for various tasks, e.g.~ASP~\cite{Cook11} and OptiML~\cite{Chaf11}.
+The earliest attempts to accelerate array-oriented programs were sequential compilers for APL. Abrams~\cite{Abrams70} designed an innovative two-stage compiler wherein APL was first statically translated to a high-level untyped intermediate representation and then lazily compiled to a low-level scalar architecture. Inspired by Abrams' work, Van Dyke created an APL environment for the HP 3000~\cite{VanDyke77} which also dynamically compiled delayed expressions and cached generated code using the type, rank, and shape of variables. 
 
-The use of graphics hardware for non-graphical computation has a long history~\cite{Leng90}. The Brook language extended C with ``kernels'' and ``streams'', exposing a programming model similar to what is now found in CUDA and OpenCL~\cite{Buck04}.  Microsoft's Accelerator~\cite{Tard06} was the first project to use high level (collection-oriented) language constructs as a basis for GPU execution. Accelerator's programming model does not support function abstractions (only expression trees) and its only underlying parallelism construct is limited to the production of $\MAP$-like kernels.  Nikola~\cite{Main10} and Accelerate~\cite{Chak11} are first-order array-oriented languages embedded in Haskell. Neither is as convenient to use or as feature rich as Parakeet, either requiring the programmer to manually coordinate computations which require multiple GPU kernel launches or lacking support for nested array operators.
+More recently, a variety of compilers have been created for the Matab programming language~\cite{Moler80}. FALCON~\cite{DeRose95} performs source-to-source translation from Matlab to Fortran 90 and achieves parallelization by adding dependence annotations into its generated code. MaJIC~\cite{Alma02} accelerates Matlab by pairing a lightweight dynamic compiler with a static translator in the same spirit as FALCON. Both FALCON and MaJIC infer simultaneous type and shape information for local variables by dataflow analysis.
 
-Copperhead parallelizes a statically typed, purely functional array subset of Python through the dynamic compilation and execution of CUDA kernels~\cite{Cata11}. Copperhead supports nested array computations, and has a notion of scheduling computation on both GPUs and CPUs (although no CPU backend has been implemented). Unlike Parakeet, Copperhead does not use dynamic information when making scheduling decisions and thus must rely on user annotations. Copperhead's array operators are implemented by C++ templates. Targeting C++ allows easy integration of the Thrust GPGPU library~\cite{Hobe10} but incurs long compilation times. Copperhead disallows polymorphism: neither implicit scalar casts nor NumPy-style array broadcasting are possible within its type system. By contrast, since Parakeet's more flexible type specializer translates polymorphism into coercions it is able to execute code that uses NumPy constructs. This allows Parakeet to accelerate NumPy programs with minimal changes.
+The use of graphics hardware for non-graphical computation has a long history~\cite{Leng90}. The Brook language extended C with ``kernels'' and ``streams'', exposing a programming model similar to what is now found in CUDA and OpenCL~\cite{Buck04}.  Over the past decade, there have been several attempts to use an embedded DSL to simplify the arduous task of GPGPU programming. Microsoft's Accelerator~\cite{Tard06} was the first project to use high level (collection-oriented) language constructs as a basis for GPU execution. Accelerator's programming model does not support function abstractions (only expression trees) and its only underlying parallelism construct is limited to the production of $\MAP$-like kernels.  Accelerate~\cite{Chak11} is a first-order array-oriented language embedded in Haskell which attains good performance on preliminary benchmarks but is unable to describe nested computations and requires user annotations to move data onto the GPU. A more sophisticated runtime has been developed for 
+the Delite project~\cite{Brown11}, which is able to schedule complex computations expressed in Scala across multiple backends. 
+
+Parakeet and Copperhead~\cite{Cata11} both attempt to parallelize a numerical subset of Python using runtime compilation structured around higher-order array primitives. Parakeet and Copperhead both support nested array computations and are able to target either GPUs or CPUs. Since Copperhead uses a purely functional intermediate language, its subset of Python is more restrictive than the one which Parakeet aims to accelerate. Unlike Copperhead, Parakeet allows loops and  modification of local variables. Copperhead infers a single type for each function using an extension of the Hindley-Milner~\cite{Damas82} inference algorithm. This simplifies compilation to C++ templates but disallows both polymorphism between Python scalars and ``array broadcasting''~\cite{Oliphant07}. Parakeet, on the other hand, is able to support polymorphic language constructs by specializing a function's body for each distinct set of argument types and inserting coercions during specialization. Copperhead does not use dynamic information when making scheduling decisions and thus must rely on user annotations. Parakeet's scheduler dynamically chooses which level of a nested computation to parallelize. 
+
+%These differences do not all speak in Parakeet's favor. The boundaries of Copperhead's simpler Python subset might be easier for a programmer to learn than Parakeet's. Also, Copperhead's choice to leverage more third-party tools greatly simplifies the compiler's internals. 
 
 \section{Conclusion}
 \label{Conclusion}
-Parakeet allows the programmer to write Python code using a widely-used numerical computing library while achieving good performance on modern parallel hardware. Parakeet automatically synthesizes and executes efficient native binaries from Python code. Parakeet is a usable system in which complex programs can be written and executed efficiently.  On two benchmark programs, Parakeet delivers performance very competitive with even hand-tuned GPU implementations.  Parakeet code can coexist with standard Python code, allowing full interoperability with all of Python's tools and libraries.
-
-In the near future, we plan to add support for generating multithreaded CPU programs to our CPU backend and add support for splitting work simultaneously across CPUs and GPUs.
-
+Parakeet allows the programmer to write Python code using a widely-used numerical computing library while achieving good performance on modern parallel hardware. 
+Parakeet automatically synthesizes and executes efficient native binaries from Python code. Parakeet is a usable system in which moderately complex programs can be written and executed efficiently.  
+On two benchmark programs, Parakeet delivers performance competitive with hand-tuned GPU implementations.  Parakeet code can coexist with standard Python code, allowing full interoperability with all of Python's tools and libraries.
+We are currently extending our CPU backend to use multiple cores and improving dynamic scheduling and compilation decisions. 
 {\small
 \bibliographystyle{acm}
 \bibliography{../Parallelism}{}
