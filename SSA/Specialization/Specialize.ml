@@ -19,7 +19,9 @@ let mk_untyped_prim_fn (prim:Prim.t) arity : UntypedSSA.fn =
   let output = ID.gen_named "output" in
   let inputVars = List.map UntypedSSA.var inputs in
   let rhs =
-    UntypedSSA.app (UntypedSSA.wrap_value (UntypedSSA.Prim prim)) inputVars
+    UntypedSSA.call 
+      (UntypedSSA.wrap_value (UntypedSSA.Prim prim)) 
+      (Args.of_values inputVars)
   in
   let body = Block.singleton (UntypedSSA.set [output] rhs) in
   let fn =

@@ -44,10 +44,10 @@ let actual_args_to_str ~value_to_str {values; keywords} =
   String.concat ", " (List.map value_to_str values @ kwdStrings)
 
 let all_formal_names { names; defaults } = 
-  names @ (List.map fst defaults)
+  (List.map fst defaults) @ names 
 
 let all_actual_values  { values; keywords } = 
-  values @ (List.map snd keywords) 
+  (List.map snd keywords) @ values 
   
 
 let rec combine_positional env xs ys = 
@@ -56,22 +56,28 @@ let rec combine_positional env xs ys =
    | x::xs', y::ys' -> combine_positional ((x,y)::env) xs' ys'
    | [], _ -> failwith "Too many arguments" 
    | _, [] -> failwith "Too few arguments" 
-
-let rec bind ?(env=[]) formals actuals = 
-  match actuals.keywords with 
-  | [] -> 
-    let env' =  
-      List.fold_left (fun lst pair -> pair::lst) env formals.defaults     in
-    combine_positional env' formals.names actuals.values
-  | (k,v)::rest -> 
-    let env' = (k,v)::env in  
-    (* slightly inefficient but for clarity and avoiding edge cases, 
-       remove name from both the positional args *)
+     
+(* make sure that keywords get placed in the same order each time *) 
+let rec bind ?(env=[]) (formals:'a formal_args) (actuals: 'a actual_args) = 
+  match formals.defaults with 
+  | [] -> combine_positional env formals.names actuals.values
+  | (k, d)::rest ->
+    let env' = 
+      if List.mem_assoc k actuals.keywords then 
+        (k, List.assoc k actuals.keywords)::env 
+      else 
+        (k, d)::env 
+    in     
+    let actuals' = { 
+      values = actuals.values; 
+      keywords = List.filter (fun (k', _) -> k' <> k) actuals.keywords;
+    }
+    in                
     let formals' = {
       names = List.filter ((<>) k) formals.names; 
-      defaults = List.remove_assoc k formals.defaults
+      defaults = rest; 
     }
     in 
-    bind ~env:env' formals' { actuals with keywords = rest } 
+    bind ~env:env' formals' actuals' 
     
     

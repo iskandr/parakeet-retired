@@ -46,4 +46,5 @@ val translate_block :
   Env.t -> UntypedSSA.block -> ID.t list -> AST.node list -> Env.t
 
 val translate_fn :
-  ?name:string -> Env.t -> string list -> AST.node -> UntypedSSA.fn
+  ?name:string -> Env.t -> 
+    AST.node Args.formal_args -> AST.node -> UntypedSSA.fn

@@ -126,7 +126,11 @@ let is_untyped_function untypedId =
 
 let get_untyped_function untypedId =
   Hashtbl.find state.untyped_functions untypedId
-
+    
+let get_untyped_args untypedId = 
+  let fn = get_untyped_function untypedId in 
+  fn.UntypedSSA.inputs 
+    
 let get_typed_function typedId =
   FnTable.find typedId state.typed_functions
 

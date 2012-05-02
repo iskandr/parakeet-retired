@@ -13,6 +13,7 @@ val maybe_get_specialization : UntypedSSA.value -> Signature.t -> FnId.t option
 
 val is_untyped_function : FnId.t -> bool
 val get_untyped_function : FnId.t -> UntypedSSA.fn
+val get_untyped_args : FnId.t -> UntypedSSA.value_node Args.formal_args
 val get_typed_function : FnId.t -> TypedSSA.fn
 
 val get_untyped_name : FnId.t -> string

@@ -1,4 +1,5 @@
 (* pp: -parser o pa_macro.cmo *)
+ 
 open Printf
 open Base
 open Type
@@ -353,31 +354,16 @@ module Make (P : TYPE_ANALYSIS_PARAMS) = struct
       }
     | UntypedSSA.Adverb info ->
       let arrayTypes = infer_value_nodes info.array_args in
-      let resultTypes =
-        infer_adverb ?src $
+      infer_adverb ?src $
           Adverb.apply_to_fields
             info
             ~fn:(fun valNode -> valNode.value)
             ~values:infer_value_nodes
             ~axes:(fun axes -> infer_num_axes ?src ?axes arrayTypes)
-      in
-      IFDEF DEBUG THEN
-        Printf.printf
-          "[TypeAnalysis.exp] Inferred output for adverb %s: %s\n"
-          (Adverb.to_str info.adverb)
-          (Type.type_list_to_str resultTypes)
-        ;
-      ENDIF;
-      resultTypes
+      
     | Call(lhs, args) ->
       let lhsT = infer_value_node lhs in
       let argTypes : Type.t Args.actual_args = infer_args args in
-      IFDEF DEBUG THEN
-        Printf.printf "[TypeAnalysis.exp] Node: %s Types:%s\n"
-          (UntypedSSA.exp_node_to_str expNode)
-          (Args.actual_args_to_str 
-             ~value_to_str:Type.to_str argTypes);
-      ENDIF;
       if Type.is_array lhsT
       then [
         infer_simple_array_op Prim.Index (lhsT::argTypes.Args.values)
@@ -458,11 +444,14 @@ module Make (P : TYPE_ANALYSIS_PARAMS) = struct
 
   and analyze_block (block:UntypedSSA.block) : unit =
     Block.iter_forward analyze_stmt block
-
+      
   let analyze_fn fundef signature =
     TypeEnv.push();
+    
     let argPairs = 
-      Args.bind fundef.inputs (Signature.inputs signature)
+      Args.bind 
+        (Args.apply_to_formal_values infer_value_node fundef.inputs)
+        (Signature.inputs signature)
     in
     let () = 
       List.iter 

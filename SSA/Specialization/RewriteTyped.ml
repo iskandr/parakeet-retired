@@ -225,7 +225,7 @@ module Make(P: REWRITE_PARAMS) = struct
       array_args = indices;
     }
 
-  let rewrite_array_op
+  let rewrite_call_to_array_op
         (src: SrcInfo.t option)
         (op:Prim.array_op)
         (args:TypedSSA.value_nodes)
@@ -250,101 +250,115 @@ module Make(P: REWRITE_PARAMS) = struct
     | _ ->
         let outT = TypeAnalysis.infer_simple_array_op op types in
         TypedSSA.primapp ?src (Prim.ArrayOp op) ~output_types:[outT] args
+        
+        
+  let rewrite_call_to_scalar_op 
+      (op : Prim.scalar_op) 
+      (args :  TypedSSA.value_node list) 
+      (argTypes :  Type.t list) = 
+    let p = Prim.ScalarOp op in 
+    let outT = TypeAnalysis.infer_scalar_op op argTypes in
+    if Type.is_array outT then
+      let axes =
+        AdverbHelpers.infer_adverb_axes_from_types argTypes
+      in
+      let eltTypes =
+        List.map (fun t -> Type.ScalarT (Type.elt_type t)) argTypes
+      in
+      let typedFn =
+        P.specializer 
+          (UntypedSSA.Prim p)
+          (Signature.from_input_types eltTypes)
+      in
+      let typedInfo : TypedSSA.adverb_info =
+        {
+          Adverb.adverb = Adverb.Map;
+          adverb_fn = typedFn.TypedSSA.fn_id;
+          fixed_args = [];
+          init = None;
+          array_args = args;
+          axes = axes;
+        }
+      in
+      AdverbHelpers.mk_adverb_exp_node typedInfo
+
+    else
+      (* most scalar ops expect all their arguments to be of the same*)
+      (* type, except for Select, whose first argument is always a bool *)
+      begin
+        match op, args, argTypes with
+        | Prim.Select, boolArg::otherArgs, _::otherTypes ->
+          let inT = Type.combine_type_list otherTypes in
+          let args =
+            (coerce_typed_value Type.bool boolArg)
+            ::
+            (coerce_typed_values inT args)
+          in
+          TypedSSA.primapp p [outT] args
+        | _ ->
+          (* if operation is a float, then make sure the inputs are*)
+          (* at least float32 *)
+          let inT =
+            if Prim.is_float_op op then
+              Type.combine_type_list (Type.float32::argTypes)
+            else
+              Type.combine_type_list argTypes
+          in
+          let args = coerce_typed_values inT args in
+          IFDEF DEBUG THEN
+            Printf.printf "PRIMAPP: %s %s=>%s for inputs %s"
+              (Prim.to_str p)
+              (Type.to_str inT)
+              (Type.to_str outT)
+              (TypedSSA.value_nodes_to_str args)
+          ENDIF;
+          TypedSSA.primapp p [outT] args
+      end
 
   let rewrite_call src
-        (fn:UntypedSSA.value_node)
-        (argNodes:TypedSSA.value_nodes) : TypedSSA.exp_node =
-    (*IFDEF DEBUG THEN
-      Printf.printf "[RewriteTyped.rewrite_call] %s(%s)\n"
-        (UntypedSSA.value_node_to_str fn)
-        (TypedSSA.value_nodes_to_str argNodes)
-      ;
-    ENDIF;*)
-    let argTypes = List.map (fun v -> v.TypedSSA.value_type) argNodes in
+      (fn:UntypedSSA.value_node)
+      (args : TypedSSA.value_node Args.actual_args) : TypedSSA.exp_node =
+    let argTypes = 
+      Args.apply_to_actual_values (fun v -> v.TypedSSA.value_type) args 
+    in
     let fnVal = fn.UntypedSSA.value in
     let fnSrc = fn.UntypedSSA.value_src in
     match fnVal with
-    | UntypedSSA.Prim ((Prim.ScalarOp op) as p) ->
-      let outT = TypeAnalysis.infer_scalar_op op argTypes in
-      if Type.is_array outT then
-        let axes =
-          AdverbHelpers.infer_adverb_axes_from_types argTypes
-        in
-        let eltTypes =
-          List.map (fun t -> Type.ScalarT (Type.elt_type t)) argTypes
-        in
-        let typedFn =
-          P.specializer fnVal (Signature.from_input_types eltTypes)
-        in
-        let typedInfo : TypedSSA.adverb_info =
-          {
-            Adverb.adverb = Adverb.Map;
-            adverb_fn = typedFn.TypedSSA.fn_id;
-            fixed_args = [];
-            init = None;
-            array_args = argNodes;
-            axes = axes;
-          }
-        in
-        AdverbHelpers.mk_adverb_exp_node typedInfo
-
-      else
-        (* most scalar ops expect all their arguments to be of the same*)
-        (* type, except for Select, whose first argument is always a bool *)
-        begin
-          match op, argNodes, argTypes with
-          | Prim.Select, boolArg::otherArgs, _::otherTypes ->
-            let inT = Type.combine_type_list otherTypes in
-            let args =
-              (coerce_typed_value Type.bool boolArg)
-              ::
-              (coerce_typed_values inT argNodes)
-            in
-            TypedSSA.primapp p [outT] args
-          | _ ->
-            (* if operation is a float, then make sure the inputs are*)
-            (* at least float32 *)
-            let inT =
-              if Prim.is_float_op op then
-                Type.combine_type_list (Type.float32::argTypes)
-              else
-                Type.combine_type_list argTypes
-            in
-            let args = coerce_typed_values inT argNodes in
-            IFDEF DEBUG THEN
-              Printf.printf "PRIMAPP: %s %s=>%s for inputs %s"
-                (Prim.to_str p)
-                (Type.to_str inT)
-                (Type.to_str outT)
-                (TypedSSA.value_nodes_to_str argNodes)
-            ENDIF;
-            TypedSSA.primapp p [outT] args
-        end
-    | UntypedSSA.Prim (Prim.ArrayOp op) ->
-      rewrite_array_op src op argNodes argTypes
-    | UntypedSSA.Prim (Prim.Adverb adverb) ->
-      raise (RewriteFailed(
+      | UntypedSSA.Prim (Prim.ScalarOp op) ->
+        rewrite_call_to_scalar_op op args.Args.values argTypes.Args.values 
+      | UntypedSSA.Prim (Prim.ArrayOp op) ->
+        rewrite_call_to_array_op src op args.Args.values argTypes.Args.values
+      | UntypedSSA.Prim (Prim.Adverb adverb) ->
+        raise (RewriteFailed(
         "Unexpected adverb, should have been handled in rewrite_exp", fnSrc))
+      
+      | UntypedSSA.GlobalFn untypedFnId ->
+        let typedFn = P.specializer fnVal (Signature.from_args argTypes) in
+        let outputTypes = TypedSSA.output_types typedFn in
+        let untypedFormals : UntypedSSA.value_node Args.formal_args = 
+          FnManager.get_untyped_args untypedFnId 
+        in 
+        let typedFormals : TypedSSA.value_node Args.formal_args = 
+          Args.apply_to_formal_values annotate_value untypedFormals 
+        in 
+        let withTypedDefaults = List.map snd (Args.bind typedFormals args) in 
+        TypedSSA.call ?src typedFn.TypedSSA.fn_id outputTypes withTypedDefaults
+      | UntypedSSA.Var id ->
+        (* assume variable must be an array *)
+        let arrType = Hashtbl.find P.tenv id in
+        let indices = args.Args.values in 
+        let outTypes = [Type.peel ~num_axes:(List.length indices) arrType] in
+        let arrNode = TypedSSA.var ?src:fnSrc arrType id in
+        let indexOp = Prim.ArrayOp Prim.Index in
+        TypedSSA.primapp 
+          ?src indexOp  ~output_types:outTypes (arrNode::indices)
 
-
-    | UntypedSSA.GlobalFn _ ->
-      let typed = P.specializer fnVal (Signature.from_input_types argTypes) in
-      let outputTypes = TypedSSA.output_types typed in
-      TypedSSA.call ?src typed.TypedSSA.fn_id outputTypes argNodes
-    | UntypedSSA.Var id ->
-      (* assume variable must be an array *)
-      let arrType = Hashtbl.find P.tenv id in
-      let outTypes = [Type.peel ~num_axes:(List.length argNodes) arrType] in
-      let arrNode = TypedSSA.var ?src:fnSrc arrType id in
-      let indexOp = Prim.ArrayOp Prim.Index in
-      TypedSSA.primapp ?src indexOp  ~output_types:outTypes (arrNode::argNodes)
-
-    | _ ->
-      let errMsg =
-        Printf.sprintf "[RewriteTyped] Unexpected function: %s"
-          (UntypedSSA.value_node_to_str fn)
-      in
-      raise (RewriteFailed(errMsg, fnSrc))
+      | _ ->
+        let errMsg =
+          Printf.sprintf "[RewriteTyped] Unexpected function: %s"
+            (UntypedSSA.value_node_to_str fn)
+        in
+        raise (RewriteFailed(errMsg, fnSrc))
 
   let rewrite_exp types expNode =
     (*IFDEF DEBUG THEN
@@ -364,8 +378,9 @@ module Make(P: REWRITE_PARAMS) = struct
         (* WARNING: You're ignoring the expected return types here *)
       | Adverb adverbInfo, _ -> rewrite_adverb ?src adverbInfo
       | Call (
-          {value = Prim (Prim.Adverb adverb)}, fn::args), 
-        _ ->
+              {value = Prim (Prim.Adverb adverb)}, 
+              {Args.values=fn::args; keywords=[]}
+             ), _ ->
         IFDEF DEBUG THEN
           Printf.printf "[RewriteTyped] Converting simple adverb\n%!";
         ENDIF;
@@ -376,7 +391,9 @@ module Make(P: REWRITE_PARAMS) = struct
         }
         in
         rewrite_adverb ?src untypedInfo
-      | Call (fn, args), _ -> rewrite_call src fn (annotate_values args)
+      | Call (fn, args), _ -> 
+        let typedArgs = Args.apply_to_actual_values annotate_value args in
+        rewrite_call src fn typedArgs
       | _ ->
         let errMsg =
           Printf.sprintf
@@ -452,13 +469,20 @@ module Make(P: REWRITE_PARAMS) = struct
     Block.iter_forward process_stmt untypedBlock;
     typedBlock
 
-  and rewrite_fn f =
-    let body : TypedSSA.block= rewrite_block f.UntypedSSA.body in
+  and rewrite_fn (fn:UntypedSSA.fn) =
+    let body : TypedSSA.block = rewrite_block fn.UntypedSSA.body in
+    let tenv = Hashtbl.fold ID.Map.add P.tenv ID.Map.empty in 
+    let formals = fn.UntypedSSA.inputs in
+    let formalNames = Args.all_formal_names formals in  
+    let get_input_id name = 
+      String.Map.find name fn.UntypedSSA.input_names_to_ids 
+    in 
+    let formalIds = List.map get_input_id formalNames in   
     TypedSSA.mk_fn
-      ~name:(FnId.get_original_prefix f.UntypedSSA.fn_id)
-      ~tenv:(Hashtbl.fold ID.Map.add P.tenv ID.Map.empty)
-      ~input_ids:f.UntypedSSA.input_ids
-      ~output_ids:f.UntypedSSA.output_ids
+      ~name:(FnId.get_original_prefix fn.UntypedSSA.fn_id)
+      ~tenv:tenv
+      ~input_ids:formalIds
+      ~output_ids:fn.UntypedSSA.output_ids
       ~body
 end
 
