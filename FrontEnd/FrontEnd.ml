@@ -16,35 +16,20 @@ let init() =
 let _ = init ()
 
 let register_untyped_function ~name ~globals ~args astNode =
-  IFDEF DEBUG THEN
-    Printf.printf "[FrontEnd] Received untyped AST: %s (%s)\n %s\n%!"
-      name
-      (String.concat ", " args)
-      (AST.to_str astNode)
-  ENDIF;
   let _ = Analyze_AST.analyze_ast astNode in
   let ssaEnv = AST_to_SSA.Env.GlobalScope FnManager.get_untyped_id in
-  let argNames = globals @ args in
-  let fn = AST_to_SSA.translate_fn ~name ssaEnv argNames astNode in
+  let allArgs = Args.prepend_formal_names globals args in 
+  let fn = AST_to_SSA.translate_fn ~name ssaEnv allArgs astNode in
   FnManager.add_untyped name fn;
-  let fnId = fn.UntypedSSA.fn_id in
-  IFDEF DEBUG THEN
-    Printf.printf "Registered %s as %s (id = %d)\n Body: %s\n%!"
-      name
-      (FnId.to_str fnId)
-      (FnId.to_int fnId)
-      (UntypedSSA.fn_to_str fn)
-    ;
-  ENDIF;
-  fnId
-
-
+  fn.UntypedSSA.fn_id
+  
+(*
 let rec register_untyped_functions = function
   | (name, globals, args, astNode)::rest ->
     let _ = register_untyped_function ~name ~globals ~args astNode in
     register_untyped_functions rest
   | [] -> ()
-
+*)
 let print_all_timers () =
   (*
   Timing.print_timers();
@@ -68,61 +53,54 @@ let get_specialized_function untypedId signature =
     FnManager.optimize_typed_functions ();
     FnManager.get_typed_function unoptimizedTyped.TypedSSA.fn_id
 
+let syntax_value_to_runtime_value (v : UntypedSSA.value_node) : Ptr.t Value.t =
+  match v.UntypedSSA.value with 
+    | UntypedSSA.Num n -> Value.Scalar n 
+    | _ -> failwith "Default args must be a scalar"
+   
+
 let run_function untypedId ~globals ~args : ret_val =
-  IFDEF DEBUG THEN
-    printf "[FrontEnd.run_function] Running %s (id=%d) with args = %s\n%!"
-      (FnId.to_str untypedId)
-      (FnId.to_int untypedId)
-      (Value.list_to_str args)
-    ;
-  ENDIF;
   (*Timing.clear Timing.runTemplate;
   Timing.clear Timing.typedOpt;
   Timing.start Timing.runTemplate;*)
-  let args = globals @ args in
-  let argTypes = List.map Value.type_of args in
+  let actuals : Ptr.t Value.t Args.actual_args = 
+    Args.prepend_actual_values globals args 
+  in 
   let untypedFn = FnManager.get_untyped_function untypedId in
-  let nargs = List.length args in
-  let arity = List.length untypedFn.UntypedSSA.input_ids in
-  if nargs <> arity then
+  let formals : UntypedSSA.value_node Args.formal_args = 
+    untypedFn.UntypedSSA.inputs 
+  in 
+  let formals : Ptr.t Value.t Args.formal_args = 
+    Args.apply_to_formal_values syntax_value_to_runtime_value formals
+  in 
+  (* try binding just to get an arity error if it fails *) 
+  let _ =  Args.bind formals actuals in  
+  (*  Error errorMsg *)
+  let actualTypes = Args.apply_to_actual_values Value.type_of actuals in     
+  try
+    let signature = Signature.from_args actualTypes in
+    let typedFundef = get_specialized_function untypedId signature in
+    let result = Runtime.call typedFundef args in  
+    Success result
+  with exn -> begin
     let errorMsg =
-      Printf.sprintf
-        "[Parakeet] arity mismatch-- expected %d, got %d"
-        arity
-        nargs
+      match exn with
+      | TypeAnalysis.TypeError(txt, srcOpt) ->
+        let srcStr =
+          Option.map_default
+            (fun srcInfo -> "at " ^ (SrcInfo.to_str srcInfo))
+            "(no source info)"
+            srcOpt
+        in
+        Printf.sprintf "Type Error: %s %s" txt srcStr
+      | ShapeInference.ShapeInferenceFailure txt ->
+        Printf.sprintf "Shape Error: %s" txt
+      | _ ->  Printexc.to_string exn
     in
+    Printf.printf "\nParakeet failed with the following error:\n";
+    Printf.printf "- %s\n\n" errorMsg;
+    Printf.printf "OCaml Backtrace:\n";
+    Printexc.print_backtrace Pervasives.stdout;
+    Printf.printf "\n%!";
     Error errorMsg
-  else
-    try
-      let signature = Signature.from_input_types argTypes in
-      IFDEF DEBUG THEN
-        printf
-          "[FrontEnd.run_function] calling specializer for argument types: %s\n"
-          (Type.type_list_to_str argTypes);
-      ENDIF;
-      let typedFundef = get_specialized_function untypedId signature in
-       (*Printf.printf "%s\n%!"
-        (String.concat ", " (List.map (fun v -> Type.elt_to_str (Value.elt_type v)) outputs));*)
-      Success (Runtime.call typedFundef args)
-    with exn -> begin
-      let errorMsg =
-        match exn with
-        | TypeAnalysis.TypeError(txt, srcOpt) ->
-          let srcStr =
-            Option.map_default
-              (fun srcInfo -> "at " ^ (SrcInfo.to_str srcInfo))
-              "(no source info)"
-              srcOpt
-          in
-          Printf.sprintf "Type Error: %s %s" txt srcStr
-        | ShapeInference.ShapeInferenceFailure txt ->
-          Printf.sprintf "Shape Error: %s" txt
-        | _ ->  Printexc.to_string exn
-      in
-      Printf.printf "\nParakeet failed with the following error:\n";
-      Printf.printf "- %s\n\n" errorMsg;
-      Printf.printf "OCaml Backtrace:\n";
-      Printexc.print_backtrace Pervasives.stdout;
-      Printf.printf "\n%!";
-      Error errorMsg
-    end
+  end
