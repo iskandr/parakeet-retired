@@ -153,6 +153,7 @@ and Interp : INTERP = struct
 
   and eval_call (fn:TypedSSA.fn) (args:values) =
     Env.push_env ();
+    
     Env.set_bindings fn.input_ids args;
     eval_block fn.body;
     let outputs = List.map Env.lookup fn.output_ids in

@@ -73,14 +73,31 @@ let run_function untypedId ~globals ~args : ret_val =
   let formals : Ptr.t Value.t Args.formal_args = 
     Args.apply_to_formal_values syntax_value_to_runtime_value formals
   in 
-  (* try binding just to get an arity error if it fails *) 
-  let _ =  Args.bind formals actuals in  
+   
+  let namedArgVals =  Args.bind formals actuals in
+  let idArgVals = 
+    List.map 
+      (fun (name, v) -> 
+        let id = 
+          String.Map.find name untypedFn.UntypedSSA.input_names_to_ids
+        in
+        id, v 
+      )
+      namedArgVals
+  in 
+  let idArgEnv = ID.Map.of_list idArgVals in 
+ 
   (*  Error errorMsg *)
   let actualTypes = Args.apply_to_actual_values Value.type_of actuals in     
   try
     let signature = Signature.from_args actualTypes in
     let typedFundef = get_specialized_function untypedId signature in
-    let result = Runtime.call typedFundef args in  
+    let reorderedArgs = 
+      List.map 
+        (fun id -> ID.Map.find id idArgEnv) 
+        typedFundef.TypedSSA.input_ids
+    in 
+    let result = Runtime.call typedFundef reorderedArgs in  
     Success result
   with exn -> begin
     let errorMsg =

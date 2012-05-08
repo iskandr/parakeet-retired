@@ -1,7 +1,7 @@
 
 val register_untyped_function :
   name:string -> globals:string list -> 
-    AST.node Args.formal_args -> AST.node -> FnId.t
+    args:AST.node Args.formal_args -> AST.node -> FnId.t
     
 (*
 val register_untyped_functions :
@@ -17,4 +17,5 @@ type ret_val =
 val run_function :
     FnId.t -> 
       globals:Ptr.t Value.t list -> 
-        Ptr.t Value.t Args.actual_args -> ret_val 
+        args:Ptr.t Value.t Args.actual_args -> 
+          ret_val 
