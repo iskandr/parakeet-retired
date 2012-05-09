@@ -28,7 +28,7 @@ typedef struct source_info {
 void ast_init(void);
 
 /** paranode creation functions **/
-paranode mk_lam(char **args, int num_args, paranode body,
+paranode mk_lambda(char **args, int num_args, paranode body,
                 source_info_t *src_info);
   
 paranode mk_var(char *str, source_info_t *src_info);

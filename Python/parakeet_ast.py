@@ -96,10 +96,13 @@ NumpyArrayAttributes = {
   "shape": "shape",
   "strides": "strides",
 }
-ValidObjects = {np.add: parakeet_lib.add,
-                np.subtract: parakeet_lib.sub,
-                np.multiply: parakeet_lib.mult,
-                np.divide: parakeet_lib.div}
+
+ValidObjects = {
+  np.add: parakeet_lib.add,
+  np.subtract: parakeet_lib.sub,
+  np.multiply: parakeet_lib.mult,
+  np.divide: parakeet_lib.div
+}
 adverbs = [parakeet_lib.map, parakeet_lib.reduce,
            parakeet_lib.allpairs, parakeet_lib.scan]
 
@@ -310,7 +313,7 @@ class ASTConverter():
     parakeet_args = list_to_ctypes_array(args,c_void_p)
     n = len(parakeet_args)
     LOG("Call(%s,%s,%s)" % (parakeet_fn, parakeet_args, n))
-    return LibPar.mk_app(parakeet_fn, parakeet_args, n, src_info.addr)
+    return LibPar.mk_call(parakeet_fn, parakeet_args, n, src_info.addr)
 
   def build_prim_call(self, src_info, python_op_name, *args):
     LOG("build_prim_call(%s, %s)" % (python_op_name, args))
@@ -320,7 +323,7 @@ class ASTConverter():
       raise RuntimeError('Prim not implemented: %s' % python_op_name)
     else:
       prim = ast_prim(parakeet_op_name)
-    return LibPar.mk_app(prim, parakeet_args, len(parakeet_args),
+    return LibPar.mk_call(prim, parakeet_args, len(parakeet_args),
                          src_info.addr)
 
   def build_var(self, src_info,name):
@@ -486,7 +489,7 @@ class ASTConverter():
             kw_args = {'fixed': self.build_parakeet_array(src_info,[])}
             if funRef.__name__ == "reduce" or "accumulate":
               arr_args = self.build_arg_list([node.args[0]], contextSet)
-              kw_args['default'] = LibPar.mk_void(None)
+              kw_args['default'] = LibPar.mk_none(None)
               if len(node.args) == 1:
                 kw_args['axis'] = LibPar.mk_int32_paranode(0, src_info.addr)
               elif len(node.args) == 2:
@@ -517,10 +520,10 @@ class ASTConverter():
             fun_arg = self.build_arg_list([node.args[0]], childContext)
             arr_args = self.build_arg_list(node.args[1:], childContext)
             kw_args = {'fixed': self.build_parakeet_array(src_info,[]),
-                       'axis': LibPar.mk_void(None)
+                       'axis': LibPar.mk_none(None)
                       }
             if funRef == parakeet_lib.reduce:
-              kw_args['default'] = LibPar.mk_void(None)
+              kw_args['default'] = LibPar.mk_none(None)
             childContext.add('rhs')
             childContext.add('array')
             for kw_arg in node.keywords:

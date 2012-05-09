@@ -58,8 +58,8 @@ def init_parakeet_lib():
   LibPar.mk_int32_paranode.restype = c_void_p
   LibPar.mk_int64_paranode.restype = c_void_p
   LibPar.mk_var.restype = c_void_p
-  LibPar.mk_app.restype = c_void_p
-  LibPar.mk_lam.restype = c_void_p
+  LibPar.mk_call.restype = c_void_p
+  LibPar.mk_lambda.restype = c_void_p
   LibPar.mk_block.restype = c_void_p
   LibPar.mk_host_array.restype = c_void_p
   LibPar.register_untyped_function.restype = c_int
@@ -74,7 +74,7 @@ def init_parakeet_lib():
   LibPar.get_prim.restype = c_void_p
   LibPar.mk_float_paranode.restype = c_void_p
   LibPar.mk_double_paranode.restype = c_void_p
-  LibPar.mk_void.restype = c_void_p
+  LibPar.mk_none.restype = c_void_p
   LibPar.mk_return.restype = c_void_p
   LibPar.print_ast_node.restype = c_void_p
 
