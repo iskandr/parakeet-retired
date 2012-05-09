@@ -25,7 +25,7 @@ enum ast_exp_data {
   Exp_Lambda,
   Exp_Call,
   Exp_Assign,
-  Exp_Return
+  Exp_Return,
   Exp_Block,
   Exp_If,
   Exp_WhileLoop,

@@ -67,19 +67,23 @@ int register_untyped_function(char *name, char **globals, int num_globals,
   CAMLreturnT(int, Int_val(fn_id));
 }
 
-return_val_t run_function(int id, host_val *globals, int num_globals,
-                          host_val *args, int num_args) {
+return_val_t run_function(int id, 
+    host_val *globals, int num_globals,
+    host_val *args, int num_args, 
+    char** kwd_arg_names, host_val* kwd_arg_values, int num_kwd_args) {
   CAMLparam0();
   CAMLlocal5(ocaml_rslt, ocaml_id, ocaml_globals, ocaml_args, ocaml_ret_type);
   CAMLlocal5(ocaml_shape, ocaml_strides, ocaml_data, ocaml_cur, ocaml_type);
-  CAMLlocal1(v); 
+  CAMLlocal3(v, ocaml_kwd_names, ocaml_kwd_args); 
 
   ocaml_id      = Val_int(id);
   ocaml_globals = build_host_val_list(globals, num_globals);
   ocaml_args    = build_host_val_list(args, num_args);
+  ocaml_kwd_names = build_str_list(kwd_arg_names, num_kwd_args);
+  ocaml_kwd_args = build_host_val_list(kwd_arg_values, num_kwd_args);
 
-  ocaml_rslt = caml_callback3(*ocaml_run_function, ocaml_id,
-                              ocaml_globals, ocaml_args);
+  ocaml_rslt = caml_callback5(*ocaml_run_function, ocaml_id, 
+    ocaml_globals, ocaml_args, ocaml_kwd_names, ocaml_kwd_args);
 
   ocaml_cur = Field(ocaml_rslt, 0);
   return_val_t ret;

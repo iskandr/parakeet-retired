@@ -1,12 +1,12 @@
 
 val register_untyped_function :
-  name:string -> globals:string list -> 
-    args:AST.node Args.formal_args -> AST.node -> FnId.t
-    
-(*
-val register_untyped_functions :
-  (string * string list * string list * AST.node) list -> unit
-*)
+      name:string -> 
+        globals:string list -> 
+          positional_args: string list -> 
+            default_arg_names : string list -> 
+              default_arg_values : AST.node list -> 
+                body: AST.node -> 
+                  FnId.t
 
 type ret_val =
   | Success of Ptr.t Value.t list (*  program succeeded, here are the results *)
@@ -15,7 +15,9 @@ type ret_val =
 
 
 val run_function :
-    FnId.t -> 
-      globals:Ptr.t Value.t list -> 
-        args:Ptr.t Value.t Args.actual_args -> 
-          ret_val 
+      untyped_id:FnId.t -> 
+        globals:Ptr.t Value.t list -> 
+          positional_args:Ptr.t Value.t list -> 
+            keyword_names : string list -> 
+              keyword_values: Ptr.t Value.t list ->  
+                ret_val 

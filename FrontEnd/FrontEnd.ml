@@ -15,21 +15,25 @@ let init() =
 (* not sure where else to initialize *)
 let _ = init ()
 
-let register_untyped_function ~name ~globals ~args astNode =
-  let _ = Analyze_AST.analyze_ast astNode in
+let register_untyped_function 
+      ~(name:string) 
+      ~(globals:string list) 
+      ~(positional_args:string list)
+      ~(default_arg_names:string list)
+      ~(default_arg_values:AST.node list)
+      ~(body: AST.node) =
+  assert (List.length default_arg_names = List.length default_arg_values); 
+  let _ = Analyze_AST.analyze_ast body in
   let ssaEnv = AST_to_SSA.Env.GlobalScope FnManager.get_untyped_id in
-  let allArgs = Args.prepend_formal_names globals args in 
-  let fn = AST_to_SSA.translate_fn ~name ssaEnv allArgs astNode in
+  let args = { 
+    Args.names = globals@positional_args;
+    defaults = List.combine default_arg_names default_arg_values
+  }
+  in  
+  let fn = AST_to_SSA.translate_fn ~name ssaEnv args body in
   FnManager.add_untyped name fn;
   fn.UntypedSSA.fn_id
   
-(*
-let rec register_untyped_functions = function
-  | (name, globals, args, astNode)::rest ->
-    let _ = register_untyped_function ~name ~globals ~args astNode in
-    register_untyped_functions rest
-  | [] -> ()
-*)
 let print_all_timers () =
   (*
   Timing.print_timers();
@@ -59,14 +63,23 @@ let syntax_value_to_runtime_value (v : UntypedSSA.value_node) : Ptr.t Value.t =
     | _ -> failwith "Default args must be a scalar"
    
 
-let run_function untypedId ~globals ~args : ret_val =
+let run_function 
+      ~(untyped_id:FnId.t)
+      ~(globals:Ptr.t Value.t list)
+      ~(positional_args:Ptr.t Value.t list)
+      ~(keyword_names:string list)
+      ~(keyword_values : Ptr.t Value.t list) : ret_val =
+  assert (List.length keyword_names = List.length keyword_values); 
+  let actuals = { 
+    Args.values = globals @ positional_args;
+    keywords = List.combine keyword_names keyword_values;
+  }
+  in  
   (*Timing.clear Timing.runTemplate;
   Timing.clear Timing.typedOpt;
   Timing.start Timing.runTemplate;*)
-  let actuals : Ptr.t Value.t Args.actual_args = 
-    Args.prepend_actual_values globals args 
-  in 
-  let untypedFn = FnManager.get_untyped_function untypedId in
+  
+  let untypedFn = FnManager.get_untyped_function untyped_id in
   let formals : UntypedSSA.value_node Args.formal_args = 
     untypedFn.UntypedSSA.inputs 
   in 
@@ -91,7 +104,7 @@ let run_function untypedId ~globals ~args : ret_val =
   let actualTypes = Args.apply_to_actual_values Value.type_of actuals in     
   try
     let signature = Signature.from_args actualTypes in
-    let typedFundef = get_specialized_function untypedId signature in
+    let typedFundef = get_specialized_function untyped_id signature in
     let reorderedArgs = 
       List.map 
         (fun id -> ID.Map.find id idArgEnv) 
