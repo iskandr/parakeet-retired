@@ -228,6 +228,119 @@ def build_num(str_num, src_info = None):
     raise RuntimeError("Failed to create number from " + str_num)
 
 
+#module Python version "$Revision$"
+#{
+#  mod = Module(stmt* body)
+#      | Interactive(stmt* body)
+#      | Expression(expr body)
+#
+#      -- not really an actual node but useful in Jython's typesystem.
+#      | Suite(stmt* body)
+#
+#  stmt = FunctionDef(identifier name, arguments args, 
+#                            stmt* body, expr* decorator_list)
+#        | ClassDef(identifier name, expr* bases, stmt* body, expr* decorator_list)
+#        | Return(expr? value)
+#
+#        | Delete(expr* targets)
+#        | Assign(expr* targets, expr value)
+#        | AugAssign(expr target, operator op, expr value)
+#
+#        -- not sure if bool is allowed, can always use int
+#         | Print(expr? dest, expr* values, bool nl)
+#
+#        -- use 'orelse' because else is a keyword in target languages
+#        | For(expr target, expr iter, stmt* body, stmt* orelse)
+#        | While(expr test, stmt* body, stmt* orelse)
+#        | If(expr test, stmt* body, stmt* orelse)
+#        | With(expr context_expr, expr? optional_vars, stmt* body)
+#
+#        -- 'type' is a bad name
+#        | Raise(expr? type, expr? inst, expr? tback)
+#        | TryExcept(stmt* body, excepthandler* handlers, stmt* orelse)
+#        | TryFinally(stmt* body, stmt* finalbody)
+#        | Assert(expr test, expr? msg)
+#
+#        | Import(alias* names)
+#        | ImportFrom(identifier? module, alias* names, int? level)
+#
+#        -- Doesn't capture requirement that locals must be
+#        -- defined if globals is
+#        -- still supports use as a function!
+#        | Exec(expr body, expr? globals, expr? locals)
+#
+#        | Global(identifier* names)
+#        | Expr(expr value)
+#        | Pass | Break | Continue
+#
+#        -- XXX Jython will be different
+#        -- col_offset is the byte offset in the utf8 string the parser uses
+#        attributes (int lineno, int col_offset)
+#
+#        -- BoolOp() can use left & right?
+#  expr = BoolOp(boolop op, expr* values)
+#       | BinOp(expr left, operator op, expr right)
+#       | UnaryOp(unaryop op, expr operand)
+#       | Lambda(arguments args, expr body)
+#       | IfExp(expr test, expr body, expr orelse)
+#       | Dict(expr* keys, expr* values)
+#       | Set(expr* elts)
+#       | ListComp(expr elt, comprehension* generators)
+#       | SetComp(expr elt, comprehension* generators)
+#       | DictComp(expr key, expr value, comprehension* generators)
+#       | GeneratorExp(expr elt, comprehension* generators)
+#       -- the grammar constrains where yield expressions can occur
+#       | Yield(expr? value)
+#       -- need sequences for compare to distinguish between
+#       -- x < 4 < 3 and (x < 4) < 3
+#       | Compare(expr left, cmpop* ops, expr* comparators)
+#       | Call(expr func, expr* args, keyword* keywords,
+#       expr? starargs, expr? kwargs)
+#       | Repr(expr value)
+#       | Num(object n) -- a number as a PyObject.
+#       | Str(string s) -- need to specify raw, unicode, etc?
+#       -- other literals? bools?
+#
+#       -- the following expression can appear in assignment context
+#       | Attribute(expr value, identifier attr, expr_context ctx)
+#       | Subscript(expr value, slice slice, expr_context ctx)
+#       | Name(identifier id, expr_context ctx)
+#       | List(expr* elts, expr_context ctx) 
+#       | Tuple(expr* elts, expr_context ctx)
+#
+#        -- col_offset is the byte offset in the utf8 string the parser uses
+#        attributes (int lineno, int col_offset)
+#
+#  expr_context = Load | Store | Del | AugLoad | AugStore | Param
+#
+#  slice = Ellipsis | Slice(expr? lower, expr? upper, expr? step) 
+#        | ExtSlice(slice* dims) 
+#        | Index(expr value) 
+#
+#  boolop = And | Or 
+#
+#  operator = Add | Sub | Mult | Div | Mod | Pow | LShift 
+#                 | RShift | BitOr | BitXor | BitAnd | FloorDiv
+#
+#  unaryop = Invert | Not | UAdd | USub
+#
+#  cmpop = Eq | NotEq | Lt | LtE | Gt | GtE | Is | IsNot | In | NotIn
+#
+#  comprehension = (expr target, expr iter, expr* ifs)
+#
+#  -- not sure what to call the first argument for raise and except
+#  excepthandler = ExceptHandler(expr? type, expr? name, stmt* body)
+#                  attributes (int lineno, int col_offset)
+#
+#  arguments = (expr* args, identifier? vararg, 
+#         identifier? kwarg, expr* defaults)
+#
+#        -- keyword arguments supplied to call
+#        keyword = (identifier arg, expr value)
+#
+#        -- import name with optional 'as' alias.
+#        alias = (identifier name, identifier? asname)
+
 ###############################################################################
 #  Converter
 ###############################################################################
@@ -367,7 +480,13 @@ class ASTConverter():
           var = node_name.split('.')[0]
           var_node = self.build_var(src_info, var)
           return self.build_call(src_info, method, [var_node])
-    
+  
+  def visit_array_elts(self, node):
+    if isinstance(node, ast.List) or isinstance(node, ast.Tuple):
+      elts = [self.visit_expr(elt) for elt in node.elts]
+      return build_parakeet_array(elts, self.build_src_info(node)) 
+    else:
+      raise ParakeetUnsupported('Array must have literal arguments') 
   # currContext is a set of strings telling us which nodes are parents
   # of the current one in the syntax tree
   def visit(self, node, contextSet=set([])):
@@ -375,12 +494,7 @@ class ASTConverter():
       raise ParakeetUnsupported("changing a field is not allowed")
     if 'rhs' in contextSet and isinstance(node, ast.Str):
       raise ParakeetUnsupported("strings are not supported")
-    elif isinstance(node, ast.List) or isinstance(node, ast.Tuple):
-      if 'array' in contextSet:
-        src_info = self.build_src_info(node)
-        children = ast.iter_child_nodes(node)
-        elts = self.build_arg_list(children, contextSet)
-        return self.build_parakeet_array(src_info, elts)
+    
       else:
         raise ParakeetUnsupported(
             "lists and tuples are not supported outside of numpy arrays")
