@@ -9,7 +9,8 @@ end
 
 module type INTERP = sig
   val eval_adverb : (TypedSSA.fn, values, int list) Adverb.info -> values
-  val eval_call : TypedSSA.fn -> value list -> value list
+  val eval_call : 
+    TypedSSA.fn -> value list -> value list
   val eval_exp : TypedSSA.exp_node -> value list
 end
 

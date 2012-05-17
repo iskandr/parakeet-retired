@@ -25,6 +25,13 @@ let apply_to_actual_values f actuals =
     values = List.map f actuals.values; 
     keywords = List.map (fun (k,v) -> (k, f v)) actuals.keywords;
   }
+
+let prepend_formal_names  moreNames {names; defaults} = 
+  { names = moreNames @ names; defaults }  
+  
+let prepend_actual_values moreVals  {values; keywords} = 
+  { values = moreVals @ values; keywords }   
+
 let formal_args_to_str ~value_to_str {names; defaults} =
   let defStrings = 
     List.map 

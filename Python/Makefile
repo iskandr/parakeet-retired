@@ -13,7 +13,8 @@ LIB_INCLUDES = -I /usr/local/lib/ocaml -I /usr/local/lib/ocaml/extlib \
                -I /usr/local/lib/ocaml/site-lib/extlib \
                -I /usr/lib/ocaml -I /usr/lib/ocaml/extlib \
                -I /usr/lib/ocaml/site-lib/extlib \
-               -I /usr/lib/ocaml/llvm-3.0
+               -I /usr/lib/ocaml/llvm-3.0 \
+               -I /usr/lib/ocaml/xml-light
 PARAKEET_INCLUDES = -I $(BUILDPATH) \
 	-I $(BUILDPATH)/AST   \
 	-I $(BUILDPATH)/Base \

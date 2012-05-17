@@ -53,28 +53,32 @@ class return_val_t(Structure):
 def init_parakeet_lib():
   LibPar = cdll.LoadLibrary(os.getenv('HOME') + '/.parakeet/libparakeetpy.so')
   LibPar.parakeet_init()
-  LibPar.mk_array.restype = c_void_p
-  LibPar.mk_assign.restype = c_void_p
-  LibPar.mk_int32_paranode.restype = c_void_p
-  LibPar.mk_int64_paranode.restype = c_void_p
-  LibPar.mk_var.restype = c_void_p
-  LibPar.mk_app.restype = c_void_p
-  LibPar.mk_lam.restype = c_void_p
-  LibPar.mk_block.restype = c_void_p
-  LibPar.mk_host_array.restype = c_void_p
-  LibPar.register_untyped_function.restype = c_int
+  
   LibPar.run_function.restype = return_val_t
   LibPar.mk_int32.restype = c_void_p
   LibPar.mk_int64.restype = c_void_p
   LibPar.mk_float32.restype = c_void_p
   LibPar.mk_float64.restype = c_void_p
-  LibPar.mk_whileloop.restype = c_void_p
   LibPar.mk_bool.restype = c_void_p
-  LibPar.mk_bool_paranode.restype = c_void_p
+
+  LibPar.register_untyped_function.restype = c_int
+  LibPar.mk_array.restype = c_void_p
+  LibPar.mk_assign.restype = c_void_p
+  LibPar.mk_var.restype = c_void_p
+  LibPar.mk_call.restype = c_void_p
+  LibPar.mk_lambda.restype = c_void_p
+  LibPar.mk_block.restype = c_void_p
+  LibPar.mk_host_array.restype = c_void_p
+  
+  
+  LibPar.mk_whileloop.restype = c_void_p  
   LibPar.get_prim.restype = c_void_p
+  LibPar.mk_bool_paranode.restype = c_void_p
+  LibPar.mk_int32_paranode.restype = c_void_p
+  LibPar.mk_int64_paranode.restype = c_void_p
   LibPar.mk_float_paranode.restype = c_void_p
   LibPar.mk_double_paranode.restype = c_void_p
-  LibPar.mk_void.restype = c_void_p
+  LibPar.mk_none.restype = c_void_p
   LibPar.mk_return.restype = c_void_p
   LibPar.print_ast_node.restype = c_void_p
 
@@ -94,7 +98,9 @@ def init_parakeet_lib():
 # Load libraries, basic initialization
 LibPar = init_parakeet_lib()
 
-def list_to_ctypes_array(input_list, t):
+
+
+def list_to_ctypes_array(input_list, t = c_void_p):
   print "[list_to_ctypes_array] input:", input_list
   n = len(input_list)
   ARRAY_TYPE = t * n # Description of a ctypes array
@@ -103,3 +109,6 @@ def list_to_ctypes_array(input_list, t):
     arr[i] = input_list[i]
   print "[list_to_ctypes_array] output:", arr
   return arr
+
+  
+  

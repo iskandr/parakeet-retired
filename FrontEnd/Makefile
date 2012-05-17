@@ -68,7 +68,7 @@ LINK       := g++ -fPIC
 
 # Includes
 INCLUDES  += -I. -I$(CUDA_INSTALL_PATH)/include -I$(COMMONDIR)/inc
-INCLUDES  += -I/usr/lib/ocaml -I/usr/local/lib/ocaml -I/usr/lib/llvm-3.0
+INCLUDES  += -I/usr/lib/ocaml -I/usr/local/lib/ocaml -I/usr/lib/llvm-3.0 -I/usr/lib/ocaml/xml-light
 
 
 # architecture flag for cubin build

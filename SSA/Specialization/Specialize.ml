@@ -16,8 +16,9 @@ let mk_untyped_prim_fn (prim:Prim.t) arity : UntypedSSA.fn =
     Hashtbl.find untypedPrimFnCache key
   else
   let inputs = ID.gen_named_list "input" arity in
-  let output = ID.gen_named "output" in
   let inputVars = List.map UntypedSSA.var inputs in
+  let inputNames = List.map ID.to_str inputs in 
+  let output = ID.gen_named "output" in
   let rhs =
     UntypedSSA.call 
       (UntypedSSA.wrap_value (UntypedSSA.Prim prim)) 
@@ -27,7 +28,8 @@ let mk_untyped_prim_fn (prim:Prim.t) arity : UntypedSSA.fn =
   let fn =
     UntypedSSA.mk_fn
       ~name:("prim" ^ (Prim.to_str prim))
-      ~input_ids:inputs
+      ~inputs:(Args.of_names inputNames)
+      ~input_names_to_ids:(String.Map.of_lists inputNames inputs)
       ~output_ids:[output]
       ~body
   in
@@ -89,8 +91,10 @@ let rec specialize_fn fn signature =
   (* NOTE: scalarizing the function is only done if all the inputs are either
      vectors of the same rank or scalars.
    *)
-  let inTypes = Signature.input_types signature in
-  let ranks = List.map Type.rank inTypes in
+  let args = Signature.inputs signature in 
+  let ranks = 
+    List.map Type.rank $ Args.all_actual_values args 
+  in  
   let maxRank = List.fold_left max 0 ranks in
 
   if not (Signature.has_output_types signature) &&
@@ -111,7 +115,8 @@ and scalarize_fn untyped vecSig =
       (FnId.to_str untyped.UntypedSSA.fn_id)
       (Signature.to_str vecSig);
   ENDIF;
-  let inTypes = Signature.input_types vecSig in
+  let args = Signature.inputs vecSig in 
+  let inTypes = Args.all_actual_values args in 
   let numAxes = AdverbHelpers.max_num_axes_from_array_types inTypes in
   let scalarTypes = List.map (Type.peel ~num_axes:numAxes) inTypes in
   IFDEF DEBUG THEN
@@ -153,7 +158,9 @@ and specialize_value fnVal signature =
   match FnManager.maybe_get_specialization fnVal signature with
   | Some fnId -> FnManager.get_typed_function fnId
   | None ->
-    let inputTypes = Signature.input_types signature in
+    (* TODO: Make this actually work *) 
+    let args = Signature.inputs signature in 
+    let inputTypes = Args.all_actual_values args in 
     (match fnVal with
       | UntypedSSA.GlobalFn fnId ->
         let untyped = FnManager.get_untyped_function fnId in
@@ -184,7 +191,9 @@ and specialize_value fnVal signature =
             | None -> Signature.from_input_types nestedInputTypes
             | Some outT ->
               let nestedOutTypes = [Type.peel ~num_axes:maxRank outT] in
-              Signature.from_types nestedInputTypes nestedOutTypes
+              Signature.with_outputs 
+                (Args.of_values nestedInputTypes)
+                nestedOutTypes
           in
           let nestedFn = specialize_value fnVal nestedSig in
           let adverbInfo = {
