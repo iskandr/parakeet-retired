@@ -67,4 +67,6 @@ paranode get_prim(char* prim_name);
 
 void print_ast_node(paranode n);
 
+CAMLprim value mk_val_list(paranode *vals, int num_vals);
+
 #endif

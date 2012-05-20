@@ -63,6 +63,8 @@ and analyze_block ~inFunction scopeInfo nodes =
   fold_block ~inFunction scopeInfo emptyBlockInfo nodes
 
 and analyze_node ~inFunction scopeInfo node =
+  Printf.printf "[analyze_node]\n%!"; 
+  Printf.printf "%s\n---\n%!" (AST.to_str node); 
   match node.data with
   | Type _ 
   | Str _

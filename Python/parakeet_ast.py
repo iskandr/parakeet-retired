@@ -627,26 +627,26 @@ def register_function(f):
   Converter = ASTConverter(global_refs, argspec.args, file_name, line_offset)
   parakeet_syntax = Converter.visit_module(body_ast)
 
-  for other_fn in AST.seen_functions:
+  for other_fn in Converter.seen_functions:
     if not VisitedFunctions.has_key(other_fn):
       print 
       print "...found other_fn", other_fn
       print  
       register_function(other_fn)
 
-  global_vars = list(AST.global_variables)
+  global_vars = list(Converter.global_variables)
   n_globals = len(global_vars)
   globals_array = list_to_ctypes_array(global_vars,c_char_p)
 
-
-  n_defaults = len(argspec.defaults)
+  default_values = [] if argspec.defaults is None else argspec.defaults
+  n_defaults = len(default_values)
   positional = argspec.args[:-n_defaults]
   n_positional = len(positional)
   positional_args_array = list_to_ctypes_array(positional, c_char_p)
-  default_args = arg_names[n_positional:]
+  default_args = argspec.args[n_positional:]
   default_args_array = list_to_ctypes_array(default_args, c_char_p)
   parakeet_default_values = \
-    [python_value_to_parakeet(v) for v in argspec.defaults]
+    [python_value_to_parakeet(v) for v in default_values]
   default_values_array = list_to_ctypes_array(parakeet_default_values)
   
   # register every function that was seen but not registered
@@ -656,7 +656,7 @@ def register_function(f):
     LibPar.register_untyped_function(
       fn_name_c_str, 
       globals_array, n_globals, 
-      postional_args_array, n_positional,
+      positional_args_array, n_positional,
       default_args_array, default_values_array, n_defaults, 
       parakeet_syntax))
 

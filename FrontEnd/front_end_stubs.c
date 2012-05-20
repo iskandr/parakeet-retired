@@ -61,20 +61,35 @@ int register_untyped_function(
         paranode ast) {
 
   CAMLparam0();
-  CAMLlocal5(val_name, val_globals, val_args, val_ast, fn_id);
+
+  CAMLlocal3(val_name, globals_list, args_list);
+  CAMLlocal2(default_arg_names_list, default_arg_values_list);
+  CAMLlocal2(val_ast, fn_id);
+
   printf(":: registering untyped function\n");
 
   printf("  ...copying function name\n");
   val_name = caml_copy_string(name);
 
   printf("  ...copying global names\n");
-  val_globals = build_str_list(globals, num_globals);
+  globals_list = build_str_list(globals, num_globals);
   printf("  ...copying arg names\n");
-  val_args    = build_str_list(args, num_args);
+  args_list    = build_str_list(args, num_args);
 
-  value func_args[4] = { val_name, val_globals, val_args, ast->v};
+  printf("  ...copying default arg names\n");
+  default_arg_names_list = build_str_list(default_args, num_defaults);
+
+  printf("  ...copying default arg values\n");
+  default_arg_values_list = mk_val_list(default_arg_values, num_defaults);
+  val_ast = ast->v;
+  value func_args[6] = {
+    val_name, globals_list, args_list,
+	default_arg_names_list, default_arg_values_list,
+	val_ast
+  };
+
   printf("  ...calling into OCaml's register function\n");
-  fn_id = caml_callbackN(*ocaml_register_untyped_function, 4, func_args);
+  fn_id = caml_callbackN(*ocaml_register_untyped_function, 6, func_args);
 
   CAMLreturnT(int, Int_val(fn_id));
 }

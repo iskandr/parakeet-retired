@@ -13,6 +13,25 @@
 enum ast_exp_no_data {
   Exp_Void = 0
 };
+
+/*
+  | Var of string
+  | Prim of Prim.t
+  | Num of ParNum.t
+  | Str of string
+  | Type of Type.t
+  | NoneVal
+  | Array of node list
+  | Tuple of node list
+  | Call of node * node Args.actual_args
+  | Lambda of node Args.formal_args * node
+  | Assign of node list * node
+  | Return of node list
+  | Block of node list
+  | If of node * node * node
+  | WhileLoop of node * node
+  | CountLoop of node * node
+*/
 enum ast_exp_data {
   Exp_Var,
   Exp_Prim,
@@ -22,8 +41,8 @@ enum ast_exp_data {
   Exp_None, 
   Exp_Array,
   Exp_Tuple,
-  Exp_Lambda,
   Exp_Call,
+  Exp_Lambda,
   Exp_Assign,
   Exp_Return,
   Exp_Block,

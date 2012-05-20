@@ -25,12 +25,11 @@ value *ocaml_get_prim = NULL;
 value *ocaml_print_ast_node = NULL; 
 
 static int ast_inited = 0;
-static CAMLprim value mk_src_info(source_info_t *src_info);
-static paranode mk_num(value num, source_info_t *src_info);
-static CAMLprim value get_value_and_remove_root(paranode p);
-static CAMLprim value mk_val_list(paranode *vals, int num_vals);
-static paranode mk_root(value v);
-static paranode mk_node(value exp, source_info_t *src_info);
+ CAMLprim value mk_src_info(source_info_t *src_info);
+ paranode mk_num(value num, source_info_t *src_info);
+ CAMLprim value get_value_and_remove_root(paranode p);
+ paranode mk_root(value v);
+ paranode mk_node(value exp, source_info_t *src_info);
 
 /** Public interface **/
 
@@ -46,6 +45,7 @@ void ast_init(void) {
 
 paranode mk_lambda(char **args, int num_args, paranode body,
                 source_info_t *src_info) {
+  printf("C: mk_lambda\n");
   CAMLparam0();
   CAMLlocal5(lam, ocaml_str, arg1, arg2, node);
   CAMLlocal1(val_body);
@@ -88,6 +88,7 @@ paranode mk_lambda(char **args, int num_args, paranode body,
 }
 
 paranode mk_var(char *str, source_info_t *src_info) {
+  printf("C: mk_var: %s\n", str);
   CAMLparam0();
   CAMLlocal2(ocaml_str, var);
 
@@ -105,6 +106,7 @@ paranode mk_var(char *str, source_info_t *src_info) {
 }
 
 paranode mk_bool_paranode(int b, source_info_t *src_info) {
+   printf("C: mk_bool: %d\n", b);
    CAMLparam0();
    CAMLlocal1(val);
 
@@ -114,6 +116,7 @@ paranode mk_bool_paranode(int b, source_info_t *src_info) {
 }
 
 paranode mk_int32_paranode(int32_t i, source_info_t *src_info) {
+  printf("C: mk_int32: %d\n", i);
   CAMLparam0();
   CAMLlocal1(val);
 
@@ -133,6 +136,7 @@ paranode mk_int64_paranode(int64_t l, source_info_t *src_info) {
 }
 
 paranode mk_float_paranode(float f, source_info_t *src_info) {
+  printf("C: mk_float: %f\n", f);
   CAMLparam0();
   CAMLlocal1(val);
 
@@ -166,6 +170,7 @@ paranode mk_str(char *str, source_info_t *src_info) {
 
 paranode mk_call(paranode fun, paranode *args, int num_args,
                 source_info_t *src_info) {
+  printf("C: mk_call with %d args\n", num_args);
   CAMLparam0();
   CAMLlocal3(val_fun, app, val_args);
   val_args = mk_val_list(args, num_args);
@@ -178,6 +183,7 @@ paranode mk_call(paranode fun, paranode *args, int num_args,
 }
 
 paranode mk_return(paranode* args, int num_args, source_info_t *src_info) { 
+  printf("C: ast_stubs.mk_return with %d args\n", num_args);
   CAMLparam0();
   CAMLlocal2(ret, ret_args);
   ret_args = mk_val_list(args, num_args);
@@ -197,7 +203,8 @@ paranode mk_array(paranode *elts, int num_elts, source_info_t *src_info) {
 
 paranode mk_if(paranode cond_node, paranode true_node, paranode false_node,
                source_info_t *src_info) {
-  CAMLparam0();
+  printf("C: ast_stubs.mk_if\n");
+	CAMLparam0();
   CAMLlocal4(val_cond, val_true, val_false, if_node);
 
   if_node = caml_alloc(3, Exp_If);
@@ -299,7 +306,7 @@ void print_ast_node(paranode n) {
 
 /** Private functions **/
 
-static paranode mk_num(value val, source_info_t *src_info) {
+paranode mk_num(value val, source_info_t *src_info) {
   CAMLparam1(val);
   CAMLlocal1(num);
 
@@ -309,7 +316,7 @@ static paranode mk_num(value val, source_info_t *src_info) {
   CAMLreturnT(paranode, mk_node(num, src_info));
 }
 
-static CAMLprim value mk_src_info(source_info_t *src_info) {
+CAMLprim value mk_src_info(source_info_t *src_info) {
   CAMLparam0();
   CAMLlocal3(ocaml_src_info, file, some_none);
   
@@ -339,7 +346,7 @@ static CAMLprim value mk_src_info(source_info_t *src_info) {
   CAMLreturn(ocaml_src_info);
 }
 
-static CAMLprim value get_value_and_remove_root(paranode node) {
+CAMLprim value get_value_and_remove_root(paranode node) {
   CAMLparam0();
   CAMLlocal1(val);
   paranode_t* p = (paranode_t*)node;
@@ -349,7 +356,7 @@ static CAMLprim value get_value_and_remove_root(paranode node) {
   CAMLreturn(val);
 }
 
-static CAMLprim value mk_val_list(paranode *vals, int num_vals) {
+ CAMLprim value mk_val_list(paranode *vals, int num_vals) {
   CAMLparam0();
   CAMLlocal2(val1, val2);
 
@@ -374,7 +381,7 @@ static CAMLprim value mk_val_list(paranode *vals, int num_vals) {
   CAMLreturn(val1);
 }
 
-static paranode mk_root(value v) {
+paranode mk_root(value v) {
   CAMLparam1(v);
   paranode_t* p = (paranode_t*)malloc(sizeof(paranode_t));
   caml_register_global_root(&(p->v));
@@ -382,7 +389,7 @@ static paranode mk_root(value v) {
   CAMLreturnT(paranode, p);
 }
 
-static paranode mk_node(value exp, source_info_t *src_info) {
+paranode mk_node(value exp, source_info_t *src_info) {
   CAMLparam1(exp);
   CAMLlocal3(ocaml_src_info, ast_info, node);
 
