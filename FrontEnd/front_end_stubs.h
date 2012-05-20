@@ -59,8 +59,12 @@ typedef struct return_val {
 void front_end_init(void);
 
 /** Execution interface **/
-int register_untyped_function(char *name, char **globals, int num_globals,
-                              char **args, int num_args, paranode ast);
+int register_untyped_function(
+		char *name,
+		char **globals, int num_globals,
+		char **args, int num_args,
+		char **default_args, paranode *default_arg_values, int num_defaults,
+		paranode ast);
 
 return_val_t run_function(int id, 
     host_val *globals, int num_globals,

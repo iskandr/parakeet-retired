@@ -110,5 +110,3 @@ def list_to_ctypes_array(input_list, t = c_void_p):
   print "[list_to_ctypes_array] output:", arr
   return arr
 
-  
-  

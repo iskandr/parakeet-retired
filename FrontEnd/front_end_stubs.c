@@ -46,17 +46,34 @@ void front_end_init(void) {
   ocaml_set_multithreading = caml_named_value("set_multithreading");
 }
 
-int register_untyped_function(char *name, char **globals, int num_globals,
-                              char **args, int num_args, paranode ast) {
+/*     LibPar.register_untyped_function(
+      fn_name_c_str,
+      globals_array, n_globals,
+      postional_args_array, n_positional,
+      default_args_array, default_values_array, n_defaults,
+      parakeet_syntax))
+      */
+int register_untyped_function(
+		char *name,
+		char **globals, int num_globals,
+        char **args, int num_args,
+        char **default_args, paranode *default_arg_values, int num_defaults,
+        paranode ast) {
+
   CAMLparam0();
   CAMLlocal5(val_name, val_globals, val_args, val_ast, fn_id);
- 
+  printf(":: registering untyped function\n");
+
+  printf("  ...copying function name\n");
   val_name = caml_copy_string(name);
 
+  printf("  ...copying global names\n");
   val_globals = build_str_list(globals, num_globals);
+  printf("  ...copying arg names\n");
   val_args    = build_str_list(args, num_args);
 
   value func_args[4] = { val_name, val_globals, val_args, ast->v};
+  printf("  ...calling into OCaml's register function\n");
   fn_id = caml_callbackN(*ocaml_register_untyped_function, 4, func_args);
 
   CAMLreturnT(int, Int_val(fn_id));
