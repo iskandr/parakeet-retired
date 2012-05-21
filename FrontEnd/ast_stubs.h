@@ -27,6 +27,8 @@ typedef struct source_info {
 /** Initialization function - call before using any creation functions **/
 void ast_init(void);
 
+CAMLprim value build_str_list(char **strs, int num_strs);
+
 /** paranode creation functions **/
 paranode mk_lambda(char **args, int num_args, paranode body,
                 source_info_t *src_info);
@@ -41,9 +43,10 @@ paranode mk_double_paranode(double d, source_info_t *src_info);
 
 paranode mk_str(char *str, source_info_t *src_info);
 
-/** Accepts an array of args **/
+
 paranode mk_call(paranode fun, paranode *args, int num_args,
-                source_info_t *src_info);
+		  char** keywords, paranode* keyword_values, int num_keyword_args,
+		  source_info_t *src_info);
 
 paranode mk_return(paranode* args, int num_args, source_info_t *src_info);
 

@@ -1,5 +1,12 @@
 open AST
 
+val mk_formal_args : 
+  string list -> string list -> node list -> node Args.formal_args
+
+val mk_actual_args : 
+  node list -> string list -> node list -> node Args.actual_args
+
+
 val mk_node : ?info:ast_info -> ?src:SrcInfo.t -> exp -> node
 
 val mk_str_node : ?info:ast_info -> ?src:SrcInfo.t -> string -> node
@@ -10,6 +17,8 @@ val update_block_node : node -> node list -> node
 
 val mk_array_node : ?info:ast_info -> ?src:SrcInfo.t -> node list -> node
 val update_array_node : node -> node list -> node
+
+
 
 val mk_call_node : 
   ?info:ast_info -> ?src:SrcInfo.t -> node -> node Args.actual_args -> node

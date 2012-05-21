@@ -23,6 +23,8 @@
 value *ocaml_mk_ast_info = NULL;
 value *ocaml_get_prim = NULL;
 value *ocaml_print_ast_node = NULL; 
+value *ocaml_mk_formal_args = NULL;
+value *ocaml_mk_actual_args = NULL;
 
 static int ast_inited = 0;
  CAMLprim value mk_src_info(source_info_t *src_info);
@@ -41,7 +43,36 @@ void ast_init(void) {
   ocaml_mk_ast_info    = caml_named_value("mk_ast_info");
   ocaml_print_ast_node = caml_named_value("print_ast_node"); 
   ocaml_get_prim       = caml_named_value("get_prim");
+  ocaml_mk_formal_args = caml_named_value("mk_formal_args");
+  ocaml_mk_actual_args = caml_named_value("mk_actual_args");
 }
+
+
+CAMLprim value build_str_list(char **strs, int num_strs) {
+  CAMLparam0();
+  CAMLlocal3(ocaml_str, cons1, cons2);
+
+  int i;
+  if (num_strs > 0) {
+    ocaml_str = caml_copy_string(strs[num_strs - 1]);
+    cons1 = caml_alloc_tuple(2);
+    Store_field(cons1, 0, ocaml_str);
+    Store_field(cons1, 1, Val_int(0));
+
+    for (i = num_strs - 2; i >= 0; --i) {
+      ocaml_str = caml_copy_string(strs[i]);
+      cons2 = caml_alloc_tuple(2);
+      Store_field(cons2, 0, ocaml_str);
+      Store_field(cons2, 1, cons1);
+      cons1 = cons2;
+    }
+  } else {
+    cons1 = Val_int(0);
+  }
+
+  CAMLreturn(cons1);
+}
+
 
 paranode mk_lambda(char **args, int num_args, paranode body,
                 source_info_t *src_info) {
@@ -168,17 +199,29 @@ paranode mk_str(char *str, source_info_t *src_info) {
   CAMLreturnT(paranode, mk_node(exp_str, src_info));
 }
 
-paranode mk_call(paranode fun, paranode *args, int num_args,
-                source_info_t *src_info) {
-  printf("C: mk_call with %d args\n", num_args);
+paranode mk_call(
+		  paranode fun,
+		  paranode *args,
+		  int num_args,
+		  char** keywords,
+		  paranode* keyword_values,
+		  int num_keyword_args,
+          source_info_t *src_info) {
+  printf("C: mk_call with %d positional args and %d keyword args\n",
+		  num_args, num_keyword_args);
   CAMLparam0();
-  CAMLlocal3(val_fun, app, val_args);
-  val_args = mk_val_list(args, num_args);
+  CAMLlocal5(val_fun, args_list, kwd_list, kwd_values_list, app);
+  CAMLlocal1(actual_args);
+  args_list = mk_val_list(args, num_args);
+  kwd_list = build_str_list(keywords, num_keyword_args);
+  kwd_values_list = mk_val_list(keyword_values, num_keyword_args);
+  actual_args = \
+    caml_callback3(*ocaml_mk_actual_args, args_list, kwd_list, kwd_values_list);
+
   val_fun = get_value_and_remove_root(fun);
   app = caml_alloc(2, Exp_Call);
   Store_field(app, 0, val_fun);
-  Store_field(app, 1, val_args);
-
+  Store_field(app, 1, actual_args);
   CAMLreturnT(paranode, mk_node(app, src_info));
 }
 

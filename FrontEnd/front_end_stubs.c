@@ -28,7 +28,7 @@ value *ocaml_set_vectorize             = NULL;
 value *ocaml_set_multithreading        = NULL;
 int fe_inited = 0;
 
-static CAMLprim value build_str_list(char **strs, int num_strs);
+
 static CAMLprim value build_host_val_list(host_val *vals, int num_vals);
 static int ocaml_list_length(value l);
 
@@ -246,31 +246,6 @@ void set_multithreading(int val) {
 }
 
 /** Private functions **/
-
-static CAMLprim value build_str_list(char **strs, int num_strs) {
-  CAMLparam0();
-  CAMLlocal3(ocaml_str, cons1, cons2);
-
-  int i;
-  if (num_strs > 0) {
-    ocaml_str = caml_copy_string(strs[num_strs - 1]);
-    cons1 = caml_alloc_tuple(2);
-    Store_field(cons1, 0, ocaml_str);
-    Store_field(cons1, 1, Val_int(0));
-
-    for (i = num_strs - 2; i >= 0; --i) {
-      ocaml_str = caml_copy_string(strs[i]);
-      cons2 = caml_alloc_tuple(2);
-      Store_field(cons2, 0, ocaml_str);
-      Store_field(cons2, 1, cons1);
-      cons1 = cons2;
-    }
-  } else {
-    cons1 = Val_int(0);
-  }
-
-  CAMLreturn(cons1);
-}
 
 static CAMLprim value build_host_val_list(host_val *vals, int num_vals) {
   CAMLparam0();

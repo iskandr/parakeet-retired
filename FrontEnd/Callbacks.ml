@@ -17,6 +17,8 @@ let _ = Callback.register "shape_rank" Shape.rank
 (*** AST ***)
 let _ = Callback.register "mk_ast_info" AST.mk_ast_info
 let _ = Callback.register "print_ast_node" AST.print_ast_node
+let _ = Callback.register "mk_formal_args" AST_Helpers.mk_formal_args
+let _ = Callback.register "mk_actual_args" AST_Helpers.mk_actual_args
 
 (*** TYPE ***)
 let _ = Callback.register "type_sizeof" Type.sizeof
