@@ -69,7 +69,7 @@ and analyze_node ~inFunction scopeInfo node =
   | Type _ 
   | Str _
   | Num _
-  | NoneVal -> scopeInfo
+  | NoneVal () -> scopeInfo
   | Var name ->
     let isLocal = StrSet.mem name scopeInfo.locals in
     if inFunction &&  isLocal then

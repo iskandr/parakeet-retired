@@ -38,7 +38,6 @@ enum ast_exp_data {
   Exp_Num,
   Exp_Str,
   Exp_Type,
-  Exp_None, 
   Exp_Array,
   Exp_Tuple,
   Exp_Call,
@@ -48,7 +47,8 @@ enum ast_exp_data {
   Exp_Block,
   Exp_If,
   Exp_WhileLoop,
-  Exp_CountLoop, 
+  Exp_CountLoop,
+  Exp_None
 };
 
 #endif

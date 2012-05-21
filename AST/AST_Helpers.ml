@@ -65,7 +65,7 @@ let update_if_node ast condNode tNode fNode =
   {ast with data=If(condNode,tNode,fNode)}
 
 let mk_none_node ?(info=mk_ast_info()) ?(src=SrcInfo.empty) () =
-  mk_node ~info ~src NoneVal
+  mk_node ~info ~src (NoneVal())
 
 let mk_iftrue_node ?(info=mk_ast_info()) ?(src=SrcInfo.empty)
    condNode trueNodes =
@@ -119,7 +119,7 @@ let rec flatten_block ast = match ast.data with
   | _ -> ast
 
 let rec is_void_recursive astNode = match astNode.data with
-  | NoneVal
+  | NoneVal ()
   | Block [] -> true
   | Block nodes -> List.for_all is_void_recursive nodes
   | _ -> false

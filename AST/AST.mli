@@ -34,7 +34,6 @@ type exp =
   | Num of ParNum.t
   | Str of string
   | Type of Type.t 
-  | NoneVal
   | Array of node list
   | Tuple of node list
   | Call of node * ( node Args.actual_args)
@@ -45,6 +44,7 @@ type exp =
   | If of node * node * node
   | WhileLoop of node * node
   | CountLoop of node * node
+  | NoneVal of unit 
 
 and node = {
   data:exp;

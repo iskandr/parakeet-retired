@@ -237,6 +237,7 @@ paranode mk_assign(paranode* lhs, int num_ids, paranode rhs,
 }
 
 paranode mk_block(paranode *stmts, int num_stmts, source_info_t *src_info) {
+  printf("C: Making you a block of %d statements\n", num_stmts);
   CAMLparam0();
   CAMLlocal2(block, stmt_list);
   stmt_list = mk_val_list(stmts, num_stmts);

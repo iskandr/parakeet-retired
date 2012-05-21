@@ -90,7 +90,6 @@ type exp =
   | Num of ParNum.t
   | Str of string
   | Type of Type.t 
-  | NoneVal
   | Array of node list
   | Tuple of node list
   | Call of node * node Args.actual_args 
@@ -101,6 +100,9 @@ type exp =
   | If of node * node * node
   | WhileLoop of node * node
   | CountLoop of node * node
+  (* yes, making NoneVal carry a value is  pointless *)
+  (* but it makes the C representation uniform *)
+  | NoneVal of unit 
 
 and node = {
   data:exp;
@@ -117,7 +119,9 @@ let uses node =
 let id x = x
 
 let rec to_str node = 
+  
   Printf.printf "In a thing!\n%!";
+  print_string (dump node); 
   match node.data with
   | Var name -> 
     Printf.printf "Var %s\n%!" name; 
@@ -137,7 +141,7 @@ let rec to_str node =
   | Type t -> 
     Printf.printf "Type\n%!";
     "type(" ^ Type.to_str t ^ ")" 
-  | NoneVal -> 
+  | NoneVal () -> 
     Printf.printf "None\n%!";
     "None" 
   | Array elts -> 

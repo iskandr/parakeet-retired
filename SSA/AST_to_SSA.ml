@@ -104,7 +104,7 @@ let rec translate_exp
   | AST.Var name -> value $ Env.lookup env name
   | AST.Prim p -> value (UntypedSSA.Prim p)
   | AST.Num n -> value (UntypedSSA.Num n)
-  | AST.NoneVal -> value UntypedSSA.NoneVal
+  | AST.NoneVal () -> value UntypedSSA.NoneVal
   | AST.Type _ -> failwith "Types as values not implemented"
   | AST.Tuple elts -> failwith "tuples not implemented"
   | AST.Call (fn, args) -> translate_app env block fn args node.src
@@ -127,7 +127,7 @@ and translate_value env block node : UntypedSSA.value_node =
   | AST.Var name -> UntypedSSA.wrap_value (Env.lookup env name)
   | AST.Prim p -> UntypedSSA.wrap_value (UntypedSSA.Prim p)
   | AST.Num n -> UntypedSSA.wrap_value (UntypedSSA.Num n)
-  | AST.NoneVal -> UntypedSSA.wrap_value UntypedSSA.NoneVal
+  | AST.NoneVal () -> UntypedSSA.wrap_value UntypedSSA.NoneVal
   (* anything not an immediate value must be evaluated in its own statement
      and then named
   *)
@@ -139,7 +139,7 @@ and translate_axes env block astNode = match astNode.data with
   | AST.Tuple axes 
   | AST.Array axes -> Some (translate_values env block axes)
   | AST.Num n -> Some ([UntypedSSA.ValueHelpers.num ~src:astNode.src n])
-  | AST.NoneVal -> None
+  | AST.NoneVal () -> None
   | other ->
     failwith $ Printf.sprintf "Unrecognized axes arg: %s" (AST.to_str astNode)
 
