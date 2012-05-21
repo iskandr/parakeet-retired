@@ -407,6 +407,7 @@ and translate_fn
   in
   let retIds = ID.gen_named_list "ret" returnArity in
   let argNames = Args.all_formal_names args in 
+  Printf.printf "[AST_to_SSA] Formal args: %s\n" (String.concat ", " argNames); 
   let argIds =  List.map ID.gen_named argNames in
   let argNamesToIds = String.Map.of_lists argNames argIds in 
   (* map string names to their SSA identifiers --

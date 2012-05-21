@@ -238,7 +238,6 @@ def build_num(num, src_info = None):
   """
   Given the string form of a number, build a syntax node for an int or float
   """
-  #num = eval(str_num)
   if type(num) == int:
     return LibPar.mk_int32_paranode(num, src_addr(src_info))
   elif type(num) == float:
@@ -347,15 +346,15 @@ class ASTConverter():
     return self.visit_stmt_sequence(node.body)
     
   
-  def visit_stmt_sequence(self, stmts):
+  def visit_stmt_sequence(self, stmts, src_info=None):
     print "visit_stmt_seq"
-    return mk_block([self.visit_stmt(stmt) for stmt in stmts])
+    return mk_block([self.visit_stmt(stmt) for stmt in stmts], src_info)
 
   def visit_stmt(self, node, src_info = None):
     print "visit_stmt", node
     srcAddr = src_addr(src_info)
     if isinstance(node, ast.If):
-      test = self.visit_expr(test)
+      test = self.visit_expr(node.test)
       if_true = self.visit_stmt_sequence(node.body, src_info)
       if_false = self.visit_stmt_sequence(node.orelse, src_info)
       return LibPar.mk_if(test, if_true, if_false, srcAddr)
@@ -638,9 +637,14 @@ def register_function(f):
   n_globals = len(global_vars)
   globals_array = list_to_ctypes_array(global_vars,c_char_p)
 
-  default_values = [] if argspec.defaults is None else argspec.defaults
+  if argspec.defaults is None:
+    default_values = []
+    positional = argspec.args 
+  else:
+    default_values = argspec.defaults
+    positional = argspec.args[:-len(default_values)]
+  
   n_defaults = len(default_values)
-  positional = argspec.args[:-n_defaults]
   n_positional = len(positional)
   positional_args_array = list_to_ctypes_array(positional, c_char_p)
   default_args = argspec.args[n_positional:]
@@ -649,6 +653,9 @@ def register_function(f):
     [python_value_to_parakeet(v) for v in default_values]
   default_values_array = list_to_ctypes_array(parakeet_default_values)
   
+  print 
+  print "ARGS", positional, default_args 
+  print 
   # register every function that was seen but not registered
 
   fn_name_c_str = c_char_p(global_fn_name(f))
