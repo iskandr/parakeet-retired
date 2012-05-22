@@ -22,14 +22,19 @@ let register_untyped_function
       ~(default_arg_names:string list)
       ~(default_arg_values:AST.node list)
       ~(body: AST.node) =
+  Printf.printf "REGISTER COMPACT\n%!";
+  Gc.compact();
+  Gc.compact(); 
   assert (List.length default_arg_names = List.length default_arg_values); 
   let _ = Analyze_AST.analyze_ast body in
+  Printf.printf "-- Creating global env for SSA conversion\n%!"; 
   let ssaEnv = AST_to_SSA.Env.GlobalScope FnManager.get_untyped_id in
   let args = { 
     Args.names = globals@positional_args;
     defaults = List.combine default_arg_names default_arg_values
   }
-  in  
+  in
+  Printf.printf "-- Doing SSA conversion\n%!";   
   let fn = AST_to_SSA.translate_fn ~name ssaEnv args body in
   FnManager.add_untyped name fn;
   fn.UntypedSSA.fn_id
@@ -69,6 +74,9 @@ let run_function
       ~(positional_args:Ptr.t Value.t list)
       ~(keyword_names:string list)
       ~(keyword_values : Ptr.t Value.t list) : ret_val =
+  Printf.printf "RUN | COMPACT\n%!";
+  Gc.compact();
+  Gc.compact(); 
   assert (List.length keyword_names = List.length keyword_values); 
   let actuals = { 
     Args.values = globals @ positional_args;

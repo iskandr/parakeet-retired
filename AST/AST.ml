@@ -119,9 +119,7 @@ let uses node =
 let id x = x
 
 let rec to_str node = 
-  
-  Printf.printf "In a thing!\n%!";
-  print_string (dump node); 
+
   match node.data with
   | Var name -> 
     Printf.printf "Var %s\n%!" name; 

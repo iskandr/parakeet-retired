@@ -27,9 +27,9 @@ value *ocaml_mk_formal_args = NULL;
 value *ocaml_mk_actual_args = NULL;
 
 static int ast_inited = 0;
- CAMLprim value mk_src_info(source_info_t *src_info);
+ value mk_src_info(source_info_t *src_info);
  paranode mk_num(value num, source_info_t *src_info);
- CAMLprim value get_value_and_remove_root(paranode p);
+ value get_value_and_remove_root(paranode p);
  paranode mk_root(value v);
  paranode mk_node(value exp, source_info_t *src_info);
 
@@ -48,7 +48,7 @@ void ast_init(void) {
 }
 
 
-CAMLprim value build_str_list(char **strs, int num_strs) {
+value build_str_list(char **strs, int num_strs) {
   CAMLparam0();
   CAMLlocal3(ocaml_str, cons1, cons2);
 
@@ -88,18 +88,20 @@ paranode mk_lambda(char **args, int num_args, paranode body,
   // Build the args list
   if (num_args > 0) {
     // Create the tail of the list
-    len  = strlen(args[num_args - 1]);
-    ocaml_str = caml_alloc_string(len);
-    memcpy(String_val(ocaml_str), args[num_args - 1], len);
+    ocaml_str = caml_copy_string(args[num_args - 1]);
+    //ocaml_str = caml_alloc_string(len);
+    //len  = strlen(args[num_args - 1]);
+    //memcpy(String_val(ocaml_str), args[num_args - 1], len);
     arg1 = caml_alloc_tuple(2);
     Store_field(arg1, 0, ocaml_str);
     Store_field(arg1, 1, Val_int(0));
 
     // Extract each arg and add it to the OCaml list
     for (i = num_args - 2; i >= 0; --i) {
-      len = strlen(args[i]);
-      ocaml_str = caml_alloc_string(len);
-      memcpy(String_val(ocaml_str), args[i], len);
+      ocaml_str = caml_copy_string(args[i]);
+      //len = strlen(args[i]);
+      //ocaml_str = caml_alloc_string(len);
+      //memcpy(String_val(ocaml_str), args[i], len);
       arg2 = caml_alloc_tuple(2);
       Store_field(arg2, 0, ocaml_str);
       Store_field(arg2, 1, arg1);
@@ -119,14 +121,16 @@ paranode mk_lambda(char **args, int num_args, paranode body,
 }
 
 paranode mk_var(char *str, source_info_t *src_info) {
+
   printf("C: mk_var: %s\n", str);
   CAMLparam0();
   CAMLlocal2(ocaml_str, var);
 
+  ocaml_str = caml_copy_string(str);
   // copy over the string
-  int len = strlen(str);
-  ocaml_str = caml_alloc_string(len);
-  memcpy(String_val(ocaml_str), str, len);
+  //int len = strlen(str);
+  //ocaml_str = caml_alloc_string(len);
+  //memcpy(String_val(ocaml_str), str, len);
 
   // build the var expression
   var = caml_alloc(1, Exp_Var);
@@ -189,9 +193,10 @@ paranode mk_str(char *str, source_info_t *src_info) {
   CAMLparam0();
   CAMLlocal2(ocaml_str, exp_str);
 
-  int len = strlen(str);
-  ocaml_str = caml_alloc_string(len);
-  memcpy(String_val(ocaml_str), str, len);
+  ocaml_str = caml_copy_string(str);
+  //int len = strlen(str);
+  //ocaml_str = caml_alloc_string(len);
+  //memcpy(String_val(ocaml_str), str, len);
 
   exp_str = caml_alloc(1, Exp_Str);
   Store_field(exp_str, 0, ocaml_str);
@@ -328,10 +333,11 @@ paranode get_prim(char* prim_name) {
   CAMLparam0();
   CAMLlocal2(ocaml_str, prim);
 
+  ocaml_str = caml_copy_string(prim_name);
   // copy over the string
-  int len = strlen(prim_name);
-  ocaml_str = caml_alloc_string(len);
-  memcpy(String_val(ocaml_str), prim_name, len);
+  //int len = strlen(prim_name);
+  //ocaml_str = caml_alloc_string(len);
+  //memcpy(String_val(ocaml_str), prim_name, len);
 
   // build the var expression
   prim = caml_callback(*ocaml_get_prim, ocaml_str);
@@ -360,16 +366,19 @@ paranode mk_num(value val, source_info_t *src_info) {
   CAMLreturnT(paranode, mk_node(num, src_info));
 }
 
-CAMLprim value mk_src_info(source_info_t *src_info) {
+value mk_src_info(source_info_t *src_info) {
   CAMLparam0();
   CAMLlocal3(ocaml_src_info, file, some_none);
   printf("C: Making source info");
   if (src_info) {
     if (src_info->filename) {
       printf("Src info filename: %s\n", src_info->filename);
-      int len = strlen(src_info->filename);
-      file = caml_alloc_string(len);
-      memcpy(String_val(file), src_info->filename, len);
+
+      file = caml_copy_string(src_info->filename);
+      //int len = strlen(src_info->filename);
+      //file = caml_alloc_string(len);
+      //memcpy(String_val(file),src_info->filename , len);
+
       some_none = caml_alloc_tuple(1);
       Store_field(some_none, 0, file);
     } else {
@@ -390,7 +399,7 @@ CAMLprim value mk_src_info(source_info_t *src_info) {
   CAMLreturn(ocaml_src_info);
 }
 
-CAMLprim value get_value_and_remove_root(paranode node) {
+value get_value_and_remove_root(paranode node) {
   CAMLparam0();
   CAMLlocal1(val);
   paranode_t* p = (paranode_t*)node;
@@ -400,7 +409,7 @@ CAMLprim value get_value_and_remove_root(paranode node) {
   CAMLreturn(val);
 }
 
- CAMLprim value mk_val_list(paranode *vals, int num_vals) {
+ value mk_val_list(paranode *vals, int num_vals) {
   CAMLparam0();
   CAMLlocal2(val1, val2);
 
