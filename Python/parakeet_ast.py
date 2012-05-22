@@ -131,39 +131,14 @@ def build_var(name, src_info = None):
   else:
     return LibPar.mk_var(c_char_p(name), src_addr(src_info))
 
-def build_fn_node(src_info, python_fn):
-  if python_fn in ParakeetOperators:
-    parakeet_prim_name = ParakeetOperators[python_fn]
-    parakeet_fn = ast_prim(parakeet_prim_name)
-    if parakeet_prim_name is None:
-      raise RuntimeError("[Parakeet] Support for %s not implemented" %
-                         python_fn)
-  elif python_fn in NumpyArrayMethods:
-    parakeet_prim_name = NumpyArrayMethods[python_fn]
-    parakeet_fn = ast_prim(parakeet_prim_name)
-    if parakeet_prim_name is None:
-      raise RuntimError("[Parakeet] Support for %s not implemented" %
-                        python_fn)
-  elif python_fn in NumpyArrayAttributes:
-    parakeet_prim_name = NumpyArrayAttributes[python_fn]
-    parakeet_fn = ast_prim(parakeet_prim_name)
-    if parakeet_prim_name is None:
-      raise RuntimError("[Parakeet] Support for %s not implemented" %
-                        python_fn)
-  else:
-    parakeet_fn = build_var(global_fn_name(python_fn), src_info)
-  return parakeet_fn
 
-#Function to get ast node(s) for built-in functions/primitives
-def ast_prim(sym):
-  return c_void_p(LibPar.get_prim(sym))
 
-    
 class ParakeetUnsupported(Exception):
   def __init__(self, value):
     self.value = value
   def __str__(self):
-    return repr(self.value)
+    return "[Parakeet] " + repr(self.value)
+
 
 # always assume functions have a module but
 def global_fn_name(fn, default_name="<unknown_function>"):
@@ -176,23 +151,29 @@ def global_fn_name(fn, default_name="<unknown_function>"):
   else:
     return moduleName + "." + default_name
 
-def name_of_ast_node(op):
-  return op.__class__.__name__
+def build_fn_node(python_fn, src_info):
+  if python_fn in ParakeetOperators:
+    parakeet_prim_name = ParakeetOperators[python_fn]
+    parakeet_fn = ast_prim(parakeet_prim_name)
+    if parakeet_prim_name is None:
+      raise ParakeetUnsupported("Support for %s not implemented" %
+                         python_fn)
+  elif python_fn in NumpyArrayMethods:
+    parakeet_prim_name = NumpyArrayMethods[python_fn]
+    parakeet_fn = ast_prim(parakeet_prim_name)
+    if parakeet_prim_name is None:
+      raise ParakeetUnsupported("[Parakeet] Support for %s not implemented" %
+                        python_fn)
+  elif python_fn in NumpyArrayAttributes:
+    parakeet_prim_name = NumpyArrayAttributes[python_fn]
+    parakeet_fn = ast_prim(parakeet_prim_name)
+    if parakeet_prim_name is None:
+      raise ParakeetUnsupported("[Parakeet] Support for %s not implemented" %
+                        python_fn)
+  else:
+    parakeet_fn = build_var(global_fn_name(python_fn), src_info)
+  return parakeet_fn
 
-
-
-  
-def mk_return(elts, src_info=None):
-  arr = list_to_ctypes_array(elts) if len(elts) > 0 else None
-  return LibPar.mk_return(arr, len(elts), src_addr(src_info))
-
-def mk_array(elts, src_info = None):
-  arr = list_to_ctypes_array(elts)
-  return LibPar.mk_array(arr, len(elts), src_addr(src_info))
-
-def mk_block(stmts, src_info = None):
-  arr = list_to_ctypes_array(stmts)
-  return LibPar.mk_block(arr, len(stmts), src_addr(src_info))
 
 
 def mk_call(fn, positional_args, kw_names = [], kw_values = [], src_info=None):
@@ -213,8 +194,8 @@ def build_call(self, python_fn, args, kw_args = {}, src_info = None):
     higher-level helper for building a function call. 
     Assumes that the function is a Python object which needs
     to be translated into a Parakeet node 
-  """ 
-  parakeet_fn = build_fn_node(src_info, python_fn)
+  """
+  parakeet_fn = build_fn_node(python_fn, src_info)
   kw_names = []
   kw_values = []
   for k,v in kw_args.items():
@@ -222,6 +203,12 @@ def build_call(self, python_fn, args, kw_args = {}, src_info = None):
     kw_values.append(v)
   return mk_call(parakeet_fn, args, kw_names, kw_values, src_info)
    
+
+
+#Function to get ast node(s) for built-in functions/primitives
+def ast_prim(sym):
+  return c_void_p(LibPar.get_prim(sym))
+
 
 def build_prim_call(python_op_name, args, src_info = None):
   """
@@ -231,10 +218,43 @@ def build_prim_call(python_op_name, args, src_info = None):
   """
   parakeet_op_name = BuiltinPrimitives[python_op_name]
   if parakeet_op_name is None:
-    raise RuntimeError('Prim not implemented: %s' % python_op_name)
+    raise ParakeetUnsupported('Prim not implemented: %s' % python_op_name)
   else:
     prim = ast_prim(parakeet_op_name)
   return mk_call(prim, args, src_info = src_info)
+
+    
+
+def name_of_ast_node(op):
+  return op.__class__.__name__
+
+def flatten_var_attrs(node):
+  """
+  Given an AST subtree of attributes on top of a Name, 
+  flatten all the variables into a single list
+  """
+  parts = []
+  while not isinstance(node, ast.Name):
+    assert isinstance(node, ast.Name) or isinstance(node, ast.Attribute)
+    parts.append(node.attr) 
+    node = node.value
+  parts.append(node.id)  
+  return reversed(parts)
+
+def get_global_var_name(node):
+  return ".".join(flatten_var_attrs(node))
+  
+def mk_return(elts, src_info=None):
+  arr = list_to_ctypes_array(elts) if len(elts) > 0 else None
+  return LibPar.mk_return(arr, len(elts), src_addr(src_info))
+
+def mk_array(elts, src_info = None):
+  arr = list_to_ctypes_array(elts)
+  return LibPar.mk_array(arr, len(elts), src_addr(src_info))
+
+def mk_block(stmts, src_info = None):
+  arr = list_to_ctypes_array(stmts)
+  return LibPar.mk_block(arr, len(stmts), src_addr(src_info))
 
 
 
@@ -255,6 +275,14 @@ def build_num(num, src_info = None):
 ###############################################################################
 #  Converter
 ###############################################################################
+
+class InvalidFunction(Exception):
+  def __init__(self, value):
+    self.value = value
+  def __str__(self):
+    return repr(self.value)
+
+
 class ASTConverter():
   def __init__(self, global_refs, arg_names, file_name, line_offset):
     self.seen_functions = set([])
@@ -263,67 +291,6 @@ class ASTConverter():
     self.file_name = file_name
     self.line_offset = line_offset
     self.global_refs = global_refs
-
-
-  def get_function_ref(self, node):
-    if isinstance(node, ast.Name):
-      funName = node.id
-      if funName in self.global_refs:
-        funRef = self.global_refs[funName]
-      elif funName in __builtins__:
-        funRef = __builtins__[funName]
-      else:
-        raise RuntimeError("[Parakeet] Couldn't find:" + funName)
-    elif isinstance(name, ast.Attribute):
-      #For function calls like mod1.mod2.mod4.fun()
-      moduleList = []
-      nextNode = node
-      funName = node.attr
-      #Get a list of the chain of modules
-
-      while instance(nextNode, ast.Attribute):
-        moduleList = [nextNode.attr] + moduleList
-        nextNode = nextNode.value
-
-      currModule = self.global_refs[nextNode.id]
-
-      for m in moduleList:
-        try:
-          currModule = currModule.__dict__[m]
-        except AttributeError:
-          if currModule in ValidObjects:
-            currModule = currModule.__getattribute__(m)
-          elif m in NumpyArrayMethods and m == moduleList[-1]:
-            currModule = currModule.__getattribute__(m)
-          elif m in NumpyArrayMethods:
-            raise RuntimeError("[Parakeet] %s is invalid?" %
-                               moduleList.join('.'))
-          else:
-            raise RuntimeError("[Parakeet] Invalid object %s" % currModule)
-      funRef = currModule
-    else:
-      raise RuntimeError("[Parakeet] Call.func shouldn't be", name)
-    
-    if not hasattr(funRef, '__call__'):
-      return None
-    if funRef in AutoTranslate:
-      funRef = AutoTranslate[funRef]
-    if not hasattr(funRef,'__self__') or not funRef.__self__:
-      self.seen_functions.add(funRef)
-    return funRef
-
-  def register_if_function(self, node):
-    #Alex: Right now this will crash if a local variable method is an argument,
-    #because the local method won't be registered or translated
-    try:
-      node_name = self.get_global_var_name(node)
-      if node_name.split('.')[0] in self.arg_names and (
-        len(node_name.split('.')) > 1):
-        raise "[Parakeet] %s is not a valid function argument" % node_name
-      return self.get_function_ref(node)
-    except RuntimeError:
-      return None
-
 
 
   def visit_module(self, node):
@@ -381,6 +348,11 @@ class ASTConverter():
       raise RuntimeError("Unsupported statement" + str(node))
 
   def visit_assign(self, lhs, rhs, src_info = None):
+    """
+    On the left-hand-side of an assignment we allow either a variable
+    or a tuple of variables. Anything else should signal an error.
+    The right-hand-side is expected to be an expression (and not a statement).
+    """  
     def mk_lhs_var(node):
       return build_var(node.id, self.build_src_info(node))
     if isinstance(lhs, ast.Name):
@@ -392,8 +364,7 @@ class ASTConverter():
       raise RuntimeError("Unsupported LHS")
     rhs = self.visit_expr(rhs)
     return LibPar.mk_assign(list_to_ctypes_array(vars), len(vars), rhs)
-    
-          
+       
   def visit_return(self, node, src_info = None):
     if node.value is None:
       values = []
@@ -403,10 +374,78 @@ class ASTConverter():
       values = [self.visit_expr(node.value)]
     print values 
     return mk_return(values, src_info)
+
+
+  def get_function_ref(self, node):
+    if isinstance(node, ast.Name):
+      funName = node.id
+      if funName in self.global_refs:
+        funRef = self.global_refs[funName]
+      elif funName in __builtins__:
+        funRef = __builtins__[funName]
+      else:
+        raise InvalidFunction(funName)
+    elif isinstance(name, ast.Attribute):
+      #For function calls like mod1.mod2.mod4.fun()
+      moduleList = []
+      nextNode = node
+      funName = node.attr
+      #Get a list of the chain of modules
+      while instance(nextNode, ast.Attribute):
+        moduleList = [nextNode.attr] + moduleList
+        nextNode = nextNode.value
+      currModule = self.global_refs[nextNode.id]
+
+      for m in moduleList:
+        try:
+          currModule = currModule.__dict__[m]
+        except AttributeError:
+          if currModule in ValidObjects:
+            currModule = currModule.__getattribute__(m)
+          elif m in NumpyArrayMethods and m == moduleList[-1]:
+            currModule = currModule.__getattribute__(m)
+          elif m in NumpyArrayMethods:
+            raise InvalidFunction(moduleList.join('.'))
+          else:
+            raise InvalidFunction("Invalid object %s" % currModule)
+      funRef = currModule
+    else:
+      raise InvalidFunction("Call.func shouldn't be " + name)
+    
+    if not hasattr(funRef, '__call__'):
+      return None
+    if funRef in AutoTranslate:
+      funRef = AutoTranslate[funRef]
+    if not hasattr(funRef,'__self__') or not funRef.__self__:
+      self.seen_functions.add(funRef)
+    return funRef
+
+  def register_if_function(self, node):
+    #Alex: Right now this will crash if a local variable method is an argument,
+    #because the local method won't be registered or translated
+    try:
+      parts = flatten_var_attrs(node)
+      if parts[0] in self.arg_names and len(parts) > 1:
+        raise ParakeetUnsupported(\
+          "[Parakeet] %s is not a valid function argument" % node_name)
+      return self.get_function_ref(node)
+    except RuntimeError:
+      return None
+
   
   def visit_call(self, node):
-    node_name = self.get_global_var_name(node.func)
-    if not node_name.split('.')[0] in self.arg_names:
+    name_parts = flatten_var_attrs(node.func)
+    src_info = self.build_src_info(node)
+    assert len(name_parts) > 0 
+    base_name = name
+    if base_name in self.arg_names:
+      #Is the function an argument?
+      #If so, we must be calling a numpy method on an array 
+      assert len(name_parts) == 1  
+      method_name = node_parts[1]
+      build_prim_call(method_name, build_var(base_name, src_info), src_info)
+        
+    else:
       funRef = self.get_function_ref(node.func)
       if funRef is None:
         raise RuntimeError("[Parakeet] Expected %s to be a function" % node.func)
@@ -483,15 +522,8 @@ class ASTConverter():
             return self.build_call(src_info, funRef, args)
           else:
             funArgs = self.build_arg_list(node.args, childContext)
-            return self.build_call(src_info, funRef, funArgs)
-      #If it's a local variable
-      else:
-        method = '.'.join(node_name.split('.')[1:])
-        if (method in NumpyArrayMethods):
-          var = node_name.split('.')[0]
-          var_node = build_var(src_info, var)
-          return self.build_call(src_info, method, [var_node])
-  
+            return build_call(funRef, funArgs, src_info)
+
   
   def visit_expr(self, node):
     src_info = self.build_src_info(node)
@@ -527,11 +559,22 @@ class ASTConverter():
       raise RuntimeError("[Parakeet] Unexpected index node in AST")
     elif isinstance(node, ast.Num):
       return build_num(node.n, src_info)
-
+    elif isinstance(node, ast.Call):
+      # neither var-args or dictionaries of keyword args are
+      # supported by Parakeet since they make program 
+      # analysis way harder
+      assert node.starargs is None
+      assert node.kwargs is None 
+      fn = node.func
+      args = node.args
+      kwds = node.keywords 
+      self.visit_call(fn, args, kwds, src_info)
     else:
-      raise RuntimeError("[Parakeet] %s not supported " % node)
+      raise RuntimeError("[Parakeet] AST node %s not supported " % type(node).__name__)
       return None
 
+  def visit_call(self, fn, args, kwds, src_info = None):
+    return None 
   
   def visit_array_elts(self, node):
     if isinstance(node, ast.List) or isinstance(node, ast.Tuple):
@@ -539,20 +582,6 @@ class ASTConverter():
       return build_parakeet_array(elts, self.build_src_info(node)) 
     else:
       raise ParakeetUnsupported('Array must have literal arguments') 
-
-  def build_arg_list(self, python_nodes,  contextSet):
-    results = []
-    for node in python_nodes:
-      funRef = self.register_if_function(node)
-      if funRef is not None:
-        src_info = self.build_src_info(node)
-        results.append(build_fn_node(src_info, funRef))
-      else:
-        result = self.visit(node, contextSet)
-        if result is not None:
-          results.append(result)
-    return results
-
 
   def build_src_info(self, node):
     #Temporary to fix seg faults:
@@ -564,24 +593,6 @@ class ASTConverter():
       return _source_info_t(_c_source_info_t(file_name, line, col))
     except AttributeError:
       return _source_info_t(None)
-
-  def get_global_var_name(self, node):
-    var_str = ""
-    currNodeType = type(node).__name__
-    if not currNodeType in ('Name','Attribute'):
-      raise RuntimeError("[Parakeet] %s name fetching not supported" %
-                         currNodeType)
-    currNode = node
-    while (currNodeType != "Name"):
-      var_str = "." + currNode.attr + var_str
-      currNode = currNode.value
-      currNodeType = type(currNode).__name__
-      if currNodeType not in ('Name','Attribute'):
-        raise RuntimeError("[Parakeet] Accessing with %s not supported" %
-                           currNodeType)
-    var_str = currNode.id + var_str
-    return var_str
-
 
 def ast_to_str(node, annotate_fields=True, include_attributes=False, indent='  '):
     """
