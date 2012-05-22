@@ -401,26 +401,35 @@ and translate_fn
     (args:AST.node Args.formal_args) 
     (body:AST.node) : UntypedSSA.fn =
   (* if no return statements in function, assume it returns nothing *)
+  Printf.printf "[AST->SSA] translate_fn\n%!";
   let returnArity = match body.ast_info.return_arity with
     | Some x -> x
     | None -> 0
   in
+  Printf.printf "[AST->SSA] Generating return IDs\n%!";
   let retIds = ID.gen_named_list "ret" returnArity in
   let argNames = Args.all_formal_names args in 
-  Printf.printf "[AST_to_SSA] Formal args: %s\n" (String.concat ", " argNames); 
+  Printf.printf "[AST_to_SSA] Formal args: %s\n%!" 
+    (String.concat ", " argNames); 
   let argIds =  List.map ID.gen_named argNames in
+  Printf.printf "[AST_to_SSA] Creating name->id mapping\n%!";  
   let argNamesToIds = String.Map.of_lists argNames argIds in 
   (* map string names to their SSA identifiers --
      assume globalMap contains only functions
   *)
+  Printf.printf "[AST_to_SSA] Extending env\n%!";
   let initEnv = Env.extend parentEnv argNames argIds in
+  Printf.printf "[AST_to_SSA] Creating body block\n%!";
   let typedBlock : UntypedSSA.block = Block.create () in
+  Printf.printf "[AST_to_SSA] Initializing formal args\n%!";
   let ssaArgs : UntypedSSA.value_node Args.formal_args  = 
     Args.apply_to_formal_values 
       (exp_as_value initEnv typedBlock "default")
       args
   in 
+  Printf.printf "[AST_to_SSA] Starting translation of body\n%!";
   let _ = translate_stmt initEnv typedBlock retIds body in
+  Printf.printf "[AST_to_SSA] Making fn\n%!";
   UntypedSSA.mk_fn
     ?name
     ~body:typedBlock

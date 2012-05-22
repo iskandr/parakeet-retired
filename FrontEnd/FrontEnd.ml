@@ -36,8 +36,12 @@ let register_untyped_function
   in
   Printf.printf "-- Doing SSA conversion\n%!";   
   let fn = AST_to_SSA.translate_fn ~name ssaEnv args body in
+  Printf.printf "-- Adding fn to FnManager\n%!";
   FnManager.add_untyped name fn;
-  fn.UntypedSSA.fn_id
+  let fnId = fn.UntypedSSA.fn_id in 
+  Printf.printf "-- Returning from register_untyped\n%!";
+  fnId 
+  
   
 let print_all_timers () =
   (*

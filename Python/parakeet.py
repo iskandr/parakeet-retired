@@ -20,22 +20,32 @@ class WrappedFunction:
     self.global_vars = global_vars
 
   def __call__(self, *args, **kwds):
-    # todo: implement keyword arguments in parakeet
-    assert len(kwds) == 0
+    
+    n_global_args = len(self.global_vars)
+    global_args = [python_value_to_parakeet(self.__get_value(g)) 
+                   for g in self.global_vars]
+    global_args = list_to_ctypes_array(global_args)
+    
     n_args = len(args)
-    INPUT_ARRAY_TYPE = c_void_p * n_args
-    inputs = INPUT_ARRAY_TYPE()
-    for i in range(n_args):
-      inputs[i] = python_value_to_parakeet(args[i])
-    n_glob_args = len(self.global_vars)
-    GLOB_ARRAY_TYPE = c_void_p * n_glob_args
-    globals = GLOB_ARRAY_TYPE()
-    for i in range(n_glob_args):
-      val = self.__get_value(self.global_vars[i])
-      #print "ARGVAL:    ", val
-      globals[i] = python_value_to_parakeet(val)
+    arg_values = [python_value_to_parakeet(arg) for arg in args]
+    arg_values = list_to_ctypes_array(arg_values)
+    
+    
+    kwd_names = []
+    kwd_values = []
+    for (k,v) in kwds.items():
+      kwd_names.append(c_str(k))
+      kwd_values.append(python_value_to_parakeet(v))
+    n_kwds = len(kwd_names)
+    kwd_names = list_to_ctypes_array(kwd_names)
+    kwd_values = list_to_ctypes_array(kwd_values)
+    
     ret = LibPar.run_function(
-        self.parakeet_untyped_id, globals, n_glob_args, inputs, n_args)
+        self.parakeet_untyped_id, 
+        global_args, n_global_args, 
+        arg_values, n_args,
+        kwd_names, kwd_values, n_kwds)
+    
     if ret.return_code != 0:
       raise RuntimeError("[Parakeet] Execution failed: %s" % ret.error_msg)
     else:

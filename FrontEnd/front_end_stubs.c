@@ -29,7 +29,7 @@ value *ocaml_set_multithreading        = NULL;
 int fe_inited = 0;
 
 
-static CAMLprim value build_host_val_list(host_val *vals, int num_vals);
+value build_host_val_list(host_val *vals, int num_vals);
 static int ocaml_list_length(value l);
 
 /** Public interface **/
@@ -64,7 +64,7 @@ int register_untyped_function(
 
   CAMLlocal3(val_name, globals_list, args_list);
   CAMLlocal2(default_arg_names_list, default_arg_values_list);
-  CAMLlocal2(val_ast, fn_id);
+  CAMLlocal1(fn_id);
 
   printf(":: registering untyped function\n");
 
@@ -80,17 +80,21 @@ int register_untyped_function(
   default_arg_names_list = build_str_list(default_args, num_defaults);
 
   printf("  ...copying default arg values\n");
+
   default_arg_values_list = mk_val_list(default_arg_values, num_defaults);
-  val_ast = ast->v;
+
   value func_args[6] = {
-    val_name, globals_list, args_list,
+    val_name,
+    globals_list,
+    args_list,
 	default_arg_names_list, default_arg_values_list,
-	val_ast
+	ast->v
   };
 
   printf("  ...calling into OCaml's register function\n");
   fn_id = caml_callbackN(*ocaml_register_untyped_function, 6, func_args);
-
+  printf("...returned\n");
+  printf("FN ID: %d\n", Int_val(fn_id));
   CAMLreturnT(int, Int_val(fn_id));
 }
 
@@ -99,18 +103,26 @@ return_val_t run_function(int id,
     host_val *args, int num_args, 
     char** kwd_arg_names, host_val* kwd_arg_values, int num_kwd_args) {
   CAMLparam0();
-  CAMLlocal5(ocaml_rslt, ocaml_id, ocaml_globals, ocaml_args, ocaml_ret_type);
+  CAMLlocal5(ocaml_rslt, ocaml_fn_id, ocaml_globals, ocaml_args, v);
+  CAMLlocal2(ocaml_kwd_names, ocaml_kwd_args);
   CAMLlocal5(ocaml_shape, ocaml_strides, ocaml_data, ocaml_cur, ocaml_type);
-  CAMLlocal3(v, ocaml_kwd_names, ocaml_kwd_args); 
 
-  ocaml_id      = Val_int(id);
+  printf("C: entered run_function\n");
+  printf("..getting function id..\n");
+  ocaml_fn_id = Val_int(id);
+  printf("..building globals list..(len=%d)\n", num_globals);
   ocaml_globals = build_host_val_list(globals, num_globals);
-  ocaml_args    = build_host_val_list(args, num_args);
+  printf("..building args list..(len = %d)\n", num_args);
+  ocaml_args = build_host_val_list(args, num_args);
+  printf("..building keyword name list (len=%d)..\n", num_kwd_args);
+
   ocaml_kwd_names = build_str_list(kwd_arg_names, num_kwd_args);
+  printf("..building keyword value list..\n");
   ocaml_kwd_args = build_host_val_list(kwd_arg_values, num_kwd_args);
 
   value func_args[5] = {
-		  ocaml_id, ocaml_globals, ocaml_args, ocaml_kwd_names, ocaml_kwd_args};
+    ocaml_fn_id, ocaml_globals, ocaml_args, ocaml_kwd_names, ocaml_kwd_args};
+  printf("..calling OCaml's run_function\n");
   ocaml_rslt = caml_callbackN(*ocaml_run_function, 5, func_args);
 
   ocaml_cur = Field(ocaml_rslt, 0);
@@ -247,7 +259,7 @@ void set_multithreading(int val) {
 
 /** Private functions **/
 
-static CAMLprim value build_host_val_list(host_val *vals, int num_vals) {
+value build_host_val_list(host_val *vals, int num_vals) {
   CAMLparam0();
   CAMLlocal3(elt, val1, val2);
 
