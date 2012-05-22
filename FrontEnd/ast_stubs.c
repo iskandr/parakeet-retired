@@ -175,20 +175,28 @@ paranode mk_call(
 		  paranode* keyword_values,
 		  int num_keyword_args,
           source_info_t *src_info) {
-  printf("C: mk_call with %d positional args and %d keyword args\n",
-		  num_args, num_keyword_args);
+  printf("C: mk_call %d with %d positional args and %d keyword args\n",
+		  fun, num_args, num_keyword_args);
   CAMLparam0();
   CAMLlocal5(val_fun, args_list, kwd_list, kwd_values_list, app);
   CAMLlocal1(actual_args);
+  printf("Making args list\n");
   args_list = mk_val_list(args, num_args);
+  printf("Making keyword name list\n");
   kwd_list = build_str_list(keywords, num_keyword_args);
+  printf("Making keyword values list\n");
   kwd_values_list = mk_val_list(keyword_values, num_keyword_args);
+  printf("Calling into OCaml to create actual args\n");
   actual_args = \
     caml_callback3(*ocaml_mk_actual_args, args_list, kwd_list, kwd_values_list);
+  printf("Creating Call node\n");
   val_fun = get_value_and_remove_root(fun);
   app = caml_alloc(2, Exp_Call);
   Store_field(app, 0, val_fun);
   Store_field(app, 1, actual_args);
+  printf("Returning to Python\n");
+
+
   CAMLreturnT(paranode, mk_node(app, src_info));
 }
 
@@ -328,7 +336,8 @@ value mk_src_info(source_info_t *src_info) {
   CAMLparam0();
   CAMLlocal3(ocaml_src_info, file, some_none);
   printf("C: Making source info");
-  if (src_info) {
+  if (src_info != NULL) {
+	printf("C: Non-null source info %p\n", src_info);
     if (src_info->filename) {
       printf("Src info filename: %s\n", src_info->filename);
 
@@ -348,6 +357,7 @@ value mk_src_info(source_info_t *src_info) {
     Store_field(ocaml_src_info, 1, Val_int(src_info->line));
     Store_field(ocaml_src_info, 2, Val_int(src_info->col));
   } else {
+	printf("C: Null source info\n");
     ocaml_src_info = caml_alloc_tuple(3);
     Store_field(ocaml_src_info, 0, Val_int(0));
     Store_field(ocaml_src_info, 1, Val_int(0));
@@ -399,15 +409,19 @@ paranode mk_root(value v) {
 }
 
 paranode mk_node(value exp, source_info_t *src_info) {
+  printf("C: mk_node: src_info addr = %d\n", src_info);
   CAMLparam1(exp);
   CAMLlocal3(ocaml_src_info, ast_info, node);
 
   // build the ast_info and src_info
+  printf("C: making source info\n");
   ocaml_src_info = mk_src_info(src_info);
 
+  printf("C: mk_ast_info\n");
   ast_info = caml_callback(*ocaml_mk_ast_info, Val_unit);
   printf("-- AST INFO POINTER: %p\n", ast_info);
 
+  printf("C: allocating node\n");
   // build the node
   node = caml_alloc_tuple(3);
   Store_field(node, 0, exp);

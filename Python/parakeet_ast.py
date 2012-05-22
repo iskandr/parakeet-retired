@@ -116,9 +116,11 @@ VisitedFunctions[np.array] = ''
 ###############################################################################
 
 def src_addr(src_info):
-  if src_info is None:
-    return 0
-  else:
+  if src_info is None: 
+    print "NULL"
+    return None
+  else: 
+    print "NOT NULL", src_info
     return src_info.addr
 
 
@@ -183,32 +185,37 @@ def mk_call(fn, positional_args, kw_names = [], kw_values = [], src_info=None):
     names have already been converted to character pointers
   """
   assert len(kw_names) == len(kw_values)
+  print "MK_CALL", fn, positional_args, kw_names, kw_values
+  args_array = list_to_ctypes_array(positional_args)
+  n_args = len(positional_args)
+  kw_names_array = list_to_ctypes_array(kw_names)
+  kw_values_array = list_to_ctypes_array(kw_values)
+  n_kwds = len(kw_names)
+  srcAddr = src_addr(src_info)
+  print "src_addr", srcAddr  
+  # paranode fun, paranode *args, int num_args,
+  # char** keywords, paranode* keyword_values, int num_keyword_args,
+  #  source_info_t *src_info
   return LibPar.mk_call(
-    fn,  list_to_ctypes_array(positional_args), len(positional_args), 
-    list_to_ctypes_array(kw_names), list_to_ctypes_array(kw_values), 
-    len(kw_names), 
-    src_addr(src_info))
+    fn, args_array, n_args, kw_names_array, kw_values_array, n_kwds, srcAddr)
 
-def build_call(self, python_fn, args, kw_args = {}, src_info = None):
+def build_call(parakeet_fn, args, kw_args = {}, src_info = None):
   """
     higher-level helper for building a function call. 
     Assumes that the function is a Python object which needs
     to be translated into a Parakeet node 
   """
-  parakeet_fn = build_fn_node(python_fn, src_info)
   kw_names = []
   kw_values = []
   for k,v in kw_args.items():
     kw_names.append(c_char_p(k))
     kw_values.append(v)
+  
   return mk_call(parakeet_fn, args, kw_names, kw_values, src_info)
    
-
-
 #Function to get ast node(s) for built-in functions/primitives
 def ast_prim(sym):
   return c_void_p(LibPar.get_prim(sym))
-
 
 def build_prim_call(python_op_name, args, src_info = None):
   """
@@ -216,14 +223,16 @@ def build_prim_call(python_op_name, args, src_info = None):
     translate it to the equivalent Parakeet primitive and
     create a Call node for that primitive
   """
+  print "build_prim_call: %s" % python_op_name 
   parakeet_op_name = BuiltinPrimitives[python_op_name]
   if parakeet_op_name is None:
     raise ParakeetUnsupported('Prim not implemented: %s' % python_op_name)
-  else:
-    prim = ast_prim(parakeet_op_name)
-  return mk_call(prim, args, src_info = src_info)
-
-    
+  
+  prim = ast_prim(parakeet_op_name)
+  print "build_prim_call", prim 
+  res =  mk_call(prim, args, src_info = src_info)
+  print "!!! made call node"
+  return res 
 
 def name_of_ast_node(op):
   return op.__class__.__name__
@@ -434,6 +443,7 @@ class ASTConverter():
 
   
   def visit_call(self, node):
+    print "VISIT_CALL"
     name_parts = flatten_var_attrs(node.func)
     src_info = self.build_src_info(node)
     assert len(name_parts) > 0 
@@ -480,9 +490,11 @@ class ASTConverter():
               args.append(kw_args['axis'])
               args.append(kw_args['default'])
               if funRef.__name__ == "reduce":
-                return self.build_call(src_info, parakeet_lib.reduce, args)
+                reduce_node = build_fn_node(parakeet_lib.reduce, src_info)
+                return self.build_call(reduce_node, args, src_info)
               elif funRef.__name__ == "accumulate":
-                return self.build_call(src_info, parakeet_lib.scan, args)
+                scan_node = build_fn_node(parakeet_lib.scan, src_info) 
+                return self.build_call(scan_node, args, src_info)
               else:
                 assert False
         else:
@@ -519,7 +531,8 @@ class ASTConverter():
             args.append(kw_args['axis'])
             if funRef == parakeet_lib.reduce:
               args.append(kw_args['default'])
-            return self.build_call(src_info, funRef, args)
+            parakeet_fn =  build_fn_node(funRef, src_info)
+            return self.build_call(parakeet_fn, args, src_info)
           else:
             funArgs = self.build_arg_list(node.args, childContext)
             return build_call(funRef, funArgs, src_info)
@@ -585,7 +598,7 @@ class ASTConverter():
 
   def build_src_info(self, node):
     #Temporary to fix seg faults:
-    return _source_info_t(None)
+    return None 
     try:
       file_name = c_char_p(self.file_name)
       line = c_int(self.line_offset + node.lineno)
@@ -653,6 +666,7 @@ def register_function(f):
   body_source = inspect.getsource(f) #function_source(codeInfo)
   
   body_ast = ast.parse(body_source)
+  print body_source
   print ast_to_str(body_ast)
   body_ast = ast.fix_missing_locations(body_ast)
   Converter = ASTConverter(global_refs, argspec.args, file_name, line_offset)
