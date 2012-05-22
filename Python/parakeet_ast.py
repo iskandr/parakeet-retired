@@ -115,6 +115,22 @@ VisitedFunctions[np.array] = ''
 #  Helper functions
 ###############################################################################
 
+def src_addr(src_info):
+  if src_info is None:
+    return 0
+  else:
+    return src_info.addr
+
+
+def build_var(name, src_info = None):
+  #Special case for booleans
+  if name == 'True':
+    return LibPar.mk_bool_paranode(1, src_addr(src_info))
+  elif name == 'False':
+    return LibPar.mk_bool_paranode(0, src_addr(src_info))
+  else:
+    return LibPar.mk_var(c_char_p(name), src_addr(src_info))
+
 def build_fn_node(src_info, python_fn):
   if python_fn in ParakeetOperators:
     parakeet_prim_name = ParakeetOperators[python_fn]
@@ -135,8 +151,7 @@ def build_fn_node(src_info, python_fn):
       raise RuntimError("[Parakeet] Support for %s not implemented" %
                         python_fn)
   else:
-    c_name = c_char_p(global_fn_name(python_fn))
-    parakeet_fn = LibPar.mk_var(c_name, src_info.addr)
+    parakeet_fn = build_var(global_fn_name(python_fn), src_info)
   return parakeet_fn
 
 #Function to get ast node(s) for built-in functions/primitives
@@ -165,11 +180,7 @@ def name_of_ast_node(op):
   return op.__class__.__name__
 
 
-def src_addr(src_info):
-  if src_info is None:
-    return 0
-  else:
-    return src_info.addr
+
   
 def mk_return(elts, src_info=None):
   arr = list_to_ctypes_array(elts) if len(elts) > 0 else None
@@ -225,14 +236,7 @@ def build_prim_call(python_op_name, args, src_info = None):
     prim = ast_prim(parakeet_op_name)
   return mk_call(prim, args, src_info = src_info)
 
-def build_var(name, src_info = None):
-  #Special case for booleans
-  if name == 'True':
-    return LibPar.mk_bool_paranode(1, src_addr(src_info))
-  elif name == 'False':
-    return LibPar.mk_bool_paranode(0, src_addr(src_info))
-  else:
-    return LibPar.mk_var(c_char_p(name), src_addr(src_info))
+
 
 def build_num(num, src_info = None):
   """
@@ -352,6 +356,7 @@ class ASTConverter():
 
   def visit_stmt(self, node, src_info = None):
     print "visit_stmt", node
+    src_info = self.build_src_info(node)
     srcAddr = src_addr(src_info)
     if isinstance(node, ast.If):
       test = self.visit_expr(node.test)
@@ -359,7 +364,8 @@ class ASTConverter():
       if_false = self.visit_stmt_sequence(node.orelse, src_info)
       return LibPar.mk_if(test, if_true, if_false, srcAddr)
     elif isinstance(node, ast.Assign):
-      return self.visit_assign(node)
+      assert len(node.targets) == 1
+      return self.visit_assign(node.targets[0], node.value, src_info)
     elif isinstance(node, ast.Return):
       return self.visit_return(node, src_info)
       
@@ -373,7 +379,21 @@ class ASTConverter():
       return self.visit_expr(node.value)
     else:
       raise RuntimeError("Unsupported statement" + str(node))
-  
+
+  def visit_assign(self, lhs, rhs, src_info = None):
+    def mk_lhs_var(node):
+      return build_var(node.id, self.build_src_info(node))
+    if isinstance(lhs, ast.Name):
+      vars = [mk_lhs_var(lhs)]
+    elif isinstance(lhs, ast.Tuple):
+      assert all([isinstance(elt, ast.Name) for elt in lhs.elts])
+      vars = [mk_lhs_var(elt) for elt in lhs.elts]
+    else:
+      raise RuntimeError("Unsupported LHS")
+    rhs = self.visit_expr(rhs)
+    return LibPar.mk_assign(list_to_ctypes_array(vars), len(vars), rhs)
+    
+          
   def visit_return(self, node, src_info = None):
     if node.value is None:
       values = []
@@ -383,6 +403,7 @@ class ASTConverter():
       values = [self.visit_expr(node.value)]
     print values 
     return mk_return(values, src_info)
+  
   def visit_call(self, node):
     node_name = self.get_global_var_name(node.func)
     if not node_name.split('.')[0] in self.arg_names:
@@ -468,7 +489,7 @@ class ASTConverter():
         method = '.'.join(node_name.split('.')[1:])
         if (method in NumpyArrayMethods):
           var = node_name.split('.')[0]
-          var_node = self.build_var(src_info, var)
+          var_node = build_var(src_info, var)
           return self.build_call(src_info, method, [var_node])
   
   

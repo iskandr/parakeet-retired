@@ -363,7 +363,7 @@ paranode mk_num(value val, source_info_t *src_info) {
 CAMLprim value mk_src_info(source_info_t *src_info) {
   CAMLparam0();
   CAMLlocal3(ocaml_src_info, file, some_none);
-  
+  printf("C: Making source info");
   if (src_info) {
     if (src_info->filename) {
       printf("Src info filename: %s\n", src_info->filename);
