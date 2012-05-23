@@ -190,7 +190,7 @@ and Interp : INTERP = struct
       | axis::restAxes ->
         let nelts =  Shape.get biggestShape axis in
         (* create array of appropriate size, initialize to null *)
-        let create_empty_array () = Array.create nelts Value.Null in
+        let create_empty_array () = Array.create nelts Value.NoneVal in
         let results =
           List.map (fun _ -> create_empty_array()) fn.output_ids
         in

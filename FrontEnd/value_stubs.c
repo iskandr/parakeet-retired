@@ -18,6 +18,7 @@
 
 /** Private members **/
 
+value *value_callback_make_none = NULL;
 value *value_callback_of_bool = NULL;
 value *value_callback_of_char = NULL;
 value *value_callback_of_int32 = NULL;
@@ -50,6 +51,7 @@ int value_inited = 0;
 void value_init() {
   if (value_inited == 0) {
     value_inited = 1;
+    value_callback_make_none = caml_named_value("value_make_none");
     value_callback_of_bool = caml_named_value("value_of_bool");
     value_callback_of_char = caml_named_value("value_of_char");
     value_callback_of_int32 = caml_named_value("value_of_int32");
@@ -114,6 +116,14 @@ value value_get_strides(host_val v) {
 /* 
   Construct Values
 */ 
+
+host_val mk_none_val() {
+  CAMLparam0();
+  CAMLlocal1(none);
+  none = caml_callback(*value_callback_make_none, Val_unit);
+  caml_register_generational_global_root(&none);
+  CAMLreturnT(host_val, none);
+}
 
 host_val mk_bool(int b) {
   CAMLparam0();

@@ -13,7 +13,9 @@ type t  =
   | ArrayT of elt_t * int
   | BottomT (* bottom of type lattice for vars whose type is not determined *)
   | AnyT (* top of type lattice, for variables whose type is overdetermined *)
+  | NoneT 
 
+val none : t 
 val bool : t
 val char : t
 val int16 : t

@@ -1,11 +1,8 @@
 from ctypes import c_void_p
 import re
 
-from parakeet_ast import list_to_ctypes_array, \
-  VisitedFunctions, VisitedFunctionGlobals
-  
-from parakeet_common import LibPar, LOG
-
+from parakeet_common import list_to_ctypes_array, LibPar, LOG 
+from parakeet_register import VisitedFunctions, VisitedFunctionGlobals
 from parakeet_values import python_value_to_parakeet, parakeet_value_to_python
 
 class WrappedFunction:

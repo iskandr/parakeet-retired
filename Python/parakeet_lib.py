@@ -51,17 +51,17 @@ def add(x,y):
   return x+y
 
 
-@parakeet_prim(np.sub)
+@parakeet_prim(np.subtract)
 def sub(x,y):
   return x-y
 
 
-@parakeet_prim(np.mult)
+@parakeet_prim(np.multiply)
 def mult(x,y):
   return x*y
 
 
-@parakeet_prim(np.div)
+@parakeet_prim(np.divide)
 def div(x,y):
   return x/y
 

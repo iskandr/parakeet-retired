@@ -52,6 +52,7 @@ let _ = Callback.register "float64_t" Type.float64
 let _ = Callback.register "type_is_float64" Type.is_float64
 
 (*** Value ***)
+let _ = Callback.register "value_make_none" Value.mk_none
 let _ = Callback.register "value_of_bool" Value.of_bool
 let _ = Callback.register "value_of_char" Value.of_char
 let _ = Callback.register "value_of_int32" Value.of_int32

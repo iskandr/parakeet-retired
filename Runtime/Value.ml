@@ -17,7 +17,7 @@ type 'a t =
   | FixDim of 'a t * int * int            (* array, dim, idx *)
   | Slice of 'a t * int * int * int       (* array, dim, start, end *)
   | Range of int * int * int              (* start, stop, step *)
-  | Null
+  | NoneVal
   | Nested of 'a t array
 
 (* since array data is polymorphic it's by default printed as the *)
@@ -43,7 +43,7 @@ let rec to_str ?(array_to_str=(fun _ -> "<array>")) = function
       (to_str ~array_to_str a)  dim start stop
   | Range (start, stop, step) ->
     Printf.sprintf "range(from=%d, to=%d, step=%d)" start stop step
-  | Null -> "none"
+  | NoneVal -> "none"
   | Nested elts -> "nested array"
 
 let list_to_str ?(array_to_str=(fun _ -> "<array>")) vals =
@@ -64,7 +64,7 @@ let rec map (f: 'a -> 'b) (x : 'a t) : 'b t = match x with
   | Range (start, stop, step) -> Range (start, stop, step)
   | Explode (n, s) -> Explode (n, s)
   | Scalar n -> Scalar n
-  | Null -> Null
+  | NoneVal -> NoneVal
   | Nested elts -> Nested (Array.map (map f) elts)
 
 
@@ -78,14 +78,14 @@ let rec get_underlying_array = function
   | Explode (n, s) -> failwith "Don't know how to handle explodes yet."
   | Range _ -> failwith "Don't know how to handle ranges yet."
   | Nested _
-  | Null -> assert false
+  | NoneVal -> assert false
 
 
 let rec elt_type = function
   | Explode (n, _)
   | Scalar n -> ParNum.type_of n
   | Range _ -> Type.Int32T
-  | Null -> failwith  "[Value] Null has no element type"
+  | NoneVal -> failwith  "[Value] Null has no element type"
   | Nested  _ ->
     failwith
       "[Value] Nested array not guaranteed to have a single element type"
@@ -105,7 +105,7 @@ let rec shape_of = function
     Shape.of_array dims
   | Range (start, stop, step) -> Shape.of_list [(stop - start + 1)/step]
   | Explode _
-  | Null -> failwith "Value has no shape"
+  | NoneVal -> failwith "Value has no shape"
   | Nested elts ->
     let nelts = Array.length elts in
     if nelts = 0 then Shape.scalar_shape else
@@ -136,8 +136,8 @@ let rec type_of v =
   | Slice (x, _, _, _)
   | Rotate (x, _, _) -> type_of x
   | Range _ -> Type.ArrayT(Type.Int32T, 1)
-  | Nested _
-  | Null -> Type.AnyT
+  | Nested _ -> Type.AnyT 
+  | NoneVal -> Type.NoneT
   in
   Printf.printf "[ocaml value.type_of result] %s\n%!" (Type.to_str t);
   t
@@ -162,6 +162,7 @@ let to_int32 x = ParNum.to_int32 (to_num x)
 let to_int64 x = ParNum.to_int64 (to_num x)
 let to_float x = ParNum.to_float (to_num x)
 
+let mk_none () = NoneVal 
 let of_num n = Scalar n
 let of_bool b = of_num (ParNum.of_bool b)
 let of_char c = of_num (ParNum.of_char c)
@@ -193,7 +194,7 @@ let rec extract = function
   | FixDim (x, _ , _)
   | Slice (x, _, _, _) -> extract x
   | Array {data} -> Some data
-  | Null
+  | NoneVal 
   | Nested _
   | Scalar _
   | Explode _

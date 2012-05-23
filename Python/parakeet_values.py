@@ -70,6 +70,8 @@ def python_value_to_parakeet(arg):
     parakeetVal = LibPar.mk_host_array(dataPtr, parakeetType, inputShape, rank,
                                        inputStrides, rank, arg.nbytes)
     return c_void_p(parakeetVal)
+  elif arg is None: 
+    LibPar.mk_none_val()
   elif np.isscalar(arg) or is_zero_rank_array(arg):
     # unpack zero rank arrays into scalars 
     if is_zero_rank_array(arg):
@@ -135,8 +137,5 @@ def parakeet_value_to_python(val):
     addr = val.data.array.data 
     shape = tuple(c_shape)
     strides = tuple(c_strides)
-    #print "Addr: %s, shape: %s, strides: %s" % (addr, shape, strides)
     ndarray = array_from_memory(addr, shape, strides, dtype)
-    #print "About to print array"
-    #print "Made array:", ndarray
     return ndarray

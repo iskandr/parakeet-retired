@@ -18,7 +18,7 @@ type 'a t =
   | FixDim of 'a t * int * int              (* array, dim, idx *)
   | Slice of 'a t * int * int * int         (* array, dim, start, end *)
   | Range of int * int * int                (* start, stop, step *)
-  | Null
+  | NoneVal
   | Nested of 'a t array
 
 
@@ -39,6 +39,7 @@ val get_strides : 'a t -> int array
 
 val fixdim : int -> int -> 'a t -> 'a t
 
+
 val to_num : 'a t -> ParNum.t
 val to_bool : 'a t -> bool
 val to_char : 'a t -> char
@@ -47,6 +48,7 @@ val to_int64 : 'a t -> Int64.t
 val to_int : 'a t -> int
 val to_float : 'a t -> float
 
+val mk_none : unit -> 'a t 
 val of_num : ParNum.t -> 'a t
 val of_bool : bool -> 'a t
 val of_char : char -> 'a t

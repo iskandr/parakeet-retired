@@ -15,7 +15,9 @@ type t  =
   | ArrayT of elt_t * int
   | BottomT (* bottom of type lattice for vars whose type is not determined *)
   | AnyT (* top of type lattice, for variables whose type is overdetermined *)
+  | NoneT 
 
+let none = NoneT 
 let bool = ScalarT BoolT
 let char = ScalarT CharT
 let int16 = ScalarT Int16T
@@ -98,6 +100,7 @@ let elt_to_short_str = function
 let to_str = function
   | BottomT -> "bottom"
   | AnyT -> "any"
+  | NoneT -> "none"
   | ScalarT t -> (elt_to_str t)
   | ArrayT (eltT, d) -> Printf.sprintf "array%d<%s>" d (elt_to_str eltT)
 

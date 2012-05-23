@@ -5,5 +5,3 @@ from parakeet_adverbs import map, reduce, scan, allpairs
 from parakeet_lib import *
 from parakeet_configuration import *
 
-
-

@@ -4,13 +4,14 @@ from ctypes import *
 import parakeet_common
 from parakeet_common import LibPar, LOG, list_to_ctypes_array
 from parakeet_source_info import _c_source_info_t, _source_info_t, src_addr
-
+import parakeet_adverbs
 
 
 ###############################################################################
 #  Global variables
 ###############################################################################
 
+# mapping from Python functions to builtin Parakeet primitives
 ParakeetOperators = {
   np.add:'add',
   abs: 'abs',
@@ -19,15 +20,17 @@ ParakeetOperators = {
   math.log:'log',
   math.pow:'pow',
   math.sqrt:'sqrt',
-  parakeet_lib.map:'map',
-  parakeet_lib.reduce:'reduce',
-  parakeet_lib.scan:'scan',
-  parakeet_lib.allpairs:'allpairs',
   np.size:'size',
+  parakeet_adverbs.map:'map',
+  parakeet_adverbs.reduce:'reduce',
+  parakeet_adverbs.scan:'scan',
+  parakeet_adverbs.allpairs:'allpairs',
 }
 
+# mapping from Python functions to other Python functions wrapped by Parakeet
 AutoTranslate = {}
 
+# mapping from Python primitive operators to buitin Parakeet primitives
 BuiltinPrimitives = {
   'Add':'add',
   'Sub':'sub',
@@ -61,6 +64,8 @@ BuiltinPrimitives = {
   'Slice': 'slice',
 }
 
+# mapping from methods of numpy arrays to Parakeet primitive operators
+# ==> THESE ARE THE ONLY METHODS YOU CAN USE IN PARAKEET CODE! 
 NumpyArrayMethods = {
   "transpose": "transpose",
   "flatten": "flatten",
@@ -71,9 +76,8 @@ NumpyArrayAttributes = {
   "strides": "strides",
 }
 
-
-Adverbs = [parakeet_lib.map, parakeet_lib.reduce,
-           parakeet_lib.allpairs, parakeet_lib.scan]
+Adverbs = [parakeet_adverbs.map, parakeet_adverbs.reduce,
+           parakeet_adverbs.allpairs, parakeet_adverbs.scan]
 
 
 ###############################################################################
@@ -82,11 +86,13 @@ Adverbs = [parakeet_lib.map, parakeet_lib.reduce,
 
 
 def build_var(name, src_info = None):
-  #Special case for booleans
+  #Special case for booleans and None
   if name == 'True':
     return LibPar.mk_bool_paranode(1, src_addr(src_info))
   elif name == 'False':
     return LibPar.mk_bool_paranode(0, src_addr(src_info))
+  elif name == 'None':
+    return LibPar.mk_none(src_addr(src_info))
   else:
     return LibPar.mk_var(c_char_p(name), src_addr(src_info))
 
@@ -218,7 +224,7 @@ def mk_array(elts, src_info = None):
   return LibPar.mk_array(arr, len(elts), src_addr(src_info))
 
 def mk_tuple(elts, src_info = None):
-  LibPar.mk_tuple(list_to_ctypes_array(elts), src_addr(src_info))
+  return LibPar.mk_tuple(list_to_ctypes_array(elts), src_addr(src_info))
 
 def mk_block(stmts, src_info = None):
   arr = list_to_ctypes_array(stmts)
@@ -463,7 +469,7 @@ class ASTConverter():
       return self.visit_call(fn, args, kwds, src_info)
     elif isinstance(node, ast.Tuple):
        elts = [self.visit_expr(elt) for elt in node.elts]
-       
+       return mk_tuple(elts, src_info)
     else:
       raise RuntimeError("[Parakeet] AST node %s not supported " % type(node).__name__)
       return None
@@ -556,40 +562,3 @@ class ASTConverter():
       return _source_info_t(_c_source_info_t(file_name, line, col))
     except AttributeError:
       return _source_info_t(None)
-
-def ast_to_str(node, annotate_fields=True, include_attributes=False, indent='  '):
-    """
-    Return a formatted dump of the tree in *node*.  This is mainly useful for
-    debugging purposes.  The returned string will show the names and the values
-    for fields.  This makes the code impossible to evaluate, so if evaluation is
-    wanted *annotate_fields* must be set to False.  Attributes such as line
-    numbers and column offsets are not dumped by default.  If this is wanted,
-    *include_attributes* can be set to True.
-    """
-    def _format(node, level=0):
-        if isinstance(node, ast.AST):
-            fields = [(a, _format(b, level)) for a, b in ast.iter_fields(node)]
-            if include_attributes and node._attributes:
-                fields.extend([(a, _format(getattr(node, a), level))
-                               for a in node._attributes])
-            return ''.join([
-                node.__class__.__name__,
-                '(',
-                ', '.join(('%s=%s' % field for field in fields)
-                           if annotate_fields else
-                           (b for a, b in fields)),
-                ')'])
-        elif isinstance(node, list):
-            lines = ['[']
-            lines.extend((indent * (level + 2) + _format(x, level + 2) + ','
-                         for x in node))
-            if len(lines) > 1:
-                lines.append(indent * (level + 1) + ']')
-            else:
-                lines[-1] += ']'
-            return '\n'.join(lines)
-        return repr(node)
-    if not isinstance(node, ast.AST):
-        raise TypeError('expected AST, got %r' % node.__class__.__name__)
-    return _format(node)
-

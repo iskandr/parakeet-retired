@@ -18,6 +18,7 @@ typedef value host_val;
 void init();
 
 /** Scalar creation functions **/
+host_val mk_none_val();
 host_val mk_bool(int val);
 host_val mk_char(char val);
 host_val mk_int32(int32_t val);
