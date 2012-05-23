@@ -122,16 +122,19 @@ let rec to_str node =
 
   match node.data with
   | Var name -> 
-    Printf.printf "Var %s\n%!" name; 
+    Printf.printf "Var \n%!";
+    Printf.printf " -- %s\n%!" name; 
     name
   | Prim p -> 
     Printf.printf "Prim\n%!";
+    Printf.printf " -- %s\n%!" (Prim.to_str p);
     Prim.to_str p
   | Num (ParNum.Char c ) -> 
     Printf.printf "Char\n%!";
     "'" ^ (Char.to_string c) ^ "'"
   | Num n -> 
     Printf.printf "Num\n%!";
+    Printf.printf " -- %s\n%!" (ParNum.to_str n); 
     ParNum.to_str n
   | Str str -> 
     Printf.printf "Str\n%!";
@@ -174,10 +177,12 @@ let rec to_str node =
     Base.indent_newlines $ 
       sprintf "\n%s" (nodes_to_str ~delim:"\n" nodes)
   | If(test, tNode, fNode) ->
-    Printf.printf "If\n%!"; 
-    sprintf "if %s:\n%s\nelse:\n%s" (to_str test) 
-    (Base.indent_newlines $ to_str tNode) 
-    (Base.indent_newlines $ to_str fNode)
+    Printf.printf "If\n%!";
+    let testStr = to_str test in
+    let trueStr = Base.indent_newlines $ to_str tNode in 
+    let falseStr = Base.indent_newlines $ to_str fNode in    
+    sprintf "if %s:\n%s\nelse:\n%s" testStr trueStr falseStr  
+    
   | WhileLoop (test,body) ->
     sprintf "while %s:\n%s" 
       (to_str test)  

@@ -114,7 +114,7 @@ paranode mk_bool_paranode(int b, source_info_t *src_info) {
 
    val = caml_alloc(1, PARNUM_BOOL);
    Store_field(val, 0, Val_int(b));
-   CAMLreturnT(paranode, mk_node(val, src_info));
+   CAMLreturnT(paranode, mk_num(val, src_info));
 }
 
 paranode mk_int32_paranode(int32_t i, source_info_t *src_info) {
@@ -335,9 +335,9 @@ paranode mk_num(value val, source_info_t *src_info) {
 value mk_src_info(source_info_t *src_info) {
   CAMLparam0();
   CAMLlocal3(ocaml_src_info, file, some_none);
-  printf("C: Making source info");
+
   if (src_info != NULL) {
-	printf("C: Non-null source info %p\n", src_info);
+
     if (src_info->filename) {
       printf("Src info filename: %s\n", src_info->filename);
 
@@ -357,7 +357,6 @@ value mk_src_info(source_info_t *src_info) {
     Store_field(ocaml_src_info, 1, Val_int(src_info->line));
     Store_field(ocaml_src_info, 2, Val_int(src_info->col));
   } else {
-	printf("C: Null source info\n");
     ocaml_src_info = caml_alloc_tuple(3);
     Store_field(ocaml_src_info, 0, Val_int(0));
     Store_field(ocaml_src_info, 1, Val_int(0));
@@ -409,19 +408,19 @@ paranode mk_root(value v) {
 }
 
 paranode mk_node(value exp, source_info_t *src_info) {
-  printf("C: mk_node: src_info addr = %d\n", src_info);
+  // printf("C: mk_node: src_info addr = %d\n", src_info);
   CAMLparam1(exp);
   CAMLlocal3(ocaml_src_info, ast_info, node);
 
   // build the ast_info and src_info
-  printf("C: making source info\n");
+  //printf("C: making source info\n");
   ocaml_src_info = mk_src_info(src_info);
 
-  printf("C: mk_ast_info\n");
+  //printf("C: mk_ast_info\n");
   ast_info = caml_callback(*ocaml_mk_ast_info, Val_unit);
-  printf("-- AST INFO POINTER: %p\n", ast_info);
+  //printf("-- AST INFO POINTER: %p\n", ast_info);
 
-  printf("C: allocating node\n");
+  //printf("C: allocating node\n");
   // build the node
   node = caml_alloc_tuple(3);
   Store_field(node, 0, exp);

@@ -22,9 +22,7 @@ let register_untyped_function
       ~(default_arg_names:string list)
       ~(default_arg_values:AST.node list)
       ~(body: AST.node) =
-  Printf.printf "REGISTER COMPACT\n%!";
-  Gc.compact();
-  Gc.compact(); 
+
   assert (List.length default_arg_names = List.length default_arg_values); 
   let _ = Analyze_AST.analyze_ast body in
   Printf.printf "-- Creating global env for SSA conversion\n%!"; 

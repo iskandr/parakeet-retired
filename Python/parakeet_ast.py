@@ -117,10 +117,8 @@ VisitedFunctions[np.array] = ''
 
 def src_addr(src_info):
   if src_info is None: 
-    print "NULL"
     return None
   else: 
-    print "NOT NULL", src_info
     return src_info.addr
 
 
@@ -185,14 +183,14 @@ def mk_call(fn, positional_args, kw_names = [], kw_values = [], src_info=None):
     names have already been converted to character pointers
   """
   assert len(kw_names) == len(kw_values)
-  print "MK_CALL", fn, positional_args, kw_names, kw_values
+  
   args_array = list_to_ctypes_array(positional_args)
   n_args = len(positional_args)
   kw_names_array = list_to_ctypes_array(kw_names)
   kw_values_array = list_to_ctypes_array(kw_values)
   n_kwds = len(kw_names)
   srcAddr = src_addr(src_info)
-  print "src_addr", srcAddr  
+    
   # paranode fun, paranode *args, int num_args,
   # char** keywords, paranode* keyword_values, int num_keyword_args,
   #  source_info_t *src_info
@@ -229,9 +227,7 @@ def build_prim_call(python_op_name, args, src_info = None):
     raise ParakeetUnsupported('Prim not implemented: %s' % python_op_name)
   
   prim = ast_prim(parakeet_op_name)
-  print "build_prim_call", prim 
   res =  mk_call(prim, args, src_info = src_info)
-  print "!!! made call node"
   return res 
 
 def name_of_ast_node(op):
@@ -335,8 +331,11 @@ class ASTConverter():
     src_info = self.build_src_info(node)
     srcAddr = src_addr(src_info)
     if isinstance(node, ast.If):
+      print "IF: Visiting test"
       test = self.visit_expr(node.test)
+      print "IF: Visiting true branch"
       if_true = self.visit_stmt_sequence(node.body, src_info)
+      print "IF: Visiting false branch"
       if_false = self.visit_stmt_sequence(node.orelse, src_info)
       return LibPar.mk_if(test, if_true, if_false, srcAddr)
     elif isinstance(node, ast.Assign):
