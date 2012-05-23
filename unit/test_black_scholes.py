@@ -5,6 +5,7 @@ from parakeet import PAR
 
 parakeet.set_vectorize(False)
 parakeet.set_multithreading(False)
+
 def CND(x):
   a1 = 0.31938153
   a2 = -0.356563782

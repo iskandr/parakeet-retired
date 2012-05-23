@@ -25,7 +25,7 @@ def test_2d_sum():
 
 @PAR
 def sum_rows(x):
-  return parakeet.reduce(parakeet.add, x, axis=[0])
+  return parakeet.reduce(parakeet.add, x, axis=0)
 
 def test_sum_rows():
   x = np.random.randn(10,10)

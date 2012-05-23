@@ -84,10 +84,6 @@ BuiltinPrimitives = {
   'Slice': 'slice',
 }
 
-BuiltinStrs = [
-  "False",
-  "True"]
-
 NumpyArrayMethods = {
   "transpose": "transpose",
   "flatten": "flatten",
@@ -110,9 +106,6 @@ Adverbs = [parakeet_lib.map, parakeet_lib.reduce,
 
 
 
-#Keeps track of the user-made functions that have been made and the built-ins
-VisitedFunctions = ParakeetOperators.copy()
-VisitedFunctions[np.array] = ''
 
 ###############################################################################
 #  Helper functions
@@ -376,7 +369,7 @@ class ASTConverter():
     else:
       raise RuntimeError("Unsupported LHS")
     rhs = self.visit_expr(rhs)
-    return LibPar.mk_assign(list_to_ctypes_array(vars), len(vars), rhs)
+    return LibPar.mk_assign(list_to_ctypes_array(vars), len(vars), rhs, src_info)
        
   def visit_return(self, node, src_info = None):
     if node.value is None:
@@ -635,17 +628,27 @@ def ast_to_str(node, annotate_fields=True, include_attributes=False, indent='  '
 #  Function Registration`
 ###############################################################################
 
+#Keeps track of the user-made functions that have been made and the built-ins
+VisitedFunctions = ParakeetOperators.copy()
+VisitedFunctions[np.array] = None
+VisitedFunctionGlobals = {}
 
 
 import inspect 
 def register_function(f):
-  print  
-  print "Registering", f
-  print 
+  print "********************************"
+  print "         Registering", f
+  print "********************************"
+  
+  if f in VisitedFunctions:
+    "...already visited"
+    untyped_id = VisitedFunctions[f]
+    global_vars = VisitedFunctionGlobals.get(f, [])
+    return untyped_id, global_vars 
+  
   file_name = f.__code__.co_filename
   line_offset = f.__code__.co_firstlineno
   global_refs = f.func_globals
-  
   
   argspec = inspect.getargspec(f)
   assert argspec.varargs is None
@@ -662,9 +665,6 @@ def register_function(f):
 
   for other_fn in Converter.seen_functions:
     if not VisitedFunctions.has_key(other_fn):
-      print 
-      print "...found other_fn", other_fn
-      print  
       register_function(other_fn)
 
   global_vars = list(Converter.global_variables)
@@ -687,9 +687,7 @@ def register_function(f):
     [python_value_to_parakeet(v) for v in default_values]
   default_values_array = list_to_ctypes_array(parakeet_default_values)
   
-  print 
-  print "ARGS", positional, default_args 
-  print 
+
   # register every function that was seen but not registered
 
   fn_name_c_str = c_char_p(global_fn_name(f))
@@ -702,4 +700,5 @@ def register_function(f):
       parakeet_syntax))
 
   VisitedFunctions[f] = fun_id
+  VisitedFunctionGlobals[f] = global_vars 
   return fun_id, global_vars
