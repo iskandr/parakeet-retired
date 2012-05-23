@@ -444,7 +444,15 @@ class ASTConverter():
       return self.get_function_ref(node)
     except RuntimeError:
       return None
-
+  
+  def python_fn_to_parakeet(self, python_fn, src_info = None):
+    if python_fn in AutoTranslate:
+      python_fn = AutoTranslate[python_fn]
+    if python_fn in ParakeetOperators:
+      return ast_prim(ParakeetOperators[python_fn])
+    else:
+      return build_var(global_fn_name(python_fn), src_info)
+  
   
 
   
@@ -529,18 +537,23 @@ class ASTConverter():
       return build_prim_call(prim_name, [parakeet_obj],  src_info)
     else:
       raise ParakeetUnsupported("Can't call method %s" % method_name)
-      
+    
+    
   def visit_adverb(self, adverb, fn, args, kwds):
     python_fn = self.get_function_ref(fn)
+    parakeet_fn = self.python_fn_to_parakeet(python_fn)
+    parakeet_args = [parakeet_fn]
+    for arg in args:
+      parakeet_args.append(self.visit_expr(arg))
+
     parakeet_keywords = {}
     for pair in kwds:
       parakeet_keywords[pair.arg] = self.visit_expr(pair.value)
-    parakeet_args = [self.visit_expr(arg) for arg in args] 
-    if adverb == parakeet_lib.map: parakeet_adverb = ast_prim('map')
-    elif adverb == parakeet_lib.reduce: parakeet_adverb = ast_prim('reduce')
-    elif adverb == parakeet_lib.scan: parakeet_adverb = ast_prim('scan')
-    elif adverb == parakeet_lib.allpairs: parakeet_adverb = ast_prim('allpairs')
-    else: raise ParakeetUnsupported('Unknown adverb ' + str(adverb))
+    assert adverb in ParakeetOperators 
+    parakeet_adverb = ast_prim(ParakeetOperators[adverb])
+    print
+    print 
+    print "building call from visit_adverb", parakeet_adverb, parakeet_args, parakeet_keywords
     return build_call(parakeet_adverb, parakeet_args, parakeet_keywords) 
     
   def visit_simple_call(self, python_fn, args, kwds, src_info=None):
@@ -555,15 +568,13 @@ class ASTConverter():
       assert len(kwds) == 0
       assert len(args) == 1
       return self.visit_array_elts(args[0])
-    elif python_fn in ParakeetOperators:
-      parakeet_fn = ast_prim(ParakeetOperators[python_fn])
     else:
-      parakeet_fn = build_var(global_fn_name(python_fn), src_info)
-    parakeet_args = [self.visit_expr(arg) for arg in args]
-    parakeet_keywords = {}
-    for pair in kwds:
-      parakeet_keywords[pair.arg] = self.visit_expr(pair.value)
-    return build_call(parakeet_fn, parakeet_args, parakeet_keywords) 
+      parakeet_fn = self.python_fn_to_parakeet(python_fn)
+      parakeet_args = [self.visit_expr(arg) for arg in args]
+      parakeet_keywords = {}
+      for pair in kwds:
+        parakeet_keywords[pair.arg] = self.visit_expr(pair.value)
+      return build_call(parakeet_fn, parakeet_args, parakeet_keywords) 
       
     
   def visit_array_elts(self, node):
