@@ -104,8 +104,11 @@ ValidObjects = {
   np.multiply: parakeet_lib.mult,
   np.divide: parakeet_lib.div
 }
-adverbs = [parakeet_lib.map, parakeet_lib.reduce,
+
+Adverbs = [parakeet_lib.map, parakeet_lib.reduce,
            parakeet_lib.allpairs, parakeet_lib.scan]
+
+
 
 #Keeps track of the user-made functions that have been made and the built-ins
 VisitedFunctions = ParakeetOperators.copy()
@@ -221,7 +224,6 @@ def build_prim_call(python_op_name, args, src_info = None):
     translate it to the equivalent Parakeet primitive and
     create a Call node for that primitive
   """
-  print "build_prim_call: %s" % python_op_name 
   parakeet_op_name = BuiltinPrimitives[python_op_name]
   if parakeet_op_name is None:
     raise ParakeetUnsupported('Prim not implemented: %s' % python_op_name)
@@ -331,11 +333,8 @@ class ASTConverter():
     src_info = self.build_src_info(node)
     srcAddr = src_addr(src_info)
     if isinstance(node, ast.If):
-      print "IF: Visiting test"
       test = self.visit_expr(node.test)
-      print "IF: Visiting true branch"
       if_true = self.visit_stmt_sequence(node.body, src_info)
-      print "IF: Visiting false branch"
       if_false = self.visit_stmt_sequence(node.orelse, src_info)
       return LibPar.mk_if(test, if_true, if_false, srcAddr)
     elif isinstance(node, ast.Assign):
@@ -441,100 +440,6 @@ class ASTConverter():
       return None
 
   
-  def visit_call(self, node):
-    print "VISIT_CALL"
-    name_parts = flatten_var_attrs(node.func)
-    src_info = self.build_src_info(node)
-    assert len(name_parts) > 0 
-    base_name = name
-    if base_name in self.arg_names:
-      #Is the function an argument?
-      #If so, we must be calling a numpy method on an array 
-      assert len(name_parts) == 1  
-      method_name = node_parts[1]
-      build_prim_call(method_name, build_var(base_name, src_info), src_info)
-        
-    else:
-      funRef = self.get_function_ref(node.func)
-      if funRef is None:
-        raise RuntimeError("[Parakeet] Expected %s to be a function" % node.func)
-      if hasattr(funRef, '__self__') and funRef.__self__:
-        if funRef.__self__ in ValidObjects:
-          func = ValidObjects[funRef.__self__]
-          if func in AutoTranslate:
-            func = AutoTranslate[func]
-          self.seen_functions.add(func)
-          fun_name = global_fn_name(func)
-          par_name = LibPar.mk_var(c_char_p(fun_name), src_info.addr)
-          fun_arg = par_name
-          
-          kw_arg_names = ['fixed']
-          kw_arg_values = []  
-          
-          if funRef.__name__ == "reduce" or "accumulate":
-            arr_args = self.build_arg_list([node.args[0]], contextSet)
-            kw_arg_names.append('default')
-            kw_arg_values.append(LibPar.mk_none(None))
-            if len(node.args) == 1:
-              
-              kw_args['axis'] = LibPar.mk_int32_paranode(0, src_info.addr)
-            elif len(node.args) == 2:
-              kw_args['axis'] = self.visit(node.args[1], contextSet)
-            else:
-              raise RuntimeError("TOO MANY ARGUMENTS FOR %s" % funRef.__name__)
-              para_arr_args = self.build_parakeet_array(src_info, arr_args)
-              args = [fun_arg]
-              args.append(para_arr_args)
-              args.append(kw_args['fixed'])
-              args.append(kw_args['axis'])
-              args.append(kw_args['default'])
-              if funRef.__name__ == "reduce":
-                reduce_node = build_fn_node(parakeet_lib.reduce, src_info)
-                return self.build_call(reduce_node, args, src_info)
-              elif funRef.__name__ == "accumulate":
-                scan_node = build_fn_node(parakeet_lib.scan, src_info) 
-                return self.build_call(scan_node, args, src_info)
-              else:
-                assert False
-        else:
-          childContext = set(contextSet)
-          if funRef == np.array:
-            childContext.add('array')
-            assert len(node.args) == 1
-            return self.visit(node.args[0], childContext)
-          elif funRef in adverbs:
-            fun_arg = self.build_arg_list([node.args[0]], childContext)
-            arr_args = self.build_arg_list(node.args[1:], childContext)
-            kw_args = {'fixed': self.build_parakeet_array(src_info,[]),
-                       'axis': LibPar.mk_none(None)
-                      }
-            if funRef == parakeet_lib.reduce:
-              kw_args['default'] = LibPar.mk_none(None)
-            childContext.add('rhs')
-            childContext.add('array')
-            for kw_arg in node.keywords:
-              kw = kw_arg.arg
-              val = kw_arg.value
-              if type(val).__name__ == 'List':
-                val_args = []
-                for v_arg in val.elts:
-                  val_args.append(self.visit(v_arg, childContext))
-                kw_args[kw] = self.build_parakeet_array(src_info,val_args)
-              else:
-                val = self.visit(kw_arg.value, childContext)
-                kw_args[kw] = self.build_parakeet_array(src_info,[val])
-            args = fun_arg
-            para_arr_args = self.build_parakeet_array(src_info,arr_args)
-            args.append(para_arr_args)
-            args.append(kw_args['fixed'])
-            args.append(kw_args['axis'])
-            if funRef == parakeet_lib.reduce:
-              args.append(kw_args['default'])
-            parakeet_fn =  build_fn_node(funRef, src_info)
-            return self.build_call(parakeet_fn, args, src_info)
-          else:
-            funArgs = self.build_arg_list(node.args, childContext)
-            return build_call(funRef, funArgs, src_info)
 
   
   def visit_expr(self, node):
@@ -586,8 +491,48 @@ class ASTConverter():
       return None
 
   def visit_call(self, fn, args, kwds, src_info = None):
-    return None 
-  
+    fn_name_parts = flatten_var_attrs(fn)
+    assert len(fn_name_parts) > 0 
+    base_name = fn_name_parts[0]
+    if base_name in self.arg_names:
+      #Is the function an argument?
+      #If so, we must be calling a numpy method on an array 
+      assert len(fn_name_parts) == 1
+      obj_name = build_var(base_name, src_info)  
+      method_name = fn_name_parts[1]
+      if method_name in NumpyArrayMethods:
+        prim_name = NumpyArrayMethods[method_name]
+        return build_prim_call(prim_name, [obj_name],  src_info)
+      else:
+        raise ParakeetUnsupported("Can't call method %s" % method_name)        
+    else:
+      python_fn = self.get_function_ref(fn)
+      if python_fn in Adverbs:
+        assert len(args) > 2
+        return self.visit_adverb(python_fn, args[0], args[1:],  kwds)
+      else:
+        return self.visit_ordinary_call(python_fn, args, kwds, src_info)
+        
+  def visit_ordinary_call(self, python_fn, args, kwds, src_info=None):
+    # have to handle arrays differently since they can contain
+    # lists that otherwise are illegal in Parakeet programs
+    if python_fn == np.array:
+      # keywords on arrays not yet supported
+      assert len(kwds) == 0
+      assert len(args) == 1
+      return self.visit_array_elts(args[0])
+    elif python_fn in ParakeetOperators:
+      parakeet_fn = ast_prim(ParakeetOperators[python_fn])
+    else:
+      parakeet_fn = build_var(global_fn_name(python_fn), src_info)
+    parakeet_args = [self.visit_expr(arg) for arg in args]
+    parakeet_keywords = {}
+    for pair in kwds:
+      parakeet_keywords[pair.arg] = self.visit_expr(pair.value)
+    
+    return build_call(parakeet_fn, parakeet_args, parakeet_keywords) 
+      
+    
   def visit_array_elts(self, node):
     if isinstance(node, ast.List) or isinstance(node, ast.Tuple):
       elts = [self.visit_expr(elt) for elt in node.elts]
