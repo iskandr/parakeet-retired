@@ -213,11 +213,18 @@ paranode mk_return(paranode* args, int num_args, source_info_t *src_info) {
 
 paranode mk_array(paranode *elts, int num_elts, source_info_t *src_info) {
   CAMLparam0();
-  CAMLlocal2(arr, elt_list);
-  elt_list = mk_val_list(elts, num_elts); 
-  arr = caml_alloc(1, Exp_Array);
-  Store_field(arr, 0, elt_list);
-  CAMLreturnT(paranode, mk_node(arr, src_info));
+  CAMLlocal1(array);
+  array = caml_alloc(1, Exp_Array);
+  Store_field(array, 0, mk_val_list(elts, num_elts));
+  CAMLreturnT(paranode, mk_node(array, src_info));
+}
+
+paranode mk_tuple(paranode *elts, int num_elts, source_info_t *src_info) {
+  CAMLparam0();
+  CAMLlocal1(tuple);
+  tuple = caml_alloc(1, Exp_Tuple);
+  Store_field(tuple, 0, mk_val_list(elts, num_elts));
+  CAMLreturnT(paranode, mk_node(tuple, src_info));
 }
 
 paranode mk_if(paranode cond_node, paranode true_node, paranode false_node,

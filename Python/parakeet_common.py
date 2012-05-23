@@ -63,6 +63,7 @@ def init_parakeet_lib():
 
   LibPar.register_untyped_function.restype = c_int
   LibPar.mk_array.restype = c_void_p
+  LibPar.mk_tuple.restype = c_void_p 
   LibPar.mk_assign.restype = c_void_p
   LibPar.mk_var.restype = c_void_p
   LibPar.mk_call.restype = c_void_p

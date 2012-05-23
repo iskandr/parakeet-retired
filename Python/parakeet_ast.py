@@ -20,6 +20,14 @@ class _source_info_t:
     else:
       self.addr = 0
 
+
+def src_addr(src_info):
+  if src_info is None: 
+    return None
+  else: 
+    return src_info.addr
+
+
 ###############################################################################
 #  Global variables
 ###############################################################################
@@ -39,17 +47,7 @@ ParakeetOperators = {
   np.size:'size',
 }
 
-AutoTranslate = {
-#  map: parakeet_lib.map,
-#  reduce: parakeet_lib.reduce,
-  np.sum:parakeet_lib.sum,
-  sum:parakeet_lib.sum,
-  np.argmin:parakeet_lib.argmin,
-  np.mean:parakeet_lib.mean,
-  np.all:parakeet_lib.all,
-  len:parakeet_lib._len,
-  abs:parakeet_lib.abs,
-}
+AutoTranslate = {}
 
 BuiltinPrimitives = {
   'Add':'add',
@@ -94,28 +92,14 @@ NumpyArrayAttributes = {
   "strides": "strides",
 }
 
-ValidObjects = {
-  np.add: parakeet_lib.add,
-  np.subtract: parakeet_lib.sub,
-  np.multiply: parakeet_lib.mult,
-  np.divide: parakeet_lib.div
-}
 
 Adverbs = [parakeet_lib.map, parakeet_lib.reduce,
            parakeet_lib.allpairs, parakeet_lib.scan]
 
 
-
-
 ###############################################################################
 #  Helper functions
 ###############################################################################
-
-def src_addr(src_info):
-  if src_info is None: 
-    return None
-  else: 
-    return src_info.addr
 
 
 def build_var(name, src_info = None):
@@ -253,6 +237,9 @@ def mk_return(elts, src_info=None):
 def mk_array(elts, src_info = None):
   arr = list_to_ctypes_array(elts)
   return LibPar.mk_array(arr, len(elts), src_addr(src_info))
+
+def mk_tuple(elts, src_info = None):
+  LibPar.mk_tuple(list_to_ctypes_array(elts), src_addr(src_info))
 
 def mk_block(stmts, src_info = None):
   arr = list_to_ctypes_array(stmts)
@@ -406,7 +393,7 @@ class ASTConverter():
         try:
           currModule = currModule.__dict__[m]
         except AttributeError:
-          if currModule in ValidObjects:
+          if currModule in AutoTranslate:
             currModule = currModule.__getattribute__(m)
           elif m in NumpyArrayMethods and m == moduleList[-1]:
             currModule = currModule.__getattribute__(m)
@@ -445,10 +432,7 @@ class ASTConverter():
       return ast_prim(ParakeetOperators[python_fn])
     else:
       return build_var(global_fn_name(python_fn), src_info)
-  
-  
-
-  
+    
   def visit_expr(self, node):
     print "Visit_expr", node 
     src_info = self.build_src_info(node)
@@ -498,6 +482,9 @@ class ASTConverter():
       args = node.args
       kwds = node.keywords 
       return self.visit_call(fn, args, kwds, src_info)
+    elif isinstance(node, ast.Tuple):
+       elts = [self.visit_expr(elt) for elt in node.elts]
+       
     else:
       raise RuntimeError("[Parakeet] AST node %s not supported " % type(node).__name__)
       return None
