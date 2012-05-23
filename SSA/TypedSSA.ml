@@ -233,8 +233,10 @@ module FnHelpers = struct
 	    fn_output_types = outTypes;
 	    fn_id = fnId
 	  }
+    
 	let fn_builder
 	    ?name
+      ?input_names 
 	    ~(input_types:Type.t list)
 	    ~(output_types:Type.t list)
 	    ?(local_types = [])
@@ -248,8 +250,15 @@ module FnHelpers = struct
 	    ;
 	  ENDIF;
 	  (* inputs *)
-	  let nInputs = List.length input_types in
-	  let inputIds = ID.gen_named_list "input" nInputs in
+	  
+    
+	  let inputIds = match input_names with
+      | None -> 
+        let nInputs = List.length input_types in
+        ID.gen_named_list "input" nInputs
+      | Some names -> 
+        List.map ID.gen_named names 
+    in 
 	  let inputs = List.map2 (fun t id -> var t id) input_types inputIds in
 	  (* outputs *)
 	  let nOutputs = List.length output_types in

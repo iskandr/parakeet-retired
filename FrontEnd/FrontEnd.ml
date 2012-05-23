@@ -97,29 +97,17 @@ let run_function
     Args.apply_to_formal_values syntax_value_to_runtime_value formals
   in 
    
+  (* map from names to values *)
   let namedArgVals =  Args.bind formals actuals in
-  let idArgVals = 
-    List.map 
-      (fun (name, v) -> 
-        let id = 
-          String.Map.find name untypedFn.UntypedSSA.input_names_to_ids
-        in
-        id, v 
-      )
-      namedArgVals
-  in 
-  let idArgEnv = ID.Map.of_list idArgVals in 
- 
-  (*  Error errorMsg *)
-  let actualTypes = Args.apply_to_actual_values Value.type_of actuals in     
+  let namedArgMap = String.Map.of_list namedArgVals in 
+  let actualTypes = Args.apply_to_actual_values Value.type_of actuals in
+  let signature = Signature.from_args actualTypes in
+  let formalNames : string list = Args.all_formal_names formals in
+  let reorderedArgs : Ptr.t Value.t list = 
+    List.map (fun name -> String.Map.find name namedArgMap) formalNames
+  in          
   try
-    let signature = Signature.from_args actualTypes in
     let typedFundef = get_specialized_function untyped_id signature in
-    let reorderedArgs = 
-      List.map 
-        (fun id -> ID.Map.find id idArgEnv) 
-        typedFundef.TypedSSA.input_ids
-    in 
     let result = Runtime.call typedFundef reorderedArgs in  
     Success result
   with exn -> begin

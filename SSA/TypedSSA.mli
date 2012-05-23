@@ -111,10 +111,12 @@ module FnHelpers  : sig
 
   val fn_builder :
     ?name: string ->
-      input_types: (Type.t list) ->
-        output_types: (Type.t list) ->
-          ?local_types: (Type.t list) ->
-            ((value_nodes * value_nodes * value_nodes) -> stmt_node list) -> fn
+      ?input_names : string list -> 
+        input_types: (Type.t list) ->
+          output_types: (Type.t list) ->
+            ?local_types: (Type.t list) ->
+              ((value_nodes * value_nodes * value_nodes) -> stmt_node list) -> 
+                fn
 
   val get_single_type : fn -> Type.t option
 end

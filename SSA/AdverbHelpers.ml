@@ -100,9 +100,11 @@ let mk_adverb_fn
           (FnId.to_str nestedFnId)
           (Adverb.to_str info.adverb)
     in
+    let inputNames = FnManager.typed_input_names nestedFnId in 
     let newfn =
       TypedSSA.fn_builder
         ~name
+        ~input_names:inputNames 
         ~input_types:(info.fixed_args @ info.array_args)
         ~output_types:outputTypes
         constructor

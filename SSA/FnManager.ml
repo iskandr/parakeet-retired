@@ -155,3 +155,8 @@ let input_types_of_typed_fn fnId =
   TypedSSA.FnHelpers.input_types (get_typed_function fnId)
 let output_types_of_typed_fn fnId =
   TypedSSA.FnHelpers.output_types (get_typed_function fnId)
+  
+let typed_input_names fnId = 
+  let fn = get_typed_function fnId in 
+  List.map ID.get_original_prefix fn.TypedSSA.input_ids 
+
