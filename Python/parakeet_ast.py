@@ -193,7 +193,8 @@ def mk_call(fn, positional_args, kw_names = [], kw_values = [], src_info=None):
   kw_values_array = list_to_ctypes_array(kw_values)
   n_kwds = len(kw_names)
   srcAddr = src_addr(src_info)
-    
+  
+  print "mk_call", kw_names_array, kw_values_array   
   # paranode fun, paranode *args, int num_args,
   # char** keywords, paranode* keyword_values, int num_keyword_args,
   #  source_info_t *src_info
@@ -206,12 +207,13 @@ def build_call(parakeet_fn, args, kw_args = {}, src_info = None):
     Assumes that the function is a Python object which needs
     to be translated into a Parakeet node 
   """
+  
   kw_names = []
   kw_values = []
   for k,v in kw_args.items():
     kw_names.append(c_char_p(k))
     kw_values.append(v)
-  
+  print "build_call", parakeet_fn, args, kw_names, kw_values 
   return mk_call(parakeet_fn, args, kw_names, kw_values, src_info)
    
 #Function to get ast node(s) for built-in functions/primitives
@@ -246,7 +248,7 @@ def flatten_var_attrs(node):
     parts.append(node.attr) 
     node = node.value
   parts.append(node.id)  
-  return reversed(parts)
+  return list(reversed(parts))
 
 def get_global_var_name(node):
   return ".".join(flatten_var_attrs(node))
@@ -269,12 +271,16 @@ def build_num(num, src_info = None):
   """
   Given the string form of a number, build a syntax node for an int or float
   """
-  if type(num) == int:
+  num_type = type(num)
+  if num_type == int:
     return LibPar.mk_int32_paranode(num, src_addr(src_info))
-  elif type(num) == float:
-    return LibPar.mk_float_paranode(c_float(num), src_addr(src_info))
+  elif num_type == long: 
+    return LibPar.mk_int64_paranode(num, src_addr(src_info))
+  elif num_type == float:
+    return LibPar.mk_double_paranode(c_double(num), src_addr(src_info))
+
   else:
-    raise RuntimeError("Failed to create number from " + str_num)
+    raise ParakeetUnsupported("Unsupported numeric type " + num_type)
 
 
 
@@ -392,13 +398,13 @@ class ASTConverter():
         funRef = __builtins__[funName]
       else:
         raise InvalidFunction(funName)
-    elif isinstance(name, ast.Attribute):
+    elif isinstance(node, ast.Attribute):
       #For function calls like mod1.mod2.mod4.fun()
       moduleList = []
       nextNode = node
       funName = node.attr
       #Get a list of the chain of modules
-      while instance(nextNode, ast.Attribute):
+      while isinstance(nextNode, ast.Attribute):
         moduleList = [nextNode.attr] + moduleList
         nextNode = nextNode.value
       currModule = self.global_refs[nextNode.id]
@@ -443,6 +449,7 @@ class ASTConverter():
 
   
   def visit_expr(self, node):
+    print "Visit_expr", node 
     src_info = self.build_src_info(node)
 
     if isinstance(node, ast.Name):
@@ -451,6 +458,9 @@ class ASTConverter():
       left = self.visit_expr(node.left)
       right = self.visit_expr(node.right)
       op_name = name_of_ast_node(node.op)
+      print
+      print 
+      print node, node.op,  node.left, node.right  
       return build_prim_call(op_name, [left, right], src_info)
     elif isinstance(node, ast.BoolOp):
       args = [self.visit_expr(v) for  v in node.values]
@@ -466,6 +476,7 @@ class ASTConverter():
       op_name = name_of_ast_node(node.ops[0])
       left = self.visit_expr(node.left)
       right = self.visit_expr(node.comparators[0])
+
       return build_prim_call(op_name, [left, right], src_info)
     elif isinstance(node, ast.Subscript):
       op_name = name_of_ast_node(node.slice) 
@@ -485,35 +496,58 @@ class ASTConverter():
       fn = node.func
       args = node.args
       kwds = node.keywords 
-      self.visit_call(fn, args, kwds, src_info)
+      return self.visit_call(fn, args, kwds, src_info)
     else:
       raise RuntimeError("[Parakeet] AST node %s not supported " % type(node).__name__)
       return None
 
   def visit_call(self, fn, args, kwds, src_info = None):
+    print "visit_call", fn, args, kwds 
     fn_name_parts = flatten_var_attrs(fn)
     assert len(fn_name_parts) > 0 
     base_name = fn_name_parts[0]
+    # TODO: should be a check whether it's a local, not an arg 
     if base_name in self.arg_names:
+      
       #Is the function an argument?
       #If so, we must be calling a numpy method on an array 
       assert len(fn_name_parts) == 1
-      obj_name = build_var(base_name, src_info)  
       method_name = fn_name_parts[1]
-      if method_name in NumpyArrayMethods:
-        prim_name = NumpyArrayMethods[method_name]
-        return build_prim_call(prim_name, [obj_name],  src_info)
-      else:
-        raise ParakeetUnsupported("Can't call method %s" % method_name)        
+      parakeet_obj =  build_var(base_name, src_info)
+      self.visit_method_call(method_name, parakeet_obj, src_info)
     else:
       python_fn = self.get_function_ref(fn)
       if python_fn in Adverbs:
-        assert len(args) > 2
+        assert len(args) > 1
         return self.visit_adverb(python_fn, args[0], args[1:],  kwds)
       else:
-        return self.visit_ordinary_call(python_fn, args, kwds, src_info)
-        
-  def visit_ordinary_call(self, python_fn, args, kwds, src_info=None):
+        return self.visit_simple_call(python_fn, args, kwds, src_info)
+  
+  def visit_method_call(self, method_name, parakeet_obj, src_info = None):
+    if method_name in NumpyArrayMethods:
+      prim_name = NumpyArrayMethods[method_name]
+      return build_prim_call(prim_name, [parakeet_obj],  src_info)
+    else:
+      raise ParakeetUnsupported("Can't call method %s" % method_name)
+      
+  def visit_adverb(self, adverb, fn, args, kwds):
+    python_fn = self.get_function_ref(fn)
+    parakeet_keywords = {}
+    for pair in kwds:
+      parakeet_keywords[pair.arg] = self.visit_expr(pair.value)
+    parakeet_args = [self.visit_expr(arg) for arg in args] 
+    if adverb == parakeet_lib.map: parakeet_adverb = ast_prim('map')
+    elif adverb == parakeet_lib.reduce: parakeet_adverb = ast_prim('reduce')
+    elif adverb == parakeet_lib.scan: parakeet_adverb = ast_prim('scan')
+    elif adverb == parakeet_lib.allpairs: parakeet_adverb = ast_prim('allpairs')
+    else: raise ParakeetUnsupported('Unknown adverb ' + str(adverb))
+    return build_call(parakeet_adverb, parakeet_args, parakeet_keywords) 
+    
+  def visit_simple_call(self, python_fn, args, kwds, src_info=None):
+    """
+    A simple call is neither a ufunc method nor an adverb
+    """
+    print "visit_simple_call", python_fn, args, kwds 
     # have to handle arrays differently since they can contain
     # lists that otherwise are illegal in Parakeet programs
     if python_fn == np.array:
@@ -529,7 +563,6 @@ class ASTConverter():
     parakeet_keywords = {}
     for pair in kwds:
       parakeet_keywords[pair.arg] = self.visit_expr(pair.value)
-    
     return build_call(parakeet_fn, parakeet_args, parakeet_keywords) 
       
     

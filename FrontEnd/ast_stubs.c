@@ -145,10 +145,11 @@ paranode mk_float_paranode(float f, source_info_t *src_info) {
 
   val = caml_alloc(1, PARNUM_FLOAT32);
   Store_field(val, 0, caml_copy_double((double)f));
-  CAMLreturnT(paranode, mk_num(val, src_info));
+  CAMLreturnT(paranode,  mk_num(val, src_info));
 }
 
 paranode mk_double_paranode(double d, source_info_t *src_info) {
+  printf("C: mk_double: %f\n", d);
   CAMLparam0();
   CAMLlocal1(val);
 
