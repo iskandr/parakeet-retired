@@ -516,6 +516,9 @@ class ASTConverter():
 
     parakeet_keywords = {}
     for pair in kwds:
+      print pair
+      print pair.arg 
+      print pair.value 
       parakeet_keywords[pair.arg] = self.visit_expr(pair.value)
     assert adverb in ParakeetOperators 
     parakeet_adverb = ast_prim(ParakeetOperators[adverb])

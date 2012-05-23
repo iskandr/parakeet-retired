@@ -97,13 +97,22 @@ def register_function(f):
     positional = argspec.args 
   else:
     default_values = argspec.defaults
-    positional = argspec.args[:-len(default_values)]
-  
-  n_defaults = len(default_values)
+    positional =  argspec.args[:-len(default_values)]
+  print "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+  print positional 
+  positional = map(c_char_p, positional)
+  print positional 
   n_positional = len(positional)
+  n_defaults = len(default_values)
   positional_args_array = list_to_ctypes_array(positional, c_char_p)
+  
   default_args = argspec.args[n_positional:]
-  default_args_array = list_to_ctypes_array(default_args, c_char_p)
+  print "DEFAULT", default_args
+  default_args = map(c_char_p, default_args)
+  print default_args 
+  default_args_array = \
+    list_to_ctypes_array(default_args, c_char_p)
+  # TODO: Default values are currently RUNTIME value, eek! 
   parakeet_default_values = \
     [python_value_to_parakeet(v) for v in default_values]
   default_values_array = list_to_ctypes_array(parakeet_default_values)
