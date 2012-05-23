@@ -189,7 +189,7 @@ def mk_call(fn, positional_args, kw_names = [], kw_values = [], src_info=None):
   
   args_array = list_to_ctypes_array(positional_args)
   n_args = len(positional_args)
-  kw_names_array = list_to_ctypes_array(kw_names)
+  kw_names_array = list_to_ctypes_array(kw_names, c_char_p)
   kw_values_array = list_to_ctypes_array(kw_values)
   n_kwds = len(kw_names)
   srcAddr = src_addr(src_info)

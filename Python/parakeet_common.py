@@ -101,12 +101,10 @@ LibPar = init_parakeet_lib()
 
 
 def list_to_ctypes_array(input_list, t = c_void_p):
-  print "[list_to_ctypes_array] input:", input_list
   n = len(input_list)
   ARRAY_TYPE = t * n # Description of a ctypes array
   arr = ARRAY_TYPE()
-  for i in range(n):
-    arr[i] = input_list[i]
-  print "[list_to_ctypes_array] output:", arr
+  for i, x in enumerate(input_list):
+    arr[i] = x
   return arr
 
