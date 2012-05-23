@@ -146,7 +146,7 @@ and translate_axes env block astNode = match astNode.data with
 and translate_adverb env block adverb 
   (args :  AST.node Args.actual_args) (src:SrcInfo.t) =
   match args with
-  | {Args.values=fn::{data=AST.Tuple arrayArgs}::_; keywords} -> 
+  | {Args.values=fn::arrayArgs; keywords} -> 
     let fixedArgs = 
       match List.assoc_option "fixed" keywords with 
       | Some {data = AST.Tuple fixedArgs} -> fixedArgs
@@ -155,7 +155,11 @@ and translate_adverb env block adverb
     let optAxes = 
       match List.assoc_option "axis" keywords with 
       | Some axes -> translate_axes env block axes
-      | None -> None
+      | None -> 
+        (match List.assoc_option "axes" keywords with 
+         | Some axes -> translate_axes env block axes 
+         | None -> None
+        ) 
     in 
     let adverbInfo = {
       Adverb.adverb = adverb;
