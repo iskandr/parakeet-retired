@@ -3,7 +3,7 @@ import numpy as np
 import inspect 
 from parakeet_common import LibPar, list_to_ctypes_array  
 from parakeet_ast import ParakeetOperators, ASTConverter, global_fn_name
-from parakeet_values import python_value_to_parakeet
+from parakeet_ast import build_none, build_bool, build_int, build_float, build_long
 from ctypes import *
 
 
@@ -55,6 +55,21 @@ def ast_to_str(node,
     return _format(node)
 
 
+import numpy as np
+def python_value_to_ast_node(v):
+  t = type(v)
+  if t is type(None): 
+    return build_none()
+  elif t is bool:
+    return build_bool(v)
+  elif t is long:
+    return build_long(v)
+  elif t is float:
+    return build_float(v)
+  elif t is int: 
+    return build_int(v)
+  else:
+    raise RuntimeError("Can't translate default value " + str(v))
 
 def register_function(f):
   print "********************************"
@@ -114,7 +129,7 @@ def register_function(f):
     list_to_ctypes_array(default_args, c_char_p)
   # TODO: Default values are currently RUNTIME value, eek! 
   parakeet_default_values = \
-    [python_value_to_parakeet(v) for v in default_values]
+    [python_value_to_ast_node(v) for v in default_values]
   default_values_array = list_to_ctypes_array(parakeet_default_values)
   
 

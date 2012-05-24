@@ -84,19 +84,49 @@ Adverbs = [parakeet_adverbs.map, parakeet_adverbs.reduce,
 #  Helper functions
 ###############################################################################
 
+def build_none(src_info = None):
+  return LibPar.mk_none(src_addr(src_info))
+
+def build_bool(b, src_info = None):
+  if b: 
+    return LibPar.mk_bool_paranode(1, src_addr(src_info))
+  else:
+    return LibPar.mk_bool_paranode(0, src_addr(src_info))
 
 def build_var(name, src_info = None):
   #Special case for booleans and None
   if name == 'True':
-    return LibPar.mk_bool_paranode(1, src_addr(src_info))
+    return build_bool(True, src_info)
   elif name == 'False':
-    return LibPar.mk_bool_paranode(0, src_addr(src_info))
+    return build_bool(False, src_info)
   elif name == 'None':
-    return LibPar.mk_none(src_addr(src_info))
+    return mk_none(src_info)
   else:
     return LibPar.mk_var(c_char_p(name), src_addr(src_info))
 
+def build_int(i, src_info = None):
+  return LibPar.mk_int32_paranode(i, src_addr(src_info))
 
+def build_long(l, src_info = None): 
+  return LibPar.mk_int64_paranode(l, src_addr(src_info))
+
+def build_float(f, src_info = None):  
+  print f
+  return LibPar.mk_float_paranode(c_double(f), src_addr(src_info))
+
+def build_num(num, src_info = None):
+  """
+  Given the string form of a number, build a syntax node for an int or float
+  """
+  num_type = type(num)
+  if num_type == int:
+    return build_int(num, src_info)
+  elif num_type == long:
+    return build_long(num, src_info)    
+  elif num_type == float:
+    return build_float(num, src_info)
+  else:
+    raise ParakeetUnsupported("Unsupported numeric type " + num_type)
 
 class ParakeetUnsupported(Exception):
   def __init__(self, value):
@@ -229,24 +259,6 @@ def mk_tuple(elts, src_info = None):
 def mk_block(stmts, src_info = None):
   arr = list_to_ctypes_array(stmts)
   return LibPar.mk_block(arr, len(stmts), src_addr(src_info))
-
-
-
-def build_num(num, src_info = None):
-  """
-  Given the string form of a number, build a syntax node for an int or float
-  """
-  num_type = type(num)
-  if num_type == int:
-    return LibPar.mk_int32_paranode(num, src_addr(src_info))
-  elif num_type == long: 
-    return LibPar.mk_int64_paranode(num, src_addr(src_info))
-  elif num_type == float:
-    return LibPar.mk_double_paranode(c_double(num), src_addr(src_info))
-
-  else:
-    raise ParakeetUnsupported("Unsupported numeric type " + num_type)
-
 
 
 
@@ -392,8 +404,10 @@ class ASTConverter():
     
     if not hasattr(funRef, '__call__'):
       return None
+    
     if funRef in AutoTranslate:
       funRef = AutoTranslate[funRef]
+    
     if not hasattr(funRef,'__self__') or not funRef.__self__:
       self.seen_functions.add(funRef)
     return funRef
@@ -565,3 +579,5 @@ class ASTConverter():
       return _source_info_t(_c_source_info_t(file_name, line, col))
     except AttributeError:
       return _source_info_t(None)
+
+  

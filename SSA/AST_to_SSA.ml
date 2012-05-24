@@ -138,11 +138,15 @@ and translate_values env block nodes =
 and translate_axes env block astNode = match astNode.data with
   | AST.Tuple axes 
   | AST.Array axes -> Some (translate_values env block axes)
-  | AST.Num n -> Some ([UntypedSSA.ValueHelpers.num ~src:astNode.src n])
   | AST.NoneVal () -> None
-  | other ->
-    failwith $ Printf.sprintf "Unrecognized axes arg: %s" (AST.to_str astNode)
-
+  | _ -> Some ([translate_value env block astNode])
+  (*
+  | AST.Num n -> Some ([UntypedSSA.ValueHelpers.num ~src:astNode.src n])
+  *) 
+  (*| other ->
+    failwith $ Printf.sprintf "Unrecognized axis arg (must be constant): %s" 
+    (AST.to_str astNode)
+  *)
 and translate_adverb env block adverb 
   (args :  AST.node Args.actual_args) (src:SrcInfo.t) =
   match args with
