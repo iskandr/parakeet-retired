@@ -111,8 +111,8 @@ def build_long(l, src_info = None):
   return LibPar.mk_int64_paranode(l, src_addr(src_info))
 
 def build_float(f, src_info = None):  
-  print f
-  return LibPar.mk_float_paranode(c_double(f), src_addr(src_info))
+  print "BUILD_FLOAT", f, c_double(f)
+  return LibPar.mk_double_paranode(c_double(f), src_addr(src_info))
 
 def build_num(num, src_info = None):
   """
