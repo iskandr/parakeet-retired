@@ -9,7 +9,7 @@ import parakeet_wrapped_function
 def map(fn, *args, **kwargs):
   if not isinstance(fn, parakeet_wrapped_function.WrappedFunction):
     fn = parakeet_wrapped_function.PAR(fn)
-  return fn.map(*arg, **kwargs)
+  return fn.map(*args, **kwargs)
 
 def reduce(fn, *args, **kwargs):
   if not isinstance(fn, parakeet_wrapped_function.WrappedFunction):

@@ -14,10 +14,22 @@ type ret_val =
   | Pass (* I don't want to run this function *)
 
 
+type value = Ptr.t Value.t 
+type values = value list 
+
 val run_function :
-      untyped_id:FnId.t -> 
-        globals:Ptr.t Value.t list -> 
-          positional_args:Ptr.t Value.t list -> 
-            keyword_names : string list -> 
-              keyword_values: Ptr.t Value.t list ->  
-                ret_val 
+  untyped_id:FnId.t -> 
+    globals:values ->  
+      positional_args: values -> 
+        keyword_names : string list -> 
+          keyword_values: values -> 
+            ret_val
+(*
+val run_adverb :  
+  adverb:Prim.adverb -> untyped_id: FnId.t -> 
+    globals:values -> 
+      fixed : values -> fixed_keyword_names : string list -> fixed_keyword_values : values -> 
+        init : values -> 
+          axes : int list option ->   
+            arrays : values -> array_keyword_names : string list -> array_keyword_values : values -> 
+              ret_val     *) 

@@ -69,25 +69,50 @@ let syntax_value_to_runtime_value (v : UntypedSSA.value_node) : Ptr.t Value.t =
     | UntypedSSA.Num n -> Value.Scalar n 
     | _ -> failwith "Default args must be a scalar"
    
-
+type value = Ptr.t Value.t 
+type values = value list 
+(*
+let exec_with_error_handling runtime_fn untyp args =
+try
+    let typedFundef = get_specialized_function untyped_id signature in
+    let result = Runtime.call typedFundef reorderedArgs in  
+    Success result
+  with exn -> begin
+    let errorMsg =
+      match exn with
+      | TypeAnalysis.TypeError(txt, srcOpt) ->
+        let srcStr =
+          Option.map_default
+            (fun srcInfo -> "at " ^ (SrcInfo.to_str srcInfo))
+            "(no source info)"
+            srcOpt
+        in
+        Printf.sprintf "Type Error: %s %s" txt srcStr
+      | ShapeInference.ShapeInferenceFailure txt ->
+        Printf.sprintf "Shape Error: %s" txt
+      | _ ->  Printexc.to_string exn
+    in
+    Printf.printf "\nParakeet failed with the following error:\n";
+    Printf.printf "- %s\n\n" errorMsg;
+    Printf.printf "OCaml Backtrace:\n";
+    Printexc.print_backtrace Pervasives.stdout;
+    Printf.printf "\n%!";
+    Error errorMsg
+  en
+*)
 let run_function 
       ~(untyped_id:FnId.t)
       ~(globals:Ptr.t Value.t list)
       ~(positional_args:Ptr.t Value.t list)
       ~(keyword_names:string list)
       ~(keyword_values : Ptr.t Value.t list) : ret_val =
-  Printf.printf "RUN | COMPACT\n%!";
-  Gc.compact();
-  Gc.compact(); 
+  
   assert (List.length keyword_names = List.length keyword_values); 
   let actuals = { 
     Args.values = globals @ positional_args;
     keywords = List.combine keyword_names keyword_values;
   }
   in  
-  (*Timing.clear Timing.runTemplate;
-  Timing.clear Timing.typedOpt;
-  Timing.start Timing.runTemplate;*)
   
   let untypedFn = FnManager.get_untyped_function untyped_id in
   let formals : UntypedSSA.value_node Args.formal_args = 
