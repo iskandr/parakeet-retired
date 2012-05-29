@@ -24,12 +24,16 @@
 /** Private members **/
 value *ocaml_register_untyped_function = NULL;
 value *ocaml_run_function              = NULL;
+value *ocaml_get_adverb                = NULL; 
+value *ocaml_run_adverb                = NULL; 
 value *ocaml_set_vectorize             = NULL;
 value *ocaml_set_multithreading        = NULL;
 int fe_inited = 0;
 
 
 value build_host_val_list(host_val *vals, int num_vals);
+value build_int_list(int* nums, int count);
+
 static int ocaml_list_length(value l);
 
 /** Public interface **/
@@ -44,6 +48,8 @@ void front_end_init(void) {
   ocaml_run_function = caml_named_value("run_function");
   ocaml_set_vectorize = caml_named_value("set_vectorize");
   ocaml_set_multithreading = caml_named_value("set_multithreading");
+  ocaml_get_adverb = caml_named_value("get_adverb");
+  ocaml_run_adverb = caml_named_value("run_adverb");
 }
 
 /*     LibPar.register_untyped_function(
@@ -98,57 +104,41 @@ int register_untyped_function(
   CAMLreturnT(int, Int_val(fn_id));
 }
 
-return_val_t run_function(int id, 
-    host_val *globals, int num_globals,
-    host_val *args, int num_args, 
-    char** kwd_arg_names, host_val* kwd_arg_values, int num_kwd_args) {
-  CAMLparam0();
-  CAMLlocal5(ocaml_rslt, ocaml_fn_id, ocaml_globals, ocaml_args, v);
-  CAMLlocal2(ocaml_kwd_names, ocaml_kwd_args);
+
+/* given a return value in OCaml land, translate it to 
+   the return_val_t C structure
+*/ 
+return_val_t translate_return_value(value ocaml_result) {
+  CAMLparam1(ocaml_result);
   CAMLlocal5(ocaml_shape, ocaml_strides, ocaml_data, ocaml_cur, ocaml_type);
-
-  printf("C: entered run_function\n");
-  printf("..getting function id..\n");
-  ocaml_fn_id = Val_int(id);
-  printf("..building globals list..(len=%d)\n", num_globals);
-  ocaml_globals = build_host_val_list(globals, num_globals);
-  printf("..building args list..(len = %d)\n", num_args);
-  ocaml_args = build_host_val_list(args, num_args);
-  printf("..building keyword name list (len=%d)..\n", num_kwd_args);
-
-  ocaml_kwd_names = build_str_list(kwd_arg_names, num_kwd_args);
-  printf("..building keyword value list..\n");
-  ocaml_kwd_args = build_host_val_list(kwd_arg_values, num_kwd_args);
-
-  value func_args[5] = {
-    ocaml_fn_id, ocaml_globals, ocaml_args, ocaml_kwd_names, ocaml_kwd_args};
-  printf("..calling OCaml's run_function\n");
-  ocaml_rslt = caml_callbackN(*ocaml_run_function, 5, func_args);
-
-  ocaml_cur = Field(ocaml_rslt, 0);
+  CAMLlocal1(v);
+  
   return_val_t ret;
-
-  if (Is_long(ocaml_rslt)) {
+  
+  if (Is_long(ocaml_result)) {
     // In this case, we know that the return code must have been Pass,
     // since the other two return codes have data.
     ret.return_code = RET_PASS;
     ret.results_len = 0;
-  } else if (Tag_val(ocaml_rslt) == RET_FAIL) {
+  } else if (Tag_val(ocaml_result) == RET_FAIL) {
     ret.return_code = RET_FAIL;
-    ret.results_len = caml_string_length(Field(ocaml_rslt, 0));
+    ret.results_len = caml_string_length(Field(ocaml_result, 0));
     ret.error_msg = malloc(ret.results_len);
-    strcpy(ret.error_msg, String_val(Field(ocaml_rslt, 0)));
-  } else if (Tag_val(ocaml_rslt) == RET_SUCCESS) {
+    strcpy(ret.error_msg, String_val(Field(ocaml_result, 0)));
+  } else if (Tag_val(caml_reslt) == RET_SUCCESS) {
+    
+    ocaml_cur = Field(ocaml_result, 0);
     ret.return_code = RET_SUCCESS;
     ret.results_len = ocaml_list_length(ocaml_cur);
     ret.results = (ret_t*)malloc(sizeof(ret_t) * ret.results_len);
+    
     int i, j;
     for (i = 0; i < ret.results_len; ++i) {
       v = Field(ocaml_cur, 0);
       ocaml_cur = Field(ocaml_cur, 1);
       // returning a scalar
       if (value_is_scalar(v)) {
-         
+
         ret.results[i].is_scalar = 1;
         ocaml_type = (scalar_type)value_type_of(v);
         ret.results[i].data.scalar.ret_type =
@@ -160,7 +150,7 @@ return_val_t run_function(int id,
         // When scalar data is returned to the host language
         // on the heap, it should be manually deleted by the
         // host frontend
-        
+
         if (type_is_bool(ocaml_type)) {
           ret.results[i].data.scalar.ret_scalar_value.boolean = get_bool(v);
         } else if (type_is_int32(ocaml_type)) {
@@ -207,8 +197,77 @@ return_val_t run_function(int id,
       }
     }
   }
-  printf("Done!\n"); 
   CAMLreturnT(return_val_t, ret);
+	
+}
+
+
+paranode get_adverb(char* adverb_name) {
+  CAMLparam0();
+  CAMLlocal1(adverb);
+  
+  adverb = caml_callback(*ocaml_get_adverb, caml_copy_string(adverb_name));
+
+  // build the node and return
+  CAMLreturnT(paranode, mk_root(adverb));
+}
+
+return_val_t run_adverb(
+  char* adverb_name, 
+  int fn_id, 
+  host_val* globals, int num_globals,
+  host_val* fixed, int num_fixed,
+  char **fixed_keyword_names, host_val* fixed_keyword_values, int num_fixed_keywords, 
+  host_val* init, int num_init, 
+  int axes_given, int* axes, int num_axes, 
+  host_val* array_positional, int num_array_positional,
+  char** array_keyword_names, host_val* array_keyword_values, int num_array_keyword_values) {
+   
+  CAMLparam0();
+  CAMLlocal1(globals_list);
+  CAMLlocal2(fixed_actuals, array_actuals);
+  CAMLlocal2(init_list, axes_list_option); 
+  CAMLlocal1(ocaml_result);
+
+  globals_list = build_host_val_list(globals, num_globals);
+  fixed_actuals = mk_actual_args(fixed, num_fixed, \
+    fixed_keyword_names, fixed_keyword_values, num_fixed_keywords);
+  array_actuals = mk_actual_args(array_positional, num_array_positional, \
+    array_keyword_names, array_keyword_values, num_array_keyword_values); 
+  init_list = build_host_val_list(init, num_init);
+  if (axes_given) {
+    axes_list_option = caml_alloc(1, 0);
+    Store_field( axes_list_option, 0,  build_int_list(axes, num_axes); );
+  } else {
+    axes_list_option = Val_int(0);
+  }
+  
+  value func_args[7] = {
+    get_adverb(adverb_name),
+    Val_int(fn_id), 
+    globals_list, 
+    init_list, 
+    axes_list_option, 
+    fixed_actuals,
+    array_actuals
+  }
+  ocaml_result = caml_callbackN(*ocaml_run_adverb, 7, func_args);
+  CAMLreturnT(return_val_t, translate_return_value(ocaml_result));
+}
+}
+
+return_val_t run_function(int id, 
+    host_val *globals, int num_globals,
+    host_val *args, int num_args, 
+    char** kwd_arg_names, host_val* kwd_arg_values, int num_kwd_args) {
+  CAMLparam0();
+  CAMLlocal2(ocaml_globals, ocaml_actuals);
+  CAMLlocal1(ocaml_result);
+  
+  ocaml_globals = build_host_val_list(globals, num_globals);
+  ocaml_actuals = mk_actual_args(args, num_args, kwd_arg_names, kwd_arg_values, num_kwd_args); 
+  ocaml_result = caml_callback3(*ocaml_run_function, Val_int(id), ocaml_globals, ocaml_actuals);
+  CAMLreturnT(return_val_t, translate_return_value(ocaml_result));
 }
 
 void free_return_val(return_val_t ret_val) {
@@ -283,6 +342,19 @@ value build_host_val_list(host_val *vals, int num_vals) {
   }
 
   CAMLreturn(val1);
+}
+
+value build_int_list(int* nums, int count) {
+  CAMLparam0();
+  CAMLlocal3(old_tail, new_tail);
+  old_tail = Val_int(0);
+  for (int i = count - 1; i >= 0; --i) {
+    new_tail = caml_alloc_tuple(2);
+    Store_field(new_tail, 0, Val_int(nums[i]));
+    Store_field(new_tail, 1, old_tail);
+    old_tail = new_tail; 
+  }
+  CAMLreturn(old_tail);
 }
 
 static int ocaml_list_length(value l) {

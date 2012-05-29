@@ -55,8 +55,11 @@ let prim_names = Hashtbl.of_list [
 
 let get_prim str = match Hashtbl.find_option prim_names str with
   | Some prim -> 
-    Printf.printf "OCAML: Getting prim for %s\n%!" str; 
     AST_Helpers.mk_prim_node prim
   | None ->
     if FnManager.have_untyped_function str then AST_Helpers.mk_var_node str
     else failwith $ "Couldn't find Parakeet primitive named " ^ str
+
+let get_adverb name = match get_prim name with 
+  | Adverb adverb -> adverb
+  | _ -> failwith $ name ^ " isn't an adverb"   

@@ -5,6 +5,7 @@ let _ = Callback.register "run_function" FrontEnd.run_function
 
 (*** ExternalLibNames ***)
 let _ = Callback.register "get_prim" ExternalLibNames.get_prim
+let _ = Callback.register "get_adverb" ExternalLibNames.get_adverb 
 
 (*** PTR ***)
 let _ = Callback.register "ptr_addr" Ptr.addr
@@ -19,6 +20,7 @@ let _ = Callback.register "mk_ast_info" AST.mk_ast_info
 let _ = Callback.register "print_ast_node" AST.print_ast_node
 let _ = Callback.register "mk_formal_args" AST_Helpers.mk_formal_args
 let _ = Callback.register "mk_actual_args" AST_Helpers.mk_actual_args
+
 
 (*** TYPE ***)
 let _ = Callback.register "type_sizeof" Type.sizeof

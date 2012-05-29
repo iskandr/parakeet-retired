@@ -168,36 +168,42 @@ paranode mk_str(char *str, source_info_t *src_info) {
   CAMLreturnT(paranode, mk_node(exp_str, src_info));
 }
 
+value mk_actual_args(
+          paranode *args, 
+          int num_args,
+          char** keywords,
+    		  paranode* keyword_values,
+    		  int num_keyword_args) {
+  CAMLparam0(); 
+  CAMLlocal3(pos_list, kwd_list, kwd_values_list);
+  CAMLlocal1(actual_args);
+  printf("Creating args, n_positional = %d, n_kwd = %d\n", num_args, num_keyword_args);
+  pos_list = mk_val_list(args, num_args);
+  kwd_list = build_str_list(keywords, num_keyword_args);
+  kwd_values_list = mk_val_list(keyword_values, num_keyword_args);
+  actual_args = \
+    caml_callback3(*ocaml_mk_actual_args, args_list, kwd_list, kwd_values_list);
+  CAMLreturn(actual_args);
+}
+
 paranode mk_call(
 		  paranode fun,
 		  paranode *args,
 		  int num_args,
 		  char** keywords,
 		  paranode* keyword_values,
-		  int num_keyword_args,
-          source_info_t *src_info) {
+		  int num_keyword_args, 
+		  source_info_t *src_info) {
   printf("C: mk_call %d with %d positional args and %d keyword args\n",
 		  fun, num_args, num_keyword_args);
   CAMLparam0();
-  CAMLlocal5(val_fun, args_list, kwd_list, kwd_values_list, app);
-  CAMLlocal1(actual_args);
-  printf("Making args list\n");
-  args_list = mk_val_list(args, num_args);
-  printf("Making keyword name list\n");
-  kwd_list = build_str_list(keywords, num_keyword_args);
-  printf("Making keyword values list\n");
-  kwd_values_list = mk_val_list(keyword_values, num_keyword_args);
-  printf("Calling into OCaml to create actual args\n");
-  actual_args = \
-    caml_callback3(*ocaml_mk_actual_args, args_list, kwd_list, kwd_values_list);
+  CAMLlocal3(val_fun, actual_args, app);
+  actual_args = mk_actual_args(args, num_args, keywords, keyword_values, num_keyword_args);
   printf("Creating Call node\n");
   val_fun = get_value_and_remove_root(fun);
   app = caml_alloc(2, Exp_Call);
   Store_field(app, 0, val_fun);
   Store_field(app, 1, actual_args);
-  printf("Returning to Python\n");
-
-
   CAMLreturnT(paranode, mk_node(app, src_info));
 }
 
@@ -320,6 +326,7 @@ paranode get_prim(char* prim_name) {
   // build the node and return
   CAMLreturnT(paranode, mk_root(prim));
 }
+
 
 void print_ast_node(paranode n) { 
   CAMLparam0();

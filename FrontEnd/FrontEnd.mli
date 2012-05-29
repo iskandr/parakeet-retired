@@ -20,16 +20,16 @@ type values = value list
 val run_function :
   untyped_id:FnId.t -> 
     globals:values ->  
-      positional_args: values -> 
-        keyword_names : string list -> 
-          keyword_values: values -> 
+      actuals : value Args.actual_args -> 
             ret_val
-(*
+
 val run_adverb :  
-  adverb:Prim.adverb -> untyped_id: FnId.t -> 
-    globals:values -> 
-      fixed : values -> fixed_keyword_names : string list -> fixed_keyword_values : values -> 
+  adverb:Prim.adverb -> 
+    untyped_id: FnId.t -> 
+      globals: values -> 
         init : values -> 
           axes : int list option ->   
-            arrays : values -> array_keyword_names : string list -> array_keyword_values : values -> 
-              ret_val     *) 
+            fixed : value Args.actual_args -> 
+              arrays : value Args.actual_args ->
+                ret_val 
+                
