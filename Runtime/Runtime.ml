@@ -224,3 +224,23 @@ let call (fn:TypedSSA.fn) (hostData:Ptr.t Value.t list) : Ptr.t Value.t list =
   let results = List.map (DataManager.to_memspace HostMemspace.id) outputVals in
   Env.pop_env ();
   results
+
+let adverb info = 
+  (* transform data from concrete host pointers to 
+     abstract data ids 
+  *) 
+  let info' : (TypedSSA.fn, values, int list) Adverb.info = 
+    Adverb.apply_to_fields 
+      info
+      ~fn:(fun (x:TypedSSA.fn) -> x)
+      ~values:(List.map DataManager.from_memspace)
+      ~axes:(fun (x:int list) -> x)
+  in 
+  Env.push_env(); 
+  let results = 
+    List.map (DataManager.to_memspace HostMemspace.id) $
+      Scheduler.adverb info' 
+  in 
+  Env.pop_env(); 
+  results 
+  

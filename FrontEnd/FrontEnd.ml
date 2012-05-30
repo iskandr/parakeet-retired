@@ -107,7 +107,7 @@ let exn_to_str = function
     Printf.sprintf "Shape Error: %s" txt
   | exn ->  Printexc.to_string exn
 
-let handle_error exception =
+let handle_error exn  =
   let errorMsg = exn_to_str exn in 
   Printf.printf "\nParakeet failed with the following error:\n";
   Printf.printf "- %s\n\n" errorMsg;
