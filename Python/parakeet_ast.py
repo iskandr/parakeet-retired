@@ -111,7 +111,6 @@ def build_long(l, src_info = None):
   return LibPar.mk_int64_paranode(l, src_addr(src_info))
 
 def build_float(f, src_info = None):  
-  print "BUILD_FLOAT", f, c_double(f)
   return LibPar.mk_double_paranode(c_double(f), src_addr(src_info))
 
 def build_num(num, src_info = None):
@@ -442,9 +441,6 @@ class ASTConverter():
       left = self.visit_expr(node.left)
       right = self.visit_expr(node.right)
       op_name = name_of_ast_node(node.op)
-      print
-      print 
-      print node, node.op,  node.left, node.right  
       return build_prim_call(op_name, [left, right], src_info)
     elif isinstance(node, ast.BoolOp):
       args = [self.visit_expr(v) for  v in node.values]
@@ -504,9 +500,6 @@ class ASTConverter():
       self.visit_method_call(method_name, parakeet_obj, src_info)
     else:
       python_fn = self.get_function_ref(fn)
-      print 
-      print python_fn
-      print  
       if python_fn in Adverbs:
         assert len(args) > 1
         return self.visit_adverb(python_fn, args[0], args[1:],  kwds)
@@ -530,9 +523,6 @@ class ASTConverter():
 
     parakeet_keywords = {}
     for pair in kwds:
-      print pair
-      print pair.arg 
-      print pair.value 
       parakeet_keywords[pair.arg] = self.visit_expr(pair.value)
     assert adverb in ParakeetOperators 
     parakeet_adverb = ast_prim(ParakeetOperators[adverb])

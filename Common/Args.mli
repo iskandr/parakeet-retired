@@ -9,6 +9,10 @@ type 'a actual_args = {
   values : 'a list;
   keywords : (string * 'a) list;
 }
+val formal_args_from_lists : 
+  string list -> string list -> 'a list -> 'a formal_args
+val actual_args_from_lists : 
+  'a list -> string list -> 'a list -> 'a actual_args
 
 val of_names : string list -> 'a formal_args 
 val of_values : 'a list -> 'a actual_args

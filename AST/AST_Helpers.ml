@@ -1,12 +1,6 @@
 open Base
 open AST
 
-let mk_formal_args names keywords keyword_values = 
-  { Args.names = names; defaults = List.combine keywords keyword_values }
-  
-let mk_actual_args args keywords keyword_values = 
-  { Args.values = args; keywords = List.combine keywords keyword_values } 
-
 let mk_node ?(info=mk_ast_info()) ?(src=SrcInfo.empty) data =
   {data=data; src=src; ast_info = info}
 

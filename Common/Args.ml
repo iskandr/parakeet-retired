@@ -10,8 +10,24 @@ type 'a actual_args = {
   keywords : (string * 'a) list;
 }
 
-let of_names names : 'a formal_args = { names = names; defaults = [] } 
-let of_values values = { values = values; keywords = [] } 
+let formal_args_from_lists names keywords keyword_values = 
+  { names = names; 
+    defaults = List.combine keywords keyword_values 
+  }
+
+let actual_args_from_lists positional keywords keyword_values = 
+  {
+    values = positional; 
+    keywords = List.combine keywords keyword_values
+  }
+
+ 
+
+let of_names names : 'a formal_args = 
+  { names = names; defaults = [] } 
+
+let of_values values = 
+  { values = values; keywords = [] } 
 
 
 let apply_to_formal_values f formals =

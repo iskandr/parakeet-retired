@@ -122,19 +122,16 @@ let rec to_str node =
 
   match node.data with
   | Var name -> 
-    Printf.printf "Var \n%!";
-    Printf.printf " -- %s\n%!" name; 
+    Printf.printf "Var %s\n%!" name;
     name
   | Prim p -> 
-    Printf.printf "Prim\n%!";
-    Printf.printf " -- %s\n%!" (Prim.to_str p);
+    Printf.printf "Prim %s\n%!" (Prim.to_str  p);
     Prim.to_str p
   | Num (ParNum.Char c ) -> 
     Printf.printf "Char\n%!";
     "'" ^ (Char.to_string c) ^ "'"
   | Num n -> 
-    Printf.printf "Num\n%!";
-    Printf.printf " -- %s\n%!" (ParNum.to_str n); 
+    Printf.printf "Num %s\n%!" (ParNum.to_str n);
     ParNum.to_str n
   | Str str -> 
     Printf.printf "Str\n%!";

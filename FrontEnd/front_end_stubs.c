@@ -125,7 +125,7 @@ return_val_t translate_return_value(value ocaml_result) {
     ret.results_len = caml_string_length(Field(ocaml_result, 0));
     ret.error_msg = malloc(ret.results_len);
     strcpy(ret.error_msg, String_val(Field(ocaml_result, 0)));
-  } else if (Tag_val(caml_reslt) == RET_SUCCESS) {
+  } else if (Tag_val(ocaml_result) == RET_SUCCESS) {
     
     ocaml_cur = Field(ocaml_result, 0);
     ret.return_code = RET_SUCCESS;
@@ -201,15 +201,28 @@ return_val_t translate_return_value(value ocaml_result) {
 	
 }
 
-
-paranode get_adverb(char* adverb_name) {
+value get_adverb(char* adverb_name) {
   CAMLparam0();
-  CAMLlocal1(adverb);
-  
-  adverb = caml_callback(*ocaml_get_adverb, caml_copy_string(adverb_name));
+  CAMLreturn(caml_callback(*ocaml_get_adverb, caml_copy_string(adverb_name)));
+}
 
-  // build the node and return
-  CAMLreturnT(paranode, mk_root(adverb));
+value mk_actual_args(
+          host_val *args, 
+          int num_args,
+          char** keywords,
+          host_val* keyword_values,
+          int num_keyword_args) {
+  CAMLparam0(); 
+  CAMLlocal3(pos_list, kwd_list, kwd_values_list);
+  CAMLlocal2(actual_args, ocaml_fn);
+  printf("Creating host_val args, n_positional = %d, n_kwd = %d\n", num_args, num_keyword_args);
+  pos_list = build_host_val_list(args, num_args);
+  kwd_list = build_str_list(keywords, num_keyword_args);
+  kwd_values_list = build_host_val_list(keyword_values, num_keyword_args);
+  ocaml_fn = *caml_named_value("mk_actual_args"); 
+  actual_args = \
+    caml_callback3(ocaml_fn, pos_list, kwd_list, kwd_values_list);
+  CAMLreturn(actual_args);
 }
 
 return_val_t run_adverb(
@@ -237,7 +250,7 @@ return_val_t run_adverb(
   init_list = build_host_val_list(init, num_init);
   if (axes_given) {
     axes_list_option = caml_alloc(1, 0);
-    Store_field( axes_list_option, 0,  build_int_list(axes, num_axes); );
+    Store_field( axes_list_option, 0,  build_int_list(axes, num_axes) );
   } else {
     axes_list_option = Val_int(0);
   }
@@ -250,10 +263,10 @@ return_val_t run_adverb(
     axes_list_option, 
     fixed_actuals,
     array_actuals
-  }
+  };
   ocaml_result = caml_callbackN(*ocaml_run_adverb, 7, func_args);
   CAMLreturnT(return_val_t, translate_return_value(ocaml_result));
-}
+
 }
 
 return_val_t run_function(int id, 
@@ -346,9 +359,10 @@ value build_host_val_list(host_val *vals, int num_vals) {
 
 value build_int_list(int* nums, int count) {
   CAMLparam0();
-  CAMLlocal3(old_tail, new_tail);
+  CAMLlocal2(old_tail, new_tail);
   old_tail = Val_int(0);
-  for (int i = count - 1; i >= 0; --i) {
+  int i; 
+  for (i = count - 1; i >= 0; --i) {
     new_tail = caml_alloc_tuple(2);
     Store_field(new_tail, 0, Val_int(nums[i]));
     Store_field(new_tail, 1, old_tail);

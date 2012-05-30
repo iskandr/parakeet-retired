@@ -1,11 +1,5 @@
 open AST
 
-val mk_formal_args : 
-  string list -> string list -> node list -> node Args.formal_args
-
-val mk_actual_args : 
-  node list -> string list -> node list -> node Args.actual_args
-
 
 val mk_node : ?info:ast_info -> ?src:SrcInfo.t -> exp -> node
 

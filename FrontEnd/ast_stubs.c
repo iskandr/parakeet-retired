@@ -168,12 +168,12 @@ paranode mk_str(char *str, source_info_t *src_info) {
   CAMLreturnT(paranode, mk_node(exp_str, src_info));
 }
 
-value mk_actual_args(
+value mk_actual_ast_args(
           paranode *args, 
           int num_args,
           char** keywords,
-    		  paranode* keyword_values,
-    		  int num_keyword_args) {
+          paranode* keyword_values,
+          int num_keyword_args) {
   CAMLparam0(); 
   CAMLlocal3(pos_list, kwd_list, kwd_values_list);
   CAMLlocal1(actual_args);
@@ -182,7 +182,7 @@ value mk_actual_args(
   kwd_list = build_str_list(keywords, num_keyword_args);
   kwd_values_list = mk_val_list(keyword_values, num_keyword_args);
   actual_args = \
-    caml_callback3(*ocaml_mk_actual_args, args_list, kwd_list, kwd_values_list);
+    caml_callback3(*ocaml_mk_actual_args, pos_list, kwd_list, kwd_values_list);
   CAMLreturn(actual_args);
 }
 
@@ -194,11 +194,11 @@ paranode mk_call(
 		  paranode* keyword_values,
 		  int num_keyword_args, 
 		  source_info_t *src_info) {
-  printf("C: mk_call %d with %d positional args and %d keyword args\n",
+  printf("C: mk_call %p with %d positional args and %d keyword args\n",
 		  fun, num_args, num_keyword_args);
   CAMLparam0();
   CAMLlocal3(val_fun, actual_args, app);
-  actual_args = mk_actual_args(args, num_args, keywords, keyword_values, num_keyword_args);
+  actual_args = mk_actual_ast_args(args, num_args, keywords, keyword_values, num_keyword_args);
   printf("Creating Call node\n");
   val_fun = get_value_and_remove_root(fun);
   app = caml_alloc(2, Exp_Call);
@@ -310,7 +310,6 @@ paranode mk_none(source_info_t *src_info) {
 
   CAMLparam0();
   CAMLlocal1(v);
-  printf("MAKING AST.NONE\n");
   v = caml_alloc(1, Exp_None);
   Store_field(v, 0, Val_int(0));
   CAMLreturnT(paranode, mk_node(v, src_info));
