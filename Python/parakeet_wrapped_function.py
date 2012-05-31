@@ -110,9 +110,14 @@ class WrappedFunction:
       n_axes = 0
 
     init_values = _prep_value_list(init)
+
+    #TODO: make keywords work for fixed args
     fixed_values, fixed_keywords, fixed_keyword_values = \
       _prep_args(fixed, {})
-        
+    filtered_kwds = \
+      dict([(k,v) for (k,v) in kwds.items() if k not in reserved_keywords]) 
+    array_values, array_keywords, array_keyword_values = \
+      _prep_args(args, filtered_kwds)    
     result = LibPar.run_adverb(
       adverb_name, 
       self.parakeet_untyped_id, 
