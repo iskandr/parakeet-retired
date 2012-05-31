@@ -20,7 +20,7 @@ def CND(x):
   #  w = 1.0-w
   return w
 
-@PAR
+#@PAR
 def map_cnd(x):
   return parakeet.map(CND, x)
 
