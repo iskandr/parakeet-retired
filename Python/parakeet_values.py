@@ -68,10 +68,11 @@ def python_value_to_parakeet(arg):
     parakeetType = numpy_to_parakeet_types[npEltType]
     dataPtr = arg.ctypes.data_as(POINTER(ctype))
     parakeetVal = LibPar.mk_host_array(dataPtr, parakeetType, inputShape, rank,
-                                       inputStrides, rank, arg.nbytes)
+      inputStrides, rank, arg.nbytes)
     return c_void_p(parakeetVal)
+
   elif arg is None: 
-    LibPar.mk_none_val()
+    return LibPar.mk_none_val()
   elif np.isscalar(arg) or is_zero_rank_array(arg):
     # unpack zero rank arrays into scalars 
     if is_zero_rank_array(arg):

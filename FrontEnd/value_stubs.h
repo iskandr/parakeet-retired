@@ -13,7 +13,14 @@
 
 #include "type_stubs.h"
 
-typedef value host_val;
+typedef struct { 
+  value v; 
+} host_val_t; 
+
+typedef host_val_t* host_val;
+
+host_val mk_host_val(value); 
+value host_val_contents(host_val); 
 
 void init();
 
@@ -27,17 +34,17 @@ host_val mk_float32(float val);
 host_val mk_float64(double val);
 
 /** Scalar accessor functions **/
-int      get_bool(host_val val);
-int32_t  get_int32(host_val val);
-int64_t  get_int64(host_val val);
+int      get_bool(host_val);
+int32_t  get_int32(host_val);
+int64_t  get_int64(host_val);
 //float    get_float32(host_val val);
-double   get_float64(host_val val);
+double   get_float64(host_val);
 
-int value_is_scalar(host_val val);
-array_type array_type_of(host_val v);
-value value_type_of(host_val v);
-value value_get_shape(host_val v); 
-value value_get_strides(host_val v); 
+int value_is_scalar(host_val);
+array_type array_type_of(host_val);
+value value_type_of(host_val);
+value value_get_shape(host_val); 
+value value_get_strides(host_val); 
 
 /** Array creation function **/
 /** This function doesn't copy the data; rather, the caller and Parakeet share

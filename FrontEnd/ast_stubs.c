@@ -383,35 +383,28 @@ value mk_src_info(source_info_t *src_info) {
 
 value get_value_and_remove_root(paranode node) {
   CAMLparam0();
-  paranode_t* p = (paranode_t*)node;
-  caml_remove_global_root(&(p->v));
+  value v = ((paranode_t*)node)->v;
+  caml_remove_global_root(v);
   //TODO: when to free(p)?  I think it should still be here.
-  CAMLreturn(p->v);
+  CAMLreturn(v);
 }
 
  value mk_val_list(paranode *vals, int num_vals) {
   CAMLparam0();
-  CAMLlocal2(val1, val2);
-
+  CAMLlocal3(new_tail, old_tail, elt);
+  
+  old_tail = Val_int(0); 
   int i;
-  if (num_vals > 0) {
-    // Create the tail of the list
-    val1 = caml_alloc_tuple(2);
-    Store_field(val1, 0, get_value_and_remove_root(vals[num_vals-1]));
-    Store_field(val1, 1, Val_int(0));
-
-    // Extract each val and add it to the OCaml list
-    for (i = num_vals - 2; i >= 0; --i) {
-      val2 = caml_alloc_tuple(2);
-      Store_field(val2, 0, get_value_and_remove_root(vals[i]));
-      Store_field(val2, 1, val1);
-      val1 = val2;
-    }
-  } else {
-    val1 = Val_int(0);
+  printf("[mk_val_list]\n"); 
+  for (i = num_vals - 1; i >= 0; i--) {
+    printf("-- allocating %d'th list cell", i); 
+    new_tail = caml_alloc_tuple(2); 
+    elt = get_value_and_remove_root(vals[i]); 
+    Store_field(new_tail, 0, elt); 
+    Store_field(new_tail, 1, old_tail); 
+    old_tail = new_tail; 
   }
-
-  CAMLreturn(val1);
+  CAMLreturn(old_tail);
 }
 
 paranode mk_root(value v) {

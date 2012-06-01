@@ -305,13 +305,6 @@ module Make(P: REWRITE_PARAMS) = struct
               Type.combine_type_list argTypes
           in
           let args = coerce_typed_values inT args in
-          IFDEF DEBUG THEN
-            Printf.printf "PRIMAPP: %s %s=>%s for inputs %s"
-              (Prim.to_str p)
-              (Type.to_str inT)
-              (Type.to_str outT)
-              (TypedSSA.value_nodes_to_str args)
-          ENDIF;
           TypedSSA.primapp p [outT] args
       end
 

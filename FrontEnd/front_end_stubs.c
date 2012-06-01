@@ -34,7 +34,7 @@ int fe_inited = 0;
 value build_host_val_list(host_val *vals, int num_vals);
 value build_int_list(int* nums, int count);
 
-static int ocaml_list_length(value l);
+int ocaml_list_length(value l);
 
 /** Public interface **/
 
@@ -60,11 +60,11 @@ void front_end_init(void) {
       parakeet_syntax))
       */
 int register_untyped_function(
-		char *name,
-		char **globals, int num_globals,
-        char **args, int num_args,
-        char **default_args, paranode *default_arg_values, int num_defaults,
-        paranode ast) {
+  char *name,
+  char **globals, int num_globals,
+  char **args, int num_args,
+  char **default_args, paranode *default_arg_values, int num_defaults,
+  paranode ast) {
 
   CAMLparam0();
 
@@ -88,13 +88,20 @@ int register_untyped_function(
   printf("  ...copying default arg values\n");
 
   default_arg_values_list = mk_val_list(default_arg_values, num_defaults);
-
+  printf("ast pointer: %p\n", ast->v);
+  printf("val_name: %p\n", val_name); 
+  printf("default arg names: %p\n", default_arg_names_list); 
+  printf("default arg values: %p\n", default_arg_values_list);  
+  printf("globals: %p\n", globals_list); 
+  printf("args: %p\n", args_list); 
+  printf("  ...building function arguments\n"); 
   value func_args[6] = {
     val_name,
     globals_list,
     args_list,
-	default_arg_names_list, default_arg_values_list,
-	ast->v
+    default_arg_names_list, 
+    default_arg_values_list,
+    ast->v
   };
 
   printf("  ...calling into OCaml's register function\n");
@@ -133,14 +140,16 @@ return_val_t translate_return_value(value ocaml_result) {
     ret.results = (ret_t*)malloc(sizeof(ret_t) * ret.results_len);
     
     int i, j;
+    host_val h; 
     for (i = 0; i < ret.results_len; ++i) {
       v = Field(ocaml_cur, 0);
+      h = create_host_val(v);  
       ocaml_cur = Field(ocaml_cur, 1);
       // returning a scalar
-      if (value_is_scalar(v)) {
+      if (value_is_scalar(h)) {
 
         ret.results[i].is_scalar = 1;
-        ocaml_type = (scalar_type)value_type_of(v);
+        ocaml_type = (scalar_type)value_type_of(h);
         ret.results[i].data.scalar.ret_type =
             get_scalar_element_type(ocaml_type);
 
@@ -152,28 +161,28 @@ return_val_t translate_return_value(value ocaml_result) {
         // host frontend
 
         if (type_is_bool(ocaml_type)) {
-          ret.results[i].data.scalar.ret_scalar_value.boolean = get_bool(v);
+          ret.results[i].data.scalar.ret_scalar_value.boolean = get_bool(h);
         } else if (type_is_int32(ocaml_type)) {
-          ret.results[i].data.scalar.ret_scalar_value.int32 = get_int32(v);
+          ret.results[i].data.scalar.ret_scalar_value.int32 = get_int32(h);
         } else if (type_is_int64(ocaml_type)) {
-          ret.results[i].data.scalar.ret_scalar_value.int64 = get_int64(v);
+          ret.results[i].data.scalar.ret_scalar_value.int64 = get_int64(h);
         } else if (type_is_float32(ocaml_type)) { 
-          ret.results[i].data.scalar.ret_scalar_value.float32 = get_float64(v);
+          ret.results[i].data.scalar.ret_scalar_value.float32 = get_float64(h);
         } else if (type_is_float64(ocaml_type)) {
-          ret.results[i].data.scalar.ret_scalar_value.float64 = get_float64(v);
+          ret.results[i].data.scalar.ret_scalar_value.float64 = get_float64(h);
         } else {
           caml_failwith("Unable to return scalar of this type\n");
         }
       } else {
         // Pass the type
         ret.results[i].is_scalar = 0;
-        ret.results[i].data.array.ret_type = array_type_of(v);
+        ret.results[i].data.array.ret_type = array_type_of(h);
 
         // Pass the data
-        ret.results[i].data.array.data = get_array_data(v);
+        ret.results[i].data.array.data = get_array_data(h);
 
         // Build the shape array
-        ocaml_shape = value_get_shape(v);
+        ocaml_shape = value_get_shape(h);
         int shape_len = Wosize_val(ocaml_shape);
 
         ret.results[i].data.array.shape =
@@ -184,7 +193,7 @@ return_val_t translate_return_value(value ocaml_result) {
         }
 
         // Build the strides array
-        ocaml_strides = value_get_strides(v);
+        ocaml_strides = value_get_strides(h);
         int strides_len = Wosize_val(ocaml_strides);
 
         ret.results[i].data.array.strides_len = strides_len;
@@ -203,7 +212,9 @@ return_val_t translate_return_value(value ocaml_result) {
 
 value get_adverb(char* adverb_name) {
   CAMLparam0();
-  CAMLreturn(caml_callback(*ocaml_get_adverb, caml_copy_string(adverb_name)));
+  CAMLlocal1(ocaml_adverb_name);
+  ocaml_adverb_name = caml_copy_string(adverb_name); 
+  CAMLreturn(caml_callback(*ocaml_get_adverb, ocaml_adverb_name));
 }
 
 value mk_actual_args(
@@ -343,28 +354,17 @@ void set_multithreading(int val) {
 
 value build_host_val_list(host_val *vals, int num_vals) {
   CAMLparam0();
-  CAMLlocal3(elt, val1, val2);
-
+  CAMLlocal3(old_tail, new_tail, elt); 
+  old_tail = Val_int(0); 
   int i;
-
-  if (num_vals > 0) {
-    elt = (value)vals[num_vals - 1];
-    val1 = caml_alloc_tuple(2);
-    Store_field(val1, 0, elt);
-    Store_field(val1, 1, Val_int(0));
-
-    for (i = num_vals - 2; i >= 0; --i) {
-      elt = (value)vals[i];
-      val2 = caml_alloc_tuple(2);
-      Store_field(val2, 0, elt);
-      Store_field(val2, 1, val1);
-      val1 = val2;
-    }
-  } else {
-    val1 = Val_int(0);
+  for (i = num_vals - 1; i >= 0; i--) { 
+    elt = host_val_contents(vals[i]); 
+    new_tail = caml_alloc_tuple(2); 
+    Store_field(new_tail, 0, elt); 
+    Store_field(new_tail, 1, old_tail); 
+    old_tail = new_tail;
   }
-
-  CAMLreturn(val1);
+  CAMLreturn(old_tail); 
 }
 
 value build_int_list(int* nums, int count) {
@@ -381,7 +381,7 @@ value build_int_list(int* nums, int count) {
   CAMLreturn(old_tail);
 }
 
-static int ocaml_list_length(value l) {
+int ocaml_list_length(value l) {
   CAMLparam1(l);
   CAMLlocal1(cur);
 

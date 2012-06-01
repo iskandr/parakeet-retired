@@ -143,7 +143,9 @@ let run_adverb ~adverb ~untyped_id ~globals ~init ~axes ~fixed ~arrays : ret_val
 let run_function 
       ~(untyped_id:FnId.t)
       ~(globals:Ptr.t Value.t list)
-      ~(actuals:Ptr.t Value.t Args.actual_args) : ret_val = 
+      ~(actuals:Ptr.t Value.t Args.actual_args) : ret_val =
+  Printf.printf "Compact\n%!"; 
+  (*Gc.compact();  *)
   Printf.printf "[run_function] In OCaml, prepending %d globals\n%!"
     (List.length globals); 
   let actuals = Args.prepend_actual_values globals actuals in 

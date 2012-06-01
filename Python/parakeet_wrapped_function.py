@@ -155,7 +155,8 @@ class WrappedFunction:
   
   def __call__(self, *args, **kwds):
     global_values = self._prep_globals()
-    arg_values, kwd_names, kwd_values = _prep_args(args, kwds)    
+    arg_values, kwd_names, kwd_values = _prep_args(args, kwds)   
+    print self.parakeet_untyped_id 
     ret = LibPar.run_function(
         self.parakeet_untyped_id, 
         global_values, c_int(len(global_values)), 

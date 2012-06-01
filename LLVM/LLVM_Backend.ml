@@ -399,15 +399,37 @@ let adverb (info:(TypedSSA.fn, Ptr.t Value.t list, int list) Adverb.info) =
      (fun {TypedSSA.fn_id} -> FnId.to_str fn_id) 
      (fun vs -> String.concat ", " $ List.map Value.to_str vs)
      (fun axes -> String.concat ", " $ List.map string_of_int axes))
-  ; 
-  let adverbFn =
-    AdverbHelpers.mk_adverb_fn $
-      Adverb.apply_to_fields info
+  ;
+  Printf.printf "Axes?\n%!";
+  let axes' = List.map TypedSSA.int32 info.axes in 
+  Printf.printf "Init?\n%!";
+  let init' = Option.map (List.map Value.type_of) info.init in 
+  Printf.printf "Fixed?\n%!"; 
+  let fixedArgs' =  List.map Value.type_of info.fixed_args in 
+  Printf.printf "Array args?\n%!"; 
+  let arrayArgs' = List.map Value.type_of info.array_args in 
+  Printf.printf "Apply to fields\n%!"; 
+  let info' = { 
+    Adverb.adverb = info.adverb; 
+    adverb_fn = info.adverb_fn.TypedSSA.fn_id; 
+    fixed_args = fixedArgs'; 
+    array_args = arrayArgs'; 
+    axes = axes';  
+    init = init';  
+  }  (*
+      Adverb.apply_to_fields 
+        info
         ~fn:TypedSSA.fn_id
         ~values:Value.type_of_list
-        ~axes:(List.map TypedSSA.int32)
+        ~axes:(List.map TypedSSA.int32)*)
+  in 
+  Printf.printf "Making adverb wrapper function...\n%!";  
+  let adverbFn =
+    AdverbHelpers.mk_adverb_fn info' 
   in
+  Printf.printf "Combining args..\n%!"; 
   let allArgValues : Ptr.t Value.t list = info.fixed_args @ info.array_args in
+  Printf.printf "Getting types of values\n%!"; 
   let impTypes = List.map ImpType.type_of_value allArgValues in
   Printf.printf "[LLVM_Backend.adverb] Translating SSA fn with imp args %s\n%!"
     (String.concat ", " (List.map ImpType.to_str impTypes));

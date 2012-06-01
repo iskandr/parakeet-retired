@@ -15,7 +15,7 @@
 #include "type_stubs.h"
 
 // PRIVATE
-static value get_array_value(array_type t);
+value get_array_value(array_type t);
 
 static int type_inited = 0;
 
@@ -104,20 +104,24 @@ void free_type(array_type t) {
   CAMLparam0();
   array_type_t* p = (array_type_t*)t;
   caml_remove_global_root(&p->v);
-  free(p);
+  //free(p);
   CAMLreturn0;
 }
 
 int get_type_rank(array_type t) {
   CAMLparam0();
+  CAMLlocal1(arr); 
+  arr = get_array_value(t); 
   CAMLreturnT(int,
-              Int_val(caml_callback(*type_callback_rank, get_array_value(t))));
+              Int_val(caml_callback(*type_callback_rank, arr)));
 }
 
 elt_type get_array_element_type(array_type t) {
   CAMLparam0();
+  CAMLlocal1(arr); 
+  arr = get_array_value(t); 
   CAMLreturnT(elt_type,
-              caml_callback(*type_callback_elt_type, get_array_value(t)));
+              caml_callback(*type_callback_elt_type, arr)); 
 }
 
 elt_type get_scalar_element_type(scalar_type t) {
@@ -126,41 +130,39 @@ elt_type get_scalar_element_type(scalar_type t) {
 }
 
 int type_is_bool(scalar_type t) {
-  CAMLparam0();
+  CAMLparam1(t);
   assert(type_callback_is_bool); 
   assert(type_inited); 
   CAMLreturnT(int, Bool_val(caml_callback(*type_callback_is_bool, t)));
 }
 
 int type_is_char(scalar_type t) {
-  CAMLparam0();
+  CAMLparam1(t);
   CAMLreturnT(int, Bool_val(caml_callback(*type_callback_is_char, t)));
 }
 
 int type_is_int32(scalar_type t) {
-  CAMLparam0();
+  CAMLparam1(t);
   CAMLreturnT(int, Bool_val(caml_callback(*type_callback_is_int32, t)));
 }
 
 int type_is_int64(scalar_type t) {
-  CAMLparam0();
+  CAMLparam1(t);
   CAMLreturnT(int, Bool_val(caml_callback(*type_callback_is_int64, t)));
 }
 
 int type_is_float32(scalar_type t) {
-  CAMLparam0();
+  CAMLparam1(t);
   CAMLreturnT(int, Bool_val(caml_callback(*type_callback_is_float32, t)));
 }
 
 int type_is_float64(scalar_type t) {
-  CAMLparam0();
+  CAMLparam1(t);
   CAMLreturnT(int, Bool_val(caml_callback(*type_callback_is_float64, t)));
 }
 
 /** Private functions **/
-static value get_array_value(array_type t) {
+value get_array_value(array_type t) {
   CAMLparam0();
-  CAMLlocal1(v);
-  v = ((array_type_t*)t)->v;
-  CAMLreturn(v);
+  CAMLreturn( (value)  ((array_type_t*)t)->v);
 }

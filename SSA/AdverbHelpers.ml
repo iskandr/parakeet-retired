@@ -71,7 +71,9 @@ let mk_adverb_fn
     ?(src:SrcInfo.t option)
     (info : (FnId.t, Type.t list, TypedSSA.value_nodes) Adverb.info)
     : TypedSSA.fn =
+  Printf.printf "...in mk_adverb_fn\n%!"; 
   assert (info.init  = None);
+  
   match Hashtbl.find_option adverb_fn_cache info with
   | Some fnId -> FnManager.get_typed_function fnId
   | None ->
@@ -89,9 +91,14 @@ let mk_adverb_fn
         [TypedSSA.set_vals outputs (mk_adverb_exp_node valueInfo)]
       | _ -> assert false
     in
+    Printf.printf "Getting length of axes...\n%!"; 
     let nAxes = List.length info.axes in
     let nestedFnId = info.adverb_fn in
-    let nestedOutputTypes = FnManager.output_types_of_typed_fn nestedFnId in
+    Printf.printf "Getting nested output types\n%!"; 
+    let nestedOutputTypes = 
+      FnManager.output_types_of_typed_fn nestedFnId 
+    in
+    Printf.printf "Getting output types\n%!"; 
     let outputTypes =
       adverb_output_types info.adverb nAxes nestedOutputTypes
     in
