@@ -8,7 +8,15 @@ from parakeet_values import python_value_to_parakeet, parakeet_value_to_python
 def _prep_value_list(vals):
   parakeet_values = [python_value_to_parakeet(v) for v in vals]
   return list_to_ctypes_array(parakeet_values)
- 
+
+def _prep_int_list(ints): 
+  n = len(ints)
+  array_t = c_int * n
+  arr = array_t()
+  for i, x in enumerate(ints):
+    arr[i] = x 
+  return arr 
+  
 def _prep_args(args, kwds):
   arg_values = _prep_value_list(args)
     
@@ -81,7 +89,6 @@ class WrappedFunction:
         iter(axes)
       except:
         axes = [axes]
-    
     if 'fixed' in kwds:
       fixed = kwds['fixed']
     else:
@@ -102,7 +109,7 @@ class WrappedFunction:
     
     if axes is not None:
       axes_given = True
-      axes_values = _prep_value_list(axes) 
+      axes_values = _prep_int_list(axes) 
       n_axes = len(axes_values)
     else:
       axes_given = False

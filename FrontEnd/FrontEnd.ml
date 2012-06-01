@@ -98,7 +98,10 @@ let handle_error exn  =
   Error errorMsg
 
 let infer_axes arrayArgTypes = function 
-  | Some axes -> axes
+  | Some axes -> 
+    Printf.printf "Received axes = %s\n%!"
+      (String.concat ", " (List.map string_of_int axes))
+    ; axes
   | None -> 
     AdverbHelpers.const_axes $
      AdverbHelpers.infer_adverb_axes_from_types 
