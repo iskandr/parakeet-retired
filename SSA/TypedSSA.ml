@@ -246,7 +246,7 @@ module FnHelpers = struct
         (construct:value_nodes * value_nodes * value_nodes -> stmt_node list) =
     IFDEF DEBUG THEN
       Printf.printf
-        "[SSA_Helpers.mk_fn] name: %s, input_types = %s, output_types = %s\n%!"
+        "[TypedSSA.mk_fn] name: %s, input_types = %s, output_types = %s\n%!"
         (match name with None -> "<none>" | Some name -> name)
         (Type.type_list_to_str input_types)
         (Type.type_list_to_str output_types)
@@ -258,14 +258,25 @@ module FnHelpers = struct
         ID.gen_named_list "input" nInputs
       | Some names -> 
         List.map ID.gen_named names 
-    in 
+    in
+    IFDEF DEBUG THEN 
+     if List.length input_types <> List.length inputIds then 
+       failwith $ Printf.sprintf "Mismatch between input IDs: %s and input types: %s"
+         (String.concat ", " (List.map ID.to_str inputIds))
+         (String.concat ", " (List.map Type.to_str input_types))
+    ENDIF;  
     let inputs = List.map2 (fun t id -> var t id) input_types inputIds in
-    
     let nOutputs = List.length output_types in
     let outputIds = ID.gen_named_list "output" nOutputs in
+    IFDEF DEBUG THEN 
+      assert (List.length output_types = List.length outputIds); 
+    ENDIF; 
     let outputs = List.map2 (fun t id -> var  t id) output_types outputIds in
     let nLocals = List.length local_types in
     let localIds = ID.gen_named_list "temp" nLocals in
+    IFDEF DEBUG THEN 
+      assert (List.length local_types = List.length localIds); 
+    ENDIF; 
     let locals = List.map2 (fun t id -> var t id) local_types localIds in
     let body = Block.of_list (construct (inputs, outputs, locals)) in
     let tenv =

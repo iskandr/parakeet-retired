@@ -71,9 +71,7 @@ let mk_adverb_fn
     ?(src:SrcInfo.t option)
     (info : (FnId.t, Type.t list, TypedSSA.value_nodes) Adverb.info)
     : TypedSSA.fn =
-  Printf.printf "...in mk_adverb_fn\n%!"; 
   assert (info.init  = None);
-  
   match Hashtbl.find_option adverb_fn_cache info with
   | Some fnId -> FnManager.get_typed_function fnId
   | None ->
@@ -91,14 +89,15 @@ let mk_adverb_fn
         [TypedSSA.set_vals outputs (mk_adverb_exp_node valueInfo)]
       | _ -> assert false
     in
-    Printf.printf "Getting length of axes...\n%!"; 
     let nAxes = List.length info.axes in
     let nestedFnId = info.adverb_fn in
-    Printf.printf "Getting nested output types\n%!"; 
+    Printf.printf 
+      "[AdverbHelpers.mk_adverb_fn] nested fn id = %s\n%!"
+      (FnId.to_str nestedFnId)
+    ;
     let nestedOutputTypes = 
       FnManager.output_types_of_typed_fn nestedFnId 
     in
-    Printf.printf "Getting output types\n%!"; 
     let outputTypes =
       adverb_output_types info.adverb nAxes nestedOutputTypes
     in
@@ -107,12 +106,24 @@ let mk_adverb_fn
           (FnId.to_str nestedFnId)
           (Adverb.to_str info.adverb)
     in
-    let inputNames = FnManager.typed_input_names nestedFnId in 
+    let inputTypes = 
+      info.fixed_args @ 
+      (Option.default [] info.init ) @ 
+      info.array_args 
+    in 
+    let inputNames = 
+      List.take (List.length inputTypes) 
+       (FnManager.typed_input_names nestedFnId)
+     in 
+    Printf.printf "[AdverbHelpers.mk_adverb_fn] Making function with input names %s and types %s\n%!" 
+      (String.concat ", " inputNames)
+      (String.concat ", " (List.map Type.to_str inputTypes))
+    ;
     let newfn =
       TypedSSA.fn_builder
         ~name
         ~input_names:inputNames 
-        ~input_types:(info.fixed_args @ info.array_args)
+        ~input_types:inputTypes 
         ~output_types:outputTypes
         constructor
     in

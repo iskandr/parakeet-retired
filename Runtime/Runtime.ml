@@ -70,7 +70,13 @@ module rec Scheduler : SCHEDULER = struct
     match op, args with
     | Prim.Range, [x] when Value.is_scalar x ->
       [Value.Range (0, Value.to_int x, 1)]
-    | _ -> assert false
+    | Prim.DimSize, [x; dim] ->
+      let shape = Value.shape_of x in 
+      [of_int $ Shape.get shape (Value.to_int dim)]
+
+    | other, _ -> 
+      failwith $ Printf.sprintf "Unsupport array operator %s"
+      (Prim.array_op_to_str other) 
 end
 and Interp : INTERP = struct
   let eval_value (valNode:TypedSSA.value_node) : value =
