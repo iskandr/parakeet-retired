@@ -1,28 +1,26 @@
 from numpy import array, argmin, arange
 from functools import *
 import parakeet
-from parakeet import PAR
+import parakeet as par
 import numpy as np
 
 def sqr_dist(x,y):
-  return np.sum((x-y) * (x-y), 0)
+  return par.sum((x-y) * (x-y), axis=0)
 
-#@PAR
 def minidx(C,x):
-  return np.argmin(parakeet.map(sqr_dist,C,fixed=[x]))
+  return par.argmin(parakeet.map(sqr_dist, C, fixed=x))
 
 def calc_centroid(X,a,i):
-  return np.mean(X[a == i], 0)
+  return par.mean(X[a == i], axis=0)
 
-@PAR
 def kmeans(X,assign,k):
-  C = parakeet.map(calc_centroid, arange(k), fixed=[X, assign])
+  C = par.map(calc_centroid, arange(k), fixed=(X, assign))
   converged = False
   while not converged:
     lastAssign = assign
-    assign = parakeet.map(minidx, X, fixed=[C])
+    assign = par.map(minidx, X, fixed=C)
     converged = np.all(assign == lastAssign)
-    C = parakeet.map(calc_centroid, arange(k), fixed=[X, assign])
+    C = parakeet.map(calc_centroid, arange(k), fixed=(X, assign))
   return C
 
 X = array([1,2,3,4,5,6,7,8,9])
