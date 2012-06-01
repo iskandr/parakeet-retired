@@ -75,7 +75,7 @@ value build_str_list(char **strs, int num_strs) {
 
 paranode mk_lambda(char **args, int num_args, paranode body,
                 source_info_t *src_info) {
-  printf("C: mk_lambda\n");
+  //printf("C: mk_lambda\n");
   CAMLparam0();
   CAMLlocal4(lam, args_list,  node, val_body);
 
@@ -94,7 +94,7 @@ paranode mk_lambda(char **args, int num_args, paranode body,
 
 paranode mk_var(char *str, source_info_t *src_info) {
 
-  printf("C: mk_var: %s\n", str);
+  //printf("C: mk_var: %s\n", str);
   CAMLparam0();
   CAMLlocal1(var);
 
@@ -108,7 +108,7 @@ paranode mk_var(char *str, source_info_t *src_info) {
 }
 
 paranode mk_bool_paranode(int b, source_info_t *src_info) {
-   printf("C: mk_bool: %d\n", b);
+   //printf("C: mk_bool: %d\n", b);
    CAMLparam0();
    CAMLlocal1(val);
 
@@ -118,7 +118,7 @@ paranode mk_bool_paranode(int b, source_info_t *src_info) {
 }
 
 paranode mk_int32_paranode(int32_t i, source_info_t *src_info) {
-  printf("C: mk_int32: %d\n", i);
+  //printf("C: mk_int32: %d\n", i);
   CAMLparam0();
   CAMLlocal1(val);
 
@@ -139,7 +139,7 @@ paranode mk_int64_paranode(int64_t l, source_info_t *src_info) {
 }
 
 paranode mk_float_paranode(float f, source_info_t *src_info) {
-  printf("C: mk_float: %f\n", f);
+  //printf("C: mk_float: %f\n", f);
   CAMLparam0();
   CAMLlocal1(val);
 
@@ -149,7 +149,7 @@ paranode mk_float_paranode(float f, source_info_t *src_info) {
 }
 
 paranode mk_double_paranode(double d, source_info_t *src_info) {
-  printf("C: mk_double: %f\n", d);
+  //printf("C: mk_double: %f\n", d);
   CAMLparam0();
   CAMLlocal1(val);
 
@@ -194,12 +194,12 @@ paranode mk_call(
 		  paranode* keyword_values,
 		  int num_keyword_args, 
 		  source_info_t *src_info) {
-  printf("C: mk_call %p with %d positional args and %d keyword args\n",
-		  fun, num_args, num_keyword_args);
+  //printf("C: mk_call %p with %d positional args and %d keyword args\n",
+//		  fun, num_args, num_keyword_args);
   CAMLparam0();
   CAMLlocal3(val_fun, actual_args, app);
   actual_args = mk_actual_ast_args(args, num_args, keywords, keyword_values, num_keyword_args);
-  printf("Creating Call node\n");
+  //printf("Creating Call node\n");
   val_fun = get_value_and_remove_root(fun);
   app = caml_alloc(2, Exp_Call);
   Store_field(app, 0, val_fun);
@@ -208,7 +208,7 @@ paranode mk_call(
 }
 
 paranode mk_return(paranode* args, int num_args, source_info_t *src_info) { 
-  printf("C: ast_stubs.mk_return with %d args\n", num_args);
+  //printf("C: ast_stubs.mk_return with %d args\n", num_args);
   CAMLparam0();
   CAMLlocal2(ret, ret_args);
   ret_args = mk_val_list(args, num_args);
@@ -235,7 +235,7 @@ paranode mk_tuple(paranode *elts, int num_elts, source_info_t *src_info) {
 
 paranode mk_if(paranode cond_node, paranode true_node, paranode false_node,
                source_info_t *src_info) {
-  printf("C: ast_stubs.mk_if\n");
+  //printf("C: ast_stubs.mk_if\n");
 	CAMLparam0();
   CAMLlocal4(val_cond, val_true, val_false, if_node);
 
@@ -269,7 +269,7 @@ paranode mk_assign(paranode* lhs, int num_ids, paranode rhs,
 }
 
 paranode mk_block(paranode *stmts, int num_stmts, source_info_t *src_info) {
-  printf("C: Making you a block of %d statements\n", num_stmts);
+  //printf("C: Making you a block of %d statements\n", num_stmts);
   CAMLparam0();
   CAMLlocal2(block, stmt_list);
   stmt_list = mk_val_list(stmts, num_stmts);
@@ -354,7 +354,7 @@ value mk_src_info(source_info_t *src_info) {
   if (src_info != NULL) {
 
     if (src_info->filename) {
-      printf("Src info filename: %s\n", src_info->filename);
+      //printf("Src info filename: %s\n", src_info->filename);
 
       file = caml_copy_string(src_info->filename);
       //int len = strlen(src_info->filename);
@@ -395,9 +395,7 @@ value get_value_and_remove_root(paranode node) {
   
   old_tail = Val_int(0); 
   int i;
-  printf("[mk_val_list]\n"); 
   for (i = num_vals - 1; i >= 0; i--) {
-    printf("-- allocating %d'th list cell", i); 
     new_tail = caml_alloc_tuple(2); 
     elt = get_value_and_remove_root(vals[i]); 
     Store_field(new_tail, 0, elt); 

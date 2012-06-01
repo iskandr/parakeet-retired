@@ -122,37 +122,27 @@ let rec to_str node =
 
   match node.data with
   | Var name -> 
-    Printf.printf "Var %s\n%!" name;
     name
   | Prim p -> 
-    Printf.printf "Prim %s\n%!" (Prim.to_str  p);
     Prim.to_str p
   | Num (ParNum.Char c ) -> 
-    Printf.printf "Char\n%!";
     "'" ^ (Char.to_string c) ^ "'"
   | Num n -> 
-    Printf.printf "Num %s\n%!" (ParNum.to_str n);
     ParNum.to_str n
   | Str str -> 
-    Printf.printf "Str\n%!";
     "\"" ^ (String.escaped str) ^ "\""
   | Type t -> 
-    Printf.printf "Type\n%!";
     "type(" ^ Type.to_str t ^ ")" 
   | NoneVal () -> 
-    Printf.printf "None\n%!";
     "None" 
   | Array elts -> 
-    Printf.printf "Array\n%!";
     "array([" ^ (nodes_to_str ~delim:", " elts) ^ "])"
   | Tuple elts ->
    
-    Printf.printf "tuple\n%!";
     "tuple(" ^ (nodes_to_str ~delim:", " elts) ^ ")"
     
      
   | Lambda (formals, body) ->
-    Printf.printf "Lambda \n%!"; 
     Base.indent_newlines $ 
       sprintf "lambda %s:\n%s" 
         (Args.formal_args_to_str 
@@ -160,21 +150,17 @@ let rec to_str node =
            formals)
         (to_str body)
   | Call (fn, args) ->
-    Printf.printf "Call\n%!"; 
     sprintf "%s(%s)" 
       (to_str fn) 
       (Args.actual_args_to_str 
          ~value_to_str:to_str 
          args)
   | Assign (lhsList, rhs) ->
-    Printf.printf "Assign\n%!";
     (nodes_to_str ~delim:", " lhsList) ^ " = " ^ (to_str rhs)
   | Block nodes ->
-    Printf.printf "Block\n%!";  
     Base.indent_newlines $ 
       sprintf "\n%s" (nodes_to_str ~delim:"\n" nodes)
   | If(test, tNode, fNode) ->
-    Printf.printf "If\n%!";
     let testStr = to_str test in
     let trueStr = Base.indent_newlines $ to_str tNode in 
     let falseStr = Base.indent_newlines $ to_str fNode in    
@@ -188,8 +174,6 @@ let rec to_str node =
     sprintf "repeat %s: %s" (to_str count) 
       (Base.indent_newlines (to_str body))
   | Return nodes -> 
-    Printf.printf "Return\n%!"; 
-    Printf.printf "# nodes = %d" (List.length nodes); 
     sprintf "return %s" (nodes_to_str nodes)
 
 and nodes_to_str ?(delim=", ") (args:node list) =

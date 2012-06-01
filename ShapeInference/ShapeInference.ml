@@ -242,13 +242,17 @@ module ShapeAnalysis (P: PARAMS) =  struct
           List.exists2 (<>) oldShapes newShapes
         in
         if not changed then None
-        else
+        else (
+          IFDEF DEBUG THEN 
+            assert (List.length ids = List.length newShapes); 
+          ENDIF; 
           let env' =
             List.fold_left2
               (fun env id shape -> ID.Map.add id shape env)
               env ids newShapes
           in
           Some env'
+        )
       | _ -> helpers.eval_stmt env stmtNode
 end
 
@@ -373,8 +377,10 @@ and infer_normalized_output_shapes
     (fnTable : FnTable.t)
     (fundef : TypedSSA.fn) =
   let fnId = fundef.TypedSSA.fn_id in
+  Printf.printf "[infer_normalized_output_shapes] fn_id = %s\n%!" (FnId.to_str fnId); 
   try Hashtbl.find normalizedOutputShapeCache fnId
   with _ -> begin
+    Printf.printf "...not found...\n%!";
     let shapeEnv = infer_shape_env fnTable fundef in
     let inputSet = ID.Set.of_list fundef.input_ids in
     let rawShapes =
@@ -392,6 +398,9 @@ and infer_call_result_shapes fnTable fundef argShapes =
   (* once the shape expressions only refer to input IDs,
      remap those input IDs argument expressions
    *)
+  IFDEF DEBUG THEN  
+    assert (List.length fundef.TypedSSA.input_ids = List.length argShapes); 
+  ENDIF; 
   let argEnv : SymbolicShape.t ID.Map.t =
     List.fold_left2
       (fun env id argShape -> ID.Map.add id argShape env)

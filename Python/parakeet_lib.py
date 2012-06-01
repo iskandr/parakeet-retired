@@ -75,6 +75,10 @@ def sum(x, axis = None):
 def prod(x, axis = None):
   return reduce(mult, x, axis=axis)
 
+@parakeet_prim(np.dot)
+def dot(x,y):
+  return sum(x*y)
+
 @parakeet_prim(len)
 def _len(x):
   return np.size(x, 0)
@@ -85,8 +89,5 @@ def mean(x, axis = None):
   return total / len(x)
 
 
-@parakeet_prim(np.dot)
-def dot(x,y):
-  return sum(x*y)
 
 

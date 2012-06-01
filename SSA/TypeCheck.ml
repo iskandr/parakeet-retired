@@ -32,7 +32,9 @@ let check_value (errorLog:errors)(tenv:tenv) (defined : ID.Set.t) vNode : unit =
   | Num _ ->
     if not $ Type.is_number vNode.value_type then
       err "number annotated with non-numeric type"
-
+  | NoneVal _ -> 
+    if vNode.value_type <> Type.NoneT then 
+      err $ "Value 'none' given incorrect type " ^ (Type.to_str vNode.value_type)
 let check_value_list errorLog tenv defined values : unit =
   List.iter (check_value errorLog tenv defined) values
 
@@ -109,6 +111,7 @@ and check_exp errorLog tenv (defined : ID.Set.t) (expNode : exp_node) : unit =
   let err msg = Queue.add (expNode.exp_src, msg) errorLog in
   match expNode.exp with
   | Values vs
+  | Tuple vs 
   | Arr vs -> check_value_list errorLog tenv defined vs
   | Cast (t, v) ->
       check_value errorLog tenv defined v;

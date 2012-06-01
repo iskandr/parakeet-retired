@@ -65,8 +65,9 @@ module PrettyPrinters = struct
     let opt_to_str = Option.map_default value_nodes_to_str "none" in
     Adverb.info_to_str info value_node_to_str value_nodes_to_str opt_to_str
 
-  let args_to_str args = 
-    value_nodes_to_str (Args.all_actual_values args)
+  let args_to_str args =
+    Args.actual_args_to_str ~value_to_str:value_node_to_str args
+  
   let exp_to_str = function
     | Values [v] -> value_node_to_str v
     | Values vs -> sprintf "values(%s)" (value_nodes_to_str vs)
@@ -112,15 +113,13 @@ module PrettyPrinters = struct
 
   let fn_to_str (fundef:fn) =
     let name = fn_id_to_str fundef in
-    let inputs = 
-      String.concat ", " $ 
-      List.map 
-        (fun s -> ID.to_str $ String.Map.find s fundef.input_names_to_ids)
-        (Args.all_formal_names fundef.inputs)
+    let inputStr =
+      Args.formal_args_to_str ~value_to_str:value_node_to_str 
+      fundef.inputs 
     in
     let outputs = ID.list_to_str fundef.output_ids in
     let body = block_to_str fundef.body in
-    (sprintf "def %s(%s)=>(%s):%s" name inputs outputs body)
+    (sprintf "def %s(%s)=>(%s):%s" name inputStr outputs body)
 
 end
 include PrettyPrinters

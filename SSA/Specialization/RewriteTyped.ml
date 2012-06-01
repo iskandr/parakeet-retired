@@ -42,6 +42,12 @@ module Make(P: REWRITE_PARAMS) = struct
           value_type = Type.ScalarT (ParNum.type_of n);
           value_src = src
         }
+      | UntypedSSA.NoneVal -> 
+        {
+          TypedSSA.value = TypedSSA.NoneVal; 
+          value_type = Type.NoneT;
+          value_src = src;  
+        }
       | other ->
         let errMsg = Printf.sprintf
           "Don't know how to convert %s into typed SSA"
@@ -191,9 +197,11 @@ module Make(P: REWRITE_PARAMS) = struct
     (* make typed version of all the adverbinfo fields *)
     let arrayArgs : TypedSSA.value_nodes = annotate_values info.array_args in
     let arrayTypes = TypedSSA.types_of_value_nodes arrayArgs in
-    let axes : TypedSSA.value_nodes = match info.axes with
-      | Some axes -> annotate_values axes
-      | None -> AdverbHelpers.infer_adverb_axes_from_types arrayTypes
+    let axes : TypedSSA.value_nodes = match Option.map annotate_values info.axes with
+      | None  
+      | Some [{TypedSSA.value_type = Type.NoneT}] ->  
+        AdverbHelpers.infer_adverb_axes_from_types arrayTypes
+      | Some axes -> axes
     in
     let partiallyTypedInfo = {
       info with

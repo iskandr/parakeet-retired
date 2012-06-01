@@ -105,7 +105,7 @@ let rec to_str = function
   | ScalarT t -> (elt_to_str t)
   | ArrayT (eltT, d) -> Printf.sprintf "array%d<%s>" d (elt_to_str eltT)
   | TupleT elts -> 
-    Printf.sprintf "tuple(%s)" (type_list_to_str elts) 
+    Printf.sprintf "tuple(%s)" (type_list_to_str ~sep:" * " elts) 
 and  type_list_to_str ?(sep=", ") ts = String.concat sep (List.map to_str ts)
 let type_array_to_str ts = type_list_to_str (Array.to_list ts)
 

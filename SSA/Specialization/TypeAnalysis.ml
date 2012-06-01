@@ -266,6 +266,7 @@ module Make (P : TYPE_ANALYSIS_PARAMS) = struct
   let infer_value_type = function
     | Var id -> TypeEnv.get_type id
     | Num n -> Type.ScalarT (ParNum.type_of n)
+    | NoneVal -> Type.NoneT 
     | _ -> Type.AnyT
 
   let infer_value_node vNode = infer_value_type vNode.value

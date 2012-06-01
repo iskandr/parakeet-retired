@@ -74,27 +74,15 @@ int register_untyped_function(
 
   printf(":: registering untyped function\n");
 
-  printf("  ...copying function name\n");
   val_name = caml_copy_string(name);
 
-  printf("  ...copying global names\n");
   globals_list = build_str_list(globals, num_globals);
-  printf("  ...copying arg names\n");
   args_list    = build_str_list(args, num_args);
 
-  printf("  ...copying default arg names\n");
   default_arg_names_list = build_str_list(default_args, num_defaults);
 
-  printf("  ...copying default arg values\n");
 
   default_arg_values_list = mk_val_list(default_arg_values, num_defaults);
-  printf("ast pointer: %p\n", ast->v);
-  printf("val_name: %p\n", val_name); 
-  printf("default arg names: %p\n", default_arg_names_list); 
-  printf("default arg values: %p\n", default_arg_values_list);  
-  printf("globals: %p\n", globals_list); 
-  printf("args: %p\n", args_list); 
-  printf("  ...building function arguments\n"); 
   value func_args[6] = {
     val_name,
     globals_list,
@@ -106,7 +94,6 @@ int register_untyped_function(
 
   printf("  ...calling into OCaml's register function\n");
   fn_id = caml_callbackN(*ocaml_register_untyped_function, 6, func_args);
-  printf("...returned\n");
   printf("FN ID: %d\n", Int_val(fn_id));
   CAMLreturnT(int, Int_val(fn_id));
 }
@@ -130,7 +117,7 @@ return_val_t translate_return_value(value ocaml_result) {
   } else if (Tag_val(ocaml_result) == RET_FAIL) {
     ret.return_code = RET_FAIL;
     ret.results_len = caml_string_length(Field(ocaml_result, 0));
-    ret.error_msg = malloc(ret.results_len);
+    ret.error_msg = malloc(ret.results_len + 1);
     strcpy(ret.error_msg, String_val(Field(ocaml_result, 0)));
   } else if (Tag_val(ocaml_result) == RET_SUCCESS) {
     
@@ -284,7 +271,6 @@ return_val_t run_adverb(
     fixed_actuals,
     array_actuals
   };
-  printf("Is run_adverb null? %d\n", ocaml_run_adverb == NULL); 
   ocaml_result = caml_callbackN(*ocaml_run_adverb, 7, func_args);
   printf("Returned from OCaml\n"); 
   CAMLreturnT(return_val_t, translate_return_value(ocaml_result));

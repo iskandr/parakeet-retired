@@ -142,6 +142,11 @@ module Mk(R: SIMPLE_TRANSFORM_RULES) = struct
       if changed() then {expNode with exp=Arr elts'}
       else expNode
 
+    | Tuple elts -> 
+      let elts' = transform_values blockState cxt elts in 
+      if changed() then {expNode with exp = Tuple elts'}
+      else expNode 
+
     | Cast(t, v) ->
       let v' = transform_value blockState cxt v in
       if changed() then {expNode with exp=Cast(t,v')}

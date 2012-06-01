@@ -55,7 +55,11 @@ module SimplifyRules = struct
       else if livePairs = [] then Update TypedSSA.empty_stmt
       else
         let liveIds, liveValues = List.split livePairs in
-        let rhs = {expNode with exp=Values liveValues} in
+        let rhs = {
+          expNode with exp=Values liveValues; 
+          exp_types = List.map (fun vNode -> vNode.value_type) liveValues
+        } 
+        in
         Update (TypedSSA.set ?src:stmtNode.stmt_src liveIds rhs)
     | Set (ids, exp) ->
         let rec any_live = function
@@ -93,6 +97,9 @@ module SimplifyRules = struct
 
   let value cxt valNode = match valNode.value with
     | Var id ->
+      (* there's only one value of type NoneT, so use it directly *) 
+      if valNode.value_type = Type.NoneT then Update {valNode with value = NoneVal } 
+      else 
       begin match ID.Map.find_option id cxt.constants with
         | Some ConstantLattice.Const v ->
           Update {valNode with value = v }
@@ -105,7 +112,8 @@ module SimplifyRules = struct
             | _ -> NoChange
           )
       end
-    | _ -> NoChange
+    | _ -> 
+      NoChange
 end
 
 module Simplifer = SSA_Transform.Mk(SimplifyRules)

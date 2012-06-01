@@ -5,7 +5,7 @@ open Printf
 
 (* bottle these up in a module so we can parameterize SSA.Make *)
 module CoreLanguage = struct
-  type value = Var of ID.t | Num of ParNum.t
+  type value = Var of ID.t | Num of ParNum.t | NoneVal 
 
   type value_node = {
     value : value;
@@ -81,7 +81,8 @@ module PrettyPrinters = struct
   let value_to_str = function
     | Var id -> ID.to_str id
     | Num n -> ParNum.to_str n
-
+    | NoneVal -> "none"
+ 
   let value_node_to_str valNode =
     sprintf "%s : %s"
       (value_to_str valNode.value)
@@ -219,64 +220,60 @@ include ValueHelpers
 
 module FnHelpers = struct
   let fn_id {fn_id} = fn_id
-	let mk_fn ?name ~tenv ~input_ids ~output_ids ~body : fn =
-	  let inTypes = List.map (fun id -> ID.Map.find id tenv) input_ids in
-	  let outTypes = List.map (fun id -> ID.Map.find id tenv) output_ids in
-	  let fnId = match name with
-	    | Some name -> FnId.gen_named name
-	    | None -> FnId.gen()
-	  in
-	  {
-	    body = body;
-	    tenv = tenv;
-	    input_ids = input_ids;
-	    output_ids = output_ids;
-	    fn_input_types = inTypes;
-	    fn_output_types = outTypes;
-	    fn_id = fnId
-	  }
+  let mk_fn ?name ~tenv ~input_ids ~output_ids ~body : fn =
+    let inTypes = List.map (fun id -> ID.Map.find id tenv) input_ids in
+    let outTypes = List.map (fun id -> ID.Map.find id tenv) output_ids in
+    let fnId = match name with
+      | Some name -> FnId.gen_named name
+      | None -> FnId.gen()
+    in
+    {
+      body = body;
+      tenv = tenv;
+      input_ids = input_ids;
+      output_ids = output_ids;
+      fn_input_types = inTypes;
+      fn_output_types = outTypes;
+      fn_id = fnId
+    }
     
-	let fn_builder
-	    ?name
+  let fn_builder
+      ?name
       ?input_names 
-	    ~(input_types:Type.t list)
-	    ~(output_types:Type.t list)
-	    ?(local_types = [])
-	    (construct:value_nodes * value_nodes * value_nodes -> stmt_node list) =
-	  IFDEF DEBUG THEN
-	    Printf.printf
-	      "[SSA_Helpers.mk_fn] name: %s, input_types = %s, output_types = %s\n%!"
-	      (match name with None -> "<none>" | Some name -> name)
-	      (Type.type_list_to_str input_types)
-	      (Type.type_list_to_str output_types)
-	    ;
-	  ENDIF;
-	  (* inputs *)
-	  
-    
-	  let inputIds = match input_names with
+      ~(input_types:Type.t list)
+      ~(output_types:Type.t list)
+      ?(local_types = [])
+        (construct:value_nodes * value_nodes * value_nodes -> stmt_node list) =
+    IFDEF DEBUG THEN
+      Printf.printf
+        "[SSA_Helpers.mk_fn] name: %s, input_types = %s, output_types = %s\n%!"
+        (match name with None -> "<none>" | Some name -> name)
+        (Type.type_list_to_str input_types)
+        (Type.type_list_to_str output_types)
+      ;
+    ENDIF;
+    let inputIds = match input_names with
       | None -> 
         let nInputs = List.length input_types in
         ID.gen_named_list "input" nInputs
       | Some names -> 
         List.map ID.gen_named names 
     in 
-	  let inputs = List.map2 (fun t id -> var t id) input_types inputIds in
-	  (* outputs *)
-	  let nOutputs = List.length output_types in
-	  let outputIds = ID.gen_named_list "output" nOutputs in
-	  let outputs = List.map2 (fun t id -> var  t id) output_types outputIds in
-	  (* locals *)
-	  let nLocals = List.length local_types in
-	  let localIds = ID.gen_named_list "temp" nLocals in
-	  let locals = List.map2 (fun t id -> var t id) local_types localIds in
-	  let body = Block.of_list (construct (inputs, outputs, locals)) in
-	  let tenv =
-	    ID.Map.of_lists
-	      (inputIds @ outputIds @ localIds)
-	      (input_types @ output_types @ local_types)
-	  in
-	  mk_fn ?name ~tenv ~input_ids: inputIds ~output_ids: outputIds ~body
+    let inputs = List.map2 (fun t id -> var t id) input_types inputIds in
+    
+    let nOutputs = List.length output_types in
+    let outputIds = ID.gen_named_list "output" nOutputs in
+    let outputs = List.map2 (fun t id -> var  t id) output_types outputIds in
+    let nLocals = List.length local_types in
+    let localIds = ID.gen_named_list "temp" nLocals in
+    let locals = List.map2 (fun t id -> var t id) local_types localIds in
+    let body = Block.of_list (construct (inputs, outputs, locals)) in
+    let tenv =
+      ID.Map.of_lists
+        (inputIds @ outputIds @ localIds)
+        (input_types @ output_types @ local_types)
+    in
+    mk_fn ?name ~tenv ~input_ids: inputIds ~output_ids: outputIds ~body
 
   let find_fn_src_info { body } = get_block_src_info body
 	let input_arity { input_ids } = List.length input_ids

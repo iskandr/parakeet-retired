@@ -24,16 +24,23 @@ let register_untyped_function
       ~(body: AST.node) =
 
   assert (List.length default_arg_names = List.length default_arg_values); 
-  let _ = Analyze_AST.analyze_ast body in
-  Printf.printf "-- Creating global env for SSA conversion\n%!"; 
-  let ssaEnv = AST_to_SSA.Env.GlobalScope FnManager.get_untyped_id in
   let args = { 
     Args.names = globals@positional_args;
     defaults = List.combine default_arg_names default_arg_values
   }
+  in 
+  Printf.printf 
+    "[register_untyped_function] Args: %s\n Body:%s\n\n%!"
+    (Args.formal_args_to_str ~value_to_str:AST.to_str args)
+    (AST.to_str body);
+  let _ = Analyze_AST.analyze_ast body in
+  Printf.printf "-- Creating global env for SSA conversion\n%!"; 
+  let ssaEnv = 
+     AST_to_SSA.Env.GlobalScope FnManager.get_untyped_id 
   in
   Printf.printf "-- Doing SSA conversion\n%!";   
   let fn = AST_to_SSA.translate_fn ~name ssaEnv args body in
+  Printf.printf "%s\n%!" (UntypedSSA.fn_to_str fn);
   Printf.printf "-- Adding fn to FnManager\n%!";
   FnManager.add_untyped name fn;
   let fnId = fn.UntypedSSA.fn_id in 
@@ -60,7 +67,10 @@ let get_specialized_function untypedId signature =
 let syntax_value_to_runtime_value (v : UntypedSSA.value_node) : Ptr.t Value.t =
   match v.UntypedSSA.value with 
     | UntypedSSA.Num n -> Value.Scalar n 
-    | _ -> failwith "Default args must be a scalar"
+    | UntypedSSA.NoneVal -> Value.NoneVal 
+    | other -> failwith $ Printf.sprintf 
+        "Default args must be a scalar, got %s"
+        (UntypedSSA.value_to_str other)
    
 type value = Ptr.t Value.t 
 type values = value list 

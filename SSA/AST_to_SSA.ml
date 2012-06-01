@@ -135,7 +135,8 @@ and translate_value env block node : UntypedSSA.value_node =
   (* anything not an immediate value must be evaluated in its own statement
      and then named
   *)
-  | _ -> exp_as_value env block "temp" node
+  | _ -> 
+    exp_as_value env block "temp" node
 and translate_values env block nodes =
   List.map (translate_value env block) nodes
 
@@ -436,7 +437,7 @@ and translate_fn
   Printf.printf "[AST_to_SSA] Initializing formal args\n%!";
   let ssaArgs : UntypedSSA.value_node Args.formal_args  = 
     Args.apply_to_formal_values 
-      (exp_as_value initEnv typedBlock "default")
+      (translate_value initEnv typedBlock)
       args
   in 
   Printf.printf "[AST_to_SSA] Starting translation of body\n%!";

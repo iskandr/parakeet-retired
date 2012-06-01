@@ -20,7 +20,9 @@ module ConstEval = SSA_Analysis.MkEvaluator(struct
       fundef.input_ids
 
   let value env valNode = match valNode.value with
+    | NoneVal 
     | Num _ -> ConstantLattice.Const valNode.value
+    
     | Var id -> (
       try ID.Map.find id env
       with _ ->

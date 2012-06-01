@@ -1,5 +1,5 @@
 module CoreLanguage : sig
-  type value = | Var of ID.t | Num of ParNum.t
+  type value = | Var of ID.t | Num of ParNum.t | NoneVal 
   type value_node = { 
     value : value; 
     value_type : Type.t; 

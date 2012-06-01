@@ -54,7 +54,7 @@ let add_typed ?(optimize=true) fn =
 let default_typed_optimizations =
   [
     (*"function cloning", TypedFunctionCloning.function_cloning;*)
-    "simplify", Simplify.simplify_fn;
+    "simplify", Simplify.simplify_fn; 
     "cse", CSE.cse;
     "inlining", Inline.run_fn_inliner;
   ]

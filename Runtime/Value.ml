@@ -94,7 +94,8 @@ let rec elt_type = function
 
 let rec shape_of = function
   | Array {array_shape} -> array_shape
-  | Scalar n -> Shape.scalar_shape
+  | NoneVal 
+  | Scalar _ -> Shape.scalar_shape
   | Rotate (x, _, _)
   | Shift (x, _, _, _) -> shape_of x
   | FixDim(x, dim, idx) ->
@@ -105,8 +106,7 @@ let rec shape_of = function
     dims.(dim) <- stop - start + 1;
     Shape.of_array dims
   | Range (start, stop, step) -> Shape.of_list [(stop - start + 1)/step]
-  | Explode _
-  | NoneVal -> failwith "Value has no shape"
+  | Explode _ -> failwith "Value 'Explode' has no shape!" 
   | Tuple elts ->
     let nelts = Array.length elts in
     if nelts = 0 then Shape.scalar_shape else
