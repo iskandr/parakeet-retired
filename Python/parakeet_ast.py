@@ -577,7 +577,7 @@ class ASTConverter():
   def visit_array_elts(self, node):
     if isinstance(node, ast.List) or isinstance(node, ast.Tuple):
       elts = [self.visit_expr(elt) for elt in node.elts]
-      return build_parakeet_array(elts, self.build_src_info(node)) 
+      return mk_array(elts, self.build_src_info(node)) 
     else:
       raise ParakeetUnsupported('Array must have literal arguments') 
 
