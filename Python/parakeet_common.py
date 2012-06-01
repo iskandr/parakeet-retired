@@ -55,7 +55,8 @@ def init_parakeet_lib():
   LibPar.parakeet_init()
   
   LibPar.run_function.restype = return_val_t
-  
+  LibPar.run_adverb.restype = return_val_t 
+ 
   LibPar.mk_none_val.restype = c_void_p 
   LibPar.mk_int32.restype = c_void_p
   LibPar.mk_int64.restype = c_void_p

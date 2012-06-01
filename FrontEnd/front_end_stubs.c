@@ -237,26 +237,35 @@ return_val_t run_adverb(
   char** array_keyword_names, host_val* array_keyword_values, int num_array_keyword_values) {
    
   CAMLparam0();
-  CAMLlocal1(globals_list);
+  CAMLlocal2(adverb, globals_list);
   CAMLlocal2(fixed_actuals, array_actuals);
   CAMLlocal2(init_list, axes_list_option); 
   CAMLlocal1(ocaml_result);
-
+  
+  printf("Building list of %d global values\n", num_globals); 
   globals_list = build_host_val_list(globals, num_globals);
+  printf("Making fixed args from %d fixed values and %d fixed kwds\n", 
+    num_fixed, num_fixed_keywords); 
   fixed_actuals = mk_actual_args(fixed, num_fixed, \
     fixed_keyword_names, fixed_keyword_values, num_fixed_keywords);
+  printf("Making array args from %d arrays and %d kwds\n", 
+    num_array_positional, num_array_keyword_values); 
   array_actuals = mk_actual_args(array_positional, num_array_positional, \
     array_keyword_names, array_keyword_values, num_array_keyword_values); 
+  printf("Building list of %d init args\n", num_init); 
   init_list = build_host_val_list(init, num_init);
+  printf("Axes given? %d\n", axes_given);
   if (axes_given) {
+    printf("Building %d axes\n", num_axes); 
     axes_list_option = caml_alloc(1, 0);
     Store_field( axes_list_option, 0,  build_int_list(axes, num_axes) );
   } else {
     axes_list_option = Val_int(0);
   }
-  
+  printf("Calling into OCaml\n");  
+  adverb = get_adverb(adverb_name); 
   value func_args[7] = {
-    get_adverb(adverb_name),
+    adverb,
     Val_int(fn_id), 
     globals_list, 
     init_list, 
@@ -264,7 +273,9 @@ return_val_t run_adverb(
     fixed_actuals,
     array_actuals
   };
+  printf("Is run_adverb null? %d\n", ocaml_run_adverb == NULL); 
   ocaml_result = caml_callbackN(*ocaml_run_adverb, 7, func_args);
+  printf("Returned from OCaml\n"); 
   CAMLreturnT(return_val_t, translate_return_value(ocaml_result));
 
 }

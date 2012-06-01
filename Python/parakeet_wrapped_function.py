@@ -117,17 +117,27 @@ class WrappedFunction:
     filtered_kwds = \
       dict([(k,v) for (k,v) in kwds.items() if k not in reserved_keywords]) 
     array_values, array_keywords, array_keyword_values = \
-      _prep_args(args, filtered_kwds)    
+      _prep_args(args, filtered_kwds)  
+    print "[Parakeet] Running adverb ", adverb_name, \
+      "with", len(global_values), "globals,", \
+      len(fixed_values), "fixed,", \
+      len(fixed_keywords), "fixed kwds,", \
+      len(init_values), "init,", \
+      n_axes, "axes, ", \
+      len(array_values), "arrays,", \
+      len(array_keywords), "array kwds"
+     
+    from ctypes import c_int
     result = LibPar.run_adverb(
       adverb_name, 
       self.parakeet_untyped_id, 
-      global_values, len(global_values), 
-      fixed_values, len(fixed_values), 
-      fixed_keywords, fixed_keyword_values, len(fixed_keywords), 
-      init_values, len(init_values), 
-      axes_given, axes_values, n_axes, 
-      array_values, len(array_values), 
-      array_keywords, array_keyword_values, len(array_keywords)) 
+      global_values, c_int(len(global_values)), 
+      fixed_values, c_int(len(fixed_values)), 
+      fixed_keywords, fixed_keyword_values, c_int(len(fixed_keywords)), 
+      init_values, c_int(len(init_values)), 
+      axes_given, axes_values, c_int(n_axes), 
+      array_values, c_int(len(array_values)), 
+      array_keywords, array_keyword_values, c_int(len(array_keywords))) 
     return self._convert_returned_value(result)
      
 
@@ -145,7 +155,7 @@ class WrappedFunction:
   
   def __call__(self, *args, **kwds):
     global_values = self._prep_globals()
-    arg_values, kwd_names, kwd_values = self._prep_args(args, kwds)    
+    arg_values, kwd_names, kwd_values = _prep_args(args, kwds)    
     ret = LibPar.run_function(
         self.parakeet_untyped_id, 
         global_values, len(global_values), 

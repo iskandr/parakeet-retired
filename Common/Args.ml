@@ -48,6 +48,9 @@ let prepend_formal_names  moreNames {names; defaults} =
 let prepend_actual_values moreVals  {values; keywords} = 
   { values = moreVals @ values; keywords }   
 
+let combine_actual_args {values = v1; keywords = k1} {values = v2; keywords = k2} = 
+  { values = v1 @ v2; keywords = k1 @ k2 } 
+
 let formal_args_to_str ~value_to_str {names; defaults} =
   let defStrings = 
     List.map 

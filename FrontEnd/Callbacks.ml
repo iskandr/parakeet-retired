@@ -2,7 +2,7 @@
 let _ = Callback.register "register_untyped_function"
   FrontEnd.register_untyped_function
 let _ = Callback.register "run_function" FrontEnd.run_function
-
+let _ = Callback.register "run_adverb" FrontEnd.run_adverb 
 (*** ExternalLibNames ***)
 let _ = Callback.register "get_prim" ExternalLibNames.get_prim
 let _ = Callback.register "get_adverb" ExternalLibNames.get_adverb 

@@ -60,6 +60,7 @@ let get_prim str = match Hashtbl.find_option prim_names str with
     if FnManager.have_untyped_function str then AST_Helpers.mk_var_node str
     else failwith $ "Couldn't find Parakeet primitive named " ^ str
 
-let get_adverb name = match Hashtbl.find_option prim_names name with 
+let get_adverb name : Adverb.t  = 
+  match Hashtbl.find_option prim_names name with 
   | Some (Adverb adverb) -> adverb
   | _ -> failwith $ name ^ " isn't an adverb"   

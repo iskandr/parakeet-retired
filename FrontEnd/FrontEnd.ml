@@ -116,8 +116,58 @@ let handle_error exn  =
   Printf.printf "\n%!";
   Error errorMsg
 
+let infer_axes arrayArgTypes = function 
+  | Some axes -> axes
+  | None -> 
+    AdverbHelpers.const_axes $
+     AdverbHelpers.infer_adverb_axes_from_types 
+       (Args.all_actual_values arrayArgTypes)
+
 let run_adverb ~adverb ~untyped_id ~globals ~init ~axes ~fixed ~arrays : ret_val = 
-  Error "Not implemented"
+  Printf.printf "[Parakeet] In run_adverb\n%!"; 
+  (* fixed keywords not yet supported *) 
+  assert (fixed.Args.keywords = []);
+  (* array keywords not yet supported *) 
+  assert (arrays.Args.keywords = []); 
+  let arrayTypes : Type.t Args.actual_args = 
+    Args.apply_to_actual_values Value.type_of arrays
+  in
+  let axes : int list = infer_axes arrayTypes axes in 
+  let fixedTypes : Type.t Args.actual_args = 
+    Args.apply_to_actual_values Value.type_of fixed 
+  in 
+  let initTypes : Type.t list = 
+    List.map Value.type_of init 
+  in 
+  let globalTypes : Type.t list = 
+    List.map Value.type_of globals 
+  in
+  let arrayEltTypes =
+    Args.apply_to_actual_values (Type.peel ~num_axes:(List.length axes)) arrayTypes
+  in  
+  let combinedTypes : Type.t Args.actual_args = 
+    Args.prepend_actual_values globalTypes 
+      (Args.combine_actual_args fixedTypes 
+        (Args.prepend_actual_values initTypes arrayEltTypes))
+  in
+  let signature = 
+    Signature.from_args combinedTypes 
+  in  
+  try
+    let typedFn = 
+      get_specialized_function untyped_id signature 
+    in
+    let adverbInfo : (TypedSSA.fn, Ptr.t Value.t list, int list) Adverb.info = { 
+      Adverb.adverb = adverb; 
+      adverb_fn = typedFn; 
+      fixed_args = fixed.Args.values; 
+      init = if init <> [] then Some init else None; 
+      axes = axes;
+      array_args = arrays.Args.values; 
+    } 
+    in 
+    Success (Runtime.adverb adverbInfo)
+  with exn -> handle_error exn   
   
 let run_function 
       ~(untyped_id:FnId.t)

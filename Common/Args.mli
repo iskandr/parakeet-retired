@@ -29,6 +29,8 @@ val all_actual_values : 'a actual_args -> 'a list
 val prepend_formal_names : string list ->  'a formal_args -> 'a formal_args
 val prepend_actual_values : 'a list ->  'a actual_args -> 'a actual_args
 
+val combine_actual_args : 'a actual_args -> 'a actual_args -> 'a actual_args 
+
 val formal_args_to_str : 
     value_to_str:('a -> string) -> 
       'a formal_args -> 
