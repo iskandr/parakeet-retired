@@ -64,35 +64,6 @@ let syntax_value_to_runtime_value (v : UntypedSSA.value_node) : Ptr.t Value.t =
    
 type value = Ptr.t Value.t 
 type values = value list 
-(*
-let exec_with_error_handling runtime_fn untyp args =
-try
-    let typedFundef = get_specialized_function untyped_id signature in
-    let result = Runtime.call typedFundef reorderedArgs in  
-    Success result
-  with exn -> begin
-    let errorMsg =
-      match exn with
-      | TypeAnalysis.TypeError(txt, srcOpt) ->
-        let srcStr =
-          Option.map_default
-            (fun srcInfo -> "at " ^ (SrcInfo.to_str srcInfo))
-            "(no source info)"
-            srcOpt
-        in
-        Printf.sprintf "Type Error: %s %s" txt srcStr
-      | ShapeInference.ShapeInferenceFailure txt ->
-        Printf.sprintf "Shape Error: %s" txt
-      | _ ->  Printexc.to_string exn
-    in
-    Printf.printf "\nParakeet failed with the following error:\n";
-    Printf.printf "- %s\n\n" errorMsg;
-    Printf.printf "OCaml Backtrace:\n";
-    Printexc.print_backtrace Pervasives.stdout;
-    Printf.printf "\n%!";
-    Error errorMsg
-  en
-*)
 
 let exn_to_str = function 
   | TypeAnalysis.TypeError(txt, srcOpt) ->
@@ -184,6 +155,8 @@ let run_function
    
   (* map from names to values *)
   let boundArgs =  Args.bind formals actuals in
+  Printf.printf "[FrontEnd] Bound args: %s\n%!" 
+    (String.concat ", " (List.map fst boundArgs));
   let actualTypes = Args.apply_to_actual_values Value.type_of actuals in
   let signature = Signature.from_args actualTypes in
   try

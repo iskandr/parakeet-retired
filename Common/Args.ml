@@ -86,7 +86,8 @@ let rec combine_positional env xs ys =
 (* make sure that keywords get placed in the same order each time *) 
 let rec bind ?(env=[]) (formals:'a formal_args) (actuals: 'a actual_args) = 
   match formals.defaults with 
-  | [] -> combine_positional env formals.names actuals.values
+  | [] -> 
+    List.rev $ combine_positional env formals.names actuals.values
   | (k, d)::rest ->
     let env' = 
       if List.mem_assoc k actuals.keywords then 

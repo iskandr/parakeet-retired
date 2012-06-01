@@ -224,7 +224,7 @@ module CompiledFunctionCache = struct
         let llvmFn : Llvm.llvalue = Imp_to_LLVM.compile_fn impFn in
          IFDEF DEBUG THEN
           print_endline "[LLVM_Backend.call_imp_fn] Generated LLVM function";
-          (*Llvm.dump_value llvmFn;*)
+          Llvm.dump_value llvmFn;
         ENDIF;
         IFDEF DEBUG THEN
           Printf.printf "Validating generated function...\n%!";
@@ -286,6 +286,10 @@ let call_imp_fn (impFn:Imp.fn) (args:Ptr.t Value.t list) : Ptr.t Value.t list =
 
 let call (fn:TypedSSA.fn) (args:Ptr.t Value.t list) =
   let inputTypes = List.map ImpType.type_of_value args in
+  Printf.printf 
+    "[LLVM_Backend.call] Creating imp function with arg types %s\n%!" 
+    (String.concat ", " (List.map ImpType.to_str inputTypes))
+  ; 
   let impFn : Imp.fn = SSA_to_Imp.translate_fn fn inputTypes in
   call_imp_fn impFn args
 
@@ -390,6 +394,12 @@ let exec_allpairs impFn inputShapes axes array_args llvmFn =
 
 let adverb (info:(TypedSSA.fn, Ptr.t Value.t list, int list) Adverb.info) =
   assert (info.init = None);
+  Printf.printf "[LLVM_Backend.adverb] %s\n%!"
+    (Adverb.info_to_str info 
+     (fun {TypedSSA.fn_id} -> FnId.to_str fn_id) 
+     (fun vs -> String.concat ", " $ List.map Value.to_str vs)
+     (fun axes -> String.concat ", " $ List.map string_of_int axes))
+  ; 
   let adverbFn =
     AdverbHelpers.mk_adverb_fn $
       Adverb.apply_to_fields info
@@ -399,6 +409,8 @@ let adverb (info:(TypedSSA.fn, Ptr.t Value.t list, int list) Adverb.info) =
   in
   let allArgValues : Ptr.t Value.t list = info.fixed_args @ info.array_args in
   let impTypes = List.map ImpType.type_of_value allArgValues in
+  Printf.printf "[LLVM_Backend.adverb] Translating SSA fn with imp args %s\n%!"
+    (String.concat ", " (List.map ImpType.to_str impTypes));
   let impFn : Imp.fn = SSA_to_Imp.translate_fn adverbFn impTypes in
   let llvmFn = CompiledFunctionCache.compile impFn in
   let inputShapes : Shape.t list = List.map Value.get_shape allArgValues in

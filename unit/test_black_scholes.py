@@ -61,16 +61,18 @@ def test_scalar_black_scholes():
   print "%f == %f : %s (diff = %f)" % (y2, z2, same2, d2)
   assert same2
 
-def black_scholes(CallFlags, S, X, T, r, v):
-  return parakeet.map(scalar_black_scholes, CallFlags, S, X, T, r, v)
-
+def slow_black_scholes(CallFlags, S, X, T, r, v):
+  result = [] 
+  for i, c in enumerate(CallFlags): 
+    result.append(scalar_black_scholes(c, S[i], X[i], T[i], r[i], v[i]))  
+  return np.array(result)
+ 
 def test_black_scholes():
   CallFlags = np.array([True, False, True, False])
   A = np.array([2.0, 1.0, 2.0, 1.0])
-  fast_black_scholes = PAR(black_scholes)
   inputs = (CallFlags, A, A, A, A, A)
-  x = fast_black_scholes(*inputs)
-  y = black_scholes(*inputs)
+  x = parakeet.map(scalar_black_scholes, *inputs) 
+  y = slow_black_scholes(*inputs)
   print "BLACK SCHOLES RESULTS Parakeet = %s\n Python = %s" % (x,y)
   assert np.all(np.abs(x -  y) < 0.00001)
 
