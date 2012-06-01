@@ -19,8 +19,7 @@ type 'a t =
   | Slice of 'a t * int * int * int         (* array, dim, start, end *)
   | Range of int * int * int                (* start, stop, step *)
   | NoneVal
-  | Nested of 'a t array
-
+  | Tuple of 'a t array 
 
 val to_str : ?array_to_str:('a array_info -> string) -> 'a t -> string
 val list_to_str : ?array_to_str:('a array_info -> string) -> 'a t list -> string

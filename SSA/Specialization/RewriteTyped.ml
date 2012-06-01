@@ -231,7 +231,7 @@ module Make(P: REWRITE_PARAMS) = struct
         (args:TypedSSA.value_nodes)
         (types:Type.t list) : TypedSSA.exp_node =
     match op, args, types with
-    | Prim.Index, [array; index], [arrayType; indexType]
+   | Prim.Index, [array; index], [arrayType; indexType]
         when Type.elt_type indexType = Type.BoolT ->
       IFDEF DEBUG THEN
           if Type.rank indexType <> 1 then

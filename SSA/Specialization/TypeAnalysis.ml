@@ -100,6 +100,7 @@ let infer_simple_array_op op argTypes = match op, argTypes with
   | Prim.Where, [Type.ArrayT(BoolT, 1)] -> Type.ArrayT(Int32T, 1)
   | Prim.Where, _ ->
     raise $ TypeError("operator 'where' expects a vector of booleans", None)
+  | Prim.Index, Type.ArrayT(eltT, rank)::[Type.TupleT indexTypes] 
   | Prim.Index, Type.ArrayT(eltT, rank)::indexTypes ->
     infer_indexing_result eltT rank indexTypes
   | Prim.Index, [t; _] when Type.is_scalar t ->
@@ -112,11 +113,12 @@ let infer_simple_array_op op argTypes = match op, argTypes with
     (* shape operator always returns a 1D shape vector *)
     Type.ArrayT(Type.Int32T, 1)
   | Prim.Transpose, [t] -> t
-  | _ ->
+  | _, ts ->
     let errMsg =
       Printf.sprintf
-        "Could not infer type for array op %s"
+        "Could not infer type for array op %s with arguments: %s"
         (Prim.array_op_to_str op)
+        (Type.type_list_to_str ts)
     in
     raise $ TypeError(errMsg, None)
 
@@ -352,7 +354,7 @@ module Make (P : TYPE_ANALYSIS_PARAMS) = struct
         axes = infer_num_axes ?src ?axes:None arrayTypes;
         fixed_args = [];
       }
-    | UntypedSSA.Adverb info ->
+    | Adverb info ->
       let arrayTypes = infer_value_nodes info.array_args in
       infer_adverb ?src $
           Adverb.apply_to_fields
@@ -383,6 +385,7 @@ module Make (P : TYPE_ANALYSIS_PARAMS) = struct
         in
         raise (TypeError(errMsg, expNode.exp_src))
     | Values vs -> infer_value_nodes vs
+    | Tuple vs -> [Type.TupleT (infer_value_nodes vs)] 
     | _ -> failwith $ Printf.sprintf
             "Type analysis not implemented for expression: %s"
             (UntypedSSA.exp_node_to_str expNode)

@@ -11,6 +11,7 @@ type elt_t =
 type t  =
   | ScalarT of elt_t
   | ArrayT of elt_t * int
+  | TupleT of t list 
   | BottomT (* bottom of type lattice for vars whose type is not determined *)
   | AnyT (* top of type lattice, for variables whose type is overdetermined *)
   | NoneT 

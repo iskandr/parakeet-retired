@@ -144,16 +144,21 @@ let run_function
       ~(untyped_id:FnId.t)
       ~(globals:Ptr.t Value.t list)
       ~(actuals:Ptr.t Value.t Args.actual_args) : ret_val = 
+  Printf.printf "[run_function] In OCaml, prepending %d globals\n%!"
+    (List.length globals); 
   let actuals = Args.prepend_actual_values globals actuals in 
+  Printf.printf "[run_function] Getting untyped function\n%!"; 
   let untypedFn = FnManager.get_untyped_function untyped_id in
   let formals : UntypedSSA.value_node Args.formal_args = 
     untypedFn.UntypedSSA.inputs 
   in 
+  
   let formals : Ptr.t Value.t Args.formal_args = 
     Args.apply_to_formal_values syntax_value_to_runtime_value formals
   in 
    
   (* map from names to values *)
+  Printf.printf "[run_function] Binding args...\n%!"; 
   let boundArgs =  Args.bind formals actuals in
   Printf.printf "[FrontEnd] Bound args: %s\n%!" 
     (String.concat ", " (List.map fst boundArgs));

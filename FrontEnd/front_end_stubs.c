@@ -285,9 +285,8 @@ return_val_t run_function(int id,
     host_val *args, int num_args, 
     char** kwd_arg_names, host_val* kwd_arg_values, int num_kwd_args) {
   CAMLparam0();
-  CAMLlocal2(ocaml_globals, ocaml_actuals);
-  CAMLlocal1(ocaml_result);
-  
+  CAMLlocal3(ocaml_globals, ocaml_actuals, ocaml_result);
+  printf("[run_function] %d globals, %d args, %d kwd args\n", num_globals, num_args, num_kwd_args);
   ocaml_globals = build_host_val_list(globals, num_globals);
   ocaml_actuals = mk_actual_args(args, num_args, kwd_arg_names, kwd_arg_values, num_kwd_args); 
   ocaml_result = caml_callback3(*ocaml_run_function, Val_int(id), ocaml_globals, ocaml_actuals);

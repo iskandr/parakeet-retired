@@ -207,7 +207,7 @@ and Interp : INTERP = struct
             results
             nestedResults
         done;
-        List.map (fun r -> Value.Nested r) results
+        List.map (fun r -> Value.Tuple r) results
    in
    helper args axes
 

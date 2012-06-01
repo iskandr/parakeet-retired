@@ -1,21 +1,28 @@
 module CoreLanguage : sig
   type value = | Var of ID.t | Num of ParNum.t
-	type value_node =
-	  { value : value; value_type : Type.t; value_src : SrcInfo.t option }
+  type value_node = { 
+    value : value; 
+    value_type : Type.t; 
+    value_src : SrcInfo.t option 
+  }
 
-	type value_nodes = value_node list
-	type adverb_info = (FnId.t, value_nodes, value_nodes) Adverb.info
+  type value_nodes = value_node list
+  type adverb_info = (FnId.t, value_nodes, value_nodes) Adverb.info
 
-	type exp =
-	  | Values of value_nodes
-	  | Arr of value_nodes
-	  | Call of FnId.t * value_nodes
-	  | PrimApp of Prim.t * value_nodes
-	  | Adverb of adverb_info
+  type exp =
+    | Values of value_nodes
+    | Arr of value_nodes
+    | Tuple of value_nodes
+    | Call of FnId.t * value_nodes
+    | PrimApp of Prim.t * value_nodes
+    | Adverb of adverb_info
     | Cast of Type.t * value_node
 
-	type exp_node =
-	  { exp : exp; exp_src : SrcInfo.t option; exp_types : Type.t list }
+  type exp_node = { 
+    exp : exp; 
+    exp_src : SrcInfo.t option; 
+    exp_types : Type.t list 
+  }
 
   type phi_node = value_node PhiNode.t
   type phi_nodes = phi_node list

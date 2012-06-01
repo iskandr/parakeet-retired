@@ -13,6 +13,7 @@ type elt_t =
 type t  =
   | ScalarT of elt_t
   | ArrayT of elt_t * int
+  | TupleT of t list 
   | BottomT (* bottom of type lattice for vars whose type is not determined *)
   | AnyT (* top of type lattice, for variables whose type is overdetermined *)
   | NoneT 
@@ -97,14 +98,15 @@ let elt_to_short_str = function
   | Float32T -> "f"
   | Float64T -> ""
 
-let to_str = function
+let rec to_str = function
   | BottomT -> "bottom"
   | AnyT -> "any"
   | NoneT -> "none"
   | ScalarT t -> (elt_to_str t)
   | ArrayT (eltT, d) -> Printf.sprintf "array%d<%s>" d (elt_to_str eltT)
-
-let type_list_to_str ?(sep=", ") ts = String.concat sep (List.map to_str ts)
+  | TupleT elts -> 
+    Printf.sprintf "tuple(%s)" (type_list_to_str elts) 
+and  type_list_to_str ?(sep=", ") ts = String.concat sep (List.map to_str ts)
 let type_array_to_str ts = type_list_to_str (Array.to_list ts)
 
 let sizeof = function

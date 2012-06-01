@@ -1,4 +1,4 @@
-from ctypes import c_void_p
+from ctypes import c_void_p, c_int
 import re
 
 from parakeet_common import list_to_ctypes_array, LibPar, LOG 
@@ -158,9 +158,9 @@ class WrappedFunction:
     arg_values, kwd_names, kwd_values = _prep_args(args, kwds)    
     ret = LibPar.run_function(
         self.parakeet_untyped_id, 
-        global_values, len(global_values), 
-        arg_values, len(arg_values),
-        kwd_names, kwd_values, len(kwd_names))
+        global_values, c_int(len(global_values)), 
+        arg_values, c_int(len(arg_values)),
+        kwd_names, kwd_values, c_int(len(kwd_names)))
     return self._convert_returned_value(ret)
     
   def call_original(self, *args, **kwds):

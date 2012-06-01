@@ -18,7 +18,7 @@ type 'a t =
   | Slice of 'a t * int * int * int       (* array, dim, start, end *)
   | Range of int * int * int              (* start, stop, step *)
   | NoneVal
-  | Nested of 'a t array
+  | Tuple of 'a t array
 
 (* since array data is polymorphic it's by default printed as the *)
 (* totally uninformative string '<array>'. If you want something more*)
@@ -44,7 +44,9 @@ let rec to_str ?(array_to_str=(fun _ -> "<array>")) = function
   | Range (start, stop, step) ->
     Printf.sprintf "range(from=%d, to=%d, step=%d)" start stop step
   | NoneVal -> "none"
-  | Nested elts -> "nested array"
+  | Tuple elts -> 
+    Printf.sprintf "tuple(%s)" 
+      (String.concat ", " (List.map (to_str ~array_to_str) (Array.to_list elts)))
 
 let list_to_str ?(array_to_str=(fun _ -> "<array>")) vals =
   String.concat ", " (List.map (to_str ~array_to_str) vals)
@@ -56,7 +58,6 @@ let generic_array_to_str {elt_type; array_shape} : string =
 
 let rec map (f: 'a -> 'b) (x : 'a t) : 'b t = match x with
   | Array array_info -> Array {array_info with data = f array_info.data}
-  (*| Nested elts -> Nested (Array.map (map f) elts)*)
   | Rotate (a, dim, offset) -> Rotate (map f a, dim, offset)
   | Shift (a, dim, offset, default) -> Shift (map f a, dim, offset, default)
   | FixDim (a, dim, idx) -> FixDim (map f a, dim,  idx)
@@ -65,7 +66,7 @@ let rec map (f: 'a -> 'b) (x : 'a t) : 'b t = match x with
   | Explode (n, s) -> Explode (n, s)
   | Scalar n -> Scalar n
   | NoneVal -> NoneVal
-  | Nested elts -> Nested (Array.map (map f) elts)
+  | Tuple elts -> Tuple (Array.map (map f) elts)
 
 
 let rec get_underlying_array = function
@@ -77,7 +78,7 @@ let rec get_underlying_array = function
   | Scalar n -> failwith "Unable to get underlying array for scalar."
   | Explode (n, s) -> failwith "Don't know how to handle explodes yet."
   | Range _ -> failwith "Don't know how to handle ranges yet."
-  | Nested _
+  | Tuple _
   | NoneVal -> assert false
 
 
@@ -86,9 +87,9 @@ let rec elt_type = function
   | Scalar n -> ParNum.type_of n
   | Range _ -> Type.Int32T
   | NoneVal -> failwith  "[Value] Null has no element type"
-  | Nested  _ ->
+  | Tuple  _ ->
     failwith
-      "[Value] Nested array not guaranteed to have a single element type"
+      "[Value] Tuple not guaranteed to have a single element type"
   | other -> Type.elt_type $ (get_underlying_array other).array_type
 
 let rec shape_of = function
@@ -106,7 +107,7 @@ let rec shape_of = function
   | Range (start, stop, step) -> Shape.of_list [(stop - start + 1)/step]
   | Explode _
   | NoneVal -> failwith "Value has no shape"
-  | Nested elts ->
+  | Tuple elts ->
     let nelts = Array.length elts in
     if nelts = 0 then Shape.scalar_shape else
       let shapes = Array.map shape_of elts in
@@ -124,7 +125,6 @@ let rec type_of v =
   Printf.printf "[ocaml value.type_of] %s \n%!" (to_str v);
   let t = match v with
   | Array {array_type} -> array_type
-  (*| Nested _ -> failwith "nested arrays not supported"*)
   | Scalar n -> Type.ScalarT (ParNum.type_of n)
   | Explode (n, s) -> Type.ArrayT (ParNum.type_of n, Shape.rank s)
   | FixDim(x, _, _) ->
@@ -136,7 +136,7 @@ let rec type_of v =
   | Slice (x, _, _, _)
   | Rotate (x, _, _) -> type_of x
   | Range _ -> Type.ArrayT(Type.Int32T, 1)
-  | Nested _ -> Type.AnyT 
+  | Tuple elts -> Type.TupleT (List.map type_of (Array.to_list elts)) 
   | NoneVal -> Type.NoneT
   in
   Printf.printf "[ocaml value.type_of result] %s\n%!" (Type.to_str t);
@@ -195,7 +195,7 @@ let rec extract = function
   | Slice (x, _, _, _) -> extract x
   | Array {data} -> Some data
   | NoneVal 
-  | Nested _
+  | Tuple _
   | Scalar _
   | Explode _
   | Range _ -> None

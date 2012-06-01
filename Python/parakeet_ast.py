@@ -179,10 +179,10 @@ def mk_call(fn, positional_args, kw_names = [], kw_values = [], src_info=None):
   assert len(kw_names) == len(kw_values)
   
   args_array = list_to_ctypes_array(positional_args)
-  n_args = len(positional_args)
+  n_args = c_int(len(positional_args))
   kw_names_array = list_to_ctypes_array(kw_names, c_char_p)
   kw_values_array = list_to_ctypes_array(kw_values)
-  n_kwds = len(kw_names)
+  n_kwds = c_int(len(kw_names))
   srcAddr = src_addr(src_info)
   
   print "mk_call", kw_names_array, kw_values_array   
@@ -253,7 +253,8 @@ def mk_array(elts, src_info = None):
   return LibPar.mk_array(arr, len(elts), src_addr(src_info))
 
 def mk_tuple(elts, src_info = None):
-  return LibPar.mk_tuple(list_to_ctypes_array(elts), src_addr(src_info))
+  arr = list_to_ctypes_array(elts)
+  return LibPar.mk_tuple(arr, len(arr), src_addr(src_info))
 
 def mk_block(stmts, src_info = None):
   arr = list_to_ctypes_array(stmts)
@@ -430,7 +431,24 @@ class ASTConverter():
       return ast_prim(ParakeetOperators[python_fn])
     else:
       return build_var(global_fn_name(python_fn), src_info)
-    
+  
+
+  def get_slice_children(self, node): 
+    if isinstance(node, ast.Index):
+      if isinstance(node.value, ast.Tuple):
+        return [self.visit_expr(v) for v in node.value.elts]
+      else:
+        return [self.visit_expr(node.value)]
+    elif isinstance(node, ast.Slice):
+      def helper(child):
+        if child is None: 
+          return mk_none()
+        else:
+          return self.visit_expr(child)
+      return map(helper, [node.lower, node.upper, node.step])
+    else:
+      raise ParakeetUnsupported("Slice of type " + str(type(node)) + " not supported") 
+      
   def visit_expr(self, node):
     print "Visit_expr", node 
     src_info = self.build_src_info(node)
@@ -459,9 +477,13 @@ class ASTConverter():
 
       return build_prim_call(op_name, [left, right], src_info)
     elif isinstance(node, ast.Subscript):
+      print "Building slice node" 
       op_name = name_of_ast_node(node.slice) 
       # only Slice and Index supported 
       assert op_name != "Ellipsis" and op_name != "ExtSlice" 
+      arr = self.visit_expr(node.value)
+      indexArgs = self.get_slice_children(node.slice)
+      args = [arr] + indexArgs
       return build_prim_call(op_name, args, src_info)
     elif isinstance(node, ast.Index):
       raise RuntimeError("[Parakeet] Unexpected index node in AST")

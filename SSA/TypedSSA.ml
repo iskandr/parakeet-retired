@@ -13,22 +13,23 @@ module CoreLanguage = struct
     value_src : SrcInfo.t option;
   }
 
-	type value_nodes = value_node list
-	type adverb_info = (FnId.t, value_nodes, value_nodes) Adverb.info
+  type value_nodes = value_node list
+  type adverb_info = (FnId.t, value_nodes, value_nodes) Adverb.info
 
-	type exp =
+  type exp =
     | Values of value_nodes
     | Arr of value_nodes
+    | Tuple of value_nodes 
     | Call of FnId.t * value_nodes
     | PrimApp of Prim.t * value_nodes
     | Adverb of adverb_info
     | Cast of Type.t * value_node
 
-	type exp_node = {
-	  exp : exp;
-	  exp_src : SrcInfo.t option;
-	  exp_types : Type.t list
-	}
+  type exp_node = {
+    exp : exp;
+    exp_src : SrcInfo.t option;
+    exp_types : Type.t list
+  }
 
   type phi_node = value_node PhiNode.t
   type phi_nodes = phi_node list
@@ -95,6 +96,7 @@ module PrettyPrinters = struct
   let exp_to_str = function
     | Values [v] -> value_node_to_str v
     | Values vs -> sprintf "values(%s)" (value_nodes_to_str vs)
+    | Tuple vs -> sprintf "tuple(%s)" (value_nodes_to_str vs)
     | Arr elts -> sprintf "array(%s)" (value_nodes_to_str elts)
     | Call (fnId, args) ->
       sprintf "%s(%s)" (FnId.to_str fnId) (value_nodes_to_str args)

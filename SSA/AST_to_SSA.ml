@@ -106,7 +106,11 @@ let rec translate_exp
   | AST.Num n -> value (UntypedSSA.Num n)
   | AST.NoneVal () -> value UntypedSSA.NoneVal
   | AST.Type _ -> failwith "Types as values not implemented"
-  | AST.Tuple elts -> failwith "tuples not implemented"
+  | AST.Tuple elts -> 
+    { 
+      UntypedSSA.exp = Tuple (translate_values env block elts); 
+      exp_src = Some node.src;
+    }  
   | AST.Call (fn, args) -> translate_app env block fn args node.src
   (* TODO: lambda lift here *)
   | AST.Lambda (args, body) -> failwith "lambda lifting not implemented"
