@@ -1,4 +1,4 @@
-
+open Base
 open TypedSSA
 open Adverb 
 open SSA_Analysis
@@ -18,15 +18,15 @@ open SSA_Transform
       
 3) Process instructions by scanning through statements and deleting statements    
 *)
-
-module DataFlow = struct 
-  type env = { 
+type data_flow_info =  { 
     produces : ID.t list StmtId.Map.t; 
     produced_by : StmtId.t ID.Map.t;
     consumes: ID.Set.t StmtId.Map.t;
-    consumed_by : StmtId.Set.t ID.t list; 
+    consumed_by : StmtId.Set.t ID.Map.t; 
     adverbs :  (FnId.t, value_nodes, value_nodes) Adverb.info StmtId.Map.t; 
   }
+module DataFlow = struct 
+  type env = data_flow_info 
   type value_info = unit 
   type exp_info = unit 
   
@@ -50,7 +50,9 @@ module DataFlow = struct
 end 
 
 module DataFlowEval = SSA_Analysis.MkEvaluator(DataFlow)
-let gather_data_flow_info fn = DataFlowEval.eval_fn fn 
+
+let gather_data_flow_info fn : data_flow_info = 
+  DataFlowEval.eval_fn fn 
 
 
 let fresh_like id = ID.gen_named (ID.get_original_prefix id)
@@ -66,6 +68,7 @@ let rec split_nth n xs =
 let fuse_adverbs pred succ =
   assert (pred.init = None);
   assert (pred.adverb = Adverb.Map);
+  assert (pred.axes = succ.axes); 
   let predFn = FnManager.get_typed_function pred.adverb_fn in 
   let succFn = FnManager.get_typed_function succ.adverb_fn in 
   (* 
@@ -75,15 +78,11 @@ let fuse_adverbs pred succ =
           return Call(succFn, succ_fixed @ succ_elts )
   *)
   
-  let pred_ids : ID.t list = List.map fresh_like predFn.input_ids in
   let n_pred_fixed = List.length pred.fixed_args in 
-  (*let pred_fixed_ids, pred_elt_ids = split_nth n_pred_fixed pred_ids in *)
   let pred_fixed_types, pred_elt_types = 
     split_nth n_pred_fixed (TypedSSA.input_types predFn)
   in 
-  (*let succ_ids : ID.t list = List.map fresh_like succFn.input_ids in *)
   let n_succ_fixed = List.length succ.fixed_args in 
-  (*let succ_fixed_ids, succ_elt_ids = split_nth n_succ_fixed succ_ids in *)
   let succ_fixed_types, succ_elt_types = 
     split_nth n_succ_fixed (TypedSSA.input_types succFn) 
   in 
@@ -95,19 +94,16 @@ let fuse_adverbs pred succ =
       (FnId.to_str succ.adverb_fn)
   in 
   let constructor = 
-    TypedSSA.fn_buidler 
-      ~namne:fusedName
+    TypedSSA.fn_builder 
+      ~name:fusedName
       ~input_types:(pred_fixed_types @ succ_fixed_types @ pred_elt_types)
-      ~outputTypes:succFn.fn_output_types  
+      ~output_types:succFn.fn_output_types  
       ~local_types:succ_elt_types 
   in 
   let new_fn : TypedSSA.fn = 
     constructor $ fun (inputs, outputs, locals) -> 
       let pred_fixed, rest = split_nth n_pred_fixed inputs in 
       let succ_fixed, pred_elts = split_nth n_succ_fixed rest in 
-      let pred_fixed_ids = TypedSSA.get_ids pred_fixed in 
-      let succ_fixed_ids = TypedSSA.get_ids succ_fixed in 
-      let pred_elt_ids = TypedSSA.get_ids pred_elts in 
       
       [
         wrap_stmt $ 
@@ -129,14 +125,15 @@ let fuse_adverbs pred succ =
     adverb_fn = new_fn.fn_id; 
     fixed_args = pred.fixed_args @ succ.fixed_args;
     init = succ.init; 
-    array_args = pred.array_args; 
+    array_args = pred.array_args;
+    axes = succ.axes;  
   }
 
 
 type action = Delete | Replace of exp  
 type action_map = action StmtId.Map.t
 
-let gather_actions (info:DataFlowAnalysis.env) : action_map =
+let gather_actions (info:DataFlow.env) : action_map =
   let useCounts : int ID.Map.t = 
     ID.Map.map StmtId.Set.cardinal info.consumed_by 
   in 
@@ -146,8 +143,9 @@ let gather_actions (info:DataFlowAnalysis.env) : action_map =
   *)
   let rec helper stmtId adverb actions = 
     match 
-      ID.Set.elements $ StmtId.Map.find_option stmtId info.produces, 
-      ID.Set.elements $ StmtId.Map.find_option stmtId info.consumes 
+      StmtId.Map.find_option stmtId info.produces, 
+      Option.map ID.Set.elements $ 
+        StmtId.Map.find_option stmtId info.consumes 
     with 
       (* 
         FOR NOW: 
@@ -155,8 +153,12 @@ let gather_actions (info:DataFlowAnalysis.env) : action_map =
          don't try to fuse
       *)
       | Some [lhsId], Some [rhsId] when used_once rhsId -> 
-        let predStmtId = ID.Map.find rhsId info.produced_by in
-        let predAdverb = ID.Map.find predStmtId info.adverbs in 
+        let predStmtId : StmtId.t= 
+          ID.Map.find rhsId info.produced_by 
+        in
+        let predAdverb = 
+          StmtId.Map.find predStmtId info.adverbs 
+        in 
         let newAdverb = fuse_adverbs predAdverb adverb in 
         StmtId.Map.add predStmtId Delete $ 
           StmtId.Map.add stmtId (Replace (Adverb newAdverb)) actions 
@@ -172,8 +174,8 @@ let gather_actions (info:DataFlowAnalysis.env) : action_map =
 
   
 module Fusion_Rules = struct
-  type context = data_flow_info 
-  let init fn = gather_actions (describe_data_flow fn)
+  type context = action_map  
+  let init fn = gather_actions (gather_data_flow_info fn)
   let finalize _ _ = NoChange
   let dir = Forward
   let stmt actions stmtNode =  
@@ -184,7 +186,8 @@ module Fusion_Rules = struct
         (match stmtNode.stmt with 
           | Set ([lhs], expNode) -> 
             let rhs' = {expNode with exp = newExp} in 
-            let stmtNode' = {stmtNode with stmt = Set([lhs, rhs'])} in
+            let stmtNode' = 
+              {stmtNode with stmt = Set([lhs], rhs')} in
             Update stmtNode'
           | Set _ -> 
             failwith "[AdverbFusion] Unexpected statement with multiple LHS values"

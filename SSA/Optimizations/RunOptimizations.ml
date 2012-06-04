@@ -25,10 +25,6 @@ let assert_valid fn rel optName  =
 let rec fold_optimizations ?(type_check=false) fn lastChanged =
   function
   | (name, opt)::rest ->
-      (*Timing.start_timer ("opt::"^name);*)
-      (*
-      IFDEF DEBUG THEN Printf.printf "Running %s...\n%! " name; ENDIF;
-      *)
       IFDEF DEBUG THEN
         if type_check then assert_valid fn "before" name
       ENDIF;
@@ -36,8 +32,6 @@ let rec fold_optimizations ?(type_check=false) fn lastChanged =
       IFDEF DEBUG THEN
         if type_check then assert_valid optimized "after" name
       ENDIF;
-
-      (*Timing.stop_timer ("opt::"^name);*)
       fold_optimizations optimized (changed || lastChanged)  rest
   | [] -> fn, lastChanged
 
@@ -59,19 +53,20 @@ let rec optimize_fn
       optimizations
   else fn', iter
 
-let default_optimizations = 
+let default_optimizations : 
+  (string * (TypedSSA.fn -> TypedSSA.fn * bool)) list = 
   [
     "simplify", Simplify.simplify_fn; 
     "cse", CSE.cse;
-    "inlining", Inline.run_fn_inliner;
     "fusion", AdverbFusion.fusion;
+    "inlining", Inline.run_fn_inliner;
   ]
 
 (* update each function in the unoptimized queue of the FnTable *)
 let optimize_all_fns
       ?(type_check=true)
       ?(maxiters=100)
-      ?(optimizations = default_optizations) 
+      ?(optimizations = default_optimizations) 
       () =
   let fnTable = FnManager.get_typed_function_table() in 
   while FnTable.have_unoptimized fnTable do
