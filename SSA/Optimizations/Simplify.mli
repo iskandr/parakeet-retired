@@ -1,1 +1,1 @@
-val simplify_fn : FnTable.t -> TypedSSA.fn -> TypedSSA.fn * bool
+val simplify_fn : TypedSSA.fn -> TypedSSA.fn * bool

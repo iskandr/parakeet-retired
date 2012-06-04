@@ -36,13 +36,10 @@ let do_inline fn argVals =
   let body' = Block.append (Block.singleton argAssignments) freshFn.body in
   body', outputExp, typesList
 
-module type INLINE_PARAMS = sig
-  val lookup : FnId.t -> TypedSSA.fn option
-end
+let lookup (id:FnId.t)  : TypedSSA.fn option = 
+  FnTable.find_option id (FnManager.get_typed_function_table())
 
-module Inline_Rules (P:INLINE_PARAMS) = struct
-  include P
-
+module Inline_Rules = struct
   type context = (Type.t ID.Map.t) ref
   let init fn = ref fn.tenv
   let finalize _ _ = NoChange
@@ -54,12 +51,11 @@ module Inline_Rules (P:INLINE_PARAMS) = struct
         envRef := ID.Map.add id t !envRef;
         add_types_list envRef rest
 
-
   let stmt envRef stmtNode = NoChange
 
   let exp envRef expNode = match expNode.exp with
     | Call (fnId, args) ->
-      begin match P.lookup fnId with
+      begin match lookup fnId with
         | None -> NoChange
         | Some fn ->
           (* make sure arity lines up *)
@@ -84,12 +80,9 @@ module Inline_Rules (P:INLINE_PARAMS) = struct
   let value env valNode = NoChange
 end
 
+module Inliner = SSA_Transform.Mk(Inline_Rules) 
 
-let run_fn_inliner (functions : FnTable.t) fn =
-  let module Params =
-    struct let lookup id  = FnTable.find_option id functions end
-  in
-  let module Inliner = SSA_Transform.Mk(Inline_Rules(Params)) in
+let run_fn_inliner fn =
   let fn', changed = Inliner.transform_fn fn in
   let tenv' = !(Inliner.get_context ()) in
   {fn' with tenv = tenv' }, changed

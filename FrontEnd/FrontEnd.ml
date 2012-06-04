@@ -56,13 +56,13 @@ type ret_val =
 let get_specialized_function untypedId signature =
   let fnVal = UntypedSSA.GlobalFn untypedId in
   match FnManager.maybe_get_specialization fnVal signature with
-  | Some typedId ->
-    FnManager.get_typed_function typedId
+  | Some typedId -> FnManager.get_typed_function typedId
   | None ->
-    let unoptimizedTyped = Specialize.specialize_fn_id untypedId signature in
+    let {TypedSSA.fn_id = typedId} = Specialize.specialize_fn_id untypedId signature in
     (* now optimize the typed fundef and any typed functions it depends on *)
-    FnManager.optimize_typed_functions ();
-    FnManager.get_typed_function unoptimizedTyped.TypedSSA.fn_id
+    RunOptimizations.optimize_all_fns();
+    (* now fetch the optimized version of your typed function *)
+    FnManager.get_typed_function typedId 
 
 let syntax_value_to_runtime_value (v : UntypedSSA.value_node) : Ptr.t Value.t =
   match v.UntypedSSA.value with 
@@ -105,7 +105,6 @@ let infer_axes arrayArgTypes = function
        (Args.all_actual_values arrayArgTypes)
 
 let run_adverb ~adverb ~untyped_id ~globals ~init ~axes ~fixed ~arrays : ret_val = 
-  Printf.printf "[Parakeet] In run_adverb\n%!"; 
   (* fixed keywords not yet supported *) 
   assert (fixed.Args.keywords = []);
   (* array keywords not yet supported *) 
@@ -154,12 +153,7 @@ let run_function
       ~(untyped_id:FnId.t)
       ~(globals:Ptr.t Value.t list)
       ~(actuals:Ptr.t Value.t Args.actual_args) : ret_val =
-  Printf.printf "Compact\n%!"; 
-  (*Gc.compact();  *)
-  Printf.printf "[run_function] In OCaml, prepending %d globals\n%!"
-    (List.length globals); 
   let actuals = Args.prepend_actual_values globals actuals in 
-  Printf.printf "[run_function] Getting untyped function\n%!"; 
   let untypedFn = FnManager.get_untyped_function untyped_id in
   let formals : UntypedSSA.value_node Args.formal_args = 
     untypedFn.UntypedSSA.inputs 
@@ -170,10 +164,7 @@ let run_function
   in 
    
   (* map from names to values *)
-  Printf.printf "[run_function] Binding args...\n%!"; 
   let boundArgs =  Args.bind formals actuals in
-  Printf.printf "[FrontEnd] Bound args: %s\n%!" 
-    (String.concat ", " (List.map fst boundArgs));
   let actualTypes = Args.apply_to_actual_values Value.type_of actuals in
   let signature = Signature.from_args actualTypes in
   try
