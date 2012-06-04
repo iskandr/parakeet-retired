@@ -51,28 +51,6 @@ let add_untyped_map  fnMap =
 let add_typed ?(optimize=true) fn =
   FnTable.add ~opt_queue:optimize fn state.typed_functions
 
-let default_typed_optimizations =
-  [
-    (*"function cloning", TypedFunctionCloning.function_cloning;*)
-    "simplify", Simplify.simplify_fn; 
-    "cse", CSE.cse;
-    "inlining", Inline.run_fn_inliner;
-  ]
-
-let optimize_typed_functions () =
-  (*Timing.start Timing.typedOpt;*)
-  RunOptimizations.optimize_all_fns
-    ~type_check:true
-    ~maxiters:100
-    state.typed_functions
-    default_typed_optimizations
-  ;
-  IFDEF DEBUG THEN
-    Printf.printf "*** Optimized all typed functions ***\n%!";
-  ENDIF;
-  ()
-  (*;Timing.stop Timing.typedOpt*)
-
 let get_untyped_name id = Hashtbl.find state.untyped_id_to_name id
 let get_untyped_id name = Hashtbl.find state.name_to_untyped_id name
 

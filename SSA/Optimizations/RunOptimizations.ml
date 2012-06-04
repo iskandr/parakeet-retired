@@ -3,7 +3,7 @@
 open Base
 open TypedSSA
 
-type optimization = FnTable.t -> TypedSSA.fn -> TypedSSA.fn * bool
+type optimization = TypedSSA.fn -> TypedSSA.fn * bool
 
 let assert_valid fn rel optName  =
   let errorLog = TypeCheck.check_fn fn in
@@ -22,7 +22,7 @@ let assert_valid fn rel optName  =
       failwith msg
   )
 
-let rec fold_optimizations ?(type_check=false) fnTable fn lastChanged =
+let rec fold_optimizations ?(type_check=false) fn lastChanged =
   function
   | (name, opt)::rest ->
       (*Timing.start_timer ("opt::"^name);*)
@@ -32,41 +32,48 @@ let rec fold_optimizations ?(type_check=false) fnTable fn lastChanged =
       IFDEF DEBUG THEN
         if type_check then assert_valid fn "before" name
       ENDIF;
-      let optimized, changed = opt fnTable fn in
+      let optimized, changed = opt fn in
       IFDEF DEBUG THEN
         if type_check then assert_valid optimized "after" name
       ENDIF;
 
       (*Timing.stop_timer ("opt::"^name);*)
-      fold_optimizations fnTable optimized (changed || lastChanged)  rest
+      fold_optimizations optimized (changed || lastChanged)  rest
   | [] -> fn, lastChanged
 
 let rec optimize_fn
       ?(type_check=true)
       ?(iter=1)
       ?(maxiters=100)
-      (fnTable : FnTable.t)
       (fn : TypedSSA.fn)
       (optimizations : (string * optimization) list) =
   let fn', changed =
-    fold_optimizations ~type_check fnTable fn false optimizations
+    fold_optimizations ~type_check fn false optimizations
   in
   if changed && iter < maxiters then
     optimize_fn
       ~type_check
       ~iter:(iter+1)
       ~maxiters
-      fnTable
       fn'
       optimizations
   else fn', iter
 
+let default_optimizations = 
+  [
+    "simplify", Simplify.simplify_fn; 
+    "cse", CSE.cse;
+    "inlining", Inline.run_fn_inliner;
+    "fusion", AdverbFusion.fusion;
+  ]
+
 (* update each function in the unoptimized queue of the FnTable *)
 let optimize_all_fns
-      ?(type_check=false)
+      ?(type_check=true)
       ?(maxiters=100)
-      (fnTable : FnTable.t)
-      (optimizations : (string * optimization) list) =
+      ?(optimizations = default_optizations) 
+      () =
+  let fnTable = FnManager.get_typed_function_table() in 
   while FnTable.have_unoptimized fnTable do
     let fn = FnTable.get_unoptimized fnTable in
     IFDEF DEBUG THEN
@@ -88,9 +95,7 @@ let optimize_all_fns
         )
       );
     ENDIF;
-    let optimized, iters =
-      optimize_fn ~type_check ~maxiters fnTable fn optimizations
-    in
+    let optimized, iters = optimize_fn ~type_check ~maxiters fn optimizations in
     IFDEF DEBUG THEN
       assert (fn.fn_id = optimized.fn_id);
       if iters > 1 then

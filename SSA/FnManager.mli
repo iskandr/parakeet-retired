@@ -31,6 +31,4 @@ val output_arity_of_typed_fn : FnId.t -> int
 val input_types_of_typed_fn : FnId.t -> Type.t list
 val output_types_of_typed_fn : FnId.t -> Type.t list
 
-val optimize_typed_functions : unit -> unit
-
 val typed_input_names : FnId.t -> string list 
