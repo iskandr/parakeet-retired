@@ -26,6 +26,7 @@ val have_untyped_function : string -> bool
 val input_arity_of_untyped_fn : FnId.t -> int
 val output_arity_of_untyped_fn : FnId.t -> int
 
+val input_arity_of_typed_fn : FnId.t -> int 
 val output_arity_of_typed_fn : FnId.t -> int
 
 val input_types_of_typed_fn : FnId.t -> Type.t list

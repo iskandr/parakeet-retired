@@ -196,6 +196,10 @@ let translate_array_op builder (op:Prim.array_op) (args:Imp.value_node list) =
       | ImpType.PtrT _ -> failwith "Shape of raw pointer not yet implemented"
       | _ -> failwith "shape for this array type not yet implemented"
     end
+  | Prim.DimSize, [array; idx] -> 
+    { value = Imp.DimSize(array, idx); 
+      value_type = ImpType.ScalarT Type.Int32T 
+    }  
   | other, _ -> failwith $
     Printf.sprintf
       "[SSA_to_Imp] Unsupported array op: %s"
@@ -490,7 +494,20 @@ and translate_sequential_adverb
       in
       let nestedInputs = info.fixed_args @ lhsVars @ nestedArrays in
       loops, nestedInputs, lhsVars, true
-    | Adverb.AllPairs, None ->
+   | Adverb.Reduce, Some inits -> 
+     assert (List.length lhsVars = List.length inits); 
+     List.iter2 
+       (fun init var -> copy builder ~from_array:init ~to_array:var) 
+       inits 
+       lhsVars; 
+     let loops = axes_to_loop_descriptors builder biggestArray info.axes in 
+     let indexVars = get_loop_vars loops in 
+     let nestedArrays = 
+       List.map (slice_along_axes indexVars) info.array_args 
+     in
+     let nestedInputs = info.fixed_args @ lhsVars @ nestedArrays in 
+     loops, nestedInputs, lhsVars, false  
+   | Adverb.AllPairs, None ->
       (match info.array_args with
         | [x;y] ->
           let xLoops = axes_to_loop_descriptors builder x info.axes in

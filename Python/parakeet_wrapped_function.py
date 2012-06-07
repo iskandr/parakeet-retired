@@ -51,7 +51,7 @@ class WrappedFunction:
         curr_val = __builtins__[var_parts[0]]
       else:
         curr_val = getattr(__builtins__, var_parts[0])
-        print "[Parakeet] Should %s be evaluated?" % var_parts[0]
+        #print "[Parakeet] Should %s be evaluated?" % var_parts[0]
     for i in range(1, len(var_parts)):
       curr_val = curr_val.__dict__[var_parts[i]]
     return curr_val
@@ -125,14 +125,14 @@ class WrappedFunction:
       dict([(k,v) for (k,v) in kwds.items() if k not in reserved_keywords]) 
     array_values, array_keywords, array_keyword_values = \
       _prep_args(args, filtered_kwds)  
-    print "[Parakeet] Running adverb ", adverb_name, \
-      "with", len(global_values), "globals,", \
-      len(fixed_values), "fixed,", \
-      len(fixed_keywords), "fixed kwds,", \
-      len(init_values), "init,", \
-      n_axes, "axes, ", \
-      len(array_values), "arrays,", \
-      len(array_keywords), "array kwds"
+    #print "[Parakeet] Running adverb ", adverb_name, \
+    #  "with", len(global_values), "globals,", \
+    #  len(fixed_values), "fixed,", \
+    #  len(fixed_keywords), "fixed kwds,", \
+    #  len(init_values), "init,", \
+    #  n_axes, "axes, ", \
+    #  len(array_values), "arrays,", \
+    #  len(array_keywords), "array kwds"
      
     from ctypes import c_int
     result = LibPar.run_adverb(
@@ -163,7 +163,7 @@ class WrappedFunction:
   def __call__(self, *args, **kwds):
     global_values = self._prep_globals()
     arg_values, kwd_names, kwd_values = _prep_args(args, kwds)   
-    print self.parakeet_untyped_id 
+    #print self.parakeet_untyped_id 
     ret = LibPar.run_function(
         self.parakeet_untyped_id, 
         global_values, c_int(len(global_values)), 

@@ -139,6 +139,46 @@ module Make(P: REWRITE_PARAMS) = struct
         "Can't get arity of %s, it's not a function"
         (UntypedSSA.value_to_str other)
 
+  let specialize_adverb_fn 
+        ?src 
+        adverb 
+        untypedFnVal 
+        fixedTypes 
+        initTypes
+        eltTypes = 
+    let nestedSig : Signature.t =
+      match adverb, initTypes with
+      | Adverb.AllPairs, None
+      | Adverb.Map, None  ->
+        Signature.from_input_types (fixedTypes @ eltTypes)
+      | Adverb.Reduce, None ->
+        if List.length eltTypes <> 1 then
+          failwith "Reduce without initial args can only have 1 input"
+        else
+        let eltT = List.hd eltTypes in
+        let inputArity : int = untyped_value_input_arity untypedFnVal in
+        if inputArity <> 2 then
+          let errMsg : string =
+            Printf.sprintf
+              "Reduce without init requires binary operator, given %s (arity %d)"
+              (UntypedSSA.PrettyPrinters.value_to_str untypedFnVal)
+              inputArity
+          in
+          raise $ RewriteFailed(errMsg, src)
+        else
+        (* assume that the accumulator is the same as the array element type *)
+        Signature.from_input_types (fixedTypes @ [eltT; eltT])
+      | Adverb.Reduce, Some initTypes -> 
+        Signature.from_input_types (fixedTypes @ initTypes @ eltTypes) 
+      | Adverb.Map, Some _ -> failwith "Map can't have initial args"
+      | Adverb.AllPairs, None ->
+        failwith "AllPairs operator must have two inputs"
+      | Adverb.AllPairs, Some _ ->
+        failwith "AllPairs operator can't have initial args"
+      | _ -> failwith "Malformed adverb"
+    in
+    P.specializer untypedFnVal nestedSig 
+  
   let rewrite_adverb_for_typed_args
         ?(src:SrcInfo.t option)
         (info :
@@ -148,44 +188,49 @@ module Make(P: REWRITE_PARAMS) = struct
     let fixedTypes = TypedSSA.types_of_value_nodes info.fixed_args in
     let numAxes = List.length info.axes in
     let eltTypes = List.map (Type.peel ~num_axes:numAxes) arrayTypes in
+    let initTypes = Option.map TypedSSA.types_of_value_nodes info.init in  
     let untypedFnVal = info.adverb_fn.UntypedSSA.value  in
-    let nestedSig =
-      match info.adverb, info.init with
-      | Adverb.AllPairs, None
-      | Adverb.Map, None  ->
-        Signature.from_input_types (fixedTypes @ eltTypes)
-      | Adverb.Reduce, None ->
-        if List.length eltTypes <> 1 then
-          failwith "Reduce without initial args can only have 1 input"
-        else
-        let eltT = List.hd eltTypes in
-        let inputArity = untyped_value_input_arity untypedFnVal in
-        if inputArity <> 2 then
-          let errMsg =
-            Printf.sprintf
-              "Reduce without init requires binary operator, given %s (arity %d"
-              (UntypedSSA.PrettyPrinters.value_to_str untypedFnVal)
-              inputArity
-          in
-          raise $ RewriteFailed(errMsg, src)
-        else
-        (* assume that the accumulator is the same as the array element type *)
-        Signature.from_input_types (fixedTypes @ [eltT; eltT])
-      | Adverb.Map, Some _ -> failwith "Map can't have initial args"
-      | Adverb.AllPairs, None ->
-        failwith "AllPairs operator must have two inputs"
-      | Adverb.AllPairs, Some _ ->
-        failwith "AllPairs operator can't have initial args"
-      | _ -> failwith "Malformed adverb"
-    in
-    let typedFn = P.specializer untypedFnVal nestedSig in
-    let typedInfo = {info with adverb_fn = TypedSSA.FnHelpers.fn_id typedFn } in
+    let typedFn = 
+      specialize_adverb_fn 
+        info.adverb 
+        untypedFnVal 
+        fixedTypes 
+        initTypes 
+        eltTypes 
+    in 
     let outTypes =
       TypeAnalysis.infer_adverb_result_types
         ~adverb:info.adverb
         ~elt_result_types:(typedFn.TypedSSA.fn_output_types)
         ~num_axes:(List.length info.axes)
     in
+    (* change any init values to have same type as final return *)
+    let typedInfo = 
+      match info.init with 
+      | None -> { info with adverb_fn = TypedSSA.fn_id typedFn} 
+      | Some initVals -> 
+        assert (List.length initVals = List.length outTypes);
+        IFDEF DEBUG THEN 
+          Printf.printf 
+            "RE-SPECIALIZING FUNCTION %s WITH FIXED (%s) INIT (%s) ELT (%s)\n%!"
+            (UntypedSSA.value_to_str untypedFnVal)
+            (Type.type_list_to_str fixedTypes)
+            (Type.type_list_to_str outTypes)
+            (Type.type_list_to_str eltTypes)
+       ENDIF;  
+        let typedFn = 
+          specialize_adverb_fn 
+            info.adverb
+            untypedFnVal
+            fixedTypes
+            (Some outTypes)
+            eltTypes
+        in 
+        { info with 
+            adverb_fn = TypedSSA.fn_id typedFn;
+            init = Some (List.map2 coerce_typed_value outTypes initVals)
+        } 
+    in  
     { TypedSSA.exp = TypedSSA.Adverb typedInfo;
       exp_types = outTypes;
       exp_src = None;

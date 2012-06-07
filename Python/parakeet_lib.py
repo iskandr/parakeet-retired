@@ -68,12 +68,12 @@ def div(x,y):
 
 @parakeet_prim(np.sum)
 def sum(x, axis = None):
-  return reduce(add, x, axis=axis)
+  return reduce(add, x, axis=axis, init=0)
 
 
 @parakeet_prim(np.prod)
 def prod(x, axis = None):
-  return reduce(mult, x, axis=axis)
+  return reduce(mult, x, axis=axis, init=1)
 
 @parakeet_prim(np.dot)
 def dot(x,y):

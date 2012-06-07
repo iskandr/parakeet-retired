@@ -204,7 +204,6 @@ def build_call(parakeet_fn, args, kw_args = {}, src_info = None):
   for k,v in kw_args.items():
     kw_names.append(c_char_p(k))
     kw_values.append(v)
-  #print "build_call", parakeet_fn, args, kw_names, kw_values 
   return mk_call(parakeet_fn, args, kw_names, kw_values, src_info)
    
 #Function to get ast node(s) for built-in functions/primitives
@@ -291,7 +290,6 @@ class ASTConverter():
     assert isinstance(node, ast.Module)
     assert len(node.body) == 1
     return self.visit_function_def(node.body[0])
-    #print "leaving visit_module"
   
   # TODO: don't ignore function decorators!  
   def visit_function_def(self, node):
@@ -328,9 +326,9 @@ class ASTConverter():
       
     elif isinstance(node, ast.While):
       # infrequently used final iteration, not supported for now
-      assert node.orelse is None
+      assert node.orelse == [] or node.orelse is None
       block = self.visit_stmt_sequence(node.body)
-      test = self.visit_exp(node.test)
+      test = self.visit_expr(node.test)
       return LibPar.mk_whileloop(test, block, srcAddr)
     elif isinstance(node, ast.Expr):
       return self.visit_expr(node.value)
@@ -362,7 +360,6 @@ class ASTConverter():
       values = [self.visit_expr(v) for v in node.value.elts]
     else:
       values = [self.visit_expr(node.value)]
-    #print values 
     return mk_return(values, src_info)
 
 
@@ -450,7 +447,6 @@ class ASTConverter():
       raise ParakeetUnsupported("Slice of type " + str(type(node)) + " not supported") 
       
   def visit_expr(self, node):
-    #print "Visit_expr", node 
     src_info = self.build_src_info(node)
 
     if isinstance(node, ast.Name):
@@ -477,7 +473,6 @@ class ASTConverter():
 
       return build_prim_call(op_name, [left, right], src_info)
     elif isinstance(node, ast.Subscript):
-      #print "Building slice node" 
       op_name = name_of_ast_node(node.slice) 
       # only Slice and Index supported 
       assert op_name != "Ellipsis" and op_name != "ExtSlice" 
@@ -507,7 +502,6 @@ class ASTConverter():
       return None
 
   def visit_call(self, fn, args, kwds, src_info = None):
-    #print "visit_call", fn, args, kwds 
     fn_name_parts = flatten_var_attrs(fn)
     assert len(fn_name_parts) > 0 
     base_name = fn_name_parts[0]
@@ -548,16 +542,12 @@ class ASTConverter():
       parakeet_keywords[pair.arg] = self.visit_expr(pair.value)
     assert adverb in ParakeetOperators 
     parakeet_adverb = ast_prim(ParakeetOperators[adverb])
-    #print
-    #print 
-    #print "building call from visit_adverb", parakeet_adverb, parakeet_args, parakeet_keywords
     return build_call(parakeet_adverb, parakeet_args, parakeet_keywords) 
     
   def visit_simple_call(self, python_fn, args, kwds, src_info=None):
     """
     A simple call is neither a ufunc method nor an adverb
     """
-    #print "visit_simple_call", python_fn, args, kwds 
     # have to handle arrays differently since they can contain
     # lists that otherwise are illegal in Parakeet programs
     if python_fn == np.array:

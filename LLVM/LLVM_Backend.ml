@@ -141,12 +141,13 @@ let get_arg_alignment arg =
 let do_parallel info =
   if not !use_multithreading then false
   else
-    let arg = List.hd info.array_args in
-    match arg with
-    | Scalar _ -> true
-    | Array {array_shape} ->
-      let min_elts = (get_arg_alignment arg) * num_threads in
-      (Shape.get array_shape 0) >= min_elts
+    let sufficiently_large_array = function 
+      | Scalar _ -> false
+      | Array {array_shape} as arg ->
+        let min_elts = (get_arg_alignment arg) * num_threads in
+        (Shape.get array_shape 0) >= min_elts
+    in 
+    sufficiently_large_array $ List.hd info.array_args
 
 let split_argument axes num_items alignment arg =
   match arg with
@@ -188,7 +189,7 @@ let split_argument axes num_items alignment arg =
     List.map Value_to_GenericValue.to_llvm slices
   | _ -> failwith "Unsupported argument type for splitting."
 
-let build_work_items axes num_items args =
+let build_work_items axes num_items args : GV.t list list = 
   let alignments = List.map get_arg_alignment args in
   let alignment =
     List.fold_left (fun x y -> if x > y then x else y) 0 alignments
@@ -304,20 +305,24 @@ let exec_map impFn inputShapes axes array_args llvmFn =
   do_work work_queue execution_engine llvmFn work_items;
   outputs
 
-let exec_reduce impFn inputShapes axes array_args llvmFn =
+let exec_reduce 
+      impFn 
+      inputShapes 
+      axes 
+      fixed_args
+      init_args 
+      array_args 
+      llvmFn =
   (* Have to allocate num_threads * output sizes to hold the intermediates *)
-  let outputShapes = ShapeEval.get_call_output_shapes impFn inputShapes in
+  let outputShapes = 
+    ShapeEval.get_call_output_shapes impFn inputShapes 
+  in
   let outTypes = Imp.output_types impFn in
   let eltTypes = List.map ImpType.elt_type outTypes in
   let get_interm_shape shape = function
-    | ImpType.ScalarT _ ->
-      let interm_shape = Shape.create 1 in
-      Shape.set interm_shape 0 num_threads;
-      interm_shape
+    | ImpType.ScalarT _ -> Shape.of_list [num_threads]
     | ImpType.ArrayT (_, _) ->
-      let t_shape = Shape.create 1 in
-      Shape.set t_shape 0 num_threads;
-      Shape.append t_shape shape
+      Shape.append (Shape.of_list [num_threads]) shape
     | _ -> failwith "Unexpected output type from reduction"
   in
   let intermShapes = List.map2 get_interm_shape outputShapes outTypes in
@@ -327,7 +332,7 @@ let exec_reduce impFn inputShapes axes array_args llvmFn =
     if i == num_threads then
       match cur with
       | [[]] -> cur
-      | hd :: rest -> rest
+      | _  :: rest -> rest
     else
       let get_slice arg ty shape : GV.t =
         (* Have to handle the case of slicing out scalars specially *)
@@ -347,15 +352,29 @@ let exec_reduce impFn inputShapes axes array_args llvmFn =
       in
       slice_interms (cur @ [slices]) (i + 1)
   in
-  let interm_slices = slice_interms [[]] 0 in
+  let interm_slices : GV.t list list = slice_interms [[]] 0 in
+  let llvm_fixed = 
+    List.map Value_to_GenericValue.to_llvm fixed_args
+  in 
+  let llvm_init = 
+    List.map Value_to_GenericValue.to_llvm 
+      (Option.default [] init_args)
+  in 
   let input_items = build_work_items axes num_threads array_args in
-  let work_items = List.map2 (fun a b -> a @ b) input_items interm_slices in
+  let work_items = 
+    List.map2 
+      (fun input out -> llvm_fixed @ llvm_init @  input @ out) 
+      input_items 
+      interm_slices 
+  in
   do_work work_queue execution_engine llvmFn work_items;
-
+  IFDEF DEBUG THEN 
+    Printf.printf "Done with parallel reduction\n%!"; 
+  ENDIF; 
   (* Change the shape of the intermediate so that the sequential function *)
   (* can use it as its input. *)
+  let num_axes = List.length axes in
   let seqInputs =
-    let num_axes = List.length axes in
     if num_axes > 1 then
       let get_dummy_shape shape =
         let t_array = Array.make (num_axes - 1) 1 in
@@ -380,7 +399,9 @@ let exec_reduce impFn inputShapes axes array_args llvmFn =
   let llvmOutputs : GV.t list =
     allocate_output_generic_values impFn inputShapes
   in
-  let params = Array.of_list (seqInputs @ llvmOutputs) in
+  let params = 
+    Array.of_list (llvm_fixed @ seqInputs @ llvmOutputs) 
+  in
   let _ = LLE.run_function llvmFn params execution_engine in
   let outputs =
     List.map2 GenericValue_to_Value.of_generic_value llvmOutputs outTypes
@@ -389,17 +410,70 @@ let exec_reduce impFn inputShapes axes array_args llvmFn =
   (* Not freeing intermediates because GC will take care of them *)
   outputs
 
-let exec_allpairs impFn inputShapes axes array_args llvmFn =
-  ()
+let exec_allpairs 
+      impFn 
+      (inputShapes : Shape.t list)
+      (axes:int list) 
+      (fixed_args : Ptr.t Value.t list)
+      (array_args : Ptr.t Value.t list) 
+      llvmFn =
+  let outputs : Ptr.t Value.t list =
+    allocate_output_arrays impFn inputShapes
+  in 
+  let llvm_fixed = 
+    List.map Value_to_GenericValue.to_llvm fixed_args
+  in 
+(* FOR NOW: 
+   Have to always split on first argument for axis = 0
+   and second argument for axis = 1 
+   since we don't have a way to split outputs
+   along different axis 
+*)
+  match  array_args, axes with 
+  | [x;y], [axis] ->
+    let work_items = 
+      if axis = 0 then 
+        let split_args : GV.t list list =
+          build_work_items axes num_threads (x::outputs)
+        in
+        let llvm_y = Value_to_GenericValue.to_llvm y in  
+        List.map 
+          (function 
+             | [] -> assert false 
+             | hd::tl -> llvm_fixed @ [hd; llvm_y] @ tl)
+          split_args
+      else if axis = 1 then 
+        let split_args : GV.t list list = 
+          build_work_items axes num_threads (y::outputs)
+        in 
+        let llvm_x = Value_to_GenericValue.to_llvm x in 
+        List.map 
+          (function 
+             | [] -> assert false
+             | hd::tl -> llvm_fixed @ [llvm_x; hd] @ tl)
+          split_args
+       else 
+        failwith "AllPairs currently only works along axes [0,1]" 
+    in 
+    IFDEF DEBUG THEN 
+      Printf.printf  
+        "[LLVM_Backend.exec_allpairs] Launching %d work items\n%!"
+        (List.length work_items); 
+    ENDIF; 
+    do_work work_queue execution_engine llvmFn work_items;
+    outputs
+  | _, [] 
+  | _, _::_::_ -> failwith "Only 1 axis supported for allpairs"   
+  | _ -> failwith "Wrong number of arguments" 
 
 let adverb (info:(TypedSSA.fn, Ptr.t Value.t list, int list) Adverb.info) =
-  assert (info.init = None);
-  Printf.printf "[LLVM_Backend.adverb] %s\n%!"
-    (Adverb.info_to_str info 
-     (fun {TypedSSA.fn_id} -> FnId.to_str fn_id) 
-     (fun vs -> String.concat ", " $ List.map Value.to_str vs)
-     (fun axes -> String.concat ", " $ List.map string_of_int axes))
-  ;
+  IFDEF DEBUG THEN 
+    Printf.printf "[LLVM_Backend.adverb] %s\n%!"
+      (Adverb.info_to_str info 
+       (fun {TypedSSA.fn_id} -> FnId.to_str fn_id) 
+       (fun vs -> String.concat ", " $ List.map Value.to_str vs)
+       (fun axes -> String.concat ", " $ List.map string_of_int axes))
+  ENDIF;
   let axes' = List.map TypedSSA.int32 info.axes in 
   let init' = Option.map (List.map Value.type_of) info.init in 
   let fixedArgs' =  List.map Value.type_of info.fixed_args in 
@@ -413,30 +487,53 @@ let adverb (info:(TypedSSA.fn, Ptr.t Value.t list, int list) Adverb.info) =
     init = init';  
   } 
   in 
-  Printf.printf "[LLVM_Backend.adverb] Making adverb wrapper function...\n%!";  
+  IFDEF DEBUG THEN
+    Printf.printf "[LLVM_Backend.adverb] Making adverb wrapper function...\n%!"
+  ENDIF;  
   let adverbFn =
     AdverbHelpers.mk_adverb_fn info' 
   in
-  Printf.printf "Combining args..\n%!"; 
-  let allArgValues : Ptr.t Value.t list = info.fixed_args @ info.array_args in
-  Printf.printf "Getting types of values\n%!"; 
+  let allArgValues : Ptr.t Value.t list = 
+    info.fixed_args @ (Option.default [] info.init) @ info.array_args 
+  in
   let impTypes = List.map ImpType.type_of_value allArgValues in
-  Printf.printf "[LLVM_Backend.adverb] Translating SSA fn with imp args %s\n%!"
-    (String.concat ", " (List.map ImpType.to_str impTypes));
   let impFn : Imp.fn = SSA_to_Imp.translate_fn adverbFn impTypes in
   let llvmFn = CompiledFunctionCache.compile impFn in
   let inputShapes : Shape.t list = List.map Value.get_shape allArgValues in
   let outputs =
-    if do_parallel info then
+    if do_parallel info then ( 
+      IFDEF DEBUG THEN 
+        Printf.printf 
+          "[LLVM_Backend] Running adverb %s in parallel w/ input shapes %s\n%!"
+          (Adverb.to_str info.adverb)
+          (String.concat ", " (List.map Shape.to_str inputShapes))
+      ENDIF; 
       match info.adverb with
       | Map -> exec_map impFn inputShapes info.axes info.array_args llvmFn
       | Reduce ->
-        exec_reduce impFn inputShapes info.axes info.array_args llvmFn
+        exec_reduce 
+          impFn 
+          inputShapes 
+          info.axes
+          info.fixed_args 
+          info.init 
+          info.array_args 
+          llvmFn
       | AllPairs ->
-        call_imp_fn impFn (info.fixed_args @ info.array_args)
-      | Scan -> failwith "Adverb exec function not implemented yet.\n%!"
+        exec_allpairs 
+          impFn 
+          inputShapes 
+          info.axes 
+          info.fixed_args 
+          info.array_args 
+          llvmFn 
+         
+        (*call_imp_fn impFn (info.fixed_args @ info.array_args)
+         *)
+      | Scan -> failwith "Adverb exec function not implemented yet."
+    )
     else
-      call_imp_fn impFn (info.fixed_args @ info.array_args)
+      call_imp_fn impFn allArgValues 
   in
   IFDEF DEBUG THEN
     Printf.printf

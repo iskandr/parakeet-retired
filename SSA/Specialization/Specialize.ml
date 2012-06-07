@@ -75,8 +75,41 @@ let mk_typed_scalar_prim (op : Prim.scalar_op) ?optOutType argTypes =
       These have a value Maybe.
 *)
 
-
-
+let add_specialization
+      ~optimize 
+      (untypedVal:UntypedSSA.value)
+      (signature : Signature.t)
+      (typedFn:TypedSSA.fn) : unit =
+  
+  IFDEF DEBUG THEN
+    let untypedValStr =
+      match untypedVal with
+      | UntypedSSA.GlobalFn untypedId ->
+        let fnName = FnManager.get_untyped_name untypedId in  
+        Printf.sprintf
+          "\"%s\" (untyped %s)" 
+          fnName 
+          (UntypedSSA.value_to_str untypedVal)
+      | _ -> UntypedSSA.value_to_str untypedVal
+    in
+    let errorLog = TypeCheck.check_fn typedFn in
+    if not $ Queue.is_empty errorLog then begin
+      Printf.printf
+        "\n --- Errors in specialization of %s for signature \"%s\"\n"
+        untypedValStr
+        (Signature.to_str signature)
+      ;
+      Printf.printf "%s\n" (TypedSSA.fn_to_str typedFn);
+      TypeCheck.print_all_errors errorLog;
+      failwith "Specialized function malformed"
+    end
+    else
+      Printf.printf "\nSpecialized %s for signature \"%s\": \n %s \n"
+        untypedValStr
+        (Signature.to_str signature)
+        (TypedSSA.fn_to_str typedFn)
+  END;
+  FnManager.add_specialization ~optimize untypedVal signature typedFn
 
 let rec specialize_fn fn signature =
   IFDEF DEBUG THEN
@@ -165,7 +198,7 @@ and specialize_value fnVal signature =
       | UntypedSSA.GlobalFn fnId ->
         let untyped = FnManager.get_untyped_function fnId in
         let typed = specialize_fn untyped signature in
-        FnManager.add_specialization ~optimize:true fnVal signature typed;
+        add_specialization ~optimize:true fnVal signature typed;
         typed
       | UntypedSSA.Prim (Prim.ScalarOp op) ->
         let optOutType =
@@ -173,7 +206,7 @@ and specialize_value fnVal signature =
         in
         if List.for_all Type.is_scalar inputTypes then (
           let typedFn = mk_typed_scalar_prim op ?optOutType inputTypes in
-          FnManager.add_specialization ~optimize:false fnVal signature typedFn;
+          add_specialization ~optimize:false fnVal signature typedFn;
           typedFn
         )
         else begin
@@ -206,7 +239,7 @@ and specialize_value fnVal signature =
           }
           in
           let typedFn = AdverbHelpers.mk_adverb_fn adverbInfo in
-          FnManager.add_specialization ~optimize:false fnVal signature typedFn;
+          add_specialization ~optimize:false fnVal signature typedFn;
           typedFn
         end
 
@@ -216,7 +249,7 @@ and specialize_value fnVal signature =
                   arity <= Prim.max_prim_arity p);
           let untyped = mk_untyped_prim_fn p arity in
           let typed = specialize_fn untyped signature in
-          FnManager.add_specialization ~optimize:false  fnVal signature typed;
+          add_specialization ~optimize:false  fnVal signature typed;
           typed
       | _ -> assert false
     )

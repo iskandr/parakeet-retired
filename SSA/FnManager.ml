@@ -65,34 +65,11 @@ let add_specialization
   if not (FnTable.mem fnId state.typed_functions) then
    FnTable.add ~opt_queue:optimize typedFn state.typed_functions
   ;
-  let key : UntypedSSA.value * Signature.t = (untypedVal, signature) in
-  Hashtbl.add state.specializations key typedFn.TypedSSA.fn_id;
-  IFDEF DEBUG THEN
-    let untypedValStr =
-      match untypedVal with
-      | UntypedSSA.GlobalFn untypedId ->
-        let fnName = Hashtbl.find state.untyped_id_to_name untypedId in
-        Printf.sprintf
-          "\"%s\" (untyped %s)" fnName (UntypedSSA.value_to_str untypedVal)
-      | _ -> UntypedSSA.value_to_str untypedVal
-    in
-    let errorLog = TypeCheck.check_fn typedFn in
-    if not $ Queue.is_empty errorLog then begin
-      Printf.printf
-        "\n --- Errors in specialization of %s for signature \"%s\"\n"
-        untypedValStr
-        (Signature.to_str signature)
-      ;
-      Printf.printf "%s\n" (TypedSSA.fn_to_str typedFn);
-      TypeCheck.print_all_errors errorLog;
-      failwith "Specialized function malformed"
-    end
-    else
-      Printf.printf "\nSpecialized %s for signature \"%s\": \n %s \n"
-        untypedValStr
-        (Signature.to_str signature)
-        (TypedSSA.fn_to_str typedFn)
-  END
+  let key : UntypedSSA.value * Signature.t = 
+    (untypedVal, signature) 
+  in
+  Hashtbl.add 
+    state.specializations key typedFn.TypedSSA.fn_id
 
 let maybe_get_specialization v signature =
   if Hashtbl.mem state.specializations (v, signature) then

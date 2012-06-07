@@ -99,11 +99,7 @@ buffer_from_memory.argtypes = [ctypes.c_void_p, ctypes.c_int]
 def array_from_memory(pointer, shape, strides, dtype):
   arr = np.empty(shape=shape, dtype=dtype)
   arr.strides = strides
-  #print "Updated strides"
-  #print "about to call buffer_from_memory"
   arr.data = buffer_from_memory(pointer, arr.nbytes)
-  #print "Called!"
-  #print "arr[0]", arr[0]
   return arr
 
 def parakeet_value_to_python(val):

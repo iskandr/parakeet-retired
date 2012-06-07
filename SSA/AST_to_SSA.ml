@@ -140,18 +140,12 @@ and translate_value env block node : UntypedSSA.value_node =
 and translate_values env block nodes =
   List.map (translate_value env block) nodes
 
-and translate_axes env block astNode = match astNode.data with
+and translate_opt_kwd env block astNode = match astNode.data with
   | AST.Tuple axes 
   | AST.Array axes -> Some (translate_values env block axes)
   | AST.NoneVal () -> None
   | _ -> Some ([translate_value env block astNode])
-  (*
-  | AST.Num n -> Some ([UntypedSSA.ValueHelpers.num ~src:astNode.src n])
-  *) 
-  (*| other ->
-    failwith $ Printf.sprintf "Unrecognized axis arg (must be constant): %s" 
-    (AST.to_str astNode)
-  *)
+
 and translate_adverb env block adverb 
   (args :  AST.node Args.actual_args) (src:SrcInfo.t) =
   match args with
@@ -163,20 +157,25 @@ and translate_adverb env block adverb
     in 
     let optAxes = 
       match List.assoc_option "axis" keywords with 
-      | Some axes -> translate_axes env block axes
+      | Some axes -> translate_opt_kwd env block axes
       | None -> 
         (match List.assoc_option "axes" keywords with 
-         | Some axes -> translate_axes env block axes 
+         | Some axes -> translate_opt_kwd env block axes 
          | None -> None
         ) 
-    in 
+    in
+    let optInit : UntypedSSA.value_node list option = 
+      match List.assoc_option "init" keywords  with 
+       | Some init -> translate_opt_kwd env block init
+       | None -> None
+    in  
     let adverbInfo = {
       Adverb.adverb = adverb;
       adverb_fn = translate_value env block fn;
       axes = optAxes;
       array_args = translate_values env block arrayArgs;
       fixed_args = translate_values env block fixedArgs;
-      init = None;
+      init = optInit;
     }
     in
     {

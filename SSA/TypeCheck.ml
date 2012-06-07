@@ -114,12 +114,26 @@ and check_exp errorLog tenv (defined : ID.Set.t) (expNode : exp_node) : unit =
   | Tuple vs 
   | Arr vs -> check_value_list errorLog tenv defined vs
   | Cast (t, v) ->
-      check_value errorLog tenv defined v;
-      if expNode.exp_types <> [t] then
-        err $ sprintf "context expects type %s but cast is to type %s"
-          (Type.type_list_to_str expNode.exp_types)
-          (Type.to_str t)
-  | Call (typedFn, args) -> ()
+    check_value errorLog tenv defined v;
+    if expNode.exp_types <> [t] then
+      err $ sprintf "context expects type %s but cast is to type %s"
+        (Type.type_list_to_str expNode.exp_types)
+        (Type.to_str t)
+  | Call (typedFnId, args) -> 
+    let typedFn = FnManager.get_typed_function typedFnId in 
+    let argTypes = 
+      List.map (fun {value_type} -> value_type) args
+    in 
+    if argTypes <> (TypedSSA.input_types typedFn) then
+      err $ sprintf "invalid arg(s) of type %s, expected %s"
+       (Type.type_list_to_str argTypes)
+       (Type.type_list_to_str (TypedSSA.input_types typedFn))
+    ;
+    if expNode.exp_types <> (TypedSSA.output_types typedFn) then 
+      err $ sprintf 
+        "mismatch between function return types %s and expected %s"
+        (Type.type_list_to_str (TypedSSA.output_types typedFn))
+        (Type.type_list_to_str expNode.exp_types)
   | PrimApp (typedPrim, args) -> ()
   | Adverb adverbInfo  -> ()
 

@@ -71,18 +71,22 @@ let mk_adverb_fn
     ?(src:SrcInfo.t option)
     (info : (FnId.t, Type.t list, TypedSSA.value_nodes) Adverb.info)
     : TypedSSA.fn =
-  assert (info.init  = None);
+  
   match Hashtbl.find_option adverb_fn_cache info with
   | Some fnId -> FnManager.get_typed_function fnId
   | None ->
+    let n_fixed = List.length info.fixed_args in 
+    let n_init = match info.init with 
+     | None -> 0 
+     | Some xs -> List.length xs 
+    in 
     let constructor =  function
       | inputs, outputs, [] ->
-        let fixed, arrays =
-          List.split_nth (List.length info.fixed_args) inputs
-        in
+        let fixed, rest = List.split_nth n_fixed inputs in
+        let init, arrays = List.split_nth n_init rest in 
         let valueInfo = { info with
           fixed_args = fixed;
-          init = None;
+          init = if n_init > 0 then Some init else None;
           array_args = arrays;
         }
         in
@@ -91,10 +95,6 @@ let mk_adverb_fn
     in
     let nAxes = List.length info.axes in
     let nestedFnId = info.adverb_fn in
-    Printf.printf 
-      "[AdverbHelpers.mk_adverb_fn] nested fn id = %s\n%!"
-      (FnId.to_str nestedFnId)
-    ;
     let nestedOutputTypes = 
       FnManager.output_types_of_typed_fn nestedFnId 
     in
@@ -114,11 +114,13 @@ let mk_adverb_fn
     let inputNames = 
       List.take (List.length inputTypes) 
        (FnManager.typed_input_names nestedFnId)
-     in 
-    Printf.printf "[AdverbHelpers.mk_adverb_fn] Making function with input names %s and types %s\n%!" 
-      (String.concat ", " inputNames)
-      (String.concat ", " (List.map Type.to_str inputTypes))
-    ;
+    in
+    IFDEF DEBUG THEN  
+      Printf.printf 
+        "[AdverbHelpers.mk_adverb_fn] Making function with input names %s and types %s\n%!" 
+        (String.concat ", " inputNames)
+        (String.concat ", " (List.map Type.to_str inputTypes))
+    ENDIF;
     let newfn =
       TypedSSA.fn_builder
         ~name

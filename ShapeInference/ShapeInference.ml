@@ -111,9 +111,24 @@ module ShapeAnalysis (P: PARAMS) =  struct
           | _ ->
             raise (ShapeInferenceFailure "Reduce operator must return 1 result")
         end
-      | Adverb.Reduce, None, _ ->
-        let errMsg = "Too many inputs for Reduce without init" in
-        raise (ShapeInferenceFailure errMsg)
+      | Adverb.Reduce, None, _ -> 
+        if not $ List.for_all 
+          (fun s -> SymbolicShape.rank s = 0)
+          eltShapes then 
+          raise (
+            ShapeInferenceFailure 
+              "If reducing multiple arrays, the accumulator must be a scalar"
+          )
+        else 
+          let nElts = List.length eltShapes in 
+          let nInputs = 
+            FnManager.input_arity_of_typed_fn adverb_fn in 
+          let nAccs = nInputs - nElts in 
+          let accs = 
+            List.repeat SymbolicShape.scalar nAccs 
+          in 
+          let inputShapes = fixed_args @ accs @ eltShapes in 
+          P.output_shapes adverb_fn inputShapes 
       | Adverb.Reduce, Some initShapes, _ ->
         let inputShapes = fixed_args @ initShapes @ array_args in
         let callResultShapes = P.output_shapes adverb_fn inputShapes in

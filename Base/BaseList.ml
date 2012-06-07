@@ -22,6 +22,7 @@ include ExtList.List
 
   let til upperBound = range 0 (upperBound - 1)
 
+  let rec repeat x n = if n <= 0 then [] else x::(repeat x (n-1))
   let rev_iter f lst = iter f (rev lst)
 
   let cons x y = x :: y

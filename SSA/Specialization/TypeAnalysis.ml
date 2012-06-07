@@ -319,6 +319,8 @@ module Make (P : TYPE_ANALYSIS_PARAMS) = struct
         infer_call fnVal (Args.of_values $ info.fixed_args @ eltTypes)
       (* if not given initial values then we assume operator is binary and*)
       (* used first two elements of the array *)
+      | Adverb.Reduce, Some inits, _ -> 
+        infer_call fnVal (Args.of_values $ info.fixed_args @ inits @ eltTypes)
       | Adverb.Reduce, None, [eltT]  ->
         let accTypes = 
           infer_call fnVal 
