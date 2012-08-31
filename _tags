@@ -1,4 +1,4 @@
-<**/*.native> or <**/*.ml> or <**/*.mli> or <**/*.cmx> : use_unix, use_str, use_bigarray, pkg_extlib
+<**/*.native> or <**/*.ml> or <**/*.mli> or <**/*.cmx> : package(unix), package(str), package(bigarray), package(extlib)
 "/usr/local/lib/ocaml" : include
 "/usr/local/lib/ocaml/llvm-3.0" : include
 "/usr/lib/ocaml/xml-light": include
