@@ -14,11 +14,6 @@ type ast_info = {
   mutable writes_local : StrSet.t;
   mutable writes_global : StrSet.t;
 
-  (* write to disk, print to screen, read from internet, etc... *)
-  mutable io : bool;
-
-  mutable nested_functions : bool;
-  mutable is_function : bool;
   mutable return_arity : int option;
 }
 

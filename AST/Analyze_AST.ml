@@ -76,8 +76,7 @@ and analyze_node ~inFunction scopeInfo node =
       node.ast_info.reads_global <- StrSet.add name node.ast_info.reads_global
     ;
     scopeInfo
-  | Prim op ->
-    if not $ is_pure_op op then node.ast_info.io <- true; scopeInfo
+  | Prim op -> scopeInfo
   | Tuple nodes 
   | Array nodes
   | Block nodes ->
@@ -86,10 +85,8 @@ and analyze_node ~inFunction scopeInfo node =
     scopeInfo'
   | Lambda (formals, body) ->
     let names = Args.all_formal_names formals in 
-    node.ast_info.is_function <- true;
     let nameSet = StrSet.of_list names in 
     node.ast_info.defs_local <- nameSet;
-    if inFunction then node.ast_info.nested_functions <- true;
     let initScopeInfo = {
       emptyScopeInfo with locals = nameSet
     } in
@@ -109,11 +106,6 @@ and analyze_node ~inFunction scopeInfo node =
     in
     let scopeInfo'' = analyze_node ~inFunction scopeInfo' fn in
     node.ast_info <- combine_ast_info fn.ast_info argsInfo;
-    (*
-      IMPORTANT!!!
-      now assume function calls don't produce functions
-    *)
-    node.ast_info.is_function <- false;
     scopeInfo''
   | CountLoop (a,b)
   | WhileLoop (a,b) ->

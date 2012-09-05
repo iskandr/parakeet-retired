@@ -1,12 +1,13 @@
-type t = Map | Reduce | Scan 
+type adverb_type = Map | Reduce | Scan 
 
 
 type ('a, 'b) init = 
-  | IniFn of 'a 
+  | InitFn of 'a 
   | InitValues of 'b 
+  | InitFirstElt 
 
-type ('a, 'b, 'c) adverb_info { 
-  adverb : t; 
+type ('a, 'b, 'c) t = { 
+  adverb : adverb_type; 
   adverb_fn : 'a; 
   fixed_args : 'b;
   array_args : 'b; 
@@ -24,6 +25,8 @@ type ('a, 'b, 'c) adverb_info {
 let apply_to_init fn values = function 
   | InitFn f -> InitFn (fn f)
   | InitValues vs -> InitValues (values vs)
+  | InitFirstElt 
+
 
 let apply_to_fields info ~(fn:'a -> 'd) ~(values:'b -> 'e) ~(axes:'c -> 'f) =
   { info with  
@@ -35,18 +38,18 @@ let apply_to_fields info ~(fn:'a -> 'd) ~(values:'b -> 'e) ~(axes:'c -> 'f) =
       combine_fn = Option.map fn adverb.combine_fn; 
   }  
 
-let init_to_str values_to_str = function
-
-  | InitFirstElement -> "first-element"
-  | InitWithValues vs ->  values_to_str vs 
- 
+let init_to_str fn_to_str values_to_str = function
+  | InitFn f -> fn_to_str f 
+  | InitValues vs ->  values_to_str vs 
+  | InitFirstElt -> "init-first-elt"  
 
 let info_to_str info fn_to_str values_to_str axes_to_str =
-  Printf.sprintf "%s[fn=%s; combine_fn=%s; fixed=(%s); init=%s; axes=%s](%s)"
+  Printf.sprintf 
+    "%s[fn=%s; combine_fn=%s; init=%s; axes=%s; fixed=(%s)](%s)"
     (to_str info.adverb)
-    (fn_to_str info.adverb_fn)
+    (fn_to_str info.fn)
     (Option.default "none" (Option.map fn_to_str info.combine_fn))
-    (values_to_str info.fixed_args)
-    (init_to_str values_to_str info.init)
+    (init_to_str fn_to_str values_to_str info.init)
     (axes_to_str info.axes)
+    (values_to_str info.fixed_args)
     (values_to_str info.array_args)

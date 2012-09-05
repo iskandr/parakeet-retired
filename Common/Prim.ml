@@ -56,12 +56,24 @@ type array_op =
   | Flatten
   | Copy
 
+(* 
+   more verbose listing of adverbs than the core set
+   found in Adverb.adverb_type. All of these are rewritten
+   in terms of Map, Reduce, and Scan 
+*)  
+type adverb = 
+  | Map 
+  | Reduce (* parallel reduce & combine *) 
+  | Scan (* parallel scan & combine *) 
+  | AllPairs (* rewritten into nested maps *) 
+ 
+
 type impure_op = ResetTimer | GetTimer | Print
 
 type t =
   | ScalarOp of scalar_op
   | ArrayOp of array_op
-  | Adverb of Adverb.t
+  | Adverb of adverb 
   | ImpureOp of impure_op
 
 let is_binop = function
@@ -141,15 +153,14 @@ let min_prim_arity = function
   | ArrayOp DimSize
   | ArrayOp Find
   | ArrayOp Index -> 2
-  | Adverb Adverb.AllPairs -> 3
+  | Adverb AllPairs -> 3
   | Adverb _ -> 2
   | ArrayOp Slice -> 4
   | ImpureOp Print  -> 1
   | ImpureOp _ -> 0
 
 let max_prim_arity = function
-  | Adverb Adverb.Map
-  | Adverb Adverb.Reduce -> max_int
+  | Adverb _ -> max_int
   | other -> min_prim_arity other
 
 let scalar_op_to_str = function
@@ -207,6 +218,11 @@ let array_op_to_str = function
   | Flatten -> "flatten"
   | Copy -> "copy"
 
+let adverb_to_str = function 
+  | Map -> "map"
+  | Reduce -> "reduce" 
+  | Scan -> "scan" 
+
 
 let impure_op_to_str = function
   | ResetTimer -> "reset_timer"
@@ -216,7 +232,7 @@ let impure_op_to_str = function
 let to_str = function
   | ScalarOp op -> scalar_op_to_str op
   | ArrayOp op ->  array_op_to_str op
-  | Adverb op -> Adverb.to_str op
+  | Adverb op -> adverb_to_str op
   | ImpureOp op -> impure_op_to_str op
 
 let is_pure_op  = function
