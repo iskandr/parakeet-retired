@@ -12,7 +12,7 @@ module CoreLanguage = struct
   type value_node = { value : value; value_src : SrcInfo.t option; }
   type value_nodes = value_node list
 
-  type adverb_info = (value_node, value_nodes, value_nodes option) Adverb.info
+  type adverb_info = (value_node, value_nodes, value_nodes option) Adverb.t
 
   type exp =
     | Values of value_nodes
@@ -63,7 +63,7 @@ module PrettyPrinters = struct
 
   let adverb_info_to_str info =
     let opt_to_str = Option.map_default value_nodes_to_str "none" in
-    Adverb.info_to_str info value_node_to_str value_nodes_to_str opt_to_str
+    Adverb.to_str info value_node_to_str value_nodes_to_str opt_to_str
 
   let args_to_str args =
     Args.actual_args_to_str ~value_to_str:value_node_to_str args

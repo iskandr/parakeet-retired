@@ -143,19 +143,16 @@ module PrimSet = Set.Make(PrimOrd)
 module PrimMap = Map.Make(PrimOrd)
 
 let min_prim_arity = function
-  | ScalarOp op when is_binop op -> 2
   | ScalarOp Select -> 3
-  | ScalarOp _ -> 1
-  | ArrayOp ArgMin
-  | ArrayOp ArgMax
-  | ArrayOp Where
-  | ArrayOp Range -> 1
+| ScalarOp op -> if is_binop op then 2 else 1 
   | ArrayOp DimSize
   | ArrayOp Find
   | ArrayOp Index -> 2
+  | ArrayOp Slice -> 4
+  | ArrayOp _ -> 1
   | Adverb AllPairs -> 3
   | Adverb _ -> 2
-  | ArrayOp Slice -> 4
+  
   | ImpureOp Print  -> 1
   | ImpureOp _ -> 0
 
@@ -222,7 +219,7 @@ let adverb_to_str = function
   | Map -> "map"
   | Reduce -> "reduce" 
   | Scan -> "scan" 
-
+  | AllPairs -> "allpairs"
 
 let impure_op_to_str = function
   | ResetTimer -> "reset_timer"

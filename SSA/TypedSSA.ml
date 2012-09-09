@@ -14,7 +14,7 @@ module CoreLanguage = struct
   }
 
   type value_nodes = value_node list
-  type adverb_info = (FnId.t, value_nodes, value_nodes) Adverb.info
+  type adverb_info = (FnId.t, value_nodes, value_nodes) Adverb.t
 
   type exp =
     | Values of value_nodes
@@ -92,7 +92,7 @@ module PrettyPrinters = struct
     String.concat ", " (List.map value_node_to_str valNodes)
 
   let adverb_info_to_str info =
-    Adverb.info_to_str info FnId.to_str value_nodes_to_str value_nodes_to_str
+    Adverb.to_str info FnId.to_str value_nodes_to_str value_nodes_to_str
 
   let exp_to_str = function
     | Values [v] -> value_node_to_str v

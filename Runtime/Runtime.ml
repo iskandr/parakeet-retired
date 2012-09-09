@@ -11,12 +11,12 @@ type values = value list
 
 module type SCHEDULER = sig
   val call : TypedSSA.fn -> values -> values
-  val adverb : (TypedSSA.fn, values, int list) Adverb.info -> values
+  val adverb : (TypedSSA.fn, values, int list) Adverb.t -> values
   val array_op : Prim.array_op -> values -> values
 end
 
 module type INTERP = sig
-  val eval_adverb : (TypedSSA.fn, values, int list) Adverb.info -> values
+  val eval_adverb : (TypedSSA.fn, values, int list) Adverb.t -> values
   val eval_call : TypedSSA.fn -> value list -> value list
   val eval_exp : TypedSSA.exp_node -> value list
 end
@@ -53,7 +53,7 @@ module rec Scheduler : SCHEDULER = struct
     let results = schedule_function fn args in
     results
 
-  let adverb (info:(TypedSSA.fn, values, int list) Adverb.info) =
+  let adverb (info:(TypedSSA.fn, values, int list) Adverb.t) =
     let fnTable = FnManager.get_typed_function_table() in 
     let _ = ShapeInference.infer_shape_env fnTable info.adverb_fn in 
     if ShapeInference.typed_fn_is_shapely info.adverb_fn then
@@ -245,7 +245,7 @@ let adverb info =
   (* transform data from concrete host pointers to 
      abstract data ids 
   *) 
-  let info' : (TypedSSA.fn, values, int list) Adverb.info = 
+  let info' : (TypedSSA.fn, values, int list) Adverb.t = 
     Adverb.apply_to_fields 
       info
       ~fn:(fun (x:TypedSSA.fn) -> x)

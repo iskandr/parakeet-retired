@@ -140,7 +140,7 @@ let run_adverb ~adverb ~untyped_id ~globals ~init ~axes ~fixed ~arrays : ret_val
     let typedFn = 
       get_specialized_function untyped_id signature 
     in
-    let adverbInfo : (TypedSSA.fn, Ptr.t Value.t list, int list) Adverb.info = { 
+    let adverbInfo : (TypedSSA.fn, Ptr.t Value.t list, int list) Adverb.t = { 
       Adverb.adverb = adverb; 
       adverb_fn = typedFn; 
       fixed_args = fixed.Args.values; 

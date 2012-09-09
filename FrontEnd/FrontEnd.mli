@@ -24,7 +24,7 @@ val run_function :
             ret_val
 
 val run_adverb :  
-  adverb:Adverb.t -> 
+  adverb:Prim.adverb -> 
     untyped_id: FnId.t -> 
       globals: values -> 
         init : values -> 

@@ -67,7 +67,7 @@ let actual_args_to_str ~value_to_str {values; keywords} =
       (fun (k,v) -> k ^ "=" ^ (value_to_str v)) 
       keywords
   in 
-  String.concat ", " (List.map value_to_str values @ kwdStrings)
+  String.concat ", " (posStrings @ kwdStrings)
 
 let all_formal_names { names; defaults } = 
   (List.map fst defaults) @ names 

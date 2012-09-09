@@ -12,10 +12,12 @@ val required_scalar_op_types :
 val infer_num_axes : ?src:SrcInfo.t -> ?axes:'a list -> Type.t list -> int
 
 val check_adverb_error :
-  ?src:SrcInfo.t -> Adverb.t -> Type.t list option -> Type.t list -> unit
+  ?src:SrcInfo.t -> Adverb.adverb_type -> 
+    Type.t list option -> Type.t list -> unit
 
 val infer_adverb_result_types :
-  adverb:Adverb.t -> elt_result_types:Type.t list -> num_axes:int -> Type.t list
+  adverb:Adverb.adverb_type -> 
+    elt_result_types:Type.t list -> num_axes:int -> Type.t list
 
 val type_analysis :
       specializer : (UntypedSSA.value -> Signature.t -> TypedSSA.fn) ->

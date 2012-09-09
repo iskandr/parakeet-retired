@@ -301,10 +301,9 @@ module Make (P : TYPE_ANALYSIS_PARAMS) = struct
             (UntypedSSA.value_to_str fnVal)
 
 
-
   let infer_adverb
         ?(src:SrcInfo.t option)
-        (info: (UntypedSSA.value, Type.t list, int) Adverb.info)
+        (info: (UntypedSSA.value, Type.t list, int) Adverb.t)
         : Type.t list =
     if List.for_all Type.is_scalar info.array_args then
       raise (

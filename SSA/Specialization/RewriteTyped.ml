@@ -183,7 +183,7 @@ module Make(P: REWRITE_PARAMS) = struct
         ?(src:SrcInfo.t option)
         (info :
            (UntypedSSA.value_node, TypedSSA.value_nodes, TypedSSA.value_nodes)
-           Adverb.info) : TypedSSA.exp_node =
+           Adverb.t) : TypedSSA.exp_node =
     let arrayTypes = TypedSSA.types_of_value_nodes info.array_args in
     let fixedTypes = TypedSSA.types_of_value_nodes info.fixed_args in
     let numAxes = List.length info.axes in

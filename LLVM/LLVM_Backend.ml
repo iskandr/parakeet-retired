@@ -466,10 +466,10 @@ let exec_allpairs
   | _, _::_::_ -> failwith "Only 1 axis supported for allpairs"   
   | _ -> failwith "Wrong number of arguments" 
 
-let adverb (info:(TypedSSA.fn, Ptr.t Value.t list, int list) Adverb.info) =
+let adverb (info:(TypedSSA.fn, Ptr.t Value.t list, int list) Adverb.t) =
   IFDEF DEBUG THEN 
     Printf.printf "[LLVM_Backend.adverb] %s\n%!"
-      (Adverb.info_to_str info 
+      (Adverb.to_str info 
        (fun {TypedSSA.fn_id} -> FnId.to_str fn_id) 
        (fun vs -> String.concat ", " $ List.map Value.to_str vs)
        (fun axes -> String.concat ", " $ List.map string_of_int axes))

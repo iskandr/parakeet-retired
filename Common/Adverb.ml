@@ -1,55 +1,59 @@
 type adverb_type = Map | Reduce | Scan 
 
+let adverb_type_to_str = function 
+  | Map -> "map"
+  | Reduce -> "reduce"
+  | Scan -> "scan"
 
-type ('a, 'b) init = 
-  | InitFn of 'a 
-  | InitValues of 'b 
-  | InitFirstElt 
+type 'a  init = 
+  | InitValues of 'a 
+  | InitFirstElt
+
 
 type ('a, 'b, 'c) t = { 
-  adverb : adverb_type; 
-  adverb_fn : 'a; 
-  fixed_args : 'b;
-  array_args : 'b; 
+  adverb_type : adverb_type; 
+  fn : 'a; 
+  fixed : 'b;
+  args : 'b; 
   axes : 'c; 
   (* initialize scans and reductions either with value or function mapping
      array element to acc 
   *) 
-  init : ('a, 'b) init option; 
+  init : ('b init) option; 
   (* given two accumulators, combine them into a single new accumulator
      if this function isn't given we can't parallelize reductions & scans 
   *) 
-  combine_fn : 'a option;  
+  combine : 'a option;  
 }
 
-let apply_to_init fn values = function 
-  | InitFn f -> InitFn (fn f)
+let apply_to_init values = function 
   | InitValues vs -> InitValues (values vs)
-  | InitFirstElt 
+  | InitFirstElt -> InitFirstElt 
+  
 
-
-let apply_to_fields info ~(fn:'a -> 'd) ~(values:'b -> 'e) ~(axes:'c -> 'f) =
-  { info with  
+let apply_to_fields adverb ~(fn:'a -> 'd) ~(values:'b -> 'e) ~(axes:'c -> 'f) =
+  { adverb with  
       fn = fn adverb.fn;
-      fixed_args = values adverb.fixed_args; 
-      array_args = values adverb.array_args; 
+      fixed = values adverb.fixed; 
+      args = values adverb.args; 
       axes = axes adverb.axes; 
-      init = Option.map (apply_to_init fn values) adverb.init; 
-      combine_fn = Option.map fn adverb.combine_fn; 
+      init = Option.map (apply_to_init values) adverb.init; 
+      combine = Option.map fn adverb.combine; 
   }  
 
-let init_to_str fn_to_str values_to_str = function
-  | InitFn f -> fn_to_str f 
+let init_to_str values_to_str = function
+  (*| InitFn f -> fn_to_str f*) 
   | InitValues vs ->  values_to_str vs 
-  | InitFirstElt -> "init-first-elt"  
+  | InitFirstElt -> "first-elt" 
 
-let info_to_str info fn_to_str values_to_str axes_to_str =
+let to_str adverb fn_to_str values_to_str axes_to_str =
   Printf.sprintf 
     "%s[fn=%s; combine_fn=%s; init=%s; axes=%s; fixed=(%s)](%s)"
-    (to_str info.adverb)
-    (fn_to_str info.fn)
-    (Option.default "none" (Option.map fn_to_str info.combine_fn))
-    (init_to_str fn_to_str values_to_str info.init)
-    (axes_to_str info.axes)
-    (values_to_str info.fixed_args)
-    (values_to_str info.array_args)
+    (adverb_type_to_str adverb.adverb_type)
+    (fn_to_str adverb.fn)
+    (Option.map_default fn_to_str "none" adverb.combine) 
+    (Option.map_default 
+      (init_to_str values_to_str) "none" adverb.init)
+    (axes_to_str adverb.axes)
+    (values_to_str adverb.fixed)
+    (values_to_str adverb.args)

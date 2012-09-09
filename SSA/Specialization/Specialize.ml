@@ -170,7 +170,7 @@ and scalarize_fn untyped vecSig =
   in
   let scalarOutputTypes = scalarFn.TypedSSA.fn_output_types in
   let outTypes = List.map (Type.increase_rank numAxes) scalarOutputTypes in
-  let adverbInfo : (FnId.t, Type.t list, TypedSSA.value_nodes) Adverb.info  = {
+  let adverbInfo : (FnId.t, Type.t list, TypedSSA.value_nodes) Adverb.t  = {
     Adverb.adverb = Adverb.Map;
     adverb_fn = scalarFn.TypedSSA.fn_id;
     axes = AdverbHelpers.infer_adverb_axes_from_types inTypes;

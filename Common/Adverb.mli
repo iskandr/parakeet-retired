@@ -1,25 +1,26 @@
 type adverb_type = Map | Reduce | Scan 
 
+val adverb_type_to_str : adverb_type -> string 
 
-type ('a, 'b) init = 
-  | IniFn of 'a 
-  | InitValues of 'b
-  | InitFirstElt  
+type 'a init = 
+  | InitValues of 'a
+  | InitFirstElt 
 
 type ('a, 'b, 'c) t = { 
-  adverb : adverb_type; 
+  adverb_type : adverb_type; 
   fn : 'a; 
-  fixed_args : 'b;
-  array_args : 'b; 
+  fixed : 'b;
+  args : 'b; 
   axes : 'c; 
   (* initialize scans and reductions either with value or function mapping
      array element to acc 
   *) 
-  init : ('a, 'b) init option; 
+  init : 'b init option; 
   (* given two accumulators, combine them into a single new accumulator
      if this function isn't given we can't parallelize reductions & scans 
   *) 
-  combine_fn : 'a option;  
+  combine : 'a option;  
+  
 }
 
 
@@ -29,5 +30,5 @@ val apply_to_fields :
       ('d, 'e, 'f) t
 
 
-val info_to_str :
+val to_str :
   ('a, 'b, 'c) t -> ('a->string) -> ('b->string) -> ('c -> string) -> string

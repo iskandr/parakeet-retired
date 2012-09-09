@@ -10,7 +10,7 @@ module CoreLanguage : sig
   type value_node = { value : value; value_src : SrcInfo.t option }
   type value_nodes = value_node list
 
-  type adverb_info = (value_node, value_nodes, value_nodes option) Adverb.info
+  type adverb_info = (value_node, value_nodes, value_nodes option) Adverb.t
 
   type exp =
     | Values of value_nodes

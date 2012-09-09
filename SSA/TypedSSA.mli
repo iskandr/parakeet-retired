@@ -7,7 +7,7 @@ module CoreLanguage : sig
   }
 
   type value_nodes = value_node list
-  type adverb_info = (FnId.t, value_nodes, value_nodes) Adverb.info
+  type adverb_info = (FnId.t, value_nodes, value_nodes) Adverb.t
 
   type exp =
     | Values of value_nodes

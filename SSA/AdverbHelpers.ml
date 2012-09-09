@@ -43,17 +43,15 @@ let adverb_output_types adverb numAxes nestedOutputTypes =
   | Adverb.Scan
   | Adverb.Map ->
     List.map (Type.increase_rank numAxes) nestedOutputTypes
-  | Adverb.AllPairs ->
-    List.map (Type.increase_rank (numAxes * 2)) nestedOutputTypes
   | Adverb.Reduce -> nestedOutputTypes
 
 let mk_adverb_exp_node
       ?(src:SrcInfo.t option)
-      (info:(FnId.t, value_nodes, value_nodes) Adverb.info) =
+      (info:(FnId.t, value_nodes, value_nodes) Adverb.t) =
   let numAxes = List.length info.axes in
   let nestedOutputTypes = FnManager.output_types_of_typed_fn info.adverb_fn in
   let outputTypes : Type.t list =
-    adverb_output_types info.adverb numAxes nestedOutputTypes
+    adverb_output_types info.adverb_type numAxes nestedOutputTypes
   in
   {
     exp = Adverb info;
@@ -63,19 +61,19 @@ let mk_adverb_exp_node
 
 (* to keep stable FnId's for repeatedly generated adverbs of the same function*)
 (* we cache our results*)
-type fn_cache_key =(FnId.t, Type.t list, TypedSSA.value_nodes) Adverb.info
+type fn_cache_key =(FnId.t, Type.t list, TypedSSA.value_nodes) Adverb.t
 
 let adverb_fn_cache : (fn_cache_key, FnId.t) Hashtbl.t = Hashtbl.create 127
 
 let mk_adverb_fn
     ?(src:SrcInfo.t option)
-    (info : (FnId.t, Type.t list, TypedSSA.value_nodes) Adverb.info)
+    (info : (FnId.t, Type.t list, TypedSSA.value_nodes) Adverb.t)
     : TypedSSA.fn =
   
   match Hashtbl.find_option adverb_fn_cache info with
   | Some fnId -> FnManager.get_typed_function fnId
   | None ->
-    let n_fixed = List.length info.fixed_args in 
+    let n_fixed = List.length info.fixed in 
     let n_init = match info.init with 
      | None -> 0 
      | Some xs -> List.length xs 
@@ -85,7 +83,7 @@ let mk_adverb_fn
         let fixed, rest = List.split_nth n_fixed inputs in
         let init, arrays = List.split_nth n_init rest in 
         let valueInfo = { info with
-          fixed_args = fixed;
+          fixed = fixed;
           init = if n_init > 0 then Some init else None;
           array_args = arrays;
         }
@@ -99,7 +97,7 @@ let mk_adverb_fn
       FnManager.output_types_of_typed_fn nestedFnId 
     in
     let outputTypes =
-      adverb_output_types info.adverb nAxes nestedOutputTypes
+      adverb_output_types info.adverb_type nAxes nestedOutputTypes
     in
     let name =
         Printf.sprintf "%s.%s_wrapper"
@@ -107,9 +105,9 @@ let mk_adverb_fn
           (Adverb.to_str info.adverb)
     in
     let inputTypes = 
-      info.fixed_args @ 
-      (Option.default [] info.init ) @ 
-      info.array_args 
+      info.fixed @ 
+      (Option.map_default [] info.init) @ 
+      info.args 
     in 
     let inputNames = 
       List.take (List.length inputTypes) 
@@ -117,7 +115,7 @@ let mk_adverb_fn
     in
     IFDEF DEBUG THEN  
       Printf.printf 
-        "[AdverbHelpers.mk_adverb_fn] Making function with input names %s and types %s\n%!" 
+        "[AdverbHelpers.mk_adverb_fn] Making fn with inputs %s (types = %s\n%!)" 
         (String.concat ", " inputNames)
         (String.concat ", " (List.map Type.to_str inputTypes))
     ENDIF;

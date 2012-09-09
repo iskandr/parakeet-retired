@@ -6,7 +6,7 @@ module type S = sig
   val call : TypedSSA.fn -> data list -> data list
 
   val adverb :
-    (TypedSSA.fn, data list, int list) Adverb.info -> data list -> data list
+    (TypedSSA.fn, data list, int list) Adverb.t -> data list -> data list
 
   val array_op : Prim.array_op -> data list -> data list
 end

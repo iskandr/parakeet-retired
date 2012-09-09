@@ -27,9 +27,6 @@ type ast_info = {
   mutable writes_local : StrSet.t;
   mutable writes_global : StrSet.t;
 
-  (* write to disk, print to screen, read from internet, etc... *)
-  mutable io : bool;
-
   mutable return_arity : int option;
 }
 
@@ -40,7 +37,6 @@ let mk_ast_info () = {
   reads_global = StrSet.empty;
   writes_local = StrSet.empty;
   writes_global = StrSet.empty;
-  io = false;
   return_arity = None;
 }
 
