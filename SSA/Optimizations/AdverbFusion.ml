@@ -1,3 +1,5 @@
+(* pp: -parser o pa_macro.cmo *)
+
 open Base
 open TypedSSA
 open Adverb 
@@ -78,10 +80,11 @@ module DataFlow  = struct
   let eval_phi_nodes phiNodes : ID.t list = 
     List.flatten (List.map eval_phi_node phiNodes)
 
+  (*
   let eval_init = function 
     | Adverb.InitValues vs -> vs 
     | Adverb.InitFirstElt -> [] 
-
+  *)
 
   let eval_exp {exp} =  
     match exp with 
@@ -93,7 +96,7 @@ module DataFlow  = struct
     | Cast (_, v) -> eval_values [v] 
     | Adverb { fixed; args; init; axes } -> 
       let vs = 
-        fixed @ args @ axes @ (Option.map_default eval_init [] init)
+        fixed @ args @ axes @ (Option.default  [] init)
       in 
       eval_values vs 
   (* each statement returns two lists: produced and consumed IDs *) 
@@ -154,15 +157,15 @@ let rec split_nth n xs =
       let ys, zs = split_nth (n-1) xs in
       x::ys, zs
 
-let get_acc_types elt_types = function 
-  | None -> []
-  | Some (Adverb.InitValues vs) -> TypedSSA.types_of_value_nodes vs  
-  | Some (Adverb.InitFirstElt) -> elt_types  
+let get_acc_types adverb_type elt_types = function 
+  | None -> if adverb_type = Adverb.Map then [] else elt_types
+  | Some vs -> TypedSSA.types_of_value_nodes vs  
    
 let fuse_adverbs pred succ =
   assert (pred.init = None);
   assert (pred.adverb_type = Adverb.Map);
   assert (pred.axes = succ.axes); 
+  assert (pred.combine = None); 
   let predFn = FnManager.get_typed_function pred.fn in 
   let succFn = FnManager.get_typed_function succ.fn in 
   (* 
@@ -185,7 +188,7 @@ let fuse_adverbs pred succ =
   (* or might be a reduce/scan with either explicitly given accumulator *)
   (* initializers or implicitly defined accumulators from the initial*)
   (* values of the inputs *) 
-  let acc_types = get_acc_types pred_elt_types succ.init in  
+  let acc_types = get_acc_types succ.adverb_type pred_elt_types succ.init in  
   
   let n_accs = List.length acc_types in 
   (* Scan and Reduce should have some sort of accumulator *) 
@@ -212,7 +215,7 @@ let fuse_adverbs pred succ =
     Printf.sprintf "fused{%s_%s::%s_%s}" 
       (Adverb.adverb_type_to_str pred.adverb_type) 
       (FnId.to_str pred.fn)
-      (Adverb.to_str succ.adverb)
+      (Adverb.adverb_type_to_str succ.adverb_type)
       (FnId.to_str succ.fn)
   in 
   let constructor = 
@@ -243,12 +246,13 @@ let fuse_adverbs pred succ =
   in
   FnManager.add_typed new_fn; 
   { 
-    adverb = succ.adverb; 
-    adverb_fn = new_fn.fn_id; 
+    adverb_type = succ.adverb_type; 
+    fn = new_fn.fn_id; 
     fixed = pred.fixed @ succ.fixed;
     init = succ.init; 
     args = pred.args;
     axes = succ.axes;  
+    combine = succ.combine; 
   }
 
 

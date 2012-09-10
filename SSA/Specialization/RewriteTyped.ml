@@ -139,7 +139,7 @@ module Make(P: REWRITE_PARAMS) = struct
         "Can't get arity of %s, it's not a function"
         (UntypedSSA.value_to_str other)
 
-  let specialize_adverb_fn 
+  let specialize_fn 
         ?src 
         adverb 
         untypedFnVal 
@@ -148,7 +148,7 @@ module Make(P: REWRITE_PARAMS) = struct
         eltTypes = 
     let nestedSig : Signature.t =
       match adverb, initTypes with
-      | Adverb.AllPairs, None
+
       | Adverb.Map, None  ->
         Signature.from_input_types (fixedTypes @ eltTypes)
       | Adverb.Reduce, None ->
@@ -171,10 +171,7 @@ module Make(P: REWRITE_PARAMS) = struct
       | Adverb.Reduce, Some initTypes -> 
         Signature.from_input_types (fixedTypes @ initTypes @ eltTypes) 
       | Adverb.Map, Some _ -> failwith "Map can't have initial args"
-      | Adverb.AllPairs, None ->
-        failwith "AllPairs operator must have two inputs"
-      | Adverb.AllPairs, Some _ ->
-        failwith "AllPairs operator can't have initial args"
+     
       | _ -> failwith "Malformed adverb"
     in
     P.specializer untypedFnVal nestedSig 
@@ -184,30 +181,34 @@ module Make(P: REWRITE_PARAMS) = struct
         (info :
            (UntypedSSA.value_node, TypedSSA.value_nodes, TypedSSA.value_nodes)
            Adverb.t) : TypedSSA.exp_node =
-    let arrayTypes = TypedSSA.types_of_value_nodes info.array_args in
-    let fixedTypes = TypedSSA.types_of_value_nodes info.fixed_args in
+    let arrayTypes = TypedSSA.types_of_value_nodes info.args in
+    let fixedTypes = TypedSSA.types_of_value_nodes info.fixed in
     let numAxes = List.length info.axes in
     let eltTypes = List.map (Type.peel ~num_axes:numAxes) arrayTypes in
     let initTypes = Option.map TypedSSA.types_of_value_nodes info.init in  
-    let untypedFnVal = info.adverb_fn.UntypedSSA.value  in
-    let typedFn = 
-      specialize_adverb_fn 
-        info.adverb 
+    let untypedFnVal = info.fn.UntypedSSA.value  in
+    let typedFn : TypedSSA.fn  = 
+      specialize_fn 
+        info.adverb_type
         untypedFnVal 
         fixedTypes 
         initTypes 
         eltTypes 
     in 
-    let outTypes =
+    let outTypes : Type.t list =
       TypeAnalysis.infer_adverb_result_types
-        ~adverb:info.adverb
+        ~adverb_type:info.adverb_type
         ~elt_result_types:(typedFn.TypedSSA.fn_output_types)
         ~num_axes:(List.length info.axes)
     in
     (* change any init values to have same type as final return *)
-    let typedInfo = 
+    let typedInfo  = 
       match info.init with 
-      | None -> { info with adverb_fn = TypedSSA.fn_id typedFn} 
+      | None -> 
+          { info with 
+              fn = TypedSSA.fn_id typedFn;
+              combine = None; (*Option.map TypedSSA.fn_id typedCombine;*) 
+          } 
       | Some initVals -> 
         assert (List.length initVals = List.length outTypes);
         IFDEF DEBUG THEN 
@@ -219,16 +220,17 @@ module Make(P: REWRITE_PARAMS) = struct
             (Type.type_list_to_str eltTypes)
        ENDIF;  
         let typedFn = 
-          specialize_adverb_fn 
-            info.adverb
+          specialize_fn 
+            info.adverb_type
             untypedFnVal
             fixedTypes
             (Some outTypes)
             eltTypes
         in 
         { info with 
-            adverb_fn = TypedSSA.fn_id typedFn;
-            init = Some (List.map2 coerce_typed_value outTypes initVals)
+            fn = TypedSSA.fn_id typedFn;
+            combine = None; 
+            init = Some (List.map2 coerce_typed_value outTypes initVals); 
         } 
     in  
     { TypedSSA.exp = TypedSSA.Adverb typedInfo;
@@ -240,7 +242,7 @@ module Make(P: REWRITE_PARAMS) = struct
         ?(src:SrcInfo.t option)
         (info : UntypedSSA.adverb_info) : TypedSSA.exp_node =
     (* make typed version of all the adverbinfo fields *)
-    let arrayArgs : TypedSSA.value_nodes = annotate_values info.array_args in
+    let arrayArgs : TypedSSA.value_nodes = annotate_values info.args in
     let arrayTypes = TypedSSA.types_of_value_nodes arrayArgs in
     let axes : TypedSSA.value_nodes = match Option.map annotate_values info.axes with
       | None  
@@ -250,8 +252,8 @@ module Make(P: REWRITE_PARAMS) = struct
     in
     let partiallyTypedInfo = {
       info with
-        fixed_args = annotate_values info.fixed_args;
-        array_args = arrayArgs;
+        fixed = annotate_values info.fixed;
+        args = arrayArgs;
         axes = axes;
         init = Option.map annotate_values info.init;
     }
@@ -270,12 +272,13 @@ module Make(P: REWRITE_PARAMS) = struct
     }
     in
     rewrite_adverb_for_typed_args ?src {
-      Adverb.adverb = Adverb.Map;
-      adverb_fn = untypedIndexNode;
-      fixed_args = [array];
+      Adverb.adverb_type = Adverb.Map;
+      fn = untypedIndexNode;
+      combine = None; 
+      fixed = [array];
       init = None;
       axes = List.map TypedSSA.int32 $ List.til (List.length indices);
-      array_args = indices;
+      args = indices;
     }
 
   let rewrite_call_to_array_op
@@ -325,11 +328,12 @@ module Make(P: REWRITE_PARAMS) = struct
       in
       let typedInfo : TypedSSA.adverb_info =
         {
-          Adverb.adverb = Adverb.Map;
-          adverb_fn = typedFn.TypedSSA.fn_id;
-          fixed_args = [];
+          Adverb.adverb_type = Adverb.Map;
+          fn = typedFn.TypedSSA.fn_id;
+          combine = None; 
+          fixed = [];
           init = None;
-          array_args = args;
+          args = args;
           axes = axes;
         }
       in
@@ -423,6 +427,7 @@ module Make(P: REWRITE_PARAMS) = struct
         { TypedSSA.exp = TypedSSA.Values vs'; exp_types = types; exp_src = src }
         (* WARNING: You're ignoring the expected return types here *)
       | Adverb adverbInfo, _ -> rewrite_adverb ?src adverbInfo
+      (*
       | Call (
               {value = Prim (Prim.Adverb adverb)}, 
               {Args.values=fn::args; keywords=[]}
@@ -431,12 +436,13 @@ module Make(P: REWRITE_PARAMS) = struct
           Printf.printf "[RewriteTyped] Converting simple adverb\n%!";
         ENDIF;
         let untypedInfo = {
-          Adverb.adverb = adverb; adverb_fn = fn;
-          axes = None; init = None; fixed_args = [];
-          array_args = args;
+          Adverb.adverb_type = adverb_type; fn = fn;
+          axes = None; init = None; fixed = [];
+          args = args;
         }
         in
         rewrite_adverb ?src untypedInfo
+      *) 
       | Call (fn, args), _ -> 
         let typedArgs = Args.apply_to_actual_values annotate_value args in
         rewrite_call src fn typedArgs

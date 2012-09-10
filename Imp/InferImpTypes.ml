@@ -72,6 +72,8 @@ module ImpTypeAnalysis(P:IMP_TYPE_PARAMS) = struct
 
   let exp tenv {exp; exp_types} helpers : ImpType.t list =
     match exp with
+    | Tuple vs -> [ImpType.TupleT (Array.of_list (List.map (value tenv) vs))]
+        
     | Values vs -> List.map (value tenv) vs
     | Cast _
     | PrimApp (Prim.ScalarOp _, _)

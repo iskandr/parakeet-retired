@@ -2,7 +2,7 @@ open TypedSSA
 
 val const_axes : TypedSSA.value_nodes -> int list
 
-val info_with_const_axes :
+val adverb_with_const_axes :
   ('a, 'b, TypedSSA.value_nodes) Adverb.t -> ('a, 'b, int list) Adverb.t
 
 val max_num_axes_from_array_types : Type.t list -> int

@@ -173,14 +173,9 @@ let check_adverb_error ?src adverb init eltTypes : unit =
     if List.length eltTypes <> 1 then
       raise $
         TypeError("Reduce without intial args must have one input array", src)
-  | Adverb.AllPairs, None, eltTypes ->
-    if List.length eltTypes <> 2 then
-      raise $
-        TypeError("AllPairs must have two arguments", src)
 
-  | Adverb.AllPairs, Some _, _ ->
-    raise $
-        TypeError("AllPairs can't have initial arguments", src)
+
+ 
   | Adverb.Map, Some _, _ ->
     raise (TypeError("Map can't have initial values", src))
   | Adverb.Reduce, Some inits, _  ->
@@ -190,11 +185,11 @@ let check_adverb_error ?src adverb init eltTypes : unit =
 
 (* the output of an adverb depends only on the output type of its *)
 (* parameterizing function and the number of axes *)
-let infer_adverb_result_types  ~adverb ~elt_result_types ~num_axes =
-  match adverb with
+let infer_adverb_result_types  ~adverb_type ~elt_result_types ~num_axes =
+  match adverb_type with
     | Adverb.Scan
     | Adverb.Map -> Type.increase_ranks num_axes elt_result_types
-    | Adverb.AllPairs -> Type.increase_ranks (2*num_axes) elt_result_types
+  
     | Adverb.Reduce -> elt_result_types
 
 (* Eek, a mutable type environment! Ain't it the devil? *)
@@ -305,40 +300,40 @@ module Make (P : TYPE_ANALYSIS_PARAMS) = struct
         ?(src:SrcInfo.t option)
         (info: (UntypedSSA.value, Type.t list, int) Adverb.t)
         : Type.t list =
-    if List.for_all Type.is_scalar info.array_args then
+    if List.for_all Type.is_scalar info. args then
       raise (
         TypeError("Adverbs must have at least one non-scalar argument", src))
     ;
     let numAxes = info.axes in
-    let eltTypes = List.map (Type.peel ~num_axes:numAxes) info.array_args in
-    let fnVal : UntypedSSA.value = info.adverb_fn in
+    let eltTypes = List.map (Type.peel ~num_axes:numAxes) info. args in
+    let fnVal : UntypedSSA.value = info.fn in
     let eltResultTypes =
-      match info.adverb, info.init, eltTypes with
+      match info.adverb_type, info.init, eltTypes with
       | Adverb.Map, None, _  ->
-        infer_call fnVal (Args.of_values $ info.fixed_args @ eltTypes)
+        infer_call fnVal (Args.of_values $ info.fixed @ eltTypes)
       (* if not given initial values then we assume operator is binary and*)
       (* used first two elements of the array *)
       | Adverb.Reduce, Some inits, _ -> 
-        infer_call fnVal (Args.of_values $ info.fixed_args @ inits @ eltTypes)
+        infer_call fnVal (Args.of_values $ info.fixed @ inits @ eltTypes)
       | Adverb.Reduce, None, [eltT]  ->
         let accTypes = 
           infer_call fnVal 
-            (Args.of_values $ info.fixed_args @ [eltT;eltT]) 
+            (Args.of_values $ info.fixed @ [eltT;eltT]) 
         in
         if List.length accTypes <> 1 then
           raise $
             TypeError("Reduce without inital args must return one value", src)
         else accTypes
-      | Adverb.AllPairs, None, [tx; ty] ->
-        infer_call fnVal (Args.of_values $ info.fixed_args @ eltTypes)
       | _ -> 
-        check_adverb_error ?src info.adverb info.init eltTypes; []
+        check_adverb_error ?src info.adverb_type info.init eltTypes; 
+        []
     in
-    infer_adverb_result_types info.adverb eltResultTypes numAxes
+    infer_adverb_result_types info.adverb_type eltResultTypes numAxes
 
   let infer_exp expNode : Type.t list =
     let src = expNode.exp_src in
     match expNode.exp with
+    (*
     | Call(
         {value=UntypedSSA.Prim (Prim.Adverb adverb)}, 
         args) ->
@@ -349,18 +344,20 @@ module Make (P : TYPE_ANALYSIS_PARAMS) = struct
       in
       let arrayTypes = infer_value_nodes arrayArgs in
       infer_adverb ?src {
-        adverb = adverb;
-        adverb_fn = fn.value;
-        array_args = arrayTypes;
+        adverb_type = (match;
+        fn = fn.value;
+        combine = None; 
+        args = arrayTypes;
         init = None;
         axes = infer_num_axes ?src ?axes:None arrayTypes;
-        fixed_args = [];
+        fixed = [];
       }
-    | Adverb info ->
-      let arrayTypes = infer_value_nodes info.array_args in
+    *)
+    | Adverb adverb ->
+      let arrayTypes = infer_value_nodes adverb.args in
       infer_adverb ?src $
           Adverb.apply_to_fields
-            info
+            adverb
             ~fn:(fun valNode -> valNode.value)
             ~values:infer_value_nodes
             ~axes:(fun axes -> infer_num_axes ?src ?axes arrayTypes)

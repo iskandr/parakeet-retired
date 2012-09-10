@@ -9,7 +9,8 @@ let const_axes valNodes =
     List.map TypedSSA.get_const_int valNodes
   else failwith "Expected adverb axes to be constant"
 
-let info_with_const_axes info = { info with axes = (const_axes info.axes) }
+let adverb_with_const_axes adverb = 
+  { adverb with axes = const_axes adverb.axes }
 
 let infer_adverb_axes_from_rank rank =
   List.map TypedSSA.int32 (List.til rank)
@@ -47,67 +48,71 @@ let adverb_output_types adverb numAxes nestedOutputTypes =
 
 let mk_adverb_exp_node
       ?(src:SrcInfo.t option)
-      (info:(FnId.t, value_nodes, value_nodes) Adverb.t) =
-  let numAxes = List.length info.axes in
-  let nestedOutputTypes = FnManager.output_types_of_typed_fn info.adverb_fn in
+      (adverb:(FnId.t, value_nodes, value_nodes) Adverb.t) =
+  let numAxes = List.length adverb.axes in
+  let nestedOutputTypes = FnManager.output_types_of_typed_fn adverb.fn in
   let outputTypes : Type.t list =
-    adverb_output_types info.adverb_type numAxes nestedOutputTypes
+    adverb_output_types adverb.adverb_type numAxes nestedOutputTypes
   in
   {
-    exp = Adverb info;
+    exp = Adverb adverb;
     exp_types = outputTypes;
     exp_src = src
   }
 
 (* to keep stable FnId's for repeatedly generated adverbs of the same function*)
 (* we cache our results*)
-type fn_cache_key =(FnId.t, Type.t list, TypedSSA.value_nodes) Adverb.t
+type fn_cache_key = (FnId.t, Type.t list, TypedSSA.value_nodes) Adverb.t
 
 let adverb_fn_cache : (fn_cache_key, FnId.t) Hashtbl.t = Hashtbl.create 127
 
 let mk_adverb_fn
     ?(src:SrcInfo.t option)
-    (info : (FnId.t, Type.t list, TypedSSA.value_nodes) Adverb.t)
+    (adverb : (FnId.t, Type.t list, TypedSSA.value_nodes) Adverb.t)
     : TypedSSA.fn =
   
-  match Hashtbl.find_option adverb_fn_cache info with
+  match Hashtbl.find_option adverb_fn_cache adverb with
   | Some fnId -> FnManager.get_typed_function fnId
   | None ->
-    let n_fixed = List.length info.fixed in 
-    let n_init = match info.init with 
+    let n_fixed = List.length adverb.fixed in 
+    let n_args = List.length adverb.args in 
+    let n_init = match adverb.init with 
      | None -> 0 
-     | Some xs -> List.length xs 
+     | Some vs -> List.length vs  
     in 
     let constructor =  function
       | inputs, outputs, [] ->
         let fixed, rest = List.split_nth n_fixed inputs in
-        let init, arrays = List.split_nth n_init rest in 
-        let valueInfo = { info with
+        let init, arrays = List.split_nth n_init rest in
+        assert (List.length arrays = n_args);
+        (* TODO: Does this work with Reductions/Scans which aren't given *)
+        (* explicit initial values? *)   
+        let adverb' = { adverb with
           fixed = fixed;
           init = if n_init > 0 then Some init else None;
-          array_args = arrays;
+          args = arrays;
         }
         in
-        [TypedSSA.set_vals outputs (mk_adverb_exp_node valueInfo)]
+        [TypedSSA.set_vals outputs (mk_adverb_exp_node adverb')]
       | _ -> assert false
     in
-    let nAxes = List.length info.axes in
-    let nestedFnId = info.adverb_fn in
+    let nAxes = List.length adverb.axes in
+    let nestedFnId = adverb.fn in
     let nestedOutputTypes = 
       FnManager.output_types_of_typed_fn nestedFnId 
     in
     let outputTypes =
-      adverb_output_types info.adverb_type nAxes nestedOutputTypes
+      adverb_output_types adverb.adverb_type nAxes nestedOutputTypes
     in
     let name =
         Printf.sprintf "%s.%s_wrapper"
           (FnId.to_str nestedFnId)
-          (Adverb.to_str info.adverb)
+          (Adverb.adverb_type_to_str adverb.adverb_type)
     in
     let inputTypes = 
-      info.fixed @ 
-      (Option.map_default [] info.init) @ 
-      info.args 
+      adverb.fixed @ 
+      (Option.default [] adverb.init) @ 
+      adverb.args 
     in 
     let inputNames = 
       List.take (List.length inputTypes) 
@@ -128,7 +133,7 @@ let mk_adverb_fn
         constructor
     in
     FnManager.add_typed ~optimize:false newfn;
-    Hashtbl.replace adverb_fn_cache info (TypedSSA.fn_id newfn);
+    Hashtbl.replace adverb_fn_cache adverb (TypedSSA.fn_id newfn);
     newfn
 
 let rec block_has_adverb block = Block.exists stmt_has_adverb block

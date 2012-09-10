@@ -16,7 +16,7 @@ val check_adverb_error :
     Type.t list option -> Type.t list -> unit
 
 val infer_adverb_result_types :
-  adverb:Adverb.adverb_type -> 
+  adverb_type:Adverb.adverb_type -> 
     elt_result_types:Type.t list -> num_axes:int -> Type.t list
 
 val type_analysis :

@@ -6,7 +6,7 @@ open SSA_Analysis
 open TypedSSA
 
 type t = {
-  adverb : adverb_info option;
+  adverb :  (FnId.t, value_nodes, value_nodes) Adverb.t option;
   stmt_id : StmtId.t option;
   arg_shapes : Shape.t list;
   nested_adverbs : t list;
@@ -54,13 +54,19 @@ module WorkTreeArgs(P: WORKTREE_PARAMS) = struct
     | Set(_, expNode)
     | SetIdx(_, _, expNode) ->
       begin match expNode.exp with
-        | Adverb info ->
+        | Adverb adverb ->
           let id = stmtNode.TypedSSA.stmt_id in
-          let axes = List.map get_const_int info.axes in
-          let nestedFn = FnManager.get_typed_function info.adverb_fn in
+          let axes = List.map get_const_int adverb.axes in
+          let nestedFn = FnManager.get_typed_function adverb.fn in
           let child_node_empty =
-            {adverb=Some info; stmt_id=Some id; arg_shapes=P.shapes;
-             nested_adverbs=[]; num_scalar_ops=0; seq_cost=(-1)}
+            {
+              adverb  = Some adverb; 
+              stmt_id=Some id; 
+              arg_shapes=P.shapes;
+              nested_adverbs=[]; 
+              num_scalar_ops=0; 
+              seq_cost=(-1)
+            }
           in
           let newShapes = List.map (Shape.peel ~axes) P.shapes in
           let child_node =
@@ -92,29 +98,18 @@ let rec get_tree_cost ?plan:(p=empty_plan) workTree =
 	    List.fold_left (fun a b -> a + b) workTree.num_scalar_ops child_costs
 	  in
 	  match workTree.adverb with
-	  | Some a -> (
-	    match a.Adverb.adverb with
-	    | Adverb.Map
-	    | Adverb.Reduce
-	    | Adverb.Scan ->
-	      let axes = List.map get_const_int a.Adverb.axes in
-	      let max_shape =
-	        List.fold_left
-	          (fun a b -> if Shape.rank a >= List.length axes then a else b)
-	          Shape.scalar_shape workTree.arg_shapes
-	      in
-	      let nelts =
-	        List.fold_left
-	          (fun acc axis -> acc * (Shape.get max_shape axis)) 1 axes
-	      in
-	      scalar_cost * nelts
-	    | Adverb.AllPairs ->
-	      assert(List.length a.Adverb.axes = 1);
-	      let axis = get_const_int (List.hd a.Adverb.axes) in
+	  | Some a -> 
+	    let axes = List.map get_const_int a.Adverb.axes in
+	    let max_shape =
 	      List.fold_left
-	        (fun acc s -> acc * (Shape.get s axis))
-	        scalar_cost workTree.arg_shapes
-	  )
+	        (fun a b -> if Shape.rank a >= List.length axes then a else b)
+	        Shape.scalar_shape workTree.arg_shapes
+	    in
+	    let nelts =
+	      List.fold_left
+	        (fun acc axis -> acc * (Shape.get max_shape axis)) 1 axes
+	    in
+	    scalar_cost * nelts
 	  | None -> scalar_cost
   in
   match workTree.stmt_id with
@@ -168,11 +163,11 @@ let rec aux_to_str num_spaces tree =
     | None -> "None"
   in
   match tree.adverb with
-  | Some adverb_info ->
+  | Some adverb ->
     Printf.printf "%*s%s[id=%s](%d) : %s : %d\n%!"
       num_spaces
       ""
-      (Adverb.to_str adverb_info.Adverb.adverb)
+      (Adverb.adverb_type_to_str adverb.Adverb.adverb_type)
       id
       tree.num_scalar_ops
       (Shape.shape_list_to_str tree.arg_shapes)
@@ -277,11 +272,11 @@ let rec plan_to_str_aux num_spaces plan tree =
     | None -> "None", "None"
   in
   match tree.adverb with
-  | Some adverb_info ->
+  | Some adverb ->
     Printf.printf "%*s%s[id=%s][%s](%d) : %s : %d\n%!"
       num_spaces
       ""
-      (Adverb.to_str adverb_info.Adverb.adverb)
+      (Adverb.adverb_type_to_str adverb.Adverb.adverb_type)
       id
       annotations
       tree.num_scalar_ops

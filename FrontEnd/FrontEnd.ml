@@ -140,13 +140,21 @@ let run_adverb ~adverb ~untyped_id ~globals ~init ~axes ~fixed ~arrays : ret_val
     let typedFn = 
       get_specialized_function untyped_id signature 
     in
+    (* TODO: Implement an allpairs wrapper? *) 
+    let adverb_type = match adverb with 
+      | Prim.Map -> Adverb.Map 
+      | Prim.Reduce -> Adverb.Reduce 
+      | Prim.Scan -> Adverb.Scan 
+      | Prim.AllPairs -> failwith "need to translate allpairs"
+    in 
     let adverbInfo : (TypedSSA.fn, Ptr.t Value.t list, int list) Adverb.t = { 
-      Adverb.adverb = adverb; 
-      adverb_fn = typedFn; 
-      fixed_args = fixed.Args.values; 
+      Adverb.adverb_type = adverb_type; 
+      fn = typedFn;
+      combine = None;  
+      fixed = fixed.Args.values; 
       init = if init <> [] then Some init else None; 
       axes = axes;
-      array_args = arrays.Args.values; 
+      args = arrays.Args.values; 
     } 
     in 
     Success (Runtime.adverb adverbInfo)

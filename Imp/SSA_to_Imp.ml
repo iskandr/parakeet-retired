@@ -330,7 +330,7 @@ and translate_stmt (builder : ImpBuilder.builder) stmtNode : unit  =
     translate_array_literal builder id elts
   (* adverbs get special treatment since they might return multiple values *)
   | TypedSSA.Set(ids, {TypedSSA.exp = TypedSSA.Adverb info}) ->
-    let impInfo : (TypedSSA.fn, Imp.value_nodes, Imp.value_nodes) Adverb.info =
+    let impInfo : (TypedSSA.fn, Imp.value_nodes, Imp.value_nodes) Adverb.t =
       Adverb.apply_to_fields
          info
         ~fn:FnManager.get_typed_function
@@ -381,10 +381,7 @@ and translate_stmt (builder : ImpBuilder.builder) stmtNode : unit  =
      (TypedSSA.stmt_node_to_str stmtNode)
 
 and translate_exp (builder:ImpBuilder.builder) expNode : Imp.value_node  =
-  (*IFDEF DEBUG THEN
-    Printf.printf "[SSA_to_Imp.translate_exp] %s\n"
-      (TypedSSA.exp_node_to_str expNode)
-  ENDIF;*)
+
   match expNode.TypedSSA.exp with
   | TypedSSA.Values [v] -> translate_value builder v
   | TypedSSA.Values _ -> failwith "multiple value expressions not supported"
@@ -425,16 +422,16 @@ and translate_exp (builder:ImpBuilder.builder) expNode : Imp.value_node  =
 and translate_adverb
     (builder : ImpBuilder.builder)
     (lhsVars : Imp.value_node list)
-    (info : (TypedSSA.fn, Imp.value_nodes, Imp.value_nodes) Adverb.info)
+    (info : (TypedSSA.fn, Imp.value_nodes, Imp.value_nodes) Adverb.t)
     : unit  =
-  let argTypes = List.map Imp.value_type info.array_args in
+  let argTypes = List.map Imp.value_type info.args in
   let maxArgRank =
     List.fold_left (fun acc t -> max acc (ImpType.rank t)) 0 argTypes
   in
   if !vectorize && maxArgRank = 1 &&
-    TypedSSA.ScalarHelpers.is_scalar_fn info.adverb_fn &&
-    info.adverb = Adverb.Map
-  then match TypedSSA.FnHelpers.get_single_type info.adverb_fn with
+    TypedSSA.ScalarHelpers.is_scalar_fn info.fn &&
+    info.adverb_type = Adverb.Map
+  then match TypedSSA.FnHelpers.get_single_type info.fn with
     | None -> translate_sequential_adverb builder lhsVars info
     | Some (Type.ScalarT eltT) ->
       (* only vectorize function which use one type in their body *)
@@ -444,11 +441,11 @@ and translate_adverb
 and translate_sequential_adverb
     (builder:ImpBuilder.builder)
     (lhsVars : value_nodes)
-    (info : (TypedSSA.fn, Imp.value_nodes, Imp.value_nodes) Adverb.info)
+    (info : (TypedSSA.fn, Imp.value_nodes, Imp.value_nodes) Adverb.t)
     : unit =
   IFDEF DEBUG THEN
     Printf.printf "[SSA_to_Imp.sequential adverb] %s%!\n"
-      (Adverb.info_to_str
+      (Adverb.to_str
         info
         TypedSSA.PrettyPrinters.fn_id_to_str
         Imp.value_nodes_to_str
@@ -461,78 +458,44 @@ and translate_sequential_adverb
     nestedBuilder#idx_or_fixdims arr info.axes idxVars
   in
   (* pick any of the highest rank arrays in the input list *)
-  let biggestArray : Imp.value_node = argmax_array_rank info.array_args in
-  (* To implement Map, Scan, and Reduce we loop over the specified axes *)
-  (* of the biggest array argument. AllPairs is different in that we loop *)
-  (* over the axes of the first arg and nested within we loop over the *)
-  (* same set of axes of the second arg. *)
+  let biggestArray : Imp.value_node = argmax_array_rank info.args in
+
   let nAxes = List.length info.axes in
-  let loops, nestedInputs, nestedOutputs, skipFirstIter =
-    match info.adverb, info.init with
+  let loops = axes_to_loop_descriptors builder biggestArray info.axes in
+  let indexVars = get_loop_vars loops in
+  let nestedArrays = List.map (slice_along_axes indexVars) info.args in
+  let nestedInputs, nestedOutputs, skipFirstIter =
+    match info.adverb_type, info.init with
     | Adverb.Map, None ->
       (* init is a block which gets the dimensions of array we're traversing *)
-      let loops = axes_to_loop_descriptors builder biggestArray info.axes in
-      let indexVars = get_loop_vars loops in
-      let nestedArrays =
-        List.map (slice_along_axes indexVars) info.array_args
-      in
-      let nestedInputs = info.fixed_args @ nestedArrays in
+      let nestedInputs = info.fixed @ nestedArrays in
       let nestedOutputs = List.map (slice_along_axes indexVars) lhsVars in
-      loops, nestedInputs, nestedOutputs, false
+      nestedInputs, nestedOutputs, false
+      
     | Adverb.Reduce, None ->
-      let loops = axes_to_loop_descriptors builder biggestArray info.axes in
-      let indexVars = get_loop_vars loops in
-      let zeroIndices = List.map (fun _ -> ImpHelpers.zero) indexVars in
+        let zeroIndices = List.map (fun _ -> ImpHelpers.zero) indexVars in
       (* the initial value for a reduction is the first elt of the array *)
       let initVal =
         builder#idx_or_fixdims
           ~arr:biggestArray ~dims:info.axes ~indices:zeroIndices
       in
       copy builder ~from_array:initVal ~to_array:(List.hd lhsVars);
-      let nestedArrays =
-        List.map (slice_along_axes indexVars) info.array_args
-      in
-      let nestedInputs = info.fixed_args @ lhsVars @ nestedArrays in
-      loops, nestedInputs, lhsVars, true
+      let nestedInputs = info.fixed @ lhsVars @ nestedArrays in
+      nestedInputs, lhsVars, true
    | Adverb.Reduce, Some inits -> 
      assert (List.length lhsVars = List.length inits); 
      List.iter2 
        (fun init var -> copy builder ~from_array:init ~to_array:var) 
        inits 
        lhsVars; 
-     let loops = axes_to_loop_descriptors builder biggestArray info.axes in 
-     let indexVars = get_loop_vars loops in 
-     let nestedArrays = 
-       List.map (slice_along_axes indexVars) info.array_args 
-     in
-     let nestedInputs = info.fixed_args @ lhsVars @ nestedArrays in 
-     loops, nestedInputs, lhsVars, false  
-   | Adverb.AllPairs, None ->
-      (match info.array_args with
-        | [x;y] ->
-          let xLoops = axes_to_loop_descriptors builder x info.axes in
-          let xIndexVars = get_loop_vars xLoops in
-          let yLoops = axes_to_loop_descriptors builder y info.axes in
-          let yIndexVars = get_loop_vars yLoops in
-          let nestedArrays =
-            [slice_along_axes xIndexVars x; slice_along_axes yIndexVars y]
-          in
-          let constOutputAxes = List.til (2*List.length info.axes) in
-          let outputAxes = List.map ImpHelpers.int constOutputAxes in
-          let indexVars = xIndexVars @ yIndexVars in
-          let nestedOutputs =
-          List.map
-            (fun arr -> nestedBuilder#idx_or_fixdims arr outputAxes indexVars)
-            lhsVars
-          in
-          let nestedInputs = info.fixed_args @ nestedArrays in
-          xLoops@yLoops, nestedInputs, nestedOutputs, false
-        | _ -> failwith "allpairs requires two args"
-      )
+ 
+     let nestedInputs = info.fixed @ lhsVars @ nestedArrays in 
+     nestedInputs, lhsVars, false  
+   
     | _ -> failwith "malformed adverb"
   in
   let nestedInputTypes = Imp.value_types nestedInputs in
-  let impFn : Imp.fn = translate_fn info.adverb_fn nestedInputTypes in
+  let impFn : Imp.fn = translate_fn info.fn nestedInputTypes in
   nestedBuilder#inline impFn nestedInputs nestedOutputs;
   build_loop_nests ~skip_first_iter:skipFirstIter builder nestedBuilder loops
 
@@ -540,32 +503,22 @@ and translate_sequential_adverb
 and vectorize_adverb
     (builder : ImpBuilder.builder)
     (lhsVars : Imp.value_node list)
-    (info : (TypedSSA.fn, Imp.value_nodes, Imp.value_nodes) Adverb.info)
+    (info : (TypedSSA.fn, Imp.value_nodes, Imp.value_nodes) Adverb.t)
     (eltT : ImpType.elt_t) : unit =
-  (*IFDEF DEBUG THEN
-    Printf.printf "[SSA_to_Imp.vectorize_adverb] %s with elt_t = %s\n"
-      (Adverb.info_to_str
-        info
-        TypedSSA.PrettyPrinters.fn_id_to_str
-        Imp.value_nodes_to_str
-        Imp.value_nodes_to_str
-      )
-      (Type.elt_to_str eltT)
-    ;
-  ENDIF;*)
-  let fixedTypes = List.map Imp.value_type info.fixed_args in
-  let argTypes = List.map Imp.value_type info.array_args in
+
+  let fixedTypes = List.map Imp.value_type info.fixed in
+  let argTypes = List.map Imp.value_type info.args in
   let num_axes = List.length info.axes in
   let peeledArgTypes = List.map (ImpType.peel ~num_axes) argTypes in
   let fnInputTypes = fixedTypes @ peeledArgTypes in
-  match info.adverb with
+  match info.adverb_type with
   | Adverb.Map ->
 
     (* TODO: for now, only vectorize maps *)
     (* Get the biggest array, and then create outer loops for all but the *)
     (* innermost axis.  That axis is treated differently so as to be *)
     (* vectorized. *)
-    let biggestArray : Imp.value_node = argmax_array_rank info.array_args in
+    let biggestArray : Imp.value_node = argmax_array_rank info.args in
     let num_axes = List.length info.axes in
     let outerAxes = List.take (num_axes - 1) info.axes in
     let outerLoops : loop_descr list =
@@ -602,7 +555,7 @@ and vectorize_adverb
     let fixedDimArgs =
       List.map
         (fun arr -> innerBuilder#idx_or_fixdims arr outerAxes outerIndexVars)
-        info.array_args
+        info.args
     in
     Printf.printf "\n\n\nFixed Dim Args: %s \n%!"
       (Imp.value_nodes_to_str fixedDimArgs)
@@ -615,11 +568,11 @@ and vectorize_adverb
         (fun arg -> ImpHelpers.vec_slice arg vecLen vecIdxArg)
         fixedDimArgs
     in
-    let vecNestedArgs = info.fixed_args @ vecSliceArgs in
+    let vecNestedArgs = info.fixed @ vecSliceArgs in
     let vecOutputs =
       List.map (fun arg -> ImpHelpers.vec_slice arg vecLen vecIdxArg) lhsVars
     in
-    let impFn = translate_fn info.adverb_fn fnInputTypes in
+    let impFn = translate_fn info.fn fnInputTypes in
     let vecFn = Imp_to_SSE.vectorize_fn impFn vecLen in
     let vecBody = builder#clone in
     vecBody#inline vecFn vecNestedArgs vecOutputs;
@@ -641,9 +594,9 @@ and vectorize_adverb
     let seqArrayArgs =
       List.map
         (fun arg -> innerBuilder#idx_or_fixdims arg info.axes seqIndexVars)
-        info.array_args
+        info.args
     in
-    let seqNestedArgs = info.fixed_args @ seqArrayArgs in
+    let seqNestedArgs = info.fixed @ seqArrayArgs in
     let seqNestedOutputs =
       List.map
         (fun arg -> innerBuilder#idx_or_fixdims arg info.axes seqIndexVars)

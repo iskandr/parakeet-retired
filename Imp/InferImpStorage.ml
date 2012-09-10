@@ -33,24 +33,17 @@ module ImpStorageAnalysis = struct
   let value tenv {value; value_type} =
     if Type.is_scalar value_type then Imp.Local
     else Imp.Alias
-    (*else match value with
-    | TypedSSA.Var id ->
-      if not $ ID.Map.mem id tenv then
-        failwith $ "ID not found: " ^ ID.to_str id
-      else
-        ID.Map.find id tenv
-    | _ -> assert false
-    *)
 
   let exp env {exp; exp_types} helpers : Imp.storage list =
     match exp with
     | Values vs -> List.map (value env) vs
     | Cast _
     | PrimApp (Prim.ScalarOp _, _) -> [Imp.Local]
+    | Tuple _ 
     | PrimApp (Prim.ArrayOp _, _)
     | Adverb _
     | Arr _ -> List.map (fun _ -> Imp.Local) exp_types
-
+    
     | Call (fnId, args) ->
       failwith "[InferImpTypes] Typed function calls not implemented"
     | PrimApp (p, args) ->

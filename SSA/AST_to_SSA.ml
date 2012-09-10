@@ -146,7 +146,7 @@ and translate_opt_kwd env block astNode = match astNode.data with
   | AST.NoneVal () -> None
   | _ -> Some ([translate_value env block astNode])
 
-and translate_adverb env block adverb 
+and translate_adverb env block adverb_type
   (args :  AST.node Args.actual_args) (src:SrcInfo.t) =
   match args with
   | {Args.values=fn::arrayArgs; keywords} -> 
@@ -170,11 +170,12 @@ and translate_adverb env block adverb
        | None -> None
     in  
     let adverbInfo = {
-      Adverb.adverb = adverb;
-      adverb_fn = translate_value env block fn;
+      Adverb.adverb_type = adverb_type;
+      fn = translate_value env block fn;
+      combine = None; 
       axes = optAxes;
-      array_args = translate_values env block arrayArgs;
-      fixed_args = translate_values env block fixedArgs;
+      args = translate_values env block arrayArgs;
+      fixed = translate_values env block fixedArgs;
       init = optInit;
     }
     in
@@ -187,7 +188,15 @@ and translate_adverb env block adverb
 and translate_app env block fn 
   (args: AST.node Args.actual_args) (src:SrcInfo.t) = 
   match fn.data with
-  | AST.Prim (Prim.Adverb adverb) -> translate_adverb env block adverb args src
+  | AST.Prim (Prim.Adverb Prim.AllPairs) -> failwith "Broke allpairs in AST->SSA" 
+  | AST.Prim (Prim.Adverb primAdverbType) ->
+    let adverbType = match primAdverbType with 
+      | Prim.Map -> Adverb.Map
+      | Prim.Reduce -> Adverb.Reduce
+      | Prim.Scan -> Adverb.Scan 
+      | _ -> assert false 
+    in 
+    translate_adverb env block adverbType args src
   | _ ->
     let ssaFn : UntypedSSA.value_node = translate_value env block fn in
     let ssaArgs : UntypedSSA.value_node Args.actual_args = 

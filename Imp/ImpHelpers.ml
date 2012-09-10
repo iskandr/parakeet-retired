@@ -245,11 +245,14 @@ let idx arr ?dims indices =
     ;
     let eltT = ImpType.elt_type arrT in
     (* assume dims are constant or implicitly 0..n-1 *)
-    let indices' = match dims with
+    let permuted_dims = match dims with
       | Some dims ->  permute dims indices
       | None -> indices
     in
-    {value = Idx(arr, indices); value_type = ImpType.ScalarT eltT }
+    { 
+      value = Idx(arr, permuted_dims); 
+      value_type = ImpType.ScalarT eltT 
+    }
   end
 
 

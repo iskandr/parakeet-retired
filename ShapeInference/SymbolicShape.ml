@@ -3,6 +3,7 @@
 open Base
 
 type dim_op = Mult | Add | Max
+
 type dim =
   | Const of int
   | Dim of ID.t * int
@@ -13,6 +14,7 @@ let dim_eq x y =
   | Const m, Const n -> m = n 
   | Dim (xvar, i), Dim(yvar, j) -> (xvar = yvar) && (i = j)
   | Op (op1, a, b), Op(op2, c, d) -> (op1 = op2) && (a == c) && (b == d)  
+  | _ -> false 
 
 type t = dim list
 

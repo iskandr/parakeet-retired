@@ -74,67 +74,50 @@ module ShapeAnalysis (P: PARAMS) =  struct
       phi_set env id leftShape
 
     let infer_adverb
-        {Adverb.adverb; adverb_fn; fixed_args; axes; init; array_args} =
-      let maxShape, maxRank = SymbolicShape.argmax_rank array_args in
+        {Adverb.adverb_type; fn; fixed; axes; init; args} =
+      let maxShape, maxRank = SymbolicShape.argmax_rank args in
       (* split dims into those that are part of the adverb and *)
       (* those that are held constant *)
-      let loopDims, fixedDims = SymbolicShape.split maxShape axes in
+      let loopDims, nestedDims = SymbolicShape.split maxShape axes in
       let nAxes = List.length axes in
       if nAxes > maxRank then
         raise (ShapeInferenceFailure "Too many axes")
       else
-      let eltShapes = SymbolicShape.peel_shape_list ~axes array_args in
-      match adverb, init, eltShapes with
-      | Adverb.Map, None, _ ->
+      let eltShapes = SymbolicShape.peel_shape_list ~axes args in
+      match adverb_type, init with
+      | Adverb.Map, None ->
         (* shapes that go into the function on each iteration *)
-        let inputShapes = fixed_args @ eltShapes in
-        let callResultShapes = P.output_shapes adverb_fn inputShapes in
+        let inputShapes = fixed @ eltShapes in
+        let callResultShapes = P.output_shapes fn inputShapes in
         List.map (fun shape -> loopDims @ shape) callResultShapes
-      | Adverb.Map, Some _, _ ->
+     
+      (* if no initial values given then for a binary function *)
+      (* we can assume the first value we're looping over is also *)
+      (* the initial value for the accumulation. For more inputs we just *)
+      (* bail *) 
+      | Adverb.Reduce, None ->
+        assert (List.length eltShapes = 1); 
+        let inputShapes  = fixed @ eltShapes @ eltShapes in
+        let nestedResults = P.output_shapes fn inputShapes in 
+        assert (List.length nestedResults = 1);
+        assert (List.for_all2 SymbolicShape.eq eltShapes nestedResults);  
+        (* TODO : Returned shapes should be the same as the initial acc *)
+        (* shapes, which we get by taking the first elements of arrays args *)
+        nestedResults
+      
+      | Adverb.Reduce, Some initShapes ->
+        let inputShapes = fixed @ initShapes @ args in
+        let callResultShapes = P.output_shapes fn inputShapes in
+        List.map (fun shape -> nestedDims @ shape) callResultShapes
+      | Adverb.Scan, Some initShapes ->
+        let callResultShapes = 
+          P.output_shapes fn (fixed @ initShapes @ args) 
+        in
+        List.map (fun s -> nestedDims @ s) callResultShapes  
+      | Adverb.Map, Some _ ->
         raise (ShapeInferenceFailure "Unexpected init arg to Map")
-      | Adverb.AllPairs, None, [_; _] ->
-        let inputShapes = fixed_args @ eltShapes in
-        let callResultShapes = P.output_shapes adverb_fn inputShapes in
-        List.map (fun shape -> loopDims @ loopDims @ shape) callResultShapes
-      | Adverb.AllPairs, None, _ ->
-        raise (ShapeInferenceFailure "AllPairs must have two input arrays")
-      | Adverb.AllPairs, Some _, _ ->
-        raise (ShapeInferenceFailure "Unexpected init arg to AllPairs")
-      | Adverb.Reduce, None, [accShape] ->
-        let inputShapes  = fixed_args @ [accShape; accShape] in
-        begin match  P.output_shapes adverb_fn inputShapes with
-          | [result] ->
-            if SymbolicShape.rank result <> SymbolicShape.rank accShape then
-              raise (ShapeInferenceFailure
-                "Reduction operator must return same rank as initial value")
-            else [result]
-          | _ ->
-            raise (ShapeInferenceFailure "Reduce operator must return 1 result")
-        end
-      | Adverb.Reduce, None, _ -> 
-        if not $ List.for_all 
-          (fun s -> SymbolicShape.rank s = 0)
-          eltShapes then 
-          raise (
-            ShapeInferenceFailure 
-              "If reducing multiple arrays, the accumulator must be a scalar"
-          )
-        else 
-          let nElts = List.length eltShapes in 
-          let nInputs = 
-            FnManager.input_arity_of_typed_fn adverb_fn in 
-          let nAccs = nInputs - nElts in 
-          let accs = 
-            List.repeat SymbolicShape.scalar nAccs 
-          in 
-          let inputShapes = fixed_args @ accs @ eltShapes in 
-          P.output_shapes adverb_fn inputShapes 
-      | Adverb.Reduce, Some initShapes, _ ->
-        let inputShapes = fixed_args @ initShapes @ array_args in
-        let callResultShapes = P.output_shapes adverb_fn inputShapes in
-        List.map (fun shape -> fixedDims @ shape) callResultShapes
-      | Adverb.Scan, _, _->
-        raise (ShapeInferenceFailure "Scan not implemented")
+      | Adverb.Scan, None ->         
+        raise (ShapeInferenceFailure "Scan without init args not implemented")
 
     let infer_index arrayShape indexShapes =
       let nIndices = List.length indexShapes in

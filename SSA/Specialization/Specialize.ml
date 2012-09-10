@@ -171,12 +171,13 @@ and scalarize_fn untyped vecSig =
   let scalarOutputTypes = scalarFn.TypedSSA.fn_output_types in
   let outTypes = List.map (Type.increase_rank numAxes) scalarOutputTypes in
   let adverbInfo : (FnId.t, Type.t list, TypedSSA.value_nodes) Adverb.t  = {
-    Adverb.adverb = Adverb.Map;
-    adverb_fn = scalarFn.TypedSSA.fn_id;
+    Adverb.adverb_type = Adverb.Map;
+    fn = scalarFn.TypedSSA.fn_id;
+    combine = None; 
     axes = AdverbHelpers.infer_adverb_axes_from_types inTypes;
-    fixed_args = [];
+    fixed = [];
     init = None;
-    array_args = inTypes;
+    args = inTypes;
   }
   in
   AdverbHelpers.mk_adverb_fn adverbInfo
@@ -230,12 +231,13 @@ and specialize_value fnVal signature =
           in
           let nestedFn = specialize_value fnVal nestedSig in
           let adverbInfo = {
-            Adverb.adverb = Adverb.Map;
-            adverb_fn = nestedFn.TypedSSA.fn_id;
+            Adverb.adverb_type = Adverb.Map;
+            fn = nestedFn.TypedSSA.fn_id;
+            combine = None; 
             axes = AdverbHelpers.infer_adverb_axes_from_rank maxRank;
-            fixed_args = [];
+            fixed = [];
             init = None;
-            array_args = inputTypes;
+            args = inputTypes;
           }
           in
           let typedFn = AdverbHelpers.mk_adverb_fn adverbInfo in

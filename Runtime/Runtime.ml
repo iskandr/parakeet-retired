@@ -55,8 +55,8 @@ module rec Scheduler : SCHEDULER = struct
 
   let adverb (info:(TypedSSA.fn, values, int list) Adverb.t) =
     let fnTable = FnManager.get_typed_function_table() in 
-    let _ = ShapeInference.infer_shape_env fnTable info.adverb_fn in 
-    if ShapeInference.typed_fn_is_shapely info.adverb_fn then
+    let _ = ShapeInference.infer_shape_env fnTable info.fn in 
+    if ShapeInference.typed_fn_is_shapely info.fn then
       List.map DataManager.from_memspace (
         LLVM_Backend.adverb (
           Adverb.apply_to_fields
@@ -69,7 +69,7 @@ module rec Scheduler : SCHEDULER = struct
     else begin
       IFDEF DEBUG THEN
         Printf.printf "[Scheduler] Running adverb %s in interpreter\n%!"
-          (Adverb.to_str info.adverb)
+          (Adverb.adverb_type_to_str info.adverb_type)
       ENDIF; 
       Interp.eval_adverb info
     end 
@@ -224,13 +224,13 @@ and Interp : INTERP = struct
    in
    helper args axes
 
-  let eval_adverb {adverb; adverb_fn; fixed_args; init; axes; array_args} =
-    match adverb with
-    | Adverb.Map -> eval_map adverb_fn fixed_args axes array_args
+  let eval_adverb {adverb_type; fn; fixed; init; axes; args} =
+    match adverb_type with
+    | Adverb.Map -> eval_map fn fixed axes args
     | _ -> 
      failwith $ Printf.sprintf  
         "Adverb %s not implemented in interpreter"
-        (Adverb.to_str adverb)
+        (Adverb.adverb_type_to_str adverb_type)
 end
 
 let call (fn:TypedSSA.fn) (hostData:Ptr.t Value.t list) : Ptr.t Value.t list =

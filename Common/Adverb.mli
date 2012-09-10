@@ -1,11 +1,11 @@
 type adverb_type = Map | Reduce | Scan 
 
 val adverb_type_to_str : adverb_type -> string 
-
+(*
 type 'a init = 
   | InitValues of 'a
   | InitFirstElt 
-
+*)
 type ('a, 'b, 'c) t = { 
   adverb_type : adverb_type; 
   fn : 'a; 
@@ -15,7 +15,7 @@ type ('a, 'b, 'c) t = {
   (* initialize scans and reductions either with value or function mapping
      array element to acc 
   *) 
-  init : 'b init option; 
+  init : 'b option; 
   (* given two accumulators, combine them into a single new accumulator
      if this function isn't given we can't parallelize reductions & scans 
   *) 

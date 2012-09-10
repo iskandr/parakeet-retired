@@ -138,7 +138,7 @@ let get_arg_alignment arg =
     else q * byte_alignment
 
 (* TODO: All this scheduling logic is really messy. As in terrible. *)
-let do_parallel info =
+let do_parallel adverb =
   if not !use_multithreading then false
   else
     let sufficiently_large_array = function 
@@ -147,7 +147,7 @@ let do_parallel info =
         let min_elts = (get_arg_alignment arg) * num_threads in
         (Shape.get array_shape 0) >= min_elts
     in 
-    sufficiently_large_array $ List.hd info.array_args
+    sufficiently_large_array $ List.hd adverb.args
 
 let split_argument axes num_items alignment arg =
   match arg with
@@ -294,13 +294,13 @@ let call (fn:TypedSSA.fn) (args:Ptr.t Value.t list) =
   let impFn : Imp.fn = SSA_to_Imp.translate_fn fn inputTypes in
   call_imp_fn impFn args
 
-let exec_map impFn inputShapes axes array_args llvmFn =
+let exec_map impFn inputShapes axes args llvmFn =
   let outputs : Ptr.t Value.t list =
     allocate_output_arrays impFn inputShapes
   in
   (* TODO: looks like we're ignoring the closure values! *)
   let work_items =
-    build_work_items axes num_threads (array_args @ outputs)
+    build_work_items axes num_threads (args @ outputs)
   in
   do_work work_queue execution_engine llvmFn work_items;
   outputs
@@ -309,9 +309,9 @@ let exec_reduce
       impFn 
       inputShapes 
       axes 
-      fixed_args
+      fixed
       init_args 
-      array_args 
+      args 
       llvmFn =
   (* Have to allocate num_threads * output sizes to hold the intermediates *)
   let outputShapes = 
@@ -354,13 +354,13 @@ let exec_reduce
   in
   let interm_slices : GV.t list list = slice_interms [[]] 0 in
   let llvm_fixed = 
-    List.map Value_to_GenericValue.to_llvm fixed_args
+    List.map Value_to_GenericValue.to_llvm fixed
   in 
   let llvm_init = 
     List.map Value_to_GenericValue.to_llvm 
       (Option.default [] init_args)
   in 
-  let input_items = build_work_items axes num_threads array_args in
+  let input_items = build_work_items axes num_threads args in
   let work_items = 
     List.map2 
       (fun input out -> llvm_fixed @ llvm_init @  input @ out) 
@@ -414,14 +414,14 @@ let exec_allpairs
       impFn 
       (inputShapes : Shape.t list)
       (axes:int list) 
-      (fixed_args : Ptr.t Value.t list)
-      (array_args : Ptr.t Value.t list) 
+      (fixed : Ptr.t Value.t list)
+      (args : Ptr.t Value.t list) 
       llvmFn =
   let outputs : Ptr.t Value.t list =
     allocate_output_arrays impFn inputShapes
   in 
   let llvm_fixed = 
-    List.map Value_to_GenericValue.to_llvm fixed_args
+    List.map Value_to_GenericValue.to_llvm fixed
   in 
 (* FOR NOW: 
    Have to always split on first argument for axis = 0
@@ -429,7 +429,7 @@ let exec_allpairs
    since we don't have a way to split outputs
    along different axis 
 *)
-  match  array_args, axes with 
+  match  args, axes with 
   | [x;y], [axis] ->
     let work_items = 
       if axis = 0 then 
@@ -466,71 +466,70 @@ let exec_allpairs
   | _, _::_::_ -> failwith "Only 1 axis supported for allpairs"   
   | _ -> failwith "Wrong number of arguments" 
 
-let adverb (info:(TypedSSA.fn, Ptr.t Value.t list, int list) Adverb.t) =
+let adverb (adverb:(TypedSSA.fn, Ptr.t Value.t list, int list) Adverb.t) =
   IFDEF DEBUG THEN 
     Printf.printf "[LLVM_Backend.adverb] %s\n%!"
-      (Adverb.to_str info 
+      (Adverb.to_str adverb 
        (fun {TypedSSA.fn_id} -> FnId.to_str fn_id) 
        (fun vs -> String.concat ", " $ List.map Value.to_str vs)
        (fun axes -> String.concat ", " $ List.map string_of_int axes))
   ENDIF;
-  let axes' = List.map TypedSSA.int32 info.axes in 
-  let init' = Option.map (List.map Value.type_of) info.init in 
-  let fixedArgs' =  List.map Value.type_of info.fixed_args in 
-  let arrayArgs' = List.map Value.type_of info.array_args in 
-  let info' = { 
-    Adverb.adverb = info.adverb; 
-    adverb_fn = info.adverb_fn.TypedSSA.fn_id; 
-    fixed_args = fixedArgs'; 
-    array_args = arrayArgs'; 
+  let axes' = List.map TypedSSA.int32 adverb.axes in 
+  let init' = Option.map (List.map Value.type_of) adverb.init in 
+  let fixedArgs' =  List.map Value.type_of adverb.fixed in 
+  let arrayArgs' = List.map Value.type_of adverb.args in 
+  IFDEF DEBUG THEN
+    Printf.printf "[LLVM_Backend.adverb] Making adverb wrapper function...\n%!"
+  ENDIF;  
+  let adverbFn = AdverbHelpers.mk_adverb_fn { 
+    Adverb.adverb_type = adverb.adverb_type; 
+    fn = TypedSSA.fn_id adverb.fn;  
+    combine = Option.map TypedSSA.fn_id adverb.combine; 
+    fixed = fixedArgs'; 
+    args = arrayArgs'; 
     axes = axes';  
     init = init';  
   } 
   in 
-  IFDEF DEBUG THEN
-    Printf.printf "[LLVM_Backend.adverb] Making adverb wrapper function...\n%!"
-  ENDIF;  
-  let adverbFn =
-    AdverbHelpers.mk_adverb_fn info' 
-  in
   let allArgValues : Ptr.t Value.t list = 
-    info.fixed_args @ (Option.default [] info.init) @ info.array_args 
+    adverb.fixed @ (Option.default [] adverb.init) @ adverb.args 
   in
   let impTypes = List.map ImpType.type_of_value allArgValues in
   let impFn : Imp.fn = SSA_to_Imp.translate_fn adverbFn impTypes in
   let llvmFn = CompiledFunctionCache.compile impFn in
   let inputShapes : Shape.t list = List.map Value.get_shape allArgValues in
   let outputs =
-    if do_parallel info then ( 
+    if do_parallel adverb then ( 
       IFDEF DEBUG THEN 
         Printf.printf 
           "[LLVM_Backend] Running adverb %s in parallel w/ input shapes %s\n%!"
-          (Adverb.to_str info.adverb)
+          (Adverb.adverb_type_to_str adverb.adverb_type)
           (String.concat ", " (List.map Shape.to_str inputShapes))
       ENDIF; 
-      match info.adverb with
-      | Map -> exec_map impFn inputShapes info.axes info.array_args llvmFn
+      match adverb.adverb_type with
+      | Map -> exec_map impFn inputShapes adverb.axes adverb.args llvmFn
       | Reduce ->
         exec_reduce 
           impFn 
           inputShapes 
-          info.axes
-          info.fixed_args 
-          info.init 
-          info.array_args 
+          adverb.axes
+          adverb.fixed 
+          adverb.init 
+          adverb.args 
           llvmFn
+      (*
       | AllPairs ->
         exec_allpairs 
           impFn 
           inputShapes 
-          info.axes 
-          info.fixed_args 
-          info.array_args 
+          adverb.axes 
+          adverb.fixed 
+          adverb.args 
           llvmFn 
-         
-        (*call_imp_fn impFn (info.fixed_args @ info.array_args)
+      *) 
+        (*call_imp_fn impFn (info.fixed @ adverb.args)
          *)
-      | Scan -> failwith "Adverb exec function not implemented yet."
+      | Scan -> failwith "Adverb exec function not implemented yet for scan"
     )
     else
       call_imp_fn impFn allArgValues 

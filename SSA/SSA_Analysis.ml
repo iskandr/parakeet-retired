@@ -145,8 +145,8 @@ module MkEvaluator(A : ANALYSIS) = struct
       iter_values env args;
       iter_values env axes;
       match init with 
-        | Some (Adverb.InitValues vs) -> iter_values env vs
-        | _ -> ()
+        | Some vs -> iter_values env vs
+        | None -> ()
       
   and iter_values env = function
     | [] -> () | v::vs -> let _ = A.value env v in iter_values env vs
