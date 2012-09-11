@@ -29,8 +29,7 @@ def _argmin_helper(currMin, currMinIndex, currIndex, currArrVal):
 
 @parakeet_prim(np.argmin)
 def argmin(x):
-  gib1,res,gib2 = reduce(_argmin_helper, x, default=(100000000000,-1,0))
-  return res
+  return reduce(_argmin_helper, x, default=(100000000000,-1,0))
 
 def _and(x,y):
   return x and y

@@ -396,8 +396,10 @@ value get_value_and_remove_root(paranode node) {
   old_tail = Val_int(0); 
   int i;
   for (i = num_vals - 1; i >= 0; i--) {
+	printf("  %d\n", i);
     new_tail = caml_alloc_tuple(2); 
     elt = get_value_and_remove_root(vals[i]); 
+    printf("    %p\n", elt);
     Store_field(new_tail, 0, elt); 
     Store_field(new_tail, 1, old_tail); 
     old_tail = new_tail; 

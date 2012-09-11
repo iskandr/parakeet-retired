@@ -131,6 +131,8 @@ def register_function(f):
   # register every function that was seen but not registered
 
   fn_name_c_str = c_char_p(global_fn_name(f))
+  print "Calling register with %d/%d/%d global/positional/default" % (n_globals, n_positional, n_defaults)
+  print "args", default_args_array, len(default_args_array)
   fun_id = c_int(
     LibPar.register_untyped_function(
       fn_name_c_str, 
