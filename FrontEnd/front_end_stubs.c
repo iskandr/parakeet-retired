@@ -72,16 +72,18 @@ int register_untyped_function(
   CAMLlocal2(default_arg_names_list, default_arg_values_list);
   CAMLlocal1(fn_id);
 
-  printf(":: registering untyped function\n");
+  printf(":: registering untyped function (%s, %d globals, %d args)\n",
+    name, num_globals, num_args);
 
   val_name = caml_copy_string(name);
-
+  printf("::: building globals list");
   globals_list = build_str_list(globals, num_globals);
+  printf("::: building args list");
   args_list    = build_str_list(args, num_args);
-
+  printf("::: building defaults list");
   default_arg_names_list = build_str_list(default_args, num_defaults);
 
-
+  printf("::: building default values list");
   default_arg_values_list = mk_val_list(default_arg_values, num_defaults);
   value func_args[6] = {
     val_name,
@@ -94,7 +96,7 @@ int register_untyped_function(
 
   printf("  ...calling into OCaml's register function\n");
   fn_id = caml_callbackN(*ocaml_register_untyped_function, 6, func_args);
-  printf("FN ID: %d\n", Int_val(fn_id));
+  printf("DONE WITH FN ID: %d\n", Int_val(fn_id));
   CAMLreturnT(int, Int_val(fn_id));
 }
 

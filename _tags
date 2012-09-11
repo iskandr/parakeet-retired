@@ -1,6 +1,9 @@
 <**/*.native> or <**/*.ml> or <**/*.mli> or <**/*.cmx> : package(unix), package(str), package(bigarray), package(extlib)
 "/usr/local/lib/ocaml" : include
+"/usr/local/lib/ocaml/xml-light" : include
 "/usr/local/lib/ocaml/llvm-3.0" : include
+"/usr/lib/ocaml" : inlcude
+"/usr/lib/ocaml/llvm-3.0" : include
 "/usr/lib/ocaml/xml-light": include
 "AST" : include
 "Base" : include

@@ -93,10 +93,19 @@ if opts['clean']:
 parakeet_path = ".."
 if 'PARAKEET_PATH' in os.environ:
   parakeet_path = os.environ['PARAKEET_PATH']
+
+includes = [
+  '/usr/local/lib/ocaml',
+  '/usr/lib/ocaml', 
+  '/usr/local/lib/ocaml/xml-light', 
+  '/usr/lib/ocaml/xml-light', 
+  '/usr/local/ocaml/llvm-3.0', 
+  '/usr/lib/ocaml/llvm-3.0'
+]
 build_command = ["ocamlbuild",
                  "-use-ocamlfind", 
                  "-cflags",
-                 "-I,/usr/local/lib/ocaml,-I,/usr/lib/ocaml/llvm-3.0,-I,/usr/lib/ocaml/xml-light",
+                 "-I," + ",-I,".join(includes), 
                  "-lflags"]
 if opts['gpu']:
   build_command.extend(
