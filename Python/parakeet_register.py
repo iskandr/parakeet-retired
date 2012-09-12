@@ -93,12 +93,15 @@ def register_function(f):
   body_source = inspect.getsource(f) #function_source(codeInfo)
   
   body_ast = ast.parse(body_source)
+  
   print body_source
   print ast_to_str(body_ast)
+  
   body_ast = ast.fix_missing_locations(body_ast)
   Converter = ASTConverter(global_refs, argspec.args, file_name, line_offset)
+  
   parakeet_syntax = Converter.visit_module(body_ast)
-
+  print "Syntax node",  parakeet_syntax
   for other_fn in Converter.seen_functions:
     if not VisitedFunctions.has_key(other_fn):
       register_function(other_fn)

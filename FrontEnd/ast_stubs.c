@@ -275,7 +275,10 @@ paranode mk_block(paranode *stmts, int num_stmts, source_info_t *src_info) {
   stmt_list = mk_val_list(stmts, num_stmts);
   block = caml_alloc(1, Exp_Block);
   Store_field(block, 0, stmt_list);
-  CAMLreturnT(paranode, mk_node(block, src_info));
+  paranode wrapped_block =  mk_node(block, src_info);
+  printf("wrapped block: %d (%p)\n", wrapped_block, wrapped_block);
+  printf("  |-- contains value: %d\n", wrapped_block->v);
+  CAMLreturnT(paranode, wrapped_block);
 }
 
 paranode mk_whileloop(paranode test, paranode body, source_info_t *src_info) {
@@ -396,10 +399,10 @@ value get_value_and_remove_root(paranode node) {
   old_tail = Val_int(0); 
   int i;
   for (i = num_vals - 1; i >= 0; i--) {
-	printf("  %d\n", i);
+
     new_tail = caml_alloc_tuple(2); 
     elt = get_value_and_remove_root(vals[i]); 
-    printf("    %p\n", elt);
+
     Store_field(new_tail, 0, elt); 
     Store_field(new_tail, 1, old_tail); 
     old_tail = new_tail; 
@@ -410,6 +413,7 @@ value get_value_and_remove_root(paranode node) {
 paranode mk_root(value v) {
   CAMLparam1(v);
   paranode_t* p = (paranode_t*)malloc(sizeof(paranode_t));
+
   caml_register_global_root(&(p->v));
   p->v = v;
   CAMLreturnT(paranode, p);
@@ -434,6 +438,7 @@ paranode mk_node(value exp, source_info_t *src_info) {
   Store_field(node, 0, exp);
   Store_field(node, 1, ocaml_src_info);
   Store_field(node, 2, ast_info);
-
-  CAMLreturnT(paranode, mk_root(node));
+  paranode wrapped =  mk_root(node);
+  //printf("Contains value %d\n", wrapped->v);
+  CAMLreturnT(paranode, wrapped);
 }

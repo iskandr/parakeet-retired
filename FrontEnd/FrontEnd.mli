@@ -25,11 +25,12 @@ val run_function :
 
 val run_adverb :  
   adverb:Prim.adverb -> 
-    untyped_id: FnId.t -> 
-      globals: values -> 
-        init : values -> 
-          axes : int list option ->   
-            fixed : value Args.actual_args -> 
-              arrays : value Args.actual_args ->
-                ret_val 
+    fn_id: FnId.t ->
+      fixed : value Args.actual_args ->
+        combine_id : FnId.t option ->
+          combine_fixed : value Args.actual_args ->   
+            init : values -> 
+              axes : int list option ->   
+                arrays : value Args.actual_args ->
+                  ret_val 
                 

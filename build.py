@@ -7,7 +7,7 @@ parser = optparse.OptionParser(description='Parakeet Build System')
 parser.add_option('-p', '--python', action='store_true', default=True,
                     help='Build Python front end')
 
-parser.add_option('-o', '--opt', action='store_true',
+parser.add_option('-o', '--opt', action='store_true', default=False, 
                     help='Disable debug mode')
 
 parser.add_option('-g', '--gpu', action='store_true',
@@ -95,12 +95,12 @@ if 'PARAKEET_PATH' in os.environ:
   parakeet_path = os.environ['PARAKEET_PATH']
 
 includes = [
-  '/usr/local/lib/ocaml',
   '/usr/lib/ocaml', 
-  '/usr/local/lib/ocaml/xml-light', 
+  '/usr/local/lib/ocaml',
   '/usr/lib/ocaml/xml-light', 
-  '/usr/local/ocaml/llvm-3.0', 
+  '/usr/local/lib/ocaml/xml-light', 
   '/usr/lib/ocaml/llvm-3.0'
+  '/usr/local/ocaml/llvm-3.0', 
 ]
 build_command = ["ocamlbuild",
                  "-use-ocamlfind", 

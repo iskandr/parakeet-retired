@@ -107,7 +107,13 @@ let infer_axes arrayArgTypes = function
      AdverbHelpers.infer_adverb_axes_from_types 
        (Args.all_actual_values arrayArgTypes)
 
-let run_adverb ~adverb ~untyped_id ~globals ~init ~axes ~fixed ~arrays : ret_val = 
+let run_adverb 
+      ~adverb 
+      ~fn_id
+      ~fixed 
+      ?combine_id
+      combine_fixed
+      ~init ~axes ~arrays : ret_val = 
   (* fixed keywords not yet supported *) 
   assert (fixed.Args.keywords = []);
   (* array keywords not yet supported *) 

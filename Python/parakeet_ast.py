@@ -289,7 +289,11 @@ class ASTConverter():
     """ 
     assert isinstance(node, ast.Module)
     assert len(node.body) == 1
-    return self.visit_function_def(node.body[0])
+    body = node.body[0]
+    print body 
+    ptr = self.visit_function_def(node.body[0])
+    print "ptr", ptr
+    return ptr 
   
   # TODO: don't ignore function decorators!  
   def visit_function_def(self, node):
@@ -306,8 +310,9 @@ class ASTConverter():
     
   
   def visit_stmt_sequence(self, stmts, src_info=None):
-    #print "visit_stmt_seq"
-    return mk_block([self.visit_stmt(stmt) for stmt in stmts], src_info)
+    stmt_nodes = [self.visit_stmt(stmt) for stmt in stmts]
+    print stmt_nodes
+    return mk_block(stmt_nodes, src_info)
 
   def visit_stmt(self, node, src_info = None):
     #print "visit_stmt", node
@@ -528,7 +533,6 @@ class ASTConverter():
       return build_prim_call(prim_name, [parakeet_obj],  src_info)
     else:
       raise ParakeetUnsupported("Can't call method %s" % method_name)
-    
     
   def visit_adverb(self, adverb, fn, args, kwds):
     python_fn = self.get_function_ref(fn)

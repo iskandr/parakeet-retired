@@ -56,11 +56,15 @@ class WrappedFunction:
       curr_val = curr_val.__dict__[var_parts[i]]
     return curr_val
 
-  def _prep_globals(self): 
-    global_args = [python_value_to_parakeet(self._get_global_value(g)) 
-                   for g in self.global_vars]
-    return  list_to_ctypes_array(global_args)
-
+  def _globals_as_python_values(self):
+    return [self._get_global_value(g) for g in self.global_vars]
+  
+  def _globals_as_parakeet_value_list(self):
+    return [python_value_to_parakeet(v) for v in self._globals_as_python_values()]
+    
+  def _globals_as_parakeet_value_array(self):
+    return list_to_ctypes_array(self._globals_as_parakeet_value_list())
+  
   def _convert_returned_value(self, ret):    
     if ret.return_code != 0:
       raise RuntimeError("[Parakeet] Execution failed: %s" % ret.error_msg)
@@ -75,33 +79,57 @@ class WrappedFunction:
         return tuple(results)
 
   def _run_adverb(self, adverb_name, args, kwds):
-    global_values = self._prep_globals()
 
-    reserved_keywords = ['axis', 'axes', 'fixed']
+    fn_id = self.parakeet_untyped_id
+    global_values = self._globals_as_python_values()
+    
+      
+    reserved_keywords = ['axis', 'axes', 'fixed', 'combine_fixed']
+    
     if 'axis' in kwds:
       axes = kwds['axis']
     elif 'axes' in kwds: 
       axes = kwds['axes']
     else:
       axes = None
+      
     if axes is not None:
       try:
         iter(axes)
       except:
         axes = [axes]
-    if 'fixed' in kwds:
-      fixed = kwds['fixed']
-    else:
-      fixed = []
+        
+    fixed = kwds.get('fixed', [])
+    
     try:
       iter(fixed)
     except:
       fixed = [fixed]
+    #TODO: make keywords work for fixed args
+    fixed_values, _, _ = _prep_args(global_values + fixed, {})
     
-    if 'init' is kwds:
-      init = kwds['init']
+
+    if adverb_name.lower() ==  "map":
+      combine_provided = False
+      combine_fixed_values = _prep_args([], {})
     else:
-      init = []
+      combine_provided = True 
+      if combine is None:
+        wrapped_combine = self 
+      else:
+        wrapped_combine = PAR(combine)
+      combine_id = wrapped_combine.parakeet_untyped_id
+      combine_globals = wrapped_combine._globals_as_python_values()()  
+    
+      combine_fixed = kwds.get('combine_fixed', [])
+      try:
+        iter(combine_fixed)
+      except:
+        combine_fixed = [combine_fixed]    
+      combine_fixed_values, _, _ = \
+        _prep_args(combine_globals + combine_fixed, {})
+    
+    init = kwds.get('init', [])
     try:
       iter(init)
     except:
@@ -118,29 +146,19 @@ class WrappedFunction:
 
     init_values = _prep_value_list(init)
 
-    #TODO: make keywords work for fixed args
-    fixed_values, fixed_keywords, fixed_keyword_values = \
-      _prep_args(fixed, {})
+
     filtered_kwds = \
       dict([(k,v) for (k,v) in kwds.items() if k not in reserved_keywords]) 
     array_values, array_keywords, array_keyword_values = \
       _prep_args(args, filtered_kwds)  
-    #print "[Parakeet] Running adverb ", adverb_name, \
-    #  "with", len(global_values), "globals,", \
-    #  len(fixed_values), "fixed,", \
-    #  len(fixed_keywords), "fixed kwds,", \
-    #  len(init_values), "init,", \
-    #  n_axes, "axes, ", \
-    #  len(array_values), "arrays,", \
-    #  len(array_keywords), "array kwds"
-     
+          
     from ctypes import c_int
     result = LibPar.run_adverb(
       adverb_name, 
-      self.parakeet_untyped_id, 
-      global_values, c_int(len(global_values)), 
+      fn_id,
       fixed_values, c_int(len(fixed_values)), 
-      fixed_keywords, fixed_keyword_values, c_int(len(fixed_keywords)), 
+      combine_id, combine_provided,   
+      combine_fixed_values, c_int(len(combine_fixed_values)), 
       init_values, c_int(len(init_values)), 
       axes_given, axes_values, c_int(n_axes), 
       array_values, c_int(len(array_values)), 
@@ -149,21 +167,21 @@ class WrappedFunction:
      
 
   def map(self, *args, **kwds):
-    return self._run_adverb("map", args, kwds)
+    return self._run_adverb("map", None, args, kwds)
     
-  def reduce(self, *args, **kwds):
-    return self._run_adverb("reduce", args, kwds)
+  def reduce(self, combine = None, *args, **kwds):
+    return self._run_adverb("reduce", combine, args, kwds)
   
-  def scan(self, *args, **kwds):
-    return self._run_adverb("scan", args, kwds)
+  def scan(self, combine = None,  *args, **kwds):
+    return self._run_adverb("scan", combine, args, kwds)
   
-  def allpairs(self, *args, **kwds):  
-    return self._run_adverb("allpairs", args, kwds)
+  def allpairs(self, combine = None, *args, **kwds):  
+    return self._run_adverb("allpairs", combine, args, kwds)
   
   def __call__(self, *args, **kwds):
     global_values = self._prep_globals()
     arg_values, kwd_names, kwd_values = _prep_args(args, kwds)   
-    #print self.parakeet_untyped_id 
+
     ret = LibPar.run_function(
         self.parakeet_untyped_id, 
         global_values, c_int(len(global_values)), 
@@ -175,10 +193,9 @@ class WrappedFunction:
     return self.old_function(*args, **kwds)
 
 
+
 from parakeet_register import register_function 
 
 def PAR(old_function):
   untyped_id, global_vars = register_function(old_function)
   return WrappedFunction(old_function, untyped_id, global_vars)
-
-

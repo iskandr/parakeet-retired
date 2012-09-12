@@ -90,7 +90,8 @@ int register_untyped_function(
   printf("::: building default values list\n");
   default_arg_values_list = mk_val_list(default_arg_values, num_defaults);
   printf("::: building fn args\n");
-
+  printf("::: ast = %d\n", ast);
+  printf("::: ast->v = %d\n", ast->v);
   value func_args[6] = {
     val_name,
     globals_list,
@@ -234,28 +235,43 @@ value mk_actual_args(
 return_val_t run_adverb(
   char* adverb_name, 
   int fn_id, 
-  host_val* globals, int num_globals,
   host_val* fixed, int num_fixed,
-  char **fixed_keyword_names, host_val* fixed_keyword_values, int num_fixed_keywords, 
+  int combine_fn_id, int combine_provided,
+  host_val* combine_fixed, int num_combine_fixed,
   host_val* init, int num_init, 
   int axes_given, int* axes, int num_axes, 
   host_val* array_positional, int num_array_positional,
-  char** array_keyword_names, host_val* array_keyword_values, int num_array_keyword_values) {
+  char** array_keyword_names, host_val* array_keyword_values,
+  int num_array_keyword_values) {
    
   CAMLparam0();
-  CAMLlocal2(adverb, globals_list);
-  CAMLlocal2(fixed_actuals, array_actuals);
+  CAMLlocal1(fn_id_val);
+  CAMLlocal1(combine_id_val_opt);
+  CAMLlocal1(adverb);
+  CAMLlocal2(fixed_actuals, combine_fixed_actuals);
+  CAMLlocal1(array_actuals);
   CAMLlocal2(init_list, axes_list_option); 
   CAMLlocal1(ocaml_result);
   
-  printf("Building list of %d global values\n", num_globals); 
-  globals_list = build_host_val_list(globals, num_globals);
+  fn_id_val = Val_int(fn_id);
+  if (combine_provided) {
+    combine_id_val_opt = caml_alloc_tuple(1);
+    Store_field(combine_id_val_opt, 0, Val_int(combine_fn_id));
+  } else {
+    combine_id_val_opt = Val_int(0);
+  }
+
   printf("Making fixed args from %d fixed values and %d fixed kwds\n", 
     num_fixed, num_fixed_keywords); 
-  fixed_actuals = mk_actual_args(fixed, num_fixed, \
-    fixed_keyword_names, fixed_keyword_values, num_fixed_keywords);
+  fixed_actuals = mk_actual_args(fixed, num_fixed, 0, 0, 0);
+
+  printf("Making fixed args for combiner\n");
+  combine_fixed_actuals = mk_actual_args(combine_fixed,
+    num_combine_fixed, 0, 0, 0);
+
   printf("Making array args from %d arrays and %d kwds\n", 
-    num_array_positional, num_array_keyword_values); 
+    num_array_positional, num_array_keyword_values);
+
   array_actuals = mk_actual_args(array_positional, num_array_positional, \
     array_keyword_names, array_keyword_values, num_array_keyword_values); 
   printf("Building list of %d init args\n", num_init); 
@@ -270,13 +286,14 @@ return_val_t run_adverb(
   }
   printf("Calling into OCaml\n");  
   adverb = get_adverb(adverb_name); 
-  value func_args[7] = {
+  value func_args[8] = {
     adverb,
-    Val_int(fn_id), 
-    globals_list, 
+    fn_id_val,
+    fixed_actuals,
+    combine_id_val_opt,
+    combine_fixed_actuals,
     init_list, 
     axes_list_option, 
-    fixed_actuals,
     array_actuals
   };
   ocaml_result = caml_callbackN(*ocaml_run_adverb, 7, func_args);
