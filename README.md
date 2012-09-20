@@ -1,0 +1,1 @@
+An attempt at a parallelizing JIT for Numpy. We built some cool infrastructure and occasionally achieved impressive performance. However, maintaining such a big project across multiple languages is extremely tedious, so we're starting over in Pure Python (tm). 
